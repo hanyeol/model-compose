@@ -34,7 +34,7 @@ class FakeJobContext:
         self.workflow = FakeWorkflow()
         self.is_terminal = False
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
-        self.renderer = VariableRenderer(self._resolve_source)
+        self.renderer = VariableRenderer(self.resolve_source)
         self.register_calls: list[tuple[Optional[str], str, Any]] = []
 
     def register_source(self, scope: Optional[str], key: str, source: Any) -> None:
@@ -44,14 +44,7 @@ class FakeJobContext:
     async def render_variable(self, scope: Optional[str], value: Any, skip_decode: bool = False) -> Any:
         return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
-    async def render_duration(self, scope: Optional[str], value: Any, default: Optional[float] = None) -> Optional[float]:
-        from mindor.core.foundation.variable.time import parse_duration
-        value = await self.render_variable(scope, value) if value is not None else None
-        if value is not None:
-            return parse_duration(value)
-        return default
-
-    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
+    async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         sources = self._sources.get(scope or "__global__", {})
         if key in sources:
             value = sources[key]

@@ -102,22 +102,21 @@ def _make_context() -> ComponentActionContext:
     async def render_scalar(value, cast, default=None):
         if value is None:
             return default
+        if isinstance(cast, str):
+            from mindor.core.foundation.variable.time import parse_time
+            from mindor.core.foundation.variable.size import parse_size
+            from mindor.core.foundation.variable.decimal import parse_decimal
+            from mindor.core.foundation.variable.color import parse_color
+            parsers = {
+                "time": parse_time,
+                "size": parse_size,
+                "decimal": parse_decimal,
+                "color": parse_color,
+            }
+            return parsers[cast](value)
         return cast(value)
 
-    async def render_time(value, default=None):
-        if value is None:
-            return default
-        from mindor.core.foundation.variable.time import parse_time
-        return parse_time(value)
-
-    async def render_string(value, default=None):
-        if value is None or value == "":
-            return default
-        return value
-
     ctx.render_scalar = AsyncMock(side_effect=render_scalar)
-    ctx.render_time = AsyncMock(side_effect=render_time)
-    ctx.render_string = AsyncMock(side_effect=render_string)
     ctx._sources = sources  # exposed for tests that want to inspect
     return ctx
 
@@ -787,14 +786,26 @@ class TestEncodingRendering:
         )
         ctx = _make_context()
 
-        async def render_string(value, default=None):
+        async def render_scalar(value, cast, default=None):
             if value == "${input.format}":
                 return "webm"
-            if value is None or value == "":
+            if value is None:
                 return default
-            return value
+            if isinstance(cast, str):
+                from mindor.core.foundation.variable.time import parse_time
+                from mindor.core.foundation.variable.size import parse_size
+                from mindor.core.foundation.variable.decimal import parse_decimal
+                from mindor.core.foundation.variable.color import parse_color
+                parsers = {
+                    "time": parse_time,
+                    "size": parse_size,
+                    "decimal": parse_decimal,
+                    "color": parse_color,
+                }
+                return parsers[cast](value)
+            return cast(value)
 
-        ctx.render_string = AsyncMock(side_effect=render_string)
+        ctx.render_scalar = AsyncMock(side_effect=render_scalar)
 
         action = FFmpegScreenCaptureAction(
             _make_config(
@@ -823,14 +834,26 @@ class TestEncodingRendering:
         )
         ctx = _make_context()
 
-        async def render_string(value, default=None):
+        async def render_scalar(value, cast, default=None):
             if value == "${input.bitrate}":
-                return "6M"
-            if value is None or value == "":
+                value = "6M"
+            if value is None:
                 return default
-            return value
+            if isinstance(cast, str):
+                from mindor.core.foundation.variable.time import parse_time
+                from mindor.core.foundation.variable.size import parse_size
+                from mindor.core.foundation.variable.decimal import parse_decimal
+                from mindor.core.foundation.variable.color import parse_color
+                parsers = {
+                    "time": parse_time,
+                    "size": parse_size,
+                    "decimal": parse_decimal,
+                    "color": parse_color,
+                }
+                return parsers[cast](value)
+            return cast(value)
 
-        ctx.render_string = AsyncMock(side_effect=render_string)
+        ctx.render_scalar = AsyncMock(side_effect=render_scalar)
 
         action = FFmpegScreenCaptureAction(
             _make_config(
@@ -843,7 +866,7 @@ class TestEncodingRendering:
         )
         result = await action.run(ctx)
 
-        # parse_bitrate converts "6M" → 6_000_000; that int should be what
+        # parse_decimal converts "6M" → 6_000_000; that int should be what
         # gets stringified for the -b:v flag.
         argv = seen[0]
         assert "-b:v" in argv

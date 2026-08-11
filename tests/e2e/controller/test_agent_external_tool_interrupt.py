@@ -38,20 +38,25 @@ def reset_component_instances():
 
 
 # Mock LLM: parses the messages list from argv[1] (Python repr / literal form).
-# Messages arrive in canonical `block` form: {role, blocks: [{type, ...}]}.
-# If any prior message has role=tool, emit a final content message; otherwise
-# emit a tool_call for `get_weather`.
+# Messages arrive in canonical block form: {role, content: [{type, ...}]} and
+# the mock returns a canonical assistant message in the same shape.
+# If any prior message has role=tool, emit a final text block; otherwise emit a
+# tool_call block for `get_weather`.
 MOCK_LLM_SCRIPT = (
     "import ast, json, sys\n"
     "messages = ast.literal_eval(sys.argv[1])\n"
     "tool_msg = next((m for m in messages if m.get('role') == 'tool'), None)\n"
     "if tool_msg is not None:\n"
-    "    result = next(b for b in tool_msg['blocks'] if b.get('type') == 'tool_result')\n"
-    "    print(json.dumps({'content': 'weather=' + result['content']}))\n"
+    "    result = next(b for b in tool_msg['content'] if b.get('type') == 'tool_result')\n"
+    "    print(json.dumps({\n"
+    "        'role': 'assistant',\n"
+    "        'content': [{ 'type': 'text', 'text': 'weather=' + result['content'] }]\n"
+    "    }))\n"
     "else:\n"
     "    print(json.dumps({\n"
-    "        'tool_calls': [\n"
-    "            { 'id': 'call_1', 'name': 'get_weather', 'arguments': { 'city': 'seoul' } }\n"
+    "        'role': 'assistant',\n"
+    "        'content': [\n"
+    "            { 'type': 'tool_call', 'id': 'call_1', 'name': 'get_weather', 'arguments': { 'city': 'seoul' } }\n"
     "        ]\n"
     "    }))\n"
 )
@@ -159,16 +164,16 @@ class TestAgentExternalToolInterrupt:
             assert final.status == TaskStatus.COMPLETED, f"Expected COMPLETED, got {final.status}: {final.error}"
 
             # The agent returns the full messages list by default in canonical
-            # `block` form. The last assistant message should carry a text block
+            # block form. The last assistant message should carry a text block
             # reflecting the injected tool result.
             messages = final.output if isinstance(final.output, list) else []
             assistant_final = next(
-                (m for m in reversed(messages) if m.get("role") == "assistant" and m.get("blocks")),
+                (m for m in reversed(messages) if m.get("role") == "assistant" and m.get("content")),
                 None,
             )
             assert assistant_final is not None, f"No final assistant message in: {messages}"
             text_block = next(
-                (b for b in assistant_final["blocks"] if b.get("type") == "text"),
+                (b for b in assistant_final["content"] if b.get("type") == "text"),
                 None,
             )
             assert text_block is not None, f"No text block in: {assistant_final}"

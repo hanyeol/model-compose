@@ -229,7 +229,7 @@ class TestAudioProcessorNumpyMethods:
     async def test_peak_limit_only_scales_when_exceeded(self):
         import numpy as np
         # Case A: peak already below limit → unchanged
-        config = _config("peak-limit", level=0.9)
+        config = _config("peak-limit", mode="hard", level=0.9)
         action = AudioProcessorAction(config)
 
         source = _make_pcm_source(amplitude=0.3)
@@ -245,7 +245,7 @@ class TestAudioProcessorNumpyMethods:
     @pytest.mark.anyio
     async def test_peak_limit_caps_hot_signal(self):
         import numpy as np
-        config = _config("peak-limit", level=0.5)
+        config = _config("peak-limit", mode="hard", level=0.5)
         action = AudioProcessorAction(config)
 
         source = _make_pcm_source(amplitude=0.95)

@@ -103,16 +103,21 @@ def make_extractor_context(video_path: str):
     async def render_scalar(value, cast, default=None):
         if value is None:
             return default
+        if isinstance(cast, str):
+            from mindor.core.foundation.variable.time import parse_time
+            from mindor.core.foundation.variable.size import parse_size
+            from mindor.core.foundation.variable.decimal import parse_decimal
+            from mindor.core.foundation.variable.color import parse_color
+            parsers = {
+                "time": parse_time,
+                "size": parse_size,
+                "decimal": parse_decimal,
+                "color": parse_color,
+            }
+            return parsers[cast](value)
         return cast(value)
 
-    async def render_time(value, default=None):
-        if value is None:
-            return default
-        from mindor.core.foundation.variable.time import parse_time
-        return parse_time(value)
-
     ctx.render_scalar = AsyncMock(side_effect=render_scalar)
-    ctx.render_time = AsyncMock(side_effect=render_time)
     return ctx
 
 
@@ -148,8 +153,26 @@ def make_processor_context(input_payload: Any, stream_output: bool = False):
         # Pass through PIL Images, lists of them, and async iterators unchanged.
         return rendered
 
+    async def render_scalar(value, cast, default=None):
+        if value is None:
+            return default
+        if isinstance(cast, str):
+            from mindor.core.foundation.variable.time import parse_time
+            from mindor.core.foundation.variable.size import parse_size
+            from mindor.core.foundation.variable.decimal import parse_decimal
+            from mindor.core.foundation.variable.color import parse_color
+            parsers = {
+                "time": parse_time,
+                "size": parse_size,
+                "decimal": parse_decimal,
+                "color": parse_color,
+            }
+            return parsers[cast](value)
+        return cast(value)
+
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_image = AsyncMock(side_effect=render_image)
+    ctx.render_scalar = AsyncMock(side_effect=render_scalar)
     return ctx
 
 

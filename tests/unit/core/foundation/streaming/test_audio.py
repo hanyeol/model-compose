@@ -206,15 +206,15 @@ class TestCollectPcm:
         assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
-    async def test_pcm_missing_sample_rate_defaults_to_16000(self):
+    async def test_pcm_missing_sample_rate_raises(self):
         samples = np.arange(100, dtype=np.int16)
         src = MediaSource(
             ChunkedStreamResource(samples.tobytes(), 1000),
             format="s16le",
             attrs={"channels": 1},
         )
-        _, sr = await AudioBufferStreamer(src).collect()
-        assert sr == 16000
+        with pytest.raises(ValueError, match="requires 'sample_rate'"):
+            await AudioBufferStreamer(src).collect()
 
     @pytest.mark.anyio
     async def test_pcm_resample_16k_to_8k(self):

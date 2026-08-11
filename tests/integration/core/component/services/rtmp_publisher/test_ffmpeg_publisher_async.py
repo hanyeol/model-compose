@@ -133,6 +133,7 @@ class TestFFmpegRtmpPublisherAsync:
                 video=slow_publish_mp4_path,
                 video_attrs=None,
                 audio=None,
+                audio_format=None,
                 audio_attrs=None,
             ),
             tick_interval_s=0.01,

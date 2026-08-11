@@ -52,6 +52,16 @@ def _make_corrector(
     )
 
 
+def _matched(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filter out estimated gap segments so tests can focus on anchored ones."""
+    return [ r for r in results if not r.get("estimated") ]
+
+
+def _estimated(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Keep only estimated gap segments."""
+    return [ r for r in results if r.get("estimated") ]
+
+
 def _drain(it: Iterator[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(it)
 
@@ -160,13 +170,17 @@ class TestReferenceCursorAdvance:
 
 
 class TestSkipRules:
+    """Segments that fail to anchor produce no matched output. The reference
+    they didn't cover surfaces later as estimated gap segments — those tests
+    live in TestGapFill."""
+
     def test_below_threshold_segment_is_skipped(self):
         result = _correct_all(
             "hello world",
             [{"text": "completely different text", "start_time": 0.0, "end_time": 1.0}],
             match_threshold=0.9,
         )
-        assert result == []
+        assert _matched(result) == []
 
     def test_segment_after_reference_exhaustion_is_skipped(self):
         result = _correct_all(
@@ -177,19 +191,10 @@ class TestSkipRules:
                 {"text": "extra", "start_time": 1.0, "end_time": 1.5},
             ],
         )
-        # Only the segment that fits the reference gets emitted.
-        assert len(result) == 1
-        assert result[0]["text"] == "hello"
-
-    def test_leftover_reference_is_discarded_on_flush(self):
-        # Reference has many tokens but only one segment arrives — flush must
-        # not emit trailing reference text.
-        result = _correct_all(
-            "hello world this is much longer than the stt output",
-            [{"text": "helo wrld", "start_time": 0.0, "end_time": 1.0}],
-        )
-        assert len(result) == 1  # only the matched one
-        assert result[0]["text"] == "hello world"
+        matched = _matched(result)
+        # Only the segment that fits the reference gets emitted as an anchor.
+        assert len(matched) == 1
+        assert matched[0]["text"] == "hello"
 
     def test_flush_yields_nothing_extra_after_normal_feeding(self):
         corrector = _make_corrector("hello world")
@@ -201,14 +206,14 @@ class TestSkipRules:
             "hello world",
             [{"text": "", "start_time": 0.0, "end_time": 1.0}],
         )
-        assert result == []
+        assert _matched(result) == []
 
     def test_whitespace_only_text_segment_is_skipped(self):
         result = _correct_all(
             "hello world",
             [{"text": "   ", "start_time": 0.0, "end_time": 1.0}],
         )
-        assert result == []
+        assert _matched(result) == []
 
     def test_non_dict_segment_is_skipped(self):
         # feed() is defensive — pass a non-dict and expect no crash, no emit.
@@ -375,11 +380,195 @@ class TestRegressionScenarios:
             "into the woods",
         ]
 
-    def test_empty_segment_stream_yields_nothing(self):
-        assert _correct_all("hello world", []) == []
+    def test_empty_segment_stream_produces_only_estimates(self):
+        # With no STT anchors at all, the full reference surfaces on flush as
+        # estimated gap segments — no matched anchors.
+        result = _correct_all("hello world", [])
+        assert _matched(result) == []
+        assert _estimated(result), "expected gap fill to emit the full reference"
 
     def test_repeated_flushes_are_idempotent(self):
         corrector = _make_corrector("hello world")
         list(corrector.feed({"text": "hello world", "start_time": 0.0, "end_time": 1.0}))
         assert list(corrector.flush()) == []
         assert list(corrector.flush()) == []
+
+
+class TestGapFill:
+    """Coverage for reference gaps: text the STT missed surfaces as
+    `estimated: true` segments so the output always covers the full reference.
+    Each estimated segment is one sentence, cut at sentence terminators
+    (``.``, ``!``, ``?``, ``。``, ``！``, ``？``, ``…``, ``\\n``).
+    """
+
+    # -------- basic emission --------
+
+    def test_matched_segments_have_no_estimated_field(self):
+        result = _correct_all(
+            "hello world",
+            [{"text": "hello world", "start_time": 0.0, "end_time": 1.0}],
+        )
+        matched = _matched(result)
+        assert len(matched) == 1
+        assert "estimated" not in matched[0]
+
+    def test_no_gap_when_reference_is_fully_covered(self):
+        result = _correct_all(
+            "hello world this is a small test",
+            [
+                {"text": "hello world",        "start_time": 0.0, "end_time": 1.0},
+                {"text": "this is a smal test", "start_time": 1.0, "end_time": 2.0},
+            ],
+        )
+        assert _estimated(result) == []
+        assert [seg["text"] for seg in result] == [
+            "hello world",
+            "this is a small test",
+        ]
+
+    def test_estimated_segments_are_interleaved_with_anchors_in_order(self):
+        result = _correct_all(
+            "alpha beta.\nGamma delta.\nEpsilon zeta.",
+            [
+                {"text": "alpha beta",   "start_time":  0.0, "end_time":  2.0},
+                {"text": "epsilon zeta", "start_time": 12.0, "end_time": 14.0},
+            ],
+            min_window_tokens=20,
+        )
+        # Full stream: matched(0..2), estimated (middle sentence), matched(12..14).
+        # Corrected text is taken from the reference verbatim, so casing follows
+        # the reference (``Epsilon zeta``), not the STT input.
+        assert result[0]["text"]  == "alpha beta"
+        assert result[-1]["text"] == "Epsilon zeta"
+        assert not result[0].get("estimated")
+        assert all(seg.get("estimated") for seg in result[1:-1])
+        assert not result[-1].get("estimated")
+
+    # -------- sentence-boundary splitting --------
+
+    def test_bounded_gap_splits_at_sentence_terminators(self):
+        # Two sentences in the gap → two estimated segments regardless of
+        # gap duration.
+        result = _correct_all(
+            "start. Alpha beta gamma. Delta epsilon. End.",
+            [
+                {"text": "start", "start_time":  0.0, "end_time":  1.0},
+                {"text": "end",   "start_time": 61.0, "end_time": 62.0},
+            ],
+            min_window_tokens=20,
+        )
+        estimates = _estimated(result)
+        texts = [ seg["text"] for seg in estimates ]
+        assert texts == ["Alpha beta gamma", "Delta epsilon"]
+
+    def test_trailing_gap_splits_at_sentence_terminators(self):
+        result = _correct_all(
+            "opening. Second sentence here. Third one!",
+            [{"text": "opening", "start_time": 0.0, "end_time": 1.0}],
+        )
+        estimates = _estimated(result)
+        texts = [ seg["text"] for seg in estimates ]
+        assert texts == ["Second sentence here", "Third one"]
+
+    def test_newline_is_a_sentence_terminator(self):
+        result = _correct_all(
+            "start\nalpha beta gamma\ndelta epsilon\nend",
+            [
+                {"text": "start", "start_time":  0.0, "end_time":  1.0},
+                {"text": "end",   "start_time": 61.0, "end_time": 62.0},
+            ],
+            min_window_tokens=20,
+        )
+        estimates = _estimated(result)
+        texts = [ seg["text"] for seg in estimates ]
+        assert texts == ["alpha beta gamma", "delta epsilon"]
+
+    def test_gap_with_no_terminator_is_one_segment(self):
+        # No sentence break inside the gap → the whole remainder is a single
+        # estimated segment.
+        result = _correct_all(
+            "start alpha beta gamma end",
+            [
+                {"text": "start", "start_time":  0.0, "end_time":  1.0},
+                {"text": "end",   "start_time": 11.0, "end_time": 12.0},
+            ],
+            min_window_tokens=20,
+        )
+        estimates = _estimated(result)
+        assert len(estimates) == 1
+        assert estimates[0]["text"] == "alpha beta gamma"
+        assert estimates[0]["start_time"] == 1.0
+        assert estimates[0]["end_time"] == 11.0
+
+    def test_cjk_sentence_terminators_are_recognized(self):
+        # Both CJK full-width period and question mark split.
+        result = _correct_all(
+            "开头。中间一句。末尾一句？",
+            [],
+            granularity=TranscriptGranularity.CHARACTER,
+            min_window_tokens=1,
+        )
+        texts = [ seg["text"] for seg in _estimated(result) ]
+        assert texts == ["开头", "中间一句", "末尾一句"]
+
+    # -------- time distribution --------
+
+    def test_bounded_gap_time_is_split_proportionally_to_token_count(self):
+        # Two sentences: 3 tokens vs 1 token; gap = 10s → 7.5s vs 2.5s.
+        result = _correct_all(
+            "start.\nAlpha beta gamma.\nOmega.\nEnd.",
+            [
+                {"text": "start", "start_time":  0.0, "end_time":  1.0},
+                {"text": "end",   "start_time": 11.0, "end_time": 12.0},
+            ],
+            min_window_tokens=20,
+        )
+        estimates = _estimated(result)
+        assert len(estimates) == 2
+        first_duration  = estimates[0]["end_time"] - estimates[0]["start_time"]
+        second_duration = estimates[1]["end_time"] - estimates[1]["start_time"]
+        assert first_duration  == pytest.approx(7.5)
+        assert second_duration == pytest.approx(2.5)
+
+    def test_bounded_gap_last_estimate_clamps_to_end_time(self):
+        # Regardless of floating-point drift, the final estimated segment in a
+        # bounded gap must end exactly at the next anchor's start.
+        result = _correct_all(
+            "start. One. Two. Three. Four. End.",
+            [
+                {"text": "start", "start_time":  0.0, "end_time":  1.0},
+                {"text": "end",   "start_time": 61.0, "end_time": 62.0},
+            ],
+            min_window_tokens=20,
+        )
+        estimates = _estimated(result)
+        assert estimates[-1]["end_time"] == 61.0
+
+    def test_trailing_gap_after_no_matches_starts_at_zero(self):
+        result = _correct_all(
+            "alpha beta. gamma delta.",
+            [],
+        )
+        estimates = _estimated(result)
+        assert estimates, "expected trailing gap on flush"
+        assert estimates[0]["start_time"] == 0.0
+
+    def test_trailing_gap_duration_uses_speaking_rate(self):
+        # After the last anchor, each sentence's duration is estimated from
+        # its token count and a fallback speaking rate (~2.5 tokens/s for
+        # word granularity). Two sentences with 3 and 2 tokens → 1.2s and 0.8s.
+        result = _correct_all(
+            "start. Alpha beta gamma. Delta epsilon.",
+            [{"text": "start", "start_time": 0.0, "end_time": 1.0}],
+        )
+        estimates = _estimated(result)
+        assert len(estimates) == 2
+        assert estimates[0]["text"] == "Alpha beta gamma"
+        assert estimates[1]["text"] == "Delta epsilon"
+        # First sentence starts right after the anchor.
+        assert estimates[0]["start_time"] == 1.0
+        # 3 tokens / 2.5 tokens_per_second = 1.2s.
+        assert estimates[0]["end_time"] - estimates[0]["start_time"] == pytest.approx(1.2)
+        assert estimates[1]["end_time"] - estimates[1]["start_time"] == pytest.approx(0.8)
+        # Sentences chain.
+        assert estimates[1]["start_time"] == pytest.approx(estimates[0]["end_time"])

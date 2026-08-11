@@ -2,8 +2,8 @@
 
 Uses a minimal in-memory JobContext stand-in that replicates:
 - `register_source(scope, key, value)` — scoped source dict
-- `_resolve_source(key, index, scope)` — same semantics as the real JobContext
-- `render_variable(scope, value)` — a real VariableRenderer wired to `_resolve_source`
+- `resolve_source(key, index, scope)` — same semantics as the real JobContext
+- `render_variable(scope, value)` — a real VariableRenderer wired to `resolve_source`
 
 That gives us end-to-end fidelity for the ${item.*} / ${output} plumbing without
 having to build up a WorkflowContext, event notifiers, etc.
@@ -31,7 +31,7 @@ class FakeJobContext:
     def __init__(self, workflow_input: Optional[Dict[str, Any]] = None):
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self._workflow_input = workflow_input or {}
-        self.renderer = VariableRenderer(self._resolve_source)
+        self.renderer = VariableRenderer(self.resolve_source)
         self.register_calls: list[tuple[Optional[str], str, Any]] = []
 
     def register_source(self, scope: Optional[str], key: str, source: Any) -> None:
@@ -41,7 +41,7 @@ class FakeJobContext:
     async def render_variable(self, scope: Optional[str], value: Any, skip_decode: bool = False) -> Any:
         return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
-    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
+    async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         sources = self._sources.get(scope or "__global__", {})
         if key in sources:
             value = sources[key]

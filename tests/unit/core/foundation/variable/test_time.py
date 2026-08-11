@@ -6,37 +6,36 @@ import pytest
 
 from mindor.core.foundation.variable.time import (
     parse_datetime,
-    parse_duration,
     parse_time,
 )
 
 
 class TestParseDuration:
     def test_numeric_passthrough(self):
-        assert parse_duration(30) == 30.0
-        assert parse_duration(1.5) == 1.5
+        assert parse_time(30) == 30.0
+        assert parse_time(1.5) == 1.5
 
     def test_milliseconds(self):
-        assert parse_duration("250ms") == 0.25
+        assert parse_time("250ms") == 0.25
 
     def test_seconds(self):
-        assert parse_duration("30s") == 30.0
+        assert parse_time("30s") == 30.0
 
     def test_minutes(self):
-        assert parse_duration("5m") == 300.0
+        assert parse_time("5m") == 300.0
 
     def test_hours(self):
-        assert parse_duration("2h") == 7200.0
+        assert parse_time("2h") == 7200.0
 
     def test_days(self):
-        assert parse_duration("1d") == 86400.0
+        assert parse_time("1d") == 86400.0
 
     def test_unsupported_format_raises(self):
         with pytest.raises(ValueError, match="Unsupported duration format"):
-            parse_duration("1y")
+            parse_time("1y")
 
     def test_unitless_string_is_seconds(self):
-        assert parse_duration("30") == 30.0
+        assert parse_time("30") == 30.0
 
 
 class TestParseTime:

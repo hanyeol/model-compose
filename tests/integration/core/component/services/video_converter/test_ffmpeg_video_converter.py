@@ -101,22 +101,21 @@ def _make_context(video_value: Any = None) -> ComponentActionContext:
     async def render_scalar(value, cast, default=None):
         if value is None:
             return default
+        if isinstance(cast, str):
+            from mindor.core.foundation.variable.time import parse_time
+            from mindor.core.foundation.variable.size import parse_size
+            from mindor.core.foundation.variable.decimal import parse_decimal
+            from mindor.core.foundation.variable.color import parse_color
+            parsers = {
+                "time": parse_time,
+                "size": parse_size,
+                "decimal": parse_decimal,
+                "color": parse_color,
+            }
+            return parsers[cast](value)
         return cast(value)
 
-    async def render_time(value, default=None):
-        if value is None:
-            return default
-        from mindor.core.foundation.variable.time import parse_time
-        return parse_time(value)
-
-    async def render_string(value, default=None):
-        if value is None or value == "":
-            return default
-        return value
-
     ctx.render_scalar = AsyncMock(side_effect=render_scalar)
-    ctx.render_time = AsyncMock(side_effect=render_time)
-    ctx.render_string = AsyncMock(side_effect=render_string)
     return ctx
 
 

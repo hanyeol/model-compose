@@ -160,6 +160,7 @@ class TestPublisherInputs:
             video=sample_mp4_path,
             video_attrs=None,
             audio=None,
+            audio_format=None,
             audio_attrs=None,
         )
 
@@ -177,6 +178,7 @@ class TestPublisherInputs:
             video=video,
             video_attrs=None,
             audio=None,
+            audio_format=None,
             audio_attrs=None,
         )
 
@@ -203,6 +205,7 @@ class TestPublisherInputs:
             video=video,
             video_attrs=None,
             audio=audio,
+            audio_format="mp3",
             audio_attrs=None,
         )
 
@@ -236,6 +239,7 @@ class TestPublisherCancellation:
             video=video,
             video_attrs=None,
             audio=None,
+            audio_format=None,
             audio_attrs=None,
             cancellation_token=token,
         ))

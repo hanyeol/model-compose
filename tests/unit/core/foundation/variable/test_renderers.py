@@ -4030,8 +4030,10 @@ class TestRenderJoin:
 
     @pytest.mark.anyio
     async def test_join_mixed_types_raises(self):
+        """First element decides the dispatch; mismatched later elements fall
+        through to Python's built-in concat error."""
         renderer = VariableRenderer(make_source_resolver({}))
-        with pytest.raises(TypeError, match="uniform element types"):
+        with pytest.raises(TypeError):
             await renderer.render({"+": ["a", [1, 2]]})
 
     @pytest.mark.anyio

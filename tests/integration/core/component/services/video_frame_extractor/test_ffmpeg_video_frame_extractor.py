@@ -23,7 +23,6 @@ from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import FFmpegVideoFrameExtractorAction
-from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -63,17 +62,23 @@ def make_context(resolved_video: Any = None):
     async def render_scalar(value, cast, default=None):
         if value is None:
             return default
+        if isinstance(cast, str):
+            from mindor.core.foundation.variable.time import parse_time
+            from mindor.core.foundation.variable.size import parse_size
+            from mindor.core.foundation.variable.decimal import parse_decimal
+            from mindor.core.foundation.variable.color import parse_color
+            parsers = {
+                "time": parse_time,
+                "size": parse_size,
+                "decimal": parse_decimal,
+                "color": parse_color,
+            }
+            return parsers[cast](value)
         return cast(value)
-
-    async def render_time(value, default=None):
-        if value is None:
-            return default
-        return parse_time(value)
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_video = AsyncMock(side_effect=render_video)
     ctx.render_scalar = AsyncMock(side_effect=render_scalar)
-    ctx.render_time = AsyncMock(side_effect=render_time)
     return ctx
 
 

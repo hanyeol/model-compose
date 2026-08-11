@@ -94,7 +94,10 @@ class TestSingleTranscriptListInput:
         assert [r["text"] for r in result] == ["hello world", "this is a test"]
 
     @pytest.mark.anyio
-    async def test_empty_transcript_yields_empty_list(self):
+    async def test_empty_transcript_still_emits_reference_as_estimated(self):
+        # With no STT segments at all, the reference surfaces on flush as
+        # estimated gap segments — the corrector guarantees full coverage of
+        # the reference text.
         config = NativeTranscriptCorrectorActionConfig(
             reference="hello world",
             transcript=[],
@@ -102,7 +105,9 @@ class TestSingleTranscriptListInput:
         context = make_action_context()
 
         result = await NativeTranscriptCorrectorAction(config).run(context)
-        assert result == []
+        assert isinstance(result, list) and result
+        assert all(seg.get("estimated") for seg in result)
+        assert " ".join(seg["text"] for seg in result) == "hello world"
 
     @pytest.mark.anyio
     async def test_reference_list_is_joined_with_spaces(self):

@@ -285,7 +285,7 @@ async def test_after_hook_runs_before_output_render():
     class _Ctx:
         def __init__(self):
             self._sources = {"__global__": {"source": [10, 20, 30]}}
-            self.renderer = VariableRenderer(self._resolve_source)
+            self.renderer = VariableRenderer(self.resolve_source)
             self.workflow = _FakeWorkflowContext()
 
         def register_source(self, scope, key, value):
@@ -294,7 +294,7 @@ async def test_after_hook_runs_before_output_render():
         async def render_variable(self, scope, value, skip_decode=False):
             return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
-        async def _resolve_source(self, key, index, scope):
+        async def resolve_source(self, key, index, scope):
             sources = self._sources.get(scope or "__global__", {})
             if key in sources:
                 v = sources[key]
@@ -352,7 +352,7 @@ class _FakeCtx:
         self.workflow = _FakeWorkflowForOutput()
         self.workflow.input = workflow_input
         self.is_terminal = False
-        self.renderer = VariableRenderer(self._resolve_source)
+        self.renderer = VariableRenderer(self.resolve_source)
 
     def register_source(self, scope, key, value):
         self._sources.setdefault(scope or "__global__", {})[key] = value
@@ -360,14 +360,7 @@ class _FakeCtx:
     async def render_variable(self, scope, value, skip_decode=False):
         return await self.renderer.render(value, scope, skip_decode=skip_decode)
 
-    async def render_duration(self, scope, value, default=None):
-        from mindor.core.foundation.variable.time import parse_duration
-        value = await self.render_variable(scope, value) if value is not None else None
-        if value is not None:
-            return parse_duration(value)
-        return default
-
-    async def _resolve_source(self, key, index, scope):
+    async def resolve_source(self, key, index, scope):
         sources = self._sources.get(scope or "__global__", {})
         if key in sources:
             v = sources[key]

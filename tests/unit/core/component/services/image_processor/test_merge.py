@@ -9,7 +9,6 @@ from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.image_processor.drivers.native import NativeImageProcessorAction
-from mindor.core.foundation.variable.color import parse_color
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.dsl.schema.action import ImageProcessorActionMethod
 from mindor.dsl.schema.action.impl.image_processor.impl.native import (
@@ -30,17 +29,29 @@ def _make_context(images):
     async def render_variable(value, scope=None, skip_decode=False):
         return value
 
+    async def render_scalar(value, cast, default=None):
+        if value is None:
+            return default
+        if isinstance(cast, str):
+            from mindor.core.foundation.variable.time import parse_time
+            from mindor.core.foundation.variable.size import parse_size
+            from mindor.core.foundation.variable.decimal import parse_decimal
+            from mindor.core.foundation.variable.color import parse_color
+            parsers = {
+                "time": parse_time,
+                "size": parse_size,
+                "decimal": parse_decimal,
+                "color": parse_color,
+            }
+            return parsers[cast](value)
+        return cast(value)
+
     async def render_image_array(value):
         return [ ImageArrayValue(images) ]
 
-    async def render_color(value, default=None):
-        if value is None:
-            return default
-        return parse_color(value)
-
     context.render_variable = AsyncMock(side_effect=render_variable)
+    context.render_scalar = AsyncMock(side_effect=render_scalar)
     context.render_image_array = AsyncMock(side_effect=render_image_array)
-    context.render_color = AsyncMock(side_effect=render_color)
     context.register_source = MagicMock()
     return context
 

@@ -25,7 +25,7 @@ import pytest
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 
 
 AUDIO_FILE = "benchmarks/stt-embed-streaming/data/test.mp3"
@@ -96,10 +96,10 @@ def params():
     return {
         "sample_rate": 16000,
         "threshold": 0.5,
-        "min_speech_duration": parse_duration("250ms"),
+        "min_speech_duration": parse_time("250ms"),
         "max_speech_duration": None,
-        "min_silence_duration": parse_duration("500ms"),
-        "speech_padding_time": parse_duration("100ms"),
+        "min_silence_duration": parse_time("500ms"),
+        "speech_padding_time": parse_time("100ms"),
     }
 
 

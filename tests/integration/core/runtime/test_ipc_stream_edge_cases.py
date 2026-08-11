@@ -37,7 +37,7 @@ from mindor.core.foundation.streaming.iterators import (
     StreamEncodingIterator,
     StreamChunkIterator,
 )
-from mindor.core.foundation.variable.time import parse_duration
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.process import ProcessRuntime
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.dsl.schema.runtime.impl.types import RuntimeType
@@ -73,8 +73,8 @@ class QueueIpcWorker(IpcRuntimeWorker):
 class QueueIpcManager(IpcRuntimeProxy):
     def __init__(self, worker_id: str, worker_factory, config: ProcessRuntimeConfig):
         super().__init__(worker_id)
-        self._start_timeout = parse_duration(config.start_timeout)
-        self._stop_timeout = parse_duration(config.stop_timeout)
+        self._start_timeout = parse_time(config.start_timeout)
+        self._stop_timeout = parse_time(config.stop_timeout)
 
         self._request_queue: Queue = Queue()
         self._response_queue: Queue = Queue()

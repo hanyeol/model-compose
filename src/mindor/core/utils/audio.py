@@ -149,7 +149,7 @@ def is_pcm_format(format: str) -> bool:
     """True if `format` names a raw sample layout that np.frombuffer can decode directly."""
     return format in _PCM_FORMATS
 
-def get_pcm_format_for_bit_depth(bit_depth: int, default: str = "s16le") -> str:
+def get_pcm_format(bit_depth: int, default: str = "s16le") -> str:
     """Raw PCM format identifier for a given bit depth. Returns `default` if unknown."""
     return _PCM_BIT_DEPTH_FORMAT_MAP.get(int(bit_depth), default)
 

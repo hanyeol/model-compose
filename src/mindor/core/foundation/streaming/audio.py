@@ -12,7 +12,7 @@ from ...utils.audio import (
     AudioBuffer,
     is_pcm_format,
     get_pcm_dtype,
-    get_pcm_format_for_bit_depth,
+    get_pcm_format,
     decode_pcm_to_waveform,
     encode_waveform_to_pcm,
     normalize_pcm_to_float32,
@@ -52,7 +52,7 @@ class PcmStreamResource(StreamResource):
 
     @property
     def format(self) -> str:
-        return get_pcm_format_for_bit_depth(int(self.attrs.get("bit_depth", 16)))
+        return get_pcm_format(int(self.attrs.get("bit_depth", 16)))
 
     async def close(self) -> None:
         await self.samples.close()

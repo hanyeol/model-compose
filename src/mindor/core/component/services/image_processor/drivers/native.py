@@ -190,7 +190,8 @@ class NativeImageProcessorAction(ImageProcessorAction):
                 if mode == MosaicMode.PIXELATE:
                     block_size = params["block_size"]
                     if block_size is None:
-                        block_size = max(1, round(min(target.size) * params["block_scale"]))
+                        block_size = round(min(target.size) * params["block_scale"])
+                        block_size = min(params["max_block_size"], max(params["min_block_size"], block_size))
                     mosaic = self._mosaic_pixelate(target, block_size)
                 elif mode == MosaicMode.BLUR:
                     mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["radius"]))

@@ -141,6 +141,8 @@ class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
     region: Optional[Union[ImageRegion, List[ImageRegion], str]] = Field(default=None, description="Region(s) to mosaic as a single `{x, y, width, height}` or a list of them. Omit to apply to the whole image.")
     block_size: Optional[Union[int, str]] = Field(default=None, description="Absolute pixelate block size in pixels. Mutually exclusive with `block_scale`. Defaults to 16 when neither is set.")
     block_scale: Optional[Union[float, str]] = Field(default=None, description="Pixelate block size relative to each region's shorter side (0-1). Adapts to region size. Mutually exclusive with `block_size`.")
+    min_block_size: Union[int, str] = Field(default=8, description="Minimum pixelate block size in pixels. Used only with `block_scale` to prevent overly fine blocks on small regions.")
+    max_block_size: Union[int, str] = Field(default=32, description="Maximum pixelate block size in pixels. Used only with `block_scale` to prevent overly coarse blocks on large regions.")
     radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels (used when mode is 'blur').")
 
     @model_validator(mode="after")

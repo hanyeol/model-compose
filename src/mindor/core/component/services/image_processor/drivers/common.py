@@ -212,10 +212,11 @@ class ImageProcessorAction(ComponentAction):
             }
 
         if method == ImageProcessorActionMethod.MOSAIC:
-            mode       = await context.render_variable(self.config.mode)
-            region     = await context.render_variable(self.config.region)
-            block_size = await context.render_scalar(self.config.block_size, int)
-            radius     = await context.render_scalar(self.config.radius, float)
+            mode        = await context.render_variable(self.config.mode)
+            region      = await context.render_variable(self.config.region)
+            block_size  = await context.render_scalar(self.config.block_size,  int)
+            block_scale = await context.render_scalar(self.config.block_scale, float)
+            radius      = await context.render_scalar(self.config.radius,      float)
 
             try:
                 mode = MosaicMode(mode)
@@ -224,17 +225,27 @@ class ImageProcessorAction(ComponentAction):
 
             regions = self._normalize_mosaic_regions(region) if region is not None else None
 
-            if block_size < 1:
+            if block_size is not None and block_scale is not None:
+                raise ValueError("'block_size' and 'block_scale' are mutually exclusive; specify only one.")
+
+            if block_size is None and block_scale is None:
+                block_size = 16
+
+            if block_size is not None and block_size < 1:
                 raise ValueError(f"'block_size' must be >= 1, got {block_size}")
+
+            if block_scale is not None and not 0.0 < block_scale <= 1.0:
+                raise ValueError(f"'block_scale' must be in (0.0, 1.0], got {block_scale}")
 
             if radius < 0.0:
                 raise ValueError(f"'radius' must be >= 0.0, got {radius}")
 
             return {
-                "mode":       mode,
-                "regions":    regions,
-                "block_size": block_size,
-                "radius":     radius,
+                "mode":        mode,
+                "regions":     regions,
+                "block_size":  block_size,
+                "block_scale": block_scale,
+                "radius":      radius,
             }
 
         if method == ImageProcessorActionMethod.COMPRESS:

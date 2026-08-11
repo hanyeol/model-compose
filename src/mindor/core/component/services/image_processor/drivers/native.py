@@ -174,7 +174,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
             if regions is None:
                 regions = [ { "x": 0, "y": 0, "width": image.width, "height": image.height } ]
 
-            result = image.copy()
+            canvas = image.copy()
 
             for region in regions:
                 cx1 = max(0, region["x"])
@@ -185,18 +185,21 @@ class NativeImageProcessorAction(ImageProcessorAction):
                 if cx2 <= cx1 or cy2 <= cy1:
                     continue
 
-                crop = result.crop((cx1, cy1, cx2, cy2))
+                target = canvas.crop((cx1, cy1, cx2, cy2))
 
                 if mode == MosaicMode.PIXELATE:
-                    mosaic = self._mosaic_pixelate(crop, params["block_size"])
+                    block_size = params["block_size"]
+                    if block_size is None:
+                        block_size = max(1, round(min(target.size) * params["block_scale"]))
+                    mosaic = self._mosaic_pixelate(target, block_size)
                 elif mode == MosaicMode.BLUR:
-                    mosaic = crop.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+                    mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
                 else:
                     raise ValueError(f"Unsupported mosaic mode: {mode}")
 
-                result.paste(mosaic, (cx1, cy1))
+                canvas.paste(mosaic, (cx1, cy1))
 
-            return result
+            return canvas
 
         return await self._run_in_executor(_mosaic)
 
@@ -279,12 +282,12 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return canvas
 
-    def _mosaic_pixelate(self, region: PILImage.Image, block_size: int) -> PILImage.Image:
-        w, h = region.size
+    def _mosaic_pixelate(self, image: PILImage.Image, block_size: int) -> PILImage.Image:
+        w, h = image.size
         shrunk_w = max(1, w // block_size)
         shrunk_h = max(1, h // block_size)
 
-        shrunk = region.resize((shrunk_w, shrunk_h), PILImage.Resampling.BILINEAR)
+        shrunk = image.resize((shrunk_w, shrunk_h), PILImage.Resampling.BILINEAR)
         return shrunk.resize((w, h), PILImage.Resampling.NEAREST)
 
     def _compress_lossless(self, image: PILImage.Image, params: Dict[str, Any], strip_metadata: bool) -> bytes:

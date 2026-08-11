@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from ...common import CommonActionConfig
 
 class ImageProcessorActionMethod(str, Enum):
@@ -137,8 +139,15 @@ class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MOSAIC]
     mode: Union[MosaicMode, str] = Field(default=MosaicMode.PIXELATE, description="Mosaic algorithm.")
     region: Optional[Union[ImageRegion, List[ImageRegion], str]] = Field(default=None, description="Region(s) to mosaic as a single `{x, y, width, height}` or a list of them. Omit to apply to the whole image.")
-    block_size: Union[int, str] = Field(default=16, description="Pixelate block size in pixels. Larger is more pixelated.")
+    block_size: Optional[Union[int, str]] = Field(default=None, description="Absolute pixelate block size in pixels. Mutually exclusive with `block_scale`. Defaults to 16 when neither is set.")
+    block_scale: Optional[Union[float, str]] = Field(default=None, description="Pixelate block size relative to each region's shorter side (0-1). Adapts to region size. Mutually exclusive with `block_size`.")
     radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels (used when mode is 'blur').")
+
+    @model_validator(mode="after")
+    def validate_block_size_or_scale(self) -> ImageProcessorMosaicActionConfig:
+        if self.block_size is not None and self.block_scale is not None:
+            raise ValueError("'block_size' and 'block_scale' are mutually exclusive; specify only one.")
+        return self
 
 class ImageProcessorCompressActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.COMPRESS]

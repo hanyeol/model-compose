@@ -8,6 +8,7 @@ from .resources import StreamResource, AsyncIterableStreamResource, read_stream_
 from .bytes import BytesStreamResource
 from .file import FileStreamResource, UploadFileStreamResource
 from .media import MediaSource
+from .iterators import StreamChunkIterator
 from ...utils.audio import (
     AudioBuffer,
     is_pcm_format,
@@ -181,6 +182,18 @@ class AudioStreamResource(StreamResource):
     @staticmethod
     def _resolve_size(source: Union[StreamResource, bytes]) -> Optional[int]:
         return source.size if isinstance(source, StreamResource) else len(source)
+
+class AudioBufferStreamIterator(StreamChunkIterator):
+    def __init__(
+        self,
+        source: AsyncIterator[AudioBuffer],
+        sample_rate: int,
+        channels: int,
+    ):
+        super().__init__(source, is_fragmented=True)
+
+        self.sample_rate: int = sample_rate
+        self.channels: int    = channels
 
 class AudioDecodingStreamer:
     """Decode any audio ``MediaSource`` into an s16le PCM byte stream.
@@ -479,12 +492,6 @@ class AudioBufferStreamer:
         self._pad_final   = pad_final
 
     async def stream(self, chunk_size: int, overlap_size: int = 0) -> AsyncIterator[Tuple[AudioBuffer, bool]]:
-        """Yield overlapping chunks with an ``is_last`` flag for chunked forward passes.
-
-        Sizes are in target-rate samples. A one-frame lookahead lets callers
-        apply asymmetric edge handling (e.g. skip trailing-overlap trim on the
-        final, zero-padded chunk) without buffering the stream themselves.
-        """
         if chunk_size <= 0:
             raise ValueError(f"chunk_size must be positive; got {chunk_size}")
 
@@ -514,6 +521,25 @@ class AudioBufferStreamer:
 
         waveform = frames[0] if len(frames) == 1 else np.concatenate(frames, axis=-1)
         return AudioBuffer(waveform=waveform, sample_rate=sample_rate)
+
+    async def as_iterator(self) -> AudioBufferStreamIterator:
+        iterator = self._iterate(self._frame_size, self._hop_size, self._pad_final)
+
+        try:
+            first_chunk = await anext(iterator)
+        except StopAsyncIteration:
+            raise ValueError("Cannot build AudioBufferStreamIterator from an empty audio source")
+
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            yield first_chunk
+            async for chunk in iterator:
+                yield chunk
+
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=first_chunk.sample_rate,
+            channels=first_chunk.channels,
+        )
 
     def __aiter__(self) -> AsyncIterator[AudioBuffer]:
         return self._iterate(self._frame_size, self._hop_size, self._pad_final)

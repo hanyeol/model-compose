@@ -248,10 +248,7 @@ class AudioDecodingStreamer:
             logging.debug("ffmpeg not found; falling back to torchaudio (non-streaming decode)")
             return self._decode_with_torchaudio(source)
 
-        raise RuntimeError(
-            "No audio decoder available: install ffmpeg (recommended for streaming) "
-            "or torchaudio (non-streaming fallback)."
-        )
+        raise RuntimeError("No audio decoder available: install ffmpeg or torchaudio.")
 
     def _decode_with_ffmpeg(self, source: MediaSource) -> Tuple[AsyncIterator[bytes], Dict[str, Any]]:
         sample_rate = self._sample_rate or int(source.attrs.get("sample_rate") or 0) or None
@@ -422,7 +419,7 @@ class AudioDecodingStreamer:
     @staticmethod
     def _is_torchaudio_available() -> bool:
         try:
-            import torchaudio  # noqa: F401
+            import torchaudio
         except ImportError:
             return False
         return True

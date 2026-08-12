@@ -42,6 +42,8 @@ class WorkflowVariableGroup:
     repeat_count: int
 
 class WorkflowVariableResolver:
+    _TRANSFORM_OPERATOR_KEYS = { "*", "?", "+", "|" }
+
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
@@ -107,42 +109,73 @@ class WorkflowVariableResolver:
         variables: List[WorkflowVariable] = []
 
         if isinstance(value, str):
-            for m in self.patterns["variable"].finditer(value):
-                key, index, path, type, is_list, subtype, attrs, format, default, annotations = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
-                is_list = bool(is_list)
-
-                if attrs:
-                    attrs = self._parse_attrs(attrs)
-
-                if annotations:
-                    annotations = self._parse_annotations(annotations)
-
-                if default and type:
-                    default = self._convert_value_to_type(default, type, is_list)
-
-                variables.append(WorkflowVariable(
-                    name=name,
-                    type=type or "string",
-                    is_list=is_list,
-                    subtype=subtype,
-                    attrs=attrs,
-                    format=format,
-                    default=default,
-                    annotations=annotations,
-                ))
-
+            for match in self.patterns["variable"].finditer(value):
+                variables.append(self._build_output_variable(name, match))
             return variables
 
         if isinstance(value, BaseModel):
             return self._enumerate_output_variables(name, value.model_dump(exclude_none=True))
 
         if isinstance(value, dict):
+            if self._TRANSFORM_OPERATOR_KEYS & value.keys():
+                # The whole dict is a DSL transformation (map/conditional/join/split), not a nested variable path.
+                # Treat it as one variable at `name`, using the first referenced variable inside for type metadata.
+                # For `*` map, the representative expression is entries["*"]["input"] (dict form) or entries["*"] itself.
+                # Otherwise, fall back to the first variable found anywhere in the subtree.
+                if "*" in value:
+                    input = value["*"]["input"] if isinstance(value["*"], dict) and "input" in value["*"] else value["*"]
+                    variables = self._enumerate_output_variables(None, input)
+                else:
+                    variables = sum([ self._enumerate_output_variables(None, v) for v in value.values() ], [])
+
+                variable = variables[0] if variables else WorkflowVariable(
+                    name=None,
+                    type="string",
+                    is_list=False,
+                    subtype=None,
+                    attrs=None,
+                    format=None,
+                    default=None,
+                    annotations=None,
+                )
+                variable.name = name
+
+                # A `*` map always yields a list, regardless of the inner expression's own list flag.
+                if "*" in value:
+                    variable.is_list = True
+
+                return [ variable ]
+
             return sum([ self._enumerate_output_variables(f"{name}.{k}" if name else f"{k}", v) for k, v in value.items() ], [])
 
         if isinstance(value, list):
             return sum([ self._enumerate_output_variables(f"{name}[{i}]" if name else f"[{i}]", v) for i, v in enumerate(value) ], [])
 
         return []
+
+    def _build_output_variable(self, name: Optional[str], match: re.Match) -> WorkflowVariable:
+        key, index, path, type, is_list, subtype, attrs, format, default, annotations = match.group(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+        is_list = bool(is_list)
+
+        if attrs:
+            attrs = self._parse_attrs(attrs)
+
+        if annotations:
+            annotations = self._parse_annotations(annotations)
+
+        if default and type:
+            default = self._convert_value_to_type(default, type, is_list)
+
+        return WorkflowVariable(
+            name=name,
+            type=type or "string",
+            is_list=is_list,
+            subtype=subtype,
+            attrs=attrs,
+            format=format,
+            default=default,
+            annotations=annotations,
+        )
 
     def _to_variable_config_list(self, variables: List[Union[WorkflowVariable, WorkflowVariableGroup]]) -> List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]]:
         configs: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]] = []

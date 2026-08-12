@@ -803,7 +803,12 @@ class GradioWebUIBuilder:
                         updates.extend(await self._resolve_output_updates(value, variable.variables, group.components))
             else:
                 value = self._resolve_variable_output(output, variable)
-                updates.append(await self._convert_output_value(value, variable))
+                value = await self._convert_output_value(value, variable)
+                # Gradio's Gallery/Audio/Video/File components reject None entries; drop them here
+                # so upstream `${...}` transforms don't have to filter nulls just for the UI.
+                if variable.is_list and self._is_media_variable(variable) and isinstance(value, list):
+                    value = [ item for item in value if item is not None ]
+                updates.append(value)
 
         return updates
 
@@ -1109,10 +1114,7 @@ class GradioWebUIBuilder:
             return self._log_format_json(value)
         return str(value) if value is not None else None
 
-    _MAX_LOG_PAYLOAD_CHARS = 2048
-
     def _log_format_string(self, value: str) -> str:
-        value = self._truncate(value)
         if len(value) > 200 or "\n" in value:
             return f"```\n{value}\n```"
         return value
@@ -1127,13 +1129,7 @@ class GradioWebUIBuilder:
             )
         except Exception:
             text = repr(value)
-        return f"```json\n{self._truncate(text)}\n```"
-
-    def _truncate(self, text: str) -> str:
-        if len(text) <= self._MAX_LOG_PAYLOAD_CHARS:
-            return text
-        omitted = len(text) - self._MAX_LOG_PAYLOAD_CHARS
-        return f"{text[:self._MAX_LOG_PAYLOAD_CHARS]}\n… ({omitted} more chars)"
+        return f"```json\n{text}\n```"
 
     def _log_json_value(self, value: Any) -> Any:
         # Substitute __log__ nodes ahead of json.dumps — dict/list subclasses skip its default hook.

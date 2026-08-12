@@ -121,37 +121,52 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         candidates = self._filter_faces(faces, min_face_size, max_face_count_per_frame)
         centroids: List[np.ndarray] = centroids_state["centroids"]
         counts: List[int] = centroids_state["counts"]
-        used_in_frame: set = set()
 
+        # Score every (face, cluster) pair up front, then bind them in descending
+        # order so a strong match wins its cluster regardless of detection order.
+        # Ties are broken by how much each face overlaps the cluster's last known
+        # position, which keeps a moving face from stealing a spatially-distant
+        # cluster with a marginally higher embedding score.
+        normalized_faces: List[np.ndarray] = []
         for face in candidates:
             embedding = face["embedding"]
-            normalized = embedding / (np.linalg.norm(embedding) + 1e-12)
+            normalized_faces.append(embedding / (np.linalg.norm(embedding) + 1e-12))
 
-            best_cluster = -1
-            best_similarity = -1.0
-
+        pairs: List[Tuple[float, float, int, int]] = []
+        for face_index, normalized in enumerate(normalized_faces):
+            face_bbox = candidates[face_index]["bounding_box"]
             for cluster_id, centroid in enumerate(centroids):
-                if cluster_id in used_in_frame:
-                    continue
-
                 similarity = float(np.dot(normalized, centroid))
+                if similarity < similarity_threshold:
+                    continue
+                last_bbox = cluster_tracks.get(cluster_id, {}).get("last_bbox")
+                overlap = self._bbox_overlap(face_bbox, last_bbox) if last_bbox is not None else 0.0
+                pairs.append((similarity, overlap, face_index, cluster_id))
 
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_cluster = cluster_id
+        pairs.sort(reverse=True)
 
-            if best_cluster >= 0 and best_similarity >= similarity_threshold:
-                count = counts[best_cluster]
-                updated = (centroids[best_cluster] * count + normalized) / (count + 1)
-                centroids[best_cluster] = updated / (np.linalg.norm(updated) + 1e-12)
-                counts[best_cluster] += 1
-                cluster_id = best_cluster
+        assigned_face: Dict[int, int] = {}
+        used_clusters: set = set()
+        for similarity, _, face_index, cluster_id in pairs:
+            if face_index in assigned_face or cluster_id in used_clusters:
+                continue
+            assigned_face[face_index] = cluster_id
+            used_clusters.add(cluster_id)
+
+        for face_index, face in enumerate(candidates):
+            normalized = normalized_faces[face_index]
+            cluster_id = assigned_face.get(face_index, -1)
+
+            if cluster_id >= 0:
+                count = counts[cluster_id]
+                updated = (centroids[cluster_id] * count + normalized) / (count + 1)
+                centroids[cluster_id] = updated / (np.linalg.norm(updated) + 1e-12)
+                counts[cluster_id] += 1
             else:
                 centroids.append(normalized.copy())
                 counts.append(1)
                 cluster_id = len(centroids) - 1
 
-            used_in_frame.add(cluster_id)
             self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, bounding_box_padding)
 
     def _add_face_to_track(
@@ -173,10 +188,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         The face crop is materialized here (lazily) rather than up-front in
         `_serialize_faces`, so frames that never become a segment's best
         never pay the crop / PIL-conversion cost."""
-        track = cluster_tracks.setdefault(cluster_id, {
-            "segments": [],
-            "current": None
-        })
+        track = cluster_tracks.setdefault(cluster_id, { "segments": [], "current": None, "last_bbox": None })
+        track["last_bbox"] = face["bounding_box"]
 
         current: Optional[Dict[str, Any]] = track["current"]
         score = face["score"]
@@ -246,6 +259,65 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return faces
 
+    def _build_tracking_result(
+        self,
+        cluster_tracks: Dict[int, Dict[str, Any]],
+        centroids_state: Dict[str, Any],
+        frame_count: int,
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        min_frame_count = params["min_frame_count"] or 1
+
+        centroids: List[np.ndarray] = centroids_state["centroids"]
+        tracks: List[Dict[str, Any]] = []
+
+        for cluster_id in sorted(cluster_tracks.keys()):
+            cluster_segments = cluster_tracks[cluster_id]["segments"]
+            track_frame_count = sum(segment["frame_count"] for segment in cluster_segments)
+
+            if track_frame_count < min_frame_count:
+                continue
+
+            segments: List[Dict[str, Any]] = []
+
+            for cluster_segment in cluster_segments:
+                segment = {
+                    "start_time": format_timecode(cluster_segment["start"]),
+                    "end_time":   format_timecode(cluster_segment["end"]),
+                    "duration":   format_timecode(cluster_segment["end"] - cluster_segment["start"]),
+                    "score":      cluster_segment["best_score"],
+                }
+
+                if params["return_image"]:
+                    segment["image"] = cluster_segment["best_image"]
+
+                segments.append(segment)
+
+            best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_score"])
+
+            track: Dict[str, Any] = {
+                "segments":    segments,
+                "frame_count": track_frame_count,
+                "score":       best_cluster_segment["best_score"],
+            }
+
+            if params["return_embedding"]:
+                track["embedding"] = FaceEmbedding(centroids[cluster_id].tolist())
+
+            if params["return_gender_age"]:
+                if best_cluster_segment["best_gender"] is not None:
+                    track["gender"] = best_cluster_segment["best_gender"]
+
+                if best_cluster_segment["best_age"] is not None:
+                    track["age"] = best_cluster_segment["best_age"]
+
+            tracks.append(track)
+
+        return {
+            "tracks":      tracks,
+            "frame_count": frame_count,
+        }
+
     @staticmethod
     def _gender_to_label(gender: int) -> str:
         return "male" if gender == 1 else "female"
@@ -312,64 +384,25 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return faces
 
-    def _build_tracking_result(
-        self,
-        cluster_tracks: Dict[int, Dict[str, Any]],
-        centroids_state: Dict[str, Any],
-        frame_count: int,
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        min_frame_count = params["min_frame_count"] or 1
+    @staticmethod
+    def _bbox_overlap(a: Dict[str, int], b: Dict[str, int]) -> float:
+        """Ratio of shared area to combined area of two bounding boxes. Returns 1.0
+        for identical boxes and 0.0 for boxes that do not touch."""
+        ax1, ay1 = a["x"], a["y"]
+        ax2, ay2 = ax1 + a["width"], ay1 + a["height"]
+        bx1, by1 = b["x"], b["y"]
+        bx2, by2 = bx1 + b["width"], by1 + b["height"]
 
-        centroids: List[np.ndarray] = centroids_state["centroids"]
-        tracks: List[Dict[str, Any]] = []
+        ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+        ix2, iy2 = min(ax2, bx2), min(ay2, by2)
 
-        for cluster_id in sorted(cluster_tracks.keys()):
-            cluster_segments = cluster_tracks[cluster_id]["segments"]
-            track_frame_count = sum(segment["frame_count"] for segment in cluster_segments)
+        if ix2 <= ix1 or iy2 <= iy1:
+            return 0.0
 
-            if track_frame_count < min_frame_count:
-                continue
+        intersection = (ix2 - ix1) * (iy2 - iy1)
+        union = a["width"] * a["height"] + b["width"] * b["height"] - intersection
 
-            segments: List[Dict[str, Any]] = []
-
-            for cluster_segment in cluster_segments:
-                segment = {
-                    "start_time": format_timecode(cluster_segment["start"]),
-                    "end_time":   format_timecode(cluster_segment["end"]),
-                    "duration":   format_timecode(cluster_segment["end"] - cluster_segment["start"]),
-                    "score":      cluster_segment["best_score"],
-                }
-
-                if params["return_image"]:
-                    segment["image"] = cluster_segment["best_image"]
-
-                segments.append(segment)
-
-            best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_score"])
-
-            track: Dict[str, Any] = {
-                "segments":    segments,
-                "frame_count": track_frame_count,
-                "score":       best_cluster_segment["best_score"],
-            }
-
-            if params["return_embedding"]:
-                track["embedding"] = FaceEmbedding(centroids[cluster_id].tolist())
-
-            if params["return_gender_age"]:
-                if best_cluster_segment["best_gender"] is not None:
-                    track["gender"] = best_cluster_segment["best_gender"]
-
-                if best_cluster_segment["best_age"] is not None:
-                    track["age"] = best_cluster_segment["best_age"]
-
-            tracks.append(track)
-
-        return {
-            "tracks":      tracks,
-            "frame_count": frame_count,
-        }
+        return intersection / union if union > 0 else 0.0
 
 class InsightfaceFaceTrackingTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

@@ -129,40 +129,51 @@ def encode_waveform_to_pcm(
 
     return waveform.tobytes(), channels
 
-def decode_pcm_to_waveform(data: bytes, format: str) -> np.ndarray:
-    """Decode raw PCM bytes into a 1-D numpy sample array.
+def decode_pcm_to_waveform(
+    data: bytes,
+    format: str,
+    dtype: Optional[Union[str, np.dtype]] = None,
+    channels: int = 1,
+) -> np.ndarray:
+    """Decode raw PCM bytes into a numpy waveform.
 
-    Handles the 24-bit (s24le) special case internally (numpy has no native 24-bit
-    integer dtype); other formats reduce to a plain `np.frombuffer` view.
-    Multi-channel bytes are returned interleaved — reshape by channel at the caller.
+    ``format`` names the input PCM layout. ``dtype`` selects the output dtype:
+      - ``None`` (default): the format's native dtype (e.g. s16le → int16). No scaling.
+      - Float dtype (``"float32"``/``"float64"``): integer PCM is scaled to
+        ``[-1.0, 1.0]`` using ``2^(bits-1)`` (``s24le`` uses 24-bit scale despite
+        int32 storage); float PCM is cast without scaling.
+      - Integer dtype: raw cast, no scaling.
+
+    Shape: ``(frames,)`` when ``channels == 1``, ``(channels, frames)`` otherwise
+    (multi-channel bytes are interleaved on the wire and de-interleaved here).
+
+    Handles the 24-bit (s24le) special case internally (numpy has no native
+    24-bit integer dtype).
 
     Inverse of :func:`encode_waveform_to_pcm`.
     """
     import numpy as np
 
     if format == "s24le":
-        raw = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
-        padded = np.zeros((raw.shape[0], 4), dtype=np.uint8)
-        padded[:, 1:] = raw
-        return padded.view("<i4").reshape(-1) >> 8
+        data = np.frombuffer(data, dtype=np.uint8).reshape(-1, 3)
+        padded = np.zeros((data.shape[0], 4), dtype=np.uint8)
+        padded[:, 1:] = data
+        waveform = padded.view("<i4").reshape(-1) >> 8
+    else:
+        waveform = np.frombuffer(data, dtype=get_pcm_dtype(format))
 
-    return np.frombuffer(data, dtype=get_pcm_dtype(format))
+    if dtype is not None:
+        target_dtype = np.dtype(dtype)
+        if np.issubdtype(waveform.dtype, np.integer) and np.issubdtype(target_dtype, np.floating):
+            bits = 24 if format == "s24le" else waveform.dtype.itemsize * 8
+            waveform = waveform.astype(target_dtype) / target_dtype.type(2 ** (bits - 1))
+        elif waveform.dtype != target_dtype:
+            waveform = waveform.astype(target_dtype)
 
-def normalize_pcm_to_float32(waveform: np.ndarray, format: Optional[str] = None) -> np.ndarray:
-    """Convert a PCM waveform to float32 normalized to [-1.0, 1.0].
+    if channels > 1:
+        waveform = waveform.reshape(-1, channels).T.copy()
 
-    Float inputs are just cast. Integer inputs are scaled by 2^(bits-1) — the
-    standard signed-PCM peak (e.g. 32768 for s16le, not iinfo.max=32767). Pass
-    `format` so `s24le` (packed in int32 storage but only 24 significant bits)
-    is scaled correctly; other integer formats infer bit-depth from the dtype.
-    """
-    import numpy as np
-
-    if not np.issubdtype(waveform.dtype, np.integer):
-        return waveform.astype(np.float32)
-
-    bits = 24 if format == "s24le" else waveform.dtype.itemsize * 8
-    return waveform.astype(np.float32) / float(2 ** (bits - 1))
+    return waveform
 
 def is_streamable_audio_format(format: Optional[str]) -> bool:
     """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""

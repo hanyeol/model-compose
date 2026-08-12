@@ -15,7 +15,6 @@ from ...utils.audio import (
     get_pcm_format,
     decode_pcm_to_waveform,
     encode_waveform_to_pcm,
-    normalize_pcm_to_float32,
 )
 from ...utils.shell import stream_subprocess
 from ...logger import logging
@@ -440,7 +439,7 @@ class AudioBufferStreamer:
     partial frame. Both ignored when `frame_size is None`.
     """
     @dataclass
-    class _StreamContext:
+    class StreamContext:
         source: PcmStreamResource
         source_format: str
         source_channels: int
@@ -558,7 +557,7 @@ class AudioBufferStreamer:
         frame_size: Optional[int],
         hop_size: Optional[int],
         pad_final: bool,
-    ) -> AudioBufferStreamer._StreamContext:
+    ) -> AudioBufferStreamer.StreamContext:
         source_format = source.format
         source_channels = int(source.attrs.get("channels", 1))
         source_block_align = get_pcm_dtype(source_format).itemsize * source_channels
@@ -579,7 +578,7 @@ class AudioBufferStreamer:
 
             resampler = soxr.ResampleStream(source_sample_rate, sample_rate, num_channels=channels, dtype="float32")
 
-        return AudioBufferStreamer._StreamContext(
+        return AudioBufferStreamer.StreamContext(
             source=source,
             source_format=source_format,
             source_channels=source_channels,
@@ -595,7 +594,7 @@ class AudioBufferStreamer:
             pad_final=pad_final,
         )
 
-    def _process_chunk(self, context: AudioBufferStreamer._StreamContext, chunk: bytes) -> list:
+    def _process_chunk(self, context: AudioBufferStreamer.StreamContext, chunk: bytes) -> list:
         samples = self._decode_to_samples(context, chunk)
 
         if context.resampler is not None:
@@ -605,29 +604,26 @@ class AudioBufferStreamer:
 
         return list(self._drain_frames(context, final=False))
 
-    def _process_final(self, context: AudioBufferStreamer._StreamContext) -> list:
+    def _process_final(self, context: AudioBufferStreamer.StreamContext) -> list:
         if context.resampler is not None:
             tail = self._resample(context, self._empty_frame_buffer(context.channels, context.keep_channels), last=True)
             self._push_samples(context, tail)
 
         return list(self._drain_frames(context, final=True))
 
-    def _decode_to_samples(self, context: AudioBufferStreamer._StreamContext, chunk: bytes) -> np.ndarray:
-        samples = normalize_pcm_to_float32(decode_pcm_to_waveform(chunk, context.source_format), format=context.source_format)
+    def _decode_to_samples(self, context: AudioBufferStreamer.StreamContext, chunk: bytes) -> np.ndarray:
+        samples = decode_pcm_to_waveform(chunk, context.source_format, dtype="float32", channels=context.source_channels)
 
         if context.source_channels > 1:
-            reshaped = samples.reshape(-1, context.source_channels)  # (samples, channels) interleaved
+            # samples shape: (channels, frames)
             if self._channel == "mono":
-                samples = reshaped.mean(axis=1)
+                samples = samples.mean(axis=0)
             elif isinstance(self._channel, int):
-                samples = reshaped[:, self._channel]
-            else:
-                # Preserve channels: transpose to (channels, samples) for downstream buffering.
-                samples = reshaped.T.copy()
+                samples = samples[self._channel]
 
         return samples
 
-    def _resample(self, context: AudioBufferStreamer._StreamContext, samples: np.ndarray, last: bool = False) -> np.ndarray:
+    def _resample(self, context: AudioBufferStreamer.StreamContext, samples: np.ndarray, last: bool = False) -> np.ndarray:
         # soxr expects (samples, channels) interleaved for multi-channel; single-channel
         # accepts either 1D or 2D. Round-trip via transpose for our (channels, samples) layout.
         if context.keep_channels:
@@ -635,7 +631,7 @@ class AudioBufferStreamer:
 
         return context.resampler.resample_chunk(samples, last=last)
 
-    def _push_samples(self, context: AudioBufferStreamer._StreamContext, samples: np.ndarray) -> None:
+    def _push_samples(self, context: AudioBufferStreamer.StreamContext, samples: np.ndarray) -> None:
         import numpy as np
 
         if samples.shape[-1] == 0:
@@ -643,7 +639,7 @@ class AudioBufferStreamer:
 
         context.frame_buffer = np.concatenate([ context.frame_buffer, samples ], axis=-1) if context.frame_buffer.shape[-1] > 0 else samples
 
-    def _drain_frames(self, context: AudioBufferStreamer._StreamContext, final: bool):
+    def _drain_frames(self, context: AudioBufferStreamer.StreamContext, final: bool):
         # Collect mode: hold everything until EOF, then yield one whole-waveform frame.
         if context.frame_size is None:
             if final:

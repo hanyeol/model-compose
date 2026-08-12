@@ -7,8 +7,6 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, W
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
 from mindor.core.workflow.schema import WorkflowSchema
-from .renderer import WorkflowSchemaRenderer, WorkflowFlowRenderer
-
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.base64 import Base64StreamResource
@@ -20,6 +18,7 @@ from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.event_history import EventHistory
 from mindor.core.logger import logging
+from .renderer import WorkflowSchemaRenderer, WorkflowFlowRenderer
 from PIL import Image as PILImage
 from collections import deque
 import gradio as gr

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple, Optional, Dict, Set
+from typing import Union, Literal, Tuple, Optional, Dict, Set
 
 if TYPE_CHECKING:
     import numpy as np
@@ -57,6 +57,26 @@ class AudioBuffer:
             return 1
 
         raise ValueError(f"Expected 1-D or 2-D waveform, got shape {self.waveform.shape}")
+
+    def matches(
+        self,
+        sample_rate: Optional[int] = None,
+        channel: Optional[Union[int, Literal["mono"]]] = None,
+    ) -> bool:
+        if sample_rate is not None and sample_rate != self.sample_rate:
+            return False
+
+        # channel="mono"/int only take effect on multi-channel input, so a mono
+        # buffer already matches any channel request.
+        if channel is not None and self.channels > 1:
+            return False
+
+        return True
+
+    def as_pcm_bytes(self, format: str = "s16le") -> bytes:
+        pcm_bytes, _ = encode_waveform_to_pcm(self.waveform, format=format)
+
+        return pcm_bytes
 
 def encode_waveform_to_pcm(
     waveform: Union[torch.Tensor, np.typing.ArrayLike],

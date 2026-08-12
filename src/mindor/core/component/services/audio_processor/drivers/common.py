@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorActionMethod, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
-from mindor.core.utils.audio import encode_waveform_to_pcm, AudioBuffer
+from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -302,62 +302,72 @@ class AudioProcessorAction(ComponentAction):
             return None
 
         if method == AudioProcessorActionMethod.RESAMPLE:
-            audio = await self._resample(audio, params)
-        elif method == AudioProcessorActionMethod.HIGHPASS:
-            audio = await self._highpass(audio, params)
-        elif method == AudioProcessorActionMethod.LOWPASS:
-            audio = await self._lowpass(audio, params)
-        elif method == AudioProcessorActionMethod.BELL:
-            audio = await self._bell(audio, params)
-        elif method == AudioProcessorActionMethod.LOW_SHELF:
-            audio = await self._low_shelf(audio, params)
-        elif method == AudioProcessorActionMethod.HIGH_SHELF:
-            audio = await self._high_shelf(audio, params)
-        elif method == AudioProcessorActionMethod.PITCH_SHIFT:
-            audio = await self._pitch_shift(audio, params)
-        elif method == AudioProcessorActionMethod.DC_SHIFT:
-            audio = await self._dc_shift(audio, params)
-        elif method == AudioProcessorActionMethod.COMPRESSOR:
-            audio = await self._compressor(audio, params)
-        elif method == AudioProcessorActionMethod.NOISE_GATE:
-            audio = await self._noise_gate(audio, params)
-        elif method == AudioProcessorActionMethod.DISTORTION:
-            audio = await self._distortion(audio, params)
-        elif method == AudioProcessorActionMethod.SATURATION:
-            audio = await self._saturation(audio, params)
-        elif method == AudioProcessorActionMethod.GAIN:
-            audio = await self._gain(audio, params)
-        elif method == AudioProcessorActionMethod.CHORUS:
-            audio = await self._chorus(audio, params)
-        elif method == AudioProcessorActionMethod.DELAY:
-            audio = await self._delay(audio, params)
-        elif method == AudioProcessorActionMethod.REVERB:
-            audio = await self._reverb(audio, params)
-        elif method == AudioProcessorActionMethod.NORMALIZE:
-            audio = await self._normalize(audio, params)
-        elif method == AudioProcessorActionMethod.PEAK_LIMIT:
-            audio = await self._peak_limit(audio, params)
-        elif method == AudioProcessorActionMethod.TRIM_EDGES:
-            audio = await self._trim_edges(audio, params)
-        elif method == AudioProcessorActionMethod.TRIM_SILENCE:
-            audio = await self._trim_silence(audio, params)
-        elif method == AudioProcessorActionMethod.FADE_IN:
-            audio = await self._fade_in(audio, params)
-        elif method == AudioProcessorActionMethod.FADE_OUT:
-            audio = await self._fade_out(audio, params)
-        else:
-            raise ValueError(f"Unsupported audio processor action method: {method}")
+            return PcmStreamResource(await self._resample(audio, params))
 
-        return self._encode(audio)
+        if method == AudioProcessorActionMethod.HIGHPASS:
+            return PcmStreamResource(await self._highpass(audio, params))
 
-    def _encode(self, audio: AudioBuffer) -> PcmStreamResource:
-        samples, channels = encode_waveform_to_pcm(audio.waveform)
+        if method == AudioProcessorActionMethod.LOWPASS:
+            return PcmStreamResource(await self._lowpass(audio, params))
 
-        return PcmStreamResource(samples, {
-            "sample_rate": str(int(audio.sample_rate)),
-            "channels":    str(channels),
-            "bit_depth":   "16",
-        })
+        if method == AudioProcessorActionMethod.BELL:
+            return PcmStreamResource(await self._bell(audio, params))
+
+        if method == AudioProcessorActionMethod.LOW_SHELF:
+            return PcmStreamResource(await self._low_shelf(audio, params))
+
+        if method == AudioProcessorActionMethod.HIGH_SHELF:
+            return PcmStreamResource(await self._high_shelf(audio, params))
+
+        if method == AudioProcessorActionMethod.PITCH_SHIFT:
+            return PcmStreamResource(await self._pitch_shift(audio, params))
+
+        if method == AudioProcessorActionMethod.DC_SHIFT:
+            return PcmStreamResource(await self._dc_shift(audio, params))
+
+        if method == AudioProcessorActionMethod.COMPRESSOR:
+            return PcmStreamResource(await self._compressor(audio, params))
+
+        if method == AudioProcessorActionMethod.NOISE_GATE:
+            return PcmStreamResource(await self._noise_gate(audio, params))
+
+        if method == AudioProcessorActionMethod.DISTORTION:
+            return PcmStreamResource(await self._distortion(audio, params))
+
+        if method == AudioProcessorActionMethod.SATURATION:
+            return PcmStreamResource(await self._saturation(audio, params))
+
+        if method == AudioProcessorActionMethod.GAIN:
+            return PcmStreamResource(await self._gain(audio, params))
+
+        if method == AudioProcessorActionMethod.CHORUS:
+            return PcmStreamResource(await self._chorus(audio, params))
+
+        if method == AudioProcessorActionMethod.DELAY:
+            return PcmStreamResource(await self._delay(audio, params))
+
+        if method == AudioProcessorActionMethod.REVERB:
+            return PcmStreamResource(await self._reverb(audio, params))
+
+        if method == AudioProcessorActionMethod.NORMALIZE:
+            return PcmStreamResource(await self._normalize(audio, params))
+
+        if method == AudioProcessorActionMethod.PEAK_LIMIT:
+            return PcmStreamResource(await self._peak_limit(audio, params))
+
+        if method == AudioProcessorActionMethod.TRIM_EDGES:
+            return PcmStreamResource(await self._trim_edges(audio, params))
+
+        if method == AudioProcessorActionMethod.TRIM_SILENCE:
+            return PcmStreamResource(await self._trim_silence(audio, params))
+
+        if method == AudioProcessorActionMethod.FADE_IN:
+            return PcmStreamResource(await self._fade_in(audio, params))
+
+        if method == AudioProcessorActionMethod.FADE_OUT:
+            return PcmStreamResource(await self._fade_out(audio, params))
+
+        raise ValueError(f"Unsupported audio processor action method: {method}")
 
     @abstractmethod
     async def _resample(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:

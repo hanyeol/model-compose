@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
-from ..streaming.audio import create_audio_source, AudioBufferStreamer
+from ..streaming.audio import create_audio_source, AudioBufferStreamer, PcmStreamResource
 from ...utils.audio import AudioBuffer
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
@@ -120,8 +120,14 @@ class AudioBufferValueRenderer:
         return None
 
     async def _render_element(self, value: Any) -> Optional[AudioBuffer]:
+        if isinstance(value, PcmStreamResource) and isinstance(value.samples, AudioBuffer):
+            if value.samples.matches(self.sample_rate, self.channel):
+                return value.samples # AudioBuffer
+
         if isinstance(value, AudioBuffer):
-            return value
+            if value.matches(self.sample_rate, self.channel):
+                return value
+            value = PcmStreamResource(value)
 
         if value is not None:
             return await AudioBufferStreamer(

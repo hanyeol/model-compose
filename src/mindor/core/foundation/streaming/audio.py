@@ -41,13 +41,19 @@ _AUDIO_CONTENT_TYPE_MAP: Dict[str, str] = {
 class PcmStreamResource(StreamResource):
     def __init__(
         self,
-        samples: Union[StreamResource, bytes],
+        samples: Union[StreamResource, AudioBuffer, bytes],
         attrs: Optional[Dict[str, Any]] = None,
         filename: Optional[str] = None,
     ):
         super().__init__("audio/pcm", filename)
 
-        self.samples: StreamResource = self._resolve_samples(samples)
+        if isinstance(samples, AudioBuffer):
+            attrs = dict(attrs) if attrs else {}
+            attrs.setdefault("sample_rate", samples.sample_rate)
+            attrs.setdefault("channels", samples.channels)
+            attrs.setdefault("bit_depth", 16)
+
+        self.samples: Union[StreamResource, AudioBuffer] = self._resolve_samples(samples)
         self.attrs: Dict[str, Any] = attrs or {}
 
     @property
@@ -55,14 +61,22 @@ class PcmStreamResource(StreamResource):
         return self.attrs.get("format") or get_pcm_format(int(self.attrs.get("bit_depth", 16)))
 
     async def close(self) -> None:
-        await self.samples.close()
+        if isinstance(self.samples, StreamResource):
+            await self.samples.close()
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        if isinstance(self.samples, AudioBuffer):
+            async for chunk in BytesStreamResource(self.samples.as_pcm_bytes(self.format)):
+                yield chunk
+            return
+
         async for chunk in self.samples:
             yield chunk
 
     @staticmethod
-    def _resolve_samples(samples: Union[StreamResource, bytes]) -> StreamResource:
+    def _resolve_samples(
+        samples: Union[StreamResource, AudioBuffer, bytes],
+    ) -> Union[StreamResource, AudioBuffer]:
         if isinstance(samples, bytes):
             return BytesStreamResource(samples)
 
@@ -80,6 +94,8 @@ class WavStreamResource(StreamResource):
         if isinstance(source, PcmStreamResource):
             attrs = attrs if attrs is not None else source.attrs
             source = source.samples
+            if isinstance(source, AudioBuffer):
+                source = encode_waveform_to_pcm(source.waveform)[0]
             is_raw_samples = True
         else:
             is_raw_samples = attrs is not None

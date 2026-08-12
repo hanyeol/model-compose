@@ -71,7 +71,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         def _track_frame(frame: PILImage.Image, timestamp: float) -> None:
             faces = self._detect_frame(frame, params)
-            self._cluster_faces(faces, timestamp, centroids_state, cluster_tracks, params)
+            self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
 
         async for frame in frames:
             timestamp = offset + frame_count / frame_rate
@@ -106,6 +106,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         self,
         faces: List[Dict[str, Any]],
         timestamp: float,
+        frame_rate: float,
         centroids_state: Dict[str, Any],
         cluster_tracks: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
@@ -116,6 +117,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         min_face_size            = params["min_face_size"] or 0
         max_face_count_per_frame = params["max_face_count_per_frame"] or 0
         merge_gap                = params["merge_gap"] or 0.0
+        frame_period             = 1.0 / frame_rate
         bounding_box_padding     = params["bounding_box_padding"] or 0.0
 
         candidates = self._filter_faces(faces, min_face_size, max_face_count_per_frame)
@@ -124,12 +126,13 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         # Score every (face, cluster) pair up front, then bind them in descending
         # order so a strong match wins its cluster regardless of detection order.
-        # Near-ties on embedding similarity (within `tie_margin`) are broken by
-        # how much each face overlaps the cluster's last known position, which
-        # keeps a moving face from stealing a spatially-distant cluster on a
-        # sub-noise similarity edge. A cluster's last_bbox is ignored once it
-        # goes stale (`stale_after` seconds without a detection) so long-absent
-        # clusters can't win tie-breaks with an ancient position.
+        # The ranking key blends embedding similarity with a small overlap term
+        # (`tie_margin * overlap`). Since overlap ∈ [0, 1], the term can only
+        # flip the order of two pairs whose raw similarity gap is smaller than
+        # `tie_margin` — i.e. a near-tie defers to spatial overlap with no
+        # bucket-boundary discontinuities. A cluster's last_bbox is ignored once
+        # it goes stale (`stale_after` seconds without a detection) so long-
+        # absent clusters can't win tie-breaks with an ancient position.
         tie_margin: float = 0.05
         stale_after: float = 2.0
 
@@ -138,7 +141,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             embedding = face["embedding"]
             normalized_faces.append(embedding / (np.linalg.norm(embedding) + 1e-12))
 
-        pairs: List[Tuple[int, float, int, int]] = []
+        pairs: List[Tuple[float, int, int]] = []
         for face_index, normalized in enumerate(normalized_faces):
             face_bbox = candidates[face_index]["bounding_box"]
             for cluster_id, centroid in enumerate(centroids):
@@ -150,19 +153,17 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 last_seen = track.get("last_seen") if track else None
                 is_stale = last_seen is None or (timestamp - last_seen) > stale_after
                 overlap = 0.0 if is_stale or last_bbox is None else self._bbox_overlap(face_bbox, last_bbox)
-                # Quantize similarity so pairs within `tie_margin` share a rank
-                # and defer to overlap. Higher bucket → better match.
-                similarity_bucket = int(similarity / tie_margin) if tie_margin > 0 else 0
-                pairs.append((similarity_bucket, overlap, face_index, cluster_id))
+                pairs.append((similarity + tie_margin * overlap, face_index, cluster_id))
 
-        # Sort by (bucket desc, overlap desc). Do NOT let face_index / cluster_id
-        # influence the order — a plain reverse-tuple sort would prefer higher
-        # indices on true ties, which is not a meaningful tie-break.
-        pairs.sort(key=lambda p: (-p[0], -p[1]))
+        # Sort by blended score, descending. Do NOT let face_index / cluster_id
+        # influence the order on true ties — a plain reverse-tuple sort would
+        # prefer higher indices, which is not a meaningful tie-break.
+        pairs.sort(key=lambda p: -p[0])
 
         assigned_face: Dict[int, int] = {}
         used_clusters: set = set()
-        for _, _, face_index, cluster_id in pairs:
+
+        for _, face_index, cluster_id in pairs:
             if face_index in assigned_face or cluster_id in used_clusters:
                 continue
             assigned_face[face_index] = cluster_id
@@ -182,7 +183,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 counts.append(1)
                 cluster_id = len(centroids) - 1
 
-            self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, bounding_box_padding)
+            self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding)
 
     def _add_face_to_track(
         self,
@@ -191,14 +192,19 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         timestamp: float,
         face: Dict[str, Any],
         merge_gap: float,
+        frame_period: float,
         bounding_box_padding: float,
     ) -> None:
         """Fold a new detection into its cluster's segment history. The
-        cluster's `current` segment is extended if this frame is within
-        `merge_gap` of the previous one; otherwise the current segment is
-        sealed into `segments` and a fresh one starts. Only the highest-
-        scoring frame's image is retained per segment, so memory scales with
-        the number of segments rather than the number of frames.
+        cluster's `current` segment is extended if this frame is within one
+        frame period plus `merge_gap` of the previous one; otherwise the
+        current segment is sealed into `segments` and a fresh one starts. The
+        frame-period baseline means `merge_gap` measures how long a person may
+        go undetected before the segment is split, not how far apart two
+        detections may be — consecutive frames always merge, so `merge_gap=0`
+        does what a user naïvely expects. Only the highest-scoring frame's
+        image is retained per segment, so memory scales with the number of
+        segments rather than the number of frames.
 
         The face crop is materialized here (lazily) rather than up-front in
         `_serialize_faces`, so frames that never become a segment's best
@@ -211,7 +217,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         current: Optional[Dict[str, Any]] = track["current"]
         score = face["score"]
 
-        if current is not None and timestamp - current["end"] <= merge_gap:
+        if current is not None and timestamp - current["end"] <= frame_period + merge_gap:
             current["end"] = timestamp
             current["frame_count"] += 1
             if score > current["best_score"]:

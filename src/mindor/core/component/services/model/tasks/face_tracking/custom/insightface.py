@@ -225,10 +225,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             current["end"] = timestamp
             current["frame_count"] += 1
             if score > current["best_score"]:
-                current["best_score"]  = score
-                current["best_image"]  = self._extract_face_image(face, bounding_box_padding)
-                current["best_gender"] = face.get("gender")
-                current["best_age"]    = face.get("age")
+                current["best_score"] = score
+                current["best_face"]  = self._build_face_snapshot(face, bounding_box_padding)
             return
 
         if current is not None:
@@ -239,9 +237,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "end":         timestamp,
             "frame_count": 1,
             "best_score":  score,
-            "best_image":  self._extract_face_image(face, bounding_box_padding),
-            "best_gender": face.get("gender"),
-            "best_age":    face.get("age"),
+            "best_face":   self._build_face_snapshot(face, bounding_box_padding),
         }
 
     def _serialize_faces(
@@ -286,6 +282,25 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return faces
 
+    def _build_face_snapshot(self, face: Dict[str, Any], bounding_box_padding: float) -> Dict[str, Any]:
+        snapshot: Dict[str, Any] = {
+            "bounding_box": face["bounding_box"],
+            "score":        face["score"],
+        }
+
+        image_source = face.get("image_source")
+
+        if image_source is not None:
+            snapshot["image"] = self._crop_face_image(image_source, face["bounding_box"], bounding_box_padding)
+
+        if "gender" in face:
+            snapshot["gender"] = face["gender"]
+
+        if "age" in face:
+            snapshot["age"] = face["age"]
+
+        return snapshot
+
     def _build_tracking_result(
         self,
         cluster_tracks: Dict[int, Dict[str, Any]],
@@ -308,6 +323,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             segments: List[Dict[str, Any]] = []
 
             for cluster_segment in cluster_segments:
+                best_face = cluster_segment["best_face"]
                 segment = {
                     "start_time": format_timecode(cluster_segment["start"]),
                     "end_time":   format_timecode(cluster_segment["end"]),
@@ -315,12 +331,13 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                     "score":      cluster_segment["best_score"],
                 }
 
-                if params["return_image"]:
-                    segment["image"] = cluster_segment["best_image"]
+                if params["return_image"] and "image" in best_face:
+                    segment["image"] = best_face["image"]
 
                 segments.append(segment)
 
             best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_score"])
+            best_face = best_cluster_segment["best_face"]
 
             track: Dict[str, Any] = {
                 "track_id":    cluster_id + 1,
@@ -333,11 +350,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 track["embedding"] = FaceEmbedding(centroids[cluster_id].tolist())
 
             if params["return_gender_age"]:
-                if best_cluster_segment["best_gender"] is not None:
-                    track["gender"] = best_cluster_segment["best_gender"]
+                if "gender" in best_face:
+                    track["gender"] = best_face["gender"]
 
-                if best_cluster_segment["best_age"] is not None:
-                    track["age"] = best_cluster_segment["best_age"]
+                if "age" in best_face:
+                    track["age"] = best_face["age"]
 
             tracks.append(track)
 
@@ -349,17 +366,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     @staticmethod
     def _gender_to_label(gender: int) -> str:
         return "male" if gender == 1 else "female"
-
-    def _extract_face_image(self, face: Dict[str, Any], bounding_box_padding: float) -> Optional[PILImage.Image]:
-        """Return the face crop for a detection, cropping on demand from the
-        source frame when `return_image` was requested. Returns None when the
-        crop was not requested (no `image_source` was attached)."""
-        image_source = face.get("image_source")
-
-        if image_source is None:
-            return None
-
-        return self._crop_face_image(image_source, face["bounding_box"], bounding_box_padding)
 
     @staticmethod
     def _crop_face_image(

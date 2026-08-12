@@ -83,8 +83,8 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         waveforms: List[Tuple[np.ndarray, int]] = []
 
         for audio in audios:
-            waveform, sample_rate = await AudioBufferStreamer(audio, channel="mono").collect()
-            waveforms.append((waveform, sample_rate))
+            audio = await AudioBufferStreamer(audio, channel="mono").collect()
+            waveforms.append((audio.waveform, audio.sample_rate))
 
         return waveforms
 

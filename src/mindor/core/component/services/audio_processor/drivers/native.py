@@ -1,120 +1,209 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioProcessorComponentConfig
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
 from mindor.core.utils.audio import AudioBuffer
+from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from ..base import AudioProcessorService, AudioProcessorDriver, register_audio_processor_service
 from ..base import ComponentActionContext
 from .common import AudioProcessorAction
 
-if TYPE_CHECKING:
-    import numpy as np
-
 class NativeAudioProcessorAction(AudioProcessorAction):
-    async def _resample(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _resample() -> AudioBuffer:
-            import numpy as np
-            import soxr
+    async def _resample(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        import numpy as np
+        import soxr
 
-            waveform = np.asarray(audio.waveform, dtype=np.float32)
-            target_sample_rate = int(params["sample_rate"])
+        # soxr expects (samples, channels) interleaved; keep it that way per chunk.
+        resampler = soxr.ResampleStream(audio.sample_rate, params["sample_rate"], num_channels=audio.channels, dtype="float32")
+        keep_channels = audio.channels > 1
 
-            if target_sample_rate == audio.sample_rate:
-                return AudioBuffer(waveform, audio.sample_rate)
+        def _process(waveform, last: bool):
+            samples = waveform.T if keep_channels else waveform
+            resampled = resampler.resample_chunk(samples, last=last)
+            return resampled.T if keep_channels else resampled
 
-            waveform = soxr.resample(waveform, audio.sample_rate, target_sample_rate, quality="HQ")
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                resampled = await self._run_in_executor(_process, chunk.waveform, False)
+                if resampled.shape[-1] > 0:
+                    yield AudioBuffer(resampled, params["sample_rate"])
 
-            return AudioBuffer(waveform, target_sample_rate)
+            tail = await self._run_in_executor(_process, np.zeros((audio.channels, 0), dtype=np.float32) if keep_channels else np.zeros(0, dtype=np.float32), True)
+            if tail.shape[-1] > 0:
+                yield AudioBuffer(tail, params["sample_rate"])
 
-        return await self._run_in_executor(_resample)
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=params["sample_rate"],
+            channels=audio.channels,
+        )
 
-    async def _highpass(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _highpass() -> AudioBuffer:
-            from pedalboard import Pedalboard, HighpassFilter
+    async def _highpass(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, HighpassFilter
+        import numpy as np
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                HighpassFilter(cutoff_frequency_hz=params["cutoff"]),
-            ]))
+        board = Pedalboard([ HighpassFilter(cutoff_frequency_hz=params["cutoff"]) ])
+        keep_channels = audio.channels > 1
 
-            return AudioBuffer(waveform, sample_rate)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-        return await self._run_in_executor(_highpass)
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-    async def _lowpass(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _lowpass() -> AudioBuffer:
-            from pedalboard import Pedalboard, LowpassFilter
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                LowpassFilter(cutoff_frequency_hz=params["cutoff"]),
-            ]))
+    async def _lowpass(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, LowpassFilter
+        import numpy as np
 
-            return AudioBuffer(waveform, sample_rate)
+        board = Pedalboard([ LowpassFilter(cutoff_frequency_hz=params["cutoff"]) ])
+        keep_channels = audio.channels > 1
 
-        return await self._run_in_executor(_lowpass)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-    async def _bell(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _bell() -> AudioBuffer:
-            from pedalboard import Pedalboard, PeakFilter
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                PeakFilter(
-                    cutoff_frequency_hz=params["frequency"],
-                    gain_db=params["gain"],
-                    q=params["q"],
-                ),
-            ]))
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-            return AudioBuffer(waveform, sample_rate)
+    async def _bell(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, PeakFilter
+        import numpy as np
 
-        return await self._run_in_executor(_bell)
+        board = Pedalboard([
+            PeakFilter(cutoff_frequency_hz=params["frequency"], gain_db=params["gain"], q=params["q"]),
+        ])
+        keep_channels = audio.channels > 1
 
-    async def _low_shelf(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _low_shelf() -> AudioBuffer:
-            from pedalboard import Pedalboard, LowShelfFilter
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                LowShelfFilter(
-                    cutoff_frequency_hz=params["frequency"],
-                    gain_db=params["gain"],
-                    q=params["q"],
-                ),
-            ]))
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-            return AudioBuffer(waveform, sample_rate)
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-        return await self._run_in_executor(_low_shelf)
+    async def _low_shelf(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, LowShelfFilter
+        import numpy as np
 
-    async def _high_shelf(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _high_shelf() -> AudioBuffer:
-            from pedalboard import Pedalboard, HighShelfFilter
+        board = Pedalboard([
+            LowShelfFilter(cutoff_frequency_hz=params["frequency"], gain_db=params["gain"], q=params["q"]),
+        ])
+        keep_channels = audio.channels > 1
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                HighShelfFilter(
-                    cutoff_frequency_hz=params["frequency"],
-                    gain_db=params["gain"],
-                    q=params["q"],
-                ),
-            ]))
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-            return AudioBuffer(waveform, sample_rate)
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-        return await self._run_in_executor(_high_shelf)
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-    async def _pitch_shift(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _pitch_shift() -> AudioBuffer:
-            from pedalboard import Pedalboard, PitchShift
+    async def _high_shelf(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, HighShelfFilter
+        import numpy as np
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                PitchShift(semitones=params["semitones"]),
-            ]))
+        board = Pedalboard([
+            HighShelfFilter(cutoff_frequency_hz=params["frequency"], gain_db=params["gain"], q=params["q"]),
+        ])
+        keep_channels = audio.channels > 1
 
-            return AudioBuffer(waveform, sample_rate)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-        return await self._run_in_executor(_pitch_shift)
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-    async def _dc_shift(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
+
+    async def _pitch_shift(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, PitchShift
+        import numpy as np
+
+        board = Pedalboard([ PitchShift(semitones=params["semitones"]) ])
+        keep_channels = audio.channels > 1
+
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
+
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            pending = 0
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                pending += chunk.waveform.shape[-1] - processed.shape[-1]
+                if processed.shape[-1] > 0:
+                    yield AudioBuffer(processed, audio.sample_rate)
+
+            # Drain pedalboard's lookahead by feeding zeros, doubling the chunk
+            # until it releases enough to match what we consumed.
+            padding = max(pending, 1)
+            while pending > 0:
+                zeros = np.zeros((audio.channels, padding), dtype=np.float32) if keep_channels else np.zeros(padding, dtype=np.float32)
+                tail = await self._run_in_executor(_process, zeros)
+                if tail.shape[-1] == 0:
+                    padding *= 2
+                    continue
+                trim = min(tail.shape[-1], pending)
+                yield AudioBuffer(tail[..., :trim], audio.sample_rate)
+                pending -= trim
+
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
+
+    async def _dc_shift(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        # Needs the global mean → collect.
+        audio = await audio.collect()
+
         def _dc_shift() -> AudioBuffer:
             import numpy as np
 
@@ -125,163 +214,275 @@ class NativeAudioProcessorAction(AudioProcessorAction):
 
             return AudioBuffer(waveform, audio.sample_rate)
 
-        return await self._run_in_executor(_dc_shift)
+        return AudioBufferStreamIterator.from_single(await self._run_in_executor(_dc_shift))
 
-    async def _compressor(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _compressor() -> AudioBuffer:
-            from pedalboard import Pedalboard, Compressor
+    async def _compressor(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Compressor
+        import numpy as np
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Compressor(
-                    threshold_db=params["threshold"],
-                    ratio=params["ratio"],
-                    attack_ms=params["attack"] * 1000.0,
-                    release_ms=params["release"] * 1000.0,
-                ),
-            ]))
+        board = Pedalboard([
+            Compressor(
+                threshold_db=params["threshold"],
+                ratio=params["ratio"],
+                attack_ms=params["attack_time"] * 1000.0,
+                release_ms=params["release_time"] * 1000.0,
+            ),
+        ])
+        keep_channels = audio.channels > 1
 
-            return AudioBuffer(waveform, sample_rate)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-        return await self._run_in_executor(_compressor)
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-    async def _noise_gate(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _noise_gate() -> AudioBuffer:
-            from pedalboard import Pedalboard, NoiseGate
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                NoiseGate(
-                    threshold_db=params["threshold"],
-                    ratio=params["ratio"],
-                    attack_ms=params["attack"] * 1000.0,
-                    release_ms=params["release"] * 1000.0,
-                ),
-            ]))
+    async def _noise_gate(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, NoiseGate
+        import numpy as np
 
-            return AudioBuffer(waveform, sample_rate)
+        board = Pedalboard([
+            NoiseGate(
+                threshold_db=params["threshold"],
+                ratio=params["ratio"],
+                attack_ms=params["attack_time"] * 1000.0,
+                release_ms=params["release_time"] * 1000.0,
+            ),
+        ])
+        keep_channels = audio.channels > 1
 
-        return await self._run_in_executor(_noise_gate)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-    async def _distortion(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _distortion() -> AudioBuffer:
-            from pedalboard import Pedalboard, Distortion
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Distortion(drive_db=params["drive"]),
-            ]))
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-            return AudioBuffer(waveform, sample_rate)
+    async def _distortion(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Distortion
+        import numpy as np
 
-        return await self._run_in_executor(_distortion)
+        board = Pedalboard([ Distortion(drive_db=params["drive"]) ])
+        keep_channels = audio.channels > 1
 
-    async def _saturation(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _saturation() -> AudioBuffer:
-            from pedalboard import Pedalboard, Distortion
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Distortion(drive_db=params["drive"]),
-            ]))
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-            return AudioBuffer(waveform, sample_rate)
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-        return await self._run_in_executor(_saturation)
+    async def _saturation(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Distortion
+        import numpy as np
 
-    async def _gain(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _gain() -> AudioBuffer:
-            from pedalboard import Pedalboard, Gain
+        board = Pedalboard([ Distortion(drive_db=params["drive"]) ])
+        keep_channels = audio.channels > 1
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Gain(gain_db=params["level"]),
-            ]))
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-            return AudioBuffer(waveform, sample_rate)
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-        return await self._run_in_executor(_gain)
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-    async def _chorus(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _chorus() -> AudioBuffer:
-            from pedalboard import Pedalboard, Chorus
+    async def _gain(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Gain
+        import numpy as np
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Chorus(
-                    rate_hz=params["rate"],
-                    depth=params["depth"],
-                    feedback=params["feedback"],
-                    centre_delay_ms=params["delay"] * 1000.0,
-                    mix=params["mix"],
-                ),
-            ]))
+        board = Pedalboard([ Gain(gain_db=params["level"]) ])
+        keep_channels = audio.channels > 1
 
-            return AudioBuffer(waveform, sample_rate)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-        return await self._run_in_executor(_chorus)
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-    async def _delay(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _delay() -> AudioBuffer:
-            from pedalboard import Pedalboard, Delay
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Delay(
-                    delay_seconds=params["time"],
-                    feedback=params["feedback"],
-                    mix=params["mix"],
-                ),
-            ]))
+    async def _chorus(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Chorus
+        import numpy as np
 
-            return AudioBuffer(waveform, sample_rate)
+        board = Pedalboard([
+            Chorus(
+                rate_hz=params["rate"],
+                depth=params["depth"],
+                feedback=params["feedback"],
+                centre_delay_ms=params["delay"] * 1000.0,
+                mix=params["mix"],
+            ),
+        ])
+        keep_channels = audio.channels > 1
 
-        return await self._run_in_executor(_delay)
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
 
-    async def _reverb(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _reverb() -> AudioBuffer:
-            from pedalboard import Pedalboard, Reverb
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
 
-            waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-                Reverb(
-                    room_size=params["room_size"],
-                    damping=params["damping"],
-                    wet_level=params["wet_level"],
-                    dry_level=params["dry_level"],
-                    width=params["width"],
-                ),
-            ]))
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-            return AudioBuffer(waveform, sample_rate)
+    async def _delay(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Delay
+        import numpy as np
 
-        return await self._run_in_executor(_reverb)
+        board = Pedalboard([
+            Delay(
+                delay_seconds=params["time"],
+                feedback=params["feedback"],
+                mix=params["mix"],
+            ),
+        ])
+        keep_channels = audio.channels > 1
 
-    async def _normalize(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
+
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
+
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
+
+    async def _reverb(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        from pedalboard import Pedalboard, Reverb
+        import numpy as np
+
+        board = Pedalboard([
+            Reverb(
+                room_size=params["room_size"],
+                damping=params["damping"],
+                wet_level=params["wet_level"],
+                dry_level=params["dry_level"],
+                width=params["width"],
+            ),
+        ])
+        keep_channels = audio.channels > 1
+
+        def _process(waveform):
+            audio_2d = waveform if keep_channels else waveform[np.newaxis, :]
+            processed = board(audio_2d, audio.sample_rate, reset=False)
+            return processed if keep_channels else processed[0]
+
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform)
+                yield AudioBuffer(processed, audio.sample_rate)
+
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
+
+    async def _normalize(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        # Needs global statistics (RMS / peak / LUFS) → collect.
+        audio = await audio.collect()
+
         def _normalize() -> AudioBuffer:
             if params["mode"] == AudioProcessorNormalizeMode.RMS:
-                return self._normalize_rms(audio, params)
+                return self._normalize_rms(audio, params["level"], params["peak_limit"])
 
             if params["mode"] == AudioProcessorNormalizeMode.PEAK:
-                return self._normalize_peak(audio, params)
+                return self._normalize_peak(audio, params["level"])
 
             if params["mode"] == AudioProcessorNormalizeMode.LUFS:
-                return self._normalize_lufs(audio, params)
+                return self._normalize_lufs(
+                    audio,
+                    params["level"],
+                    params["tolerance"],
+                    params["max_gain"],
+                    params["true_peak_ceiling"],
+                )
 
             raise ValueError(f"Unsupported normalize mode: {params['mode']}")
 
-        return await self._run_in_executor(_normalize)
+        return AudioBufferStreamIterator.from_single(await self._run_in_executor(_normalize))
 
-    async def _peak_limit(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _peak_limit(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        # Needs the global peak (HARD) or shared dispatch with SMOOTH → collect.
+        audio = await audio.collect()
+
         def _peak_limit() -> AudioBuffer:
             if params["mode"] == AudioProcessorPeakLimitMode.HARD:
-                return self._peak_limit_hard(audio, params)
+                return self._peak_limit_hard(audio, params["level"])
 
             if params["mode"] == AudioProcessorPeakLimitMode.SMOOTH:
-                return self._peak_limit_smooth(audio, params)
+                return self._peak_limit_smooth(audio, params["level"], params["release_time"])
 
             raise ValueError(f"Unsupported peak-limit mode: {params['mode']}")
 
-        return await self._run_in_executor(_peak_limit)
+        return AudioBufferStreamIterator.from_single(await self._run_in_executor(_peak_limit))
 
-    async def _trim_edges(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _trim_edges(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        # Needs the whole signal to locate silence at both edges → collect.
+        audio = await audio.collect()
+
         def _trim_edges() -> AudioBuffer:
             import numpy as np
 
             waveform = np.asarray(audio.waveform, dtype=np.float32)
-            sample_rate = audio.sample_rate
 
             frame_length = 2048
             hop_length = 512
@@ -306,27 +507,29 @@ class NativeAudioProcessorAction(AudioProcessorAction):
                         trimmed = waveform[:0]
 
             if 0 < trimmed.size < waveform.size:
-                pad_each = int(sample_rate * params["padding"])
+                pad_each = int(audio.sample_rate * params["padding"])
                 headroom = (waveform.size - trimmed.size) // 2
                 pad = min(pad_each, max(headroom, 0))
                 if pad > 0:
                     trimmed = np.pad(trimmed, (pad, pad), mode="constant")
 
-            return AudioBuffer(trimmed, sample_rate)
+            return AudioBuffer(trimmed, audio.sample_rate)
 
-        return await self._run_in_executor(_trim_edges)
+        return AudioBufferStreamIterator.from_single(await self._run_in_executor(_trim_edges))
 
-    async def _trim_silence(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _trim_silence(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        # Needs the whole signal to locate silence boundaries → collect.
+        audio = await audio.collect()
+
         def _trim_silence() -> AudioBuffer:
             import numpy as np
 
             waveform = np.asarray(audio.waveform, dtype=np.float32)
-            sample_rate = audio.sample_rate
 
             window_seconds = params["window"]
-            frame_len = int(sample_rate * window_seconds)
+            frame_len = int(audio.sample_rate * window_seconds)
             if frame_len == 0 or len(waveform) < frame_len:
-                return AudioBuffer(waveform, sample_rate)
+                return AudioBuffer(waveform, audio.sample_rate)
 
             n_frames = len(waveform) // frame_len
             threshold_linear = 10.0 ** (params["threshold"] / 20.0)
@@ -367,100 +570,140 @@ class NativeAudioProcessorAction(AudioProcessorAction):
 
             trimmed = waveform[start_sample:end_sample].copy()
 
-            fade_samples = int(sample_rate * params["fade"])
+            fade_samples = int(audio.sample_rate * params["fade"])
             if fade_samples > 0 and len(trimmed) > fade_samples:
                 fade = np.cos(np.linspace(0, np.pi / 2, fade_samples)) ** 2
                 trimmed[-fade_samples:] *= fade
 
-            return AudioBuffer(trimmed, sample_rate)
+            return AudioBuffer(trimmed, audio.sample_rate)
 
-        return await self._run_in_executor(_trim_silence)
+        return AudioBufferStreamIterator.from_single(await self._run_in_executor(_trim_silence))
 
-    async def _fade_in(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _fade_in() -> AudioBuffer:
-            import numpy as np
+    async def _fade_in(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        import numpy as np
 
-            waveform = np.asarray(audio.waveform, dtype=np.float32).copy()
-            sample_rate = audio.sample_rate
+        fade_samples = int(audio.sample_rate * params["duration"])
+        fade_curve = np.sin(np.linspace(0, np.pi / 2, fade_samples)) ** 2 if fade_samples > 0 else None
+        keep_channels = audio.channels > 1
 
-            fade_samples = int(sample_rate * params["duration"])
+        # Track how many samples we've emitted so we know which slice of the fade
+        # curve to apply to each incoming chunk.
+        position = 0
 
-            if fade_samples > 0 and waveform.size > fade_samples:
-                fade = np.sin(np.linspace(0, np.pi / 2, fade_samples)) ** 2
+        def _process(waveform, pos):
+            length = waveform.shape[-1]
+            if fade_curve is None or pos >= fade_samples or length == 0:
+                return waveform
+            waveform = waveform.copy()
+            end = min(pos + length, fade_samples)
+            window = fade_curve[pos:end]
+            if keep_channels:
+                waveform[:, : window.size] *= window
+            else:
+                waveform[: window.size] *= window
+            return waveform
 
-                if waveform.ndim == 1:
-                    waveform[:fade_samples] *= fade
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            nonlocal position
+            async for chunk in audio:
+                processed = await self._run_in_executor(_process, chunk.waveform, position)
+                position += chunk.waveform.shape[-1]
+                yield AudioBuffer(processed, audio.sample_rate)
+
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
+
+    async def _fade_out(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        import numpy as np
+
+        fade_samples = int(audio.sample_rate * params["duration"])
+        fade_curve = np.cos(np.linspace(0, np.pi / 2, fade_samples)) ** 2 if fade_samples > 0 else None
+        keep_channels = audio.channels > 1
+
+        # Hold back the last `fade_samples` so we can apply the curve on flush;
+        # emit anything older than that as we go.
+        tail = np.zeros((audio.channels, 0), dtype=np.float32) if keep_channels else np.zeros(0, dtype=np.float32)
+
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            nonlocal tail
+
+            async for chunk in audio:
+                if fade_curve is None:
+                    yield chunk
+                    continue
+
+                combined = np.concatenate([ tail, chunk.waveform ], axis=-1)
+                excess = combined.shape[-1] - fade_samples
+
+                if excess > 0:
+                    emit = combined[..., :excess]
+                    tail = combined[..., excess:]
+                    yield AudioBuffer(emit, audio.sample_rate)
                 else:
-                    waveform[:, :fade_samples] *= fade
+                    tail = combined
 
-            return AudioBuffer(waveform, sample_rate)
+            if tail.shape[-1] > 0:
+                if fade_curve is not None:
+                    window = fade_curve[-tail.shape[-1]:]
+                    tail = tail.copy()
+                    if keep_channels:
+                        tail *= window
+                    else:
+                        tail *= window
+                yield AudioBuffer(tail, audio.sample_rate)
 
-        return await self._run_in_executor(_fade_in)
+        return AudioBufferStreamIterator(
+            source=_stream(),
+            sample_rate=audio.sample_rate,
+            channels=audio.channels,
+        )
 
-    async def _fade_out(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
-        def _fade_out() -> AudioBuffer:
-            import numpy as np
-
-            waveform = np.asarray(audio.waveform, dtype=np.float32).copy()
-            sample_rate = audio.sample_rate
-
-            fade_samples = int(sample_rate * params["duration"])
-
-            if fade_samples > 0 and waveform.size > fade_samples:
-                fade = np.cos(np.linspace(0, np.pi / 2, fade_samples)) ** 2
-                if waveform.ndim == 1:
-                    waveform[-fade_samples:] *= fade
-                else:
-                    waveform[:, -fade_samples:] *= fade
-
-            return AudioBuffer(waveform, sample_rate)
-
-        return await self._run_in_executor(_fade_out)
-
-    def _normalize_rms(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    def _normalize_rms(self, audio: AudioBuffer, level: float, peak_limit: float) -> AudioBuffer:
         import numpy as np
 
         waveform = np.asarray(audio.waveform, dtype=np.float32)
         rms = float(np.sqrt(np.mean(waveform ** 2)))
-        target_rms = 10.0 ** (params["level"] / 20.0)
+        target_rms = 10.0 ** (level / 20.0)
 
         if rms > 0:
             waveform = waveform * (target_rms / rms)
 
-        peak_limit = params["peak_limit"]
         waveform = np.clip(waveform, -peak_limit, peak_limit)
 
         return AudioBuffer(waveform, audio.sample_rate)
 
-    def _normalize_peak(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    def _normalize_peak(self, audio: AudioBuffer, level: float) -> AudioBuffer:
         import numpy as np
 
         waveform = np.asarray(audio.waveform, dtype=np.float32)
         peak = float(np.abs(waveform).max()) if waveform.size > 0 else 0.0
-        target_peak = 10.0 ** (params["level"] / 20.0)
+        target_peak = 10.0 ** (level / 20.0)
 
         if peak > 0:
             waveform = waveform * (target_peak / peak)
 
         return AudioBuffer(waveform, audio.sample_rate)
 
-    def _normalize_lufs(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    def _normalize_lufs(
+        self,
+        audio: AudioBuffer,
+        level: float,
+        tolerance: float,
+        max_gain: float,
+        true_peak_ceiling: float,
+    ) -> AudioBuffer:
         from pedalboard import Pedalboard, Resample, Limiter
         import pyloudnorm as pyln
         import numpy as np
 
         waveform = np.asarray(audio.waveform, dtype=np.float32)
-        sample_rate = audio.sample_rate
-
-        target_lufs       = params["level"]
-        tolerance         = params["tolerance"]
-        max_gain          = params["max_gain"]
-        true_peak_ceiling = params["true_peak_ceiling"]
-
         audio_2d = waveform[np.newaxis, :] if waveform.ndim == 1 else waveform
         meter_input = audio_2d[0] if audio_2d.shape[0] == 1 else audio_2d.T
 
-        meter = pyln.Meter(sample_rate)
+        meter = pyln.Meter(audio.sample_rate)
         applied_gain_db = 0.0
 
         for _ in range(3):
@@ -468,7 +711,7 @@ class NativeAudioProcessorAction(AudioProcessorAction):
             if not np.isfinite(measured):
                 break
 
-            delta = target_lufs - measured
+            delta = level - measured
             if abs(delta) <= tolerance:
                 break
 
@@ -483,49 +726,40 @@ class NativeAudioProcessorAction(AudioProcessorAction):
             applied_gain_db += step
 
         oversample = 4
-        adjusted = audio_2d[0] if waveform.ndim == 1 else audio_2d
-
-        processed_waveform, processed_sample_rate = self._apply_board(adjusted, sample_rate, Pedalboard([
-            Resample(target_sample_rate=sample_rate * oversample, quality=Resample.Quality.WindowedSinc),
+        board = Pedalboard([
+            Resample(target_sample_rate=audio.sample_rate * oversample, quality=Resample.Quality.WindowedSinc),
             Limiter(threshold_db=true_peak_ceiling, release_ms=100.0),
-            Resample(target_sample_rate=sample_rate, quality=Resample.Quality.WindowedSinc),
-        ]))
+            Resample(target_sample_rate=audio.sample_rate, quality=Resample.Quality.WindowedSinc),
+        ])
+        processed = board(audio_2d.astype(np.float32), audio.sample_rate)
 
-        return AudioBuffer(processed_waveform, processed_sample_rate)
+        return AudioBuffer(processed[0] if waveform.ndim == 1 else processed, audio.sample_rate)
 
-    def _peak_limit_hard(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    def _peak_limit_hard(self, audio: AudioBuffer, level: float) -> AudioBuffer:
         import numpy as np
 
         waveform = np.asarray(audio.waveform, dtype=np.float32)
 
         if waveform.size > 0:
-            limit = params["level"]
             peak = float(np.abs(waveform).max())
-            if peak > limit and peak > 0:
-                waveform = waveform * (limit / peak)
+            if peak > level and peak > 0:
+                waveform = waveform * (level / peak)
 
         return AudioBuffer(waveform, audio.sample_rate)
 
-    def _peak_limit_smooth(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    def _peak_limit_smooth(self, audio: AudioBuffer, level: float, release_time: float) -> AudioBuffer:
         from pedalboard import Pedalboard, Limiter
-
-        waveform, sample_rate = self._apply_board(audio.waveform, audio.sample_rate, Pedalboard([
-            Limiter(
-                threshold_db=params["level"],
-                release_ms=params["release"] * 1000.0,
-            ),
-        ]))
-
-        return AudioBuffer(waveform, sample_rate)
-
-    def _apply_board(self, waveform: np.ndarray, sample_rate: int, board: Any) -> Tuple[np.ndarray, int]:
         import numpy as np
 
-        waveform = np.asarray(waveform, dtype=np.float32)
-        audio_2d = waveform[np.newaxis, :] if waveform.ndim == 1 else waveform
-        processed = board(audio_2d, sample_rate)
+        waveform = np.asarray(audio.waveform, dtype=np.float32)
+        audio_2d = waveform if waveform.ndim == 2 else waveform[np.newaxis, :]
 
-        return (processed[0] if waveform.ndim == 1 else processed), sample_rate
+        board = Pedalboard([
+            Limiter(threshold_db=level, release_ms=release_time * 1000.0),
+        ])
+        processed = board(audio_2d, audio.sample_rate)
+
+        return AudioBuffer(processed[0] if waveform.ndim == 1 else processed, audio.sample_rate)
 
 @register_audio_processor_service(AudioProcessorDriver.NATIVE)
 class NativeAudioProcessorService(AudioProcessorService):

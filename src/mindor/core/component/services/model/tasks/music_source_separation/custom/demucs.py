@@ -51,8 +51,8 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         for audio in audios:
             # channel=None keeps the original layout so stereo mixes stay stereo;
             # mono comes back as (samples,) and is expanded in _separate below.
-            waveform, _ = await AudioBufferStreamer(audio, sample_rate=self.model_sample_rate).collect()
-            waveforms.append(waveform)
+            audio = await AudioBufferStreamer(audio, sample_rate=self.model_sample_rate).collect()
+            waveforms.append(audio.waveform)
 
         return waveforms
 

@@ -249,8 +249,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         waveforms: List[np.ndarray] = []
 
         for audio in audios:
-            waveform, _ = await AudioBufferStreamer(audio, sample_rate=16000, channel="mono").collect()
-            waveforms.append(waveform)
+            audio = await AudioBufferStreamer(audio, sample_rate=16000, channel="mono").collect()
+            waveforms.append(audio.waveform)
 
         return waveforms
 

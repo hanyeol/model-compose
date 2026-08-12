@@ -89,12 +89,12 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         for audio in audios:
             if streaming:
                 async def _stream_waveform_generator(audio=audio):
-                    async for waveform, _ in AudioBufferStreamer(audio, window_size, channel="mono", sample_rate=sample_rate):
-                        yield waveform
+                    async for chunk in AudioBufferStreamer(audio, window_size, channel="mono", sample_rate=sample_rate):
+                        yield chunk.waveform
                 waveforms.append(_stream_waveform_generator())
             else:
-                waveform, _ = await AudioBufferStreamer(audio, channel="mono", sample_rate=sample_rate).collect()
-                waveforms.append(waveform)
+                audio = await AudioBufferStreamer(audio, channel="mono", sample_rate=sample_rate).collect()
+                waveforms.append(audio.waveform)
 
         return waveforms, window_size
 

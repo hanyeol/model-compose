@@ -130,8 +130,8 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
         chunk_index = 0
 
         streamer = AudioBufferStreamer(audio, channel="mono", sample_rate=self.sample_rate)
-        async for buffer, is_last in streamer.stream(chunk_samples, overlap_samples):
-            chunks.append(await self._forward_and_trim(buffer.waveform, overlap_samples, chunk_index, is_last=is_last))
+        async for chunk, is_last in streamer.stream(chunk_samples, overlap_samples):
+            chunks.append(await self._forward_and_trim(chunk.waveform, overlap_samples, chunk_index, is_last=is_last))
             chunk_index += 1
 
         if not chunks:

@@ -57,8 +57,8 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         for audio in audios:
             # channel=None keeps the original layout; mono comes back as (samples,)
             # and _ensure_stereo below duplicates it to both channels.
-            waveform, _ = await AudioBufferStreamer(audio, sample_rate=_MDX_SAMPLE_RATE).collect()
-            waveforms.append(waveform)
+            audio = await AudioBufferStreamer(audio, sample_rate=_MDX_SAMPLE_RATE).collect()
+            waveforms.append(audio.waveform)
 
         return waveforms
 

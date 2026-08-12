@@ -83,15 +83,15 @@ class AudioProcessorCompressorActionConfig(CommonAudioProcessorActionConfig):
     method: Literal[AudioProcessorActionMethod.COMPRESSOR]
     threshold: Union[float, str] = Field(default=-20.0, description="Threshold in dB above which compression applies.")
     ratio: Union[float, str] = Field(default=4.0, description="Compression ratio (e.g. 4.0 for 4:1).")
-    attack: Union[str, float] = Field(default="1ms", description="Attack time (e.g. '1ms').")
-    release: Union[str, float] = Field(default="100ms", description="Release time (e.g. '100ms').")
+    attack_time: Union[str, float] = Field(default="1ms", description="Attack time (e.g. '1ms').")
+    release_time: Union[str, float] = Field(default="100ms", description="Release time (e.g. '100ms').")
 
 class AudioProcessorNoiseGateActionConfig(CommonAudioProcessorActionConfig):
     method: Literal[AudioProcessorActionMethod.NOISE_GATE]
     threshold: Union[float, str] = Field(default=-40.0, description="Threshold in dB below which the gate attenuates.")
     ratio: Union[float, str] = Field(default=10.0, description="Downward expansion ratio (higher = more aggressive gating).")
-    attack: Union[str, float] = Field(default="1ms", description="Attack time (e.g. '1ms').")
-    release: Union[str, float] = Field(default="100ms", description="Release time (e.g. '100ms').")
+    attack_time: Union[str, float] = Field(default="1ms", description="Attack time (e.g. '1ms').")
+    release_time: Union[str, float] = Field(default="100ms", description="Release time (e.g. '100ms').")
 
 class AudioProcessorDistortionActionConfig(CommonAudioProcessorActionConfig):
     method: Literal[AudioProcessorActionMethod.DISTORTION]
@@ -164,7 +164,7 @@ class AudioProcessorSmoothPeakLimitActionConfig(CommonAudioProcessorActionConfig
     method: Literal[AudioProcessorActionMethod.PEAK_LIMIT]
     mode: Literal[AudioProcessorPeakLimitMode.SMOOTH]
     level: Union[float, str] = Field(default=-1.0, description="Ceiling in dBFS (e.g. -1.0 for -1 dBFS headroom).")
-    release: Union[str, float] = Field(default="100ms", description="Release time (e.g. '100ms').")
+    release_time: Union[str, float] = Field(default="100ms", description="Release time (e.g. '100ms').")
 
 AudioProcessorPeakLimitActionConfig = Annotated[
     Union[

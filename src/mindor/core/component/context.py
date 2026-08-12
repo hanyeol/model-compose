@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArrayValue
 from mindor.core.foundation.variable.audio import AudioValueRenderer, AudioBufferValueRenderer, AudioBufferArrayValue
+from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.variable.video import VideoValueRenderer
 from mindor.core.foundation.variable.media import MediaValueRenderer
@@ -154,17 +155,19 @@ class ComponentActionContext:
         self,
         value: Any,
         sample_rate: Optional[int] = None,
-        channel: Optional[Union[int, Literal["mono"]]] = None
-    ) -> Optional[Union[AudioBuffer, List[Optional[AudioBuffer]], AsyncIterator[Optional[AudioBuffer]]]]:
-        return await AudioBufferValueRenderer(sample_rate, channel).render(await self.render_variable(value))
+        channel: Optional[Union[int, Literal["mono"]]] = None,
+        collect: bool = True,
+    ) -> Optional[Union[AudioBuffer, AudioBufferStreamIterator, List[Optional[AudioBuffer]], AsyncIterator[Optional[AudioBuffer]]]]:
+        return await AudioBufferValueRenderer(sample_rate, channel).render(await self.render_variable(value), collect=collect)
 
     async def render_audio_buffer_array(
         self,
         value: Any,
         sample_rate: Optional[int] = None,
-        channel: Optional[Union[int, Literal["mono"]]] = None
+        channel: Optional[Union[int, Literal["mono"]]] = None,
+        collect: bool = True,
     ) -> Optional[Union[AudioBufferArrayValue, List[Optional[AudioBufferArrayValue]], AsyncIterator[Optional[AudioBufferArrayValue]]]]:
-        return await AudioBufferValueRenderer(sample_rate, channel).render_array(await self.render_variable(value))
+        return await AudioBufferValueRenderer(sample_rate, channel).render_array(await self.render_variable(value), collect=collect)
 
     async def render_video(
         self,

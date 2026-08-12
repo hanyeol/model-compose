@@ -4,9 +4,8 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorActionMethod, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
-from mindor.core.utils.audio import AudioBuffer
-from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.streaming.audio import PcmStreamResource
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
@@ -23,10 +22,11 @@ class AudioProcessorAction(ComponentAction):
 
         params = await self._resolve_params(self.config.method, context)
 
-        is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
+        is_fragmented    = isinstance(audio, StreamChunkIterator) and audio.is_fragmented
+        is_single_input  = is_fragmented or not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(audio, (StreamIterator, AsyncIterator)):
+        if isinstance(audio, (StreamIterator, AsyncIterator)) and not is_fragmented:
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(self.config.method, batch_audios, params)
@@ -36,7 +36,7 @@ class AudioProcessorAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[Optional[PcmStreamResource]] = []
-            async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+            async for batch_audios in BatchSourceIterator([ audio ] if is_fragmented else audio, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(self.config.method, batch_audios, params)
                 results.extend(batch_results)
 
@@ -46,7 +46,7 @@ class AudioProcessorAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Any:
-        return await context.render_audio_buffer(self.config.audio)
+        return await context.render_audio_buffer(self.config.audio, collect=False)
 
     async def _resolve_params(self, method: AudioProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == AudioProcessorActionMethod.RESAMPLE:
@@ -108,29 +108,29 @@ class AudioProcessorAction(ComponentAction):
             return { "offset": offset }
 
         if method == AudioProcessorActionMethod.COMPRESSOR:
-            threshold = await context.render_scalar(self.config.threshold, float)
-            ratio     = await context.render_scalar(self.config.ratio, float)
-            attack    = await context.render_scalar(self.config.attack, "time")
-            release   = await context.render_scalar(self.config.release, "time")
+            threshold    = await context.render_scalar(self.config.threshold, float)
+            ratio        = await context.render_scalar(self.config.ratio, float)
+            attack_time  = await context.render_scalar(self.config.attack_time, "time")
+            release_time = await context.render_scalar(self.config.release_time, "time")
 
             return {
-                "threshold": threshold,
-                "ratio":     ratio,
-                "attack":    attack,
-                "release":   release,
+                "threshold":    threshold,
+                "ratio":        ratio,
+                "attack_time":  attack_time,
+                "release_time": release_time,
             }
 
         if method == AudioProcessorActionMethod.NOISE_GATE:
-            threshold = await context.render_scalar(self.config.threshold, float)
-            ratio     = await context.render_scalar(self.config.ratio, float)
-            attack    = await context.render_scalar(self.config.attack, "time")
-            release   = await context.render_scalar(self.config.release, "time")
+            threshold    = await context.render_scalar(self.config.threshold, float)
+            ratio        = await context.render_scalar(self.config.ratio, float)
+            attack_time  = await context.render_scalar(self.config.attack_time, "time")
+            release_time = await context.render_scalar(self.config.release_time, "time")
 
             return {
-                "threshold": threshold,
-                "ratio":     ratio,
-                "attack":    attack,
-                "release":   release,
+                "threshold":    threshold,
+                "ratio":        ratio,
+                "attack_time":  attack_time,
+                "release_time": release_time,
             }
 
         if method == AudioProcessorActionMethod.DISTORTION:
@@ -234,13 +234,13 @@ class AudioProcessorAction(ComponentAction):
                 }
 
             if self.config.mode == AudioProcessorPeakLimitMode.SMOOTH:
-                level   = await context.render_scalar(self.config.level, float)
-                release = await context.render_scalar(self.config.release, "time")
+                level        = await context.render_scalar(self.config.level, float)
+                release_time = await context.render_scalar(self.config.release_time, "time")
 
                 return {
-                    "mode":    AudioProcessorPeakLimitMode.SMOOTH,
-                    "level":   level,
-                    "release": release,
+                    "mode":         AudioProcessorPeakLimitMode.SMOOTH,
+                    "level":        level,
+                    "release_time": release_time,
                 }
 
             raise ValueError(f"Unsupported peak-limit mode: {self.config.mode}")
@@ -284,7 +284,7 @@ class AudioProcessorAction(ComponentAction):
     async def _process_batch(
         self,
         method: AudioProcessorActionMethod,
-        audios: List[Optional[AudioBuffer]],
+        audios: List[Optional[AudioBufferStreamIterator]],
         params: Dict[str, Any],
     ) -> List[Optional[PcmStreamResource]]:
         return await asyncio.gather(*[
@@ -294,7 +294,7 @@ class AudioProcessorAction(ComponentAction):
     async def _process(
         self,
         method: AudioProcessorActionMethod,
-        audio: Optional[AudioBuffer],
+        audio: Optional[AudioBufferStreamIterator],
         params: Dict[str, Any],
     ) -> Optional[PcmStreamResource]:
         if audio is None:
@@ -370,89 +370,89 @@ class AudioProcessorAction(ComponentAction):
         raise ValueError(f"Unsupported audio processor action method: {method}")
 
     @abstractmethod
-    async def _resample(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _resample(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _highpass(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _highpass(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _lowpass(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _lowpass(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _bell(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _bell(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _low_shelf(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _low_shelf(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _high_shelf(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _high_shelf(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _pitch_shift(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _pitch_shift(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _dc_shift(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _dc_shift(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _compressor(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _compressor(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _noise_gate(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _noise_gate(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _distortion(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _distortion(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _saturation(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _saturation(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _gain(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _gain(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _chorus(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _chorus(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _delay(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _delay(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _reverb(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _reverb(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _normalize(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _normalize(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _peak_limit(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _peak_limit(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _trim_edges(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _trim_edges(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _trim_silence(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _trim_silence(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _fade_in(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _fade_in(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod
-    async def _fade_out(self, audio: AudioBuffer, params: Dict[str, Any]) -> AudioBuffer:
+    async def _fade_out(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass

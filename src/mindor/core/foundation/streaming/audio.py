@@ -41,19 +41,19 @@ _AUDIO_CONTENT_TYPE_MAP: Dict[str, str] = {
 class PcmStreamResource(StreamResource):
     def __init__(
         self,
-        samples: Union[StreamResource, AudioBuffer, bytes],
+        samples: Union[StreamResource, AudioBufferStreamIterator, bytes],
         attrs: Optional[Dict[str, Any]] = None,
         filename: Optional[str] = None,
     ):
         super().__init__("audio/pcm", filename)
 
-        if isinstance(samples, AudioBuffer):
+        if isinstance(samples, AudioBufferStreamIterator):
             attrs = dict(attrs) if attrs else {}
             attrs.setdefault("sample_rate", samples.sample_rate)
             attrs.setdefault("channels", samples.channels)
             attrs.setdefault("bit_depth", 16)
 
-        self.samples: Union[StreamResource, AudioBuffer] = self._resolve_samples(samples)
+        self.samples: Union[StreamResource, AudioBufferStreamIterator] = self._resolve_samples(samples)
         self.attrs: Dict[str, Any] = attrs or {}
 
     @property
@@ -65,9 +65,10 @@ class PcmStreamResource(StreamResource):
             await self.samples.close()
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        if isinstance(self.samples, AudioBuffer):
-            async for chunk in BytesStreamResource(self.samples.as_pcm_bytes(self.format)):
-                yield chunk
+        if isinstance(self.samples, AudioBufferStreamIterator):
+            async for audio in self.samples:
+                async for chunk in BytesStreamResource(audio.as_pcm_bytes(self.format)):
+                    yield chunk
             return
 
         async for chunk in self.samples:
@@ -75,8 +76,8 @@ class PcmStreamResource(StreamResource):
 
     @staticmethod
     def _resolve_samples(
-        samples: Union[StreamResource, AudioBuffer, bytes],
-    ) -> Union[StreamResource, AudioBuffer]:
+        samples: Union[StreamResource, AudioBufferStreamIterator, bytes],
+    ) -> Union[StreamResource, AudioBufferStreamIterator]:
         if isinstance(samples, bytes):
             return BytesStreamResource(samples)
 
@@ -93,9 +94,6 @@ class WavStreamResource(StreamResource):
 
         if isinstance(source, PcmStreamResource):
             attrs = attrs if attrs is not None else source.attrs
-            source = source.samples
-            if isinstance(source, AudioBuffer):
-                source = encode_waveform_to_pcm(source.waveform)[0]
             is_raw_samples = True
         else:
             is_raw_samples = attrs is not None
@@ -194,6 +192,42 @@ class AudioBufferStreamIterator(StreamChunkIterator):
 
         self.sample_rate: int = sample_rate
         self.channels: int    = channels
+
+    def matches(
+        self,
+        sample_rate: Optional[int] = None,
+        channel: Optional[Union[int, Literal["mono"]]] = None,
+    ) -> bool:
+        if sample_rate is not None and sample_rate != self.sample_rate:
+            return False
+
+        # channel="mono"/int only take effect on multi-channel input, so a mono
+        # iterator already matches any channel request.
+        if channel is not None and self.channels > 1:
+            return False
+
+        return True
+
+    async def collect(self) -> AudioBuffer:
+        import numpy as np
+
+        frames: list = []
+        async for chunk in self:
+            frames.append(chunk.waveform)
+
+        waveform = frames[0] if len(frames) == 1 else np.concatenate(frames, axis=-1)
+        return AudioBuffer(waveform=waveform, sample_rate=self.sample_rate)
+
+    @classmethod
+    def from_single(cls, buffer: AudioBuffer) -> AudioBufferStreamIterator:
+        async def _stream() -> AsyncIterator[AudioBuffer]:
+            yield buffer
+
+        return cls(
+            source=_stream(),
+            sample_rate=buffer.sample_rate,
+            channels=buffer.channels,
+        )
 
 class AudioDecodingStreamer:
     """Decode any audio ``MediaSource`` into an s16le PCM byte stream.

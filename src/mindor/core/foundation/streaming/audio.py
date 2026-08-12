@@ -47,7 +47,7 @@ class PcmStreamResource(StreamResource):
     ):
         super().__init__("audio/pcm", filename)
 
-        self.samples: StreamResource = samples if isinstance(samples, StreamResource) else BytesStreamResource(samples)
+        self.samples: StreamResource = self._resolve_samples(samples)
         self.attrs: Dict[str, Any] = attrs or {}
 
     @property
@@ -60,6 +60,13 @@ class PcmStreamResource(StreamResource):
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         async for chunk in self.samples:
             yield chunk
+
+    @staticmethod
+    def _resolve_samples(samples: Union[StreamResource, bytes]) -> StreamResource:
+        if isinstance(samples, bytes):
+            return BytesStreamResource(samples)
+
+        return samples
 
 class WavStreamResource(StreamResource):
     def __init__(
@@ -77,13 +84,10 @@ class WavStreamResource(StreamResource):
         else:
             is_raw_samples = attrs is not None
 
-        self.source: StreamResource = source if isinstance(source, StreamResource) else BytesStreamResource(source)
+        self.source: StreamResource = self._resolve_source(source)
         self.attrs: Dict[str, Any] = attrs or {}
 
         self._is_raw_samples = is_raw_samples
-
-    async def close(self) -> None:
-        await self.source.close()
 
     def as_pcm_stream(self) -> Optional[PcmStreamResource]:
         if self._is_raw_samples:
@@ -91,12 +95,22 @@ class WavStreamResource(StreamResource):
 
         return None
 
+    async def close(self) -> None:
+        await self.source.close()
+
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         if self._is_raw_samples:
             yield self._build_header()
 
         async for chunk in self.source:
             yield chunk
+
+    @staticmethod
+    def _resolve_source(source: Union[StreamResource, bytes]) -> StreamResource:
+        if isinstance(source, bytes):
+            return BytesStreamResource(source)
+
+        return source
 
     def _build_header(self) -> bytes:
         sample_rate = int(self.attrs.get("sample_rate", 44100))
@@ -124,7 +138,7 @@ class AudioStreamResource(StreamResource):
     ):
         super().__init__(self._resolve_content_type(format), filename, size=self._resolve_size(source))
 
-        self.source: StreamResource = source if isinstance(source, StreamResource) else BytesStreamResource(source)
+        self.source: StreamResource = self._resolve_source(source)
         self.format: str = format
         self.attrs: Dict[str, Any] = attrs or {}
 
@@ -134,6 +148,13 @@ class AudioStreamResource(StreamResource):
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         async for chunk in self.source:
             yield chunk
+
+    @staticmethod
+    def _resolve_source(source: Union[StreamResource, bytes]) -> StreamResource:
+        if isinstance(source, bytes):
+            return BytesStreamResource(source)
+
+        return source
 
     @staticmethod
     def _resolve_content_type(format: Optional[str]) -> str:

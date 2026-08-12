@@ -124,9 +124,10 @@ class AudioBufferValueRenderer:
             return value
 
         if value is not None:
-            source = create_audio_source(value)
-            sample_rate, channel = self.sample_rate, self.channel
-
-            return await AudioBufferStreamer(source, sample_rate=sample_rate, channel=channel).collect()
+            return await AudioBufferStreamer(
+                create_audio_source(value),
+                sample_rate=self.sample_rate,
+                channel=self.channel
+            ).collect()
 
         return None

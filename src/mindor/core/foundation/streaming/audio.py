@@ -466,12 +466,12 @@ class AudioBufferStreamer:
             raise ValueError(f"overlap_size must satisfy 0 <= overlap < chunk; got {overlap_size} / {chunk_size}")
 
         hop_size = chunk_size - overlap_size
-
         pending: Optional[AudioBuffer] = None
-        async for buffer in self._iterate(chunk_size, hop_size, pad_final=True):
+
+        async for chunk in self._iterate(chunk_size, hop_size, pad_final=True):
             if pending is not None:
                 yield pending, False
-            pending = buffer
+            pending = chunk
 
         if pending is not None:
             yield pending, True
@@ -482,9 +482,9 @@ class AudioBufferStreamer:
         frames: list = []
         sample_rate: Optional[int] = None
 
-        async for buffer in self._iterate(self._frame_size, self._hop_size, self._pad_final):
-            frames.append(buffer.waveform)
-            sample_rate = buffer.sample_rate
+        async for chunk in self._iterate(self._frame_size, self._hop_size, self._pad_final):
+            frames.append(chunk.waveform)
+            sample_rate = chunk.sample_rate
 
         waveform = frames[0] if len(frames) == 1 else np.concatenate(frames, axis=-1)
         return AudioBuffer(waveform=waveform, sample_rate=sample_rate)

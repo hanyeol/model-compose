@@ -46,26 +46,17 @@ class AudioBuffer:
         self.waveform: np.ndarray = waveform
         self.sample_rate: int = sample_rate
 
-    def __iter__(self):
-        # Support tuple unpacking: `waveform, sample_rate = buffer`.
-        yield self.waveform
-        yield self.sample_rate
+    @property
+    def channels(self) -> int:
+        if self.waveform.ndim == 2:
+            if self.waveform.shape[0] <= 8 and self.waveform.shape[0] < self.waveform.shape[1]:
+                return int(self.waveform.shape[0])
+            return int(self.waveform.shape[1])
 
-def normalize_pcm_to_float32(waveform: np.ndarray, format: Optional[str] = None) -> np.ndarray:
-    """Convert a PCM waveform to float32 normalized to [-1.0, 1.0].
+        if self.waveform.ndim == 1:
+            return 1
 
-    Float inputs are just cast. Integer inputs are scaled by 2^(bits-1) — the
-    standard signed-PCM peak (e.g. 32768 for s16le, not iinfo.max=32767). Pass
-    `format` so `s24le` (packed in int32 storage but only 24 significant bits)
-    is scaled correctly; other integer formats infer bit-depth from the dtype.
-    """
-    import numpy as np
-
-    if not np.issubdtype(waveform.dtype, np.integer):
-        return waveform.astype(np.float32)
-
-    bits = 24 if format == "s24le" else waveform.dtype.itemsize * 8
-    return waveform.astype(np.float32) / float(2 ** (bits - 1))
+        raise ValueError(f"Expected 1-D or 2-D waveform, got shape {self.waveform.shape}")
 
 def encode_waveform_to_pcm(
     waveform: Union[torch.Tensor, np.typing.ArrayLike],
@@ -94,7 +85,7 @@ def encode_waveform_to_pcm(
             waveform = waveform.T
         channels = int(waveform.shape[1])
     else:
-        raise ValueError(f"Expected mono or stereo audio samples, got shape {waveform.shape}")
+        raise ValueError(f"Expected 1-D or 2-D waveform, got shape {waveform.shape}")
 
     if format == "s24le":
         # s24le encode would require int32→3-byte repacking; not supported yet.
@@ -136,6 +127,22 @@ def decode_pcm_to_waveform(data: bytes, format: str) -> np.ndarray:
         return padded.view("<i4").reshape(-1) >> 8
 
     return np.frombuffer(data, dtype=get_pcm_dtype(format))
+
+def normalize_pcm_to_float32(waveform: np.ndarray, format: Optional[str] = None) -> np.ndarray:
+    """Convert a PCM waveform to float32 normalized to [-1.0, 1.0].
+
+    Float inputs are just cast. Integer inputs are scaled by 2^(bits-1) — the
+    standard signed-PCM peak (e.g. 32768 for s16le, not iinfo.max=32767). Pass
+    `format` so `s24le` (packed in int32 storage but only 24 significant bits)
+    is scaled correctly; other integer formats infer bit-depth from the dtype.
+    """
+    import numpy as np
+
+    if not np.issubdtype(waveform.dtype, np.integer):
+        return waveform.astype(np.float32)
+
+    bits = 24 if format == "s24le" else waveform.dtype.itemsize * 8
+    return waveform.astype(np.float32) / float(2 ** (bits - 1))
 
 def is_streamable_audio_format(format: Optional[str]) -> bool:
     """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""

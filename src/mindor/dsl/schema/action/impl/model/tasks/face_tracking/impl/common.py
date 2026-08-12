@@ -7,7 +7,7 @@ class CommonFaceTrackingParamsConfig(BaseModel):
     min_face_size: Union[int, str] = Field(default=0, description="Minimum face bounding box size in pixels. 0 disables the filter.")
     min_frame_count: Union[int, str] = Field(default=1, description="Discard tracks that appear in fewer than this many frames.")
     max_face_count_per_frame: Union[int, str] = Field(default=0, description="Maximum number of faces to keep per frame. 0 disables the limit.")
-    merge_gap: Union[float, str] = Field(default=0.0, description="Merge adjacent segments separated by less than this many seconds.")
+    merge_gap: Union[float, str] = Field(default=0.0, description="Extra seconds a person may go undetected before their segment is split. Consecutive frames always merge.")
 
 class CommonFaceTrackingModelActionConfig(CommonModelActionConfig):
     frames: Union[Any, List[Any], List[List[Any]], str] = Field(..., description="Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches.")

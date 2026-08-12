@@ -475,12 +475,12 @@ class AudioBufferStreamer:
             if hop_size <= 0 or hop_size > frame_size:
                 raise ValueError(f"hop_size must satisfy 0 < hop_size <= frame_size; got hop_size={hop_size}, frame_size={frame_size}")
 
-        self._source = source
-        self._channel = channel
+        self._source      = source
+        self._channel     = channel
         self._sample_rate = sample_rate  # None means "match source"; resolved per iteration
-        self._frame_size = frame_size    # None means "yield the whole waveform as one frame"
-        self._hop_size = hop_size
-        self._pad_final = pad_final
+        self._frame_size  = frame_size   # None means "yield the whole waveform as one frame"
+        self._hop_size    = hop_size
+        self._pad_final   = pad_final
 
     async def stream(self, chunk_size: int, overlap_size: int = 0) -> AsyncIterator[Tuple[AudioBuffer, bool]]:
         """Yield overlapping chunks with an ``is_last`` flag for chunked forward passes.

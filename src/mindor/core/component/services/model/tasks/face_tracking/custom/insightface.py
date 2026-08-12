@@ -124,30 +124,45 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         # Score every (face, cluster) pair up front, then bind them in descending
         # order so a strong match wins its cluster regardless of detection order.
-        # Ties are broken by how much each face overlaps the cluster's last known
-        # position, which keeps a moving face from stealing a spatially-distant
-        # cluster with a marginally higher embedding score.
+        # Near-ties on embedding similarity (within `tie_margin`) are broken by
+        # how much each face overlaps the cluster's last known position, which
+        # keeps a moving face from stealing a spatially-distant cluster on a
+        # sub-noise similarity edge. A cluster's last_bbox is ignored once it
+        # goes stale (`stale_after` seconds without a detection) so long-absent
+        # clusters can't win tie-breaks with an ancient position.
+        tie_margin: float = 0.05
+        stale_after: float = 2.0
+
         normalized_faces: List[np.ndarray] = []
         for face in candidates:
             embedding = face["embedding"]
             normalized_faces.append(embedding / (np.linalg.norm(embedding) + 1e-12))
 
-        pairs: List[Tuple[float, float, int, int]] = []
+        pairs: List[Tuple[int, float, int, int]] = []
         for face_index, normalized in enumerate(normalized_faces):
             face_bbox = candidates[face_index]["bounding_box"]
             for cluster_id, centroid in enumerate(centroids):
                 similarity = float(np.dot(normalized, centroid))
                 if similarity < similarity_threshold:
                     continue
-                last_bbox = cluster_tracks.get(cluster_id, {}).get("last_bbox")
-                overlap = self._bbox_overlap(face_bbox, last_bbox) if last_bbox is not None else 0.0
-                pairs.append((similarity, overlap, face_index, cluster_id))
+                track = cluster_tracks.get(cluster_id)
+                last_bbox = track.get("last_bbox") if track else None
+                last_seen = track.get("last_seen") if track else None
+                is_stale = last_seen is None or (timestamp - last_seen) > stale_after
+                overlap = 0.0 if is_stale or last_bbox is None else self._bbox_overlap(face_bbox, last_bbox)
+                # Quantize similarity so pairs within `tie_margin` share a rank
+                # and defer to overlap. Higher bucket → better match.
+                similarity_bucket = int(similarity / tie_margin) if tie_margin > 0 else 0
+                pairs.append((similarity_bucket, overlap, face_index, cluster_id))
 
-        pairs.sort(reverse=True)
+        # Sort by (bucket desc, overlap desc). Do NOT let face_index / cluster_id
+        # influence the order — a plain reverse-tuple sort would prefer higher
+        # indices on true ties, which is not a meaningful tie-break.
+        pairs.sort(key=lambda p: (-p[0], -p[1]))
 
         assigned_face: Dict[int, int] = {}
         used_clusters: set = set()
-        for similarity, _, face_index, cluster_id in pairs:
+        for _, _, face_index, cluster_id in pairs:
             if face_index in assigned_face or cluster_id in used_clusters:
                 continue
             assigned_face[face_index] = cluster_id
@@ -188,8 +203,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         The face crop is materialized here (lazily) rather than up-front in
         `_serialize_faces`, so frames that never become a segment's best
         never pay the crop / PIL-conversion cost."""
-        track = cluster_tracks.setdefault(cluster_id, { "segments": [], "current": None, "last_bbox": None })
+        track = cluster_tracks.setdefault(cluster_id, { "segments": [], "current": None, "last_bbox": None, "last_seen": None })
+
         track["last_bbox"] = face["bounding_box"]
+        track["last_seen"] = timestamp
 
         current: Optional[Dict[str, Any]] = track["current"]
         score = face["score"]

@@ -323,6 +323,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_score"])
 
             track: Dict[str, Any] = {
+                "track_id":    cluster_id + 1,
                 "segments":    segments,
                 "frame_count": track_frame_count,
                 "score":       best_cluster_segment["best_score"],

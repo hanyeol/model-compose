@@ -187,7 +187,7 @@ class AudioDecodingStreamer:
     """Decode any audio ``MediaSource`` into an s16le PCM byte stream.
 
     Consume either as raw bytes (``async for chunk in streamer``) or wrap into
-    a ``PcmStreamResource`` via ``to_pcm_stream()``.
+    a ``PcmStreamResource`` via ``as_pcm_stream()``.
 
     Dispatch order:
       1. Source is already raw PCM matching the requested layout — reuse its
@@ -220,7 +220,7 @@ class AudioDecodingStreamer:
 
         return iterator
 
-    def to_pcm_stream(self) -> PcmStreamResource:
+    def as_pcm_stream(self) -> PcmStreamResource:
         iterator, attrs = self._decode_to_stream(self._source)
 
         return PcmStreamResource(
@@ -430,22 +430,17 @@ class AudioDecodingStreamer:
 class AudioBufferStreamer:
     """Frame-by-frame async iterator over an audio source.
 
-    Supports fan-out: each `__aiter__` call spins up its own iteration state
-    (via `PcmStreamResource.tee`), so multiple consumers see the same frame
-    sequence independently.
+    Each `__aiter__` re-decodes the source, so repeated iteration requires a
+    re-consumable `MediaSource` (file-backed); one-shot streams yield nothing
+    on the second pass.
 
-    `channel`:
-      - `None` (default): keep original channels as a `(channels, samples)` frame;
-        mono input stays `(samples,)`
-      - `"mono"`: downmix all channels by averaging into a `(samples,)` frame
-      - `int`: pick that channel index into a `(samples,)` frame
+    `channel`: `None` keeps original layout as `(channels, samples)` (mono stays
+    1D); `"mono"` downmixes; `int` picks that channel index (1D).
     `sample_rate` resamples on the fly.
-    `frame_size` is in target-rate samples; when `None`, the streamer yields a
-    single frame containing the entire decoded waveform (use with `.collect()`
-    for the common "load-all" case).
-    `hop_size < frame_size` produces overlapping frames.
-    `pad_final` zero-pads the trailing partial frame; set False to drop it.
-    Ignored when `frame_size is None`.
+    `frame_size` is in target-rate samples; `None` yields the entire waveform
+    as one frame (fast path for `.collect()`, skips framing/padding).
+    `hop_size < frame_size` produces overlap. `pad_final` zero-pads the trailing
+    partial frame. Both ignored when `frame_size is None`.
     """
     @dataclass
     class _StreamContext:
@@ -459,8 +454,6 @@ class AudioBufferStreamer:
         sample_rate: int
         resampler: Optional[Any]
         frame_buffer: np.ndarray
-        # Framing controls — resolved per iteration so callers like stream() can
-        # override without mutating the streamer's instance state.
         frame_size: Optional[int]
         hop_size: Optional[int]
         pad_final: bool
@@ -538,7 +531,7 @@ class AudioBufferStreamer:
         # Push resample / mono downmix into ffmpeg; `channel=int` still needs
         # the original channels since ffmpeg -ac can only downmix.
         sample_rate, channels = self._sample_rate, 1 if self._channel == "mono" else None
-        source = AudioDecodingStreamer(self._source, sample_rate, channels).to_pcm_stream()
+        source = AudioDecodingStreamer(self._source, sample_rate, channels).as_pcm_stream()
         context = self._create_stream_context(source, frame_size, hop_size, pad_final)
 
         async for chunk in context.source:

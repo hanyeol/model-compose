@@ -217,7 +217,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         current: Optional[Dict[str, Any]] = track["current"]
         score = face["score"]
 
-        if current is not None and timestamp - current["end"] <= frame_period + merge_gap:
+        # Absorb ULP-scale jitter: caller derives `timestamp` as `offset + n/rate`
+        # while `frame_period` is `1/rate`, and the two paths can diverge by up
+        # to ~1e-13 for long offsets. `merge_gap` is measured in seconds, so a
+        # microsecond tolerance can't blur any user-meaningful behavior.
+        if current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6:
             current["end"] = timestamp
             current["frame_count"] += 1
             if score > current["best_score"]:

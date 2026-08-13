@@ -59,8 +59,10 @@ class FaceTrackingTaskAction(ComponentAction):
         min_frame_count          = await context.render_scalar(self.config.params.min_frame_count, int)
         max_face_count_per_frame = await context.render_scalar(self.config.params.max_face_count_per_frame, int)
         merge_gap                = await context.render_scalar(self.config.params.merge_gap, float)
+        return_tracks            = await context.render_scalar(self.config.return_tracks, bool)
         return_image             = await context.render_scalar(self.config.return_image, bool)
         return_embedding         = await context.render_scalar(self.config.return_embedding, bool)
+        return_frames            = await context.render_scalar(self.config.return_frames, bool)
         bounding_box_padding     = await context.render_scalar(self.config.bounding_box_padding, float)
 
         if not 0.0 <= similarity_threshold <= 1.0:
@@ -72,14 +74,19 @@ class FaceTrackingTaskAction(ComponentAction):
         if bounding_box_padding < 0.0:
             raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
 
+        if not return_tracks and not return_frames:
+            raise ValueError("Either 'return_tracks' or 'return_frames' must be true.")
+
         return {
             "similarity_threshold":     similarity_threshold,
             "min_face_size":            min_face_size,
             "min_frame_count":          min_frame_count,
             "max_face_count_per_frame": max_face_count_per_frame,
             "merge_gap":                merge_gap,
+            "return_tracks":            return_tracks,
             "return_image":             return_image,
             "return_embedding":         return_embedding,
+            "return_frames":            return_frames,
             "bounding_box_padding":     bounding_box_padding,
         }
 

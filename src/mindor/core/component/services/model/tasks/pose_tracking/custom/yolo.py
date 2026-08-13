@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -66,12 +66,23 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         # `segments` is the sealed history. Segment shape mirrors face_tracking so
         # only the highest-scoring frame's pose data is retained per segment.
         track_segments: Dict[int, Dict[str, Any]] = {}
+        tracked_frames: List[Dict[str, Any]] = []
         frame_period = 1.0 / frame_rate
         frame_count = 0
 
         def _track_frame(frame: PILImage.Image, timestamp: float) -> None:
             poses = self._detect_frame(frame, params)
-            self._add_poses_to_tracks(poses, timestamp, frame_period, track_segments, params)
+            assigned = self._add_poses_to_tracks(poses, timestamp, frame_period, track_segments, params)
+
+            if params["return_frames"]:
+                tracked_frames.append({
+                    "number":    frame_count + 1,
+                    "timestamp": format_timecode(timestamp),
+                    "poses":     [
+                        { "track_id": int(track_id), "bounding_box": pose["bounding_box"] }
+                        for pose, track_id in assigned
+                    ],
+                })
 
         async for frame in frames:
             timestamp = offset + frame_count / frame_rate
@@ -87,7 +98,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         logging.debug(f"YOLO pose tracking: {frame_count} frames at offset {offset:.3f}s")
 
-        return await self._run_in_executor(self._build_tracking_result, track_segments, frame_count, params)
+        return await self._run_in_executor(self._build_tracking_result, track_segments, frame_count, tracked_frames, params)
 
     def _detect_frame(self, frame: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         # `persist=True` keeps the tracker state alive across successive frames
@@ -168,7 +179,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         frame_period: float,
         track_segments: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> None:
+    ) -> List[Tuple[Dict[str, Any], int]]:
         """Fold a new detection into its track's segment history. The track's
         `current` segment is extended if this frame is within one frame period
         plus `merge_gap` of the previous one; otherwise the current segment is
@@ -176,8 +187,10 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         baseline means `merge_gap` measures how long a person may go undetected
         before the segment is split, not how far apart two detections may be —
         consecutive frames always merge, so `merge_gap=0` does what a user
-        naïvely expects."""
+        naïvely expects. Returns the `(pose, track_id)` pairs bound in this
+        frame so the caller can materialize a per-frame view when requested."""
         merge_gap = params["merge_gap"] or 0.0
+        assigned: List[Tuple[Dict[str, Any], int]] = []
 
         for pose in poses:
             track_id = pose["track_id"]
@@ -195,6 +208,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                 current["frame_count"] += 1
                 if score > current["best_pose"]["score"]:
                     current["best_pose"] = pose
+                assigned.append((pose, track_id))
                 continue
 
             if current is not None:
@@ -206,60 +220,71 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                 "frame_count": 1,
                 "best_pose":   pose,
             }
+            assigned.append((pose, track_id))
+
+        return assigned
 
     def _build_tracking_result(
         self,
         track_segments: Dict[int, Dict[str, Any]],
         frame_count: int,
+        tracked_frames: List[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        min_frame_count = params["min_frame_count"] or 1
-        tracks: List[Dict[str, Any]] = []
-
-        for track_id in sorted(track_segments.keys()):
-            raw_segments = track_segments[track_id]["segments"]
-            track_frame_count = sum(segment["frame_count"] for segment in raw_segments)
-
-            if track_frame_count < min_frame_count:
-                continue
-
-            segments: List[Dict[str, Any]] = []
-
-            for raw_segment in raw_segments:
-                best_pose = raw_segment["best_pose"]
-                segment: Dict[str, Any] = {
-                    "start_time":   format_timecode(raw_segment["start"]),
-                    "end_time":     format_timecode(raw_segment["end"]),
-                    "duration":     format_timecode(raw_segment["end"] - raw_segment["start"]),
-                    "score":        best_pose["score"],
-                    "bounding_box": best_pose["bounding_box"],
-                }
-
-                if params["return_keypoints"] and "keypoints" in best_pose:
-                    segment["keypoints"] = best_pose["keypoints"]
-                if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
-                    segment["openpose_keypoints"] = best_pose["openpose_keypoints"]
-                if params["return_skeleton_image"]:
-                    segment["skeleton_image"] = self._render_skeleton(best_pose, params)
-                if params["return_image"]:
-                    segment["image"] = self._extract_pose_image(best_pose, params["bounding_box_padding"])
-
-                segments.append(segment)
-
-            best_segment = max(raw_segments, key=lambda s: s["best_pose"]["score"])
-            best_pose = best_segment["best_pose"]
-
-            tracks.append({
-                "track_id":    int(track_id),
-                "segments":    segments,
-                "frame_count": track_frame_count,
-                "score":       best_pose["score"],
-            })
-
-        return {
-            "tracks":      tracks,
+        result: Dict[str, Any] = {
             "frame_count": frame_count,
         }
+
+        if params["return_tracks"]:
+            min_frame_count = params["min_frame_count"] or 1
+            tracks: List[Dict[str, Any]] = []
+
+            for track_id in sorted(track_segments.keys()):
+                raw_segments = track_segments[track_id]["segments"]
+                track_frame_count = sum(segment["frame_count"] for segment in raw_segments)
+
+                if track_frame_count < min_frame_count:
+                    continue
+
+                segments: List[Dict[str, Any]] = []
+
+                for raw_segment in raw_segments:
+                    best_pose = raw_segment["best_pose"]
+                    segment: Dict[str, Any] = {
+                        "start_time":   format_timecode(raw_segment["start"]),
+                        "end_time":     format_timecode(raw_segment["end"]),
+                        "duration":     format_timecode(raw_segment["end"] - raw_segment["start"]),
+                        "score":        best_pose["score"],
+                        "bounding_box": best_pose["bounding_box"],
+                    }
+
+                    if params["return_keypoints"] and "keypoints" in best_pose:
+                        segment["keypoints"] = best_pose["keypoints"]
+                    if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
+                        segment["openpose_keypoints"] = best_pose["openpose_keypoints"]
+                    if params["return_skeleton_image"]:
+                        segment["skeleton_image"] = self._render_skeleton(best_pose, params)
+                    if params["return_image"]:
+                        segment["image"] = self._extract_pose_image(best_pose, params["bounding_box_padding"])
+
+                    segments.append(segment)
+
+                best_segment = max(raw_segments, key=lambda s: s["best_pose"]["score"])
+                best_pose = best_segment["best_pose"]
+
+                tracks.append({
+                    "track_id":    int(track_id),
+                    "segments":    segments,
+                    "frame_count": track_frame_count,
+                    "score":       best_pose["score"],
+                })
+
+            result["tracks"] = tracks
+
+        if params["return_frames"]:
+            result["frames"] = tracked_frames
+
+        return result
 
     def _render_skeleton(self, pose: Dict[str, Any], params: Dict[str, Any]) -> Optional[PILImage.Image]:
         width, height = pose["width"], pose["height"]

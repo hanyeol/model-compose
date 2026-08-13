@@ -67,11 +67,25 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> Dict[str, Any]:
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
+        tracked_frames: List[Dict[str, Any]] = []
         frame_count = 0
 
         def _track_frame(frame: PILImage.Image, timestamp: float) -> None:
             faces = self._detect_frame(frame, params)
-            self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+            clusters = self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+
+            if params["return_frames"]:
+                tracked_frames.append({
+                    "number":    frame_count + 1,
+                    "timestamp": format_timecode(timestamp),
+                    "faces":     [
+                        {
+                            "track_id": cluster_id + 1,
+                            "bounding_box": face["bounding_box"]
+                        }
+                        for face, cluster_id in clusters
+                    ],
+                })
 
         async for frame in frames:
             timestamp = offset + frame_count / frame_rate
@@ -87,7 +101,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         logging.debug(f"InsightFace face tracking: {frame_count} frames at offset {offset:.3f}s")
 
-        return await self._run_in_executor(self._build_tracking_result, cluster_tracks, centroids_state, frame_count, params)
+        return await self._run_in_executor(self._build_tracking_result, cluster_tracks, centroids_state, frame_count, tracked_frames, params)
 
     def _detect_frame(self, frame: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np
@@ -110,7 +124,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         centroids_state: Dict[str, Any],
         cluster_tracks: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> None:
+    ) -> List[Tuple[Dict[str, Any], int]]:
         import numpy as np
 
         similarity_threshold     = params["similarity_threshold"] or 0.0
@@ -169,6 +183,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             assigned_face[face_index] = cluster_id
             used_clusters.add(cluster_id)
 
+        clusters: List[Tuple[Dict[str, Any], int]] = []
         for face_index, face in enumerate(candidates):
             normalized = normalized_faces[face_index]
             cluster_id = assigned_face.get(face_index, -1)
@@ -184,6 +199,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 cluster_id = len(centroids) - 1
 
             self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding)
+            clusters.append((face, cluster_id))
+
+        return clusters
 
     def _add_face_to_track(
         self,
@@ -303,62 +321,69 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         cluster_tracks: Dict[int, Dict[str, Any]],
         centroids_state: Dict[str, Any],
         frame_count: int,
+        tracked_frames: List[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        min_frame_count = params["min_frame_count"] or 1
-
-        centroids: List[np.ndarray] = centroids_state["centroids"]
-        tracks: List[Dict[str, Any]] = []
-
-        for cluster_id in sorted(cluster_tracks.keys()):
-            raw_segments = cluster_tracks[cluster_id]["segments"]
-            track_frame_count = sum(segment["frame_count"] for segment in raw_segments)
-
-            if track_frame_count < min_frame_count:
-                continue
-
-            segments: List[Dict[str, Any]] = []
-
-            for raw_segment in raw_segments:
-                best_face = raw_segment["best_face"]
-                segment = {
-                    "start_time": format_timecode(raw_segment["start"]),
-                    "end_time":   format_timecode(raw_segment["end"]),
-                    "duration":   format_timecode(raw_segment["end"] - raw_segment["start"]),
-                    "score":      best_face["score"],
-                }
-
-                if params["return_image"] and "image" in best_face:
-                    segment["image"] = best_face["image"]
-
-                segments.append(segment)
-
-            best_segment = max(raw_segments, key=lambda s: s["best_face"]["score"])
-            best_face = best_segment["best_face"]
-
-            track: Dict[str, Any] = {
-                "track_id":    cluster_id + 1,
-                "segments":    segments,
-                "frame_count": track_frame_count,
-                "score":       best_face["score"],
-            }
-
-            if params["return_embedding"]:
-                track["embedding"] = FaceEmbedding(centroids[cluster_id].tolist())
-
-            if params["return_gender_age"]:
-                if "gender" in best_face:
-                    track["gender"] = best_face["gender"]
-
-                if "age" in best_face:
-                    track["age"] = best_face["age"]
-
-            tracks.append(track)
-
-        return {
-            "tracks":      tracks,
+        result: Dict[str, Any] = {
             "frame_count": frame_count,
         }
+
+        if params["return_tracks"]:
+            min_frame_count = params["min_frame_count"] or 1
+            centroids: List[np.ndarray] = centroids_state["centroids"]
+            tracks: List[Dict[str, Any]] = []
+
+            for cluster_id in sorted(cluster_tracks.keys()):
+                raw_segments = cluster_tracks[cluster_id]["segments"]
+                track_frame_count = sum(segment["frame_count"] for segment in raw_segments)
+
+                if track_frame_count < min_frame_count:
+                    continue
+
+                segments: List[Dict[str, Any]] = []
+
+                for raw_segment in raw_segments:
+                    best_face = raw_segment["best_face"]
+                    segment = {
+                        "start_time": format_timecode(raw_segment["start"]),
+                        "end_time":   format_timecode(raw_segment["end"]),
+                        "duration":   format_timecode(raw_segment["end"] - raw_segment["start"]),
+                        "score":      best_face["score"],
+                    }
+
+                    if params["return_image"] and "image" in best_face:
+                        segment["image"] = best_face["image"]
+
+                    segments.append(segment)
+
+                best_segment = max(raw_segments, key=lambda s: s["best_face"]["score"])
+                best_face = best_segment["best_face"]
+
+                track: Dict[str, Any] = {
+                    "track_id":    cluster_id + 1,
+                    "segments":    segments,
+                    "frame_count": track_frame_count,
+                    "score":       best_face["score"],
+                }
+
+                if params["return_embedding"]:
+                    track["embedding"] = FaceEmbedding(centroids[cluster_id].tolist())
+
+                if params["return_gender_age"]:
+                    if "gender" in best_face:
+                        track["gender"] = best_face["gender"]
+
+                    if "age" in best_face:
+                        track["age"] = best_face["age"]
+
+                tracks.append(track)
+
+            result["tracks"] = tracks
+
+        if params["return_frames"]:
+            result["frames"] = tracked_frames
+
+        return result
 
     @staticmethod
     def _gender_to_label(gender: int) -> str:

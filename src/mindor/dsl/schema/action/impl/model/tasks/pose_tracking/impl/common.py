@@ -1,5 +1,5 @@
 from typing import Literal, Union, List, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from ...common import CommonModelActionConfig
 
 class CommonPoseTrackingParamsConfig(BaseModel):
@@ -15,6 +15,8 @@ class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
     frame_rate: Union[float, str] = Field(..., description="Frames per second used to derive per-frame timestamps.")
     time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch. Broadcast when scalar; paired per batch when list/stream.")
     skeleton_format: Union[Literal[ "natural", "openpose" ], str] = Field(default="natural", description="Skeleton image layout.")
+    return_tracks: Union[bool, str] = Field(default=True, description="Whether to include the per-person track list in the result.")
+    return_frames: Union[bool, str] = Field(default=False, description="Whether to include a frame-centric view alongside tracks. Each frame carries the poses detected in it tagged by track_id.")
     return_keypoints: Union[bool, str] = Field(default=True, description="Return the representative frame's natural-layout 2D keypoints per segment.")
     return_openpose_keypoints: Union[bool, str] = Field(default=False, description="Return the representative frame's OpenPose BODY_18 keypoints per segment.")
     return_skeleton_image: Union[bool, str] = Field(default=False, description="Return a skeleton image for each segment's representative frame.")
@@ -22,3 +24,9 @@ class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
     bounding_box_padding: Union[float, str] = Field(default=0.0, description="Padding ratio to expand each pose crop's bounding box.")
     batch_size: Union[int, str] = Field(default=1, description="Frame batches per iteration.")
     params: CommonPoseTrackingParamsConfig = Field(default_factory=CommonPoseTrackingParamsConfig, description="Pose tracking parameters.")
+
+    @model_validator(mode="after")
+    def validate_return_tracks_or_frames(self):
+        if self.return_tracks is False and self.return_frames is False:
+            raise ValueError("Either 'return_tracks' or 'return_frames' must be true.")
+        return self

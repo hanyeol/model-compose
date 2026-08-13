@@ -1,5 +1,5 @@
 from typing import Union, List, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from ...common import CommonModelActionConfig
 
 class CommonFaceTrackingParamsConfig(BaseModel):
@@ -13,8 +13,16 @@ class CommonFaceTrackingModelActionConfig(CommonModelActionConfig):
     frames: Union[Any, List[Any], List[List[Any]], str] = Field(..., description="Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches.")
     frame_rate: Union[float, str] = Field(..., description="Frames per second used to derive per-frame timestamps.")
     time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch. Broadcast when scalar; paired per batch when list/stream.")
+    return_tracks: Union[bool, str] = Field(default=True, description="Whether to include the per-person track list in the result.")
+    return_frames: Union[bool, str] = Field(default=False, description="Whether to include a frame-centric view alongside tracks. Each frame carries the faces detected in it tagged by track_id.")
     return_embedding: Union[bool, str] = Field(default=False, description="Whether to include the track's L2-normalized identity centroid embedding.")
     return_image: Union[bool, str] = Field(default=False, description="Whether to include a representative aligned face image per segment.")
     bounding_box_padding: Union[float, str] = Field(default=0.0, description="Padding ratio to expand each face crop's bounding box.")
     batch_size: Union[int, str] = Field(default=1, description="Frame batches per iteration.")
     params: CommonFaceTrackingParamsConfig = Field(default_factory=CommonFaceTrackingParamsConfig, description="Face tracking parameters.")
+
+    @model_validator(mode="after")
+    def validate_return_tracks_or_frames(self):
+        if self.return_tracks is False and self.return_frames is False:
+            raise ValueError("Either 'return_tracks' or 'return_frames' must be true.")
+        return self

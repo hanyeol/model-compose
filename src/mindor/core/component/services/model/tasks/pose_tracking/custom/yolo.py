@@ -87,7 +87,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         logging.debug(f"YOLO pose tracking: {frame_count} frames at offset {offset:.3f}s")
 
-        return self._build_tracking_result(track_segments, frame_count, params)
+        return await self._run_in_executor(self._build_tracking_result, track_segments, frame_count, params)
 
     def _detect_frame(self, frame: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         # `persist=True` keeps the tracker state alive across successive frames

@@ -87,7 +87,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         logging.debug(f"InsightFace face tracking: {frame_count} frames at offset {offset:.3f}s")
 
-        return self._build_tracking_result(cluster_tracks, centroids_state, frame_count, params)
+        return await self._run_in_executor(self._build_tracking_result, cluster_tracks, centroids_state, frame_count, params)
 
     def _detect_frame(self, frame: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np

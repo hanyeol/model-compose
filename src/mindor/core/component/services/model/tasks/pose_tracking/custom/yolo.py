@@ -66,8 +66,8 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         # `segments` is the sealed history. Segment shape mirrors face_tracking so
         # only the highest-scoring frame's pose data is retained per segment.
         track_segments: Dict[int, Dict[str, Any]] = {}
-        frame_count = 0
         frame_period = 1.0 / frame_rate
+        frame_count = 0
 
         def _track_frame(frame: PILImage.Image, timestamp: float) -> None:
             poses = self._detect_frame(frame, params)

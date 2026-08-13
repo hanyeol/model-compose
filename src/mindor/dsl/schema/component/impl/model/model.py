@@ -21,6 +21,7 @@ ModelComponentConfig = Annotated[
         ObjectDetectionModelComponentConfig,
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,
+        PoseTrackingModelComponentConfig,
         FaceEmbeddingModelComponentConfig,
         FaceTrackingModelComponentConfig,
         FaceSwapModelComponentConfig,

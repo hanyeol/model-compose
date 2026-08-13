@@ -3,22 +3,17 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import FaceTrackingModelActionConfig
+from mindor.dsl.schema.action import PoseTrackingModelActionConfig
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
 
-class FaceEmbedding(AtomicList):
-    def __log__(self) -> str:
-        return f"<FaceEmbedding dim={len(self)}>"
-
-class FaceTrackingTaskAction(ComponentAction):
-    def __init__(self, config: FaceTrackingModelActionConfig):
-        self.config: FaceTrackingModelActionConfig = config
+class PoseTrackingTaskAction(ComponentAction):
+    def __init__(self, config: PoseTrackingModelActionConfig):
+        self.config: PoseTrackingModelActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames      = await context.render_image_array(self.config.frames)
@@ -54,17 +49,27 @@ class FaceTrackingTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        similarity_threshold     = await context.render_scalar(self.config.params.similarity_threshold, float)
-        min_face_size            = await context.render_scalar(self.config.params.min_face_size, int)
-        min_frame_count          = await context.render_scalar(self.config.params.min_frame_count, int)
-        max_face_count_per_frame = await context.render_scalar(self.config.params.max_face_count_per_frame, int)
-        merge_gap                = await context.render_scalar(self.config.params.merge_gap, float)
-        return_image             = await context.render_scalar(self.config.return_image, bool)
-        return_embedding         = await context.render_scalar(self.config.return_embedding, bool)
-        bounding_box_padding     = await context.render_scalar(self.config.bounding_box_padding, float)
+        min_confidence            = await context.render_scalar(self.config.params.min_confidence, float)
+        min_presence_confidence   = await context.render_scalar(self.config.params.min_presence_confidence, float)
+        min_pose_size             = await context.render_scalar(self.config.params.min_pose_size, int)
+        min_frame_count           = await context.render_scalar(self.config.params.min_frame_count, int)
+        max_pose_count_per_frame  = await context.render_scalar(self.config.params.max_pose_count_per_frame, int)
+        merge_gap                 = await context.render_scalar(self.config.params.merge_gap, float)
+        skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
+        return_keypoints          = await context.render_scalar(self.config.return_keypoints, bool)
+        return_openpose_keypoints = await context.render_scalar(self.config.return_openpose_keypoints, bool)
+        return_skeleton_image     = await context.render_scalar(self.config.return_skeleton_image, bool)
+        return_image              = await context.render_scalar(self.config.return_image, bool)
+        bounding_box_padding      = await context.render_scalar(self.config.bounding_box_padding, float)
 
-        if not 0.0 <= similarity_threshold <= 1.0:
-            raise ValueError(f"'similarity_threshold' must be between 0.0 and 1.0, got {similarity_threshold}")
+        if skeleton_format not in ("natural", "openpose"):
+            raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")
+
+        if not 0.0 <= min_confidence <= 1.0:
+            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
+
+        if not 0.0 <= min_presence_confidence <= 1.0:
+            raise ValueError(f"'min_presence_confidence' must be between 0.0 and 1.0, got {min_presence_confidence}")
 
         if merge_gap < 0.0:
             raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
@@ -73,14 +78,18 @@ class FaceTrackingTaskAction(ComponentAction):
             raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
 
         return {
-            "similarity_threshold":     similarity_threshold,
-            "min_face_size":            min_face_size,
-            "min_frame_count":          min_frame_count,
-            "max_face_count_per_frame": max_face_count_per_frame,
-            "merge_gap":                merge_gap,
-            "return_image":             return_image,
-            "return_embedding":         return_embedding,
-            "bounding_box_padding":     bounding_box_padding,
+            "min_confidence":            min_confidence,
+            "min_presence_confidence":   min_presence_confidence,
+            "min_pose_size":             min_pose_size,
+            "min_frame_count":           min_frame_count,
+            "max_pose_count_per_frame":  max_pose_count_per_frame,
+            "merge_gap":                 merge_gap,
+            "skeleton_format":           skeleton_format,
+            "return_keypoints":          return_keypoints,
+            "return_openpose_keypoints": return_openpose_keypoints,
+            "return_skeleton_image":     return_skeleton_image,
+            "return_image":              return_image,
+            "bounding_box_padding":      bounding_box_padding,
         }
 
     @abstractmethod

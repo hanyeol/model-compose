@@ -18,6 +18,7 @@ ModelActionConfig = Union[
     ObjectDetectionModelActionConfig,
     FaceDetectionModelActionConfig,
     PoseDetectionModelActionConfig,
+    PoseTrackingModelActionConfig,
     FaceEmbeddingModelActionConfig,
     FaceTrackingModelActionConfig,
     TextToSpeechModelActionConfig,

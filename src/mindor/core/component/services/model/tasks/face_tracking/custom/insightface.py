@@ -224,9 +224,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6:
             current["end"] = timestamp
             current["frame_count"] += 1
-            if score > current["best_score"]:
-                current["best_score"] = score
-                current["best_face"]  = self._build_face_snapshot(face, bounding_box_padding)
+            if score > current["best_face"]["score"]:
+                current["best_face"] = self._build_face_snapshot(face, bounding_box_padding)
             return
 
         if current is not None:
@@ -236,7 +235,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "start":       timestamp,
             "end":         timestamp,
             "frame_count": 1,
-            "best_score":  score,
             "best_face":   self._build_face_snapshot(face, bounding_box_padding),
         }
 
@@ -328,7 +326,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                     "start_time": format_timecode(cluster_segment["start"]),
                     "end_time":   format_timecode(cluster_segment["end"]),
                     "duration":   format_timecode(cluster_segment["end"] - cluster_segment["start"]),
-                    "score":      cluster_segment["best_score"],
+                    "score":      best_face["score"],
                 }
 
                 if params["return_image"] and "image" in best_face:
@@ -336,14 +334,14 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
                 segments.append(segment)
 
-            best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_score"])
+            best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_face"]["score"])
             best_face = best_cluster_segment["best_face"]
 
             track: Dict[str, Any] = {
                 "track_id":    cluster_id + 1,
                 "segments":    segments,
                 "frame_count": track_frame_count,
-                "score":       best_cluster_segment["best_score"],
+                "score":       best_face["score"],
             }
 
             if params["return_embedding"]:

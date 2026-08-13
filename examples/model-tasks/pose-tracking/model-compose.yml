@@ -1,0 +1,98 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Pose Tracking
+  description: |
+    Sample frames from an uploaded video at a fixed interval, run YOLOv8-pose
+    tracking (ByteTrack / BoT-SORT under the hood) across the sampled
+    sequence, and return a per-person segment report — one entry per
+    tracker-assigned identity with the timecoded segments in which that
+    person is on screen, plus the representative keypoints from each
+    segment's best frame.
+
+    Pipeline:
+      1. Extract frames from the video with ffmpeg at a fixed interval and
+         stream them out as bare images (the extractor's per-chunk dict is
+         projected down to the `image` field before leaving the component).
+      2. Feed the frame stream into pose-tracking as a single input. Each
+         frame is detected by YOLO and passed through the built-in tracker
+         so the same person keeps a stable `track_id` across frames. The
+         tracker consumes the stream lazily — no full-video buffering.
+      3. Emit `{tracks, frame_count}` — each track carrying its segments
+         in H:MM:SS.mmm timecode form.
+  jobs:
+    - id: frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: ${input.frame_interval | 5}
+
+    - id: track
+      component: pose-tracker
+      depends_on: [ frames ]
+      input:
+        frames: ${jobs.frames.output}
+        frame_rate: ${input.sampled_frame_rate | 6.0}
+        min_confidence: ${input.min_confidence | 0.4}
+        min_frame_count: ${input.min_frame_count | 3}
+        merge_gap: ${input.merge_gap | 1.0}
+        tracker: ${input.tracker | bytetrack}
+        return_keypoints: ${input.return_keypoints as boolean | true}
+        return_openpose_keypoints: ${input.return_openpose_keypoints as boolean | false}
+        return_skeleton_image: ${input.return_skeleton_image as boolean | false}
+        skeleton_format: ${input.skeleton_format | natural}
+      output:
+        tracks: ${output.tracks}
+        # Flatten all per-segment skeleton images across every track into a
+        # single gallery-ready list. `tracks[*].segments[*].skeleton_image`
+        # produces a nested list ([[img, img], [img], ...]) and `+`
+        # concatenates it into a flat sequence downstream consumers can
+        # render directly.
+        skeleton_images:
+          "+": ${output.tracks[*].segments[*].skeleton_image}
+  output:
+    tracks: ${jobs.track.output.tracks as json}
+    skeleton_images: ${jobs.track.output.skeleton_images as image[]}
+
+components:
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+      output: ${result[].image}
+
+  - id: pose-tracker
+    type: model
+    task: pose-tracking
+    driver: custom
+    family: yolo
+    max_concurrent_count: 1
+    model:
+      provider: local
+      # Swap for yolov8s/m/l/x-pose.pt for higher accuracy at higher cost.
+      url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n-pose.pt
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      time_offset: 0.0
+      return_keypoints: ${input.return_keypoints}
+      return_openpose_keypoints: ${input.return_openpose_keypoints}
+      return_skeleton_image: ${input.return_skeleton_image}
+      skeleton_format: ${input.skeleton_format}
+      params:
+        tracker: ${input.tracker}
+        min_confidence: ${input.min_confidence}
+        min_pose_size: 40
+        min_frame_count: ${input.min_frame_count}
+        merge_gap: ${input.merge_gap}
+        max_pose_count_per_frame: 0

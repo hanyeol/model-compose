@@ -253,7 +253,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         faces: List[Dict[str, Any]] = []
 
         for detection in detections:
-            x1, y1, x2, y2 = [ int(v) for v in detection.bbox ]
             embedding = getattr(detection, "normed_embedding", None)
 
             if embedding is None:
@@ -261,7 +260,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             face: Dict[str, Any] = {
                 "embedding":    embedding,
-                "bounding_box": { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 },
+                "bounding_box": self._serialize_bounding_box(detection.bbox),
                 "score":        float(getattr(detection, "det_score", 0.0)),
             }
 
@@ -312,20 +311,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         tracks: List[Dict[str, Any]] = []
 
         for cluster_id in sorted(cluster_tracks.keys()):
-            cluster_segments = cluster_tracks[cluster_id]["segments"]
-            track_frame_count = sum(segment["frame_count"] for segment in cluster_segments)
+            raw_segments = cluster_tracks[cluster_id]["segments"]
+            track_frame_count = sum(segment["frame_count"] for segment in raw_segments)
 
             if track_frame_count < min_frame_count:
                 continue
 
             segments: List[Dict[str, Any]] = []
 
-            for cluster_segment in cluster_segments:
-                best_face = cluster_segment["best_face"]
+            for raw_segment in raw_segments:
+                best_face = raw_segment["best_face"]
                 segment = {
-                    "start_time": format_timecode(cluster_segment["start"]),
-                    "end_time":   format_timecode(cluster_segment["end"]),
-                    "duration":   format_timecode(cluster_segment["end"] - cluster_segment["start"]),
+                    "start_time": format_timecode(raw_segment["start"]),
+                    "end_time":   format_timecode(raw_segment["end"]),
+                    "duration":   format_timecode(raw_segment["end"] - raw_segment["start"]),
                     "score":      best_face["score"],
                 }
 
@@ -334,8 +333,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
                 segments.append(segment)
 
-            best_cluster_segment = max(cluster_segments, key=lambda cluster_segment: cluster_segment["best_face"]["score"])
-            best_face = best_cluster_segment["best_face"]
+            best_segment = max(raw_segments, key=lambda s: s["best_face"]["score"])
+            best_face = best_segment["best_face"]
 
             track: Dict[str, Any] = {
                 "track_id":    cluster_id + 1,
@@ -407,7 +406,17 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         return PILImage.fromarray(cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB))
 
     @staticmethod
-    def _filter_faces(faces: List[Dict[str, Any]], min_face_size: int, max_face_count_per_frame: int) -> List[Dict[str, Any]]:
+    def _serialize_bounding_box(box_xyxy: np.ndarray) -> Dict[str, int]:
+        x1, y1, x2, y2 = box_xyxy
+
+        return { "x": int(x1), "y": int(y1), "width": int(x2 - x1), "height": int(y2 - y1) }
+
+    @staticmethod
+    def _filter_faces(
+        faces: List[Dict[str, Any]],
+        min_face_size: int,
+        max_face_count_per_frame: int
+    ) -> List[Dict[str, Any]]:
         if min_face_size > 0:
             faces = [ face for face in faces if min(face["bounding_box"]["width"], face["bounding_box"]["height"]) >= min_face_size ]
 

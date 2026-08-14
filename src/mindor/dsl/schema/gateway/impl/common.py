@@ -4,5 +4,5 @@ from mindor.dsl.schema.runtime import RuntimeType
 from .types import GatewayType
 
 class CommonGatewayConfig(BaseModel):
-    type: GatewayType = Field(..., description="Type of gateway service.")
-    runtime: RuntimeType = Field(default=RuntimeType.NATIVE, description="Runtime environment for executing the gateway.")
+    type: GatewayType = Field(..., description="Type of gateway.")
+    runtime: RuntimeType = Field(default=RuntimeType.NATIVE, description="Runtime environment in which this gateway executes.")

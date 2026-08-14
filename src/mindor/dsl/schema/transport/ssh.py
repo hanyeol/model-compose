@@ -8,16 +8,16 @@ class SshAuthType(str, Enum):
     PASSWORD = "password"
 
 class CommonSshAuthConfig(BaseModel):
-    type: SshAuthType = Field(..., description="SSH authentication type.")
-    username: str = Field(..., description="SSH connection username.")
+    type: SshAuthType = Field(..., description="Type of SSH authentication.")
+    username: str = Field(..., description="Username used for the SSH connection.")
 
 class SshKeyfileAuthConfig(CommonSshAuthConfig):
     type: Literal[SshAuthType.KEYFILE]
-    keyfile: str = Field(..., description="Path to the SSH private key file.")
+    keyfile: str = Field(..., description="Filesystem path to the SSH private key file.")
 
 class SshPasswordAuthConfig(CommonSshAuthConfig):
     type: Literal[SshAuthType.PASSWORD]
-    password: str = Field(..., description="Password for SSH authentication.")
+    password: str = Field(..., description="Password used for SSH authentication.")
 
 SshAuthConfig = Annotated[
     Union[ 
@@ -28,10 +28,10 @@ SshAuthConfig = Annotated[
 ]
 
 class SshConnectionConfig(BaseModel):
-    host: str = Field(..., description="SSH server host address.")
-    port: int = Field(default=22, ge=1, le=65535, description="SSH server port.")
-    auth: SshAuthConfig = Field(..., description="SSH authentication config.")
-    keepalive_interval: Union[str, int, float] = Field(default="10s", description="SSH keepalive interval. '0s' to disable.")
-    watch_interval: Union[str, int, float] = Field(default="5s", description="Interval between SSH health checks.")
-    retry_interval: Union[str, int, float] = Field(default="5s", description="Interval between reconnection attempts.")
-    max_retry_count: int = Field(default=0, ge=0, description="Max reconnection attempts. 0 for unlimited.")
+    host: str = Field(..., description="Hostname or IP address of the SSH server.")
+    port: int = Field(default=22, ge=1, le=65535, description="TCP port the SSH server listens on.")
+    auth: SshAuthConfig = Field(..., description="Authentication settings used for the SSH connection.")
+    keepalive_interval: Union[str, int, float] = Field(default="10s", description="Interval between SSH keepalive messages; '0s' disables keepalive.")
+    watch_interval: Union[str, int, float] = Field(default="5s", description="Interval between SSH connection health checks.")
+    retry_interval: Union[str, int, float] = Field(default="5s", description="Delay between successive SSH reconnection attempts.")
+    max_retry_count: int = Field(default=0, ge=0, description="Maximum number of SSH reconnection attempts; 0 means unlimited.")

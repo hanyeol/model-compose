@@ -29,5 +29,5 @@ class DistanceMetric(str, Enum):
 RankingMetric = Union[ SimilarityMetric, DistanceMetric ]
 
 class CommonVectorProcessorActionConfig(CommonActionConfig):
-    method: VectorProcessorActionMethod = Field(..., description="Vector processor method.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input vectors per batch.")
+    method: VectorProcessorActionMethod = Field(..., description="Vector processing operation this action performs.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input vectors processed per batch.")

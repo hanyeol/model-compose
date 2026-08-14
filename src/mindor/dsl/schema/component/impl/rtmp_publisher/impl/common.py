@@ -8,4 +8,4 @@ class RtmpPublisherDriver(str, Enum):
 
 class CommonRtmpPublisherComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.RTMP_PUBLISHER]
-    driver: RtmpPublisherDriver = Field(..., description="RTMP publisher backend driver.")
+    driver: RtmpPublisherDriver = Field(..., description="Backend implementation used to publish RTMP streams.")

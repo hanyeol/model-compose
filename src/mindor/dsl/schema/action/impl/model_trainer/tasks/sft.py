@@ -5,18 +5,18 @@ from .common import CommonModelTrainerActionConfig
 
 class SftModelTrainerActionConfig(CommonModelTrainerActionConfig):
     # Dataset configuration
-    dataset: str = Field(..., description="Training dataset.")
-    eval_dataset: Optional[str] = Field(default=None, description="Evaluation dataset.")
+    dataset: str = Field(..., description="Dataset used for training.")
+    eval_dataset: Optional[str] = Field(default=None, description="Dataset used for evaluation during training.")
 
     # Data formatting
-    text_column: Optional[str] = Field(default=None, description="Column containing training text.")
-    prompt_column: Optional[str] = Field(default=None, description="Column for prompts in chat-style data.")
-    response_column: Optional[str] = Field(default=None, description="Column for responses in chat-style data.")
-    system_column: Optional[str] = Field(default=None, description="Column for system prompts in chat-style data.")
+    text_column: Optional[str] = Field(default=None, description="Dataset column that holds the training text.")
+    prompt_column: Optional[str] = Field(default=None, description="Dataset column that holds prompts in chat-style data.")
+    response_column: Optional[str] = Field(default=None, description="Dataset column that holds responses in chat-style data.")
+    system_column: Optional[str] = Field(default=None, description="Dataset column that holds system prompts in chat-style data.")
 
     # Training strategy
-    max_seq_length: int = Field(default=512, description="Maximum sequence length for training.")
-    packing: bool = Field(default=False, description="Pack multiple short examples into one sequence for efficiency.")
+    max_seq_length: int = Field(default=512, description="Maximum tokenized sequence length used during training.")
+    packing: bool = Field(default=False, description="Whether multiple short examples are packed into one sequence for efficiency.")
 
     @model_validator(mode="after")
     def validate_data_columns(self):

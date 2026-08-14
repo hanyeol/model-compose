@@ -68,18 +68,24 @@ fine — users of those fields already know it. Python/framework jargon
 
 ## 2. Content rules
 
-### 2.1 Never restate the field name
+### 2.1 Prefer a short, natural phrase over cleverness
 
-A description of `"ID of component."` for a field named `id` adds nothing.
-Say *what kind of identifier*, *where it appears*, or *what constraints apply*.
+Short forms like `"ID of component."` or `"Type of component."` are fine —
+they are unambiguous, they match the shape of the field name, and they read
+cleanly in generated docs. Do not rewrite them into longer paraphrases just
+to avoid repeating the field name.
 
-- ❌ `id: str = Field(..., description="ID of component.")`
-- ✅ `id: str = Field(..., description="Unique identifier used to reference this component from workflows.")`
-- ❌ `name: str = Field(..., description="Name of workflow.")`
-- ✅ `name: str = Field(..., description="Human-readable label shown in logs and the Web UI.")`
+- ✅ `id: str = Field(..., description="ID of component.")`
+- ✅ `type: ComponentType = Field(..., description="Type of component.")`
+- ✅ `name: str = Field(..., description="Name of workflow.")`
 
-The test: read only the description and ask whether it tells you something the
-field name alone did not.
+Reach for a longer form only when the short one is genuinely ambiguous or
+misleading — for example, when the same field name means something different
+in a nearby schema, or when a compose author needs to know *where* the value
+shows up (`"Name shown in the Web UI and logs."`).
+
+Never inflate a description with filler words (`"Specifies the ID that uniquely
+identifies…"`) — that is the antipattern.
 
 ### 2.2 State the scope, not just the kind
 
@@ -146,9 +152,9 @@ schema-specific nuance requires deviation — then still keep the shape.
 
 | Field         | Template                                                                                       |
 | ------------- | ---------------------------------------------------------------------------------------------- |
-| `id`          | `Unique identifier used to reference this <entity> from <where>.`                              |
-| `name`        | `Human-readable label shown in logs and the Web UI.`                                           |
-| `type`        | `Discriminator selecting the <entity> implementation.`                                         |
+| `id`          | `ID of <entity>.`                                                                              |
+| `name`        | `Name of <entity>.`                                                                            |
+| `type`        | `Type of <entity>.`                                                                            |
 | `driver`      | `Backend implementation used for <purpose>.`                                                   |
 | `port`        | `TCP port <the server> listens on.`                                                            |
 | `host`        | `Hostname or IP address of the <server>.`                                                      |
@@ -201,7 +207,6 @@ smell that usually means the description needs a rewrite.
 
 - Starts with `Specifies`, `Defines`, `Sets`, `Represents`, `Indicates`, `Contains`.
 - Ends without a period.
-- Is literally `"<Field name> of <entity>."` or `"<Entity> <field name>."`.
 - Contains `Options for` or `Config for` with no further specificity.
 - Contains `Defaults to <literal>` where `<literal>` matches `default=`.
 - Contains Python type words: `Dict`, `List`, `Optional`, `Union`, `Tuple`,
@@ -220,30 +225,6 @@ the checkable subset of these rules.
 ### Before
 
 ```python
-class CommonComponentConfig(BaseModel):
-    id: str = Field(default="__component__", description="ID of component.")
-    type: ComponentType = Field(..., description="Type of component.")
-    runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=0, description="Maximum concurrent actions this component can handle.")
-    default: bool = Field(default=False, description="Use this component when none is explicitly specified.")
-    actions: List[CommonActionConfig] = Field(default_factory=list, description="Actions available within this component.")
-```
-
-### After
-
-```python
-class CommonComponentConfig(BaseModel):
-    id: str = Field(default="__component__", description="Unique identifier used to reference this component from workflows.")
-    type: ComponentType = Field(..., description="Discriminator selecting the component implementation.")
-    runtime: RuntimeConfig = Field(..., description="Runtime environment in which this component executes.")
-    max_concurrent_count: int = Field(default=0, description="Maximum concurrent actions this component runs; 0 means unbounded.")
-    default: bool = Field(default=False, description="Whether to use this component when none is explicitly selected.")
-    actions: List[CommonActionConfig] = Field(default_factory=list, description="Actions this component exposes to workflows.")
-```
-
-### Before
-
-```python
 class ControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Controller identifier name.")
     max_concurrent_count: int = Field(default=0, description="Max tasks executed concurrently.")
@@ -256,12 +237,20 @@ class ControllerConfig(BaseModel):
 
 ```python
 class ControllerConfig(BaseModel):
-    name: Optional[str] = Field(default=None, description="Human-readable label shown in logs and the Web UI.")
-    max_concurrent_count: int = Field(default=0, description="Maximum concurrent tasks this controller runs; 0 means unbounded.")
-    shutdown_pending_period: Union[str, int, float] = Field(default="0s", description="Grace period before shutdown begins, as a duration string (e.g., \"30s\") or seconds, allowing traffic to drain.")
-    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown, as a duration string or seconds.")
+    name: Optional[str] = Field(default=None, description="Name of controller.")
+    max_concurrent_count: int = Field(default=0, description="Maximum concurrent tasks; 0 means unbounded.")
+    shutdown_pending_period: Union[str, int, float] = Field(default="0s", description="Grace period before shutdown begins, allowing traffic to drain.")
+    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
     threaded: bool = Field(default=False, description="Whether to run tasks on separate worker threads.")
 ```
+
+Notes on the "After" version:
+- `name`: kept short — the field name is self-explanatory (§2.1).
+- `max_concurrent_count`: the default `0` has a non-obvious meaning
+  (*unbounded*), so it is spelled out inline (§2.3, exception).
+- `shutdown_pending_period` / `shutdown_timeout`: tightened wording, dropped
+  the `Max`/`Delay` shorthand, no default value restated (§2.3).
+- `threaded`: added *worker* for scope; still a `Whether` boolean.
 
 ---
 

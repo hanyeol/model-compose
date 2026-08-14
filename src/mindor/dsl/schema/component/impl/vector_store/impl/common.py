@@ -12,4 +12,4 @@ class VectorStoreDriver(str, Enum):
 
 class CommonVectorStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_STORE]
-    driver: VectorStoreDriver = Field(..., description="Vector store backend driver.")
+    driver: VectorStoreDriver = Field(..., description="Backend implementation used for the vector store.")

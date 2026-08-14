@@ -7,10 +7,10 @@ from mindor.dsl.schema.common.rate_limit import RateLimitConfig, inflate_rate_li
 
 class WebScraperComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.WEB_SCRAPER]
-    headers: Dict[str, str] = Field(default_factory=dict, description="Default HTTP headers for all requests")
-    cookies: Dict[str, str] = Field(default_factory=dict, description="Default cookies for all requests")
-    timeout: Optional[Union[str, int, float]] = Field(default="60s", description="Default request timeout")
-    rate_limit: Optional[RateLimitConfig] = Field(default=None, description="Rate limit applied to all actions in this component.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers sent with every scraper request.")
+    cookies: Dict[str, str] = Field(default_factory=dict, description="Cookies sent with every scraper request.")
+    timeout: Optional[Union[str, int, float]] = Field(default="60s", description="Maximum seconds to wait for a scraper request before failing.")
+    rate_limit: Optional[RateLimitConfig] = Field(default=None, description="Rate limit applied across all actions in this scraper.")
     actions: List[WebScraperActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

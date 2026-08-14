@@ -9,18 +9,18 @@ from .common import (
 )
 
 class ChromaVectorInsertActionConfig(CommonVectorInsertActionConfig):
-    collection: str = Field(..., description="Target collection for vector insertion.")
-    document: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Document text or list of documents associated with vectors.")
+    collection: str = Field(..., description="Collection that receives the inserted vectors.")
+    document: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Document text associated with each inserted vector.")
 
 class ChromaVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
-    collection: str = Field(..., description="Target collection for vector update.")
-    document: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Document text or list of documents to update with vectors.")
+    collection: str = Field(..., description="Collection containing the vectors to update.")
+    document: Optional[Union[str, Union[str, List[str]]]] = Field(default=None, description="Document text written alongside the updated vectors.")
 
 class ChromaVectorSearchActionConfig(CommonVectorSearchActionConfig):
-    collection: str = Field(..., description="Collection to search vectors from.")
+    collection: str = Field(..., description="Collection searched for similar vectors.")
 
 class ChromaVectorDeleteActionConfig(CommonVectorDeleteActionConfig):
-    collection: str = Field(..., description="Collection to remove vectors from.")
+    collection: str = Field(..., description="Collection that vectors are deleted from.")
 
 ChromaVectorStoreActionConfig = Annotated[
     Union[ 

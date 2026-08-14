@@ -8,4 +8,4 @@ class ImageProcessorDriver(str, Enum):
 
 class CommonImageProcessorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.IMAGE_PROCESSOR]
-    driver: ImageProcessorDriver = Field(..., description="Image processing backend driver.")
+    driver: ImageProcessorDriver = Field(..., description="Backend implementation used for image processing.")

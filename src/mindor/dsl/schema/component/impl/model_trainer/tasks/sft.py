@@ -5,4 +5,4 @@ from .common import CommonModelTrainerComponentConfig, TrainingTaskType
 
 class SftModelTrainerComponentConfig(CommonModelTrainerComponentConfig):
     task: Literal[TrainingTaskType.SFT]
-    actions: List[SftModelTrainerActionConfig] = Field(default_factory=list)
+    actions: List[SftModelTrainerActionConfig] = Field(default_factory=list, description="Actions this SFT trainer component exposes to workflows.")

@@ -4,14 +4,14 @@ from typing import Optional, Dict, List, Literal, Any
 from pydantic import BaseModel, Field, model_validator
 
 class ModelToolProperty(BaseModel):
-    type: Literal[ "string", "integer", "number", "boolean", "array", "object" ] = Field(..., description="Parameter type.")
-    description: Optional[str] = Field(default=None, description="What this parameter is for.")
-    enum: Optional[List[Any]] = Field(default=None, description="Allowed values for this parameter.")
-    items: Optional[ModelToolProperty] = Field(default=None, description="Item schema when type is 'array'.")
-    properties: Optional[Dict[str, ModelToolProperty]] = Field(default=None, description="Nested parameter schemas when type is 'object'.")
-    format: Optional[str] = Field(default=None, description="Semantic format hint (e.g., 'date-time', 'email', 'uri').")
-    default: Optional[Any] = Field(default=None, description="Default value when the parameter is omitted.")
-    required: Optional[List[str]] = Field(default=None, description="Required nested parameter names when type is 'object'.")
+    type: Literal[ "string", "integer", "number", "boolean", "array", "object" ] = Field(..., description="JSON Schema type of this parameter.")
+    description: Optional[str] = Field(default=None, description="Human-readable explanation of what this parameter is for.")
+    enum: Optional[List[Any]] = Field(default=None, description="Allowed values this parameter may take.")
+    items: Optional[ModelToolProperty] = Field(default=None, description="Schema of array elements when `type` is 'array'.")
+    properties: Optional[Dict[str, ModelToolProperty]] = Field(default=None, description="Schemas of nested properties when `type` is 'object'.")
+    format: Optional[str] = Field(default=None, description="Semantic format hint for the parameter value (e.g., 'date-time', 'email', 'uri').")
+    default: Optional[Any] = Field(default=None, description="Value used when the parameter is omitted.")
+    required: Optional[List[str]] = Field(default=None, description="Names of nested properties that must be provided when `type` is 'object'.")
 
     model_config = { "extra": "allow" }
 
@@ -28,11 +28,11 @@ class ModelToolProperty(BaseModel):
         return self
 
 class ModelToolParameters(BaseModel):
-    type: Literal[ "object" ] = Field(default="object", description="Schema container type. Always 'object'.")
+    type: Literal[ "object" ] = Field(default="object", description="JSON Schema container type; always 'object'.")
     properties: Dict[str, ModelToolProperty] = Field(default_factory=dict, description="Parameter schemas keyed by parameter name.")
-    required: List[str] = Field(default_factory=list, description="Names of required parameters.")
+    required: List[str] = Field(default_factory=list, description="Names of parameters that must be provided when invoking the tool.")
 
 class ModelTool(BaseModel):
-    name: str = Field(..., description="Tool name.")
-    description: Optional[str] = Field(default=None, description="Tool description.")
-    parameters: Optional[ModelToolParameters] = Field(default=None, description="Parameters that the tool accepts.")
+    name: str = Field(..., description="Name of tool.")
+    description: Optional[str] = Field(default=None, description="Human-readable explanation of what the tool does.")
+    parameters: Optional[ModelToolParameters] = Field(default=None, description="Schema of parameters the tool accepts.")

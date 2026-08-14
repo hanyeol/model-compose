@@ -5,10 +5,10 @@ from mindor.dsl.schema.action import HttpServerActionConfig
 from .common import ComponentType, CommonComponentConfig
 
 class HttpServerManageScripts(BaseModel):
-    install: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to install dependencies.")
-    build: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to build the server.")
-    clean: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to clean the server environment.")
-    start: Optional[List[str]] = Field(default=None, description="Script to start the server.")
+    install: Optional[List[List[str]]] = Field(default=None, description="Commands run to install the server's dependencies.")
+    build: Optional[List[List[str]]] = Field(default=None, description="Commands run to build the server.")
+    clean: Optional[List[List[str]]] = Field(default=None, description="Commands run to clean the server's environment.")
+    start: Optional[List[str]] = Field(default=None, description="Command that starts the server process.")
 
     @model_validator(mode="before")
     def normalize_scripts(cls, values):
@@ -19,9 +19,9 @@ class HttpServerManageScripts(BaseModel):
         return values
 
 class HttpServerManageConfig(BaseModel):
-    scripts: HttpServerManageScripts = Field(..., description="Shell scripts to install, build, clean, and start the server.")
-    working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
+    scripts: HttpServerManageScripts = Field(..., description="Shell scripts that install, build, clean, and start the server.")
+    working_dir: Optional[str] = Field(default=None, description="Working directory in which the scripts run.")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables exported when the scripts run.")
 
     @model_validator(mode="before")
     def inflate_single_script(cls, values: Dict[str, Any]):
@@ -31,10 +31,10 @@ class HttpServerManageConfig(BaseModel):
 
 class HttpServerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTTP_SERVER]
-    manage: HttpServerManageConfig = Field(default_factory=HttpServerManageConfig, description="Manages the HTTP server lifecycle.")
-    port: int = Field(default=8000, ge=1, le=65535, description="Port on which the HTTP server listens.")
-    base_path: Optional[str] = Field(default=None, description="Base path prefix for all HTTP routes exposed by this component.")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="Headers included in all outgoing HTTP requests.")
+    manage: HttpServerManageConfig = Field(default_factory=HttpServerManageConfig, description="Lifecycle scripts and environment for the managed HTTP server.")
+    port: int = Field(default=8000, ge=1, le=65535, description="TCP port the HTTP server listens on.")
+    base_path: Optional[str] = Field(default=None, description="URL path prefix under which this server's routes are exposed.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers sent with every response from this server.")
     actions: List[HttpServerActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

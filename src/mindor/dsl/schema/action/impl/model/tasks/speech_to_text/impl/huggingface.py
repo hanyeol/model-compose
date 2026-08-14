@@ -3,14 +3,14 @@ from pydantic import BaseModel, Field
 from .common import CommonSpeechToTextModelActionConfig
 
 class HuggingfaceSpeechToTextParamsConfig(BaseModel):
-    num_beams: Union[int, str] = Field(default=1, description="Number of beams for beam search.")
-    temperature: Union[float, str] = Field(default=0.0, description="Sampling temperature; 0.0 for greedy decoding.")
-    compression_ratio_threshold: Union[float, str] = Field(default=2.4, description="Gzip compression ratio threshold of generated tokens.")
-    log_prob_threshold: Union[float, str] = Field(default=-1.0, description="Log probability threshold for filtering low-confidence segments.")
-    no_speech_threshold: Union[float, str] = Field(default=0.6, description="No-speech probability threshold for skipping silent segments.")
+    num_beams: Union[int, str] = Field(default=1, description="Number of beams used in beam search.")
+    temperature: Union[float, str] = Field(default=0.0, description="Sampling temperature; 0.0 uses greedy decoding.")
+    compression_ratio_threshold: Union[float, str] = Field(default=2.4, description="Gzip compression ratio above which a segment is considered degenerate and dropped.")
+    log_prob_threshold: Union[float, str] = Field(default=-1.0, description="Average log-probability below which a segment is treated as low-confidence and filtered.")
+    no_speech_threshold: Union[float, str] = Field(default=0.6, description="No-speech probability above which a segment is skipped as silent.")
 
 class HuggingfaceSpeechToTextModelActionConfig(CommonSpeechToTextModelActionConfig):
-    task: Optional[Union[Literal[ "transcribe", "translate" ], str]] = Field(default="transcribe", description="Whisper task: 'transcribe' or 'translate' (translate outputs English).")
-    max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum tokens to generate. None uses the model's configured limit.")
-    chunk_length: Optional[Union[float, str]] = Field(default=30.0, description="Audio chunk length in seconds for long-form transcription.")
-    params: HuggingfaceSpeechToTextParamsConfig = Field(default_factory=HuggingfaceSpeechToTextParamsConfig, description="Speech-to-text generation parameters.")
+    task: Optional[Union[Literal[ "transcribe", "translate" ], str]] = Field(default="transcribe", description="Whisper task; `transcribe` keeps the source language, `translate` outputs English.")
+    max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens generated; unset uses the model's configured limit.")
+    chunk_length: Optional[Union[float, str]] = Field(default=30.0, description="Chunk length in seconds used to split audio for long-form transcription.")
+    params: HuggingfaceSpeechToTextParamsConfig = Field(default_factory=HuggingfaceSpeechToTextParamsConfig, description="Whisper decoding parameters used for speech-to-text.")

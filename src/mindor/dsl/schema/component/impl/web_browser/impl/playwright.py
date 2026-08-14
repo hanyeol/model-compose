@@ -5,12 +5,12 @@ from .common import CommonWebBrowserComponentConfig, WebBrowserDriver
 
 class PlaywrightWebBrowserComponentConfig(CommonWebBrowserComponentConfig):
     driver: Literal[WebBrowserDriver.PLAYWRIGHT]
-    browser: Literal[ "chromium", "firefox", "webkit" ] = Field(default="chromium", description="Browser engine.")
-    channel: Optional[str] = Field(default=None, description="System browser channel (e.g. 'chrome', 'msedge'). Chromium only.")
-    headless: bool = Field(default=True, description="Run headless.")
-    args: List[str] = Field(default_factory=list, description="CLI arguments passed to the browser process.")
-    persistent_dir: Optional[str] = Field(default=None, description="Persistent profile directory.")
-    cdp_url: Optional[str] = Field(default=None, description="Attach to a running Chromium over CDP (e.g. 'http://localhost:9222').")
+    browser: Literal[ "chromium", "firefox", "webkit" ] = Field(default="chromium", description="Playwright browser engine to launch.")
+    channel: Optional[str] = Field(default=None, description="System browser channel (e.g., 'chrome', 'msedge'). Chromium only.")
+    headless: bool = Field(default=True, description="Whether to run the browser in headless mode.")
+    args: List[str] = Field(default_factory=list, description="Command-line arguments passed to the browser process.")
+    persistent_dir: Optional[str] = Field(default=None, description="Directory for a persistent browser profile across runs.")
+    cdp_url: Optional[str] = Field(default=None, description="URL of a running Chromium to attach to over CDP (e.g., http://host:port).")
     actions: List[WebBrowserActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="after")

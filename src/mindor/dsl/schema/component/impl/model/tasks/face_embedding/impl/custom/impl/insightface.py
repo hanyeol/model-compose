@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class InsightfaceFaceEmbeddingModelComponentConfig(CommonFaceEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[FaceEmbeddingModelFamily.INSIGHTFACE]
-    actions: List[InsightfaceFaceEmbeddingModelActionConfig] = Field(default_factory=list)
+    actions: List[InsightfaceFaceEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this face embedding component exposes to workflows.")

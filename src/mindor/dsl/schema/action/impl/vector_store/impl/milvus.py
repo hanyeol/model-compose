@@ -9,20 +9,20 @@ from .common import (
 )
 
 class MilvusVectorInsertActionConfig(CommonVectorInsertActionConfig):
-    collection: str = Field(..., description="Target collection for vector insertion.")
-    partition: Optional[str] = Field(default=None, description="Partition to insert vectors into.")
+    collection: str = Field(..., description="Collection that receives the inserted vectors.")
+    partition: Optional[str] = Field(default=None, description="Partition within the collection that receives the inserted vectors.")
 
 class MilvusVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
-    collection: str = Field(..., description="Target collection for vector update.")
-    partition: Optional[str] = Field(default=None, description="Partition to update vectors in.")
+    collection: str = Field(..., description="Collection containing the vectors to update.")
+    partition: Optional[str] = Field(default=None, description="Partition within the collection containing the vectors to update.")
 
 class MilvusVectorSearchActionConfig(CommonVectorSearchActionConfig):
-    collection: str = Field(..., description="Collection to search vectors from.")
-    partitions: Optional[List[str]] = Field(default=None, description="Partitions to search within.")
+    collection: str = Field(..., description="Collection searched for similar vectors.")
+    partitions: Optional[List[str]] = Field(default=None, description="Partitions searched within the collection.")
 
 class MilvusVectorDeleteActionConfig(CommonVectorDeleteActionConfig):
-    collection: str = Field(..., description="Collection to remove vectors from.")
-    partition: Optional[str] = Field(default=None, description="Partition to remove vectors from.")
+    collection: str = Field(..., description="Collection that vectors are deleted from.")
+    partition: Optional[str] = Field(default=None, description="Partition within the collection that vectors are deleted from.")
 
 MilvusVectorStoreActionConfig = Annotated[
     Union[ 

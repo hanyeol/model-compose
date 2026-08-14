@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class LdsrImageUpscaleModelComponentConfig(CommonImageUpscaleModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[ImageUpscaleModelFamily.LDSR]
-    actions: List[LdsrImageUpscaleModelActionConfig] = Field(default_factory=list)
+    actions: List[LdsrImageUpscaleModelActionConfig] = Field(default_factory=list, description="Actions this image upscale component exposes to workflows.")

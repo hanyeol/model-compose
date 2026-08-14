@@ -12,21 +12,21 @@ class HttpClientCompletionType(str, Enum):
 class HttpClientCommonCompletionConfig(BaseModel):
     type: HttpClientCompletionType
     stream_format: Optional[HttpEventStreamFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
-    stream_fragmented: bool = Field(default=True, description="Whether the stream carries a single logical result split into pieces (e.g. LLM token deltas) rather than independent events. Consumers use this to decide whether to reassemble the stream or treat each chunk as a standalone input.")
+    stream_fragmented: bool = Field(default=True, description="Whether the stream carries a single logical result split into pieces (e.g., LLM token deltas) rather than independent events.")
 
 class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
     type: Literal[HttpClientCompletionType.POLLING]
-    endpoint: Optional[str] = Field(default=None, description="URL endpoint for polling requests.")
-    path: Optional[str] = Field(default=None, description="URL path appended to base_url for polling.")
-    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="GET", description="HTTP method for polling requests.")
-    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers for polling requests.")
-    body: Optional[Union[Dict[str, Any], List[Any], str]] = Field(default=None, description="Request body for polling requests. Accepts a JSON object, JSON array, or a raw string.")
-    params: Dict[str, Any] = Field(default_factory=dict, description="URL query parameters for polling requests.")
-    status: Optional[str] = Field(default=None, description="Field path to check for completion status in polling response.")
-    success_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values indicating successful completion.")
-    fail_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values indicating failed completion.")
-    interval: Optional[Union[str, int, float]] = Field(default=None, description="Interval between polling attempts.")
-    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum wait time before giving up.")
+    endpoint: Optional[str] = Field(default=None, description="Full URL of the polling endpoint.")
+    path: Optional[str] = Field(default=None, description="URL path appended to the base URL for polling requests.")
+    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="GET", description="HTTP method used for the polling request.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers sent with the polling request.")
+    body: Optional[Union[Dict[str, Any], List[Any], str]] = Field(default=None, description="Request body sent with the polling request; accepts a JSON object, array, or raw string.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Query parameters sent with the polling request.")
+    status: Optional[str] = Field(default=None, description="Field path in the polling response used to determine completion status.")
+    success_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values that indicate successful completion.")
+    fail_when: Optional[List[Union[int, str]]] = Field(default=None, description="Status codes or values that indicate failed completion.")
+    interval: Optional[Union[str, int, float]] = Field(default=None, description="Delay between successive polling attempts.")
+    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for polling completion before failing.")
 
     @model_validator(mode="before")
     def validate_endpoint_or_path(cls, values: Dict[str, Any]):
@@ -43,7 +43,7 @@ class HttpClientPollingCompletionConfig(HttpClientCommonCompletionConfig):
 
 class HttpClientCallbackCompletionConfig(HttpClientCommonCompletionConfig):
     type: Literal[HttpClientCompletionType.CALLBACK]
-    wait_for: Optional[str] = Field(default=None, description="Callback identifier to wait for in async completion mode.")
+    wait_for: Optional[str] = Field(default=None, description="Callback identifier this request waits on for asynchronous completion.")
 
 HttpClientCompletionConfig = Annotated[ 
     Union[
@@ -54,15 +54,15 @@ HttpClientCompletionConfig = Annotated[
 ]
 
 class HttpClientActionConfig(CommonActionConfig):
-    endpoint: Optional[str] = Field(default=None, description="Full URL endpoint (mutually exclusive with path).")
-    path: Optional[str] = Field(default=None, description="URL path appended to base_url (mutually exclusive with endpoint).")
-    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="HTTP method for the request.")
-    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers for the request.")
-    body: Optional[Union[Dict[str, Any], List[Any], str]] = Field(default=None, description="Request body. Accepts a JSON object, JSON array, or a raw string.")
-    params: Dict[str, Any] = Field(default_factory=dict, description="URL query parameters.")
+    endpoint: Optional[str] = Field(default=None, description="Full URL of the request. Mutually exclusive with `path`.")
+    path: Optional[str] = Field(default=None, description="URL path appended to the base URL. Mutually exclusive with `endpoint`.")
+    method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="HTTP method used for the request.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers sent with the request.")
+    body: Optional[Union[Dict[str, Any], List[Any], str]] = Field(default=None, description="Request body; accepts a JSON object, JSON array, or raw string.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Query parameters appended to the request URL.")
     stream_format: Optional[HttpEventStreamFormat] = Field(default=None, description="Encoding format applied to each chunk of the stream payload.")
-    stream_fragmented: bool = Field(default=True, description="Whether the stream carries a single logical result split into pieces (e.g. LLM token deltas) rather than independent events. Consumers use this to decide whether to reassemble the stream or treat each chunk as a standalone input.")
-    completion: Optional[HttpClientCompletionConfig] = Field(default=None, description="Async request completion handling via polling or callbacks.")
+    stream_fragmented: bool = Field(default=True, description="Whether the stream carries a single logical result split into pieces (e.g., LLM token deltas) rather than independent events.")
+    completion: Optional[HttpClientCompletionConfig] = Field(default=None, description="Handling for asynchronous request completion via polling or callbacks.")
 
     @model_validator(mode="before")
     def validate_endpoint_or_path(cls, values: Dict[str, Any]):

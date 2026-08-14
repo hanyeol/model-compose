@@ -20,5 +20,5 @@ YoloObjectDetectionModelConfig = Annotated[
 class YoloObjectDetectionModelComponentConfig(CommonObjectDetectionModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[ObjectDetectionModelFamily.YOLO]
-    model: YoloObjectDetectionModelConfig = Field(..., description="Model repository or local file path.")
-    actions: List[YoloObjectDetectionModelActionConfig] = Field(default_factory=list)
+    model: YoloObjectDetectionModelConfig = Field(..., description="YOLO detection model identifier — a HuggingFace repo ID or a local path.")
+    actions: List[YoloObjectDetectionModelActionConfig] = Field(default_factory=list, description="Actions this object detection component exposes to workflows.")

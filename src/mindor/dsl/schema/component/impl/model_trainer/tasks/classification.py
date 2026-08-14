@@ -5,4 +5,4 @@ from .common import CommonModelTrainerComponentConfig, TrainingTaskType
 
 class ClassificationModelTrainerComponentConfig(CommonModelTrainerComponentConfig):
     task: Literal[TrainingTaskType.CLASSIFICATION]
-    actions: List[ClassificationModelTrainerActionConfig] = Field(default_factory=list)
+    actions: List[ClassificationModelTrainerActionConfig] = Field(default_factory=list, description="Actions this classification trainer component exposes to workflows.")

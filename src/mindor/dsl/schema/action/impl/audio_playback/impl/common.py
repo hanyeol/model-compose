@@ -8,13 +8,13 @@ class AudioPlaybackSink(str, Enum):
     DEVICE = "device"
 
 class CommonAudioPlaybackActionConfig(CommonActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio(s) — file path, URL, bytes, stream resource, or variable reference.")
-    sink: Union[AudioPlaybackSink, str] = Field(default=AudioPlaybackSink.SYSTEM, description="Output target: 'system' for the OS default output device, 'device' for a specific device.")
-    device: Optional[Union[int, str]] = Field(default=None, description="Device index or name; required when sink='device'.")
-    volume: Union[float, str] = Field(default=1.0, description="Linear playback gain (1.0 = unchanged, 0.0 = mute).")
-    duration: Optional[Union[str, float]] = Field(default=None, description="Maximum playback duration; None plays to end of input.")
-    wait_for_finish: Union[bool, str] = Field(default=True, description="Wait for playback to finish before returning.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of inputs per batch when 'audio' is a list or stream.")
+    audio: Union[str, List[str]] = Field(..., description="Input audio to play — a file path, URL, bytes, stream, or variable reference.")
+    sink: Union[AudioPlaybackSink, str] = Field(default=AudioPlaybackSink.SYSTEM, description="Playback output target: the OS default output or a specific device.")
+    device: Optional[Union[int, str]] = Field(default=None, description="Output device index or name. Required when `sink` is `device`.")
+    volume: Union[float, str] = Field(default=1.0, description="Linear playback gain, where 1.0 is unchanged and 0.0 is mute.")
+    duration: Optional[Union[str, float]] = Field(default=None, description="Maximum playback duration; when unset, playback runs to the end of the input.")
+    wait_for_finish: Union[bool, str] = Field(default=True, description="Whether the action waits for playback to finish before returning.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of inputs processed per batch when `audio` is a list or stream.")
 
     @model_validator(mode="after")
     def validate_sink(self):

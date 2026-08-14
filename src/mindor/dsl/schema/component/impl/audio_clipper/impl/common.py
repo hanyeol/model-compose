@@ -8,4 +8,4 @@ class AudioClipperDriver(str, Enum):
 
 class CommonAudioClipperComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AUDIO_CLIPPER]
-    driver: AudioClipperDriver = Field(..., description="Audio clipping backend driver.")
+    driver: AudioClipperDriver = Field(..., description="Backend implementation used for audio clipping.")

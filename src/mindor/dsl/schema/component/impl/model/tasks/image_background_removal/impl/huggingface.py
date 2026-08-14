@@ -10,5 +10,5 @@ class HuggingfaceImageBackgroundRemovalModelArchitecture(str, Enum):
 
 class HuggingfaceImageBackgroundRemovalModelComponentConfig(CommonImageBackgroundRemovalModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    architecture: HuggingfaceImageBackgroundRemovalModelArchitecture = Field(default=HuggingfaceImageBackgroundRemovalModelArchitecture.AUTO, description="Model architecture.")
-    actions: List[ImageBackgroundRemovalModelActionConfig] = Field(default_factory=list)
+    architecture: HuggingfaceImageBackgroundRemovalModelArchitecture = Field(default=HuggingfaceImageBackgroundRemovalModelArchitecture.AUTO, description="Model architecture family; \"auto\" infers from the model config.")
+    actions: List[ImageBackgroundRemovalModelActionConfig] = Field(default_factory=list, description="Actions this image background removal component exposes to workflows.")

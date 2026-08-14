@@ -8,4 +8,4 @@ class TranscriptCorrectorDriver(str, Enum):
 
 class CommonTranscriptCorrectorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.TRANSCRIPT_CORRECTOR]
-    driver: TranscriptCorrectorDriver = Field(..., description="Transcript corrector backend driver.")
+    driver: TranscriptCorrectorDriver = Field(..., description="Backend implementation used to correct transcripts.")

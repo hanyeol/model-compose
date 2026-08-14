@@ -12,5 +12,5 @@ class HuggingfaceTextEmbeddingModelArchitecture(str, Enum):
 
 class HuggingfaceTextEmbeddingModelComponentConfig(CommonTextEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    architecture: HuggingfaceTextEmbeddingModelArchitecture = Field(default=HuggingfaceTextEmbeddingModelArchitecture.AUTO, description="How to load and run the embedding model.")
-    actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list)
+    architecture: HuggingfaceTextEmbeddingModelArchitecture = Field(default=HuggingfaceTextEmbeddingModelArchitecture.AUTO, description="Embedding model architecture; \"auto\" infers from the model config.")
+    actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this text embedding component exposes to workflows.")

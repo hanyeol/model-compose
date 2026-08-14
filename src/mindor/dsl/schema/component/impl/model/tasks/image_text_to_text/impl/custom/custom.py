@@ -7,5 +7,5 @@ from ....common import ModelDriver
 
 class CustomImageTextToTextModelComponentConfig(CommonImageTextToTextModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
-    family: ImageTextToTextModelFamily = Field(..., description="Model family.")
-    actions: List[ImageTextToTextModelActionConfig] = Field(default_factory=list)
+    family: ImageTextToTextModelFamily = Field(..., description="Model family selecting the custom image-text-to-text implementation.")
+    actions: List[ImageTextToTextModelActionConfig] = Field(default_factory=list, description="Actions this image-text-to-text component exposes to workflows.")

@@ -14,26 +14,26 @@ class SearchEngineFieldType(str, Enum):
     KEYWORD = "keyword"
 
 class SearchEngineFieldConfig(BaseModel):
-    name: str = Field(..., description="Field name.")
-    type: SearchEngineFieldType = Field(default=SearchEngineFieldType.TEXT, description="Field type.")
+    name: str = Field(..., description="Name of the indexed field.")
+    type: SearchEngineFieldType = Field(default=SearchEngineFieldType.TEXT, description="How the field's values are analyzed and stored.")
 
 class CommonSearchEngineActionConfig(CommonActionConfig):
-    method: SearchEngineActionMethod = Field(..., description="Search engine operation method.")
+    method: SearchEngineActionMethod = Field(..., description="Search engine operation this action performs.")
 
 class CommonSearchIndexActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.INDEX]
-    index: str = Field(..., description="Target index to insert documents into.")
-    fields: Optional[List[SearchEngineFieldConfig]] = Field(default=None, description="Index schema field definitions. Optional when appending to an existing index.")
-    documents: Union[List[Dict[str, Any]], str] = Field(..., description="List of documents to index.")
+    index: str = Field(..., description="Name of the index that receives the documents.")
+    fields: Optional[List[SearchEngineFieldConfig]] = Field(default=None, description="Index schema field definitions; optional when appending to an existing index.")
+    documents: Union[List[Dict[str, Any]], str] = Field(..., description="Documents inserted into the index.")
 
 class CommonSearchSearchActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.SEARCH]
-    index: str = Field(..., description="Target index to search.")
+    index: str = Field(..., description="Name of the index searched by this action.")
     query: str = Field(..., description="Search query string.")
-    search_fields: Optional[Union[List[str], str]] = Field(default=None, description="Fields to search in. When omitted, all text fields are searched.")
-    limit: Union[int, str] = Field(default=10, description="Maximum search results to return.")
+    search_fields: Optional[Union[List[str], str]] = Field(default=None, description="Fields the query runs against; when omitted, all text fields are searched.")
+    limit: Union[int, str] = Field(default=10, description="Maximum number of search results returned.")
 
 class CommonSearchDeleteActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.DELETE]
-    index: str = Field(..., description="Target index to delete documents from.")
-    document_ids: Union[List[str], str] = Field(..., description="Document IDs to delete.")
+    index: str = Field(..., description="Name of the index that documents are deleted from.")
+    document_ids: Union[List[str], str] = Field(..., description="IDs of the documents to delete.")

@@ -5,4 +5,4 @@ from ...common import CommonComponentConfig, ComponentType
 
 class CommonDatasetsComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.DATASETS]
-    driver: DatasetsDriver = Field(..., description="Datasets backend driver.")
+    driver: DatasetsDriver = Field(..., description="Backend implementation used to load datasets.")

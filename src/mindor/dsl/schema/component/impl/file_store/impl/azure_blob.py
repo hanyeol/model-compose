@@ -5,10 +5,10 @@ from .common import CommonFileStoreComponentConfig, FileStoreDriver
 
 class AzureBlobFileStoreComponentConfig(CommonFileStoreComponentConfig):
     driver: Literal[FileStoreDriver.AZURE_BLOB]
-    container: str = Field(..., description="Azure Blob container name.")
-    connection_string: Optional[str] = Field(default=None, description="Azure Storage connection string.")
-    account_name: Optional[str] = Field(default=None, description="Storage account name (used when connection_string is unset).")
-    account_key: Optional[str] = Field(default=None, description="Account key (used when connection_string is unset).")
+    container: str = Field(..., description="Name of the Azure Blob container that backs this store.")
+    connection_string: Optional[str] = Field(default=None, description="Azure Storage connection string. Mutually exclusive with `account_name` and `account_key`.")
+    account_name: Optional[str] = Field(default=None, description="Azure Storage account name. Used when `connection_string` is unset.")
+    account_key: Optional[str] = Field(default=None, description="Azure Storage account key. Used when `connection_string` is unset.")
     actions: List[AzureBlobFileStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

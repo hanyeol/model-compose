@@ -10,4 +10,4 @@ class GraphStoreDriver(str, Enum):
 
 class CommonGraphStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.GRAPH_STORE]
-    driver: GraphStoreDriver = Field(..., description="Graph store backend driver.")
+    driver: GraphStoreDriver = Field(..., description="Backend implementation used for the graph store.")

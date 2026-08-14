@@ -8,4 +8,4 @@ class VideoConverterDriver(str, Enum):
 
 class CommonVideoConverterComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VIDEO_CONVERTER]
-    driver: VideoConverterDriver = Field(..., description="Video conversion backend driver.")
+    driver: VideoConverterDriver = Field(..., description="Backend implementation used for video conversion.")

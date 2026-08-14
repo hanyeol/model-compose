@@ -5,16 +5,16 @@ from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from .common import JobType, CommonJobConfig
 
 class IfJobConditionConfig(BaseModel):
-    operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Condition operator.")
-    value: Optional[Any] = Field(default=None, description="Value to compare against.")
-    if_true: Optional[str] = Field(default=None, description="Job ID to run if condition is true.")
-    if_false: Optional[str] = Field(default=None, description="Job ID to run if condition is false.")
+    operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Operator used to compare `input` against `value`.")
+    value: Optional[Any] = Field(default=None, description="Value the input is compared against.")
+    if_true: Optional[str] = Field(default=None, description="ID of the job to route to when the condition matches.")
+    if_false: Optional[str] = Field(default=None, description="ID of the job to route to when the condition does not match.")
 
 class IfJobConfig(CommonJobConfig):
     type: Literal[JobType.IF]
-    input: Optional[Any] = Field(default=None, description="Input to evaluate against the conditions.")
-    conditions: List[IfJobConditionConfig] = Field(default_factory=list, description="Conditions to evaluate.")
-    otherwise: Optional[str] = Field(default=None, description="Job ID to run if no conditions matched.")
+    input: Optional[Any] = Field(default=None, description="Value evaluated against each condition.")
+    conditions: List[IfJobConditionConfig] = Field(default_factory=list, description="Conditions evaluated in order to decide routing.")
+    otherwise: Optional[str] = Field(default=None, description="ID of the job to route to when no condition matches.")
 
     @model_validator(mode="before")
     def inflate_single_condition(cls, values: Dict[str, Any]):

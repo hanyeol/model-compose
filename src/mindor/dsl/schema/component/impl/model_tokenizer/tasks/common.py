@@ -14,10 +14,10 @@ class ModelTokenizerDriver(str, Enum):
 
 class CommonModelTokenizerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TOKENIZER]
-    task: ModelTokenizerTaskType = Field(..., description="Type of task the tokenizer performs.")
-    driver: ModelTokenizerDriver = Field(default=ModelTokenizerDriver.HUGGINGFACE, description="Tokenizer driver to use.")
-    model: ModelConfig = Field(..., description="Model source configuration for the tokenizer.")
-    use_fast: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
+    task: ModelTokenizerTaskType = Field(..., description="Task the tokenizer performs.")
+    driver: ModelTokenizerDriver = Field(default=ModelTokenizerDriver.HUGGINGFACE, description="Backend used to load and run the tokenizer.")
+    model: ModelConfig = Field(..., description="Tokenizer model identifier — a HuggingFace repo ID or a local path.")
+    use_fast: Union[bool, str] = Field(default=True, description="Whether to use the fast Rust-backed tokenizer when available.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):

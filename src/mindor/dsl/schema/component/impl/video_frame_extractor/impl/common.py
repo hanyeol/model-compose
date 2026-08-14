@@ -9,4 +9,4 @@ class VideoFrameExtractorDriver(str, Enum):
 
 class CommonVideoFrameExtractorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VIDEO_FRAME_EXTRACTOR]
-    driver: VideoFrameExtractorDriver = Field(..., description="Video frame extraction backend driver.")
+    driver: VideoFrameExtractorDriver = Field(..., description="Backend implementation used to extract video frames.")

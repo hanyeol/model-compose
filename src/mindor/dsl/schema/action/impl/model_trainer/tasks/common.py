@@ -53,33 +53,33 @@ class OptimizerType(str, Enum):
 
 class CommonModelTrainerActionConfig(CommonActionConfig):
     # Essential training parameters
-    learning_rate: Union[float, str] = Field(default=5e-5, description="Learning rate for training.")
-    per_device_train_batch_size: Union[int, str] = Field(default=8, description="Training batch size per device.")
-    per_device_eval_batch_size: Optional[Union[int, str]] = Field(default=None, description="Evaluation batch size per device. Defaults to per_device_train_batch_size.")
-    num_epochs: Union[int, str] = Field(default=3, description="Number of training epochs.")
+    learning_rate: Union[float, str] = Field(default=5e-5, description="Initial learning rate for training.")
+    per_device_train_batch_size: Union[int, str] = Field(default=8, description="Training batch size per accelerator device.")
+    per_device_eval_batch_size: Optional[Union[int, str]] = Field(default=None, description="Evaluation batch size per accelerator device; falls back to `per_device_train_batch_size` when unset.")
+    num_epochs: Union[int, str] = Field(default=3, description="Number of training epochs run.")
 
     # Optimizer and scheduler
-    optimizer: OptimizerType = Field(default=OptimizerType.ADAMW_TORCH, description="Training optimizer.")
-    lr_scheduler_type: LRSchedulerType = Field(default=LRSchedulerType.LINEAR, description="Learning rate scheduler type.")
+    optimizer: OptimizerType = Field(default=OptimizerType.ADAMW_TORCH, description="Optimizer algorithm used for training.")
+    lr_scheduler_type: LRSchedulerType = Field(default=LRSchedulerType.LINEAR, description="Learning rate scheduler applied during training.")
 
     # Output configuration
-    output_dir: str = Field(default="./output", description="Directory to save the trained model.")
+    output_dir: str = Field(default="./output", description="Directory where the trained model and checkpoints are written.")
 
     # Common optimization settings
-    weight_decay: Union[float, str] = Field(default=0.01, description="Weight decay for regularization.")
-    warmup_steps: Union[int, str] = Field(default=100, description="Number of warmup steps.")
-    max_grad_norm: Union[float, str] = Field(default=1.0, description="Maximum gradient norm for gradient clipping.")
-    gradient_accumulation_steps: Union[int, str] = Field(default=1, description="Number of gradient accumulation steps.")
+    weight_decay: Union[float, str] = Field(default=0.01, description="Weight decay coefficient applied for regularization.")
+    warmup_steps: Union[int, str] = Field(default=100, description="Number of warmup steps at the start of training.")
+    max_grad_norm: Union[float, str] = Field(default=1.0, description="Gradient norm at which gradients are clipped.")
+    gradient_accumulation_steps: Union[int, str] = Field(default=1, description="Number of forward passes accumulated before each optimizer step.")
 
     # Evaluation and saving
-    eval_steps: Union[int, str] = Field(default=500, description="Steps between evaluations.")
-    save_steps: Optional[Union[int, str]] = Field(default=None, description="Steps between model saves. Defaults to eval_steps.")
-    logging_steps: Union[int, str] = Field(default=10, description="Steps between logging.")
+    eval_steps: Union[int, str] = Field(default=500, description="Number of training steps between evaluations.")
+    save_steps: Optional[Union[int, str]] = Field(default=None, description="Number of training steps between checkpoint saves; falls back to `eval_steps` when unset.")
+    logging_steps: Union[int, str] = Field(default=10, description="Number of training steps between log emissions.")
 
     # Memory optimization
-    gradient_checkpointing: Union[bool, str] = Field(default=False, description="Enable gradient checkpointing to save memory.")
-    fp16: Union[bool, str] = Field(default=False, description="Enable FP16 mixed precision training.")
-    bf16: Union[bool, str] = Field(default=False, description="Enable BF16 mixed precision training (recommended for A100/H100).")
+    gradient_checkpointing: Union[bool, str] = Field(default=False, description="Whether gradient checkpointing is enabled to trade compute for memory.")
+    fp16: Union[bool, str] = Field(default=False, description="Whether FP16 mixed-precision training is enabled.")
+    bf16: Union[bool, str] = Field(default=False, description="Whether BF16 mixed-precision training is enabled (recommended for A100/H100).")
 
     # Reproducibility
-    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed for reproducibility.")
+    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make training reproducible.")

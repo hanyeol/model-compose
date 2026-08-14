@@ -10,22 +10,22 @@ class KeyValueStoreActionMethod(str, Enum):
     EXISTS = "exists"
 
 class CommonKeyValueStoreActionConfig(CommonActionConfig):
-    method: KeyValueStoreActionMethod = Field(..., description="Key-value store operation method.")
+    method: KeyValueStoreActionMethod = Field(..., description="Key-value store operation this action performs.")
 
 class CommonKeyValueGetActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.GET]
-    key: Union[str, List[str]] = Field(..., description="Key(s) to retrieve.")
+    key: Union[str, List[str]] = Field(..., description="Key or keys to retrieve from the store.")
 
 class CommonKeyValueSetActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.SET]
-    key: str = Field(..., description="Key to store.")
-    value: Any = Field(..., description="Value to store.")
-    ttl: Optional[Union[int, str]] = Field(default=None, description="Time-to-live in seconds. None = no expiry.")
+    key: str = Field(..., description="Key under which the value is stored.")
+    value: Any = Field(..., description="Value written to the store.")
+    ttl: Optional[Union[int, str]] = Field(default=None, description="Time-to-live in seconds; unset means no expiry.")
 
 class CommonKeyValueDeleteActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.DELETE]
-    key: Union[str, List[str]] = Field(..., description="Key(s) to delete.")
+    key: Union[str, List[str]] = Field(..., description="Key or keys to delete from the store.")
 
 class CommonKeyValueExistsActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.EXISTS]
-    key: Union[str, List[str]] = Field(..., description="Key(s) to check for existence.")
+    key: Union[str, List[str]] = Field(..., description="Key or keys whose existence is checked.")

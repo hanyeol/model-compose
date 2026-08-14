@@ -4,12 +4,12 @@ from .common import CommonControllerQueueConfig, ControllerQueueDriver
 
 class RedisControllerQueueConfig(CommonControllerQueueConfig):
     driver: Literal[ControllerQueueDriver.REDIS]
-    url: Optional[str] = Field(default=None, description="Redis connection URL.")
-    host: str = Field(default="localhost", description="Redis server hostname or IP.")
-    port: int = Field(default=6379, ge=1, le=65535, description="Redis server port.")
-    secure: bool = Field(default=False, description="Use TLS/SSL (equivalent to rediss:// protocol).")
-    database: int = Field(default=0, ge=0, le=15, description="Redis database number.")
-    password: Optional[str] = Field(default=None, description="Redis password. Can also be set in the URL.")
+    url: Optional[str] = Field(default=None, description="Full connection URL for the Redis server. Mutually exclusive with `host`.")
+    host: str = Field(default="localhost", description="Hostname or IP address of the Redis server.")
+    port: int = Field(default=6379, ge=1, le=65535, description="TCP port the Redis server listens on.")
+    secure: bool = Field(default=False, description="Whether to connect over TLS/SSL (equivalent to the rediss:// scheme).")
+    database: int = Field(default=0, ge=0, le=15, description="Redis logical database number to select on connect.")
+    password: Optional[str] = Field(default=None, description="Password for authenticating with Redis; may also be embedded in `url`.")
 
     @model_validator(mode="before")
     def validate_url_or_host(cls, values: Dict[str, Any]):

@@ -9,4 +9,4 @@ class KeyValueStoreDriver(str, Enum):
 
 class CommonKeyValueStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.KEY_VALUE_STORE]
-    driver: KeyValueStoreDriver = Field(..., description="Key-value store backend driver.")
+    driver: KeyValueStoreDriver = Field(..., description="Backend implementation used for the key-value store.")

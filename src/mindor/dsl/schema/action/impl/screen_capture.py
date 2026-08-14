@@ -23,16 +23,16 @@ class ScreenCaptureRegion(BaseModel):
     height: Union[int, str] = Field(..., description="Region height in pixels.")
 
 class ScreenCaptureActionConfig(CommonActionConfig):
-    method: Literal[ScreenCaptureActionMethod.CAPTURE] = Field(default=ScreenCaptureActionMethod.CAPTURE, description="Screen capture action method.")
-    video_source: Union[ScreenCaptureVideoSource, str] = Field(default=ScreenCaptureVideoSource.DISPLAY, description="Capture target kind.")
-    audio_source: Union[ScreenCaptureAudioSource, str] = Field(default=ScreenCaptureAudioSource.SYSTEM, description="Which audio to capture: 'system' loopback, 'microphone', or 'none'.")
-    display: Union[int, str] = Field(default=0, description="Display index when video_source='display' or 'region'.")
-    region: Optional[ScreenCaptureRegion] = Field(default=None, description="Region rectangle on the target display; required when video_source='region'.")
-    include_video: Union[bool, str] = Field(default=True, description="Include a video track in the capture.")
-    include_audio: Union[bool, str] = Field(default=True, description="Include an audio track in the capture.")
-    framerate: Union[int, float, str] = Field(default=30, description="Capture framerate (frames per second).")
-    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Video/audio encoding settings.")
-    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration. None = capture until stopped.")
+    method: Literal[ScreenCaptureActionMethod.CAPTURE] = Field(default=ScreenCaptureActionMethod.CAPTURE, description="Screen capture operation this action performs.")
+    video_source: Union[ScreenCaptureVideoSource, str] = Field(default=ScreenCaptureVideoSource.DISPLAY, description="Kind of screen region captured for the video track.")
+    audio_source: Union[ScreenCaptureAudioSource, str] = Field(default=ScreenCaptureAudioSource.SYSTEM, description="Audio source captured alongside the video (system loopback, microphone, or none).")
+    display: Union[int, str] = Field(default=0, description="Index of the display captured when `video_source` is `display` or `region`.")
+    region: Optional[ScreenCaptureRegion] = Field(default=None, description="Region rectangle on the target display. Required when `video_source` is `region`.")
+    include_video: Union[bool, str] = Field(default=True, description="Whether a video track is included in the capture.")
+    include_audio: Union[bool, str] = Field(default=True, description="Whether an audio track is included in the capture.")
+    framerate: Union[int, float, str] = Field(default=30, description="Capture frame rate in frames per second.")
+    encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Encoding settings applied to the captured video and audio.")
+    duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration; when unset, capture runs until stopped.")
 
     @model_validator(mode="after")
     def validate_tracks(self):

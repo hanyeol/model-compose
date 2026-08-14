@@ -10,20 +10,20 @@ _DEFAULT_VAD_MODEL          = "fsmn-vad"
 _DEFAULT_PUNCTUATION_MODEL  = "ct-punc"
 
 class FunAsrVoiceActivityDetectionConfig(BaseModel):
-    model: str = Field(default=_DEFAULT_VAD_MODEL, description="VAD model identifier passed to FunASR (e.g. 'fsmn-vad').")
-    max_single_segment_time: Optional[Union[str, int, float]] = Field(default=None, description="Maximum length of a single VAD segment (e.g. '30s').")
+    model: str = Field(default=_DEFAULT_VAD_MODEL, description="VAD model identifier recognized by FunASR (e.g., fsmn-vad).")
+    max_single_segment_time: Optional[Union[str, int, float]] = Field(default=None, description="Maximum length of a single VAD segment, as a duration string (e.g., \"30s\") or seconds.")
 
 class FunAsrPunctuationConfig(BaseModel):
-    model: str = Field(default=_DEFAULT_PUNCTUATION_MODEL, description="Punctuation model identifier passed to FunASR (e.g. 'ct-punc').")
+    model: str = Field(default=_DEFAULT_PUNCTUATION_MODEL, description="Punctuation model identifier recognized by FunASR (e.g., ct-punc).")
 
 class FunAsrSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[SpeechToTextModelFamily.FUN_ASR]
-    model: ModelConfig = Field(..., description="Model repository or local file path.")
-    inverse_text_normalization: bool = Field(default=True, description="Convert spoken forms to written forms (e.g. 'twenty five' → '25').")
-    voice_activity_detection: Optional[FunAsrVoiceActivityDetectionConfig] = Field(default=None, description="Voice activity detection settings. Pass `true` to enable with defaults.")
-    punctuation: Optional[FunAsrPunctuationConfig] = Field(default=None, description="Punctuation and sentence-splitting model. Enables per-sentence timestamps. Pass `true` to enable with defaults.")
-    actions: List[FunAsrSpeechToTextModelActionConfig] = Field(default_factory=list)
+    model: ModelConfig = Field(..., description="Model identifier — a HuggingFace repo ID or a local path.")
+    inverse_text_normalization: bool = Field(default=True, description="Whether to convert spoken forms to written forms (e.g., \"twenty five\" -> \"25\").")
+    voice_activity_detection: Optional[FunAsrVoiceActivityDetectionConfig] = Field(default=None, description="Voice activity detection settings; pass `true` to enable with defaults.")
+    punctuation: Optional[FunAsrPunctuationConfig] = Field(default=None, description="Punctuation and sentence-splitting model that enables per-sentence timestamps; pass `true` to enable with defaults.")
+    actions: List[FunAsrSpeechToTextModelActionConfig] = Field(default_factory=list, description="Actions this speech-to-text component exposes to workflows.")
 
     @model_validator(mode="before")
     def apply_default_model(cls, values: Dict[str, Any]):

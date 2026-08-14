@@ -10,4 +10,4 @@ class McpServerTransport(str, Enum):
 
 class McpServerControllerAdapterConfig(CommonControllerAdapterConfig):
     type: Literal[ControllerAdapterType.MCP_SERVER]
-    transport: McpServerTransport = Field(default=McpServerTransport.HTTP, description="MCP transport mode (http streamable or stdio).")
+    transport: McpServerTransport = Field(default=McpServerTransport.HTTP, description="Transport used by the MCP server (e.g., http, stdio).")

@@ -4,8 +4,8 @@ from .common import TracerDriver, CommonTracerConfig
 
 class OtlpTracerConfig(CommonTracerConfig):
     driver: Literal[TracerDriver.OTLP]
-    endpoint: str = Field(..., description="OTLP collector endpoint.")
-    protocol: Literal[ "grpc", "http" ] = Field(default="http", description="OTLP transport protocol.")
-    headers: Optional[Dict[str, str]] = Field(default=None, description="Additional headers sent with OTLP requests (e.g., authentication tokens).")
-    insecure: bool = Field(default=False, description="Disable TLS verification (gRPC only).")
-    service_name: str = Field(default="model-compose", description="OpenTelemetry `service.name` resource attribute.")
+    endpoint: str = Field(..., description="Full URL of the OTLP collector endpoint.")
+    protocol: Literal[ "grpc", "http" ] = Field(default="http", description="Transport protocol used to send OTLP spans.")
+    headers: Optional[Dict[str, str]] = Field(default=None, description="HTTP headers sent with OTLP export requests (e.g., authentication tokens).")
+    insecure: bool = Field(default=False, description="Whether to skip TLS verification when connecting to the collector (gRPC only).")
+    service_name: str = Field(default="model-compose", description="Value of the OpenTelemetry `service.name` resource attribute.")

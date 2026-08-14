@@ -10,4 +10,4 @@ class VideoSceneDetectorDriver(str, Enum):
 
 class CommonVideoSceneDetectorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VIDEO_SCENE_DETECTOR]
-    driver: VideoSceneDetectorDriver = Field(..., description="Scene detection backend driver.")
+    driver: VideoSceneDetectorDriver = Field(..., description="Backend implementation used to detect scene changes.")

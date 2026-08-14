@@ -4,5 +4,5 @@ from ...common import CommonModelComponentConfig, ModelTaskType
 
 class CommonFaceEmbeddingModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.FACE_EMBEDDING]
-    version: Optional[str] = Field(default=None, description="Model version or variant.")
-    input_size: Tuple[int, int] = Field(default=(112, 112), description="Input image size (width, height).")
+    version: Optional[str] = Field(default=None, description="Model version or variant identifier within the family.")
+    input_size: Tuple[int, int] = Field(default=(112, 112), description="Input image size as (width, height) in pixels.")

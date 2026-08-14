@@ -8,4 +8,4 @@ class SentenceSplitterDriver(str, Enum):
 
 class CommonSentenceSplitterComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SENTENCE_SPLITTER]
-    driver: SentenceSplitterDriver = Field(..., description="Sentence splitter backend driver.")
+    driver: SentenceSplitterDriver = Field(..., description="Backend implementation used to split text into sentences.")

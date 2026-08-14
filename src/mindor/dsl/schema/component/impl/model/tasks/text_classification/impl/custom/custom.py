@@ -7,5 +7,5 @@ from ....common import ModelDriver
 
 class CustomTextClassificationModelComponentConfig(CommonTextClassificationModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
-    family: TextClassificationModelFamily = Field(..., description="Model family.")
-    actions: List[TextClassificationModelActionConfig] = Field(default_factory=list)
+    family: TextClassificationModelFamily = Field(..., description="Model family selecting the custom text classification implementation.")
+    actions: List[TextClassificationModelActionConfig] = Field(default_factory=list, description="Actions this text classification component exposes to workflows.")

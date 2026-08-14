@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class FacenetFaceEmbeddingModelComponentConfig(CommonFaceEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[FaceEmbeddingModelFamily.FACENET]
-    actions: List[FacenetFaceEmbeddingModelActionConfig] = Field(default_factory=list)
+    actions: List[FacenetFaceEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this face embedding component exposes to workflows.")

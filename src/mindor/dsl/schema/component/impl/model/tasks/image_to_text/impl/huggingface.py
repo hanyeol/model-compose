@@ -16,5 +16,5 @@ class HuggingfaceImageToTextModelArchitecture(str, Enum):
 
 class HuggingfaceImageToTextModelComponentConfig(CommonImageToTextModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    architecture: HuggingfaceImageToTextModelArchitecture = Field(default=HuggingfaceImageToTextModelArchitecture.AUTO, description="Model architecture.")
-    actions: List[ImageToTextModelActionConfig] = Field(default_factory=list)
+    architecture: HuggingfaceImageToTextModelArchitecture = Field(default=HuggingfaceImageToTextModelArchitecture.AUTO, description="Model architecture family; \"auto\" infers from the model config.")
+    actions: List[ImageToTextModelActionConfig] = Field(default_factory=list, description="Actions this image-to-text component exposes to workflows.")

@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class LuxttsTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[TextToSpeechModelFamily.LUXTTS]
-    actions: List[LuxttsTextToSpeechModelActionConfig] = Field(default_factory=list)
+    actions: List[LuxttsTextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")

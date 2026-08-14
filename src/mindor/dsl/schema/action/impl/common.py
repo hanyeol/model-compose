@@ -4,8 +4,8 @@ from pydantic import field_validator
 
 class CommonActionConfig(BaseModel):
     id: str = Field(default="__action__", description="ID of action.")
-    output: Optional[Any] = Field(default=None, description="Output mapping to transform and extract values from the action result.")
-    default: bool = Field(default=False, description="Whether to use this action as the default.")
+    output: Optional[Any] = Field(default=None, description="Output mapping that transforms and extracts values from the action's result.")
+    default: bool = Field(default=False, description="Whether to use this action when none is explicitly selected.")
 
     @field_validator("id")
     def validate_id(cls, value):

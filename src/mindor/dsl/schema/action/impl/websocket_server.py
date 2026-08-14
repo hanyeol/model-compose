@@ -9,14 +9,14 @@ class WebSocketReceiveFormat(str, Enum):
     BINARY = "binary"
 
 class WebSocketReceiveConfig(BaseModel):
-    format: WebSocketReceiveFormat = Field(default=WebSocketReceiveFormat.JSON, description="Expected format of received WebSocket frames.")
-    collect: Union[bool, str] = Field(default=False, description="Collect all frames into a single response.")
-    streaming: Union[bool, str] = Field(default=False, description="Hand received frames to subsequent jobs as a chunked stream.")
-    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Receive timeout per frame (e.g. '5s', '1m').")
+    format: WebSocketReceiveFormat = Field(default=WebSocketReceiveFormat.JSON, description="Expected encoding of received WebSocket frames.")
+    collect: Union[bool, str] = Field(default=False, description="Whether all received frames are collected into a single response.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether received frames are emitted incrementally as a chunked stream.")
+    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for each frame before failing.")
 
 class WebSocketServerActionConfig(CommonActionConfig):
-    path: Optional[str] = Field(default=None, description="WebSocket endpoint path. Overrides the component-level base_path.")
-    params: Dict[str, Any] = Field(default_factory=dict, description="Query parameters for the WebSocket URL.")
-    headers: Dict[str, str] = Field(default_factory=dict, description="Additional headers for the WebSocket handshake.")
-    message: Optional[Any] = Field(default=None, description="Message to send after connecting.")
-    receive: WebSocketReceiveConfig = Field(default_factory=WebSocketReceiveConfig, description="Settings for receiving WebSocket messages.")
+    path: Optional[str] = Field(default=None, description="WebSocket path exposed by this action, overriding the component's base path.")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Expected query parameters on the WebSocket URL.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers accepted on the WebSocket handshake.")
+    message: Optional[Any] = Field(default=None, description="Message sent to the client after the WebSocket connection is established.")
+    receive: WebSocketReceiveConfig = Field(default_factory=WebSocketReceiveConfig, description="Settings that control how incoming WebSocket messages are received.")

@@ -4,4 +4,4 @@ from ...common import LanguageModelComponentConfig, ModelTaskType
 
 class CommonTextClassificationModelComponentConfig(LanguageModelComponentConfig):
     task: Literal[ModelTaskType.TEXT_CLASSIFICATION]
-    labels: Optional[List[str]] = Field(default=None, description="List of text classification labels.")
+    labels: Optional[List[str]] = Field(default=None, description="Classification labels the model can output; overrides the model's built-in labels when set.")

@@ -39,13 +39,13 @@ class WorkflowVariableFormat(str, Enum):
 
 class WorkflowVariableAnnotationConfig(BaseModel):
     name: str = Field(..., description="Name of the annotation.")
-    value: str = Field(..., description="Description of the annotation.")
+    value: str = Field(..., description="Value assigned to the annotation.")
 
 class WorkflowVariableConfig(BaseModel):
-    name: Optional[str] = Field(default=None, description="The name of the variable.")
-    type: WorkflowVariableType = Field(..., description="Type of the variable.")
-    is_list: bool = Field(default=False, description="Whether the variable is a list of `type` (matches the `[]` marker in DSL).")
-    subtype: Optional[str] = Field(default=None, description="Subtype of the variable.")
+    name: Optional[str] = Field(default=None, description="Name of the workflow variable.")
+    type: WorkflowVariableType = Field(..., description="Type of the workflow variable.")
+    is_list: bool = Field(default=False, description="Whether the variable holds a list of `type` (matches the `[]` marker in DSL).")
+    subtype: Optional[str] = Field(default=None, description="Refined subtype narrowing the variable's `type`.")
 
     @model_validator(mode="before")
     def normalize_list_marker(cls, values: Any):
@@ -55,12 +55,12 @@ class WorkflowVariableConfig(BaseModel):
                 values["type"] = type_value[:-2]
                 values["is_list"] = True
         return values
-    attrs: Optional[Dict[str, str]] = Field(default=None, description="Variable attributes (e.g. sample_rate, channels for pcm).")
-    format: Optional[WorkflowVariableFormat] = Field(default=None, description="Format of the variable.")
-    options: Optional[List[str]] = Field(default=None, description="Valid options for file or select type.")
-    required: bool = Field(default=False, description="Whether this variable is required.")
-    default: Optional[Any] = Field(default=None, description="Default value if not provided.")
-    annotations: List[WorkflowVariableAnnotationConfig] = Field(default_factory=list, description="Variable annotations.")
+    attrs: Optional[Dict[str, str]] = Field(default=None, description="Type-specific attributes for the variable (e.g., sample_rate, channels for pcm).")
+    format: Optional[WorkflowVariableFormat] = Field(default=None, description="Encoding format applied to the variable's value (e.g., path, url, data-uri, base64).")
+    options: Optional[List[str]] = Field(default=None, description="Allowed values for the variable when `type` is `file` or `select`.")
+    required: bool = Field(default=False, description="Whether the variable must be supplied.")
+    default: Optional[Any] = Field(default=None, description="Default value used when the variable is not supplied.")
+    annotations: List[WorkflowVariableAnnotationConfig] = Field(default_factory=list, description="Custom annotations attached to the variable.")
 
     def get_annotation_value(self, name: str) -> Optional[str]:
         if self.annotations:
@@ -69,18 +69,18 @@ class WorkflowVariableConfig(BaseModel):
 
 class WorkflowVariableGroupConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name of the variable group.")
-    variables: List[WorkflowVariableConfig] = Field(default_factory=list, description="Variables included in this group.")
-    repeat_count: int = Field(default=1, description="Number of times this variable group is repeated.")
+    variables: List[WorkflowVariableConfig] = Field(default_factory=list, description="Variables that belong to this group.")
+    repeat_count: int = Field(default=1, description="Number of times the variable group is repeated.")
 
 class WorkflowConfig(BaseModel):
     id: str = Field(default="__workflow__", description="ID of workflow.")
     name: Optional[str] = Field(default=None, description="Name of workflow.")
-    title: Optional[str] = Field(default=None, description="Title of workflow.")
-    description: Optional[str] = Field(default=None, description="Description of workflow.")
-    jobs: List[JobConfig] = Field(default_factory=list, description="Jobs defining the execution steps.")
-    output: Optional[Any] = Field(default=None, description="Output data returned from this workflow. Accepts any type.")
-    default: bool = Field(default=False, description="Whether this workflow is the default.")
-    private: bool = Field(default=False, description="Whether this workflow is private and not exposed externally.")
+    title: Optional[str] = Field(default=None, description="Title of workflow shown in the Web UI and docs.")
+    description: Optional[str] = Field(default=None, description="Human-readable description of what the workflow does.")
+    jobs: List[JobConfig] = Field(default_factory=list, description="Jobs that make up the workflow's execution steps.")
+    output: Optional[Any] = Field(default=None, description="Output mapping that transforms and extracts values from the workflow's result.")
+    default: bool = Field(default=False, description="Whether to use this workflow when none is explicitly selected.")
+    private: bool = Field(default=False, description="Whether the workflow is hidden from external clients.")
 
     @model_validator(mode="before")
     def normalize_jobs(cls, values: Dict[str, Any]):

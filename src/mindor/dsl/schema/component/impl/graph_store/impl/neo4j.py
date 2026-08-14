@@ -6,14 +6,14 @@ from .common import CommonGraphStoreComponentConfig, GraphStoreDriver
 
 class Neo4jGraphStoreComponentConfig(CommonGraphStoreComponentConfig):
     driver: Literal[GraphStoreDriver.NEO4J]
-    url: Optional[str] = Field(default=None, description="Neo4j connection URL (bolt:// or neo4j://).")
-    host: str = Field(default="localhost", description="Neo4j server hostname or IP address.")
-    port: int = Field(default=7687, ge=1, le=65535, description="Neo4j server port number.")
-    protocol: Literal[ "bolt", "neo4j", "bolt+s", "neo4j+s", "bolt+ssc", "neo4j+ssc" ] = Field(default="bolt", description="Neo4j connection protocol.")
-    username: Optional[str] = Field(default=None, description="Username for authentication.")
-    password: Optional[str] = Field(default=None, description="Password for authentication.")
-    database: Optional[str] = Field(default=None, description="Target database name. Uses default database if not specified.")
-    timeout: Union[str, int, float] = Field(default="30s", description="Client operation timeout.")
+    url: Optional[str] = Field(default=None, description="Full Neo4j connection URL (e.g., bolt://host:port or neo4j://host:port). Mutually exclusive with `host`.")
+    host: str = Field(default="localhost", description="Hostname or IP address of the Neo4j server.")
+    port: int = Field(default=7687, ge=1, le=65535, description="TCP port the Neo4j server listens on.")
+    protocol: Literal[ "bolt", "neo4j", "bolt+s", "neo4j+s", "bolt+ssc", "neo4j+ssc" ] = Field(default="bolt", description="Scheme used to connect to Neo4j.")
+    username: Optional[str] = Field(default=None, description="Username used to authenticate with Neo4j.")
+    password: Optional[str] = Field(default=None, description="Password used to authenticate with Neo4j.")
+    database: Optional[str] = Field(default=None, description="Target Neo4j database name; the server default is used when unset.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Maximum seconds to wait for a Neo4j operation before failing.")
     actions: List[Neo4jGraphStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

@@ -57,93 +57,93 @@ class MosaicMode(str, Enum):
     BLUR     = "blur"
 
 class ImageRegion(BaseModel):
-    x: Union[int, str] = Field(..., description="X coordinate of the top-left corner.")
-    y: Union[int, str] = Field(..., description="Y coordinate of the top-left corner.")
+    x: Union[int, str] = Field(..., description="X coordinate of the region's top-left corner, in pixels.")
+    y: Union[int, str] = Field(..., description="Y coordinate of the region's top-left corner, in pixels.")
     width: Union[int, str] = Field(..., description="Region width in pixels.")
     height: Union[int, str] = Field(..., description="Region height in pixels.")
 
 class CommonImageProcessorActionConfig(CommonActionConfig):
-    method: ImageProcessorActionMethod = Field(..., description="Image processor method.")
-    image: Union[str, List[str]] = Field(..., description="Input image(s) (file path, base64 string, or variable reference).")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input images per batch.")
+    method: ImageProcessorActionMethod = Field(..., description="Image processing operation this action performs.")
+    image: Union[str, List[str]] = Field(..., description="Input image or list of images (file path, base64 string, or variable reference).")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input images processed per batch.")
 
 class ImageProcessorResizeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.RESIZE]
-    width: Optional[Union[int, str]] = Field(None, description="Target width in pixels.")
-    height: Optional[Union[int, str]] = Field(None, description="Target height in pixels.")
-    scale_mode: Union[ImageScaleMode, str] = Field(ImageScaleMode.FIT, description="Resize mode.")
+    width: Optional[Union[int, str]] = Field(None, description="Target output width in pixels.")
+    height: Optional[Union[int, str]] = Field(None, description="Target output height in pixels.")
+    scale_mode: Union[ImageScaleMode, str] = Field(ImageScaleMode.FIT, description="How the image is fit into the target dimensions.")
 
 class ImageProcessorCropActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.CROP]
-    x: Union[int, str] = Field(..., description="X coordinate of top-left corner.")
-    y: Union[int, str] = Field(..., description="Y coordinate of top-left corner.")
+    x: Union[int, str] = Field(..., description="X coordinate of the crop's top-left corner, in pixels.")
+    y: Union[int, str] = Field(..., description="Y coordinate of the crop's top-left corner, in pixels.")
     width: Union[int, str] = Field(..., description="Crop width in pixels.")
     height: Union[int, str] = Field(..., description="Crop height in pixels.")
 
 class ImageProcessorRotateActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ROTATE]
-    angle: Union[float, str] = Field(..., description="Rotation angle in degrees.")
-    expand: Union[bool, str] = Field(True, description="Expand canvas to fit rotated image.")
+    angle: Union[float, str] = Field(..., description="Rotation angle in degrees, counter-clockwise.")
+    expand: Union[bool, str] = Field(True, description="Whether the canvas expands to fit the rotated image.")
 
 class ImageProcessorFlipActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.FLIP]
-    direction: Union[FlipDirection, str] = Field(..., description="Flip direction.")
+    direction: Union[FlipDirection, str] = Field(..., description="Axis along which the image is flipped.")
 
 class ImageProcessorGrayscaleActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.GRAYSCALE]
 
 class ImageProcessorBlurActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.BLUR]
-    radius: Union[float, str] = Field(default=2.0, description="Blur radius in pixels.")
+    radius: Union[float, str] = Field(default=2.0, description="Gaussian blur radius in pixels.")
 
 class ImageProcessorSharpenActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.SHARPEN]
-    factor: Union[float, str] = Field(default=1.0, description="Sharpening factor.")
+    factor: Union[float, str] = Field(default=1.0, description="Sharpening strength; 1.0 leaves the image unchanged.")
 
 class ImageProcessorAdjustBrightnessActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ADJUST_BRIGHTNESS]
-    factor: Union[float, str] = Field(..., description="Brightness factor.")
+    factor: Union[float, str] = Field(..., description="Brightness multiplier; 1.0 leaves the image unchanged.")
 
 class ImageProcessorAdjustContrastActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ADJUST_CONTRAST]
-    factor: Union[float, str] = Field(..., description="Contrast factor.")
+    factor: Union[float, str] = Field(..., description="Contrast multiplier; 1.0 leaves the image unchanged.")
 
 class ImageProcessorAdjustSaturationActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ADJUST_SATURATION]
-    factor: Union[float, str] = Field(..., description="Saturation factor.")
+    factor: Union[float, str] = Field(..., description="Saturation multiplier; 1.0 leaves the image unchanged.")
 
 class ImageProcessorConcatActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.CONCAT]
-    mode: Union[ImageConcatMode, str] = Field(ImageConcatMode.HORIZONTAL, description="Concat layout mode.")
-    columns: Optional[Union[int, str]] = Field(default=None, description="Number of columns for grid mode.")
-    rows: Optional[Union[int, str]] = Field(default=None, description="Number of rows for grid mode.")
-    spacing: Union[int, str] = Field(default=0, description="Pixel spacing between images for horizontal, vertical, and grid modes.")
-    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
+    mode: Union[ImageConcatMode, str] = Field(ImageConcatMode.HORIZONTAL, description="Layout used to arrange the images.")
+    columns: Optional[Union[int, str]] = Field(default=None, description="Number of columns when `mode` is `grid`.")
+    rows: Optional[Union[int, str]] = Field(default=None, description="Number of rows when `mode` is `grid`.")
+    spacing: Union[int, str] = Field(default=0, description="Spacing in pixels between adjacent images.")
+    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Canvas background color as a hex string or RGBA tuple.")
 
 class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MERGE]
-    anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.CENTER, description="Where each image is aligned on the shared canvas.")
-    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Background color (hex or RGBA tuple).")
+    anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.CENTER, description="Alignment applied to each image on the shared canvas.")
+    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Canvas background color as a hex string or RGBA tuple.")
 
 class ImageProcessorOverlayActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.OVERLAY]
     overlay: str = Field(..., description="Overlay image (file path, base64 string, or variable reference).")
-    x: Union[int, str] = Field(..., description="X coordinate to place the overlay on the base image.")
-    y: Union[int, str] = Field(..., description="Y coordinate to place the overlay on the base image.")
-    width: Optional[Union[int, str]] = Field(default=None, description="Resize overlay width in pixels before pasting.")
-    height: Optional[Union[int, str]] = Field(default=None, description="Resize overlay height in pixels before pasting.")
-    anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.TOP_LEFT, description="Which point of the overlay is placed at (x, y).")
-    opacity: Union[float, str] = Field(default=1.0, description="Alpha multiplier for the overlay (0.0-1.0).")
+    x: Union[int, str] = Field(..., description="X coordinate on the base image where the overlay is placed.")
+    y: Union[int, str] = Field(..., description="Y coordinate on the base image where the overlay is placed.")
+    width: Optional[Union[int, str]] = Field(default=None, description="Width the overlay is resized to before pasting, in pixels.")
+    height: Optional[Union[int, str]] = Field(default=None, description="Height the overlay is resized to before pasting, in pixels.")
+    anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.TOP_LEFT, description="Point of the overlay aligned at `(x, y)`.")
+    opacity: Union[float, str] = Field(default=1.0, description="Alpha multiplier for the overlay, from 0.0 to 1.0.")
 
 class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MOSAIC]
-    mode: Union[MosaicMode, str] = Field(default=MosaicMode.PIXELATE, description="Mosaic algorithm.")
-    region: Optional[Union[ImageRegion, List[ImageRegion], str]] = Field(default=None, description="Region(s) to mosaic as a single `{x, y, width, height}` or a list of them. Omit to apply to the whole image.")
-    block_size: Optional[Union[int, str]] = Field(default=None, description="Absolute pixelate block size in pixels. Mutually exclusive with `block_scale`. Defaults to 16 when neither is set.")
-    block_scale: Optional[Union[float, str]] = Field(default=None, description="Pixelate block size relative to each region's shorter side (0-1). Adapts to region size. Mutually exclusive with `block_size`.")
-    min_block_size: Union[int, str] = Field(default=8, description="Minimum pixelate block size in pixels. Used only with `block_scale` to prevent overly fine blocks on small regions.")
-    max_block_size: Union[int, str] = Field(default=32, description="Maximum pixelate block size in pixels. Used only with `block_scale` to prevent overly coarse blocks on large regions.")
-    radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels (used when mode is 'blur').")
+    mode: Union[MosaicMode, str] = Field(default=MosaicMode.PIXELATE, description="Mosaic algorithm applied to the target region.")
+    region: Optional[Union[ImageRegion, List[ImageRegion], str]] = Field(default=None, description="Region or list of regions to mosaic; omit to apply to the whole image.")
+    block_size: Optional[Union[int, str]] = Field(default=None, description="Pixelate block size in pixels. Mutually exclusive with `block_scale`; defaults to 16 when neither is set.")
+    block_scale: Optional[Union[float, str]] = Field(default=None, description="Pixelate block size relative to each region's shorter side, from 0 to 1. Mutually exclusive with `block_size`.")
+    min_block_size: Union[int, str] = Field(default=8, description="Lower bound in pixels on the computed pixelate block size when `block_scale` is used.")
+    max_block_size: Union[int, str] = Field(default=32, description="Upper bound in pixels on the computed pixelate block size when `block_scale` is used.")
+    radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels, applied when `mode` is `blur`.")
 
     @model_validator(mode="after")
     def validate_block_size_or_scale(self) -> ImageProcessorMosaicActionConfig:
@@ -153,10 +153,10 @@ class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
 
 class ImageProcessorCompressActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.COMPRESS]
-    strategy: Union[ImageCompressStrategy, str] = Field(default=ImageCompressStrategy.LOSSLESS, description="PNG compression strategy.")
-    compress_level: Union[int, str] = Field(default=9, description="DEFLATE compression level (0-9). Higher is smaller and slower.")
-    min_quality: Optional[Union[int, str]] = Field(default=None, description="Quantized minimum quality (0-100). Save fails if output would fall below this.")
-    max_quality: Optional[Union[int, str]] = Field(default=None, description="Quantized maximum quality (0-100). Compressor tries to stay at or below this.")
-    speed: Union[int, str] = Field(default=3, description="Quantized speed (1=slowest/best, 11=fastest).")
-    level: Union[int, str] = Field(default=4, description="Optimized level (0-6). Higher is smaller and slower.")
-    strip_metadata: Union[bool, str] = Field(default=True, description="Strip ancillary metadata chunks (tEXt, eXIf, iCCP, etc.).")
+    strategy: Union[ImageCompressStrategy, str] = Field(default=ImageCompressStrategy.LOSSLESS, description="PNG compression strategy applied to the output.")
+    compress_level: Union[int, str] = Field(default=9, description="DEFLATE compression level from 0 to 9; higher values produce smaller and slower output.")
+    min_quality: Optional[Union[int, str]] = Field(default=None, description="Minimum acceptable quality from 0 to 100 for the `quantized` strategy; save fails when output would fall below this.")
+    max_quality: Optional[Union[int, str]] = Field(default=None, description="Maximum quality from 0 to 100 the `quantized` strategy targets.")
+    speed: Union[int, str] = Field(default=3, description="Speed for the `quantized` strategy, from 1 (slowest/best) to 11 (fastest).")
+    level: Union[int, str] = Field(default=4, description="Level for the `optimized` strategy, from 0 to 6; higher values produce smaller and slower output.")
+    strip_metadata: Union[bool, str] = Field(default=True, description="Whether ancillary PNG metadata chunks (tEXt, eXIf, iCCP, etc.) are removed from the output.")

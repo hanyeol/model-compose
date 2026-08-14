@@ -4,6 +4,6 @@ from .common import CommonWebUIConfig, ControllerWebUIDriver
 
 class DynamicWebUIConfig(CommonWebUIConfig):
     driver: Literal[ControllerWebUIDriver.DYNAMIC]
-    command: str = Field(..., description="Command to start the web UI server.")
-    server_dir: str = Field(default="webui/server", description="Directory with web UI server source and entry point.")
-    static_dir: str = Field(default="webui/static", description="Directory with static HTML/CSS/JS files.")
+    command: str = Field(..., description="Shell command that starts the Web UI server.")
+    server_dir: str = Field(default="webui/server", description="Directory containing the Web UI server source and entry point.")
+    static_dir: str = Field(default="webui/static", description="Directory containing static HTML, CSS, and JS assets.")

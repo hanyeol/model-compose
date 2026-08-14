@@ -7,5 +7,5 @@ from ...base.llamacpp import LlamaCppEngineOptionsConfig
 
 class LlamaCppTextEmbeddingModelComponentConfig(CommonTextEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.LLAMACPP] = Field(default=ModelDriver.LLAMACPP)
-    options: Optional[LlamaCppEngineOptionsConfig] = Field(default=None, description="llama.cpp engine options.")
-    actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list)
+    options: Optional[LlamaCppEngineOptionsConfig] = Field(default=None, description="Engine options forwarded to llama.cpp when loading the model.")
+    actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this text embedding component exposes to workflows.")

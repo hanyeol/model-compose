@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class KokoroTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[TextToSpeechModelFamily.KOKORO]
-    actions: List[KokoroTextToSpeechModelActionConfig] = Field(default_factory=list)
+    actions: List[KokoroTextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")

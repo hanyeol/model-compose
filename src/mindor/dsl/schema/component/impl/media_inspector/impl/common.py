@@ -9,4 +9,4 @@ class MediaInspectorDriver(str, Enum):
 
 class CommonMediaInspectorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MEDIA_INSPECTOR]
-    driver: MediaInspectorDriver = Field(..., description="Media inspector backend driver.")
+    driver: MediaInspectorDriver = Field(..., description="Backend implementation used to inspect media files.")

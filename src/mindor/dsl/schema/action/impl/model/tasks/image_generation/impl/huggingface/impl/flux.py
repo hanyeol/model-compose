@@ -9,22 +9,22 @@ from .common import (
 )
 
 class FluxHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
-    num_inference_steps: Union[int, str] = Field(default=28, description="Number of denoising steps. Use 28 for FLUX.1-dev, 4 for FLUX.1-schnell.")
-    guidance_scale: Union[float, str] = Field(default=3.5, description="Guidance scale. Use 3.5 for FLUX.1-dev, 0.0 for FLUX.1-schnell.")
-    max_sequence_length: Union[int, str] = Field(default=512, description="Maximum sequence length for the T5 text encoder.")
+    num_inference_steps: Union[int, str] = Field(default=28, description="Number of denoising steps run during sampling (28 for FLUX.1-dev, 4 for FLUX.1-schnell).")
+    guidance_scale: Union[float, str] = Field(default=3.5, description="Classifier-free guidance scale (3.5 for FLUX.1-dev, 0.0 for FLUX.1-schnell).")
+    max_sequence_length: Union[int, str] = Field(default=512, description="Maximum token sequence length for the T5 text encoder.")
 
 class FluxHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationInpaintParamsConfig):
-    num_inference_steps: Union[int, str] = Field(default=28, description="Number of denoising steps. Use 28 for FLUX.1-dev, 4 for FLUX.1-schnell.")
-    guidance_scale: Union[float, str] = Field(default=3.5, description="Guidance scale. Use 3.5 for FLUX.1-dev, 0.0 for FLUX.1-schnell.")
-    max_sequence_length: Union[int, str] = Field(default=512, description="Maximum sequence length for the T5 text encoder.")
+    num_inference_steps: Union[int, str] = Field(default=28, description="Number of denoising steps run during sampling (28 for FLUX.1-dev, 4 for FLUX.1-schnell).")
+    guidance_scale: Union[float, str] = Field(default=3.5, description="Classifier-free guidance scale (3.5 for FLUX.1-dev, 0.0 for FLUX.1-schnell).")
+    max_sequence_length: Union[int, str] = Field(default=512, description="Maximum token sequence length for the T5 text encoder.")
 
 class FluxHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
-    params: FluxHuggingfaceImageGenerationParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationParamsConfig, description="Image generation parameters.")
+    params: FluxHuggingfaceImageGenerationParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationParamsConfig, description="FLUX-specific image generation parameters.")
 
 class FluxHuggingfaceImageGenerationModelInpaintActionConfig(CommonHuggingfaceImageGenerationModelInpaintActionConfig):
     method: Literal[ImageGenerationActionMethod.INPAINT] = Field(default=ImageGenerationActionMethod.INPAINT)
-    params: FluxHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationInpaintParamsConfig, description="Image inpainting parameters.")
+    params: FluxHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=FluxHuggingfaceImageGenerationInpaintParamsConfig, description="FLUX-specific inpainting parameters.")
 
 FluxHuggingfaceImageGenerationModelActionConfig = Annotated[
     Union[

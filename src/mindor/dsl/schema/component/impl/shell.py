@@ -5,8 +5,8 @@ from mindor.dsl.schema.action import ShellActionConfig
 from .common import ComponentType, CommonComponentConfig
 
 class ShellManageScripts(BaseModel):
-    install: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to install dependencies.")
-    clean: Optional[List[List[str]]] = Field(default=None, description="One or more scripts to clean up the execution environment.")
+    install: Optional[List[List[str]]] = Field(default=None, description="Commands run to install dependencies for shell actions.")
+    clean: Optional[List[List[str]]] = Field(default=None, description="Commands run to clean up the shell execution environment.")
 
     @model_validator(mode="before")
     def normalize_scripts(cls, values):
@@ -17,9 +17,9 @@ class ShellManageScripts(BaseModel):
         return values
 
 class ShellManageConfig(BaseModel):
-    scripts: ShellManageScripts = Field(..., description="Shell scripts to install dependencies and clean up the environment.")
-    working_dir: Optional[str] = Field(default=None, description="Working directory for the scripts.")
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables to set when executing the scripts.")
+    scripts: ShellManageScripts = Field(..., description="Shell scripts that install dependencies and clean up the environment.")
+    working_dir: Optional[str] = Field(default=None, description="Working directory in which the scripts run.")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables exported when the scripts run.")
 
     @model_validator(mode="before")
     def inflate_single_script(cls, values: Dict[str, Any]):
@@ -29,9 +29,9 @@ class ShellManageConfig(BaseModel):
 
 class ShellComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SHELL]
-    manage: ShellManageConfig = Field(default_factory=ShellManageConfig, description="Scripts and environment setup for this shell component.")
-    base_dir: Optional[str] = Field(default=None, description="Base working directory for all actions in this component.")
-    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables set for all actions in this component.")
+    manage: ShellManageConfig = Field(default_factory=ShellManageConfig, description="Lifecycle scripts and environment for this shell component.")
+    base_dir: Optional[str] = Field(default=None, description="Base working directory for every action in this component.")
+    env: Dict[str, str] = Field(default_factory=dict, description="Environment variables exported for every action in this component.")
     actions: List[ShellActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

@@ -28,5 +28,5 @@ YoloPoseTrackingModelConfig = Annotated[
 class YoloPoseTrackingModelComponentConfig(CommonPoseTrackingModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[PoseTrackingModelFamily.YOLO]
-    model: YoloPoseTrackingModelConfig = Field(..., description="Model repository or local file path.")
-    actions: List[YoloPoseTrackingModelActionConfig] = Field(default_factory=list)
+    model: YoloPoseTrackingModelConfig = Field(..., description="YOLO pose model identifier — a HuggingFace repo ID or a local path.")
+    actions: List[YoloPoseTrackingModelActionConfig] = Field(default_factory=list, description="Actions this pose tracking component exposes to workflows.")

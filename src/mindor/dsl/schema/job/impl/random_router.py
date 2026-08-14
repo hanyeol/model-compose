@@ -9,13 +9,13 @@ class RandomRoutingMode(str, Enum):
     WEIGHTED = "weighted"
 
 class RandomRoutingConfig(BaseModel):
-    weight: Optional[float] = Field(default=None, description="Relative weight for weighted random routing.")
-    to: str = Field(..., description="Destination job ID for this route.")
+    weight: Optional[float] = Field(default=None, description="Relative selection weight used in weighted random routing.")
+    to: str = Field(..., description="ID of the destination job for this route.")
 
 class RandomRouterJobConfig(CommonJobConfig):
     type: Literal[JobType.RANDOM_ROUTER]
-    mode: RandomRoutingMode = Field(default=RandomRoutingMode.UNIFORM, description="Random routing mode.")
-    routings: List[RandomRoutingConfig] = Field(default_factory=list, description="List of possible routing destinations.")
+    mode: RandomRoutingMode = Field(default=RandomRoutingMode.UNIFORM, description="Selection strategy used to pick a route (e.g., uniform, weighted).")
+    routings: List[RandomRoutingConfig] = Field(default_factory=list, description="Candidate routes the router chooses from.")
 
     def get_routing_jobs(self) -> Set[str]:
         jobs = super().get_routing_jobs()

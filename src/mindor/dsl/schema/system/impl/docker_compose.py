@@ -4,14 +4,14 @@ from .common import CommonSystemConfig
 from .types import SystemType
 
 class DockerComposeSystemConfig(CommonSystemConfig):
-    type: Literal[SystemType.DOCKER_COMPOSE] = Field(default=SystemType.DOCKER_COMPOSE, description="Docker Compose system type.")
-    files: List[str] = Field(default_factory=list, description="Paths to docker-compose files.")
-    project_name: Optional[str] = Field(default=None, description="Docker Compose project name (-p flag).")
-    profiles: Optional[List[str]] = Field(default=None, description="Docker Compose profiles to activate.")
-    env_file: Optional[str] = Field(default=None, description="Path to environment file for docker-compose.")
-    build: bool = Field(default=False, description="Whether to build images before starting (--build flag).")
-    wait: bool = Field(default=True, description="Whether to wait for services to be healthy before proceeding.")
-    wait_timeout: Optional[Union[str, int, float]] = Field(default="60s", description="Timeout for waiting on services to be ready.")
+    type: Literal[SystemType.DOCKER_COMPOSE] = Field(default=SystemType.DOCKER_COMPOSE, description="Type of system.")
+    files: List[str] = Field(default_factory=list, description="Filesystem paths to the docker-compose files loaded for this system.")
+    project_name: Optional[str] = Field(default=None, description="Docker Compose project name passed via the -p flag.")
+    profiles: Optional[List[str]] = Field(default=None, description="Docker Compose profiles activated when the system starts.")
+    env_file: Optional[str] = Field(default=None, description="Filesystem path to the environment file loaded by docker-compose.")
+    build: bool = Field(default=False, description="Whether to build images before starting services (--build flag).")
+    wait: bool = Field(default=True, description="Whether to wait for services to become healthy before continuing.")
+    wait_timeout: Optional[Union[str, int, float]] = Field(default="60s", description="Maximum time to wait for services to become ready.")
 
     @model_validator(mode="before")
     def inflate_single_file(cls, values: Dict[str, Any]):

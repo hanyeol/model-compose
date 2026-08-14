@@ -80,21 +80,21 @@ class OnDemandPriority(str, Enum):
     LOW    = "low"
 
 class ModelRuntimeSpec(BaseModel):
-    vram: Optional[int] = Field(default=None, description="Estimated VRAM usage in MB.")
-    ram: Optional[int] = Field(default=None, description="Estimated system RAM usage in MB.")
+    vram: Optional[int] = Field(default=None, description="Estimated VRAM usage in megabytes.")
+    ram: Optional[int] = Field(default=None, description="Estimated system RAM usage in megabytes.")
 
 class CommonModelConfig(BaseModel):
-    provider: ModelProvider = Field(..., description="Model provider.")
+    provider: ModelProvider = Field(..., description="Source the model is loaded from.")
 
 class HuggingfaceModelConfig(CommonModelConfig):
     provider: Literal[ModelProvider.HUGGINGFACE]
-    repository: str = Field(..., description="HuggingFace model repository.")
-    filename: Optional[str] = Field(default=None, description="Specific file within the repository.")
-    revision: Optional[str] = Field(default=None, description="Model version or branch to load.")
-    cache_dir: Optional[str] = Field(default=None, description="Directory to cache the model files.")
-    allow_patterns: Optional[List[str]] = Field(default=None, description="Glob patterns for which files to include when downloading the snapshot from HuggingFace Hub.")
-    local_files_only: Union[bool, str] = Field(default=False, description="Force loading from local files only.")
-    token: Optional[str] = Field(default=None, description="HuggingFace access token for private models.")
+    repository: str = Field(..., description="HuggingFace Hub repository ID (e.g., meta-llama/Llama-3-8B).")
+    filename: Optional[str] = Field(default=None, description="Specific file within the repository to load.")
+    revision: Optional[str] = Field(default=None, description="Git revision, tag, or branch of the repository to load.")
+    cache_dir: Optional[str] = Field(default=None, description="Local directory where downloaded model files are cached.")
+    allow_patterns: Optional[List[str]] = Field(default=None, description="Glob patterns selecting which files to download from the repository snapshot.")
+    local_files_only: Union[bool, str] = Field(default=False, description="Whether to skip network access and load only from the local cache.")
+    token: Optional[str] = Field(default=None, description="HuggingFace access token used for gated or private repositories.")
 
     @field_validator("cache_dir", mode="after")
     def expand_cache_dir(cls, value: Optional[str]) -> Optional[str]:
@@ -102,9 +102,9 @@ class HuggingfaceModelConfig(CommonModelConfig):
 
 class LocalModelConfig(CommonModelConfig):
     provider: Literal[ModelProvider.LOCAL]
-    path: Optional[str] = Field(default=None, description="Local path to the model file or directory.")
-    url: Optional[UrlFetchConfig] = Field(default=None, description="Fetch config used when the local path is missing.")
-    bundled: bool = Field(default=False, description="Whether the downloaded file is an archive to extract into 'path'.")
+    path: Optional[str] = Field(default=None, description="Local filesystem path to the model file or directory.")
+    url: Optional[UrlFetchConfig] = Field(default=None, description="Remote source used to download the model when the local path is missing.")
+    bundled: bool = Field(default=False, description="Whether the downloaded file is an archive to extract into `path`.")
 
     @field_validator("path", mode="after")
     def expand_path(cls, value: Optional[str]) -> Optional[str]:
@@ -150,7 +150,7 @@ class LocalModelConfig(CommonModelConfig):
 
 class NamedModelConfig(CommonModelConfig):
     provider: Literal[ModelProvider.NAMED]
-    name: str = Field(..., description="Driver-provided pretrained model name.")
+    name: str = Field(..., description="Pretrained model name known to the selected driver.")
 
 ModelConfig = Annotated[
     Union[
@@ -162,18 +162,18 @@ ModelConfig = Annotated[
 ]
 
 class ModelQuantizationConfig(BaseModel):
-    type: ModelQuantizationType = Field(..., description="Quantization type.")
-    compute_dtype: Optional[str] = Field(default=None, description="Compute dtype for 4-bit quantization (e.g., 'float16', 'bfloat16').")
-    double_quant: bool = Field(default=True, description="Use nested quantization for 4-bit.")
+    type: ModelQuantizationType = Field(..., description="Quantization scheme applied to model weights.")
+    compute_dtype: Optional[str] = Field(default=None, description="Compute dtype used with 4-bit quantization (e.g., float16, bfloat16).")
+    double_quant: bool = Field(default=True, description="Whether to apply nested quantization for 4-bit weights.")
 
 class PeftAdapterConfig(BaseModel):
-    type: PeftAdapterType = Field(..., description="Type of the adapter.")
-    name: Optional[str] = Field(default=None, description="Name for the adapter.")
-    model: ModelConfig = Field(..., description="Model repository or local file path.")
-    weight: Union[float, str] = Field(default=1.0, description="Adapter weight/scale (0.0-1.0).")
-    precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
-    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
+    type: PeftAdapterType = Field(..., description="Type of PEFT adapter to load.")
+    name: Optional[str] = Field(default=None, description="Name assigned to the adapter for reference.")
+    model: ModelConfig = Field(..., description="Adapter model identifier — a HuggingFace repo ID or a local path.")
+    weight: Union[float, str] = Field(default=1.0, description="Adapter weight applied when merging with the base model (0.0-1.0).")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for adapter weights and computation.")
+    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to the adapter weights.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the adapter with reduced CPU RAM usage.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
@@ -205,23 +205,23 @@ class PeftAdapterConfig(BaseModel):
         return values
 
 class OnDemandConfig(BaseModel):
-    priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Memory retention priority when memory pressure requires unloading.")
-    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before auto-unloading (e.g. '5m', '300s'). '0s' disables auto-unload.")
+    priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Retention priority when memory pressure forces the model to be unloaded.")
+    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before the model is auto-unloaded, as a duration string (e.g., \"5m\") or seconds; \"0s\" disables auto-unload.")
 
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
-    task: ModelTaskType = Field(..., description="Type of task the model performs.")
-    driver: ModelDriver = Field(..., description="Model inference framework driver to use.")
-    model: ModelConfig = Field(..., description="Model repository or local file path.")
-    device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Device allocation mode.")
-    device: str = Field(default="auto", description="Computation device to use ('auto' picks cuda > mps > cpu; ignored when device_mode is 'auto').")
-    runtime_spec: Optional[ModelRuntimeSpec] = Field(default=None, description="Runtime specification hints for the model.")
-    precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the model weights.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
-    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load model with minimal CPU RAM usage.")
-    peft_adapters: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapters to load on top of the base model.")
-    preload: bool = Field(default=True, description="Whether to load the model at startup.")
-    on_demand: Union[bool, OnDemandConfig] = Field(default=False, description="Enable on-demand loading/unloading. True uses default settings.")
+    task: ModelTaskType = Field(..., description="Task the model performs.")
+    driver: ModelDriver = Field(..., description="Inference backend used to run the model.")
+    model: ModelConfig = Field(..., description="Model identifier — a HuggingFace repo ID or a local path.")
+    device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Strategy for allocating the model across available devices.")
+    device: str = Field(default="auto", description="Compute device the model runs on (e.g., cpu, cuda, cuda:0, mps); \"auto\" selects the best available.")
+    runtime_spec: Optional[ModelRuntimeSpec] = Field(default=None, description="Runtime resource hints used for scheduling.")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for model weights and computation.")
+    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to model weights.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the model with reduced CPU RAM usage.")
+    peft_adapters: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapters loaded on top of the base model.")
+    preload: bool = Field(default=True, description="Whether to load the model at controller startup.")
+    on_demand: Union[bool, OnDemandConfig] = Field(default=False, description="Whether to load and unload the model on demand; accepts a config object for fine-tuning.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
@@ -260,5 +260,5 @@ class CommonModelComponentConfig(CommonComponentConfig):
         return values
 
 class LanguageModelComponentConfig(CommonModelComponentConfig):
-    fast_tokenizer: Union[bool, str] = Field(default=True, description="Whether to use the fast tokenizer if available.")
-    max_seq_length: int = Field(default=2048, description="Maximum sequence length for the model.")
+    fast_tokenizer: Union[bool, str] = Field(default=True, description="Whether to use the fast Rust-backed tokenizer when available.")
+    max_seq_length: int = Field(default=2048, description="Maximum sequence length (in tokens) the model accepts.")

@@ -5,6 +5,6 @@ from .common import ComponentType, CommonComponentConfig
 
 class McpClientComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MCP_CLIENT]
-    url: str = Field(..., description="URL of the MCP server to invoke tools.")
-    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers included when connecting to the MCP server.")
+    url: str = Field(..., description="Full URL of the MCP server whose tools this client invokes.")
+    headers: Dict[str, Any] = Field(default_factory=dict, description="HTTP headers sent when connecting to the MCP server.")
     actions: List[McpClientActionConfig] = Field(default_factory=list)

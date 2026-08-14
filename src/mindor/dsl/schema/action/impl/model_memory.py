@@ -11,16 +11,16 @@ class ModelMemoryActionMethod(str, Enum):
     DELETE = "delete"
 
 class CommonModelMemoryActionConfig(CommonActionConfig):
-    method: ModelMemoryActionMethod = Field(..., description="Memory operation method.")
-    session_id: str = Field(default="__session__", description="Session identifier.")
+    method: ModelMemoryActionMethod = Field(..., description="Memory operation this action performs.")
+    session_id: str = Field(default="__session__", description="Identifier of the conversation session this action targets.")
 
 class ModelMemoryAppendActionConfig(CommonModelMemoryActionConfig):
     method: Literal[ModelMemoryActionMethod.APPEND]
-    messages: Union[List[Any], str] = Field(..., description="Messages to append.")
+    messages: Union[List[Any], str] = Field(..., description="Messages appended to the session memory.")
 
 class ModelMemorySaveActionConfig(CommonModelMemoryActionConfig):
     method: Literal[ModelMemoryActionMethod.SAVE]
-    messages: Optional[Union[List[Any], str]] = Field(default=None, description="Messages to append before saving.")
+    messages: Optional[Union[List[Any], str]] = Field(default=None, description="Messages appended to the session before it is persisted.")
 
 class ModelMemoryLoadActionConfig(CommonModelMemoryActionConfig):
     method: Literal[ModelMemoryActionMethod.LOAD]

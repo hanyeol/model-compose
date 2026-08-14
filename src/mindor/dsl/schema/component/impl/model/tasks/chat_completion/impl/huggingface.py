@@ -6,4 +6,4 @@ from ...common import ModelDriver
 
 class HuggingfaceChatCompletionModelComponentConfig(CommonChatCompletionModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    actions: List[ChatCompletionModelActionConfig] = Field(default_factory=list)
+    actions: List[ChatCompletionModelActionConfig] = Field(default_factory=list, description="Actions this chat completion component exposes to workflows.")

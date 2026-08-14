@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class QwenTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[TextToSpeechModelFamily.QWEN]
-    actions: List[TextToSpeechModelActionConfig] = Field(default_factory=list)
+    actions: List[TextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")

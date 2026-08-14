@@ -8,8 +8,8 @@ from .....common import ModelDriver
 class CosyvoiceTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[TextToSpeechModelFamily.COSYVOICE]
-    actions: List[CosyvoiceTextToSpeechModelActionConfig] = Field(default_factory=list)
-    load_jit: bool = Field(default=False, description="Load JIT-compiled modules (CUDA only).")
-    load_trt: bool = Field(default=False, description="Load TensorRT engines (CUDA only).")
-    load_vllm: bool = Field(default=False, description="Load vLLM runtime for the LLM stage (CosyVoice2/3 only, CUDA only).")
-    fp16: bool = Field(default=False, description="Run inference in fp16 (CUDA only).")
+    actions: List[CosyvoiceTextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")
+    load_jit: bool = Field(default=False, description="Whether to load JIT-compiled modules; supported only on CUDA.")
+    load_trt: bool = Field(default=False, description="Whether to load TensorRT engines; supported only on CUDA.")
+    load_vllm: bool = Field(default=False, description="Whether to load the vLLM runtime for the LLM stage; CosyVoice2/3 on CUDA only.")
+    fp16: bool = Field(default=False, description="Whether to run inference in fp16 precision; supported only on CUDA.")

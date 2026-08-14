@@ -5,10 +5,10 @@ from mindor.dsl.schema.action import ImageGenerationActionMethod
 from ...common import CommonModelComponentConfig, ModelConfig, ModelProvider, ModelPrecision, ModelQuantizationConfig, ModelTaskType
 
 class VaeConfig(BaseModel):
-    model: ModelConfig = Field(..., description="Model repository or local file path.")
-    precision: Optional[ModelPrecision] = Field(default=None, description="Numerical precision to use when loading the VAE weights.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization configuration.")
-    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Load VAE with minimal CPU RAM usage.")
+    model: ModelConfig = Field(..., description="VAE model identifier — a HuggingFace repo ID or a local path.")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for VAE weights and computation.")
+    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to the VAE weights.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the VAE with reduced CPU RAM usage.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
@@ -41,8 +41,8 @@ class VaeConfig(BaseModel):
 
 class CommonImageGenerationModelComponentConfig(CommonModelComponentConfig):
     task: Literal[ModelTaskType.IMAGE_GENERATION]
-    version: Optional[str] = Field(default=None, description="Model version or variant.")
-    vae: Optional[VaeConfig] = Field(default=None, description="Override VAE component of the diffusion pipeline.")
+    version: Optional[str] = Field(default=None, description="Model version or variant identifier within the family.")
+    vae: Optional[VaeConfig] = Field(default=None, description="Overrides for the VAE component of the diffusion pipeline.")
 
     @model_validator(mode="before")
     def inject_default_action_method(cls, values: Dict[str, Any]):

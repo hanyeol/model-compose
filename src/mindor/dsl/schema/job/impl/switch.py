@@ -5,14 +5,14 @@ from pydantic import model_validator, field_validator
 from .common import JobType, CommonJobConfig
 
 class SwitchJobCaseConfig(BaseModel):
-    value: str = Field(..., description="Value to match against the input.")
-    then: str = Field(..., description="Job ID to route to if the value matches.")
+    value: str = Field(..., description="Value the switch input is compared against for this case.")
+    then: str = Field(..., description="ID of the job to route to when this case matches.")
 
 class SwitchJobConfig(CommonJobConfig):
     type: Literal[JobType.SWITCH]
-    input: Optional[Any] = Field(default=None, description="Value to match against switch cases.")
-    cases: List[SwitchJobCaseConfig] = Field(default_factory=list, description="List of cases to evaluate.")
-    otherwise: Optional[str] = Field(default=None, description="Job ID to route to if no cases match.")
+    input: Optional[Any] = Field(default=None, description="Value matched against each case.")
+    cases: List[SwitchJobCaseConfig] = Field(default_factory=list, description="Cases evaluated in order to decide routing.")
+    otherwise: Optional[str] = Field(default=None, description="ID of the job to route to when no case matches.")
 
     @model_validator(mode="before")
     def inflate_single_case(cls, values: Dict[str, Any]):

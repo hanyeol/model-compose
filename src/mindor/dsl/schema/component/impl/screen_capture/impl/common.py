@@ -8,4 +8,4 @@ class ScreenCaptureDriver(str, Enum):
 
 class CommonScreenCaptureComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SCREEN_CAPTURE]
-    driver: ScreenCaptureDriver = Field(..., description="Screen capture backend driver.")
+    driver: ScreenCaptureDriver = Field(..., description="Backend implementation used to capture screen frames.")

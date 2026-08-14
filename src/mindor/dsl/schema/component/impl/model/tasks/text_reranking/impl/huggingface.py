@@ -6,4 +6,4 @@ from ...common import ModelDriver
 
 class HuggingfaceTextRerankingModelComponentConfig(CommonTextRerankingModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    actions: List[TextRerankingModelActionConfig] = Field(default_factory=list)
+    actions: List[TextRerankingModelActionConfig] = Field(default_factory=list, description="Actions this text reranking component exposes to workflows.")

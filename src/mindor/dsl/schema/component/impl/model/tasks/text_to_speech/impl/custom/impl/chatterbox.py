@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class ChatterboxTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[TextToSpeechModelFamily.CHATTERBOX]
-    actions: List[ChatterboxTextToSpeechModelActionConfig] = Field(default_factory=list)
+    actions: List[ChatterboxTextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")

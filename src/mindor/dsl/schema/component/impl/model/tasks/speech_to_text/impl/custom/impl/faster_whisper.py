@@ -8,5 +8,5 @@ from .....common import ModelDriver
 class FasterWhisperSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[SpeechToTextModelFamily.FASTER_WHISPER]
-    compute_type: str = Field(default="default", description="Compute type for inference (e.g. 'float16', 'int8', 'int8_float16', 'default').")
-    actions: List[FasterWhisperSpeechToTextModelActionConfig] = Field(default_factory=list)
+    compute_type: str = Field(default="default", description="Numeric precision used for inference (e.g., float16, int8, int8_float16); \"default\" lets the backend choose.")
+    actions: List[FasterWhisperSpeechToTextModelActionConfig] = Field(default_factory=list, description="Actions this speech-to-text component exposes to workflows.")

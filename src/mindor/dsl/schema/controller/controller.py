@@ -7,15 +7,15 @@ from .queue import ControllerQueueConfig, ControllerQueueDriver, RedisController
 from .webui import ControllerWebUIConfig, ControllerWebUIDriver
 
 class ControllerConfig(BaseModel):
-    name: Optional[str] = Field(default=None, description="Controller identifier name.")
-    runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=0, description="Max tasks executed concurrently.")
-    shutdown_pending_period: Union[str, int, float] = Field(default="0s", description="Delay before shutdown starts, allowing traffic to drain.")
-    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Max wait time for in-progress tasks during shutdown.")
-    threaded: bool = Field(default=False, description="Whether to run tasks in separate threads.")
-    queue: Optional[ControllerQueueConfig] = Field(default=None, description="Queue dispatch config for delegating workflow execution to remote workers.")
-    webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Controller Web UI configuration.")
-    adapters: List[ControllerAdapterConfig] = Field(default_factory=list, description="Adapters that expose the controller via different protocols.")
+    name: Optional[str] = Field(default=None, description="Name of controller.")
+    runtime: RuntimeConfig = Field(..., description="Runtime environment in which the controller executes.")
+    max_concurrent_count: int = Field(default=0, description="Maximum concurrent tasks the controller runs; 0 means unbounded.")
+    shutdown_pending_period: Union[str, int, float] = Field(default="0s", description="Grace period before shutdown begins, allowing traffic to drain.")
+    shutdown_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for in-progress tasks during shutdown.")
+    threaded: bool = Field(default=False, description="Whether to run tasks on separate worker threads.")
+    queue: Optional[ControllerQueueConfig] = Field(default=None, description="Queue used to dispatch workflow execution to remote workers.")
+    webui: Optional[ControllerWebUIConfig] = Field(default=None, description="Web UI served alongside the controller.")
+    adapters: List[ControllerAdapterConfig] = Field(default_factory=list, description="Protocol adapters that expose the controller to clients.")
 
     @model_validator(mode="before")
     def inflate_single_adapter(cls, values: Dict[str, Any]):

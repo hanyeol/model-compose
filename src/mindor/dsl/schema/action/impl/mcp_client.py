@@ -4,6 +4,6 @@ from pydantic import model_validator
 from .common import CommonActionConfig
 
 class McpClientActionConfig(CommonActionConfig):
-    tool: str = Field(default="__workflow__", description="Name of the tool to invoke.")
-    arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments to pass to the tool.")
-    headers: Dict[str, str] = Field(default_factory=dict, description="Optional HTTP headers for the tool call.")
+    tool: str = Field(default="__workflow__", description="Name of the MCP tool to invoke.")
+    arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments passed to the MCP tool.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers sent with the MCP tool call.")

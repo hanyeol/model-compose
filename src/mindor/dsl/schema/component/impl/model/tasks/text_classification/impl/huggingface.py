@@ -6,4 +6,4 @@ from ...common import ModelDriver
 
 class HuggingfaceTextClassificationModelComponentConfig(CommonTextClassificationModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    actions: List[TextClassificationModelActionConfig] = Field(default_factory=list)
+    actions: List[TextClassificationModelActionConfig] = Field(default_factory=list, description="Actions this text classification component exposes to workflows.")

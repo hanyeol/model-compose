@@ -5,15 +5,15 @@ from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
 
 class QdrantVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     driver: Literal[VectorStoreDriver.QDRANT]
-    url: Optional[str] = Field(default=None, description="Qdrant server URL (e.g., http://localhost:6333).")
-    host: str = Field(default="localhost", description="Qdrant server hostname or IP address.")
-    port: int = Field(default=6333, ge=1, le=65535, description="Qdrant server port number.")
-    grpc_port: int = Field(default=6334, ge=1, le=65535, description="Qdrant gRPC port number.")
-    https: bool = Field(default=False, description="Use HTTPS for connections.")
-    api_key: Optional[str] = Field(default=None, description="API key for authentication.")
-    prefix: Optional[str] = Field(default=None, description="Prefix for collections.")
-    timeout: Union[str, int, float] = Field(default="30s", description="Client operation timeout.")
-    prefer_grpc: bool = Field(default=False, description="Prefer gRPC over HTTP/REST API.")
+    url: Optional[str] = Field(default=None, description="Full Qdrant URL (e.g., http://host:port). Mutually exclusive with `host`.")
+    host: str = Field(default="localhost", description="Hostname or IP address of the Qdrant server.")
+    port: int = Field(default=6333, ge=1, le=65535, description="TCP port the Qdrant REST API listens on.")
+    grpc_port: int = Field(default=6334, ge=1, le=65535, description="TCP port the Qdrant gRPC API listens on.")
+    https: bool = Field(default=False, description="Whether to connect to Qdrant over HTTPS.")
+    api_key: Optional[str] = Field(default=None, description="API key used to authenticate with Qdrant.")
+    prefix: Optional[str] = Field(default=None, description="Prefix prepended to Qdrant collection names.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Maximum seconds to wait for a Qdrant operation before failing.")
+    prefer_grpc: bool = Field(default=False, description="Whether to prefer the gRPC API over REST when both are available.")
     actions: List[QdrantVectorStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

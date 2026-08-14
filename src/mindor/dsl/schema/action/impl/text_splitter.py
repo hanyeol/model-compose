@@ -27,13 +27,13 @@ class TextSplitterLanguage(str, Enum):
     PROTO      = "proto"
 
 class TextSplitterActionConfig(CommonActionConfig):
-    text: Union[str, List[str]] = Field(..., description="Input text(s) to split.")
-    language: Optional[TextSplitterLanguage] = Field(default=None, description="Language preset for separators. Mutually exclusive with 'separators'.")
-    separators: Optional[List[str]] = Field(default=None, description="Separators for splitting. Mutually exclusive with 'language'.")
-    chunk_size: Union[int, str] = Field(default=1000, description="Maximum characters per chunk.")
-    chunk_overlap: Union[int, str] = Field(default=200, description="Overlapping characters between chunks.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input texts per batch.")
-    streaming: Union[bool, str] = Field(default=False, description="Whether to stream chunks one by one instead of returning a full list.")
+    text: Union[str, List[str]] = Field(..., description="Input text or list of texts to split.")
+    language: Optional[TextSplitterLanguage] = Field(default=None, description="Language preset that selects idiomatic separators. Mutually exclusive with `separators`.")
+    separators: Optional[List[str]] = Field(default=None, description="Custom separators tried in order when splitting. Mutually exclusive with `language`.")
+    chunk_size: Union[int, str] = Field(default=1000, description="Maximum number of characters per output chunk.")
+    chunk_overlap: Union[int, str] = Field(default=200, description="Number of characters that overlap between adjacent chunks.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input texts processed per batch.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether chunks are emitted incrementally as they are produced.")
 
     @model_validator(mode="after")
     def validate_language_or_separators(self):

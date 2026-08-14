@@ -10,5 +10,5 @@ class HuggingfaceTextGenerationModelArchitecture(str, Enum):
 
 class HuggingfaceTextGenerationModelComponentConfig(CommonTextGenerationModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    architecture: HuggingfaceTextGenerationModelArchitecture = Field(default=HuggingfaceTextGenerationModelArchitecture.AUTO, description="Model architecture.")
-    actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)
+    architecture: HuggingfaceTextGenerationModelArchitecture = Field(default=HuggingfaceTextGenerationModelArchitecture.AUTO, description="Model architecture family; \"auto\" infers from the model config.")
+    actions: List[TextGenerationModelActionConfig] = Field(default_factory=list, description="Actions this text generation component exposes to workflows.")

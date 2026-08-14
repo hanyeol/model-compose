@@ -4,10 +4,10 @@ from mindor.dsl.schema.action import WebBrowserActionConfig
 from .common import CommonWebBrowserComponentConfig, WebBrowserDriver
 
 class ChromeWebBrowserDebuggerConfig(BaseModel):
-    url: Optional[str] = Field(default=None, description="Chrome DevTools URL (e.g. http://localhost:9222).")
-    host: str = Field(default="localhost", description="Chrome DevTools hostname or IP address.")
-    port: int = Field(default=9222, ge=1, le=65535, description="Chrome remote debugging port.")
-    protocol: Literal[ "http", "https" ] = Field(default="http", description="Connection protocol.")
+    url: Optional[str] = Field(default=None, description="Full Chrome DevTools endpoint URL (e.g., http://host:port). Mutually exclusive with `host`.")
+    host: str = Field(default="localhost", description="Hostname or IP address of the Chrome DevTools endpoint.")
+    port: int = Field(default=9222, ge=1, le=65535, description="TCP port the Chrome remote debugger listens on.")
+    protocol: Literal[ "http", "https" ] = Field(default="http", description="Scheme used to connect to the Chrome DevTools endpoint.")
 
     @model_validator(mode="before")
     @classmethod
@@ -18,5 +18,5 @@ class ChromeWebBrowserDebuggerConfig(BaseModel):
 
 class ChromeWebBrowserComponentConfig(CommonWebBrowserComponentConfig):
     driver: Literal[WebBrowserDriver.CHROME] = WebBrowserDriver.CHROME
-    debugger: ChromeWebBrowserDebuggerConfig = Field(default_factory=ChromeWebBrowserDebuggerConfig, description="Chrome DevTools debugger connection settings.")
+    debugger: ChromeWebBrowserDebuggerConfig = Field(default_factory=ChromeWebBrowserDebuggerConfig, description="Connection settings for the Chrome DevTools debugger.")
     actions: List[WebBrowserActionConfig] = Field(default_factory=list)

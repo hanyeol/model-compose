@@ -4,10 +4,10 @@ from pydantic import model_validator
 from .common import CommonActionConfig
 
 class WebScraperSubmitConfig(BaseModel):
-    selector: Optional[str] = Field(default=None, description="CSS selector to locate form or submit button.")
-    xpath: Optional[str] = Field(default=None, description="XPath expression to locate form or submit button.")
-    form: Optional[Dict[str, Any]] = Field(default=None, description="Form input values to fill. Keys are input selectors, values are input values.")
-    wait_for: Optional[str] = Field(default=None, description="CSS selector to wait for after form submission.")
+    selector: Optional[str] = Field(default=None, description="CSS selector locating the form or submit button. Mutually exclusive with `xpath`.")
+    xpath: Optional[str] = Field(default=None, description="XPath locating the form or submit button. Mutually exclusive with `selector`.")
+    form: Optional[Dict[str, Any]] = Field(default=None, description="Form field values to fill; keys are input selectors and values are input values.")
+    wait_for: Optional[str] = Field(default=None, description="CSS selector awaited after form submission.")
 
     @model_validator(mode="after")
     def validate_selector_or_xpath(self):
@@ -16,20 +16,20 @@ class WebScraperSubmitConfig(BaseModel):
         return self
 
 class WebScraperActionConfig(CommonActionConfig):
-    url: Union[str, List[str]] = Field(..., description="URL(s) to scrape.")
-    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input URLs per batch.")
-    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers for the request.")
-    cookies: Dict[str, str] = Field(default_factory=dict, description="Cookies for the request.")
-    selector: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="CSS selector(s) to extract elements.")
-    xpath: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="XPath expression(s) to extract elements.")
-    extract_mode: Union[Literal[ "text", "html", "attribute" ], str] = Field(default="text", description="Extraction mode.")
-    attribute: Optional[str] = Field(default=None, description="Attribute name when extract_mode='attribute'.")
-    multiple: Union[bool, str] = Field(default=False, description="Extract multiple elements (returns list) or a single element.")
-    enable_javascript: Union[bool, str] = Field(default=False, description="Enable JavaScript rendering (requires playwright).")
-    wait_until: Union[Literal[ "load", "domcontentloaded", "networkidle", "commit" ], str] = Field(default="networkidle", description="Playwright navigation wait condition.")
-    wait_for: Optional[str] = Field(default=None, description="CSS selector to wait for when enable_javascript=true.")
-    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum wait time for request completion.")
-    submit: Optional[WebScraperSubmitConfig] = Field(default=None, description="Form submission configuration.")
+    url: Union[str, List[str]] = Field(..., description="URL or list of URLs to scrape.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input URLs processed per batch.")
+    headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers sent with the scrape request.")
+    cookies: Dict[str, str] = Field(default_factory=dict, description="Cookies sent with the scrape request.")
+    selector: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="CSS selector or selectors identifying elements to extract. Mutually exclusive with `xpath`.")
+    xpath: Optional[Union[str, List[str], Dict[str, str]]] = Field(default=None, description="XPath expression or expressions identifying elements to extract. Mutually exclusive with `selector`.")
+    extract_mode: Union[Literal[ "text", "html", "attribute" ], str] = Field(default="text", description="What to extract from matched elements.")
+    attribute: Optional[str] = Field(default=None, description="Attribute name to extract. Required when `extract_mode` is `attribute`.")
+    multiple: Union[bool, str] = Field(default=False, description="Whether to return all matches as a list rather than the first match.")
+    enable_javascript: Union[bool, str] = Field(default=False, description="Whether pages are rendered with JavaScript enabled (requires Playwright).")
+    wait_until: Union[Literal[ "load", "domcontentloaded", "networkidle", "commit" ], str] = Field(default="networkidle", description="Navigation event awaited before extraction begins.")
+    wait_for: Optional[str] = Field(default=None, description="CSS selector awaited after navigation. Requires `enable_javascript` to be true.")
+    timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for the scrape request to complete before failing.")
+    submit: Optional[WebScraperSubmitConfig] = Field(default=None, description="Form submission performed before extraction. Requires `enable_javascript` to be true.")
 
     @model_validator(mode="after")
     def validate_selector_or_xpath(self):

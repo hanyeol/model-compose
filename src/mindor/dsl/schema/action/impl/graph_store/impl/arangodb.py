@@ -10,22 +10,22 @@ from .common import (
 )
 
 class ArangoDBGraphQueryActionConfig(CommonGraphQueryActionConfig):
-    collection: Optional[str] = Field(default=None, description="Target collection for query context.")
+    collection: Optional[str] = Field(default=None, description="Collection used as the query context.")
 
 class ArangoDBGraphInsertActionConfig(CommonGraphInsertActionConfig):
-    collection: Optional[str] = Field(default=None, description="Target collection for node insertion.")
-    edge_collection: Optional[str] = Field(default=None, description="Target edge collection for relationship insertion.")
-    graph: Optional[str] = Field(default=None, description="Named graph to operate on.")
+    collection: Optional[str] = Field(default=None, description="Collection inserted nodes are written to.")
+    edge_collection: Optional[str] = Field(default=None, description="Edge collection inserted relationships are written to.")
+    graph: Optional[str] = Field(default=None, description="Named graph the insertion operates on.")
 
 class ArangoDBGraphUpdateActionConfig(CommonGraphUpdateActionConfig):
-    collection: Optional[str] = Field(default=None, description="Target collection for update.")
+    collection: Optional[str] = Field(default=None, description="Collection containing the elements being updated.")
 
 class ArangoDBGraphDeleteActionConfig(CommonGraphDeleteActionConfig):
-    collection: Optional[str] = Field(default=None, description="Target collection for deletion.")
+    collection: Optional[str] = Field(default=None, description="Collection containing the elements being deleted.")
 
 class ArangoDBGraphTraverseActionConfig(CommonGraphTraverseActionConfig):
-    graph: Optional[str] = Field(default=None, description="Named graph to traverse.")
-    edge_collection: Optional[str] = Field(default=None, description="Edge collection to traverse when not using a named graph.")
+    graph: Optional[str] = Field(default=None, description="Named graph traversed by this action.")
+    edge_collection: Optional[str] = Field(default=None, description="Edge collection traversed when no named graph is set.")
 
 ArangoDBGraphStoreActionConfig = Annotated[
     Union[

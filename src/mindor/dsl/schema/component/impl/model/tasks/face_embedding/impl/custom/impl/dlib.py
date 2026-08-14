@@ -8,4 +8,4 @@ from .....common import ModelDriver
 class DlibFaceEmbeddingModelComponentConfig(CommonFaceEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[FaceEmbeddingModelFamily.DLIB]
-    actions: List[DlibFaceEmbeddingModelActionConfig] = Field(default_factory=list)
+    actions: List[DlibFaceEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this face embedding component exposes to workflows.")

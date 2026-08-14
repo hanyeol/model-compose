@@ -5,10 +5,10 @@ from .common import HttpTunnelGatewayDriver, CommonHttpTunnelGatewayConfig
 
 class CloudflareHttpTunnelGatewayConfig(CommonHttpTunnelGatewayConfig):
     driver: Literal[HttpTunnelGatewayDriver.CLOUDFLARE]
-    token: Optional[str] = Field(default=None, description="Cloudflare Tunnel token for remotely-managed named tunnels.")
-    tunnel: Optional[str] = Field(default=None, description="Tunnel UUID or name for locally-managed named tunnels.")
-    credentials_file: Optional[str] = Field(default=None, description="Path to credentials JSON file for locally-managed named tunnels.")
-    hostname: Optional[str] = Field(default=None, description="Public hostname for the tunnel (e.g. app.example.com).")
+    token: Optional[str] = Field(default=None, description="Cloudflare Tunnel token used for remotely-managed named tunnels.")
+    tunnel: Optional[str] = Field(default=None, description="Tunnel UUID or name used for locally-managed named tunnels.")
+    credentials_file: Optional[str] = Field(default=None, description="Filesystem path to the credentials JSON file for locally-managed named tunnels.")
+    hostname: Optional[str] = Field(default=None, description="Public hostname assigned to the tunnel (e.g., app.example.com).")
 
     @model_validator(mode="after")
     def validate_named_tunnel_config(self):

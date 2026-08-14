@@ -8,5 +8,5 @@ class DataQueueDriver(str, Enum):
 
 class CommonDataQueueComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.DATA_QUEUE]
-    driver: DataQueueDriver = Field(..., description="Data queue backend driver.")
-    max_size: int = Field(default=0, ge=0, description="Maximum number of items the queue can hold. 0 = unbounded.")
+    driver: DataQueueDriver = Field(..., description="Backend implementation used for the data queue.")
+    max_size: int = Field(default=0, ge=0, description="Maximum number of items the queue can hold; 0 means unbounded.")

@@ -4,5 +4,5 @@ from pydantic import model_validator
 from .common import CommonActionConfig
 
 class WorkflowActionConfig(CommonActionConfig):
-    workflow: str = Field(default="__default__", description="Workflow to run.")
-    input: Optional[Any] = Field(default=None, description="Input data for the workflow. Accepts any type.")
+    workflow: str = Field(default="__default__", description="ID of the workflow to invoke.")
+    input: Optional[Any] = Field(default=None, description="Input value passed to the invoked workflow.")

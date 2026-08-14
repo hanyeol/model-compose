@@ -19,15 +19,15 @@ class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGeneration
 
 class SdxlHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.SDXL]
-    actions: List[SdxlHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list)
+    actions: List[SdxlHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
 
 class FluxHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.FLUX]
-    actions: List[FluxHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list)
+    actions: List[FluxHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
 
 class HunyuanImageHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE]
-    actions: List[HunyuanImageHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list)
+    actions: List[HunyuanImageHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
 
 HuggingfaceImageGenerationModelComponentConfig = Annotated[
     Union[

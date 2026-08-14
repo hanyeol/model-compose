@@ -11,10 +11,10 @@ ComponentValidatorRegistry: Dict[Tuple[ComponentType, str], List[Callable[[Any],
 class CommonComponentConfig(BaseModel):
     id: str = Field(default="__component__", description="ID of component.")
     type: ComponentType = Field(..., description="Type of component.")
-    runtime: RuntimeConfig = Field(..., description="Runtime environment settings.")
-    max_concurrent_count: int = Field(default=0, description="Maximum concurrent actions this component can handle.")
-    default: bool = Field(default=False, description="Use this component when none is explicitly specified.")
-    actions: List[CommonActionConfig] = Field(default_factory=list, description="Actions available within this component.")
+    runtime: RuntimeConfig = Field(..., description="Runtime environment in which this component executes.")
+    max_concurrent_count: int = Field(default=0, description="Maximum concurrent actions this component runs; 0 means unbounded.")
+    default: bool = Field(default=False, description="Whether to use this component when none is explicitly selected.")
+    actions: List[CommonActionConfig] = Field(default_factory=list, description="Actions this component exposes to workflows.")
 
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):

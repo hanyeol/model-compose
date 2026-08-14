@@ -8,4 +8,4 @@ class AudioPlaybackDriver(str, Enum):
 
 class CommonAudioPlaybackComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AUDIO_PLAYBACK]
-    driver: AudioPlaybackDriver = Field(..., description="Audio playback backend driver.")
+    driver: AudioPlaybackDriver = Field(..., description="Backend implementation used for audio playback.")

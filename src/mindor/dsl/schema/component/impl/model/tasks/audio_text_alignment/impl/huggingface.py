@@ -11,5 +11,5 @@ class HuggingfaceAudioTextAlignmentModelArchitecture(str, Enum):
 
 class HuggingfaceAudioTextAlignmentModelComponentConfig(CommonAudioTextAlignmentModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    architecture: HuggingfaceAudioTextAlignmentModelArchitecture = Field(default=HuggingfaceAudioTextAlignmentModelArchitecture.AUTO, description="Model architecture.")
-    actions: List[AudioTextAlignmentModelActionConfig] = Field(default_factory=list)
+    architecture: HuggingfaceAudioTextAlignmentModelArchitecture = Field(default=HuggingfaceAudioTextAlignmentModelArchitecture.AUTO, description="Model architecture family; \"auto\" infers from the model config.")
+    actions: List[AudioTextAlignmentModelActionConfig] = Field(default_factory=list, description="Actions this audio-text alignment component exposes to workflows.")

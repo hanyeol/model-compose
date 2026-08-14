@@ -6,8 +6,8 @@ from .common import GatewayType, CommonGatewayConfig
 
 class SshTunnelGatewayConfig(CommonGatewayConfig):
     type: Literal[GatewayType.SSH_TUNNEL]
-    connection: SshConnectionConfig = Field(..., description="SSH connection configuration.")
-    port: List[List[Union[int, str]]] = Field(..., min_length=1, description="One or more port forwarding configuration.")
+    connection: SshConnectionConfig = Field(..., description="SSH connection settings used to establish the tunnel.")
+    port: List[List[Union[int, str]]] = Field(..., min_length=1, description="One or more port-forwarding rules for the SSH tunnel.")
 
     @model_validator(mode="before")
     def normalize_port(cls, values):

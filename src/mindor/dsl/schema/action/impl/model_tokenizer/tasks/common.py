@@ -9,4 +9,4 @@ class ModelTokenizerMethod(str, Enum):
     COUNT  = "count"
 
 class CommonModelTokenizerActionConfig(CommonActionConfig):
-    method: ModelTokenizerMethod = Field(..., description="Tokenizer method.")
+    method: ModelTokenizerMethod = Field(..., description="Tokenizer operation this action performs.")

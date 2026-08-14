@@ -11,18 +11,18 @@ class JobRetryBackoff(str, Enum):
     EXPONENTIAL = "exponential"
 
 class JobInterruptConditionConfig(BaseModel):
-    operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Condition operator.")
-    input: Optional[Any] = Field(default=None, description="Input to evaluate.")
-    value: Optional[Any] = Field(default=None, description="Value to compare against.")
+    operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Operator used to compare `input` against `value`.")
+    input: Optional[Any] = Field(default=None, description="Value to evaluate against the condition.")
+    value: Optional[Any] = Field(default=None, description="Value the input is compared against.")
 
 class JobInterruptConfig(BaseModel):
-    condition: Optional[JobInterruptConditionConfig] = Field(default=None, description="Condition for the interrupt to fire. If omitted, always interrupts.")
-    message: Optional[str] = Field(default=None, description="Message displayed to the user when interrupted.")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Structured metadata to pass to the client on interrupt.")
+    condition: Optional[JobInterruptConditionConfig] = Field(default=None, description="Condition that must match for the interrupt to fire; always fires when omitted.")
+    message: Optional[str] = Field(default=None, description="Message shown to the client when the interrupt fires.")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Structured metadata delivered to the client alongside the interrupt.")
 
 class JobInterruptsConfig(BaseModel):
-    before: Union[bool, JobInterruptConfig] = Field(default=False, description="Interrupt before the job runs.")
-    after: Union[bool, JobInterruptConfig] = Field(default=False, description="Interrupt after the job runs.")
+    before: Union[bool, JobInterruptConfig] = Field(default=False, description="Whether to interrupt execution before the job runs.")
+    after: Union[bool, JobInterruptConfig] = Field(default=False, description="Whether to interrupt execution after the job runs.")
 
     @field_validator("before", "after", mode="before")
     def normalize_interrupt(cls, value):
@@ -33,11 +33,11 @@ class JobInterruptsConfig(BaseModel):
         return value
 
 class JobHookConfig(BaseModel):
-    script: str = Field(..., description="Inline Python defining a `hook` function.")
+    script: str = Field(..., description="Inline Python source defining a `hook` function to invoke.")
 
 class JobHooksConfig(BaseModel):
-    before: List[JobHookConfig] = Field(default_factory=list, description="Hook(s) to run before the job runs. Accepts a single hook or a list.")
-    after: List[JobHookConfig] = Field(default_factory=list, description="Hook(s) to run after the job runs. Accepts a single hook or a list.")
+    before: List[JobHookConfig] = Field(default_factory=list, description="Hooks executed before the job runs; accepts a single hook or a list.")
+    after: List[JobHookConfig] = Field(default_factory=list, description="Hooks executed after the job runs; accepts a single hook or a list.")
 
     @field_validator("before", "after", mode="before")
     def normalize_hooks(cls, value):
@@ -46,10 +46,10 @@ class JobHooksConfig(BaseModel):
         return value
 
 class JobRetryConfig(BaseModel):
-    max_attempt_count: int = Field(default=1, description="Total attempts including the first, before falling through to on_error.")
-    delay: Union[str, float] = Field(default=0.0, description="Base delay between attempts (duration string like '1s' or seconds).")
-    backoff: JobRetryBackoff = Field(default=JobRetryBackoff.FIXED, description="How the delay grows across attempts.")
-    max_delay: Optional[Union[str, float]] = Field(default=None, description="Cap for the delay after backoff is applied.")
+    max_attempt_count: int = Field(default=1, description="Total number of attempts including the first before falling through to `on_error`.")
+    delay: Union[str, float] = Field(default=0.0, description="Base delay between retry attempts, as a duration string (e.g., '1s') or seconds.")
+    backoff: JobRetryBackoff = Field(default=JobRetryBackoff.FIXED, description="Growth pattern applied to the retry delay across attempts.")
+    max_delay: Optional[Union[str, float]] = Field(default=None, description="Upper bound applied to the retry delay after backoff.")
 
     @field_validator("max_attempt_count")
     def validate_max_attempt_count(cls, value):
@@ -58,19 +58,19 @@ class JobRetryConfig(BaseModel):
         return value
 
 class JobOnErrorConfig(BaseModel):
-    output: Optional[Any] = Field(default=None, description="Fallback output rendered on failure. `${error.message}` is available.")
-    to: Optional[str] = Field(default=None, description="Job ID to route to on failure.")
+    output: Optional[Any] = Field(default=None, description="Fallback output rendered when the job fails; `${error.message}` is available.")
+    to: Optional[str] = Field(default=None, description="ID of the job to route to when this job fails.")
 
 class CommonJobConfig(BaseModel):
     id: str = Field(default="__job__", description="ID of job.")
-    name: Optional[str] = Field(default=None, description="Human-readable label for this job.")
+    name: Optional[str] = Field(default=None, description="Human-readable label for the job.")
     type: JobType = Field(..., description="Type of job.")
-    max_run_count: int = Field(default=25, gt=0, description="Max executions per workflow run, including routing re-runs.")
-    depends_on: List[Union[List[str], str]] = Field(default_factory=list, description="Jobs that must complete before this job runs.")
-    interrupt: Optional[JobInterruptsConfig] = Field(default=None, description="Human-in-the-Loop interrupt points around each job run.")
-    hook: Optional[JobHooksConfig] = Field(default=None, description="Inline Python hooks to run before/after each job run.")
-    retry: Optional[JobRetryConfig] = Field(default=None, description="Retry policy applied to this job on failure.")
-    on_error: Optional[JobOnErrorConfig] = Field(default=None, description="Fallback behavior after retries are exhausted.")
+    max_run_count: int = Field(default=25, gt=0, description="Maximum executions of this job per workflow run, including re-runs from routing.")
+    depends_on: List[Union[List[str], str]] = Field(default_factory=list, description="IDs of jobs that must complete before this job runs.")
+    interrupt: Optional[JobInterruptsConfig] = Field(default=None, description="Human-in-the-loop interrupt points around each run of the job.")
+    hook: Optional[JobHooksConfig] = Field(default=None, description="Inline Python hooks executed before and after each run of the job.")
+    retry: Optional[JobRetryConfig] = Field(default=None, description="Retry policy applied when the job fails.")
+    on_error: Optional[JobOnErrorConfig] = Field(default=None, description="Fallback behavior applied after retries are exhausted.")
 
     @field_validator("id")
     def validate_id(cls, value):
@@ -106,4 +106,4 @@ class CommonJobConfig(BaseModel):
         return jobs
 
 class OutputJobConfig(CommonJobConfig):
-    output: Optional[Any] = Field(default=None, description="Output data returned from this job.")
+    output: Optional[Any] = Field(default=None, description="Output mapping that transforms and extracts values from the job's result.")

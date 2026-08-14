@@ -8,4 +8,4 @@ class AudioFeatureExtractorDriver(str, Enum):
 
 class CommonAudioFeatureExtractorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AUDIO_FEATURE_EXTRACTOR]
-    driver: AudioFeatureExtractorDriver = Field(..., description="Audio feature extraction backend driver.")
+    driver: AudioFeatureExtractorDriver = Field(..., description="Backend implementation used for audio feature extraction.")

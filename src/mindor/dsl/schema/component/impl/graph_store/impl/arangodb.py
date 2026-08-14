@@ -6,14 +6,14 @@ from .common import CommonGraphStoreComponentConfig, GraphStoreDriver
 
 class ArangoDBGraphStoreComponentConfig(CommonGraphStoreComponentConfig):
     driver: Literal[GraphStoreDriver.ARANGODB]
-    url: Optional[str] = Field(default=None, description="ArangoDB connection URL (e.g., http://localhost:8529).")
-    host: str = Field(default="localhost", description="ArangoDB server hostname or IP address.")
-    port: int = Field(default=8529, ge=1, le=65535, description="ArangoDB server port number.")
-    protocol: Literal[ "http", "https" ] = Field(default="http", description="Connection protocol.")
-    username: Optional[str] = Field(default=None, description="Username for authentication.")
-    password: Optional[str] = Field(default=None, description="Password for authentication.")
-    database: str = Field(default="_system", description="Target database name.")
-    timeout: Union[str, int, float] = Field(default="30s", description="Client operation timeout.")
+    url: Optional[str] = Field(default=None, description="Full ArangoDB connection URL (e.g., http://host:port). Mutually exclusive with `host`.")
+    host: str = Field(default="localhost", description="Hostname or IP address of the ArangoDB server.")
+    port: int = Field(default=8529, ge=1, le=65535, description="TCP port the ArangoDB server listens on.")
+    protocol: Literal[ "http", "https" ] = Field(default="http", description="Scheme used to connect to ArangoDB.")
+    username: Optional[str] = Field(default=None, description="Username used to authenticate with ArangoDB.")
+    password: Optional[str] = Field(default=None, description="Password used to authenticate with ArangoDB.")
+    database: str = Field(default="_system", description="Target ArangoDB database name.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Maximum seconds to wait for an ArangoDB operation before failing.")
     actions: List[ArangoDBGraphStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

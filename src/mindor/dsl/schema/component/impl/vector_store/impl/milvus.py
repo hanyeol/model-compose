@@ -6,14 +6,14 @@ from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
 
 class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
     driver: Literal[VectorStoreDriver.MILVUS]
-    endpoint: Optional[str] = Field(default=None, description="Milvus server endpoint URL.")
-    host: str = Field(default="localhost", description="Milvus server hostname or IP address.")
-    port: int = Field(default=19530, ge=1, le=65535, description="Milvus server port number.")
-    protocol: Literal[ "http", "https", "grpc", "grpcs" ] = Field(default="http", description="Connection protocol.")
-    user: Optional[str] = Field(default=None, description="Username for authentication.")
-    password: Optional[str] = Field(default=None, description="Password for authentication.")
-    database: Optional[str] = Field(default=None, description="Target database name.")
-    timeout: Union[str, int, float] = Field(default="30s", description="Client operation timeout.")
+    endpoint: Optional[str] = Field(default=None, description="Full Milvus endpoint URL. Mutually exclusive with `host`.")
+    host: str = Field(default="localhost", description="Hostname or IP address of the Milvus server.")
+    port: int = Field(default=19530, ge=1, le=65535, description="TCP port the Milvus server listens on.")
+    protocol: Literal[ "http", "https", "grpc", "grpcs" ] = Field(default="http", description="Scheme used to connect to Milvus.")
+    user: Optional[str] = Field(default=None, description="Username used to authenticate with Milvus.")
+    password: Optional[str] = Field(default=None, description="Password used to authenticate with Milvus.")
+    database: Optional[str] = Field(default=None, description="Target Milvus database name.")
+    timeout: Union[str, int, float] = Field(default="30s", description="Maximum seconds to wait for a Milvus operation before failing.")
     actions: List[MilvusVectorStoreActionConfig] = Field(default_factory=list)
 
     @model_validator(mode="before")

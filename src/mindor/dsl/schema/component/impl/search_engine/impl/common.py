@@ -8,4 +8,4 @@ class SearchEngineDriver(str, Enum):
 
 class CommonSearchEngineComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SEARCH_ENGINE]
-    driver: SearchEngineDriver = Field(..., description="Search engine backend driver.")
+    driver: SearchEngineDriver = Field(..., description="Backend implementation used for the search engine.")

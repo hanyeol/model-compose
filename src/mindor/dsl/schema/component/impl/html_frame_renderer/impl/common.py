@@ -8,4 +8,4 @@ class HtmlFrameRendererDriver(str, Enum):
 
 class CommonHtmlFrameRendererComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.HTML_FRAME_RENDERER]
-    driver: HtmlFrameRendererDriver = Field(..., description="HTML frame renderer backend driver.")
+    driver: HtmlFrameRendererDriver = Field(..., description="Backend implementation used to render HTML frames.")

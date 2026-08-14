@@ -21,8 +21,8 @@ ModelMemoryBufferConfig = Annotated[
 ]
 
 class ModelMemoryWindowConfig(BaseModel):
-    max_turn_count: Optional[int] = Field(default=None, description="Max recent turns to keep.")
-    max_message_count: Optional[int] = Field(default=None, description="Max recent messages to keep (respects turn boundaries).")
+    max_turn_count: Optional[int] = Field(default=None, description="Maximum number of recent conversation turns retained in the window.")
+    max_message_count: Optional[int] = Field(default=None, description="Maximum number of recent messages retained in the window, respecting turn boundaries.")
 
     @model_validator(mode="after")
     def validate_limits(self):
@@ -31,18 +31,18 @@ class ModelMemoryWindowConfig(BaseModel):
         return self
 
 class ModelMemorySummaryConfig(BaseModel):
-    component: str = Field(..., description="Component ID to use for summarization.")
-    action: str = Field(default="__default__", description="Action ID on the summary component.")
-    instruction: Optional[str] = Field(default=None, description="Summary instruction prompt. If omitted, a built-in default is used.")
-    input: Optional[Dict[str, Any]] = Field(default=None, description="Input mapping for the summary component.")
+    component: str = Field(..., description="ID of the component that generates conversation summaries.")
+    action: str = Field(default="__default__", description="Action on the summary component invoked to produce a summary.")
+    instruction: Optional[str] = Field(default=None, description="Prompt guiding the summarizer; a built-in default is used when omitted.")
+    input: Optional[Dict[str, Any]] = Field(default=None, description="Input mapping passed to the summary component.")
 
 class ModelMemoryComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_MEMORY]
-    buffer: ModelMemoryBufferConfig = Field(default_factory=MemoryModelMemoryBufferConfig, description="Buffer settings.")
-    storage: ModelMemoryStorageConfig = Field(default_factory=SqliteModelMemoryStorageConfig, description="Persistent storage settings.")
-    window: Optional[Union[int, ModelMemoryWindowConfig]] = Field(default=None, description="Window settings. Int inflates to max_turn_count.")
-    summary: Optional[ModelMemorySummaryConfig] = Field(default=None, description="Summary settings for conversation pruning.")
-    actions: List[ModelMemoryActionConfig] = Field(default_factory=list)
+    buffer: ModelMemoryBufferConfig = Field(default_factory=MemoryModelMemoryBufferConfig, description="Short-term buffer holding recent conversation turns.")
+    storage: ModelMemoryStorageConfig = Field(default_factory=SqliteModelMemoryStorageConfig, description="Long-term persistent storage for conversation history.")
+    window: Optional[Union[int, ModelMemoryWindowConfig]] = Field(default=None, description="Sliding window over recent history; an integer is shorthand for max_turn_count.")
+    summary: Optional[ModelMemorySummaryConfig] = Field(default=None, description="Summarization settings used to compress older history.")
+    actions: List[ModelMemoryActionConfig] = Field(default_factory=list, description="Actions this memory component exposes to workflows.")
 
     @model_validator(mode="before")
     def inflate_window(cls, values: Dict[str, Any]):

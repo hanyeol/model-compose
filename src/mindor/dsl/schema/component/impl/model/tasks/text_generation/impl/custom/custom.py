@@ -7,5 +7,5 @@ from ....common import ModelDriver
 
 class CustomTextGenerationModelComponentConfig(CommonTextGenerationModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
-    family: TextGenerationModelFamily = Field(..., description="Model family.")
-    actions: List[TextGenerationModelActionConfig] = Field(default_factory=list)
+    family: TextGenerationModelFamily = Field(..., description="Model family selecting the custom text generation implementation.")
+    actions: List[TextGenerationModelActionConfig] = Field(default_factory=list, description="Actions this text generation component exposes to workflows.")

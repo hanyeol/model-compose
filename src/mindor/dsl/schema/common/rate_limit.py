@@ -9,10 +9,10 @@ _RATE_LIMIT_SHORTHAND_RE = re.compile(
 )
 
 class RateLimitConfig(BaseModel):
-    requests: Optional[int] = Field(default=None, description="Max requests allowed within 'period'.")
-    period: Optional[Union[str, float]] = Field(default=None, description="Token-bucket window length.")
-    burst: Optional[int] = Field(default=None, description="Token bucket capacity. Defaults to 'requests' when omitted.")
-    interval: Optional[Union[str, float]] = Field(default=None, description="Minimum gap between consecutive requests (e.g. '100ms').")
+    requests: Optional[int] = Field(default=None, description="Maximum number of requests allowed within `period`.")
+    period: Optional[Union[str, float]] = Field(default=None, description="Length of the token-bucket window as a duration string or seconds.")
+    burst: Optional[int] = Field(default=None, description="Token-bucket capacity; defaults to `requests` when omitted.")
+    interval: Optional[Union[str, float]] = Field(default=None, description="Minimum gap between consecutive requests, as a duration string (e.g., '100ms') or seconds.")
 
     @field_validator("requests", "burst")
     def validate_positive_int(cls, value):

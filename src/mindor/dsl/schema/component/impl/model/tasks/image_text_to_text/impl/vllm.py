@@ -7,5 +7,5 @@ from ...base.vllm import VllmEngineOptionsConfig
 
 class VllmImageTextToTextModelComponentConfig(CommonImageTextToTextModelComponentConfig):
     driver: Literal[ModelDriver.VLLM] = Field(default=ModelDriver.VLLM)
-    options: Optional[VllmEngineOptionsConfig] = Field(default=None, description="vLLM engine options.")
-    actions: List[ImageTextToTextModelActionConfig] = Field(default_factory=list)
+    options: Optional[VllmEngineOptionsConfig] = Field(default=None, description="Engine options forwarded to vLLM when loading the model.")
+    actions: List[ImageTextToTextModelActionConfig] = Field(default_factory=list, description="Actions this image-text-to-text component exposes to workflows.")

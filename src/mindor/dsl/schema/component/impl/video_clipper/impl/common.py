@@ -8,4 +8,4 @@ class VideoClipperDriver(str, Enum):
 
 class CommonVideoClipperComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VIDEO_CLIPPER]
-    driver: VideoClipperDriver = Field(..., description="Video clipping backend driver.")
+    driver: VideoClipperDriver = Field(..., description="Backend implementation used for video clipping.")

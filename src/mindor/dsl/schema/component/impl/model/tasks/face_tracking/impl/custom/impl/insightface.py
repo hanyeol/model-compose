@@ -31,5 +31,5 @@ InsightfaceFaceTrackingModelConfig = Annotated[
 class InsightfaceFaceTrackingModelComponentConfig(CommonFaceTrackingModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[FaceTrackingModelFamily.INSIGHTFACE]
-    model: InsightfaceFaceTrackingModelConfig = Field(..., description="Model repository or local pack path.")
-    actions: List[InsightfaceFaceTrackingModelActionConfig] = Field(default_factory=list)
+    model: InsightfaceFaceTrackingModelConfig = Field(..., description="InsightFace model pack identifier — a HuggingFace repo ID or a local pack path.")
+    actions: List[InsightfaceFaceTrackingModelActionConfig] = Field(default_factory=list, description="Actions this face tracking component exposes to workflows.")

@@ -11,5 +11,5 @@ class FileStoreDriver(str, Enum):
 
 class CommonFileStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.FILE_STORE]
-    driver: FileStoreDriver = Field(..., description="File store backend driver.")
-    base_path: Optional[str] = Field(default=None, description="Base path or key prefix prepended to all action paths.")
+    driver: FileStoreDriver = Field(..., description="Backend implementation used for the file store.")
+    base_path: Optional[str] = Field(default=None, description="Path or key prefix prepended to every action's target path.")

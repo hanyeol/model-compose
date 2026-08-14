@@ -5,4 +5,4 @@ from .common import CommonActionConfig
 class AgentActionConfig(CommonActionConfig):
     prompt: Optional[str] = Field(default=None, description="Prompt for this invocation, applied as a user message.")
     max_iteration_count: Optional[int] = Field(default=None, description="Maximum ReAct loop iterations. Overrides component-level setting.")
-    streaming: Union[bool, str] = Field(default=False, description="Whether to stream messages as generated.")
+    streaming: Union[bool, str] = Field(default=False, description="Whether output is emitted incrementally as it is produced.")

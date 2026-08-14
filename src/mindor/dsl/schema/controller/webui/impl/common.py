@@ -8,6 +8,6 @@ class ControllerWebUIDriver(str, Enum):
     DYNAMIC   = "dynamic"
 
 class CommonWebUIConfig(BaseModel):
-    driver: ControllerWebUIDriver = Field(..., description="Web UI rendering mode.")
-    host: str = Field(default="127.0.0.1", description="Host address for the Web UI server.")
-    port: int = Field(default=8081, ge=1, le=65535, description="Port to serve the Web UI on.")
+    driver: ControllerWebUIDriver = Field(..., description="Backend implementation used to render the Web UI.")
+    host: str = Field(default="127.0.0.1", description="Hostname or IP address the Web UI server binds to.")
+    port: int = Field(default=8081, ge=1, le=65535, description="TCP port the Web UI server listens on.")

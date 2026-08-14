@@ -9,16 +9,16 @@ from .common import (
 )
 
 class QdrantVectorInsertActionConfig(CommonVectorInsertActionConfig):
-    collection: str = Field(..., description="Target collection for vector insertion.")
+    collection: str = Field(..., description="Collection that receives the inserted vectors.")
 
 class QdrantVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
-    collection: str = Field(..., description="Target collection for vector update.")
+    collection: str = Field(..., description="Collection containing the vectors to update.")
 
 class QdrantVectorSearchActionConfig(CommonVectorSearchActionConfig):
-    collection: str = Field(..., description="Collection to search vectors from.")
+    collection: str = Field(..., description="Collection searched for similar vectors.")
 
 class QdrantVectorDeleteActionConfig(CommonVectorDeleteActionConfig):
-    collection: str = Field(..., description="Collection to remove vectors from.")
+    collection: str = Field(..., description="Collection that vectors are deleted from.")
 
 QdrantVectorStoreActionConfig = Annotated[
     Union[ 

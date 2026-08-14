@@ -5,4 +5,4 @@ from .common import CommonModelTokenizerComponentConfig, ModelTokenizerTaskType
 
 class TextModelTokenizerComponentConfig(CommonModelTokenizerComponentConfig):
     task: Literal[ModelTokenizerTaskType.TEXT]
-    actions: List[TextModelTokenizerActionConfig] = Field(default_factory=list)
+    actions: List[TextModelTokenizerActionConfig] = Field(default_factory=list, description="Actions this text tokenizer component exposes to workflows.")

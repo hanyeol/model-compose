@@ -5,4 +5,4 @@ from .common import CommonSystemConfig
 from .types import SystemType
 
 class DockerSystemConfig(CommonSystemConfig, DockerContainerConfig):
-    type: Literal[SystemType.DOCKER] = Field(default=SystemType.DOCKER, description="Docker system type.")
+    type: Literal[SystemType.DOCKER] = Field(default=SystemType.DOCKER, description="Type of system.")

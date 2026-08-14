@@ -6,12 +6,12 @@ from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from .common import JobType, OutputJobConfig
 
 class FilterJobConditionConfig(BaseModel):
-    input: Optional[Any] = Field(default=None, description="Value to evaluate for the current item, typically `${item.*}`. Required for leaf predicates.")
-    operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Condition operator (leaf predicate only).")
-    value: Optional[Any] = Field(default=None, description="Value to compare against (leaf predicate only).")
-    all: Optional[List[FilterJobConditionConfig]] = Field(default=None, description="Logical AND — every nested predicate must match.")
-    any: Optional[List[FilterJobConditionConfig]] = Field(default=None, description="Logical OR — at least one nested predicate must match.")
-    not_: Optional[FilterJobConditionConfig] = Field(default=None, alias="not", description="Logical NOT — inverts the nested predicate.")
+    input: Optional[Any] = Field(default=None, description="Value evaluated for the current item, typically `${item.*}`; required on leaf predicates.")
+    operator: ConditionOperator = Field(default=ConditionOperator.EQ, description="Operator used to compare `input` against `value` in a leaf predicate.")
+    value: Optional[Any] = Field(default=None, description="Value the input is compared against in a leaf predicate.")
+    all: Optional[List[FilterJobConditionConfig]] = Field(default=None, description="Logical AND combinator; every nested predicate must match.")
+    any: Optional[List[FilterJobConditionConfig]] = Field(default=None, description="Logical OR combinator; at least one nested predicate must match.")
+    not_: Optional[FilterJobConditionConfig] = Field(default=None, alias="not", description="Logical NOT combinator; inverts the nested predicate.")
 
     @model_validator(mode="after")
     def validate_predicates(self):
@@ -29,6 +29,6 @@ class FilterJobConditionConfig(BaseModel):
 
 class FilterJobConfig(OutputJobConfig):
     type: Literal[JobType.FILTER]
-    input: Any = Field(..., description="Source list or async stream to filter.")
-    where: Optional[FilterJobConditionConfig] = Field(default=None, description="Predicate evaluated per item. If omitted, every item is kept.")
-    streaming: bool = Field(default=False, description="Yield surviving items as they arrive.")
+    input: Any = Field(..., description="Source list or async stream of items to filter.")
+    where: Optional[FilterJobConditionConfig] = Field(default=None, description="Predicate evaluated per item; every item is kept when omitted.")
+    streaming: bool = Field(default=False, description="Whether surviving items are yielded incrementally as they arrive.")

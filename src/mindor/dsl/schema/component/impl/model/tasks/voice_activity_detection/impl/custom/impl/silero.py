@@ -8,8 +8,8 @@ from .....common import ModelDriver, ModelConfig
 class SileroVoiceActivityDetectionModelComponentConfig(CommonVoiceActivityDetectionModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[VoiceActivityDetectionModelFamily.SILERO]
-    model: Optional[ModelConfig] = Field(default=None, description="Not configurable; the model ships with the silero-vad package.")
-    actions: List[VoiceActivityDetectionModelActionConfig] = Field(default_factory=list)
+    model: Optional[ModelConfig] = Field(default=None, description="Not configurable; the model ships bundled with the silero-vad package.")
+    actions: List[VoiceActivityDetectionModelActionConfig] = Field(default_factory=list, description="Actions this voice activity detection component exposes to workflows.")
 
     @model_validator(mode="before")
     def reject_model_override(cls, values: Dict[str, Any]):

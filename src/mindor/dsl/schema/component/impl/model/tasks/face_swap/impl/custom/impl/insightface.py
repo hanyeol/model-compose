@@ -28,6 +28,6 @@ InsightfaceFaceSwapModelConfig = Annotated[
 class InsightfaceFaceSwapModelComponentConfig(CommonFaceSwapModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[FaceSwapModelFamily.INSIGHTFACE]
-    model: InsightfaceFaceSwapModelConfig = Field(..., description="Model repository or local file path.")
-    detector_model: str = Field(default="buffalo_l", description="InsightFace model pack for face detection and alignment.")
-    actions: List[InsightfaceFaceSwapModelActionConfig] = Field(default_factory=list)
+    model: InsightfaceFaceSwapModelConfig = Field(..., description="Face swap model identifier — a HuggingFace repo ID or a local path.")
+    detector_model: str = Field(default="buffalo_l", description="InsightFace model pack used for face detection and alignment.")
+    actions: List[InsightfaceFaceSwapModelActionConfig] = Field(default_factory=list, description="Actions this face swap component exposes to workflows.")

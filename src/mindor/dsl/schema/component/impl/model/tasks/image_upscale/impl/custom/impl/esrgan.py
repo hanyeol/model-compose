@@ -8,5 +8,5 @@ from .....common import ModelDriver
 class EsrganImageUpscaleModelComponentConfig(CommonImageUpscaleModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[ImageUpscaleModelFamily.ESRGAN]
-    scale: Union[int, str] = Field(default=2, description="Upscaling scale factor.")
-    actions: List[EsrganImageUpscaleModelActionConfig] = Field(default_factory=list)
+    scale: Union[int, str] = Field(default=2, description="Multiplier applied to output resolution.")
+    actions: List[EsrganImageUpscaleModelActionConfig] = Field(default_factory=list, description="Actions this image upscale component exposes to workflows.")

@@ -28,5 +28,5 @@ BlazePosePoseDetectionModelConfig = Annotated[
 class BlazePosePoseDetectionModelComponentConfig(CommonPoseDetectionModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[PoseDetectionModelFamily.BLAZEPOSE]
-    model: BlazePosePoseDetectionModelConfig = Field(..., description="Model repository or local file path.")
-    actions: List[BlazePosePoseDetectionModelActionConfig] = Field(default_factory=list)
+    model: BlazePosePoseDetectionModelConfig = Field(..., description="BlazePose landmarker task file identifier — a HuggingFace repo ID or a local path.")
+    actions: List[BlazePosePoseDetectionModelActionConfig] = Field(default_factory=list, description="Actions this pose detection component exposes to workflows.")

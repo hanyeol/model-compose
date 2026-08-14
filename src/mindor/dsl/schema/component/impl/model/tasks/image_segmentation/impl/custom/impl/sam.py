@@ -20,5 +20,5 @@ SamImageSegmentationModelConfig = Annotated[
 class SamImageSegmentationModelComponentConfig(CommonImageSegmentationModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[ImageSegmentationModelFamily.SAM]
-    model: SamImageSegmentationModelConfig = Field(..., description="Model repository or local file path.")
-    actions: List[SamImageSegmentationModelActionConfig] = Field(default_factory=list)
+    model: SamImageSegmentationModelConfig = Field(..., description="SAM checkpoint identifier — a HuggingFace repo ID or a local path.")
+    actions: List[SamImageSegmentationModelActionConfig] = Field(default_factory=list, description="Actions this image segmentation component exposes to workflows.")

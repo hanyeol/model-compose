@@ -8,4 +8,4 @@ class VectorProcessorDriver(str, Enum):
 
 class CommonVectorProcessorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_PROCESSOR]
-    driver: VectorProcessorDriver = Field(..., description="Vector processing backend driver.")
+    driver: VectorProcessorDriver = Field(..., description="Backend implementation used for vector processing.")

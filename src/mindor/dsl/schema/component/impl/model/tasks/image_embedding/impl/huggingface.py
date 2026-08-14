@@ -13,5 +13,5 @@ class HuggingfaceImageEmbeddingModelArchitecture(str, Enum):
 
 class HuggingfaceImageEmbeddingModelComponentConfig(CommonImageEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]
-    architecture: HuggingfaceImageEmbeddingModelArchitecture = Field(default=HuggingfaceImageEmbeddingModelArchitecture.AUTO, description="How to load and run the image embedding model.")
-    actions: List[ImageEmbeddingModelActionConfig] = Field(default_factory=list)
+    architecture: HuggingfaceImageEmbeddingModelArchitecture = Field(default=HuggingfaceImageEmbeddingModelArchitecture.AUTO, description="Image embedding model architecture; \"auto\" infers from the model config.")
+    actions: List[ImageEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this image embedding component exposes to workflows.")

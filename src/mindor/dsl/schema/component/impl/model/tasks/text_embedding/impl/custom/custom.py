@@ -7,5 +7,5 @@ from ....common import ModelDriver
 
 class CustomTextEmbeddingModelComponentConfig(CommonTextEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
-    family: TextEmbeddingModelFamily = Field(..., description="Model family.")
-    actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list)
+    family: TextEmbeddingModelFamily = Field(..., description="Model family selecting the custom text embedding implementation.")
+    actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this text embedding component exposes to workflows.")

@@ -31,17 +31,24 @@ async def walk_dir(path: str) -> AsyncIterator[Tuple[str, List[str], List[Tuple[
             pending.append(os.path.join(current, name))
 
 async def save_string_to_temporary_file(content: str, extension: Optional[str] = None, encoding: str = "utf-8") -> str:
-    path = create_temporary_file(extension)
+    path = get_temporary_path(extension)
 
-    async with aiofiles.open(path, "w", encoding=encoding) as file:
-        await file.write(content)
+    async with aiofiles.open(path, "w", encoding=encoding) as f:
+        await f.write(content)
 
     return path
 
-def create_temporary_file(extension: Optional[str] = None, dir: Optional[str] = None) -> str:
+def get_temporary_path(
+    extension: Optional[str] = None,
+    dir: Optional[str] = None,
+    reserve_file: bool = False,
+) -> str:
     file = NamedTemporaryFile(suffix=f".{extension}" if extension else None, dir=dir, delete=False)
     path = file.name
     file.close()
+
+    if not reserve_file:
+        os.remove(path)
 
     return path
 

@@ -75,7 +75,6 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
     ) -> List[Dict[str, Any]]:
         try:
             scene_frames, frame_rate = await self._detect_scenes(input_path, threshold, start_time, end_time)
-
             scenes: List[Dict[str, Any]] = []
 
             for index in range(len(scene_frames) - 1):

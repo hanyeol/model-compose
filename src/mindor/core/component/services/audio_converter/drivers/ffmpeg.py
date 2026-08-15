@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.audio import is_streamable_audio_format, is_pcm_format
-from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import AudioConverterService, AudioConverterDriver, register_audio_converter_service
@@ -101,7 +101,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg to a temporary file, then return an AudioStreamResource over that file."""
-        output_path = create_temporary_file(format)
+        output_path = get_temporary_path(format)
 
         command = command + [ "-y", output_path ]
 

@@ -114,12 +114,12 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
         output_w = w * scale
         output = torch.zeros(image.shape[0], image.shape[1], output_h, output_w).to(image.device)
 
-        for i in range(h_tiles):
-            for j in range(w_tiles):
+        for tile_row in range(h_tiles):
+            for tile_col in range(w_tiles):
                 # Calculate tile boundaries
-                start_h = i * stride
+                start_h = tile_row * stride
                 end_h = min(start_h + tile_size, h)
-                start_w = j * stride
+                start_w = tile_col * stride
                 end_w = min(start_w + tile_size, w)
 
                 # Extract tile
@@ -136,10 +136,10 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
                 out_end_w = end_w * scale
 
                 # Handle overlap blending
-                if i > 0 or j > 0:
+                if tile_row > 0 or tile_col > 0:
                     # Blend overlapping regions
-                    overlap_h = tile_overlap * scale if i > 0 else 0
-                    overlap_w = tile_overlap * scale if j > 0 else 0
+                    overlap_h = tile_overlap * scale if tile_row > 0 else 0
+                    overlap_w = tile_overlap * scale if tile_col > 0 else 0
 
                     # Simple averaging for overlap regions
                     if overlap_h > 0:

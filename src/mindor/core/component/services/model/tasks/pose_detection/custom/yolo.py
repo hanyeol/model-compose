@@ -96,9 +96,9 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
     def _serialize_keypoints(self, keypoints_xy: np.ndarray, keypoints_conf: Optional[np.ndarray], min_visibility: float) -> List[Dict[str, Any]]:
         keypoints: List[Dict[str, Any]] = []
 
-        for k in range(keypoints_xy.shape[0]):
-            visibility = float(keypoints_conf[k]) if keypoints_conf is not None else 1.0
-            x, y = int(keypoints_xy[k, 0]), int(keypoints_xy[k, 1])
+        for keypoint in range(keypoints_xy.shape[0]):
+            visibility = float(keypoints_conf[keypoint]) if keypoints_conf is not None else 1.0
+            x, y = int(keypoints_xy[keypoint, 0]), int(keypoints_xy[keypoint, 1])
 
             if visibility < min_visibility or (x == 0 and y == 0):
                 keypoints.append({ "x": 0, "y": 0, "visibility": 0.0 })

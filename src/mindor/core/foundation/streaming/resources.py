@@ -1,7 +1,7 @@
 from typing import Optional, List, Protocol, Union, Awaitable, runtime_checkable
 from collections.abc import AsyncIterator, AsyncIterable
 from abc import ABC, abstractmethod
-from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.files import get_temporary_path
 import aiofiles, io
 
 @runtime_checkable
@@ -142,15 +142,15 @@ async def read_stream_to_bytes(stream: StreamResource) -> bytes:
     return b"".join(chunks)
 
 async def save_stream_to_file(stream: StreamResource, path: str) -> None:
-    async with stream, aiofiles.open(path, "wb") as file:
+    async with stream, aiofiles.open(path, "wb") as f:
         async for chunk in stream:
-            await file.write(chunk)
+            await f.write(chunk)
 
 async def save_stream_to_temporary_file(stream: StreamResource, extension: Optional[str]) -> Optional[str]:
-    path = create_temporary_file(extension)
+    path = get_temporary_path(extension)
 
-    async with stream, aiofiles.open(path, "wb") as file:
+    async with stream, aiofiles.open(path, "wb") as f:
         async for chunk in stream:
-            await file.write(chunk)
+            await f.write(chunk)
 
     return path

@@ -240,8 +240,8 @@ class MilvusVectorStoreAction(VectorStoreAction):
         batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
         results = []
 
-        for index in range(0, len(queries), batch_size):
-            batch_queries = queries[index:index + batch_size]
+        for start in range(0, len(queries), batch_size):
+            batch_queries = queries[start:start + batch_size]
 
             result = await self.client.search(
                 collection_name=collection_name,
@@ -252,9 +252,9 @@ class MilvusVectorStoreAction(VectorStoreAction):
                 output_fields=output_fields or None,
                 search_params=search_params or None
             )
-            for n in range(len(result)):
+            for query in range(len(result)):
                 hits = []
-                for hit in result[n]:
+                for hit in result[query]:
                     hits.append({
                         "id": hit["id"],
                         "score": 1 / (1 + hit["distance"]),

@@ -170,8 +170,8 @@ class ChromaVectorStoreAction(VectorStoreAction):
             collection: Collection = self.client.get_or_create_collection(name=collection_name)
             where_spec = ChromaWhereSpecBuilder().build(filter)
 
-            for index in range(0, len(queries), batch_size):
-                batch_queries = queries[index:index + batch_size]
+            for start in range(0, len(queries), batch_size):
+                batch_queries = queries[start:start + batch_size]
 
                 result = collection.query(
                     query_embeddings=batch_queries,
@@ -180,20 +180,20 @@ class ChromaVectorStoreAction(VectorStoreAction):
                     include=[ "embeddings", "distances", "metadatas", "documents" ]
                 )
 
-                for n in range(len(result["ids"])):
+                for query in range(len(result["ids"])):
                     hits = []
-                    for index, id in enumerate(result["ids"][n]):
-                        metadata = result["metadatas"][n][index]
+                    for index, id in enumerate(result["ids"][query]):
+                        metadata = result["metadatas"][query][index]
                         if output_fields:
                             metadata = { key: metadata[key] for key in output_fields if key in metadata }
 
                         hits.append({
                             "id": id,
-                            "embedding": result["embeddings"][n][index],
-                            "score": 1 / (1 + result["distances"][n][index]),
-                            "distance": result["distances"][n][index],
+                            "embedding": result["embeddings"][query][index],
+                            "score": 1 / (1 + result["distances"][query][index]),
+                            "distance": result["distances"][query][index],
                             "metadata": metadata,
-                            "document": result["documents"][n][index]
+                            "document": result["documents"][query][index]
                         })
                     results.append(hits)
 

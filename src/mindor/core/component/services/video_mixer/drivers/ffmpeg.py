@@ -19,7 +19,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.video import is_streamable_video_format
-from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import VideoMixerService, register_video_mixer_service
@@ -219,7 +219,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         """
         if crossfade is None or crossfade <= 0:
             parts: List[str] = []
-            streams = "".join(f"[{i}:v:0][{i}:a:0]" for i in range(count))
+            streams = "".join(f"[{index}:v:0][{index}:a:0]" for index in range(count))
             parts.append(f"{streams}concat=n={count}:v=1:a=1[vout][aout]")
             return ";".join(parts), "[vout]", "[aout]"
 
@@ -322,11 +322,11 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             if overlay_count == 1:
                 audio_label = "1:a?"
             else:
-                streams = "".join(f"[{i + 1}:a]" for i in range(overlay_count))
+                streams = "".join(f"[{index + 1}:a]" for index in range(overlay_count))
                 filter_parts.append(f"{streams}amix=inputs={overlay_count}:duration={amix_duration}:dropout_transition=0[aout]")
                 audio_label = "[aout]"
         elif audio_mode == VideoMixerOverlayAudioMode.MIX:
-            streams = "[0:a]" + "".join(f"[{i + 1}:a]" for i in range(overlay_count))
+            streams = "[0:a]" + "".join(f"[{index + 1}:a]" for index in range(overlay_count))
             filter_parts.append(f"{streams}amix=inputs={overlay_count + 1}:duration={amix_duration}:dropout_transition=0[aout]")
             audio_label = "[aout]"
         else:
@@ -357,7 +357,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        output_path = create_temporary_file(format)
+        output_path = get_temporary_path(format)
 
         command = command + [ "-movflags", "+faststart", output_path ]
 

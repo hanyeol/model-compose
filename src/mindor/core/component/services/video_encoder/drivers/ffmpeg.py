@@ -13,7 +13,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.video import is_streamable_video_format
-from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from PIL import Image as PILImage
@@ -194,7 +194,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         """Run ffmpeg to a temporary file, then return a VideoStreamResource over that file."""
-        output_path = create_temporary_file(format)
+        output_path = get_temporary_path(format)
 
         command = command + [ "-movflags", "+faststart", output_path ]
 

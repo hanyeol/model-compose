@@ -109,12 +109,12 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
         # Create output tensor at upscaled resolution
         output = torch.zeros(image.shape[0], channels, h * scale, w * scale, dtype=image.dtype, device=image.device)
 
-        for i in range(h_tiles):
-            for j in range(w_tiles):
+        for tile_row in range(h_tiles):
+            for tile_col in range(w_tiles):
                 # Calculate tile boundaries (no overlap, just padding around each tile)
-                start_h = i * tile_size
+                start_h = tile_row * tile_size
                 end_h = min(start_h + tile_size, h)
-                start_w = j * tile_size
+                start_w = tile_col * tile_size
                 end_w = min(start_w + tile_size, w)
 
                 # Expand the tile with padding (clipped to image bounds)

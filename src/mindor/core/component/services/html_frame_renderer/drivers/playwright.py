@@ -46,8 +46,8 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
 
-        for index in range(frame_count):
-            timestamp = index / fps
+        for frame in range(frame_count):
+            timestamp = frame / fps
             await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
             image = await load_image_from_bytes(await self._page.screenshot(type="png"))
             yield image, timestamp

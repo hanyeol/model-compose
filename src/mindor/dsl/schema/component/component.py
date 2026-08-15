@@ -35,6 +35,7 @@ ComponentConfig = Annotated[
         ScreenCaptureComponentConfig,
         RtmpPublisherComponentConfig,
         MediaInspectorComponentConfig,
+        MediaDownloaderComponentConfig,
         AudioExtractorComponentConfig,
         AudioClipperComponentConfig,
         AudioConverterComponentConfig,

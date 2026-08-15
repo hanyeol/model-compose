@@ -158,10 +158,10 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
             n_frames = 1 + (padded.shape[0] - _MDX_N_FFT) // _MDX_HOP_LENGTH
             stft = np.empty((_MDX_N_FFT // 2 + 1, n_frames), dtype=np.complex64)
 
-            for frame_index in range(n_frames):
-                start = frame_index * _MDX_HOP_LENGTH
+            for frame in range(n_frames):
+                start = frame * _MDX_HOP_LENGTH
                 segment = padded[start : start + _MDX_N_FFT] * window
-                stft[:, frame_index] = np.fft.rfft(segment).astype(np.complex64)
+                stft[:, frame] = np.fft.rfft(segment).astype(np.complex64)
 
             frames.append(stft[: _MDX_DIM_F])
 
@@ -198,9 +198,9 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
             waveform = np.zeros(samples, dtype=np.float32)
             norm = np.zeros(samples, dtype=np.float32)
 
-            for frame_index in range(n_frames):
-                start = frame_index * _MDX_HOP_LENGTH
-                segment = np.fft.irfft(spec_channel[:, frame_index]).astype(np.float32) * window
+            for frame in range(n_frames):
+                start = frame * _MDX_HOP_LENGTH
+                segment = np.fft.irfft(spec_channel[:, frame]).astype(np.float32) * window
                 waveform[start : start + _MDX_N_FFT] += segment
                 norm[start : start + _MDX_N_FFT] += window * window
 

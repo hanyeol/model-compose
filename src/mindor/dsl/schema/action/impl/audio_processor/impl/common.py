@@ -26,6 +26,7 @@ class AudioProcessorActionMethod(str, Enum):
     TRIM_SILENCE = "trim-silence"
     FADE_IN      = "fade-in"
     FADE_OUT     = "fade-out"
+    ANONYMIZE    = "anonymize"
 
 class AudioProcessorNormalizeMode(str, Enum):
     RMS  = "rms"
@@ -194,3 +195,12 @@ class AudioProcessorFadeInActionConfig(CommonAudioProcessorActionConfig):
 class AudioProcessorFadeOutActionConfig(CommonAudioProcessorActionConfig):
     method: Literal[AudioProcessorActionMethod.FADE_OUT]
     duration: Union[str, float] = Field(default="20ms", description="Cosine fade-out duration applied at the end (e.g., 20ms).")
+
+class AudioProcessorAnonymizeActionConfig(CommonAudioProcessorActionConfig):
+    method: Literal[AudioProcessorActionMethod.ANONYMIZE]
+    pitch_shift: Union[float, str] = Field(default=-2.0, description="Pitch shift in semitones applied to disguise the speaker (positive to raise, negative to lower).")
+    formant_shift: Union[float, str] = Field(default=1.15, description="Formant scaling ratio; values >1 shift formants up (perceived smaller vocal tract), <1 shift them down.")
+    pitch_jitter: Union[float, str] = Field(default=0.3, description="Random pitch modulation depth in semitones added over time to break speaker-specific prosody.")
+    jitter_rate: Union[float, str] = Field(default=4.0, description="Rate of the pitch jitter modulation in Hz.")
+    lowpass_cutoff: Optional[Union[float, str]] = Field(default=6000.0, description="Optional low-pass cutoff in Hz applied after anonymization to attenuate high-frequency speaker cues; null to disable.")
+    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed for reproducible jitter; null for non-deterministic output.")

@@ -279,6 +279,23 @@ class AudioProcessorAction(ComponentAction):
 
             return { "duration": duration }
 
+        if method == AudioProcessorActionMethod.ANONYMIZE:
+            pitch_shift    = await context.render_scalar(self.config.pitch_shift, float)
+            formant_shift  = await context.render_scalar(self.config.formant_shift, float)
+            pitch_jitter   = await context.render_scalar(self.config.pitch_jitter, float)
+            jitter_rate    = await context.render_scalar(self.config.jitter_rate, float)
+            lowpass_cutoff = await context.render_scalar(self.config.lowpass_cutoff, float, None)
+            seed           = await context.render_scalar(self.config.seed, int, None)
+
+            return {
+                "pitch_shift":    pitch_shift,
+                "formant_shift":  formant_shift,
+                "pitch_jitter":   pitch_jitter,
+                "jitter_rate":    jitter_rate,
+                "lowpass_cutoff": lowpass_cutoff,
+                "seed":           seed,
+            }
+
         raise ValueError(f"Unsupported audio processor action method: {method}")
 
     async def _process_batch(
@@ -366,6 +383,9 @@ class AudioProcessorAction(ComponentAction):
 
         if method == AudioProcessorActionMethod.FADE_OUT:
             return PcmStreamResource(await self._fade_out(audio, params))
+
+        if method == AudioProcessorActionMethod.ANONYMIZE:
+            return PcmStreamResource(await self._anonymize(audio, params))
 
         raise ValueError(f"Unsupported audio processor action method: {method}")
 
@@ -455,4 +475,8 @@ class AudioProcessorAction(ComponentAction):
 
     @abstractmethod
     async def _fade_out(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        pass
+
+    @abstractmethod
+    async def _anonymize(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass

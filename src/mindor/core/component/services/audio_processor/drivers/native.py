@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, TYPE_CHECKING
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioProcessorComponentConfig
+
+if TYPE_CHECKING:
+    import numpy as np
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
 from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
@@ -527,50 +530,54 @@ class NativeAudioProcessorAction(AudioProcessorAction):
             waveform = np.asarray(audio.waveform, dtype=np.float32)
 
             window_seconds = params["window"]
-            frame_len = int(audio.sample_rate * window_seconds)
-            if frame_len == 0 or len(waveform) < frame_len:
+            frame_length = int(audio.sample_rate * window_seconds)
+
+            if frame_length == 0 or len(waveform) < frame_length:
                 return AudioBuffer(waveform, audio.sample_rate)
 
-            n_frames = len(waveform) // frame_len
+            n_frames = len(waveform) // frame_length
             threshold_linear = 10.0 ** (params["threshold"] / 20.0)
 
             rms = np.array([
-                np.sqrt(np.mean(waveform[i * frame_len : (i + 1) * frame_len] ** 2))
-                for i in range(n_frames)
+                np.sqrt(np.mean(waveform[frame * frame_length : (frame + 1) * frame_length] ** 2))
+                for frame in range(n_frames)
             ])
-            is_speech = rms >= threshold_linear
+            is_speeches = rms >= threshold_linear
 
             first_speech = 0
-            for i, s in enumerate(is_speech):
-                if s:
-                    first_speech = max(0, i - 1)
+            for frame, is_speech in enumerate(is_speeches):
+                if is_speech:
+                    first_speech = max(0, frame - 1)
                     break
 
             max_silence_frames = int(params["max_internal_silence"] / window_seconds) if window_seconds > 0 else n_frames
             consecutive_silence = 0
             cut_frame = n_frames
 
-            for i in range(first_speech, n_frames):
-                if is_speech[i]:
+            for frame in range(first_speech, n_frames):
+                if is_speeches[frame]:
                     consecutive_silence = 0
                 else:
                     consecutive_silence += 1
                     if consecutive_silence >= max_silence_frames:
-                        cut_frame = i - consecutive_silence + 1
+                        cut_frame = frame - consecutive_silence + 1
                         break
 
             min_silence_frames = int(params["min_silence"] / window_seconds) if window_seconds > 0 else 0
             end_frame = cut_frame
-            while end_frame > first_speech and not is_speech[end_frame - 1]:
+
+            while end_frame > first_speech and not is_speeches[end_frame - 1]:
                 end_frame -= 1
+
             end_frame = min(end_frame + min_silence_frames, cut_frame)
 
-            start_sample = first_speech * frame_len
-            end_sample = min(end_frame * frame_len, len(waveform))
+            start_sample = first_speech * frame_length
+            end_sample = min(end_frame * frame_length, len(waveform))
 
             trimmed = waveform[start_sample:end_sample].copy()
 
             fade_samples = int(audio.sample_rate * params["fade"])
+
             if fade_samples > 0 and len(trimmed) > fade_samples:
                 fade = np.cos(np.linspace(0, np.pi / 2, fade_samples)) ** 2
                 trimmed[-fade_samples:] *= fade
@@ -592,19 +599,24 @@ class NativeAudioProcessorAction(AudioProcessorAction):
 
         def _process(waveform, pos):
             length = waveform.shape[-1]
+
             if fade_curve is None or pos >= fade_samples or length == 0:
                 return waveform
+
             waveform = waveform.copy()
             end = min(pos + length, fade_samples)
             window = fade_curve[pos:end]
+
             if keep_channels:
-                waveform[:, : window.size] *= window
+                waveform[:, :window.size] *= window
             else:
-                waveform[: window.size] *= window
+                waveform[:window.size] *= window
+
             return waveform
 
         async def _stream() -> AsyncIterator[AudioBuffer]:
             nonlocal position
+
             async for chunk in audio:
                 processed = await self._run_in_executor(_process, chunk.waveform, position)
                 position += chunk.waveform.shape[-1]
@@ -661,6 +673,62 @@ class NativeAudioProcessorAction(AudioProcessorAction):
             channels=audio.channels,
         )
 
+    async def _anonymize(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        # Needs the whole signal for time-varying jitter and formant warping → collect.
+        audio = await audio.collect()
+
+        def _anonymize() -> AudioBuffer:
+            import numpy as np
+            import librosa
+
+            waveform = np.asarray(audio.waveform, dtype=np.float32)
+            
+            if waveform.size == 0:
+                return AudioBuffer(waveform, audio.sample_rate)
+
+            channels = waveform if waveform.ndim == 2 else waveform[np.newaxis, :]
+
+            rng = np.random.default_rng(params["seed"])
+            n_fft = 2048
+            hop_length = 512
+            processed_channels = []
+
+            for channel in channels:
+                shifted = librosa.effects.pitch_shift(
+                    channel.astype(np.float32),
+                    sr=audio.sample_rate,
+                    n_steps=params["pitch_shift"],
+                )
+
+                if params["pitch_jitter"] > 0:
+                    shifted = self._apply_pitch_jitter(
+                        shifted,
+                        audio.sample_rate,
+                        params["pitch_jitter"],
+                        params["jitter_rate"],
+                        rng,
+                        n_fft,
+                    )
+
+                if params["formant_shift"] and params["formant_shift"] != 1.0:
+                    shifted = self._shift_formants(shifted, params["formant_shift"], n_fft, hop_length)
+
+                processed_channels.append(shifted.astype(np.float32))
+
+            result = np.stack(processed_channels, axis=0) if waveform.ndim == 2 else processed_channels[0]
+
+            if params["lowpass_cutoff"] is not None and params["lowpass_cutoff"] > 0:
+                from pedalboard import Pedalboard, LowpassFilter
+
+                board = Pedalboard([ LowpassFilter(cutoff_frequency_hz=params["lowpass_cutoff"]) ])
+                result_2d = result if result.ndim == 2 else result[np.newaxis, :]
+                filtered = board(result_2d, audio.sample_rate)
+                result = filtered[0] if result.ndim == 1 else filtered
+
+            return AudioBuffer(result, audio.sample_rate)
+
+        return AudioBufferStreamIterator.from_single(await self._run_in_executor(_anonymize))
+
     def _normalize_rms(self, audio: AudioBuffer, level: float, peak_limit: float) -> AudioBuffer:
         import numpy as np
 
@@ -707,19 +775,18 @@ class NativeAudioProcessorAction(AudioProcessorAction):
         applied_gain_db = 0.0
 
         for _ in range(3):
-            measured = meter.integrated_loudness(meter_input.astype(np.float64))
-            if not np.isfinite(measured):
+            measured_loudness = meter.integrated_loudness(meter_input.astype(np.float64))
+
+            if not np.isfinite(measured_loudness):
                 break
 
-            delta = level - measured
-            if abs(delta) <= tolerance:
+            gain_needed_db = level - measured_loudness
+            remaining_gain_db = max_gain - abs(applied_gain_db)
+
+            if abs(gain_needed_db) <= tolerance or remaining_gain_db <= 0:
                 break
 
-            remaining_headroom = max_gain - abs(applied_gain_db)
-            if remaining_headroom <= 0:
-                break
-
-            step = float(np.clip(delta, -remaining_headroom, remaining_headroom))
+            step = float(np.clip(gain_needed_db, -remaining_gain_db, remaining_gain_db))
             gain_linear = 10.0 ** (step / 20.0)
             audio_2d = audio_2d * gain_linear
             meter_input = audio_2d[0] if audio_2d.shape[0] == 1 else audio_2d.T
@@ -742,6 +809,7 @@ class NativeAudioProcessorAction(AudioProcessorAction):
 
         if waveform.size > 0:
             peak = float(np.abs(waveform).max())
+
             if peak > level and peak > 0:
                 waveform = waveform * (level / peak)
 
@@ -761,13 +829,105 @@ class NativeAudioProcessorAction(AudioProcessorAction):
 
         return AudioBuffer(processed[0] if waveform.ndim == 1 else processed, audio.sample_rate)
 
+    def _apply_pitch_jitter(
+        self,
+        waveform: np.ndarray,
+        sample_rate: int,
+        depth_semitones: float,
+        rate_hz: float,
+        rng: np.random.Generator,
+        n_fft: int,
+    ) -> np.ndarray:
+        # Overlap-add segment-wise pitch shift with an LFO-driven semitone curve;
+        # segment length matches the LFO period so the modulation is audible but
+        # boundaries stay short enough to crossfade cleanly.
+        import numpy as np
+        import librosa
+
+        n_samples = waveform.shape[-1]
+        segment = max(int(sample_rate / max(rate_hz, 0.1)), n_fft)
+
+        if n_samples <= segment:
+            return waveform
+
+        hop = segment // 2
+        window = np.hanning(segment).astype(np.float32)
+        accumulator = np.zeros(n_samples + segment, dtype=np.float32)
+        norm = np.zeros_like(accumulator)
+
+        step_index = 0
+        for start in range(0, n_samples - segment + 1, hop):
+            frame = waveform[start:start + segment]
+            phase = 2.0 * np.pi * rate_hz * (start / sample_rate)
+            lfo = np.sin(phase)
+            noise = float(rng.standard_normal()) * 0.3
+            semitones = depth_semitones * (lfo + noise)
+
+            if abs(semitones) < 1e-3:
+                shifted = frame
+            else:
+                shifted = librosa.effects.pitch_shift(
+                    frame.astype(np.float32),
+                    sr=sample_rate,
+                    n_steps=float(semitones),
+                )
+                if shifted.size != segment:
+                    shifted = np.resize(shifted, segment)
+
+            accumulator[start:start + segment] += shifted * window
+            norm[start:start + segment] += window
+            step_index += 1
+
+        mask = norm > 1e-6
+        accumulator[mask] /= norm[mask]
+
+        return accumulator[:n_samples]
+
+    def _shift_formants(
+        self,
+        waveform: np.ndarray,
+        ratio: float,
+        n_fft: int,
+        hop_length: int
+    ) -> np.ndarray:
+        # Warp the spectral envelope along the frequency axis while keeping the
+        # residual (source) intact — approximates formant scaling.
+        import numpy as np
+        import librosa
+
+        if waveform.shape[-1] < n_fft:
+            return waveform
+
+        stft = librosa.stft(waveform, n_fft=n_fft, hop_length=hop_length)
+        magnitude = np.abs(stft)
+        phase = np.angle(stft)
+
+        n_bins = magnitude.shape[0]
+        smoothing = max(3, n_bins // 32)
+        kernel = np.ones(smoothing, dtype=np.float32) / smoothing
+        envelope = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), 0, magnitude)
+        envelope = np.maximum(envelope, 1e-8)
+        residual = magnitude / envelope
+
+        src_bins = np.arange(n_bins, dtype=np.float32)
+        query = src_bins / ratio
+        warped_envelope = np.empty_like(envelope)
+
+        for index in range(envelope.shape[1]):
+            warped_envelope[:, index] = np.interp(query, src_bins, envelope[:, index], left=0.0, right=0.0)
+
+        new_magnitude = warped_envelope * residual
+        new_stft = new_magnitude * np.exp(1j * phase)
+
+        return librosa.istft(new_stft, hop_length=hop_length, n_fft=n_fft, length=waveform.shape[-1]).astype(np.float32)
+
 @register_audio_processor_service(AudioProcessorDriver.NATIVE)
 class NativeAudioProcessorService(AudioProcessorService):
     def __init__(self, id: str, config: AudioProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "pedalboard", "numpy", "torchaudio", "soxr", "pyloudnorm" ]
+        return [ "pedalboard", "numpy", "torchaudio", "soxr", "pyloudnorm", "librosa" ]
 
     async def _run(self, action: AudioProcessorActionConfig, context: ComponentActionContext) -> Any:
         return await NativeAudioProcessorAction(action).run(context)

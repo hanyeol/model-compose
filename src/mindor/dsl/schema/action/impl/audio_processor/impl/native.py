@@ -23,6 +23,7 @@ from .common import (
     AudioProcessorTrimSilenceActionConfig,
     AudioProcessorFadeInActionConfig,
     AudioProcessorFadeOutActionConfig,
+    AudioProcessorAnonymizeActionConfig,
 )
 
 NativeAudioProcessorActionConfig = Annotated[

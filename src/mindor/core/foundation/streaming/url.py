@@ -5,7 +5,7 @@ from urllib.parse import unquote_to_bytes
 from .resources import StreamResource, save_stream_to_file
 from .base64 import Base64StreamResource
 from .bytes import BytesStreamResource
-from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
 import os
@@ -94,7 +94,7 @@ async def download_to_file(
     timeout: Optional[float] = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = create_temporary_file(dir=str(path.parent))
+    temp_path = get_temporary_path(dir=str(path.parent))
 
     try:
         stream = UrlStreamResource(

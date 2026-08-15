@@ -127,8 +127,8 @@ class LocalFileStoreAction(FileStoreAction):
                 "content": content,
             }
 
-        async with aiofiles.open(absolute_path, "rb") as file:
-            content = await file.read()
+        async with aiofiles.open(absolute_path, "rb") as f:
+            content = await f.read()
 
         return {
             "path": path,

@@ -33,6 +33,7 @@ class ComponentType(str, Enum):
     SCREEN_CAPTURE          = "screen-capture"
     RTMP_PUBLISHER          = "rtmp-publisher"
     MEDIA_INSPECTOR         = "media-inspector"
+    MEDIA_DOWNLOADER        = "media-downloader"
     AUDIO_EXTRACTOR         = "audio-extractor"
     AUDIO_CLIPPER           = "audio-clipper"
     AUDIO_CONVERTER         = "audio-converter"

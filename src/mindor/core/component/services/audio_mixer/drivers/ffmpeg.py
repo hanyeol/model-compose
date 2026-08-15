@@ -17,7 +17,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.probe import probe_audio
 from mindor.core.utils.audio import is_streamable_audio_format
-from mindor.core.utils.files import create_temporary_file
+from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ..base import AudioMixerService, register_audio_mixer_service
@@ -187,7 +187,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         for smooth transitions between clips.
         """
         if crossfade is None or crossfade <= 0:
-            streams = "".join(f"[{i}:a:0]" for i in range(count))
+            streams = "".join(f"[{index}:a:0]" for index in range(count))
             return f"{streams}concat=n={count}:v=0:a=1[aout]", "[aout]"
 
         # Crossfade path: chain acrossfade across adjacent pairs.
@@ -298,7 +298,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
-        output_path = create_temporary_file(format)
+        output_path = get_temporary_path(format)
 
         command = command + [ output_path ]
 

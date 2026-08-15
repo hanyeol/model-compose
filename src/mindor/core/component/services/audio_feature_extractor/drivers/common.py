@@ -168,13 +168,13 @@ class AudioFeatureExtractorAction(ComponentAction):
         window = self._get_fft_window(params["window_type"], window_size)
 
         bands = np.zeros((frame_count, band_count), dtype=np.float32)
-        for i in range(frame_count):
-            start = i * hop
+        for frame in range(frame_count):
+            start = frame * hop
             segment = samples[start:start + window_size] * window
             magnitude = np.abs(np.fft.rfft(segment, n=window_size))
-            for j, index in enumerate(band_indices):
-                if index.size:
-                    bands[i, j] = magnitude[index].mean()
+            for band, band_index in enumerate(band_indices):
+                if band_index.size:
+                    bands[frame, band] = magnitude[band_index].mean()
 
         frames = self._normalize_spectrum(bands, params["normalize_mode"], params["percentile"])
 
@@ -204,19 +204,19 @@ class AudioFeatureExtractorAction(ComponentAction):
         frame_count = max(0, (len(samples) - win) // hop)
         frames = np.zeros((frame_count, point_count), dtype=np.float32)
 
-        for i in range(frame_count):
-            start = i * hop
+        for frame in range(frame_count):
+            start = frame * hop
             segment = samples[start:start + usable].reshape(point_count, bucket)
             if summary_mode == "peak":
                 if rectify:
-                    frames[i] = np.abs(segment).max(axis=1)
+                    frames[frame] = np.abs(segment).max(axis=1)
                 else:
                     peak_pos = segment.max(axis=1)
                     peak_neg = segment.min(axis=1)
-                    frames[i] = np.where(np.abs(peak_pos) >= np.abs(peak_neg), peak_pos, peak_neg)
+                    frames[frame] = np.where(np.abs(peak_pos) >= np.abs(peak_neg), peak_pos, peak_neg)
             else:  # rms
                 rms = np.sqrt((segment ** 2).mean(axis=1))
-                frames[i] = rms if rectify else rms * np.sign(segment.mean(axis=1))
+                frames[frame] = rms if rectify else rms * np.sign(segment.mean(axis=1))
 
         return AudioWaveform({
             "frames": frames.tolist(),
@@ -228,7 +228,13 @@ class AudioFeatureExtractorAction(ComponentAction):
         })
 
     @staticmethod
-    def _compute_band_indices(frequencies: np.ndarray, band_count: int, min_frequency: float, max_frequency: float, frequency_scale: str) -> List[np.ndarray]:
+    def _compute_band_indices(
+        frequencies: np.ndarray,
+        band_count: int,
+        min_frequency: float,
+        max_frequency: float,
+        frequency_scale: str
+    ) -> List[np.ndarray]:
         import numpy as np
 
         if frequency_scale == "log":
@@ -237,7 +243,7 @@ class AudioFeatureExtractorAction(ComponentAction):
         else:
             edges = np.linspace(min_frequency, max_frequency, band_count + 1)
 
-        return [ np.where((frequencies >= edges[i]) & (frequencies < edges[i + 1]))[0] for i in range(band_count) ]
+        return [ np.where((frequencies >= edges[band]) & (frequencies < edges[band + 1]))[0] for band in range(band_count) ]
 
     @staticmethod
     def _get_fft_window(name: str, size: int) -> np.ndarray:

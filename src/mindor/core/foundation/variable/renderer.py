@@ -565,8 +565,8 @@ class VariableRenderer:
             return b"".join(chunks)
 
         if format == "path":
-            async with aiofiles.open(os.path.expanduser(value), "rb") as file:
-                return await file.read()
+            async with aiofiles.open(os.path.expanduser(value), "rb") as f:
+                return await f.read()
 
         if format == "base64":
             return await decode_base64_value(value)

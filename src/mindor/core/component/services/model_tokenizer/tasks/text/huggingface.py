@@ -112,13 +112,13 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
             outputs = self.tokenizer(texts, **params["encode_params"])
 
             results: List[Dict[str, Any]] = []
-            for i in range(len(texts)):
-                result: Dict[str, Any] = { "input_ids": outputs["input_ids"][i] }
+            for index in range(len(texts)):
+                result: Dict[str, Any] = { "input_ids": outputs["input_ids"][index] }
                 if "attention_mask" in outputs:
-                    result["attention_mask"] = outputs["attention_mask"][i]
+                    result["attention_mask"] = outputs["attention_mask"][index]
                 for key in params["additional_returns"]:
                     if key in outputs:
-                        result[key] = outputs[key][i]
+                        result[key] = outputs[key][index]
                 results.append(result)
 
             return results
@@ -142,7 +142,7 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
         def _count() -> List[Dict[str, int]]:
             outputs = self.tokenizer(texts)
 
-            return [ { "count": len(outputs["input_ids"][i]) } for i in range(len(texts)) ]
+            return [ { "count": len(outputs["input_ids"][index]) } for index in range(len(texts)) ]
 
         return await self._run_in_executor(_count)
 

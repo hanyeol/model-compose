@@ -134,10 +134,10 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             options["format"] = "best"
 
         if extract_audio:
-            options["postprocessors"] = [ {
+            options["postprocessors"] = [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": (audio_format or "m4a"),
-            } ]
+            }]
 
         if cookiefile:
             options["cookiefile"] = cookiefile
@@ -150,19 +150,13 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         options: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> str:
-        try:
-            from yt_dlp import YoutubeDL
-        except ImportError as e:
-            raise RuntimeError(
-                "yt-dlp is not installed. Install it via `pip install yt-dlp` "
-                "or declare the media-downloader component so it is set up automatically."
-            ) from e
+        from yt_dlp import YoutubeDL
+        from yt_dlp.utils import DownloadError
 
         def _progress_hook(status: Dict[str, Any]) -> None:
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 # yt-dlp treats DownloadError raised from a progress hook as a
                 # hard abort — the cleanest way to unblock a running download.
-                from yt_dlp.utils import DownloadError
                 raise DownloadError("cancelled")
 
         options = dict(options)

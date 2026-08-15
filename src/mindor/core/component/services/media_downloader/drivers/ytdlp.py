@@ -21,15 +21,15 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
         format_selector = await self.context.render_scalar(self.config.format_selector, str)
         extract_audio   = await self.context.render_scalar(self.config.extract_audio, bool, False)
-        audio_format    = await self.context.render_scalar(self.config.audio_format, str)
         video_format    = await self.context.render_scalar(self.config.video_format, str)
+        audio_format    = await self.context.render_scalar(self.config.audio_format, str)
         cookies         = (await self.context.render_variable(self.config.cookies)) or {}
 
         params.update({
             "format_selector": format_selector,
             "extract_audio":   extract_audio,
-            "audio_format":    audio_format,
             "video_format":    video_format,
+            "audio_format":    audio_format,
             "cookies":         cookies,
         })
 

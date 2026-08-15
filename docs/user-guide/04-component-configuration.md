@@ -39,6 +39,7 @@ model-compose provides various component types for performing different tasks.
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
 | `video-clipper` | Clip video segments | Cut one or more time ranges from a video, losslessly via ffmpeg stream copy |
+| `video-mixer` | Composite videos | Concat videos end-to-end or overlay one/more videos on a base (watermark, PIP) via ffmpeg |
 | `audio-extractor` | Extract audio | Pull audio streams out of video or other media files |
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
 | `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
@@ -75,6 +76,7 @@ model-compose provides various component types for performing different tasks.
 - Video frame extraction → `video-frame-extractor`
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
 - Video / audio clipping (cut time ranges losslessly) → `video-clipper` / `audio-clipper`
+- Video mixing (concat / overlay for watermarks and PIP) → `video-mixer`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Web scraping → `web-scraper`

@@ -173,7 +173,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             command.extend([ "-i", path ])
 
         filter_complex, video_label, audio_label = self._build_overlay_filter(
-            [ self._resolve_placement(p) for p in placements ],
+            [ self._resolve_overlay_filter_params(placement) for placement in placements ],
             params["audio_mode"],
             params["duration_mode"],
             base_pad_duration,
@@ -334,29 +334,6 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         return ";".join(filter_parts), "[vout]", audio_label
 
-    @staticmethod
-    def _resolve_placement(
-        placement: VideoOverlayPlacement,
-    ) -> Tuple[int, int, Optional[int], Optional[int], VideoOverlayAnchor, float, Optional[float], Optional[float]]:
-        """Coerce a placement's field values into the concrete types the filter builder expects.
-
-        Fields are `Union[int|float, str]` in the schema so callers can inline
-        literal numbers or template references that resolved to strings; cast
-        here so the overlay filter always receives numbers.
-        """
-        anchor = placement.anchor if isinstance(placement.anchor, VideoOverlayAnchor) else VideoOverlayAnchor(placement.anchor)
-
-        return (
-            int(placement.x),
-            int(placement.y),
-            int(placement.width)  if placement.width  is not None else None,
-            int(placement.height) if placement.height is not None else None,
-            anchor,
-            float(placement.opacity),
-            parse_time(placement.start) if placement.start is not None else None,
-            parse_time(placement.end)   if placement.end   is not None else None,
-        )
-
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
         """Ensure the input is available at a filesystem path ffmpeg can seek.
 
@@ -489,6 +466,29 @@ class FFmpegVideoMixerAction(VideoMixerAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
+
+    @staticmethod
+    def _resolve_overlay_filter_params(
+        placement: VideoOverlayPlacement,
+    ) -> Tuple[int, int, Optional[int], Optional[int], VideoOverlayAnchor, float, Optional[float], Optional[float]]:
+        """Coerce a placement's field values into the concrete types the filter builder expects.
+
+        Fields are `Union[int|float, str]` in the schema so callers can inline
+        literal numbers or template references that resolved to strings; cast
+        here so the overlay filter always receives numbers.
+        """
+        anchor = placement.anchor if isinstance(placement.anchor, VideoOverlayAnchor) else VideoOverlayAnchor(placement.anchor)
+
+        return (
+            int(placement.x),
+            int(placement.y),
+            int(placement.width)  if placement.width  is not None else None,
+            int(placement.height) if placement.height is not None else None,
+            anchor,
+            float(placement.opacity),
+            parse_time(placement.start) if placement.start is not None else None,
+            parse_time(placement.end)   if placement.end   is not None else None,
+        )
 
     def _resolve_encoding_options(self, encoding: VideoAudioEncodingParams, has_audio: bool) -> Dict[str, str]:
         options: Dict[str, str] = {}

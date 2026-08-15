@@ -5,7 +5,7 @@ from typing import Type, TypeVar, Union, Literal, Optional, Dict, List, Tuple, S
 from collections.abc import AsyncIterator
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArrayValue
-from mindor.core.foundation.variable.audio import AudioValueRenderer, AudioBufferValueRenderer, AudioBufferArrayValue
+from mindor.core.foundation.variable.audio import AudioValueRenderer, AudioBufferValueRenderer, AudioArrayValue, AudioBufferArrayValue
 from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.variable.video import VideoValueRenderer, VideoArrayValue
@@ -150,6 +150,12 @@ class ComponentActionContext:
         value: Any
     ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         return await AudioValueRenderer().render(await self.render_variable(value))
+
+    async def render_audio_array(
+        self,
+        value: Any
+    ) -> Optional[Union[AudioArrayValue, List[Optional[AudioArrayValue]], AsyncIterator[Optional[AudioArrayValue]]]]:
+        return await AudioValueRenderer().render_array(await self.render_variable(value))
 
     async def render_audio_buffer(
         self,

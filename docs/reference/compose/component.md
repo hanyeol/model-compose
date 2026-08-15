@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | audio-extractor | audio-converter | audio-feature-extractor | audio-clipper | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | audio-extractor | audio-converter | audio-feature-extractor | audio-clipper | audio-mixer | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -71,6 +71,7 @@ Model-compose supports the following component types:
 | `audio-converter` | Audio format/codec conversion | [audio-converter.md](components/audio-converter.md) |
 | `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
 | `audio-clipper` | Clip one or more time ranges out of an audio file (ffmpeg stream copy) | [audio-clipper.md](components/audio-clipper.md) |
+| `audio-mixer` | Combine multiple audios into one — concat (join end-to-end) or overlay (layer with per-overlay timing, gain, pan, fade) via ffmpeg | [audio-mixer.md](components/audio-mixer.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 | `screen-capture` | Live screen and system/microphone audio capture as continuous streams | [screen-capture.md](components/screen-capture.md) |

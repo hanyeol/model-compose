@@ -44,6 +44,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
 | `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
+| `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
@@ -77,6 +78,7 @@ model-compose provides various component types for performing different tasks.
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
 - Video / audio clipping (cut time ranges losslessly) → `video-clipper` / `audio-clipper`
 - Video mixing (concat / overlay for watermarks and PIP) → `video-mixer`
+- Audio mixing (concat / overlay for narration over background, layered SFX) → `audio-mixer`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Web scraping → `web-scraper`

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode, ImageRegion
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
@@ -172,15 +172,15 @@ class NativeImageProcessorAction(ImageProcessorAction):
             regions = params["regions"]
 
             if regions is None:
-                regions = [ { "x": 0, "y": 0, "width": image.width, "height": image.height } ]
+                regions = [ ImageRegion(x=0, y=0, width=image.width, height=image.height) ]
 
             canvas = image.copy()
 
             for region in regions:
-                cx1 = max(0, region["x"])
-                cy1 = max(0, region["y"])
-                cx2 = min(image.width,  region["x"] + region["width"])
-                cy2 = min(image.height, region["y"] + region["height"])
+                cx1 = max(0, int(region.x))
+                cy1 = max(0, int(region.y))
+                cx2 = min(image.width,  int(region.x) + int(region.width))
+                cy2 = min(image.height, int(region.y) + int(region.height))
 
                 if cx2 <= cx1 or cy2 <= cy1:
                     continue

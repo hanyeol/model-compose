@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode, ImageRegion
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -213,19 +213,17 @@ class ImageProcessorAction(ComponentAction):
 
         if method == ImageProcessorActionMethod.MOSAIC:
             mode           = await context.render_variable(self.config.mode)
-            region         = await context.render_variable(self.config.region)
-            block_size     = await context.render_scalar(self.config.block_size,     int)
-            block_scale    = await context.render_scalar(self.config.block_scale,    float)
+            regions        = await self._render_image_region(context)
+            block_size     = await context.render_scalar(self.config.block_size, int)
+            block_scale    = await context.render_scalar(self.config.block_scale, float)
             min_block_size = await context.render_scalar(self.config.min_block_size, int)
             max_block_size = await context.render_scalar(self.config.max_block_size, int)
-            radius         = await context.render_scalar(self.config.radius,         float)
+            radius         = await context.render_scalar(self.config.radius, float)
 
             try:
                 mode = MosaicMode(mode)
             except ValueError:
                 raise ValueError(f"Invalid mosaic mode: {mode}")
-
-            regions = self._normalize_mosaic_regions(region) if region is not None else None
 
             if block_size is not None and block_scale is not None:
                 raise ValueError("'block_size' and 'block_scale' are mutually exclusive; specify only one.")
@@ -283,32 +281,6 @@ class ImageProcessorAction(ComponentAction):
             }
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
-
-    @staticmethod
-    def _normalize_mosaic_regions(region: Union[Dict[str, float], List[Dict[str, float]]]) -> List[Dict[str, int]]:
-        """Normalize the mosaic `region` field into a list of `{x, y, width, height}`
-        dicts. Accepts a single dict or a list of dicts. Detection outputs
-        like `${result.faces[*].bounding_box}` flow in as a list of dicts."""
-        items = region if isinstance(region, list) else [ region ]
-        regions: List[Dict[str, int]] = []
-
-        for item in items:
-            if not isinstance(item, dict):
-                raise ValueError(f"'region' must be a dict or list of dicts, got {type(item).__name__}")
-
-            missing = [ key for key in ("x", "y", "width", "height") if key not in item ]
-
-            if missing:
-                raise ValueError(f"'region' is missing required keys: {missing}")
-
-            regions.append({
-                "x":      int(item["x"]),
-                "y":      int(item["y"]),
-                "width":  int(item["width"]),
-                "height": int(item["height"]),
-            })
-
-        return regions
 
     async def _process_batch(
         self,
@@ -371,6 +343,33 @@ class ImageProcessorAction(ComponentAction):
             return await self._compress(image, params)
 
         raise ValueError(f"Unsupported image processing action method: {method}")
+
+    async def _render_image_region(self, context: ComponentActionContext) -> Optional[List[ImageRegion]]:
+        if isinstance(self.config.region, ImageRegion):
+            return [ self.config.region ]
+
+        if isinstance(self.config.region, list):
+            return [ self._as_image_region(item) for item in self.config.region ]
+
+        region = await context.render_variable(self.config.region)
+
+        if region is None:
+            return None
+
+        if isinstance(region, list):
+            return [ self._as_image_region(item) for item in region ]
+
+        return [ self._as_image_region(region) ]
+
+    @staticmethod
+    def _as_image_region(value: Any) -> ImageRegion:
+        if isinstance(value, ImageRegion):
+            return value
+
+        if isinstance(value, dict):
+            return ImageRegion.model_validate(value)
+
+        raise ValueError(f"'region' entry must be an image region object or dict, got {type(value).__name__}")
 
     @abstractmethod
     async def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:

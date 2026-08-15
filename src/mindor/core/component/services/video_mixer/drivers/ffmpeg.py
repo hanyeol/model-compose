@@ -149,16 +149,22 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             if spooled:
                 spooled_paths.append(path)
 
-        # `longest` needs to know how far to pad the base with clones — ffmpeg
-        # overlay/amix duration selectors alone can't extend the base past its
-        # own EOF, so we probe each input's duration and derive the pad length.
-        # `base` and `shortest` don't need this; skip the probes entirely.
+        # The overlay filter's default `eof_action=repeat` keeps holding the base's
+        # last frame while any overlay is still producing frames — so unless we
+        # constrain the output, `base` mode leaks into `longest` when overlays
+        # outlast the base. `base` therefore probes the base's duration and caps
+        # the output with `-t`. `longest` probes every input to compute how far
+        # to pad the base with clones. `shortest` needs no probe.
         base_pad_duration: Optional[float] = None
+        output_duration: Optional[float] = None
+
         if params["duration_mode"] == VideoMixerOverlayDurationMode.LONGEST:
-            (base_duration,)     = await probe_video(base_path,     ["duration"])
-            overlay_durations    = [ (await probe_video(path, ["duration"]))[0] for path in overlay_paths ]
-            longest_duration     = max([ base_duration ] + overlay_durations)
-            base_pad_duration    = max(0.0, longest_duration - base_duration)
+            (base_duration,) = await probe_video(base_path, ["duration"])
+            overlay_durations = [ (await probe_video(path, ["duration"]))[0] for path in overlay_paths ]
+            longest_duration = max([ base_duration ] + overlay_durations)
+            base_pad_duration = max(0.0, longest_duration - base_duration)
+        elif params["duration_mode"] == VideoMixerOverlayDurationMode.BASE:
+            (output_duration,) = await probe_video(base_path, ["duration"])
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
         command.extend([ "-i", base_path ])
@@ -181,6 +187,9 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         for option, value in self._resolve_encoding_options(params["encoding"], has_audio=audio_label is not None).items():
             command.extend([ option, value ])
+
+        if output_duration is not None:
+            command.extend([ "-t", str(output_duration) ])
 
         def _cleanup() -> None:
             for path in spooled_paths:

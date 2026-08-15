@@ -27,6 +27,7 @@ from .video_encoder import *
 from .video_scene_detector import *
 from .video_clipper import *
 from .video_frame_extractor import *
+from .video_mixer import *
 from .screen_capture import *
 from .rtmp_publisher import *
 from .media_inspector import *

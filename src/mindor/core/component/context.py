@@ -8,7 +8,7 @@ from mindor.core.foundation.variable.image import ImageValueRenderer, ImageArray
 from mindor.core.foundation.variable.audio import AudioValueRenderer, AudioBufferValueRenderer, AudioBufferArrayValue
 from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from mindor.core.utils.audio import AudioBuffer
-from mindor.core.foundation.variable.video import VideoValueRenderer
+from mindor.core.foundation.variable.video import VideoValueRenderer, VideoArrayValue
 from mindor.core.foundation.variable.media import MediaValueRenderer
 from mindor.core.foundation.variable.file import FileValueRenderer
 from mindor.core.foundation.variable.text import TextValueRenderer
@@ -174,6 +174,12 @@ class ComponentActionContext:
         value: Any
     ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
         return await VideoValueRenderer().render(await self.render_variable(value))
+
+    async def render_video_array(
+        self,
+        value: Any
+    ) -> Optional[Union[VideoArrayValue, List[Optional[VideoArrayValue]], AsyncIterator[Optional[VideoArrayValue]]]]:
+        return await VideoValueRenderer().render_array(await self.render_variable(value))
 
     async def render_media(
         self,

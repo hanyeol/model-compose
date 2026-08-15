@@ -29,6 +29,7 @@ class ComponentType(str, Enum):
     VIDEO_CONVERTER         = "video-converter"
     VIDEO_ENCODER           = "video-encoder"
     VIDEO_FRAME_EXTRACTOR   = "video-frame-extractor"
+    VIDEO_MIXER             = "video-mixer"
     SCREEN_CAPTURE          = "screen-capture"
     RTMP_PUBLISHER          = "rtmp-publisher"
     MEDIA_INSPECTOR         = "media-inspector"

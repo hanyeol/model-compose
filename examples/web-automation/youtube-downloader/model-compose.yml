@@ -1,0 +1,149 @@
+controller:
+  adapter:
+    type: http-server
+    base_path: /api
+    port: 8080
+  webui:
+    driver: gradio
+    port: 8081
+
+# Attach to a Chrome instance the user launched locally with
+# `--remote-debugging-port=9222`. That way login, CAPTCHA, and any 2FA
+# happen in a real browser window the user can see and interact with —
+# no Docker, no VNC. macOS example:
+#
+#   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+#     --remote-debugging-port=9222 \
+#     --user-data-dir=/tmp/chrome-yt-profile
+#
+# Log into YouTube once in that window before running the workflow.
+
+workflows:
+  - id: download-youtube-video
+    title: Download a YouTube video
+    description: >
+      Sign into YouTube in the attached Chrome, hand the resulting
+      session cookies to yt-dlp, and download the requested video.
+      Use this when a video is age-gated, region-restricted behind a
+      login, or otherwise needs an authenticated session.
+    jobs:
+      # Land on YouTube so google.com sets its session cookies on the
+      # right domain. If the user is already signed in from a prior
+      # run the interrupt below is a quick click-through.
+      - id: open-youtube
+        component: browser
+        action: navigate
+        input:
+          url: https://www.youtube.com/
+
+      # Ask the page whether the user is already signed in. The avatar
+      # button in the top-right only renders for authenticated
+      # sessions, so its presence is the cheapest boolean signal
+      # available without waiting.
+      - id: check-signin
+        component: browser
+        action: check-signin
+        depends_on: [ open-youtube ]
+
+      # Only interrupt when the previous job reported the user is not
+      # signed in. If check-signin returned true (reused session from
+      # a prior run), skip the pause entirely and proceed straight to
+      # collecting cookies. Google's login flow (password entry, 2FA,
+      # device confirmations, CAPTCHA) is hostile to automation, so
+      # we don't try to script it — we just wait for the avatar
+      # button to appear, which only renders once the account is
+      # active.
+      - id: wait-for-signin
+        component: browser
+        action: wait-for-avatar
+        interrupt:
+          before:
+            condition:
+              input: ${jobs.check-signin.output}
+              value: false
+            message: >
+              Sign into YouTube in the Chrome window attached at
+              localhost:9222, then click Resume. The workflow will
+              wait for your avatar to appear before continuing.
+        depends_on: [ check-signin ]
+
+      # Grab every cookie scoped to youtube.com and google.com. yt-dlp
+      # needs both — the video request itself hits youtube.com but
+      # some auth checks bounce through accounts.google.com.
+      - id: collect-cookies
+        component: browser
+        action: get-youtube-cookies
+        depends_on: [ wait-for-signin ]
+
+      - id: download
+        component: downloader
+        action: download
+        input:
+          url: ${input.url @(description YouTube video URL)}
+          video_format: ${input.video_format | mp4 @(description mp4 | webm | mkv)}
+          cookies: ${jobs.collect-cookies.output}
+        output:
+          # `as video` picks the video stream wrapper so the WebUI renders
+          # an inline player and the HTTP response advertises the right
+          # content type.
+          video: ${output as video}
+        depends_on: [ collect-cookies ]
+
+components:
+  - id: browser
+    type: web-browser
+    driver: chrome
+    debugger:
+      host: localhost
+      port: 9222
+    timeout: 60s
+    actions:
+      - id: navigate
+        method: navigate
+        url: ${input.url}
+        wait_until: domcontentloaded
+
+      # Return true/false for "is the account avatar present". YouTube
+      # renders the avatar with client-side JS after DOMContentLoaded,
+      # so a single querySelector at load time reports false even for
+      # already-signed-in sessions. Poll for up to 5 seconds so a warm
+      # session is detected without triggering the interrupt.
+      - id: check-signin
+        method: evaluate
+        expression: >
+          (async () => {
+            const selector = "button[aria-label*='Account'], #avatar-btn";
+            for (let i = 0; i < 10; i++) {
+              if (document.querySelector(selector)) return true;
+              await new Promise(r => setTimeout(r, 500));
+            }
+            return false;
+          })()
+
+      # Poll for the account avatar in the top-right. Its presence is
+      # the cheapest signal that the user is signed in — Google's DOM
+      # for the sign-in button shuffles more often than the avatar
+      # button's aria-label.
+      - id: wait-for-avatar
+        method: wait-for
+        selector: "button[aria-label*='Account'], #avatar-btn"
+        condition: visible
+        timeout: 300s
+
+      - id: get-youtube-cookies
+        method: get-cookies
+        urls:
+          - https://www.youtube.com/
+          - https://accounts.google.com/
+
+  - id: downloader
+    type: media-downloader
+    driver: ytdlp
+    actions:
+      - id: download
+        url: ${input.url}
+        video_format: ${input.video_format}
+        # CDP/Playwright-shaped cookie list. yt-dlp writes these into a
+        # Netscape cookie file internally, preserving domain, path,
+        # secure, and expiry from each cookie object.
+        cookies: ${input.cookies}

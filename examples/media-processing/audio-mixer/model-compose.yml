@@ -1,0 +1,94 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: concat
+    title: Concatenate Audios
+    description: Join multiple audios end-to-end into a single audio
+    job:
+      component: mixer
+      action: concat
+      output:
+        audio: ${output as audio}
+
+  - id: overlay-single
+    title: Overlay Single Audio
+    description: Mix one overlay (e.g. narration or sound effect) on top of a base audio
+    job:
+      component: mixer
+      action: overlay-single
+      output:
+        audio: ${output as audio}
+
+  - id: overlay-multiple
+    title: Overlay Multiple Audios
+    description: Mix several overlays into a base audio, each with its own timing and gain
+    job:
+      component: mixer
+      action: overlay-multiple
+      output:
+        audio: ${output as audio}
+
+components:
+  - id: mixer
+    type: audio-mixer
+    actions:
+      - id: concat
+        method: concat
+        # Two audios are stitched in order. Different sample rates or channel
+        # layouts are resampled through ffmpeg's concat filter so they line
+        # up safely.
+        audios:
+          - ${input.first as audio}
+          - ${input.second as audio}
+        format: mp3
+
+      - id: overlay-single
+        method: overlay
+        # `overlay` as a single string is auto-wrapped into a one-element list,
+        # and `placement` as a single object is likewise wrapped, so the common
+        # single-overlay case stays terse.
+        audio: ${input.base as audio}
+        overlay: ${input.overlay as audio}
+        placement:
+          # `start_time` delays the overlay so it plays at a specific point on
+          # the base's timeline. `gain` and `pan` shape the overlay before it
+          # is mixed with the base. `fade_in`/`fade_out` are applied relative
+          # to `start_time`/`end_time`.
+          start_time: ${input.start_time | 2s}
+          gain: ${input.gain | 0.8}
+          fade_in: 500ms
+        # `duration_mode: base` stops the output when the base ends (typical
+        # background-music-under-narration case). Use `longest` to keep rolling
+        # until the last stream ends, or `shortest` to stop as soon as any
+        # stream ends.
+        duration_mode: ${input.duration_mode as select/base,longest,shortest | base}
+        format: mp3
+
+      - id: overlay-multiple
+        method: overlay
+        # Two overlays mixed into the base at different points in time — the
+        # first is a narration, the second is a sound effect placed later.
+        # Each overlay has its own placement; a single placement object would
+        # broadcast to every overlay.
+        audio: ${input.base as audio}
+        overlay:
+          - ${input.narration as audio}
+          - ${input.sfx as audio}
+        placement:
+          - start_time: 1s
+            gain: 1.0
+            fade_in: 300ms
+            fade_out: 500ms
+          - start_time: 5s
+            end_time: 7s
+            gain: 0.6
+            pan: 0.5
+        duration_mode: ${input.duration_mode as select/base,longest,shortest | base}
+        format: mp3

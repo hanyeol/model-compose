@@ -1,0 +1,95 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: concat
+    title: Concatenate Videos
+    description: Join multiple videos end-to-end into a single video
+    job:
+      component: mixer
+      action: concat
+      output:
+        video: ${output as video}
+
+  - id: overlay-single
+    title: Overlay Single Video
+    description: Composite one overlay (e.g. watermark or PIP) on top of a base video
+    job:
+      component: mixer
+      action: overlay-single
+      output:
+        video: ${output as video}
+
+  - id: overlay-multiple
+    title: Overlay Multiple Videos
+    description: Stack several overlays on top of a base video, each with its own placement
+    job:
+      component: mixer
+      action: overlay-multiple
+      output:
+        video: ${output as video}
+
+components:
+  - id: mixer
+    type: video-mixer
+    actions:
+      - id: concat
+        method: concat
+        # Two videos are stitched in order. Different resolutions/codecs are
+        # re-encoded through ffmpeg's concat filter so they line up safely.
+        videos:
+          - ${input.first as video}
+          - ${input.second as video}
+        encoding:
+          format: mp4
+          video:
+            codec: libx264
+          audio:
+            codec: aac
+
+      - id: overlay-single
+        method: overlay
+        # `overlay` as a single string is auto-wrapped into a one-element list,
+        # and `placement` as a single object is likewise wrapped, so the common
+        # watermark case stays terse.
+        video: ${input.base as video}
+        overlay: ${input.overlay as video}
+        placement:
+          x: ${input.x | 20}
+          y: ${input.y | 20}
+          width: ${input.width | 320}
+        # `audio_mode: base` keeps the base video's audio and drops the overlay's.
+        # Use `overlay` to keep only the overlay's audio, `mix` to combine
+        # both, or `none` to strip audio entirely.
+        audio_mode: base
+        # `duration_mode: base` stops the output when the base ends (typical
+        # watermark). Use `longest` to keep rolling until the last stream ends
+        # (base pads with its final frame) or `shortest` to stop as soon as
+        # any stream ends.
+        duration_mode: ${input.duration_mode as select/base,longest,shortest | base}
+
+      - id: overlay-multiple
+        method: overlay
+        # Two overlays composited on top of the base in list order — the first
+        # lands on the base, the second lands on that result. Each overlay has
+        # its own placement; a single placement object would broadcast.
+        video: ${input.base as video}
+        overlay:
+          - ${input.overlay_a as video}
+          - ${input.overlay_b as video}
+        placement:
+          - x: 20
+            y: 20
+            width: 240
+          - x: 20
+            y: 280
+            width: 240
+            opacity: 0.75
+        audio_mode: base
+        duration_mode: ${input.duration_mode as select/base,longest,shortest | base}

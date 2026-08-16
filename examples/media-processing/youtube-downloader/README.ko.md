@@ -100,8 +100,8 @@ google-chrome \
    ```
 
 3. **워크플로우가 일시 정지되면:**
-   - `check-signin` 잡이 페이지에서 계정 아바타를 찾습니다. 아바타가
-     없으면(로그인된 세션 아님) `wait-for-signin` 잡이 실행 전에
+   - `check-signin` 작업이 페이지에서 계정 아바타를 찾습니다. 아바타가
+     없으면(로그인된 세션 아님) `wait-for-signin` 작업이 실행 전에
      인터럽트를 겁니다.
    - localhost:9222에 attach된 Chrome 창으로 이동해 YouTube에 로그인한
      뒤, Web UI에서 Resume을 클릭하거나 API로 resume 요청을 보내세요.
@@ -123,7 +123,7 @@ google-chrome \
 **설명**: 필요할 때만 attached Chrome으로 YouTube에 로그인시키고, 결과
 세션 쿠키를 yt-dlp에 넘겨 요청받은 영상을 다운로드합니다.
 
-#### 잡 흐름
+#### 작업 흐름
 
 ```mermaid
 graph TD
@@ -135,19 +135,24 @@ graph TD
     B[browser<br/>component]
     D[downloader<br/>component]
 
-    Input((Input)) --> J1 --> B
+    Input((Input)) --> J1
+    J1 -.-> B
     B -.-> J1
-    J1 --> J2 --> B
+    J1 --> J2
+    J2 -.-> B
     B -.-> J2
     J2 --> J3
     J3 -. "check-signin == false → interrupt" .-> Human((Human))
     Human -.-> J3
-    J3 --> B
+    J3 -.-> B
     B -.-> J3
-    J3 --> J4 --> B
+    J3 --> J4
+    J4 -.-> B
     B -.-> J4
-    J4 --> J5 --> D
-    D -.-> J5 --> Output((Output))
+    J4 --> J5
+    J5 -.-> D
+    D -.-> J5
+    J5 --> Output((Output))
 ```
 
 #### 입력 파라미터
@@ -199,7 +204,7 @@ Playwright가 사용하는 형식이 동일하므로, 다른 쿠키 소스(저�
 `set-cookies`로 심어둔 값 등)도 같은 방식으로 downloader에 연결할 수
 있습니다.
 
-인증이 필요 없는 공개 영상만 다룬다면, 앞의 네 잡을 지우고 `download`에
+인증이 필요 없는 공개 영상만 다룬다면, 앞의 네 작업을 지우고 `download`에
 빈 `cookies` 필드를 넘기면 됩니다. 또는 독립 예제인
 `media-processing/media-downloader`를 사용하세요.
 

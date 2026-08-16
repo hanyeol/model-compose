@@ -127,19 +127,24 @@ graph TD
     B[browser<br/>component]
     D[downloader<br/>component]
 
-    Input((Input)) --> J1 --> B
+    Input((Input)) --> J1
+    J1 -.-> B
     B -.-> J1
-    J1 --> J2 --> B
+    J1 --> J2
+    J2 -.-> B
     B -.-> J2
     J2 --> J3
     J3 -. "check-signin == false → interrupt" .-> Human((Human))
     Human -.-> J3
-    J3 --> B
+    J3 -.-> B
     B -.-> J3
-    J3 --> J4 --> B
+    J3 --> J4
+    J4 -.-> B
     B -.-> J4
-    J4 --> J5 --> D
-    D -.-> J5 --> Output((Output))
+    J4 --> J5
+    J5 -.-> D
+    D -.-> J5
+    J5 --> Output((Output))
 ```
 
 #### 输入参数

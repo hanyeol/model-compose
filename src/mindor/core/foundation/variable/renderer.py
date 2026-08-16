@@ -526,14 +526,18 @@ class VariableRenderer:
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`audio` requires raw audio bytes, got {value.__class__.__name__}")
                 if subtype == "pcm":
-                    return PcmStreamResource(value, attrs)
+                    return value if isinstance(value, PcmStreamResource) else PcmStreamResource(value, attrs)
                 if subtype == "wav":
-                    return WavStreamResource(value)
+                    return value if isinstance(value, WavStreamResource) else WavStreamResource(value)
+                if subtype is None and isinstance(value, (PcmStreamResource, WavStreamResource, AudioStreamResource)):
+                    return value
                 return AudioStreamResource(value, subtype, attrs)
 
             if type == "video":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`video` requires raw video input, got {value.__class__.__name__}")
+                if subtype is None and isinstance(value, VideoStreamResource):
+                    return value
                 return VideoStreamResource(value, subtype, attrs)
 
             if type == "file":

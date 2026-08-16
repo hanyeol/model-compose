@@ -444,13 +444,13 @@ class ChromeWebBrowserService(WebBrowserService):
         self._url: str = debugger.url or f"{debugger.protocol}://{debugger.host}:{debugger.port}"
         self._target_ids: List[str] = []
 
-    async def create_session(self) -> ChromeBrowserSession:
+    async def _create_session(self) -> ChromeBrowserSession:
         client, target_id = await CdpClient.create_tab(self._url)
         self._target_ids.append(target_id)
 
         return ChromeBrowserSession(client)
 
-    async def close_browser(self) -> None:
+    async def _close_browser(self) -> None:
         for target_id in self._target_ids:
             try:
                 await CdpClient.close_tab(self._url, target_id)

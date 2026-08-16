@@ -114,7 +114,7 @@ class WebBrowserAction(MediaComponentAction):
         self.timeout = timeout
 
     async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:
-        timeout = await context.render_scalar(self.config.timeout, "time", self.timeout or 30.0)
+        timeout = await context.render_scalar(self.config.timeout or self.timeout, "time", 30.0)
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
 

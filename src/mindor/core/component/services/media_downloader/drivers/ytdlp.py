@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
-from urllib.parse import urlparse
 from mindor.dsl.schema.component import MediaDownloaderComponentConfig, MediaDownloaderDriver
 from mindor.dsl.schema.action import MediaDownloaderActionConfig
 from mindor.core.foundation.streaming.audio import AudioStreamResource
@@ -23,7 +22,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         extract_audio   = await self.context.render_scalar(self.config.extract_audio, bool, False)
         video_format    = await self.context.render_scalar(self.config.video_format, str)
         audio_format    = await self.context.render_scalar(self.config.audio_format, str)
-        cookies         = (await self.context.render_variable(self.config.cookies)) or {}
+        cookies         = (await self.context.render_variable(self.config.cookies)) or []
 
         params.update({
             "format_selector": format_selector,
@@ -53,16 +52,22 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
     ) -> DownloadResult:
         # Reserve a unique path (no file created yet) and hand it to yt-dlp
         # via `outtmpl`. `.%(ext)s` lets yt-dlp pick the real extension
-        # after resolving the format / postprocessor.
+        # after resolving the format / postprocessor. Split the path so
+        # `paths` can pin every intermediate artifact (.part fragments,
+        # pre-merge streams) to the same temp dir; otherwise yt-dlp
+        # writes some of them relative to cwd.
         output_template = get_temporary_path(extension="%(ext)s")
+        output_dir = os.path.dirname(output_template)
+        output_name = os.path.basename(output_template)
 
-        # yt-dlp only accepts a Netscape-format cookies file, not a plain
-        # dict. Materialize the rendered dict into a temp file when non-empty
-        # and clean it up after the download completes.
-        cookiefile = self._create_cookies_file(params["cookies"], url) if params["cookies"] else None
+        # yt-dlp only accepts a Netscape-format cookies file, not a list of
+        # cookie objects. Materialize the rendered list into a temp file when
+        # non-empty and clean it up after the download completes.
+        cookiefile = self._create_cookies_file(params["cookies"]) if params["cookies"] else None
 
         options = self._build_options(
-            output_template=output_template,
+            output_dir=output_dir,
+            output_name=output_name,
             format_selector=params["format_selector"],
             extract_audio=params["extract_audio"],
             audio_format=params["audio_format"],
@@ -90,16 +95,43 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         return VideoStreamResource(stream, format=format_hint)
 
     @staticmethod
-    def _create_cookies_file(cookies: Dict[str, str], url: str) -> str:
-        domain = urlparse(url).hostname or ""
-        domain_field = ("." + domain) if domain and not domain.startswith(".") else domain
-
+    def _create_cookies_file(cookies: List[Dict[str, Any]]) -> str:
         path = get_temporary_path("txt")
-        lines = []
 
-        for name, value in cookies.items():
-            # domain, include_subdomains, path, secure, expiry, name, value
-            lines.append("\t".join([ domain_field, "TRUE", "/", "FALSE", "0", str(name), str(value) ]))
+        # Python's http.cookiejar refuses to load the file without this magic
+        # header line, and yt-dlp defers to that loader.
+        lines = [ "# Netscape HTTP Cookie File" ]
+
+        for cookie in cookies:
+            name  = cookie.get("name")
+            value = cookie.get("value")
+
+            if name is None or value is None:
+                continue
+
+            domain = str(cookie.get("domain") or "")
+
+            # Netscape's include-subdomains flag is inferred from a leading dot
+            # on the domain — CDP/Playwright follow the same convention.
+            include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
+            cookie_path = str(cookie.get("path") or "/")
+            secure = "TRUE" if cookie.get("secure") else "FALSE"
+
+            # CDP reports session cookies with expires=-1 and Playwright with
+            # expires=-1 or expires=0; the Netscape format only accepts a
+            # non-negative unix timestamp (0 means session cookie). Coerce
+            # any negative or unparseable value to 0.
+            try:
+                expiry = int(float(cookie.get("expires", 0)))
+            except (TypeError, ValueError):
+                expiry = 0
+            expiry_field = str(max(expiry, 0))
+
+            # httpOnly cookies use the `#HttpOnly_` prefix on the domain per
+            # curl/wget convention, which yt-dlp's loader recognizes.
+            row_domain = f"#HttpOnly_{domain}" if cookie.get("httpOnly") else domain
+
+            lines.append("\t".join([ row_domain, include_subdomains, cookie_path, secure, expiry_field, str(name), str(value) ]))
 
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
@@ -108,7 +140,8 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
     @staticmethod
     def _build_options(
-        output_template: str,
+        output_dir: str,
+        output_name: str,
         format_selector: Optional[str],
         extract_audio: bool,
         audio_format: Optional[str],
@@ -116,10 +149,14 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         cookiefile: Optional[str],
     ) -> Dict[str, Any]:
         options: Dict[str, Any] = {
-            "outtmpl":     output_template,
+            "outtmpl":     output_name,
+            # `home` receives the final file; `temp` catches .part fragments
+            # and pre-merge streams so nothing lands in the process cwd.
+            "paths":       { "home": output_dir, "temp": output_dir },
             "quiet":       True,
             "no_warnings": True,
             "noplaylist":  True,
+            "remote_components": [ "ejs:github" ],
         }
 
         if format_selector:
@@ -168,9 +205,11 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         # `requested_downloads` reflects the final path after postprocessing
         # (e.g. audio extraction rewrites the extension). Fall back to
         # prepare_filename in case the field is missing on older yt-dlp versions.
-        requested = info.get("requested_downloads") if isinstance(info, dict) else None
-        if requested:
-            path = requested[0].get("filepath") or requested[0].get("_filename")
+        downloads = info.get("requested_downloads") if isinstance(info, dict) else None
+
+        if downloads:
+            path = downloads[0].get("filepath") or downloads[0].get("_filename")
+
             if path:
                 return path
 

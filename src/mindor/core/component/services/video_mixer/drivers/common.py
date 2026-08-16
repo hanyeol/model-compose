@@ -140,7 +140,12 @@ class VideoMixerAction(MediaComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         if method == VideoMixerActionMethod.CONCAT:
-            return await self._concat(await input.collect(), params, streaming, cancellation_token)
+            videos = await input.collect()
+
+            if len(videos) < 2:
+                raise ValueError("concat requires at least two videos.")
+
+            return await self._concat(videos, params, streaming, cancellation_token)
 
         if method == VideoMixerActionMethod.OVERLAY:
             video, overlays, placements = input

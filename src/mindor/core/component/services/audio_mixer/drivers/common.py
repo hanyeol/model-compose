@@ -136,7 +136,12 @@ class AudioMixerAction(MediaComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         if method == AudioMixerActionMethod.CONCAT:
-            return await self._concat(await input.collect(), params, streaming, cancellation_token)
+            audios = await input.collect()
+
+            if len(audios) < 2:
+                raise ValueError("concat requires at least two audios.")
+
+            return await self._concat(audios, params, streaming, cancellation_token)
 
         if method == AudioMixerActionMethod.OVERLAY:
             audio, overlays, placements = input

@@ -46,12 +46,6 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
-        if len(audios) < 2:
-            raise ValueError("concat requires at least two audios.")
-
-        encoding  = params["encoding"]
-        crossfade = params.get("crossfade")
-
         format = self._resolve_container_format(params["format"])
 
         if streaming and not is_streamable_audio_format(format):
@@ -71,11 +65,11 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         for path in input_paths:
             command.extend([ "-i", path ])
 
-        filter_complex, audio_label = self._build_concat_filter(len(input_paths), crossfade)
+        filter_complex, audio_label = self._build_concat_filter(len(input_paths), params.get("crossfade"))
         command.extend([ "-filter_complex", filter_complex ])
         command.extend([ "-map", audio_label ])
 
-        for option, value in self._resolve_encoding_options(encoding, format).items():
+        for option, value in self._resolve_encoding_options(params["encoding"], format).items():
             command.extend([ option, value ])
 
         def _cleanup() -> None:

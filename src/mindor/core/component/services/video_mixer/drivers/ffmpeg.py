@@ -60,9 +60,6 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        if len(videos) < 2:
-            raise ValueError("concat requires at least two videos.")
-
         encoding  = params["encoding"]
         crossfade = params.get("crossfade")
 

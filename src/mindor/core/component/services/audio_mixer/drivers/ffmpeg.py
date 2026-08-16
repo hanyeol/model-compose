@@ -101,18 +101,6 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
-        if not overlays:
-            raise ValueError("overlay requires at least one overlay audio.")
-
-        # Broadcast a single placement across all overlays; otherwise pair by position.
-        if len(placements) == 1 and len(overlays) > 1:
-            placements = [ placements[0] ] * len(overlays)
-
-        if len(placements) != len(overlays):
-            raise ValueError(
-                f"overlay/placement cardinality mismatch: {len(overlays)} overlays vs {len(placements)} placements."
-            )
-
         format = self._resolve_container_format(params["format"])
 
         if streaming and not is_streamable_audio_format(format):

@@ -140,11 +140,22 @@ class AudioMixerAction(MediaComponentAction):
 
         if method == AudioMixerActionMethod.OVERLAY:
             audio, overlays, placements = input
+            overlays   = await overlays.collect()
+            placements = await placements.collect()
+
+            # Broadcast a single placement across all overlays; otherwise pair by position.
+            if len(placements) == 1 and len(overlays) > 1:
+                placements = [ placements[0] ] * len(overlays)
+
+            if len(placements) != len(overlays):
+                raise ValueError(
+                    f"overlay/placement cardinality mismatch: {len(overlays)} overlays vs {len(placements)} placements."
+                )
 
             return await self._overlay(
                 audio,
-                await overlays.collect(),
-                await placements.collect(),
+                overlays,
+                placements,
                 params,
                 streaming,
                 cancellation_token,

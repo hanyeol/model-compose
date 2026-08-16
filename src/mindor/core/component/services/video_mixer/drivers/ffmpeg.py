@@ -117,18 +117,6 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        if not overlays:
-            raise ValueError("overlay requires at least one overlay video.")
-
-        # Broadcast a single placement across all overlays; otherwise pair by position.
-        if len(placements) == 1 and len(overlays) > 1:
-            placements = [ placements[0] ] * len(overlays)
-
-        if len(placements) != len(overlays):
-            raise ValueError(
-                f"overlay/placement cardinality mismatch: {len(overlays)} overlays vs {len(placements)} placements."
-            )
-
         format = self._resolve_container_format(params["encoding"])
 
         if streaming and not is_streamable_video_format(format):

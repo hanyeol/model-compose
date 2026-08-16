@@ -21,6 +21,7 @@ ComponentConfig = Annotated[
         SentenceSplitterComponentConfig,
         TranscriptCorrectorComponentConfig,
         ImageProcessorComponentConfig,
+        ImageCompressorComponentConfig,
         VectorProcessorComponentConfig,
         WebScraperComponentConfig,
         AgentComponentConfig,

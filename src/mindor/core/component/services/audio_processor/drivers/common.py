@@ -304,20 +304,21 @@ class AudioProcessorAction(ComponentAction):
         audios: List[Optional[AudioBufferStreamIterator]],
         params: Dict[str, Any],
     ) -> List[Optional[PcmStreamResource]]:
-        return await asyncio.gather(*[
-            self._process(method, audio, params) for audio in audios
-        ])
+        async def _process(audio: Optional[AudioBufferStreamIterator]) -> Optional[PcmStreamResource]:
+            if audio is None:
+                logging.debug("Audio processor (%s) skipped because no audio was provided.", method)
+                return None
+
+            return await self._process(method, audio, params)
+
+        return await asyncio.gather(*[ _process(audio) for audio in audios ])
 
     async def _process(
         self,
         method: AudioProcessorActionMethod,
-        audio: Optional[AudioBufferStreamIterator],
+        audio: AudioBufferStreamIterator,
         params: Dict[str, Any],
-    ) -> Optional[PcmStreamResource]:
-        if audio is None:
-            logging.debug("Audio processor (%s) skipped because no audio was provided.", method)
-            return None
-
+    ) -> PcmStreamResource:
         if method == AudioProcessorActionMethod.RESAMPLE:
             return PcmStreamResource(await self._resample(audio, params))
 

@@ -6,6 +6,7 @@ import asyncio, os, sys
 
 async def run_command(
     command: List[str],
+    input: Optional[bytes] = None,
     working_dir: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
     timeout: Optional[float] = None
@@ -14,12 +15,13 @@ async def run_command(
         *command,
         cwd=working_dir or os.getcwd(),
         env={ **os.environ, **(env or {}) },
+        stdin=asyncio.subprocess.PIPE if input is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE
     )
 
     try:
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        stdout, stderr = await asyncio.wait_for(process.communicate(input=input), timeout=timeout)
     except asyncio.TimeoutError:
         if await kill_process(process, timeout=2.0):
             raise TimeoutError(f"Command timed out: {' '.join(command)}")

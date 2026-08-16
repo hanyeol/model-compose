@@ -20,6 +20,7 @@ class ComponentType(str, Enum):
     SENTENCE_SPLITTER       = "sentence-splitter"
     TRANSCRIPT_CORRECTOR    = "transcript-corrector"
     IMAGE_PROCESSOR         = "image-processor"
+    IMAGE_COMPRESSOR        = "image-compressor"
     VECTOR_PROCESSOR        = "vector-processor"
     WEB_SCRAPER             = "web-scraper"
     WEB_BROWSER             = "web-browser"

@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, ImageCompressStrategy, MosaicMode, ImageRegion
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, MosaicMode, ImageRegion
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -256,47 +256,24 @@ class ImageProcessorAction(ComponentAction):
                 "radius":         radius,
             }
 
-        if method == ImageProcessorActionMethod.COMPRESS:
-            strategy       = await context.render_variable(self.config.strategy)
-            compress_level = await context.render_scalar(self.config.compress_level, int)
-            min_quality    = await context.render_scalar(self.config.min_quality, int)
-            max_quality    = await context.render_scalar(self.config.max_quality, int)
-            speed          = await context.render_scalar(self.config.speed, int)
-            level          = await context.render_scalar(self.config.level, int)
-            strip_metadata = await context.render_scalar(self.config.strip_metadata, bool)
-
-            try:
-                strategy = ImageCompressStrategy(strategy)
-            except ValueError:
-                raise ValueError(f"Invalid compress strategy: {strategy}")
-
-            return {
-                "strategy":       strategy,
-                "compress_level": compress_level,
-                "min_quality":    min_quality,
-                "max_quality":    max_quality,
-                "speed":          speed,
-                "level":          level,
-                "strip_metadata": strip_metadata,
-            }
-
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")
 
     async def _process_batch(
         self,
         method: ImageProcessorActionMethod,
-        images: Union[List[PILImage.Image], List[ImageArrayValue]],
+        images: Union[List[Optional[PILImage.Image]], List[Optional[ImageArrayValue]]],
         params: Dict[str, Any],
     ) -> List[Optional[PILImage.Image]]:
-        return await asyncio.gather(*[
-            self._process(method, image, params) for image in images
-        ])
+        async def _process(image: Optional[Union[PILImage.Image, ImageArrayValue]]) -> Optional[PILImage.Image]:
+            if image is None:
+                logging.debug("Image processor (%s) skipped because no image was provided.", method)
+                return None
 
-    async def _process(self, method: ImageProcessorActionMethod, image: Union[PILImage.Image, ImageArrayValue], params: Dict[str, Any]) -> Optional[PILImage.Image]:
-        if image is None:
-            logging.debug("Image processor (%s) skipped because no image was provided.", method)
-            return None
+            return await self._process(method, image, params)
 
+        return await asyncio.gather(*[ _process(image) for image in images ])
+
+    async def _process(self, method: ImageProcessorActionMethod, image: Union[PILImage.Image, ImageArrayValue], params: Dict[str, Any]) -> PILImage.Image:
         if method == ImageProcessorActionMethod.RESIZE:
             return await self._resize(image, params)
 
@@ -339,37 +316,7 @@ class ImageProcessorAction(ComponentAction):
         if method == ImageProcessorActionMethod.MOSAIC:
             return await self._mosaic(image, params)
 
-        if method == ImageProcessorActionMethod.COMPRESS:
-            return await self._compress(image, params)
-
         raise ValueError(f"Unsupported image processing action method: {method}")
-
-    async def _render_image_region(self, context: ComponentActionContext) -> Optional[List[ImageRegion]]:
-        if isinstance(self.config.region, ImageRegion):
-            return [ self.config.region ]
-
-        if isinstance(self.config.region, list):
-            return [ self._as_image_region(item) for item in self.config.region ]
-
-        region = await context.render_variable(self.config.region)
-
-        if region is None:
-            return None
-
-        if isinstance(region, list):
-            return [ self._as_image_region(item) for item in region ]
-
-        return [ self._as_image_region(region) ]
-
-    @staticmethod
-    def _as_image_region(value: Any) -> ImageRegion:
-        if isinstance(value, ImageRegion):
-            return value
-
-        if isinstance(value, dict):
-            return ImageRegion.model_validate(value)
-
-        raise ValueError(f"'region' entry must be an image region object or dict, got {type(value).__name__}")
 
     @abstractmethod
     async def _resize(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
@@ -427,6 +374,29 @@ class ImageProcessorAction(ComponentAction):
     async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
-    @abstractmethod
-    async def _compress(self, image: PILImage.Image, params: Dict[str, Any]) -> bytes:
-        pass
+    async def _render_image_region(self, context: ComponentActionContext) -> Optional[List[ImageRegion]]:
+        if isinstance(self.config.region, ImageRegion):
+            return [ self.config.region ]
+
+        if isinstance(self.config.region, list):
+            return [ self._as_image_region(item) for item in self.config.region ]
+
+        region = await context.render_variable(self.config.region)
+
+        if region is None:
+            return None
+
+        if isinstance(region, list):
+            return [ self._as_image_region(item) for item in region ]
+
+        return [ self._as_image_region(region) ]
+
+    @staticmethod
+    def _as_image_region(value: Any) -> ImageRegion:
+        if isinstance(value, ImageRegion):
+            return value
+
+        if isinstance(value, dict):
+            return ImageRegion.model_validate(value)
+
+        raise ValueError(f"'region' entry must be an image region object or dict, got {type(value).__name__}")

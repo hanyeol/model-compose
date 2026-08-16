@@ -20,7 +20,6 @@ class ImageProcessorActionMethod(str, Enum):
     MERGE             = "merge"
     OVERLAY           = "overlay"
     MOSAIC            = "mosaic"
-    COMPRESS          = "compress"
 
 class ImageScaleMode(str, Enum):
     FIT     = "fit"
@@ -46,11 +45,6 @@ class ImagePositionAnchor(str, Enum):
     BOTTOM_LEFT   = "bottom-left"
     BOTTOM_CENTER = "bottom-center"
     BOTTOM_RIGHT  = "bottom-right"
-
-class ImageCompressStrategy(str, Enum):
-    LOSSLESS  = "lossless"
-    OPTIMIZED = "optimized"
-    QUANTIZED = "quantized"
 
 class MosaicMode(str, Enum):
     PIXELATE = "pixelate"
@@ -151,12 +145,3 @@ class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
             raise ValueError("'block_size' and 'block_scale' are mutually exclusive; specify only one.")
         return self
 
-class ImageProcessorCompressActionConfig(CommonImageProcessorActionConfig):
-    method: Literal[ImageProcessorActionMethod.COMPRESS]
-    strategy: Union[ImageCompressStrategy, str] = Field(default=ImageCompressStrategy.LOSSLESS, description="PNG compression strategy applied to the output.")
-    compress_level: Union[int, str] = Field(default=9, description="DEFLATE compression level from 0 to 9; higher values produce smaller and slower output.")
-    min_quality: Optional[Union[int, str]] = Field(default=None, description="Minimum acceptable quality from 0 to 100 for the `quantized` strategy; save fails when output would fall below this.")
-    max_quality: Optional[Union[int, str]] = Field(default=None, description="Maximum quality from 0 to 100 the `quantized` strategy targets.")
-    speed: Union[int, str] = Field(default=3, description="Speed for the `quantized` strategy, from 1 (slowest/best) to 11 (fastest).")
-    level: Union[int, str] = Field(default=4, description="Level for the `optimized` strategy, from 0 to 6; higher values produce smaller and slower output.")
-    strip_metadata: Union[bool, str] = Field(default=True, description="Whether ancillary PNG metadata chunks (tEXt, eXIf, iCCP, etc.) are removed from the output.")

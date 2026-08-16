@@ -21,26 +21,6 @@ class KeyValueStoreAction(ComponentAction):
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _dispatch(
-        self,
-        method: KeyValueStoreActionMethod,
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        if method == KeyValueStoreActionMethod.GET:
-            return await self._get(params, cancellation_token)
-
-        if method == KeyValueStoreActionMethod.SET:
-            return await self._set(params, cancellation_token)
-
-        if method == KeyValueStoreActionMethod.DELETE:
-            return await self._delete(params, cancellation_token)
-
-        if method == KeyValueStoreActionMethod.EXISTS:
-            return await self._exists(params, cancellation_token)
-
-        raise ValueError(f"Unsupported key-value store action method: {method}")
-
     async def _resolve_params(self, method: KeyValueStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == KeyValueStoreActionMethod.GET:
             key = await context.render_variable(self.config.key)
@@ -73,6 +53,26 @@ class KeyValueStoreAction(ComponentAction):
             return {
                 "key": key,
             }
+
+        raise ValueError(f"Unsupported key-value store action method: {method}")
+
+    async def _dispatch(
+        self,
+        method: KeyValueStoreActionMethod,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
+        if method == KeyValueStoreActionMethod.GET:
+            return await self._get(params, cancellation_token)
+
+        if method == KeyValueStoreActionMethod.SET:
+            return await self._set(params, cancellation_token)
+
+        if method == KeyValueStoreActionMethod.DELETE:
+            return await self._delete(params, cancellation_token)
+
+        if method == KeyValueStoreActionMethod.EXISTS:
+            return await self._exists(params, cancellation_token)
 
         raise ValueError(f"Unsupported key-value store action method: {method}")
 

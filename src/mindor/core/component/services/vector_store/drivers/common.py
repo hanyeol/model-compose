@@ -21,21 +21,6 @@ class VectorStoreAction(ComponentAction):
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _dispatch(self, method: VectorStoreActionMethod, params: Dict[str, Any]) -> Any:
-        if method == VectorStoreActionMethod.INSERT:
-            return await self._insert(params)
-
-        if method == VectorStoreActionMethod.UPDATE:
-            return await self._update(params)
-
-        if method == VectorStoreActionMethod.SEARCH:
-            return await self._search(params)
-
-        if method == VectorStoreActionMethod.DELETE:
-            return await self._delete(params)
-
-        raise ValueError(f"Unsupported vector action method: {method}")
-
     async def _resolve_params(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == VectorStoreActionMethod.INSERT:
             collection = await context.render_variable(self.config.collection)
@@ -96,6 +81,21 @@ class VectorStoreAction(ComponentAction):
                 "filter":     filter,
                 "batch_size": batch_size,
             }
+
+        raise ValueError(f"Unsupported vector action method: {method}")
+
+    async def _dispatch(self, method: VectorStoreActionMethod, params: Dict[str, Any]) -> Any:
+        if method == VectorStoreActionMethod.INSERT:
+            return await self._insert(params)
+
+        if method == VectorStoreActionMethod.UPDATE:
+            return await self._update(params)
+
+        if method == VectorStoreActionMethod.SEARCH:
+            return await self._search(params)
+
+        if method == VectorStoreActionMethod.DELETE:
+            return await self._delete(params)
 
         raise ValueError(f"Unsupported vector action method: {method}")
 

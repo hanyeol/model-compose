@@ -20,24 +20,6 @@ class FileStoreAction(ComponentAction):
 
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _dispatch(self, method: FileStoreActionMethod, params: Dict[str, Any]) -> Dict[str, Any]:
-        if method == FileStoreActionMethod.PUT:
-            return await self._put(params)
-
-        if method == FileStoreActionMethod.GET:
-            return await self._get(params)
-
-        if method == FileStoreActionMethod.DELETE:
-            return await self._delete(params)
-
-        if method == FileStoreActionMethod.EXISTS:
-            return await self._exists(params)
-
-        if method == FileStoreActionMethod.LIST:
-            return await self._list(params)
-
-        raise ValueError(f"Unsupported file store action method: {method}")
-
     async def _resolve_params(self, method: FileStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         if method == FileStoreActionMethod.PUT:
             path                = await context.render_variable(self.config.path)
@@ -97,6 +79,24 @@ class FileStoreAction(ComponentAction):
                 "max_result_count": max_result_count,
                 "next_token":       next_token,
             }
+
+        raise ValueError(f"Unsupported file store action method: {method}")
+
+    async def _dispatch(self, method: FileStoreActionMethod, params: Dict[str, Any]) -> Dict[str, Any]:
+        if method == FileStoreActionMethod.PUT:
+            return await self._put(params)
+
+        if method == FileStoreActionMethod.GET:
+            return await self._get(params)
+
+        if method == FileStoreActionMethod.DELETE:
+            return await self._delete(params)
+
+        if method == FileStoreActionMethod.EXISTS:
+            return await self._exists(params)
+
+        if method == FileStoreActionMethod.LIST:
+            return await self._list(params)
 
         raise ValueError(f"Unsupported file store action method: {method}")
 

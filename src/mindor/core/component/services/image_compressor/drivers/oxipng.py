@@ -24,14 +24,14 @@ class OxipngImageCompressorAction(ImageCompressorAction):
 
             # Encode losslessly first so oxipng has a valid PNG to optimize.
             # Preserve metadata at this stage; oxipng strips it below when requested.
-            data = self._encode_png_lossless(image, compress_level=6, strip_metadata=False)
+            input_png = self._encode_png_lossless(image, compress_level=6, strip_metadata=False)
 
             if params["strip_metadata"]:
                 strip = oxipng.StripChunks.safe()
             else:
                 strip = oxipng.StripChunks.none()
 
-            return oxipng.optimize_from_memory(data, level=params["level"], strip=strip)
+            return oxipng.optimize_from_memory(input_png, level=params["level"], strip=strip)
 
         return await self._run_in_executor(_compress)
 

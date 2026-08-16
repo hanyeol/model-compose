@@ -12,10 +12,13 @@ from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.base64 import Base64StreamResource
 from mindor.core.foundation.streaming.url import DataUriStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource, load_image_from_stream
+from mindor.core.foundation.streaming.audio import AudioStreamResource, PcmStreamResource, WavStreamResource
+from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.transport.http_request import create_upload_file
 from mindor.core.utils.transport.http_client import create_stream_with_url
+from mindor.core.utils.files import guess_file_extension
 from mindor.core.utils.event_history import EventHistory
 from mindor.core.logger import logging
 from .renderer import WorkflowSchemaRenderer, WorkflowFlowRenderer
@@ -948,21 +951,40 @@ class GradioWebUIBuilder:
             return value
 
         if format == WorkflowVariableFormat.URL and isinstance(value, str):
-            return await save_stream_to_temporary_file(await create_stream_with_url(value), subtype)
+            stream = await create_stream_with_url(value)
+            return await save_stream_to_temporary_file(stream, subtype or self._resolve_stream_extension(stream))
 
         if format == WorkflowVariableFormat.DATA_URI and isinstance(value, (str, StreamResource)):
-            return await save_stream_to_temporary_file(DataUriStreamResource(value), subtype)
+            stream = DataUriStreamResource(value)
+            return await save_stream_to_temporary_file(stream, subtype or self._resolve_stream_extension(stream))
 
         if format == WorkflowVariableFormat.BASE64 and isinstance(value, str):
             return await save_stream_to_temporary_file(Base64StreamResource(value), subtype)
 
         if isinstance(value, StreamResource):
-            return await save_stream_to_temporary_file(value, subtype)
+            # PCM has no container/header — wrap in WAV so downstream decoders
+            # (e.g. Gradio's pydub-based audio component) can parse the file.
+            if isinstance(value, PcmStreamResource):
+                value = WavStreamResource(value)
+            return await save_stream_to_temporary_file(value, subtype or self._resolve_stream_extension(value))
 
         if isinstance(value, bytes):
             return await save_stream_to_temporary_file(BytesStreamResource(value), subtype)
 
         return None
+
+    def _resolve_stream_extension(self, stream: StreamResource) -> Optional[str]:
+        if isinstance(stream, (AudioStreamResource, VideoStreamResource, ImageStreamResource)):
+            if stream.format:
+                return stream.format.lower()
+
+        if isinstance(stream, WavStreamResource):
+            return "wav"
+
+        if stream.filename and "." in stream.filename:
+            return stream.filename.rsplit(".", 1)[-1].lower()
+
+        return guess_file_extension(stream.content_type)
 
     def _is_string_variable(self, variable: WorkflowVariableConfig) -> bool:
         if variable.type in (

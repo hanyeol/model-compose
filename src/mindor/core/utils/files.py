@@ -1,8 +1,39 @@
-from typing import Optional, Tuple, List, AsyncIterator
+from typing import Optional, Tuple, List, Dict, AsyncIterator
 from pathlib import PurePosixPath
 from tempfile import NamedTemporaryFile
 import aiofiles
 import asyncio, mimetypes, os
+
+_CONTENT_TYPE_EXTENSION_MAP: Dict[str, str] = {
+    "audio/wav":        "wav",
+    "audio/x-wav":      "wav",
+    "audio/mpeg":       "mp3",
+    "audio/mp3":        "mp3",
+    "audio/aac":        "aac",
+    "audio/mp4":        "m4a",
+    "audio/flac":       "flac",
+    "audio/ogg":        "ogg",
+    "audio/opus":       "opus",
+    "audio/webm":       "webm",
+    "video/mp4":        "mp4",
+    "video/quicktime":  "mov",
+    "video/webm":       "webm",
+    "video/x-matroska": "mkv",
+    "video/x-msvideo":  "avi",
+    "video/x-flv":      "flv",
+    "video/x-ms-wmv":   "wmv",
+    "video/mpeg":       "mpeg",
+    "video/mp2t":       "ts",
+    "video/3gpp":       "3gp",
+    "video/ogg":        "ogv",
+    "image/png":        "png",
+    "image/jpeg":       "jpg",
+    "image/webp":       "webp",
+    "image/bmp":        "bmp",
+    "image/gif":        "gif",
+    "image/tiff":       "tiff",
+    "image/x-icon":     "ico",
+}
 
 async def list_dir(path: str) -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
     def _scan_dir() -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
@@ -82,9 +113,24 @@ def is_path_within(base: str, path: str) -> bool:
     return absolute_path == absolute_base or absolute_path.startswith(absolute_base + os.sep)
 
 def get_file_extension(path: str) -> Optional[str]:
-    extension = os.path.splitext(path)[1].lstrip(".")
+    _, extension = os.path.splitext(path)
+
+    if extension:
+        extension = extension.lstrip(".")
 
     return extension or None
+
+def guess_file_extension(content_type: str) -> Optional[str]:
+    content_type = content_type.split(";", 1)[0].strip().lower()
+    extension = _CONTENT_TYPE_EXTENSION_MAP.get(content_type)
+
+    if not extension:
+        extension = mimetypes.guess_extension(content_type)
+
+        if extension:
+            extension = extension.lstrip(".")
+
+    return extension
 
 def guess_content_type(path: str) -> Optional[str]:
     content_type, _ = mimetypes.guess_type(path)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Literal, Tuple, Optional, Dict, Set
+from typing import Union, Literal, Tuple, Optional, Dict, Set, Any
+import struct
 
 if TYPE_CHECKING:
     import numpy as np
@@ -174,6 +175,43 @@ def decode_pcm_to_waveform(
         waveform = waveform.reshape(-1, channels).T.copy()
 
     return waveform
+
+def parse_wav_header(data: bytes) -> Optional[Tuple[int, Dict[str, Any]]]:
+    """Parse a canonical RIFF/WAVE header from ``data``. Returns
+    ``(header_size, {sample_rate, channels, bit_depth})`` or ``None`` if the
+    buffer doesn't yet contain both the ``fmt `` and ``data`` chunks.
+    """
+    if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        return None
+
+    format: Optional[Tuple[int, int, int]] = None  # (channels, sample_rate, bits_per_sample)
+    offset = 12
+
+    while offset + 8 <= len(data):
+        chunk_id = data[offset:offset + 4]
+        (chunk_size,) = struct.unpack_from("<I", data, offset + 4)
+        body_offset = offset + 8
+
+        if chunk_id == b"fmt ":
+            if body_offset + 16 > len(data):
+                return None
+            _, channels, sample_rate, _, _, bits_per_sample = struct.unpack_from("<HHIIHH", data, body_offset)
+            format = (int(channels), int(sample_rate), int(bits_per_sample))
+
+        if chunk_id == b"data":
+            if format is None:
+                return None
+
+            channels, sample_rate, bits_per_sample = format
+            return body_offset, {
+                "sample_rate": sample_rate,
+                "channels":    channels,
+                "bit_depth":   bits_per_sample,
+            }
+
+        offset = body_offset + chunk_size
+
+    return None
 
 def is_streamable_audio_format(format: Optional[str]) -> bool:
     """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""

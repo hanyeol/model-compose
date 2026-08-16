@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Literal, Optional, Dict, Tuple, Any
+from typing import Union, Literal, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from .resources import StreamResource, AsyncIterableStreamResource, read_stream_to_bytes
@@ -16,6 +16,7 @@ from ...utils.audio import (
     get_pcm_format,
     decode_pcm_to_waveform,
     encode_waveform_to_pcm,
+    parse_wav_header,
 )
 from ...utils.shell import stream_subprocess
 from ...logger import logging
@@ -320,7 +321,10 @@ class AudioDecodingStreamer:
                     raise ValueError(f"Raw PCM source {source.format!r} requires 'channels' in attrs")
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
-        command.extend([ "-vn", "-f", "s16le", "-acodec", "pcm_s16le" ])
+        # Use WAV container instead of raw s16le so ffmpeg emits a 44-byte RIFF
+        # header carrying the actual sr/channels. Lets us populate ``attrs``
+        # without a pre-scan when the caller didn't specify a layout.
+        command.extend([ "-vn", "-f", "wav", "-acodec", "pcm_s16le" ])
         if sample_rate:
             command.extend([ "-ar", str(sample_rate) ])
         if channels:
@@ -328,6 +332,18 @@ class AudioDecodingStreamer:
         command.append("pipe:1")
 
         stdin_source = source.stream if input_path is None else None
+
+        # Shared with ``_stream``: sr/channels/bit_depth get filled in-place once
+        # the WAV header is parsed. Consumers must start iterating before reading
+        # these keys — see ``AudioBufferStreamer._iterate`` which pre-consumes
+        # the first chunk.
+        attrs: Dict[str, Any] = { "bit_depth": 16 }
+
+        if sample_rate:
+            attrs["sample_rate"] = sample_rate
+
+        if channels:
+            attrs["channels"] = channels
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:
@@ -352,8 +368,37 @@ class AudioDecodingStreamer:
                 stdout_handler=_handle_stdout,
                 stderr_handler=_handle_stderr,
             ) as (process, chunks, error):
+                header_buffer = bytearray()
+                header_stripped = False
+
                 async for chunk in chunks:
-                    yield chunk
+                    if not header_stripped:
+                        header_buffer.extend(chunk)
+
+                        # RIFF header is 44 bytes for a canonical PCM WAV. If the
+                        # source has extra chunks (e.g. LIST/INFO), the ``data``
+                        # marker still appears near the front — scan for it.
+                        if len(header_buffer) < 44:
+                            continue
+
+                        header = parse_wav_header(bytes(header_buffer))
+
+                        if header is None:
+                            # Not enough bytes yet to locate the ``data`` chunk;
+                            # keep buffering.
+                            continue
+
+                        header_size, header_attrs = header
+                        attrs.update(header_attrs)
+
+                        pcm_bytes = bytes(header_buffer[header_size:])
+                        header_buffer.clear()
+                        header_stripped = True
+
+                        if pcm_bytes:
+                            yield pcm_bytes
+                    else:
+                        yield chunk
 
                 # stdout EOF doesn't imply the process has reaped yet; wait so
                 # returncode is populated before we decide success/failure.
@@ -369,19 +414,16 @@ class AudioDecodingStreamer:
                     error_message = error_bytes.decode("utf-8", errors="replace") if error_bytes else ""
                     raise RuntimeError(f"ffmpeg audio decoding failed (exit code {process.returncode}): {error_message}")
 
-        attrs: Dict[str, Any] = { "bit_depth": 16 }
-
-        if sample_rate:
-            attrs["sample_rate"] = sample_rate
-
-        if channels:
-            attrs["channels"] = channels
-
         return _stream(), attrs
 
     def _decode_with_torchaudio(self, source: MediaSource) -> Tuple[AsyncIterator[bytes], Dict[str, Any]]:
         sample_rate = self._sample_rate or int(source.attrs.get("sample_rate") or 0) or None
         channels = self._channels or int(source.attrs.get("channels") or 0) or None
+
+        # Shared with ``_stream``: sr/channels get filled in-place once the
+        # source has actually been decoded and we know the resolved layout.
+        # Consumers must start iterating before reading these keys.
+        attrs: Dict[str, Any] = { "bit_depth": 16 }
 
         async def _stream() -> AsyncIterator[bytes]:
             data = await read_stream_to_bytes(source.stream)
@@ -413,21 +455,15 @@ class AudioDecodingStreamer:
 
                 return pcm_bytes, target_sample_rate, target_channels
 
-            pcm_bytes, _, _ = await asyncio.to_thread(_decode)
+            pcm_bytes, resolved_sample_rate, resolved_channels = await asyncio.to_thread(_decode)
+            attrs["sample_rate"] = resolved_sample_rate
+            attrs["channels"]    = resolved_channels
 
             # Emit in reasonable chunks so downstream consumers see streaming-like
             # behavior even though decode was one-shot.
             chunk_size = 65536
             for index in range(0, len(pcm_bytes), chunk_size):
                 yield pcm_bytes[index:index + chunk_size]
-
-        # torchaudio path can't know sample_rate/channels until decode runs; if the
-        # caller didn't specify them, fall back to source hints or common defaults.
-        attrs: Dict[str, Any] = {
-            "bit_depth": 16,
-            "sample_rate": sample_rate or 16000,
-            "channels": channels or 1,
-        }
 
         return _stream(), attrs
 
@@ -588,9 +624,28 @@ class AudioBufferStreamer:
         # the original channels since ffmpeg -ac can only downmix.
         sample_rate, channels = self._sample_rate, 1 if self._channel == "mono" else None
         source = AudioDecodingStreamer(self._source, sample_rate, channels).as_pcm_stream()
+
+        # ``AudioDecodingStreamer`` populates ``source.attrs`` from the WAV
+        # header (or the torchaudio decode result) as its first chunks stream
+        # in. Prime the iterator so the layout is resolved before
+        # ``_create_stream_context`` reads sr/channels.
+        source_iterator = aiter(source)
+        primed_chunks: List[bytes] = []
+        try:
+            while "sample_rate" not in source.attrs:
+                primed_chunks.append(await anext(source_iterator))
+        except StopAsyncIteration:
+            pass
+
         context = self._create_stream_context(source, frame_size, hop_size, pad_final)
 
-        async for chunk in context.source:
+        async def _remaining_chunks() -> AsyncIterator[bytes]:
+            for chunk in primed_chunks:
+                yield chunk
+            async for chunk in source_iterator:
+                yield chunk
+
+        async for chunk in _remaining_chunks():
             if not chunk:
                 continue
 

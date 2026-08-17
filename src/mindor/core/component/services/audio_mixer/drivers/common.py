@@ -145,8 +145,7 @@ class AudioMixerAction(MediaComponentAction):
 
         if method == AudioMixerActionMethod.OVERLAY:
             audio, overlays, placements = input
-            overlays   = await overlays.collect()
-            placements = await placements.collect()
+            overlays, placements = await asyncio.gather(overlays.collect(), placements.collect())
 
             # Broadcast a single placement across all overlays; otherwise pair by position.
             if len(placements) == 1 and len(overlays) > 1:

@@ -25,9 +25,7 @@ class KeyValueStoreAction(ComponentAction):
         if method == KeyValueStoreActionMethod.GET:
             key = await context.render_variable(self.config.key)
 
-            return {
-                "key": key,
-            }
+            return { "key": key }
 
         if method == KeyValueStoreActionMethod.SET:
             key   = await context.render_variable(self.config.key)
@@ -43,16 +41,12 @@ class KeyValueStoreAction(ComponentAction):
         if method == KeyValueStoreActionMethod.DELETE:
             key = await context.render_variable(self.config.key)
 
-            return {
-                "key": key,
-            }
+            return { "key": key }
 
         if method == KeyValueStoreActionMethod.EXISTS:
             key = await context.render_variable(self.config.key)
 
-            return {
-                "key": key,
-            }
+            return { "key": key }
 
         raise ValueError(f"Unsupported key-value store action method: {method}")
 

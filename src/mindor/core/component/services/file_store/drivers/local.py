@@ -95,6 +95,7 @@ class LocalFileStoreAction(FileStoreAction):
                 save_to = os.path.join(save_to, os.path.basename(path))
 
             parent = os.path.dirname(os.path.abspath(save_to))
+
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
@@ -189,7 +190,7 @@ class LocalFileStoreAction(FileStoreAction):
         items: List[Dict[str, Any]] = []
         offset = 0
 
-        async for dir, files in self._iter_files(list_path, recursive):
+        async for dir, files in self._iterate_files(list_path, recursive):
             for filename, stat in files:
                 absolute_path = os.path.join(dir, filename)
                 relative_path = os.path.relpath(absolute_path, self.base_path).replace(os.sep, "/")
@@ -221,7 +222,7 @@ class LocalFileStoreAction(FileStoreAction):
             "next_token": None,
         }
 
-    async def _iter_files(self, list_path: str, recursive: bool) -> AsyncIterator[Tuple[str, List[Tuple[str, os.stat_result]]]]:
+    async def _iterate_files(self, list_path: str, recursive: bool) -> AsyncIterator[Tuple[str, List[Tuple[str, os.stat_result]]]]:
         if recursive:
             async for dir, _, files in walk_dir(list_path):
                 yield dir, files

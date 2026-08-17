@@ -94,6 +94,7 @@ class WebScraperAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Optional[Any]]:
         needs_browser = params["submit"] or params["enable_javascript"]
+
         if needs_browser and any(url is not None for url in urls):
             from playwright.async_api import async_playwright
 

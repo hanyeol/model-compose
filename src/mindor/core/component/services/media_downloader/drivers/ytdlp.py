@@ -23,6 +23,10 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         video_format    = await self.context.render_scalar(self.config.video_format, str)
         audio_format    = await self.context.render_scalar(self.config.audio_format, str)
         cookies         = (await self.context.render_variable(self.config.cookies)) or []
+        extractor_args  = (await self.context.render_variable(self.config.extractor_args)) or {}
+        js_runtimes     = (await self.context.render_variable(self.config.js_runtimes)) or []
+
+        js_runtimes = self._normalize_js_runtimes(js_runtimes)
 
         params.update({
             "format_selector": format_selector,
@@ -30,6 +34,8 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             "video_format":    video_format,
             "audio_format":    audio_format,
             "cookies":         cookies,
+            "extractor_args":  extractor_args,
+            "js_runtimes":     js_runtimes,
         })
 
         return params
@@ -73,6 +79,8 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             audio_format=params["audio_format"],
             video_format=params["video_format"],
             cookiefile=cookiefile,
+            extractor_args=params["extractor_args"],
+            js_runtimes=params["js_runtimes"],
         )
 
         logging.debug("Downloading '%s' via yt-dlp (extract_audio=%s)", url, params["extract_audio"])
@@ -93,6 +101,31 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             return AudioStreamResource(stream, format=format_hint)
 
         return VideoStreamResource(stream, format=format_hint)
+
+    @staticmethod
+    def _normalize_js_runtimes(runtimes: Any) -> Dict[str, Dict[str, Any]]:
+        """Accept the YAML-friendly shapes and return yt-dlp's {runtime: {config}} form.
+
+        A bare string or a list of `RUNTIME[:PATH]` entries mirrors the
+        `--js-runtimes` CLI spelling; a mapping is passed through so a caller
+        can supply the full per-runtime config.
+        """
+        if not runtimes:
+            return {}
+
+        if isinstance(runtimes, dict):
+            return { str(name).lower(): (config or {}) for name, config in runtimes.items() }
+
+        if isinstance(runtimes, str):
+            runtimes = [ runtimes ]
+
+        normalized: Dict[str, Dict[str, Any]] = {}
+
+        for entry in runtimes:
+            name, _, runtime_path = str(entry).partition(":")
+            normalized[name.strip().lower()] = { "path": runtime_path or None }
+
+        return normalized
 
     @staticmethod
     def _create_cookies_file(cookies: List[Dict[str, Any]]) -> str:
@@ -147,6 +180,8 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         audio_format: Optional[str],
         video_format: Optional[str],
         cookiefile: Optional[str],
+        extractor_args: Optional[Dict[str, Dict[str, Any]]] = None,
+        js_runtimes: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         options: Dict[str, Any] = {
             "outtmpl":     output_name,
@@ -178,6 +213,12 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
         if cookiefile:
             options["cookiefile"] = cookiefile
+
+        if extractor_args:
+            options["extractor_args"] = extractor_args
+
+        if js_runtimes:
+            options["js_runtimes"] = js_runtimes
 
         return options
 

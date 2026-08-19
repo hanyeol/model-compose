@@ -301,7 +301,8 @@ def validate_command(
                 click.echo(f"  - {error}", err=True)
             raise SystemExit(1)
         else:
-            summary_parts = [f"controller: {config.controller.type.value}"]
+            adapter_types = [ adapter.type.value for adapter in config.controller.adapters ]
+            summary_parts = [f"controller: {', '.join(adapter_types) if adapter_types else 'none'}"]
             if config.components:
                 summary_parts.append(f"{len(config.components)} component(s)")
             if config.workflows:

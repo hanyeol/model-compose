@@ -8,3 +8,5 @@ class YtdlpMediaDownloaderActionConfig(CommonMediaDownloaderActionConfig):
     video_format: Optional[str] = Field(default=None, description="Target video container preferred when merging separate streams (e.g., mp4, webm).")
     audio_format: Optional[str] = Field(default=None, description="Target audio container when extracting audio (e.g., mp3, m4a, opus).")
     cookies: Union[List[Dict[str, Any]], str] = Field(default_factory=list, description="Cookies sent with the download request (each with name, value, domain, path, secure, expires, ...). Matches the shape returned by web-browser's get-cookies.")
+    extractor_args: Union[Dict[str, Dict[str, Any]], str] = Field(default_factory=dict, description="Extractor-specific arguments keyed by extractor name, e.g. {youtube: {player_client: [web_embedded]}}. Mirrors yt-dlp's --extractor-args.")
+    js_runtimes: Union[List[str], str] = Field(default_factory=lambda: [ "deno" ], description="JavaScript runtimes yt-dlp may use to solve player challenges, in priority order (deno, node, quickjs, bun); each entry may carry a path as RUNTIME:PATH.")

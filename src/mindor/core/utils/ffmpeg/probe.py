@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
+from ..files import get_file_extension
 from ..shell import run_command
 import json
 
@@ -28,14 +29,20 @@ _AUDIO_FIELDS: Dict[str, Tuple[str, str]] = {
     "channel_layout": ("stream", "channel_layout"),
 }
 
-def _parse_field_value(field: str, value: Any) -> Any:
+def _parse_field_value(field: str, value: Any, hint: Optional[str] = None) -> Any:
     if value is None:
         return None
 
     if field == "format":
-        # ffprobe returns comma-separated candidates (e.g. "mov,mp4,m4a,3gp,...");
-        # pick the first as the canonical container name.
-        return value.split(",")[0].lower()
+        # ffprobe names a demuxer group, not one container: mp4 reports
+        # "mov,mp4,m4a,3gp,3g2,mj2", and .mkv and .webm both report
+        # "matroska,webm". Prefer the extension the file was addressed by.
+        candidates = [ candidate.strip().lower() for candidate in value.split(",") if candidate.strip() ]
+
+        if hint and hint in candidates:
+            return hint
+
+        return candidates[0] if candidates else None
 
     if field == "frame_rate":
         numerator, denominator = value.split("/")
@@ -80,11 +87,13 @@ async def _probe(
     streams = result.get("streams") or []
     stream = streams[0] if streams else {}
 
+    hint = (get_file_extension(input_path) or "").lower() or None
+
     values = []
     for field in fields:
         section, key = field_map[field]
         source = format if section == "format" else stream
-        values.append(_parse_field_value(field, source.get(key)))
+        values.append(_parse_field_value(field, source.get(key), hint))
 
     return tuple(values)
 

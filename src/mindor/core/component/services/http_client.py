@@ -117,6 +117,8 @@ class HttpClientAction:
 
         context.register_source("response", response)
 
+        result = None
+
         if self.completion:
             is_direct_output = not self.config.output or self.config.output == "${result}"
 
@@ -132,7 +134,7 @@ class HttpClientAction:
 
             context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if not is_direct_output else (result or response)
+        return (await context.render_variable(self.config.output)) if not is_direct_output else (result if self.completion else response)
 
     async def _resolve_url_or_path(self, context: ComponentActionContext) -> str:
         if self.config.path:

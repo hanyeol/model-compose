@@ -110,6 +110,8 @@ class HttpServerAction:
 
         context.register_source("response", response)
 
+        result = None
+
         if self.completion:
             is_direct_output = not self.config.output or self.config.output == "${result}"
 
@@ -125,7 +127,7 @@ class HttpServerAction:
 
             context.register_source("result", result)
 
-        return (await context.render_variable(self.config.output)) if not is_direct_output else (result or response)
+        return (await context.render_variable(self.config.output)) if not is_direct_output else (result if self.completion else response)
 
     async def _resolve_body(self, context: ComponentActionContext) -> Any:
         body = await context.render_variable(self.config.body)

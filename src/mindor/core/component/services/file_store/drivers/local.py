@@ -8,6 +8,7 @@ from mindor.core.foundation.streaming.resources import save_stream_to_file
 from mindor.core.foundation.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import list_dir, walk_dir, is_glob_match, is_path_within, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
+from mindor.core.foundation.cancellation import CancellationToken
 from ..base import FileStoreService, FileStoreDriver, register_file_store_service
 from ..base import ComponentActionContext
 from .common import FileStoreAction
@@ -22,9 +23,14 @@ class LocalFileStoreAction(FileStoreAction):
 
         self.base_path: str = base_path  # absolute, normalized
 
-    async def _put(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path         = params["path"]
-        source       = params["source"]
+    async def _put(
+        self,
+        path: Any,
+        source: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         content_type = params["content_type"]
         chunk_size   = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
 
@@ -67,8 +73,13 @@ class LocalFileStoreAction(FileStoreAction):
             "content_type": content_type,
         }
 
-    async def _get(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path       = params["path"]
+    async def _get(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         save_to    = params["save_to"]
         streaming  = params["streaming"]
         chunk_size = params["chunk_size"]
@@ -140,10 +151,14 @@ class LocalFileStoreAction(FileStoreAction):
             "content": content,
         }
 
-    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _delete(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _delete() -> Dict[str, Any]:
-            path = params["path"]
-
             absolute_path = self._resolve_absolute_path(path)
 
             if not is_path_within(self.base_path, absolute_path):
@@ -156,10 +171,14 @@ class LocalFileStoreAction(FileStoreAction):
 
         return await self._run_in_executor(_delete)
 
-    async def _exists(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _exists(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _exists() -> Dict[str, Any]:
-            path = params["path"]
-
             absolute_path = self._resolve_absolute_path(path)
 
             if not is_path_within(self.base_path, absolute_path):
@@ -169,8 +188,13 @@ class LocalFileStoreAction(FileStoreAction):
 
         return await self._run_in_executor(_exists)
 
-    async def _list(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path             = params["path"]
+    async def _list(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         recursive        = params["recursive"]
         pattern          = params["pattern"]
         max_result_count = params["max_result_count"]

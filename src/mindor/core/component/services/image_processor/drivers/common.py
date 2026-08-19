@@ -218,7 +218,9 @@ class ImageProcessorAction(ComponentAction):
             block_scale    = await context.render_scalar(self.config.block_scale, float)
             min_block_size = await context.render_scalar(self.config.min_block_size, int)
             max_block_size = await context.render_scalar(self.config.max_block_size, int)
-            radius         = await context.render_scalar(self.config.radius, float)
+            blur_radius    = await context.render_scalar(self.config.blur_radius, float)
+            corner_radius  = await context.render_scalar(self.config.corner_radius, int)
+            corner_scale   = await context.render_scalar(self.config.corner_scale, float)
 
             try:
                 mode = MosaicMode(mode)
@@ -243,8 +245,20 @@ class ImageProcessorAction(ComponentAction):
             if max_block_size < min_block_size:
                 raise ValueError(f"'max_block_size' must be >= 'min_block_size' ({min_block_size}), got {max_block_size}")
 
-            if radius < 0.0:
-                raise ValueError(f"'radius' must be >= 0.0, got {radius}")
+            if blur_radius < 0.0:
+                raise ValueError(f"'blur_radius' must be >= 0.0, got {blur_radius}")
+
+            if corner_radius is not None and corner_scale is not None:
+                raise ValueError("'corner_radius' and 'corner_scale' are mutually exclusive; specify only one.")
+
+            if corner_radius is None and corner_scale is None:
+                corner_radius = 0
+
+            if corner_radius is not None and corner_radius < 0:
+                raise ValueError(f"'corner_radius' must be >= 0, got {corner_radius}")
+
+            if corner_scale is not None and not 0.0 <= corner_scale <= 0.5:
+                raise ValueError(f"'corner_scale' must be in [0.0, 0.5], got {corner_scale}")
 
             return {
                 "mode":           mode,
@@ -253,7 +267,9 @@ class ImageProcessorAction(ComponentAction):
                 "block_scale":    block_scale,
                 "min_block_size": min_block_size,
                 "max_block_size": max_block_size,
-                "radius":         radius,
+                "blur_radius":    blur_radius,
+                "corner_radius":  corner_radius,
+                "corner_scale":   corner_scale,
             }
 
         raise ValueError(f"Unsupported image processing action method: {self.config.method}")

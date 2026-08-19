@@ -6,6 +6,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig, GraphStoreActionMethod
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.cancellation import CancellationToken
 from ..base import GraphStoreService, GraphStoreDriver, register_graph_store_service
 from ..base import ComponentActionContext
 from .common import GraphStoreAction
@@ -116,21 +117,35 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
 
         return params
 
-    async def _query(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _query(
+        self,
+        queries: List[str],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
         def _query() -> List[Dict[str, Any]]:
-            query     = params["query"]
-            bind_vars = params["params"]
+            bind_vars = params["bind_vars"]
 
-            cursor = self.database.aql.execute(query, bind_vars=bind_vars or {})
+            records: List[Dict[str, Any]] = []
 
-            return [ doc for doc in cursor ]
+            for query in queries:
+                cursor = self.database.aql.execute(query, bind_vars=bind_vars or {})
+                records.extend(doc for doc in cursor)
+
+            return records
 
         return await self._run_in_executor(_query)
 
-    async def _insert(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _insert(
+        self,
+        nodes: Optional[List[Dict[str, Any]]],
+        relationships: Optional[List[Dict[str, Any]]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _insert() -> Dict[str, Any]:
-            nodes           = params["nodes"]
-            relationships   = params["relationships"]
             collection      = params["collection"]
             edge_collection = params["edge_collection"]
 
@@ -138,27 +153,25 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
             created_relationships = 0
             inserted_ids: List[str] = []
 
-            if nodes:
-                for node in nodes if isinstance(nodes, list) else [ nodes ]:
-                    collection_name, doc = ArangoDBQueryBuilder.build_insert_node_doc(node, collection)
+            for node in nodes or []:
+                collection_name, doc = ArangoDBQueryBuilder.build_insert_node_doc(node, collection)
 
-                    if not self.database.has_collection(collection_name):
-                        self.database.create_collection(collection_name)
+                if not self.database.has_collection(collection_name):
+                    self.database.create_collection(collection_name)
 
-                    result = self.database.collection(collection_name).insert(doc)
-                    inserted_ids.append(result.get("_id", result.get("_key", "")))
-                    created_nodes += 1
+                result = self.database.collection(collection_name).insert(doc)
+                inserted_ids.append(result.get("_id", result.get("_key", "")))
+                created_nodes += 1
 
-            if relationships:
-                for relationship in relationships if isinstance(relationships, list) else [ relationships ]:
-                    collection_name, doc = ArangoDBQueryBuilder.build_insert_edge_doc(relationship, edge_collection)
+            for relationship in relationships or []:
+                collection_name, doc = ArangoDBQueryBuilder.build_insert_edge_doc(relationship, edge_collection)
 
-                    if not self.database.has_collection(collection_name):
-                        self.database.create_collection(collection_name, edge=True)
+                if not self.database.has_collection(collection_name):
+                    self.database.create_collection(collection_name, edge=True)
 
-                    result = self.database.collection(collection_name).insert(doc)
-                    inserted_ids.append(result.get("_id", result.get("_key", "")))
-                    created_relationships += 1
+                result = self.database.collection(collection_name).insert(doc)
+                inserted_ids.append(result.get("_id", result.get("_key", "")))
+                created_relationships += 1
 
             return {
                 "ids": inserted_ids,
@@ -168,23 +181,27 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
 
         return await self._run_in_executor(_insert)
 
-    async def _update(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update(
+        self,
+        node_ids: Optional[List[Any]],
+        relationship_ids: Optional[List[Any]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _update() -> Dict[str, Any]:
-            node_id         = params["node_id"]
-            relationship_id = params["relationship_id"]
-            properties      = params["properties"]
-            collection      = params["collection"]
+            properties = params["properties"]
+            collection = params["collection"]
 
             affected_rows = 0
 
-            if node_id is not None and properties:
-                for id in node_id if isinstance(node_id, list) else [ node_id ]:
+            if properties:
+                for id in node_ids or []:
                     collection_name, doc = ArangoDBQueryBuilder.build_update_doc(str(id), properties, collection or "nodes")
                     self.database.collection(collection_name).update(doc)
                     affected_rows += 1
 
-            if relationship_id is not None and properties:
-                for id in relationship_id if isinstance(relationship_id, list) else [ relationship_id ]:
+                for id in relationship_ids or []:
                     collection_name, doc = ArangoDBQueryBuilder.build_update_doc(str(id), properties, collection or "edges")
                     self.database.collection(collection_name).update(doc)
                     affected_rows += 1
@@ -193,33 +210,41 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
 
         return await self._run_in_executor(_update)
 
-    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _delete(
+        self,
+        node_ids: Optional[List[Any]],
+        relationship_ids: Optional[List[Any]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _delete() -> Dict[str, Any]:
-            node_id         = params["node_id"]
-            relationship_id = params["relationship_id"]
-            collection      = params["collection"]
+            collection = params["collection"]
 
             affected_rows = 0
 
-            if node_id is not None:
-                for id in node_id if isinstance(node_id, list) else [ node_id ]:
-                    collection_name, key = ArangoDBQueryBuilder.resolve_doc_id(str(id), collection or "nodes")
-                    self.database.collection(collection_name).delete(key)
-                    affected_rows += 1
+            for id in node_ids or []:
+                collection_name, key = ArangoDBQueryBuilder.resolve_doc_id(str(id), collection or "nodes")
+                self.database.collection(collection_name).delete(key)
+                affected_rows += 1
 
-            if relationship_id is not None:
-                for id in relationship_id if isinstance(relationship_id, list) else [ relationship_id ]:
-                    collection_name, key = ArangoDBQueryBuilder.resolve_doc_id(str(id), collection or "edges")
-                    self.database.collection(collection_name).delete(key)
-                    affected_rows += 1
+            for id in relationship_ids or []:
+                collection_name, key = ArangoDBQueryBuilder.resolve_doc_id(str(id), collection or "edges")
+                self.database.collection(collection_name).delete(key)
+                affected_rows += 1
 
             return { "affected_rows": affected_rows }
 
         return await self._run_in_executor(_delete)
 
-    async def _traverse(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _traverse(
+        self,
+        start_nodes: List[Any],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
         def _traverse() -> List[Dict[str, Any]]:
-            start_node         = params["start_node"]
             direction          = params["direction"]
             max_depth          = params["max_depth"]
             relationship_types = params["relationship_types"]
@@ -229,28 +254,33 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
             direction_map = { "out": "outbound", "in": "inbound", "both": "any" }
             arango_direction = direction_map.get(direction, "outbound")
 
-            if graph_name:
-                ArangoDBQueryBuilder.verify_identifier(graph_name, "graph")
-                graph = self.database.graph(graph_name)
-                result = graph.traverse(
-                    start_vertex=str(start_node),
-                    direction=arango_direction,
-                    max_depth=max_depth
+            records: List[Dict[str, Any]] = []
+
+            for start_node in start_nodes:
+                if graph_name:
+                    ArangoDBQueryBuilder.verify_identifier(graph_name, "graph")
+                    graph = self.database.graph(graph_name)
+                    result = graph.traverse(
+                        start_vertex=str(start_node),
+                        direction=arango_direction,
+                        max_depth=max_depth
+                    )
+
+                    vertices = result.get("vertices", [])
+                    records.extend({ "node": vertex, "depth": None } for vertex in vertices[1:])
+                    continue
+
+                aql, bind_vars = ArangoDBQueryBuilder.build_traverse(
+                    start_node,
+                    direction,
+                    max_depth,
+                    edge_collection,
+                    relationship_types,
                 )
+                cursor = self.database.aql.execute(aql, bind_vars=bind_vars)
+                records.extend(doc for doc in cursor)
 
-                vertices = result.get("vertices", [])
-                return [ { "node": vertex, "depth": None } for vertex in vertices[1:] ]
-
-            aql, bind_vars = ArangoDBQueryBuilder.build_traverse(
-                start_node,
-                direction,
-                max_depth,
-                edge_collection,
-                relationship_types,
-            )
-            cursor = self.database.aql.execute(aql, bind_vars=bind_vars)
-
-            return [ doc for doc in cursor ]
+            return records
 
         return await self._run_in_executor(_traverse)
 

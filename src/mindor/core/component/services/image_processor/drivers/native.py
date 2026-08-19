@@ -6,7 +6,7 @@ from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode,
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
-from PIL import Image as PILImage, ImageFilter, ImageEnhance
+from PIL import Image as PILImage, ImageFilter, ImageEnhance, ImageDraw
 import math
 
 class NativeImageProcessorAction(ImageProcessorAction):
@@ -185,7 +185,8 @@ class NativeImageProcessorAction(ImageProcessorAction):
                 if cx2 <= cx1 or cy2 <= cy1:
                     continue
 
-                target = canvas.crop((cx1, cy1, cx2, cy2))
+                target     = canvas.crop((cx1, cy1, cx2, cy2))
+                block_size = None
 
                 if mode == MosaicMode.PIXELATE:
                     block_size = params["block_size"]
@@ -194,11 +195,23 @@ class NativeImageProcessorAction(ImageProcessorAction):
                         block_size = min(params["max_block_size"], max(params["min_block_size"], block_size))
                     mosaic = self._mosaic_pixelate(target, block_size)
                 elif mode == MosaicMode.BLUR:
-                    mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
+                    mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["blur_radius"]))
                 else:
                     raise ValueError(f"Unsupported mosaic mode: {mode}")
 
-                canvas.paste(mosaic, (cx1, cy1))
+                corner_radius = params["corner_radius"]
+
+                if corner_radius is None:
+                    corner_radius = round(min(target.size) * params["corner_scale"])
+
+                if corner_radius > 0:
+                    if mode == MosaicMode.PIXELATE:
+                        mask = self._blocky_rounded_rectangle_mask(mosaic.size, corner_radius, block_size)
+                    else:
+                        mask = self._rounded_rectangle_mask(mosaic.size, corner_radius)
+                    canvas.paste(mosaic, (cx1, cy1), mask)
+                else:
+                    canvas.paste(mosaic, (cx1, cy1))
 
             return canvas
 
@@ -270,6 +283,28 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         shrunk = image.resize((shrunk_w, shrunk_h), PILImage.Resampling.BILINEAR)
         return shrunk.resize((w, h), PILImage.Resampling.NEAREST)
+
+    def _blocky_rounded_rectangle_mask(self, size: Tuple[int, int], radius: int, block_size: int) -> PILImage.Image:
+        width, height = size
+        radius = min(max(0, radius), width // 2, height // 2)
+
+        full = PILImage.new("L", size, 0)
+        ImageDraw.Draw(full).rounded_rectangle((0, 0, width - 1, height - 1), radius=radius, fill=255)
+
+        cols = max(1, width  // block_size)
+        rows = max(1, height // block_size)
+        small = full.resize((cols, rows), PILImage.Resampling.NEAREST)
+
+        return small.resize(size, PILImage.Resampling.NEAREST)
+
+    def _rounded_rectangle_mask(self, size: Tuple[int, int], radius: int) -> PILImage.Image:
+        width, height = size
+        radius = min(radius, width // 2, height // 2)
+
+        mask = PILImage.new("L", size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, width - 1, height - 1), radius=radius, fill=255)
+
+        return mask
 
     def _resolve_anchor_point(self, anchor: ImagePositionAnchor, size: Tuple[int, int]) -> Tuple[int, int]:
         width, height = size

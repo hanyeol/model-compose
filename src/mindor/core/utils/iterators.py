@@ -39,7 +39,10 @@ class BatchSourceIterator:
 
                 def _pack_batch() -> Tuple[Any, ...]:
                     batch_iterator = iter(batches)
-                    return tuple(None if single is None else next(batch_iterator) for single in source)
+                    # `None` slots become a same-length list of `None`s so consumers
+                    # can uniformly `zip(*)` the packed tuple without special-casing.
+                    fill = [ None ] * len(batches[0])
+                    return tuple(fill if single is None else next(batch_iterator) for single in source)
 
                 async for items in self._iterate_zipped(active):
                     for index, item in enumerate(items):
@@ -51,6 +54,10 @@ class BatchSourceIterator:
 
                 if batches[0]:
                     yield _pack_batch()
+            else:
+                # All-None tuple: yield a single batch of same-length None-lists so
+                # consumers can still perform one driver call (e.g. LIST with no path).
+                yield tuple([ None ] for _ in source)
 
             return
 

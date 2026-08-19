@@ -26,16 +26,17 @@ class GraphRelationshipConfig(BaseModel):
 
 class CommonGraphStoreActionConfig(CommonActionConfig):
     method: GraphStoreActionMethod = Field(..., description="Graph store operation this action performs.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of items processed per batch.")
 
 class CommonGraphQueryActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.QUERY]
-    query: str = Field(..., description="Native graph query string (Cypher for Neo4j, AQL for ArangoDB).")
+    query: Union[str, List[str]] = Field(..., description="Native graph query or list of queries (Cypher for Neo4j, AQL for ArangoDB).")
     params: Optional[Union[Dict[str, Any], str]] = Field(default=None, description="Parameter values bound into the query.")
 
 class CommonGraphInsertActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.INSERT]
-    nodes: Optional[Union[GraphNodeConfig, List[GraphNodeConfig], str]] = Field(default=None, description="Node or nodes inserted into the graph.")
-    relationships: Optional[Union[GraphRelationshipConfig, List[GraphRelationshipConfig], str]] = Field(default=None, description="Relationship or relationships inserted into the graph.")
+    node: Optional[Union[GraphNodeConfig, List[GraphNodeConfig], str]] = Field(default=None, description="Node or nodes inserted into the graph.")
+    relationship: Optional[Union[GraphRelationshipConfig, List[GraphRelationshipConfig], str]] = Field(default=None, description="Relationship or relationships inserted into the graph.")
 
 class CommonGraphUpdateActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.UPDATE]
@@ -52,7 +53,7 @@ class CommonGraphDeleteActionConfig(CommonGraphStoreActionConfig):
 
 class CommonGraphTraverseActionConfig(CommonGraphStoreActionConfig):
     method: Literal[GraphStoreActionMethod.TRAVERSE]
-    start_node: Union[str, int] = Field(..., description="ID of the node the traversal starts from.")
+    start_node: Union[Union[str, int], List[Union[str, int]], str] = Field(..., description="ID or IDs of nodes the traversal starts from.")
     direction: Literal[ "in", "out", "both" ] = Field(default="out", description="Direction the traversal follows relative to the start node.")
     max_depth: int = Field(default=3, ge=1, description="Maximum traversal depth in edges.")
     relationship_types: Optional[List[str]] = Field(default=None, description="Relationship types the traversal is restricted to.")

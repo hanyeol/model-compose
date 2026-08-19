@@ -15,8 +15,9 @@ class AudioArrayValue:
     `AsyncIterable[MediaSource]` (one-shot). Consumers use `async for` to
     iterate lazily, or `await collect()` when the full list is needed.
     """
-    def __init__(self, source: Union[List[MediaSource], AsyncIterable[MediaSource]]):
+    def __init__(self, source: Union[List[MediaSource], AsyncIterable[MediaSource]], is_single: bool = False):
         self.source: Union[List[MediaSource], AsyncIterable[MediaSource]] = source
+        self.is_single: bool = is_single
 
     def __aiter__(self) -> AsyncIterator[MediaSource]:
         if isinstance(self.source, list):
@@ -28,10 +29,10 @@ class AudioArrayValue:
         return self.source.__aiter__()
 
     async def collect(self) -> List[MediaSource]:
-        if isinstance(self.source, list):
-            return self.source
+        if isinstance(self.source, AsyncIterable):
+            return [ item async for item in self.source ]
 
-        return [ item async for item in self.source ]
+        return self.source
 
 class AudioBufferArrayValue:
     """A materialized or streaming array of audio buffers.
@@ -42,8 +43,9 @@ class AudioBufferArrayValue:
     when the full list of ``AudioBuffer`` values is needed — streaming iterators in
     the source are collected on demand.
     """
-    def __init__(self, source: Union[List[AudioBufferValue], AsyncIterable[AudioBufferValue]]):
+    def __init__(self, source: Union[List[AudioBufferValue], AsyncIterable[AudioBufferValue]], is_single: bool = False):
         self.source: Union[List[AudioBufferValue], AsyncIterable[AudioBufferValue]] = source
+        self.is_single: bool = is_single
 
     def __aiter__(self) -> AsyncIterator[AudioBufferValue]:
         if isinstance(self.source, list):
@@ -56,9 +58,9 @@ class AudioBufferArrayValue:
         return self.source.__aiter__()
 
     async def collect(self) -> List[AudioBuffer]:
-        items = self.source if isinstance(self.source, list) else [ item async for item in self.source ]
-
+        items = [ item async for item in self.source ] if isinstance(self.source, AsyncIterable) else self.source
         audios: List[AudioBuffer] = []
+
         for item in items:
             if isinstance(item, AudioBufferStreamIterator):
                 item = await item.collect()
@@ -69,7 +71,8 @@ class AudioBufferArrayValue:
 class AudioValueRenderer:
     async def render_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[AudioArrayValue, List[Optional[AudioArrayValue]], AsyncIterator[Optional[AudioArrayValue]]]]:
         # Fragmented streams represent a single logical audio array delivered
         # in pieces — fall through to `_render_element_array` which wraps them
@@ -79,7 +82,7 @@ class AudioValueRenderer:
         if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk)
+                    yield await self._render_element_array(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -88,9 +91,9 @@ class AudioValueRenderer:
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-            return [ await self._render_element_array(item) for item in value ]
+            return [ await self._render_element_array(item, single_as_array) for item in value ]
 
-        return await self._render_element_array(value)
+        return await self._render_element_array(value, single_as_array)
 
     async def render(
         self,
@@ -112,7 +115,7 @@ class AudioValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element_array(self, value: Any) -> Optional[AudioArrayValue]:
+    async def _render_element_array(self, value: Any, single_as_array: bool = False) -> Optional[AudioArrayValue]:
         if isinstance(value, AudioArrayValue):
             return value
 
@@ -126,6 +129,11 @@ class AudioValueRenderer:
 
         if isinstance(value, (list, tuple)):
             return AudioArrayValue([ await self._render_element(item) for item in value if item is not None ])
+
+        if single_as_array:
+            audio = await self._render_element(value)
+            if audio is not None:
+                return AudioArrayValue([ audio ], is_single=True)
 
         return None
 
@@ -144,6 +152,7 @@ class AudioBufferValueRenderer:
         self,
         value: Any,
         collect: bool = True,
+        single_as_array: bool = False,
     ) -> Optional[Union[AudioBufferArrayValue, List[Optional[AudioBufferArrayValue]], AsyncIterator[Optional[AudioBufferArrayValue]]]]:
         # Fragmented streams represent a single logical audio buffer array
         # delivered in pieces — fall through to `_render_element_array` which
@@ -153,7 +162,7 @@ class AudioBufferValueRenderer:
         if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk, collect=collect)
+                    yield await self._render_element_array(chunk, collect=collect, single_as_array=single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -162,9 +171,9 @@ class AudioBufferValueRenderer:
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-            return [ await self._render_element_array(item, collect=collect) for item in value ]
+            return [ await self._render_element_array(item, collect=collect, single_as_array=single_as_array) for item in value ]
 
-        return await self._render_element_array(value, collect=collect)
+        return await self._render_element_array(value, collect=collect, single_as_array=single_as_array)
 
     async def render(
         self,
@@ -192,7 +201,7 @@ class AudioBufferValueRenderer:
 
         return await self._render_element(value, collect=collect)
 
-    async def _render_element_array(self, value: Any, collect: bool = True) -> Optional[AudioBufferArrayValue]:
+    async def _render_element_array(self, value: Any, collect: bool = True, single_as_array: bool = False) -> Optional[AudioBufferArrayValue]:
         if isinstance(value, AudioBufferArrayValue):
             return value
 
@@ -206,6 +215,11 @@ class AudioBufferValueRenderer:
 
         if isinstance(value, (list, tuple)):
             return AudioBufferArrayValue([ await self._render_element(item, collect=collect) for item in value ])
+
+        if single_as_array:
+            item = await self._render_element(value, collect=collect)
+            if item is not None:
+                return AudioBufferArrayValue([ item ], is_single=True)
 
         return None
 

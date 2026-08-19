@@ -11,8 +11,9 @@ class VideoArrayValue:
     `AsyncIterable[MediaSource]` (one-shot). Consumers use `async for` to
     iterate lazily, or `await collect()` when the full list is needed.
     """
-    def __init__(self, source: Union[List[MediaSource], AsyncIterable[MediaSource]]):
+    def __init__(self, source: Union[List[MediaSource], AsyncIterable[MediaSource]], is_single: bool = False):
         self.source: Union[List[MediaSource], AsyncIterable[MediaSource]] = source
+        self.is_single: bool = is_single
 
     def __aiter__(self) -> AsyncIterator[MediaSource]:
         if isinstance(self.source, list):
@@ -24,15 +25,16 @@ class VideoArrayValue:
         return self.source.__aiter__()
 
     async def collect(self) -> List[MediaSource]:
-        if isinstance(self.source, list):
-            return self.source
+        if isinstance(self.source, AsyncIterable):
+            return [ item async for item in self.source ]
 
-        return [ item async for item in self.source ]
+        return self.source
 
 class VideoValueRenderer:
     async def render_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[VideoArrayValue, List[Optional[VideoArrayValue]], AsyncIterator[Optional[VideoArrayValue]]]]:
         # Fragmented streams represent a single logical video array delivered
         # in pieces — fall through to `_render_element_array` which wraps them
@@ -42,7 +44,7 @@ class VideoValueRenderer:
         if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk)
+                    yield await self._render_element_array(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -51,9 +53,9 @@ class VideoValueRenderer:
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-            return [ await self._render_element_array(item) for item in value ]
+            return [ await self._render_element_array(item, single_as_array) for item in value ]
 
-        return await self._render_element_array(value)
+        return await self._render_element_array(value, single_as_array)
 
     async def render(
         self,
@@ -75,7 +77,7 @@ class VideoValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element_array(self, value: Any) -> Optional[VideoArrayValue]:
+    async def _render_element_array(self, value: Any, single_as_array: bool = False) -> Optional[VideoArrayValue]:
         if isinstance(value, VideoArrayValue):
             return value
 
@@ -89,6 +91,11 @@ class VideoValueRenderer:
 
         if isinstance(value, (list, tuple)):
             return VideoArrayValue([ await self._render_element(item) for item in value if item is not None ])
+
+        if single_as_array:
+            video = await self._render_element(value)
+            if video is not None:
+                return VideoArrayValue([ video ], is_single=True)
 
         return None
 

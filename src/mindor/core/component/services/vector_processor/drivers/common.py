@@ -65,8 +65,8 @@ class VectorProcessorAction(ComponentAction):
             if other is None:
                 raise ValueError(f"'other' must be specified for '{method.value}' method")
 
-            is_single_input = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
-            is_streaming_input = isinstance(vector, (StreamIterator, AsyncIterator)) or isinstance(other, (StreamIterator, AsyncIterator))
+            is_single_input    = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
+            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vector, other))
 
             return (vector, other), is_single_input, is_streaming_input
 
@@ -80,8 +80,8 @@ class VectorProcessorAction(ComponentAction):
             if candidates is None:
                 raise ValueError(f"'candidates' must be specified for '{method.value}' method")
 
-            is_single_input = isinstance(query, VectorValue) and isinstance(candidates, VectorArrayValue)
-            is_streaming_input = isinstance(query, (StreamIterator, AsyncIterator)) or isinstance(candidates, (StreamIterator, AsyncIterator))
+            is_single_input    = isinstance(query, VectorValue) and isinstance(candidates, VectorArrayValue)
+            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (query, candidates))
 
             return (query, candidates), is_single_input, is_streaming_input
 
@@ -91,7 +91,7 @@ class VectorProcessorAction(ComponentAction):
             if vector is None:
                 raise ValueError("'vector' must be specified for 'normalize' method")
 
-            is_single_input = isinstance(vector, VectorValue)
+            is_single_input    = isinstance(vector, VectorValue)
             is_streaming_input = isinstance(vector, (StreamIterator, AsyncIterator))
 
             return (vector,), is_single_input, is_streaming_input
@@ -102,7 +102,7 @@ class VectorProcessorAction(ComponentAction):
             if vectors is None:
                 raise ValueError(f"'vectors' must be specified for '{method.value}' method")
 
-            is_single_input = isinstance(vectors, VectorArrayValue)
+            is_single_input    = isinstance(vectors, VectorArrayValue)
             is_streaming_input = isinstance(vectors, (StreamIterator, AsyncIterator))
 
             return (vectors,), is_single_input, is_streaming_input

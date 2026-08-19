@@ -29,7 +29,7 @@ class CommonVectorStoreActionConfig(CommonActionConfig):
     method: VectorStoreActionMethod = Field(..., description="Vector store operation this action performs.")
     id_field: str = Field(default="id", description="Name of the field that identifies vectors in the store.")
     vector_field: str = Field(default="vector", description="Name of the field that stores vector embeddings.")
-    batch_size: Union[int, str] = Field(default=0, description="Number of items processed per batch; 0 means unbounded.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of items processed per batch.")
 
     @classmethod
     def normalize_filter(cls, filter: Any) -> None:
@@ -59,7 +59,7 @@ class CommonVectorUpdateActionConfig(CommonVectorStoreActionConfig):
 
 class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.SEARCH]
-    query: Union[List[float], str] = Field(..., description="Query vector used for similarity search.")
+    query: Union[List[float], List[List[float]], str] = Field(..., description="Query vector or list of query vectors used for similarity search.")
     top_k: int = Field(default=10, description="Number of most similar vectors returned.")
     metric_type: Optional[str] = Field(default=None, description="Distance metric applied to the search (e.g., L2, IP, COSINE).")
     filter: Optional[Union[List[VectorStoreFilterCondition], str]] = Field(default=None, description="Metadata filter conditions applied to search candidates.")

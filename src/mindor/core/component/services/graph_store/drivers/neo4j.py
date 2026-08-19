@@ -6,6 +6,7 @@ from typing import Union, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.cancellation import CancellationToken
 from ..base import GraphStoreService, GraphStoreDriver, register_graph_store_service
 from ..base import ComponentActionContext
 from .common import GraphStoreAction
@@ -120,49 +121,61 @@ class Neo4jQueryBuilder:
         return cypher, { "start_id": start_node }
 
 class Neo4jGraphStoreAction(GraphStoreAction):
-    async def _query(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        query     = params["query"]
-        bind_vars = params["params"]
+    async def _query(
+        self,
+        queries: List[str],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
+        # Neo4j has no native multi-statement batching over a session, so run
+        # each query in order and concatenate the record rows.
+        bind_vars = params["bind_vars"]
 
-        result = await self.database.run(query, parameters=bind_vars or {})
-        records = await result.data()
+        records: List[Dict[str, Any]] = []
+
+        for query in queries:
+            result = await self.database.run(query, parameters=bind_vars or {})
+            records.extend(await result.data())
 
         return records
 
-    async def _insert(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        nodes         = params["nodes"]
-        relationships = params["relationships"]
-
+    async def _insert(
+        self,
+        nodes: Optional[List[Dict[str, Any]]],
+        relationships: Optional[List[Dict[str, Any]]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         node_ids: List[str] = []
         relationship_ids: List[str] = []
         created_nodes = 0
         created_relationships = 0
 
-        if nodes:
-            for node in nodes if isinstance(nodes, list) else [ nodes ]:
-                cypher, cypher_params = Neo4jQueryBuilder.build_create_node(
-                    node.get("label", "Node"),
-                    node.get("properties", {}),
-                )
-                result = await self.database.run(cypher, parameters=cypher_params)
-                record = await result.single()
-                if record:
-                    node_ids.append(record["id"])
-                created_nodes += 1
+        for node in nodes or []:
+            cypher, cypher_params = Neo4jQueryBuilder.build_create_node(
+                node.get("label", "Node"),
+                node.get("properties", {}),
+            )
+            result = await self.database.run(cypher, parameters=cypher_params)
+            record = await result.single()
+            if record:
+                node_ids.append(record["id"])
+            created_nodes += 1
 
-        if relationships:
-            for relation in relationships if isinstance(relationships, list) else [ relationships ]:
-                cypher, cypher_params = Neo4jQueryBuilder.build_create_relationship(
-                    relation.get("type", "RELATED_TO"),
-                    relation.get("from"),
-                    relation.get("to"),
-                    relation.get("properties", {}) or {},
-                )
-                result = await self.database.run(cypher, parameters=cypher_params)
-                record = await result.single()
-                if record:
-                    relationship_ids.append(record["id"])
-                created_relationships += 1
+        for relationship in relationships or []:
+            cypher, cypher_params = Neo4jQueryBuilder.build_create_relationship(
+                relationship.get("type", "RELATED_TO"),
+                relationship.get("from"),
+                relationship.get("to"),
+                relationship.get("properties", {}) or {},
+            )
+            result = await self.database.run(cypher, parameters=cypher_params)
+            record = await result.single()
+            if record:
+                relationship_ids.append(record["id"])
+            created_relationships += 1
 
         return {
             "ids": node_ids + relationship_ids,
@@ -170,69 +183,82 @@ class Neo4jGraphStoreAction(GraphStoreAction):
             "created_relationships": created_relationships,
         }
 
-    async def _update(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        node_id         = params["node_id"]
-        relationship_id = params["relationship_id"]
-        properties      = params["properties"]
-        labels          = params["labels"]
+    async def _update(
+        self,
+        node_ids: Optional[List[Any]],
+        relationship_ids: Optional[List[Any]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
+        properties = params["properties"]
+        labels     = params["labels"]
 
         affected_rows = 0
 
-        if node_id is not None:
-            for id in node_id if isinstance(node_id, list) else [ node_id ]:
-                built = Neo4jQueryBuilder.build_update_node(id, properties, labels)
-                if built:
-                    cypher, cypher_params = built
-                    await self.database.run(cypher, parameters=cypher_params)
-                    affected_rows += 1
-
-        if relationship_id is not None:
-            for id in relationship_id if isinstance(relationship_id, list) else [ relationship_id ]:
-                if properties:
-                    cypher, cypher_params = Neo4jQueryBuilder.build_update_relationship(id, properties)
-                    await self.database.run(cypher, parameters=cypher_params)
-                    affected_rows += 1
-
-        return { "affected_rows": affected_rows }
-
-    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        node_id         = params["node_id"]
-        relationship_id = params["relationship_id"]
-        detach          = params["detach"]
-
-        affected_rows = 0
-
-        if node_id is not None:
-            for id in node_id if isinstance(node_id, list) else [ node_id ]:
-                cypher, cypher_params = Neo4jQueryBuilder.build_delete_node(id, detach)
+        for id in node_ids or []:
+            built = Neo4jQueryBuilder.build_update_node(id, properties, labels)
+            if built:
+                cypher, cypher_params = built
                 await self.database.run(cypher, parameters=cypher_params)
                 affected_rows += 1
 
-        if relationship_id is not None:
-            for id in relationship_id if isinstance(relationship_id, list) else [ relationship_id ]:
-                cypher, cypher_params = Neo4jQueryBuilder.build_delete_relationship(id)
+        if properties:
+            for id in relationship_ids or []:
+                cypher, cypher_params = Neo4jQueryBuilder.build_update_relationship(id, properties)
                 await self.database.run(cypher, parameters=cypher_params)
                 affected_rows += 1
 
         return { "affected_rows": affected_rows }
 
-    async def _traverse(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        start_node         = params["start_node"]
+    async def _delete(
+        self,
+        node_ids: Optional[List[Any]],
+        relationship_ids: Optional[List[Any]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
+        detach = params["detach"]
+
+        affected_rows = 0
+
+        for id in node_ids or []:
+            cypher, cypher_params = Neo4jQueryBuilder.build_delete_node(id, detach)
+            await self.database.run(cypher, parameters=cypher_params)
+            affected_rows += 1
+
+        for id in relationship_ids or []:
+            cypher, cypher_params = Neo4jQueryBuilder.build_delete_relationship(id)
+            await self.database.run(cypher, parameters=cypher_params)
+            affected_rows += 1
+
+        return { "affected_rows": affected_rows }
+
+    async def _traverse(
+        self,
+        start_nodes: List[Any],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
         direction          = params["direction"]
         max_depth          = params["max_depth"]
         relationship_types = params["relationship_types"]
         node_labels        = params["node_labels"]
 
-        cypher, cypher_params = Neo4jQueryBuilder.build_traverse(
-            start_node,
-            direction,
-            max_depth,
-            relationship_types,
-            node_labels,
-        )
+        records: List[Dict[str, Any]] = []
 
-        result = await self.database.run(cypher, parameters=cypher_params)
-        records = await result.data()
+        for start_node in start_nodes:
+            cypher, cypher_params = Neo4jQueryBuilder.build_traverse(
+                start_node,
+                direction,
+                max_depth,
+                relationship_types,
+                node_labels,
+            )
+            result = await self.database.run(cypher, parameters=cypher_params)
+            records.extend(await result.data())
 
         return records
 

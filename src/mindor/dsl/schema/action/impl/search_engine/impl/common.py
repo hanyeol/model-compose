@@ -19,21 +19,22 @@ class SearchEngineFieldConfig(BaseModel):
 
 class CommonSearchEngineActionConfig(CommonActionConfig):
     method: SearchEngineActionMethod = Field(..., description="Search engine operation this action performs.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of items processed per batch.")
 
 class CommonSearchIndexActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.INDEX]
     index: str = Field(..., description="Name of the index that receives the documents.")
     fields: Optional[List[SearchEngineFieldConfig]] = Field(default=None, description="Index schema field definitions; optional when appending to an existing index.")
-    documents: Union[List[Dict[str, Any]], str] = Field(..., description="Documents inserted into the index.")
+    document: Union[Dict[str, Any], List[Dict[str, Any]], str] = Field(..., description="Document or documents inserted into the index.")
 
 class CommonSearchSearchActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.SEARCH]
     index: str = Field(..., description="Name of the index searched by this action.")
-    query: str = Field(..., description="Search query string.")
+    query: Union[str, List[str]] = Field(..., description="Search query or list of queries.")
     search_fields: Optional[Union[List[str], str]] = Field(default=None, description="Fields the query runs against; when omitted, all text fields are searched.")
     limit: Union[int, str] = Field(default=10, description="Maximum number of search results returned.")
 
 class CommonSearchDeleteActionConfig(CommonSearchEngineActionConfig):
     method: Literal[SearchEngineActionMethod.DELETE]
     index: str = Field(..., description="Name of the index that documents are deleted from.")
-    document_ids: Union[List[str], str] = Field(..., description="IDs of the documents to delete.")
+    document_id: Union[str, List[str]] = Field(..., description="ID or IDs of the documents to delete.")

@@ -21,75 +21,86 @@ class RedisKeyValueStoreAction(KeyValueStoreAction):
 
     async def _get(
         self,
+        keys: List[str],
+        *,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        key = params["key"]
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
+        values = await self.client.mget(keys) if keys else []
 
-        if isinstance(key, list):
-            raws = await self.client.mget(key) if key else []
-            return { "values": [ self._decode_value(raw) for raw in raws ] }
-
-        return { "value": self._decode_value(await self.client.get(key)) }
-
-    def _decode_value(self, raw: Any) -> Any:
-        if raw is None:
-            return None
-
-        value = raw.decode("utf-8") if isinstance(raw, bytes) else raw
-
-        try:
-            return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            return value
+        return [ { "key": key, "value": self._decode_value(value) } for key, value in zip(keys, values) ]
 
     async def _set(
         self,
+        keys: List[str],
+        values: List[Any],
+        *,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        key   = params["key"]
-        value = params["value"]
-        ttl   = params["ttl"]
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
+        values = [ self._encode_value(value) for value in values ]
 
-        if isinstance(value, (dict, list)):
-            value = json.dumps(value, ensure_ascii=False)
-        elif not isinstance(value, str):
-            value = str(value)
-
-        if ttl is not None:
-            result = await self.client.setex(key, ttl, value)
+        if params["ttl"] is not None:
+            async with self.client.pipeline(transaction=False) as p:
+                for key, value in zip(keys, values):
+                    p.setex(key, params["ttl"], value)
+                results = await p.execute()
         else:
-            result = await self.client.set(key, value)
+            result = await self.client.mset(dict(zip(keys, values)))
+            results = [ result ] * len(keys)
 
-        return { "success": bool(result) }
+        return [ { "key": key, "success": bool(result) } for key, result in zip(keys, results) ]
 
     async def _delete(
         self,
+        keys: List[str],
+        *,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        key = params["key"]
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
+        # `DEL k1 k2 ...` returns only a total count. Use a pipeline so each
+        # response entry can report whether that specific key was removed.
+        async with self.client.pipeline(transaction=False) as p:
+            for key in keys:
+                p.delete(key)
+            deletions = await p.execute()
 
-        if isinstance(key, list):
-            count = await self.client.delete(*key) if key else 0
-        else:
-            count = await self.client.delete(key)
-
-        return { "count": count }
+        return [ { "key": key, "deleted": bool(deletion) } for key, deletion in zip(keys, deletions) ]
 
     async def _exists(
         self,
+        keys: List[str],
+        *,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        key = params["key"]
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[Dict[str, Any]]:
+        # `EXISTS k1 k2 ...` returns only a total count; use a pipeline for per-key flags.
+        async with self.client.pipeline(transaction=False) as p:
+            for key in keys:
+                p.exists(key)
+            existences = await p.execute()
 
-        if isinstance(key, list):
-            count = await self.client.exists(*key) if key else 0
-            return { "count": count }
+        return [ { "key": key, "exists": bool(existence) } for key, existence in zip(keys, existences) ]
 
-        return { "exists": bool(await self.client.exists(key)) }
+    def _decode_value(self, value: Any) -> Any:
+        value = value.decode("utf-8") if isinstance(value, bytes) else value
+
+        if value is not None:
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return value
+
+        return None
+
+    def _encode_value(self, value: Any) -> str:
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+
+        if not isinstance(value, str):
+            return str(value)
+
+        return value
 
 @register_kv_store_service(KeyValueStoreDriver.REDIS)
 class RedisKeyValueStoreService(KeyValueStoreService):

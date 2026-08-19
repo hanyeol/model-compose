@@ -1,11 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.cancellation import CancellationToken
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
@@ -63,169 +66,142 @@ class ChromaWhereSpecBuilder:
         return { condition.field: { operator: condition.value } }
 
 class ChromaVectorStoreAction(VectorStoreAction):
-    async def _resolve_params(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
-        params = await super()._resolve_params(method, context)
+    async def _prepare_input(
+        self,
+        method: VectorStoreActionMethod,
+        context: ComponentActionContext,
+    ) -> Tuple[Any, bool, bool]:
+        # Chroma extends the base per-item tuple with a `documents` slot. Base's
+        # `_process` collects each slot and spreads them into the driver call,
+        # so the tuple order here must match `_insert`/`_update` signatures.
+        input, is_single_input, is_streaming_input = await super()._prepare_input(method, context)
 
         if method in (VectorStoreActionMethod.INSERT, VectorStoreActionMethod.UPDATE):
-            document = await context.render_variable(self.config.document)
+            documents = await context.render_array(self.config.document, single_as_array=True)
 
-            params.update({
-                "document": document,
-            })
+            if not is_streaming_input:
+                is_streaming_input = isinstance(documents, (StreamIterator, AsyncIterator))
 
-            return params
+            return (*input, documents), is_single_input, is_streaming_input
 
-        return params
+        return input, is_single_input, is_streaming_input
 
-    async def _insert(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _insert(
+        self,
+        collection: Any,
+        vector_ids: Optional[List[Any]],
+        vectors: List[List[float]],
+        metadatas: Optional[List[Dict[str, Any]]],
+        documents: Optional[List[str]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _insert() -> Dict[str, Any]:
-            collection_name = params["collection"]
-            vector          = params["vector"]
-            vector_id       = params["vector_id"]
-            document        = params["document"]
-            metadata        = params["metadata"]
-            batch_size      = params["batch_size"]
+            # Chroma requires ids; auto-generate ulids when omitted.
+            ids = vector_ids if vector_ids is not None else [ ulid.ulid() for _ in vectors ]
 
-            is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
-            vectors: List[List[float]] = [ vector ] if is_single_input else vector
-            vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
-            metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
-            documents: Optional[List[str]] = [ document ] if is_single_input and document else document
-            batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
-            inserted_ids, affected_rows = [], 0
+            database: Collection = self.client.get_or_create_collection(name=collection)
+            database.add(
+                ids=ids,
+                embeddings=vectors,
+                metadatas=metadatas,
+                documents=documents
+            )
 
-            if vector_ids is None:
-                vector_ids = [ ulid.ulid() for _ in vectors ]
-
-            collection: Collection = self.client.get_or_create_collection(name=collection_name)
-            for index in range(0, len(vectors), batch_size):
-                batch_vectors = vectors[index:index + batch_size]
-                batch_vector_ids = vector_ids[index:index + batch_size] if vector_ids else None
-                batch_metadatas = metadatas[index:index + batch_size] if metadatas else None
-                batch_documents = documents[index:index + batch_size] if documents else None
-
-                collection.add(
-                    ids=batch_vector_ids,
-                    embeddings=batch_vectors,
-                    metadatas=batch_metadatas,
-                    documents=batch_documents
-                )
-                inserted_ids.extend(batch_vector_ids)
-                affected_rows += len(batch_vector_ids)
-
-            return { "ids": inserted_ids, "affected_rows": affected_rows }
+            return { "ids": ids, "affected_rows": len(ids) }
 
         return await self._run_in_executor(_insert)
 
-    async def _update(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _update(
+        self,
+        collection: Any,
+        vector_ids: List[Any],
+        vectors: Optional[List[List[float]]],
+        metadatas: Optional[List[Dict[str, Any]]],
+        documents: Optional[List[str]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _update() -> Dict[str, Any]:
-            collection_name = params["collection"]
-            vector_id       = params["vector_id"]
-            vector          = params["vector"]
-            metadata        = params["metadata"]
-            document        = params["document"]
-            batch_size      = params["batch_size"]
+            database: Collection = self.client.get_or_create_collection(name=collection)
+            database.update(
+                ids=vector_ids,
+                embeddings=vectors,
+                metadatas=metadatas,
+                documents=documents
+            )
 
-            is_single_input: bool = bool(not isinstance(vector_id, list))
-            vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-            vectors: List[List[float]] = [ vector ] if is_single_input and vector else vector
-            metadatas: List[Dict[str, Any]] = [ metadata ] if is_single_input and metadata else metadata
-            documents: Optional[List[str]] = [ document ] if is_single_input and document else document
-            batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
-            affected_rows = 0
-
-            collection: Collection = self.client.get_or_create_collection(name=collection_name)
-            for index in range(0, len(vector_ids), batch_size):
-                batch_vector_ids = vector_ids[index:index + batch_size]
-                batch_vectors = vectors[index:index + batch_size] if vectors else None
-                batch_metadatas = metadatas[index:index + batch_size] if metadatas else None
-                batch_documents = documents[index:index + batch_size] if documents else None
-
-                collection.update(
-                    ids=batch_vector_ids,
-                    embeddings=batch_vectors,
-                    metadatas=batch_metadatas,
-                    documents=batch_documents
-                )
-                affected_rows += len(batch_vector_ids)
-
-            return { "affected_rows": affected_rows }
+            return { "affected_rows": len(vector_ids) }
 
         return await self._run_in_executor(_update)
 
-    async def _search(self, params: Dict[str, Any]) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
-        def _search() -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
-            collection_name = params["collection"]
-            query           = params["query"]
-            top_k           = params["top_k"]
-            filter          = params["filter"]
-            output_fields   = params["output_fields"]
-            batch_size      = params["batch_size"]
+    async def _search(
+        self,
+        collection: Any,
+        queries: List[List[float]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[List[Dict[str, Any]]]:
+        def _search() -> List[List[Dict[str, Any]]]:
+            top_k         = params["top_k"]
+            filter        = params["filter"]
+            output_fields = params["output_fields"]
 
-            is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
-            queries: List[List[float]] = [ query ] if is_single_input else query
-            batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
-            results = []
-
-            collection: Collection = self.client.get_or_create_collection(name=collection_name)
+            database: Collection = self.client.get_or_create_collection(name=collection)
             where_spec = ChromaWhereSpecBuilder().build(filter)
 
-            for start in range(0, len(queries), batch_size):
-                batch_queries = queries[start:start + batch_size]
+            result = database.query(
+                query_embeddings=queries,
+                n_results=int(top_k),
+                where=where_spec,
+                include=[ "embeddings", "distances", "metadatas", "documents" ]
+            )
 
-                result = collection.query(
-                    query_embeddings=batch_queries,
-                    n_results=int(top_k),
-                    where=where_spec,
-                    include=[ "embeddings", "distances", "metadatas", "documents" ]
-                )
+            results = []
 
-                for query in range(len(result["ids"])):
-                    hits = []
-                    for index, id in enumerate(result["ids"][query]):
-                        metadata = result["metadatas"][query][index]
-                        if output_fields:
-                            metadata = { key: metadata[key] for key in output_fields if key in metadata }
+            for query in range(len(result["ids"])):
+                hits = []
+                for index, id in enumerate(result["ids"][query]):
+                    metadata = result["metadatas"][query][index]
 
-                        hits.append({
-                            "id": id,
-                            "embedding": result["embeddings"][query][index],
-                            "score": 1 / (1 + result["distances"][query][index]),
-                            "distance": result["distances"][query][index],
-                            "metadata": metadata,
-                            "document": result["documents"][query][index]
-                        })
-                    results.append(hits)
+                    if output_fields:
+                        metadata = { key: metadata[key] for key in output_fields if key in metadata }
 
-            return results[0] if is_single_input else results
+                    hits.append({
+                        "id": id,
+                        "embedding": result["embeddings"][query][index],
+                        "score": 1 / (1 + result["distances"][query][index]),
+                        "distance": result["distances"][query][index],
+                        "metadata": metadata,
+                        "document": result["documents"][query][index]
+                    })
+                results.append(hits)
+
+            return results
 
         return await self._run_in_executor(_search)
 
-    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _delete(
+        self,
+        collection: Any,
+        vector_ids: List[Any],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         def _delete() -> Dict[str, Any]:
-            collection_name = params["collection"]
-            vector_id       = params["vector_id"]
-            filter          = params["filter"]
-            batch_size      = params["batch_size"]
+            database: Collection = self.client.get_or_create_collection(name=collection)
+            where_spec = ChromaWhereSpecBuilder().build(params["filter"])
 
-            is_single_input: bool = bool(not isinstance(vector_id, list))
-            vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-            batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
-            affected_rows = 0
+            database.delete(
+                ids=vector_ids,
+                where=where_spec
+            )
 
-            collection: Collection = self.client.get_or_create_collection(name=collection_name)
-            where_spec = ChromaWhereSpecBuilder().build(filter)
-
-            for index in range(0, len(vector_ids), batch_size):
-                batch_vector_ids = vector_ids[index:index + batch_size]
-
-                collection.delete(
-                    ids=batch_vector_ids,
-                    where=where_spec
-                )
-                affected_rows += len(batch_vector_ids)
-
-            return { "affected_rows": affected_rows }
+            return { "affected_rows": len(vector_ids) }
 
         return await self._run_in_executor(_delete)
 

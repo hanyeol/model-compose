@@ -122,7 +122,7 @@ class ComponentActionContext:
         skip_decode: bool = False
     ) -> Any:
         if value is not None:
-            return await self.renderer.render(value, scope, skip_decode=skip_decode)
+            return await self.renderer.render(value, scope, skip_decode)
 
         return None
 
@@ -131,7 +131,7 @@ class ComponentActionContext:
         value: Any,
         collect: bool = True
     ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
-        return await TextValueRenderer().render(await self.render_variable(value), collect=collect)
+        return await TextValueRenderer().render(await self.render_variable(value), collect)
 
     async def render_image(
         self,
@@ -141,9 +141,10 @@ class ComponentActionContext:
 
     async def render_image_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
-        return await ImageValueRenderer().render_array(await self.render_variable(value))
+        return await ImageValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_audio(
         self,
@@ -153,9 +154,10 @@ class ComponentActionContext:
 
     async def render_audio_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[AudioArrayValue, List[Optional[AudioArrayValue]], AsyncIterator[Optional[AudioArrayValue]]]]:
-        return await AudioValueRenderer().render_array(await self.render_variable(value))
+        return await AudioValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_audio_buffer(
         self,
@@ -164,7 +166,7 @@ class ComponentActionContext:
         channel: Optional[Union[int, Literal["mono"]]] = None,
         collect: bool = True,
     ) -> Optional[Union[AudioBuffer, AudioBufferStreamIterator, List[Optional[AudioBuffer]], AsyncIterator[Optional[AudioBuffer]]]]:
-        return await AudioBufferValueRenderer(sample_rate, channel).render(await self.render_variable(value), collect=collect)
+        return await AudioBufferValueRenderer(sample_rate, channel).render(await self.render_variable(value), collect)
 
     async def render_audio_buffer_array(
         self,
@@ -172,8 +174,9 @@ class ComponentActionContext:
         sample_rate: Optional[int] = None,
         channel: Optional[Union[int, Literal["mono"]]] = None,
         collect: bool = True,
+        single_as_array: bool = False,
     ) -> Optional[Union[AudioBufferArrayValue, List[Optional[AudioBufferArrayValue]], AsyncIterator[Optional[AudioBufferArrayValue]]]]:
-        return await AudioBufferValueRenderer(sample_rate, channel).render_array(await self.render_variable(value), collect=collect)
+        return await AudioBufferValueRenderer(sample_rate, channel).render_array(await self.render_variable(value), collect, single_as_array)
 
     async def render_video(
         self,
@@ -183,9 +186,10 @@ class ComponentActionContext:
 
     async def render_video_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[VideoArrayValue, List[Optional[VideoArrayValue]], AsyncIterator[Optional[VideoArrayValue]]]]:
-        return await VideoValueRenderer().render_array(await self.render_variable(value))
+        return await VideoValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_media(
         self,
@@ -207,15 +211,17 @@ class ComponentActionContext:
 
     async def render_vector_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[VectorArrayValue, List[Optional[VectorArrayValue]], AsyncIterator[Optional[VectorArrayValue]]]]:
-        return await VectorValueRenderer().render_array(await self.render_variable(value))
+        return await VectorValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
-        return await ArrayValueRenderer().render(await self.render_variable(value))
+        return await ArrayValueRenderer().render(await self.render_variable(value), single_as_array)
 
     async def render_time(
         self,

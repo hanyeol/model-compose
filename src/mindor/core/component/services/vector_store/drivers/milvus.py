@@ -1,11 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.cancellation import CancellationToken
 from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
@@ -103,192 +104,181 @@ class MilvusFilterExpressionBuilder:
         return str(value)
 
 class MilvusVectorStoreAction(VectorStoreAction):
+    async def _resolve_collection(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Any:
+        collection = await super()._resolve_collection(method, context)
+
+        if method == VectorStoreActionMethod.SEARCH:
+            partitions = await context.render_variable(self.config.partitions)
+
+            return (collection, partitions)
+
+        partition = await context.render_variable(self.config.partition)
+
+        return (collection, partition)
+
     async def _resolve_params(self, method: VectorStoreActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(method, context)
 
-        if method in (VectorStoreActionMethod.INSERT, VectorStoreActionMethod.UPDATE, VectorStoreActionMethod.DELETE):
-            partition = await context.render_variable(self.config.partition)
-
-            params.update({
-                "partition": partition,
-            })
-
-            return params
-
         if method == VectorStoreActionMethod.SEARCH:
-            partitions    = await context.render_variable(self.config.partitions)
             search_params = await self._resolve_search_params(context)
 
             params.update({
-                "partitions":    partitions,
-                "search_params": search_params,
+                "search_params": search_params
             })
 
             return params
 
         return params
 
-    async def _insert(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        collection_name = params["collection"]
-        partition_name  = params["partition"]
-        vector          = params["vector"]
-        vector_id       = params["vector_id"]
-        metadata        = params["metadata"]
-        batch_size      = params["batch_size"]
-
-        is_single_input: bool = bool(not (isinstance(vector, list) and vector and isinstance(vector[0], (list, tuple))))
-        vectors: List[List[float]] = [ vector ] if is_single_input else vector
-        vector_ids: Optional[List[Union[int, str]]] = [ vector_id ] if is_single_input and vector_id else vector_id
-        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
-        batch_size = batch_size if batch_size and batch_size > 0 else len(vectors)
-        inserted_ids, affected_rows = [], 0
+    async def _insert(
+        self,
+        collection: Any,
+        vector_ids: Optional[List[Any]],
+        vectors: List[List[float]],
+        metadatas: Optional[List[Dict[str, Any]]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
+        collection_name, partition_name = collection
+        id_field     = params["id_field"]
+        vector_field = params["vector_field"]
 
         data = []
         for index, vector in enumerate(vectors):
-            item = { self.config.vector_field: vector }
+            item = { vector_field: vector }
 
             if vector_ids and index < len(vector_ids):
-                item.update({ self.config.id_field: vector_ids[index]})
+                item[id_field] = vector_ids[index]
 
             if metadatas and index < len(metadatas):
                 item.update(metadatas[index])
 
             data.append(item)
 
-        for index in range(0, len(data), batch_size):
-            batch_data = data[index:index + batch_size]
+        result = await self.client.insert(
+            collection_name=collection_name,
+            partition_name=partition_name,
+            data=data
+        )
 
-            result = await self.client.insert(
-                collection_name=collection_name,
-                partition_name=partition_name,
-                data=batch_data
-            )
-            inserted_ids.extend(result["ids"])
-            affected_rows += result["insert_count"]
+        return { "ids": result["ids"], "affected_rows": result["insert_count"] }
 
-        return { "ids": inserted_ids, "affected_rows": affected_rows }
-
-    async def _update(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        collection_name = params["collection"]
-        partition_name  = params["partition"]
-        vector_id       = params["vector_id"]
-        vector          = params["vector"]
-        metadata        = params["metadata"]
-        batch_size      = params["batch_size"]
-
-        is_single_input: bool = bool(not isinstance(vector_id, list))
-        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-        vectors: Optional[List[List[float]]] = [ vector ] if is_single_input and vector else vector
-        metadatas: Optional[List[Dict[str, Any]]] = [ metadata ] if is_single_input and metadata else metadata
-        batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
-        affected_rows = 0
+    async def _update(
+        self,
+        collection: Any,
+        vector_ids: List[Any],
+        vectors: Optional[List[List[float]]],
+        metadatas: Optional[List[Dict[str, Any]]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
+        collection_name, partition_name = collection
+        id_field            = params["id_field"]
+        vector_field        = params["vector_field"]
+        insert_if_not_exist = params["insert_if_not_exist"]
 
         data = []
         for index, vector_id in enumerate(vector_ids):
-            item = { self.config.id_field: vector_id }
+            item = { id_field: vector_id }
 
             if vectors and index < len(vectors):
-                item.update({ self.config.vector_field: vectors[index] })
+                item[vector_field] = vectors[index]
 
             if metadatas and index < len(metadatas):
                 item.update(metadatas[index])
 
             data.append(item)
 
-        for index in range(0, len(data), batch_size):
-            batch_data = data[index:index + batch_size]
-            batch_vector_ids = vector_ids[index:index + batch_size]
+        if not insert_if_not_exist:
+            filter_expr = MilvusFilterExpressionBuilder().build({ id_field: vector_ids })
 
-            if not self.config.insert_if_not_exist:
-                filter_expr = MilvusFilterExpressionBuilder().build({ self.config.id_field: batch_vector_ids })
+            existing = await self.client.query(
+                collection_name=collection_name,
+                partition_names=[ partition_name ] if partition_name else None,
+                expr=filter_expr,
+                output_fields=[ id_field ]
+            )
 
-                result = await self.client.query(
-                    collection_name=collection_name,
-                    partition_names=[ partition_name ] if partition_name else None,
-                    expr=filter_expr,
-                    output_fields=[ self.config.id_field ]
-                )
+            found_ids = { row[id_field] for row in (existing or []) }
+            data = [ item for item in data if item[id_field] in found_ids ]
 
-                found_ids = { row[self.config.id_field] for row in (result or []) }
-                missing_ids = set(batch_vector_ids) - found_ids
-                if missing_ids:
-                    batch_data = [ item for item in batch_data if item[self.config.id_field] in found_ids ]
+        if not data:
+            return { "affected_rows": 0 }
 
-            if len(data) > 0:
-                result = await self.client.upsert(
-                    collection_name=collection_name,
-                    partition_name=partition_name,
-                    data=batch_data
-                )
-                affected_rows += result["upsert_count"]
+        result = await self.client.upsert(
+            collection_name=collection_name,
+            partition_name=partition_name,
+            data=data
+        )
 
-        return { "affected_rows": affected_rows }
+        return { "affected_rows": result["upsert_count"] }
 
-    async def _search(self, params: Dict[str, Any]) -> Union[List[List[Dict[str, Any]]], List[Dict[str, Any]]]:
-        collection_name = params["collection"]
-        partition_names = params["partitions"]
-        query           = params["query"]
-        top_k           = params["top_k"]
-        filter          = params["filter"]
-        output_fields   = params["output_fields"]
-        batch_size      = params["batch_size"]
-        search_params   = params["search_params"]
+    async def _search(
+        self,
+        collection: Any,
+        queries: List[List[float]],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> List[List[Dict[str, Any]]]:
+        collection_name, partition_names = collection
+        vector_field  = params["vector_field"]
+        top_k         = params["top_k"]
+        filter        = params["filter"]
+        output_fields = params["output_fields"]
+        search_params = params["search_params"]
 
-        is_single_input: bool = bool(not (isinstance(query, list) and query and isinstance(query[0], (list, tuple))))
-        queries: List[List[float]] = [ query ] if is_single_input else query
         filter_expr = MilvusFilterExpressionBuilder().build(filter)
-        batch_size = batch_size if batch_size and batch_size > 0 else len(queries)
+
+        result = await self.client.search(
+            collection_name=collection_name,
+            partition_names=partition_names,
+            data=queries,
+            anns_field=vector_field,
+            filter=filter_expr,
+            limit=top_k,
+            output_fields=output_fields or None,
+            search_params=search_params or None
+        )
+
         results = []
 
-        for start in range(0, len(queries), batch_size):
-            batch_queries = queries[start:start + batch_size]
+        for query in range(len(result)):
+            hits = []
+            for hit in result[query]:
+                hits.append({
+                    "id": hit["id"],
+                    "score": 1 / (1 + hit["distance"]),
+                    "distance": hit["distance"],
+                    "metadata": hit["entity"]
+                })
+            results.append(hits)
 
-            result = await self.client.search(
-                collection_name=collection_name,
-                partition_names=partition_names,
-                data=batch_queries,
-                filter=filter_expr,
-                limit=top_k,
-                output_fields=output_fields or None,
-                search_params=search_params or None
-            )
-            for query in range(len(result)):
-                hits = []
-                for hit in result[query]:
-                    hits.append({
-                        "id": hit["id"],
-                        "score": 1 / (1 + hit["distance"]),
-                        "distance": hit["distance"],
-                        "metadata": hit["entity"]
-                    })
-                results.append(hits)
+        return results
 
-        return results[0] if is_single_input else results
+    async def _delete(
+        self,
+        collection: Any,
+        vector_ids: List[Any],
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
+        collection_name, partition_name = collection
+        id_field = params["id_field"]
+        filter   = params["filter"]
 
-    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        collection_name = params["collection"]
-        partition_name  = params["partition"]
-        vector_id       = params["vector_id"]
-        filter          = params["filter"]
-        batch_size      = params["batch_size"]
+        filter_expr = MilvusFilterExpressionBuilder().build([ { id_field: vector_ids }, filter ])
 
-        is_single_input: bool = bool(not isinstance(vector_id, list))
-        vector_ids: List[Union[int, str]] = [ vector_id ] if is_single_input else vector_id
-        batch_size = batch_size if batch_size and batch_size > 0 else len(vector_ids)
-        affected_rows = 0
+        result = await self.client.delete(
+            collection_name=collection_name,
+            partition_name=partition_name,
+            filter=filter_expr
+        )
 
-        for index in range(0, len(vector_ids), batch_size):
-            batch_vector_ids = vector_ids[index:index + batch_size]
-            filter_expr = MilvusFilterExpressionBuilder().build([ { self.config.id_field: batch_vector_ids }, filter ])
-
-            result = await self.client.delete(
-                collection_name=collection_name,
-                partition_name=partition_name,
-                filter=filter_expr
-            )
-            affected_rows += result["delete_count"]
-
-        return { "affected_rows": affected_rows }
+        return { "affected_rows": result["delete_count"] }
 
     async def _resolve_search_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         metric_type = await context.render_variable(self.config.metric_type)

@@ -9,8 +9,9 @@ class ArrayValue:
     ``AsyncIterable[Any]`` (one-shot). Consumers use ``async for`` to iterate
     lazily, or ``await collect()`` when the full list is needed.
     """
-    def __init__(self, source: Union[List[Any], AsyncIterable[Any]]):
+    def __init__(self, source: Union[List[Any], AsyncIterable[Any]], is_single: bool = False):
         self.source: Union[List[Any], AsyncIterable[Any]] = source
+        self.is_single: bool = is_single
 
     def __aiter__(self) -> AsyncIterator[Any]:
         if isinstance(self.source, list):
@@ -22,15 +23,16 @@ class ArrayValue:
         return self.source.__aiter__()
 
     async def collect(self) -> List[Any]:
-        if isinstance(self.source, list):
-            return self.source
+        if isinstance(self.source, AsyncIterable):
+            return [ item async for item in self.source ]
 
-        return [ item async for item in self.source ]
+        return self.source
 
 class ArrayValueRenderer:
     async def render(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
         # Fragmented streams represent a single logical array delivered as an
         # element stream — fall through to ``_render_element`` which wraps
@@ -40,7 +42,7 @@ class ArrayValueRenderer:
         if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
             async def _iterate():
                 async for chunk in value:
-                    yield self._render_element(chunk)
+                    yield self._render_element(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -49,11 +51,11 @@ class ArrayValueRenderer:
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-            return [ self._render_element(item) for item in value ]
+            return [ self._render_element(item, single_as_array) for item in value ]
 
-        return self._render_element(value)
+        return self._render_element(value, single_as_array)
 
-    def _render_element(self, value: Any) -> Optional[ArrayValue]:
+    def _render_element(self, value: Any, single_as_array: bool = False) -> Optional[ArrayValue]:
         if isinstance(value, ArrayValue):
             return value
 
@@ -71,5 +73,8 @@ class ArrayValueRenderer:
 
         if isinstance(value, (list, tuple)):
             return ArrayValue(list(value))
+
+        if single_as_array and value is not None:
+            return ArrayValue([ value ], is_single=True)
 
         return None

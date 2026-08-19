@@ -7,7 +7,6 @@ from mindor.dsl.schema.action import (
     ScreenCaptureVideoSource,
     ScreenCaptureAudioSource,
 )
-from mindor.core.utils.enum import coerce_enum
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
 
@@ -26,8 +25,8 @@ class ScreenCaptureAction(MediaComponentAction):
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        video_source  = coerce_enum(await context.render_variable(self.config.video_source), ScreenCaptureVideoSource, "video_source")
-        audio_source  = coerce_enum(await context.render_variable(self.config.audio_source), ScreenCaptureAudioSource, "audio_source")
+        video_source  = await context.render_variable(self.config.video_source)
+        audio_source  = await context.render_variable(self.config.audio_source)
         include_video = await context.render_scalar(self.config.include_video, bool)
         include_audio = await context.render_scalar(self.config.include_audio, bool)
         display       = await context.render_scalar(self.config.display, int)
@@ -35,6 +34,16 @@ class ScreenCaptureAction(MediaComponentAction):
         framerate     = await context.render_scalar(self.config.framerate, float)
         encoding      = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
         duration      = await context.render_scalar(self.config.duration, "time", None)
+
+        try:
+            video_source = ScreenCaptureVideoSource(video_source)
+        except ValueError:
+            raise ValueError(f"Invalid video_source: {video_source}")
+
+        try:
+            audio_source = ScreenCaptureAudioSource(audio_source)
+        except ValueError:
+            raise ValueError(f"Invalid audio_source: {audio_source}")
 
         if framerate <= 0:
             raise ValueError(f"'framerate' must be > 0, got {framerate}")

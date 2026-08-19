@@ -12,8 +12,9 @@ class ImageArrayValue:
     `AsyncIterable[PILImage.Image]` (one-shot). Consumers use `async for` to
     iterate lazily, or `await collect()` when the full list is needed.
     """
-    def __init__(self, source: Union[List[PILImage.Image], AsyncIterable[PILImage.Image]]):
+    def __init__(self, source: Union[List[PILImage.Image], AsyncIterable[PILImage.Image]], is_single: bool = False):
         self.source: Union[List[PILImage.Image], AsyncIterable[PILImage.Image]] = source
+        self.is_single: bool = is_single
 
     def __aiter__(self) -> AsyncIterator[PILImage.Image]:
         if isinstance(self.source, list):
@@ -25,15 +26,16 @@ class ImageArrayValue:
         return self.source.__aiter__()
 
     async def collect(self) -> List[PILImage.Image]:
-        if isinstance(self.source, list):
-            return self.source
+        if isinstance(self.source, AsyncIterable):
+            return [ item async for item in self.source ]
 
-        return [ item async for item in self.source ]
+        return self.source
 
 class ImageValueRenderer:
     async def render_array(
         self,
-        value: Any
+        value: Any,
+        single_as_array: bool = False,
     ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
         # Fragmented streams (e.g. per-html frame streams) represent a single
         # logical image array delivered in pieces — fall through to
@@ -43,7 +45,7 @@ class ImageValueRenderer:
         if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk)
+                    yield await self._render_element_array(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -52,9 +54,9 @@ class ImageValueRenderer:
             return _iterate()
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-            return [ await self._render_element_array(item) for item in value ]
+            return [ await self._render_element_array(item, single_as_array) for item in value ]
 
-        return await self._render_element_array(value)
+        return await self._render_element_array(value, single_as_array)
 
     async def render(
         self,
@@ -76,7 +78,7 @@ class ImageValueRenderer:
 
         return await self._render_element(value)
 
-    async def _render_element_array(self, value: Any) -> Optional[ImageArrayValue]:
+    async def _render_element_array(self, value: Any, single_as_array: bool = False) -> Optional[ImageArrayValue]:
         if isinstance(value, ImageArrayValue):
             return value
 
@@ -90,6 +92,11 @@ class ImageValueRenderer:
 
         if isinstance(value, (list, tuple)):
             return ImageArrayValue([ await self._render_element(item) for item in value ])
+
+        if single_as_array:
+            image = await self._render_element(value)
+            if image is not None:
+                return ImageArrayValue([ image ], is_single=True)
 
         return None
 

@@ -91,7 +91,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         duration: float,
         frame_rate: float,
         cleanup: Callable[[], None],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> List[Dict[str, Any]]:
         """Run ffmpeg to completion and assemble the per-video scene result."""
         async def _handle_stderr(reader: asyncio.StreamReader) -> Tuple[List[float], bytes]:
@@ -176,7 +176,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         duration: float,
         frame_rate: float,
         cleanup: Callable[[], None],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> AsyncIterator[Dict[str, Any]]:
         """Run ffmpeg and yield scene dicts as boundaries are detected."""
         timestamps: asyncio.Queue = asyncio.Queue()

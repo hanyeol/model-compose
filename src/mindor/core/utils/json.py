@@ -12,8 +12,11 @@ def to_json_safe(value: Any) -> Any:
     """
     if isinstance(value, _JSON_SCALAR_TYPES):
         return value
+
     if isinstance(value, dict):
         return { str(key): to_json_safe(item) for key, item in value.items() }
+
     if isinstance(value, (list, tuple)):
         return [ to_json_safe(item) for item in value ]
+
     return repr(value)

@@ -14,18 +14,22 @@ class CommonKeyValueStoreActionConfig(CommonActionConfig):
 
 class CommonKeyValueGetActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.GET]
-    key: Union[str, List[str]] = Field(..., description="Key or keys to retrieve from the store.")
+    key: Union[str, List[str]] = Field(..., description="Key or list of keys to retrieve from the store.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input keys processed per batch.")
 
 class CommonKeyValueSetActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.SET]
-    key: str = Field(..., description="Key under which the value is stored.")
+    key: Union[str, List[str]] = Field(..., description="Key or list of keys under which the value is stored.")
     value: Any = Field(..., description="Value written to the store.")
     ttl: Optional[Union[int, str]] = Field(default=None, description="Time-to-live in seconds; unset means no expiry.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input entries processed per batch.")
 
 class CommonKeyValueDeleteActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.DELETE]
-    key: Union[str, List[str]] = Field(..., description="Key or keys to delete from the store.")
+    key: Union[str, List[str]] = Field(..., description="Key or list of keys to delete from the store.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input keys processed per batch.")
 
 class CommonKeyValueExistsActionConfig(CommonKeyValueStoreActionConfig):
     method: Literal[KeyValueStoreActionMethod.EXISTS]
-    key: Union[str, List[str]] = Field(..., description="Key or keys whose existence is checked.")
+    key: Union[str, List[str]] = Field(..., description="Key or list of keys whose existence is checked.")
+    batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input keys processed per batch.")

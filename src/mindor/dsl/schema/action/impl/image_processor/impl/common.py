@@ -137,7 +137,9 @@ class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
     block_scale: Optional[Union[float, str]] = Field(default=None, description="Pixelate block size relative to each region's shorter side, from 0 to 1. Mutually exclusive with `block_size`.")
     min_block_size: Union[int, str] = Field(default=8, description="Lower bound in pixels on the computed pixelate block size when `block_scale` is used.")
     max_block_size: Union[int, str] = Field(default=32, description="Upper bound in pixels on the computed pixelate block size when `block_scale` is used.")
-    radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels, applied when `mode` is `blur`.")
+    blur_radius: Union[float, str] = Field(default=8.0, description="Blur radius in pixels, applied when `mode` is `blur`.")
+    corner_radius: Optional[Union[int, str]] = Field(default=None, description="Rounded-corner radius in pixels. Mutually exclusive with `corner_scale`.")
+    corner_scale: Optional[Union[float, str]] = Field(default=None, description="Rounded-corner radius relative to each region's shorter side, from 0 to 0.5. Mutually exclusive with `corner_radius`.")
 
     @model_validator(mode="after")
     def validate_block_size_or_scale(self) -> ImageProcessorMosaicActionConfig:
@@ -145,3 +147,8 @@ class ImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
             raise ValueError("'block_size' and 'block_scale' are mutually exclusive; specify only one.")
         return self
 
+    @model_validator(mode="after")
+    def validate_corner_radius_or_scale(self) -> ImageProcessorMosaicActionConfig:
+        if self.corner_radius is not None and self.corner_scale is not None:
+            raise ValueError("'corner_radius' and 'corner_scale' are mutually exclusive; specify only one.")
+        return self

@@ -7,6 +7,7 @@ from mindor.dsl.schema.component import AwsS3FileStoreComponentConfig
 from mindor.dsl.schema.action import FileStoreActionConfig, AwsS3FileStoreActionConfig
 from mindor.core.foundation.streaming.resources import ReaderStreamResource, save_stream_to_file
 from mindor.core.foundation.streaming.resolver import resolve_stream_resource
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import is_glob_match, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
 from mindor.core.foundation.providers.aws_s3 import upload, multipart_upload
@@ -43,9 +44,14 @@ class AwsS3FileStoreAction(FileStoreAction):
         self.location: S3Location = location
         self.base_path: Optional[str] = base_path
 
-    async def _put(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path                = params["path"]
-        source              = params["source"]
+    async def _put(
+        self,
+        path: Any,
+        source: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         content_type        = params["content_type"]
         metadata            = params["metadata"]
         multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
@@ -87,8 +93,13 @@ class AwsS3FileStoreAction(FileStoreAction):
             "content_type": content_type,
         }
 
-    async def _get(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path       = params["path"]
+    async def _get(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         save_to    = params["save_to"]
         streaming  = params["streaming"]
         chunk_size = params["chunk_size"]
@@ -151,9 +162,13 @@ class AwsS3FileStoreAction(FileStoreAction):
             "content": content,
         }
 
-    async def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path = params["path"]
-
+    async def _delete(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         object_key = self._resolve_object_key(path)
 
         await self.client.delete_object(
@@ -163,10 +178,14 @@ class AwsS3FileStoreAction(FileStoreAction):
 
         return { "path": path }
 
-    async def _exists(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _exists(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         from botocore.exceptions import ClientError
-
-        path = params["path"]
 
         object_key = self._resolve_object_key(path)
 
@@ -185,8 +204,13 @@ class AwsS3FileStoreAction(FileStoreAction):
 
         return { "path": path, "exists": exists }
 
-    async def _list(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        path             = params["path"]
+    async def _list(
+        self,
+        path: Any,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         recursive        = params["recursive"]
         pattern          = params["pattern"]
         max_result_count = params["max_result_count"]

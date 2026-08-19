@@ -54,8 +54,8 @@ class VideoEncoderAction(MediaComponentAction):
 
         video = frames if video is None else video
 
-        is_single_input = not isinstance(video, (list, StreamIterator, AsyncIterator)) and not isinstance(audio, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = isinstance(video, (StreamIterator, AsyncIterator)) or isinstance(audio, (StreamIterator, AsyncIterator))
+        is_single_input    = not any(isinstance(value, (list, StreamIterator, AsyncIterator)) for value in (video, audio))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (video, audio))
 
         return (video, audio), is_single_input, is_streaming_input
 

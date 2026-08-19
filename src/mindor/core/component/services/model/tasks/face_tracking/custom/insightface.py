@@ -102,8 +102,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frame_count = 0
 
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
-            faces = self._detect_frame(image, params)
-            tracked_faces, _ = self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+            faces = self._detect_faces_in_frame(image, params)
+            tracked_faces, _ = self._cluster_faces(
+                faces,
+                timestamp,
+                frame_rate,
+                centroids_state,
+                cluster_tracks,
+                params
+            )
 
             tracked_frame: Dict[str, Any] = {
                 "number":        frame_count + 1,
@@ -164,11 +171,18 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         # consumers that mix chunk types accept that segment/track chunks may
         # precede their same-timestamp frame chunk.
         pending_frames: List[Dict[str, Any]] = []
-        prev_detection: Dict[int, Tuple[float, Dict[str, int], Dict[str, Any]]] = {}
+        last_face_by_cluster: Dict[int, Tuple[float, Dict[str, Any]]] = {}
 
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
-            faces = self._detect_frame(image, params)
-            tracked_faces, tracked_segments = self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+            faces = self._detect_faces_in_frame(image, params)
+            tracked_faces, tracked_segments = self._cluster_faces(
+                faces,
+                timestamp,
+                frame_rate,
+                centroids_state,
+                cluster_tracks,
+                params
+            )
 
             tracked_frame: Dict[str, Any] = {
                 "number":            frame_count + 1,
@@ -192,15 +206,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             cutoff = pending_frames[-1]["timestamp"] - merge_gap - frame_period - 1e-6
 
             while pending_frames:
-                head = pending_frames[0]
+                pending_frame = pending_frames[0]
 
-                if not force and head["timestamp"] > cutoff:
+                if not force and pending_frame["timestamp"] > cutoff:
                     break
 
                 pending_frames.pop(0)
-                head["tracked_faces"] = head["tracked_faces"] + head["interpolated_faces"]
-                del head["interpolated_faces"]
-                ready.append(head)
+                pending_frame["tracked_faces"] = pending_frame["tracked_faces"] + pending_frame["interpolated_faces"]
+                del pending_frame["interpolated_faces"]
+                ready.append(pending_frame)
 
             return ready
 
@@ -218,9 +232,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             # in between.
             if params["return_frames"]:
                 for face, cluster_id in tracked_frame["tracked_faces"]:
-                    prev = prev_detection.get(cluster_id)
-                    if prev is not None:
-                        prev_timestamp, prev_bbox, prev_face = prev
+                    last_face = last_face_by_cluster.get(cluster_id)
+                    if last_face is not None:
+                        prev_timestamp, prev_face = last_face
                         if timestamp - prev_timestamp <= merge_gap + frame_period + 1e-6:
                             self._interpolate_between_faces(
                                 pending_frames,
@@ -228,14 +242,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                                 len(pending_frames),
                                 cluster_id,
                                 prev_timestamp,
-                                prev_bbox,
                                 prev_face,
                                 timestamp,
-                                face["bounding_box"],
                                 face,
                                 similarity_threshold
                             )
-                    prev_detection[cluster_id] = (timestamp, face["bounding_box"], face)
+                    last_face_by_cluster[cluster_id] = (timestamp, face)
 
                 pending_frames.append(tracked_frame)
 
@@ -251,7 +263,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 # track chunk. The `emitted` flag keeps us from re-emitting a
                 # long-idle cluster every frame — a fresh detection resets it
                 # in `_add_face_to_track` so the next idle period fires again.
-                for cluster_id, segment_chunk, track_chunk in self._sweep_idle_tracks(cluster_tracks, centroids_state, timestamp, frame_period, merge_gap, params):
+                idle_track_chunks = self._sweep_idle_tracks(cluster_tracks, centroids_state, timestamp, frame_period, merge_gap, params)
+                for cluster_id, segment_chunk, track_chunk in idle_track_chunks:
                     if segment_chunk is not None:
                         yield segment_chunk
                     yield track_chunk
@@ -278,7 +291,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if params["return_metadata"]:
             yield { "type": "metadata", "frame_count": frame_count }
 
-    def _detect_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect_faces_in_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np
         import cv2
 
@@ -289,7 +302,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
         detections = self.model.get(image_cv)
 
-        return self._serialize_faces(detections, image_cv, params["return_track_image"], params["return_gender_age"])
+        return self._build_detected_faces(detections, image_cv, params["return_track_image"], params["return_gender_age"])
 
     def _cluster_faces(
         self,
@@ -302,13 +315,13 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
         import numpy as np
 
-        similarity_threshold      = params["similarity_threshold"] or 0.0
-        min_face_size             = params["min_face_size"] or 0
-        max_face_count_per_frame  = params["max_face_count_per_frame"] or 0
-        merge_gap                 = params["merge_gap"] or 0.0
-        frame_period              = 1.0 / frame_rate
-        bounding_box_padding      = params["bounding_box_padding"] or 0.0
-        max_reassignment_distance = params["max_reassignment_distance"] or 0.0
+        similarity_threshold     = params["similarity_threshold"] or 0.0
+        min_face_size            = params["min_face_size"] or 0
+        max_face_count_per_frame = params["max_face_count_per_frame"] or 0
+        merge_gap                = params["merge_gap"] or 0.0
+        frame_period             = 1.0 / frame_rate
+        bounding_box_padding     = params["bounding_box_padding"] or 0.0
+        max_track_distance       = params["max_track_distance"] or 0.0
 
         candidates = self._filter_faces(faces, min_face_size, max_face_count_per_frame)
         centroids: List[np.ndarray] = centroids_state["centroids"]
@@ -347,11 +360,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 last_seen = track.get("last_seen") if track else None
                 is_stale = last_seen is None or (timestamp - last_seen) > stale_after
 
-                # A live cluster whose last detection is farther than `max_reassignment_distance`
+                # A live cluster whose last detection is farther than `max_track_distance`
                 # face-sizes away can't be the same person — reject the pair outright so the
                 # face falls through to a new cluster instead of hijacking this one.
-                if not is_stale and last_bbox is not None and max_reassignment_distance > 0.0:
-                    if self._bbox_center_distance(face_bbox, last_bbox) > max_reassignment_distance * max(face_bbox["width"], face_bbox["height"]):
+                if not is_stale and last_bbox is not None and max_track_distance > 0.0:
+                    face_size = max(face_bbox[2] - face_bbox[0], face_bbox[3] - face_bbox[1])
+                    if self._bbox_center_distance(face_bbox, last_bbox) > max_track_distance * face_size:
                         continue
 
                 overlap = 0.0 if is_stale or last_bbox is None else self._bbox_overlap(face_bbox, last_bbox)
@@ -398,6 +412,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return tracked_faces, tracked_segments
 
+    def _filter_faces(
+        self,
+        faces: List[Dict[str, Any]],
+        min_face_size: int,
+        max_face_count_per_frame: int
+    ) -> List[Dict[str, Any]]:
+        if min_face_size > 0:
+            faces = [ face for face in faces if self._bbox_meets_min_size(face["bounding_box"], min_face_size) ]
+
+        if max_face_count_per_frame > 0 and len(faces) > max_face_count_per_frame:
+            faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_face_count_per_frame]
+
+        return faces
+
     def _add_face_to_track(
         self,
         cluster_tracks: Dict[int, Dict[str, Any]],
@@ -420,14 +448,14 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         segments rather than the number of frames.
 
         The face crop is materialized here (lazily) rather than up-front in
-        `_serialize_faces`, so frames that never become a segment's best
+        `_build_detected_faces`, so frames that never become a segment's best
         never pay the crop / PIL-conversion cost.
 
         Returns the segment that this detection just closed off, or None
         when the detection only extended the current segment. Streaming
         callers use the return value to emit segment events; batch callers
         can ignore it since `track["segments"]` accumulates the same data."""
-        track = cluster_tracks.setdefault(cluster_id, { 
+        track = cluster_tracks.setdefault(cluster_id, {
             "segments": [],
             "current": None,
             "last_bbox": None,
@@ -450,7 +478,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             current["frame_count"] += 1
 
             if score > current["best_face"]["score"]:
-                current["best_face"] = self._build_face_snapshot(face, bounding_box_padding)
+                current["best_face"] = self._build_face_with_image(face, bounding_box_padding)
 
             return None
 
@@ -463,7 +491,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "start":       timestamp,
             "end":         timestamp,
             "frame_count": 1,
-            "best_face":   self._build_face_snapshot(face, bounding_box_padding),
+            "best_face":   self._build_face_with_image(face, bounding_box_padding),
         }
 
         track["emitted"] = False
@@ -583,11 +611,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         so downstream code sees a single unified list."""
         frame_period = 1.0 / frame_rate
         threshold = merge_gap + frame_period + 1e-6
+
         # Track each cluster's most recent detection's frame index too so we
         # can hand the interpolator a bounded [start, end) range instead of
         # re-scanning every frame per anchor pair — otherwise the cost is
         # O(anchor_pairs × total_frames) on long videos.
-        prev_detection: Dict[int, Tuple[int, float, Dict[str, int], Dict[str, Any]]] = {}
+        last_face_by_cluster: Dict[int, Tuple[int, float, Dict[str, Any]]] = {}
 
         for frame in tracked_frames:
             frame.setdefault("interpolated_faces", [])
@@ -595,9 +624,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         for current_index, frame in enumerate(tracked_frames):
             timestamp = frame["timestamp"]
             for face, cluster_id in frame["tracked_faces"]:
-                prev = prev_detection.get(cluster_id)
-                if prev is not None:
-                    prev_index, prev_timestamp, prev_bbox, prev_face = prev
+                last_face = last_face_by_cluster.get(cluster_id)
+                if last_face is not None:
+                    prev_index, prev_timestamp, prev_face = last_face
                     if timestamp - prev_timestamp <= threshold:
                         self._interpolate_between_faces(
                             tracked_frames,
@@ -605,14 +634,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                             current_index,
                             cluster_id,
                             prev_timestamp,
-                            prev_bbox,
                             prev_face,
                             timestamp,
-                            face["bounding_box"],
                             face,
                             similarity_threshold
                         )
-                prev_detection[cluster_id] = (current_index, timestamp, face["bounding_box"], face)
+                last_face_by_cluster[cluster_id] = (current_index, timestamp, face)
 
         for frame in tracked_frames:
             frame["tracked_faces"] = frame["tracked_faces"] + frame["interpolated_faces"]
@@ -625,10 +652,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         end_index: int,
         cluster_id: int,
         prev_timestamp: float,
-        prev_bbox: Dict[str, int],
         prev_face: Dict[str, Any],
         current_timestamp: float,
-        current_bbox: Dict[str, int],
         current_face: Dict[str, Any],
         similarity_threshold: float,
     ) -> None:
@@ -650,14 +675,18 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if span <= 0:
             return
 
-        prev_embedding = prev_face.get("embedding")
         current_embedding = current_face.get("embedding")
+        prev_embedding = prev_face.get("embedding")
 
-        if prev_embedding is not None and current_embedding is not None:
-            prev_normalized = prev_embedding / (np.linalg.norm(prev_embedding) + 1e-12)
-            current_normalized = current_embedding / (np.linalg.norm(current_embedding) + 1e-12)
-            if float(np.dot(prev_normalized, current_normalized)) < similarity_threshold:
+        if current_embedding is not None and prev_embedding is not None:
+            current_embedding = current_embedding / (np.linalg.norm(current_embedding) + 1e-12)
+            prev_embedding = prev_embedding / (np.linalg.norm(prev_embedding) + 1e-12)
+
+            if float(np.dot(current_embedding, prev_embedding)) < similarity_threshold:
                 return
+
+        current_bbox = current_face["bounding_box"]
+        prev_bbox = prev_face["bounding_box"]
 
         for index in range(start_index, end_index):
             frame = frames[index]
@@ -673,32 +702,108 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 continue
 
             ratio = (frame_timestamp - prev_timestamp) / span
-            interpolated_bbox = {
-                "x":      int(round(prev_bbox["x"]      + (current_bbox["x"]      - prev_bbox["x"]     ) * ratio)),
-                "y":      int(round(prev_bbox["y"]      + (current_bbox["y"]      - prev_bbox["y"]     ) * ratio)),
-                "width":  int(round(prev_bbox["width"]  + (current_bbox["width"]  - prev_bbox["width"] ) * ratio)),
-                "height": int(round(prev_bbox["height"] + (current_bbox["height"] - prev_bbox["height"]) * ratio)),
+            interpolated_bbox = (
+                int(round(prev_bbox[0] + (current_bbox[0] - prev_bbox[0]) * ratio)),
+                int(round(prev_bbox[1] + (current_bbox[1] - prev_bbox[1]) * ratio)),
+                int(round(prev_bbox[2] + (current_bbox[2] - prev_bbox[2]) * ratio)),
+                int(round(prev_bbox[3] + (current_bbox[3] - prev_bbox[3]) * ratio)),
+            )
+            frame["interpolated_faces"].append(({ **prev_face, "bounding_box": interpolated_bbox, "interpolated": True }, cluster_id))
+
+    def _build_detected_faces(
+        self,
+        detections: List[Face],
+        image_cv: np.ndarray,
+        return_track_image: bool,
+        return_gender_age: bool,
+    ) -> List[Dict[str, Any]]:
+        # Defer cropping to _add_face_to_track: only the frames that actually
+        # become a segment's representative are worth converting to PIL, so
+        # we pass a reference to the source frame (cheap) instead of eagerly
+        # producing an RGB PIL crop for every detection (expensive when a
+        # track spans many frames or the input has many candidate faces).
+        faces: List[Dict[str, Any]] = []
+
+        for detection in detections:
+            embedding = getattr(detection, "normed_embedding", None)
+
+            if embedding is None:
+                continue
+
+            x1, y1, x2, y2 = detection.bbox
+
+            face: Dict[str, Any] = {
+                "embedding":    embedding,
+                "bounding_box": (int(x1), int(y1), int(x2), int(y2)),
+                "score":        float(getattr(detection, "det_score", 0.0)),
             }
-            frame["interpolated_faces"].append(({ **prev_face, "bounding_box": interpolated_bbox }, cluster_id))
 
-    def _build_face_snapshot(self, face: Dict[str, Any], bounding_box_padding: float) -> Dict[str, Any]:
-        snapshot: Dict[str, Any] = {
-            "bounding_box": face["bounding_box"],
-            "score":        face["score"],
-        }
+            if return_track_image:
+                face["image_source"] = image_cv
 
+            if return_gender_age:
+                gender = getattr(detection, "gender", None)
+                age = getattr(detection, "age", None)
+                if gender is not None:
+                    face["gender"] = int(gender)
+                if age is not None:
+                    face["age"] = int(age)
+
+            faces.append(face)
+
+        return faces
+
+    def _build_face_with_image(self, face: Dict[str, Any], bounding_box_padding: float) -> Dict[str, Any]:
+        """Copy `face` and swap its `image_source` (raw BGR ndarray) for a cropped
+        PIL `image`. Called only when a face is picked as a segment's best, so
+        the PIL conversion cost is paid once per segment instead of per frame."""
+        face_with_image: Dict[str, Any] = { key: value for key, value in face.items() if key != "image_source" }
         image_source = face.get("image_source")
 
         if image_source is not None:
-            snapshot["image"] = self._crop_face_image(image_source, face["bounding_box"], bounding_box_padding)
+            face_with_image["image"] = self._crop_face_image(image_source, face["bounding_box"], bounding_box_padding)
 
-        if "gender" in face:
-            snapshot["gender"] = face["gender"]
+        return face_with_image
 
-        if "age" in face:
-            snapshot["age"] = face["age"]
+    @staticmethod
+    def _crop_face_image(
+        image_cv: np.ndarray,
+        bounding_box: Tuple[int, int, int, int],
+        padding: float,
+    ) -> Optional[PILImage.Image]:
+        """Crop the face at its detected bounding box (as `(x1, y1, x2, y2)`
+        in the original frame's coordinate system) at the frame's native
+        resolution. `padding` grows the box by that ratio of its own
+        width/height on each side before clipping to the frame; embeddings
+        still use the un-padded box, so this only affects the returned image.
+        Downstream consumers get real pixels they can display, resize, or feed
+        into another detector for a different embedding backbone. Returns None
+        if the bounding box has no valid overlap with the frame (fully off-
+        screen or zero-area)."""
+        import cv2
 
-        return snapshot
+        height, width = image_cv.shape[:2]
+        x1, y1, x2, y2 = bounding_box
+
+        if padding > 0.0:
+            w = x2 - x1
+            h = y2 - y1
+            x1 -= int(w * padding)
+            y1 -= int(h * padding)
+            x2 += int(w * padding)
+            y2 += int(h * padding)
+
+        cx1 = max(0, x1)
+        cy1 = max(0, y1)
+        cx2 = min(width, x2)
+        cy2 = min(height, y2)
+
+        if cx2 <= cx1 or cy2 <= cy1:
+            return None
+
+        face_crop = image_cv[cy1:cy2, cx1:cx2]
+
+        return PILImage.fromarray(cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB))
 
     def _build_tracking_result(
         self,
@@ -756,7 +861,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
                 if params["return_gender_age"]:
                     if "gender" in best_face:
-                        track["gender"] = best_face["gender"]
+                        track["gender"] = self._gender_to_label(best_face["gender"])
 
                     if "age" in best_face:
                         track["age"] = best_face["age"]
@@ -766,27 +871,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             result["tracks"] = tracks
 
         if params["return_frames"]:
-            result["frames"] = [self._build_frame_view(tracked_frame, params) for tracked_frame in tracked_frames]
+            result["frames"] = [ self._serialize_tracked_frame(tracked_frame, params) for tracked_frame in tracked_frames ]
 
         return result
-
-    def _build_frame_view(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        view: Dict[str, Any] = {
-            "number":    tracked_frame["number"],
-            "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "faces":     [
-                {
-                    "track_id":     cluster_id + 1,
-                    "bounding_box": face["bounding_box"],
-                }
-                for face, cluster_id in tracked_frame["tracked_faces"]
-            ],
-        }
-
-        if params["return_frame_image"] and "image" in tracked_frame:
-            view["image"] = tracked_frame["image"]
-
-        return view
 
     def _build_track_chunk(
         self,
@@ -811,7 +898,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         if params["return_gender_age"]:
             if "gender" in best_face:
-                chunk["gender"] = best_face["gender"]
+                chunk["gender"] = self._gender_to_label(best_face["gender"])
             if "age" in best_face:
                 chunk["age"] = best_face["age"]
 
@@ -837,7 +924,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         if params["return_gender_age"]:
             if "gender" in best_face:
-                segment["gender"] = best_face["gender"]
+                segment["gender"] = self._gender_to_label(best_face["gender"])
             if "age" in best_face:
                 segment["age"] = best_face["age"]
 
@@ -852,13 +939,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "type":      "frame",
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "faces":     [
-                {
-                    "track_id":     cluster_id + 1,
-                    "bounding_box": face["bounding_box"],
-                }
-                for face, cluster_id in tracked_frame["tracked_faces"]
-            ],
+            "faces":     [ self._serialize_tracked_face(face, cluster_id) for face, cluster_id in tracked_frame["tracked_faces"] ],
         }
 
         if params["return_frame_image"] and "image" in tracked_frame:
@@ -866,130 +947,51 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return chunk
 
-    def _serialize_faces(
-        self,
-        detections: List[Face],
-        image_cv: np.ndarray,
-        return_track_image: bool,
-        return_gender_age: bool,
-    ) -> List[Dict[str, Any]]:
-        # Defer cropping to _add_face_to_track: only the frames that actually
-        # become a segment's representative are worth converting to PIL, so
-        # we pass a reference to the source frame (cheap) instead of eagerly
-        # producing an RGB PIL crop for every detection (expensive when a
-        # track spans many frames or the input has many candidate faces).
-        faces: List[Dict[str, Any]] = []
+    def _serialize_tracked_frame(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        frame: Dict[str, Any] = {
+            "number":    tracked_frame["number"],
+            "timestamp": format_timecode(tracked_frame["timestamp"]),
+            "faces":     [ self._serialize_tracked_face(tracked_face, cluster_id) for tracked_face, cluster_id in tracked_frame["tracked_faces"] ],
+        }
 
-        for detection in detections:
-            embedding = getattr(detection, "normed_embedding", None)
+        if params["return_frame_image"] and "image" in tracked_frame:
+            frame["image"] = tracked_frame["image"]
 
-            if embedding is None:
-                continue
+        return frame
 
-            face: Dict[str, Any] = {
-                "embedding":    embedding,
-                "bounding_box": self._serialize_bounding_box(detection.bbox),
-                "score":        float(getattr(detection, "det_score", 0.0)),
-            }
+    def _serialize_tracked_face(self, tracked_face: Dict[str, Any], cluster_id: int) -> Dict[str, Any]:
+        face: Dict[str, Any] = {
+            "track_id":     cluster_id + 1,
+            "bounding_box": self._serialize_bounding_box(tracked_face["bounding_box"]),
+        }
 
-            if return_track_image:
-                face["image_source"] = image_cv
+        if tracked_face.get("interpolated"):
+            face["interpolated"] = True
 
-            if return_gender_age:
-                gender = getattr(detection, "gender", None)
-                age = getattr(detection, "age", None)
-                if gender is not None:
-                    face["gender"] = self._gender_to_label(int(gender))
-                if age is not None:
-                    face["age"] = int(age)
-
-            faces.append(face)
-
-        return faces
+        return face
 
     @staticmethod
-    def _gender_to_label(gender: int) -> str:
-        return "male" if gender == 1 else "female"
+    def _serialize_bounding_box(bounding_box: Tuple[int, int, int, int]) -> Dict[str, int]:
+        x1, y1, x2, y2 = bounding_box
+
+        return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     @staticmethod
-    def _crop_face_image(
-        image_cv: np.ndarray,
-        bounding_box: Dict[str, int],
-        padding: float,
-    ) -> Optional[PILImage.Image]:
-        """Crop the face at its detected bounding box (as `{x, y, width, height}`
-        in the original frame's coordinate system) at the frame's native
-        resolution. `padding` grows the box by that ratio of its own
-        width/height on each side before clipping to the frame; embeddings
-        still use the un-padded box, so this only affects the returned image.
-        Downstream consumers get real pixels they can display, resize, or feed
-        into another detector for a different embedding backbone. Returns None
-        if the bounding box has no valid overlap with the frame (fully off-
-        screen or zero-area)."""
-        import cv2
-
-        height, width = image_cv.shape[:2]
-        x = bounding_box["x"]
-        y = bounding_box["y"]
-        w = bounding_box["width"]
-        h = bounding_box["height"]
-
-        if padding > 0.0:
-            x -= int(w * padding)
-            y -= int(h * padding)
-            w += int(w * padding * 2)
-            h += int(h * padding * 2)
-
-        cx1 = max(0, x)
-        cy1 = max(0, y)
-        cx2 = min(width, x + w)
-        cy2 = min(height, y + h)
-
-        if cx2 <= cx1 or cy2 <= cy1:
-            return None
-
-        face_crop = image_cv[cy1:cy2, cx1:cx2]
-
-        return PILImage.fromarray(cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB))
-
-    @staticmethod
-    def _serialize_bounding_box(box_xyxy: np.ndarray) -> Dict[str, int]:
-        x1, y1, x2, y2 = box_xyxy
-
-        return { "x": int(x1), "y": int(y1), "width": int(x2 - x1), "height": int(y2 - y1) }
-
-    @staticmethod
-    def _filter_faces(
-        faces: List[Dict[str, Any]],
-        min_face_size: int,
-        max_face_count_per_frame: int
-    ) -> List[Dict[str, Any]]:
-        if min_face_size > 0:
-            faces = [ face for face in faces if min(face["bounding_box"]["width"], face["bounding_box"]["height"]) >= min_face_size ]
-
-        if max_face_count_per_frame > 0 and len(faces) > max_face_count_per_frame:
-            faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_face_count_per_frame]
-
-        return faces
-
-    @staticmethod
-    def _bbox_center_distance(a: Dict[str, int], b: Dict[str, int]) -> float:
+    def _bbox_center_distance(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
         """Euclidean distance between the centers of two bounding boxes."""
-        ax = a["x"] + a["width"]  / 2.0
-        ay = a["y"] + a["height"] / 2.0
-        bx = b["x"] + b["width"]  / 2.0
-        by = b["y"] + b["height"] / 2.0
+        ax = (a[0] + a[2]) / 2.0
+        ay = (a[1] + a[3]) / 2.0
+        bx = (b[0] + b[2]) / 2.0
+        by = (b[1] + b[3]) / 2.0
 
         return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
 
     @staticmethod
-    def _bbox_overlap(a: Dict[str, int], b: Dict[str, int]) -> float:
+    def _bbox_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
         """Ratio of shared area to combined area of two bounding boxes. Returns 1.0
         for identical boxes and 0.0 for boxes that do not touch."""
-        ax1, ay1 = a["x"], a["y"]
-        ax2, ay2 = ax1 + a["width"], ay1 + a["height"]
-        bx1, by1 = b["x"], b["y"]
-        bx2, by2 = bx1 + b["width"], by1 + b["height"]
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
 
         ix1, iy1 = max(ax1, bx1), max(ay1, by1)
         ix2, iy2 = min(ax2, bx2), min(ay2, by2)
@@ -998,9 +1000,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             return 0.0
 
         intersection = (ix2 - ix1) * (iy2 - iy1)
-        union = a["width"] * a["height"] + b["width"] * b["height"] - intersection
+        union = (ax2 - ax1) * (ay2 - ay1) + (bx2 - bx1) * (by2 - by1) - intersection
 
         return intersection / union if union > 0 else 0.0
+
+    @staticmethod
+    def _bbox_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
+        """Whether both sides of `bounding_box` are at least `min_size` pixels."""
+        x1, y1, x2, y2 = bounding_box
+
+        return min(x2 - x1, y2 - y1) >= min_size
+
+    @staticmethod
+    def _gender_to_label(gender: int) -> str:
+        return "male" if gender == 1 else "female"
 
 class InsightfaceFaceTrackingTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

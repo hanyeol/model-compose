@@ -8,7 +8,7 @@ class CommonFaceTrackingParamsConfig(BaseModel):
     min_frame_count: Union[int, str] = Field(default=1, description="Tracks appearing in fewer than this many frames are discarded.")
     max_face_count_per_frame: Union[int, str] = Field(default=0, description="Maximum number of faces kept per frame; 0 means unbounded.")
     merge_gap: Union[float, str] = Field(default=1.0, description="Extra seconds a person may be undetected before their segment is split; consecutive frames always merge.")
-    max_reassignment_distance: Union[float, str] = Field(default=1.5, description="Maximum bbox-center travel between consecutive detections, expressed as a multiple of the face size; 0 disables the check.")
+    max_track_distance: Union[float, str] = Field(default=1.5, description="Maximum distance a track may move between consecutive detections, as a multiple of the face size; 0 disables the check.")
 
 class CommonFaceTrackingModelActionConfig(CommonModelActionConfig):
     frames: Union[Any, List[Any], List[List[Any]], str] = Field(..., description="Frame images to analyze; a single frame, flat list, list of batches, or stream of batches.")

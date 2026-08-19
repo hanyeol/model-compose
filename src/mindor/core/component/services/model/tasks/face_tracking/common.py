@@ -77,7 +77,7 @@ class FaceTrackingTaskAction(ComponentAction):
         min_frame_count          = await context.render_scalar(self.config.params.min_frame_count, int)
         max_face_count_per_frame = await context.render_scalar(self.config.params.max_face_count_per_frame, int)
         merge_gap                = await context.render_scalar(self.config.params.merge_gap, float)
-        max_reassignment_distance = await context.render_scalar(self.config.params.max_reassignment_distance, float)
+        max_track_distance = await context.render_scalar(self.config.params.max_track_distance, float)
         return_tracks            = await context.render_scalar(self.config.return_tracks, bool)
         return_track_image       = await context.render_scalar(self.config.return_track_image, bool)
         return_embedding         = await context.render_scalar(self.config.return_embedding, bool)
@@ -92,8 +92,8 @@ class FaceTrackingTaskAction(ComponentAction):
         if merge_gap < 0.0:
             raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
 
-        if max_reassignment_distance < 0.0:
-            raise ValueError(f"'max_reassignment_distance' must be >= 0.0, got {max_reassignment_distance}")
+        if max_track_distance < 0.0:
+            raise ValueError(f"'max_track_distance' must be >= 0.0, got {max_track_distance}")
 
         if bounding_box_padding < 0.0:
             raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
@@ -110,7 +110,7 @@ class FaceTrackingTaskAction(ComponentAction):
             "min_frame_count":          min_frame_count,
             "max_face_count_per_frame": max_face_count_per_frame,
             "merge_gap":                merge_gap,
-            "max_reassignment_distance": max_reassignment_distance,
+            "max_track_distance":       max_track_distance,
             "return_tracks":            return_tracks,
             "return_track_image":       return_track_image,
             "return_embedding":         return_embedding,

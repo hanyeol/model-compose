@@ -87,18 +87,19 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
-        # `track_segments[track_id]` holds `{ "segments": [...], "current": {...} }`.
-        # `current` is the open segment being extended by contiguous frames;
-        # `segments` is the sealed history. Segment shape mirrors face_tracking so
-        # only the highest-scoring frame's pose data is retained per segment.
         track_segments: Dict[int, Dict[str, Any]] = {}
         tracked_frames: List[Dict[str, Any]] = []
-        frame_period = 1.0 / frame_rate
         frame_count = 0
 
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
-            poses = self._detect_frame(image, params)
-            tracked_poses, _ = self._add_poses_to_tracks(poses, timestamp, frame_period, track_segments, params)
+            poses = self._detect_poses_in_frame(image, params)
+            tracked_poses, _ = self._add_poses_to_tracks(
+                poses,
+                timestamp,
+                frame_rate,
+                track_segments,
+                params
+            )
 
             tracked_frame: Dict[str, Any] = {
                 "number":        frame_count + 1,
@@ -157,11 +158,17 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         # chunk types accept that segment/track chunks may precede their
         # same-timestamp frame chunk.
         pending_frames: List[Dict[str, Any]] = []
-        prev_detection: Dict[int, Tuple[float, Dict[str, int], Dict[str, Any]]] = {}
+        last_pose_by_track: Dict[int, Tuple[float, Dict[str, Any]]] = {}
 
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
-            poses = self._detect_frame(image, params)
-            tracked_poses, tracked_segments = self._add_poses_to_tracks(poses, timestamp, frame_period, track_segments, params)
+            poses = self._detect_poses_in_frame(image, params)
+            tracked_poses, tracked_segments = self._add_poses_to_tracks(
+                poses,
+                timestamp,
+                frame_rate,
+                track_segments,
+                params
+            )
 
             tracked_frame: Dict[str, Any] = {
                 "number":             frame_count + 1,
@@ -185,15 +192,15 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             cutoff = pending_frames[-1]["timestamp"] - merge_gap - frame_period - 1e-6
 
             while pending_frames:
-                head = pending_frames[0]
+                pending_frame = pending_frames[0]
 
-                if not force and head["timestamp"] > cutoff:
+                if not force and pending_frame["timestamp"] > cutoff:
                     break
 
                 pending_frames.pop(0)
-                head["tracked_poses"] = head["tracked_poses"] + head["interpolated_poses"]
-                del head["interpolated_poses"]
-                ready.append(head)
+                pending_frame["tracked_poses"] = pending_frame["tracked_poses"] + pending_frame["interpolated_poses"]
+                del pending_frame["interpolated_poses"]
+                ready.append(pending_frame)
 
             return ready
 
@@ -211,12 +218,21 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             # in between.
             if params["return_frames"]:
                 for pose, track_id in tracked_frame["tracked_poses"]:
-                    prev = prev_detection.get(track_id)
-                    if prev is not None:
-                        prev_timestamp, prev_bbox, prev_pose = prev
+                    last_pose = last_pose_by_track.get(track_id)
+                    if last_pose is not None:
+                        prev_timestamp, prev_pose = last_pose
                         if timestamp - prev_timestamp <= merge_gap + frame_period + 1e-6:
-                            self._interpolate_between_poses(pending_frames, track_id, prev_timestamp, prev_bbox, prev_pose, timestamp, pose["bounding_box"])
-                    prev_detection[track_id] = (timestamp, pose["bounding_box"], pose)
+                            self._interpolate_between_poses(
+                                pending_frames,
+                                0,
+                                len(pending_frames),
+                                track_id,
+                                prev_timestamp,
+                                prev_pose,
+                                timestamp,
+                                pose
+                            )
+                    last_pose_by_track[track_id] = (timestamp, pose)
 
                 pending_frames.append(tracked_frame)
 
@@ -231,9 +247,9 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                 # `merge_gap` is idle: seal its still-open segment and emit a
                 # track chunk. The `emitted` flag keeps us from re-emitting a
                 # long-idle track every frame — a fresh detection resets it
-                # in `_add_poses_to_tracks` so the next idle period fires
-                # again.
-                for track_id, segment_chunk, track_chunk in self._sweep_idle_tracks(track_segments, timestamp, frame_period, merge_gap, params):
+                # in `_add_poses_to_tracks` so the next idle period fires again.
+                idle_track_chunks = self._sweep_idle_tracks(track_segments, timestamp, frame_period, merge_gap, params)
+                for track_id, segment_chunk, track_chunk in idle_track_chunks:
                     if segment_chunk is not None:
                         yield segment_chunk
                     yield track_chunk
@@ -260,7 +276,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         if params["return_metadata"]:
             yield { "type": "metadata", "frame_count": frame_count }
 
-    def _detect_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect_poses_in_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         # `persist=True` keeps the tracker state alive across successive frames
         # of the same video so track ids are stable. `max_pose_count_per_frame`
         # caps detections up front; the tracker consumes what YOLO returns.
@@ -278,24 +294,40 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         prediction = predictions[0]
         width, height = image.size
 
-        return self._serialize_poses(prediction, width, height, params)
+        return self._build_detected_poses(prediction, width, height, params)
+
+    def _filter_poses(
+        self,
+        poses: List[Dict[str, Any]],
+        min_pose_size: int,
+        max_pose_count_per_frame: int,
+    ) -> List[Dict[str, Any]]:
+        if min_pose_size > 0:
+            poses = [ pose for pose in poses if self._bbox_meets_min_size(pose["bounding_box"], min_pose_size) ]
+
+        if max_pose_count_per_frame > 0 and len(poses) > max_pose_count_per_frame:
+            poses = sorted(poses, key=lambda pose: pose["score"], reverse=True)[:max_pose_count_per_frame]
+
+        return poses
 
     def _add_poses_to_tracks(
         self,
         poses: List[Dict[str, Any]],
         timestamp: float,
-        frame_period: float,
+        frame_rate: float,
         track_segments: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
-        """Fold a new detection into its track's segment history. The track's
-        `current` segment is extended if this frame is within one frame period
-        plus `merge_gap` of the previous one; otherwise the current segment is
-        sealed into `segments` and a fresh one starts. The frame-period
-        baseline means `merge_gap` measures how long a person may go undetected
-        before the segment is split, not how far apart two detections may be —
-        consecutive frames always merge, so `merge_gap=0` does what a user
-        naïvely expects.
+        """Fold this frame's detections into their tracks' segment histories.
+        Unlike face_tracking, association is already done by YOLO's tracker —
+        each pose arrives with a `track_id` — so this step only extends or
+        seals segments. A track's `current` segment is extended if this frame
+        is within one frame period plus `merge_gap` of the previous one;
+        otherwise the current segment is sealed into `segments` and a fresh
+        one starts. The frame-period baseline means `merge_gap` measures how
+        long a person may go undetected before the segment is split, not how
+        far apart two detections may be — consecutive frames always merge, so
+        `merge_gap=0` does what a user naïvely expects.
 
         Returns `(tracked_poses, tracked_segments)`: `tracked_poses` is the
         `(pose, track_id)` pairs bound in this frame so the caller can
@@ -303,16 +335,17 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         `(track_id, segment)` pairs that were just sealed by these detections
         so streaming callers can emit segment events."""
         merge_gap = params["merge_gap"] or 0.0
+        frame_period = 1.0 / frame_rate
         tracked_poses: List[Tuple[Dict[str, Any], int]] = []
         tracked_segments: List[Tuple[int, Dict[str, Any]]] = []
 
         for pose in poses:
             track_id = pose["track_id"]
             track = track_segments.setdefault(track_id, {
-                "segments": [],
-                "current": None,
+                "segments":  [],
+                "current":   None,
                 "last_seen": None,
-                "emitted": False
+                "emitted":   False,
             })
 
             track["last_seen"] = timestamp
@@ -353,80 +386,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         return tracked_poses, tracked_segments
 
-    def _interpolate_missing_poses(
-        self,
-        tracked_frames: List[Dict[str, Any]],
-        frame_rate: float,
-        merge_gap: float,
-    ) -> None:
-        """Walk every frame in chronological order, and for each track,
-        interpolate bounding boxes between consecutive detections whose gap is
-        within `merge_gap` + one frame period. Interpolated poses are merged
-        into each frame's `tracked_poses` in place; `interpolated_poses` is stripped
-        so downstream code sees a single unified list."""
-        frame_period = 1.0 / frame_rate
-        threshold = merge_gap + frame_period + 1e-6
-        prev_detection: Dict[int, Tuple[float, Dict[str, int], Dict[str, Any]]] = {}
-
-        for frame in tracked_frames:
-            frame.setdefault("interpolated_poses", [])
-
-        for frame in tracked_frames:
-            timestamp = frame["timestamp"]
-            for pose, track_id in frame["tracked_poses"]:
-                prev = prev_detection.get(track_id)
-                if prev is not None:
-                    prev_timestamp, prev_bbox, prev_pose = prev
-                    if timestamp - prev_timestamp <= threshold:
-                        self._interpolate_between_poses(tracked_frames, track_id, prev_timestamp, prev_bbox, prev_pose, timestamp, pose["bounding_box"])
-                prev_detection[track_id] = (timestamp, pose["bounding_box"], pose)
-
-        for frame in tracked_frames:
-            frame["tracked_poses"] = frame["tracked_poses"] + frame["interpolated_poses"]
-            del frame["interpolated_poses"]
-
-    def _interpolate_between_poses(
-        self,
-        frames: List[Dict[str, Any]],
-        track_id: int,
-        prev_timestamp: float,
-        prev_bbox: Dict[str, int],
-        prev_pose: Dict[str, Any],
-        current_timestamp: float,
-        current_bbox: Dict[str, int],
-    ) -> None:
-        """Fill in a track's missing detections between two anchors by linear
-        bounding-box interpolation. Frames whose timestamp lies strictly between
-        `prev_timestamp` and `current_timestamp` and that have no detection (real or interpolated)
-        for `track_id` receive a synthetic pose. The interpolated bboxes are
-        appended to `interpolated_poses` so callers can distinguish them from real
-        detections and merge later."""
-        span = current_timestamp - prev_timestamp
-
-        if span <= 0:
-            return
-
-        for frame in frames:
-            frame_timestamp = frame["timestamp"]
-
-            if frame_timestamp <= prev_timestamp or frame_timestamp >= current_timestamp:
-                continue
-
-            if any(tid == track_id for _, tid in frame["tracked_poses"]):
-                continue
-
-            if any(tid == track_id for _, tid in frame["interpolated_poses"]):
-                continue
-
-            ratio = (frame_timestamp - prev_timestamp) / span
-            interpolated_bbox = {
-                "x":      int(round(prev_bbox["x"]      + (current_bbox["x"]      - prev_bbox["x"]     ) * ratio)),
-                "y":      int(round(prev_bbox["y"]      + (current_bbox["y"]      - prev_bbox["y"]     ) * ratio)),
-                "width":  int(round(prev_bbox["width"]  + (current_bbox["width"]  - prev_bbox["width"] ) * ratio)),
-                "height": int(round(prev_bbox["height"] + (current_bbox["height"] - prev_bbox["height"]) * ratio)),
-            }
-            frame["interpolated_poses"].append(({ **prev_pose, "bounding_box": interpolated_bbox }, track_id))
-
     def _sweep_idle_tracks(
         self,
         track_segments: Dict[int, Dict[str, Any]],
@@ -462,6 +421,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
             segment_chunk: Optional[Dict[str, Any]] = None
             current = track["current"]
+
             if current is not None:
                 track["segments"].append(current)
                 track["current"] = None
@@ -493,6 +453,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         for track_id in sorted(track_segments.keys()):
             track = track_segments[track_id]
+
             if track["current"] is None and track["emitted"]:
                 continue
 
@@ -514,6 +475,184 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             track["emitted"] = True
 
         return chunks
+
+    def _interpolate_missing_poses(
+        self,
+        tracked_frames: List[Dict[str, Any]],
+        frame_rate: float,
+        merge_gap: float,
+    ) -> None:
+        """Walk every frame in chronological order, and for each track,
+        interpolate bounding boxes between consecutive detections whose gap is
+        within `merge_gap` + one frame period. Interpolated poses are merged
+        into each frame's `tracked_poses` in place; `interpolated_poses` is stripped
+        so downstream code sees a single unified list."""
+        frame_period = 1.0 / frame_rate
+        threshold = merge_gap + frame_period + 1e-6
+        # Track each track's most recent detection's frame index too so we
+        # can hand the interpolator a bounded [start, end) range instead of
+        # re-scanning every frame per anchor pair — otherwise the cost is
+        # O(anchor_pairs × total_frames) on long videos.
+        last_pose_by_track: Dict[int, Tuple[int, float, Dict[str, Any]]] = {}
+
+        for frame in tracked_frames:
+            frame.setdefault("interpolated_poses", [])
+
+        for current_index, frame in enumerate(tracked_frames):
+            timestamp = frame["timestamp"]
+            for pose, track_id in frame["tracked_poses"]:
+                last_pose = last_pose_by_track.get(track_id)
+                if last_pose is not None:
+                    prev_index, prev_timestamp, prev_pose = last_pose
+                    if timestamp - prev_timestamp <= threshold:
+                        self._interpolate_between_poses(
+                            tracked_frames,
+                            prev_index + 1,
+                            current_index,
+                            track_id,
+                            prev_timestamp,
+                            prev_pose,
+                            timestamp,
+                            pose
+                        )
+                last_pose_by_track[track_id] = (current_index, timestamp, pose)
+
+        for frame in tracked_frames:
+            frame["tracked_poses"] = frame["tracked_poses"] + frame["interpolated_poses"]
+            del frame["interpolated_poses"]
+
+    def _interpolate_between_poses(
+        self,
+        frames: List[Dict[str, Any]],
+        start_index: int,
+        end_index: int,
+        track_id: int,
+        prev_timestamp: float,
+        prev_pose: Dict[str, Any],
+        current_timestamp: float,
+        current_pose: Dict[str, Any],
+    ) -> None:
+        """Fill in a track's missing detections between two anchors by linear
+        bounding-box interpolation. Frames whose timestamp lies strictly between
+        `prev_timestamp` and `current_timestamp` and that have no detection (real or interpolated)
+        for `track_id` receive a synthetic pose. The interpolated bboxes are
+        appended to `interpolated_poses` so callers can distinguish them from real
+        detections and merge later."""
+        span = current_timestamp - prev_timestamp
+
+        if span <= 0:
+            return
+
+        prev_bbox = prev_pose["bounding_box"]
+        current_bbox = current_pose["bounding_box"]
+
+        for index in range(start_index, end_index):
+            frame = frames[index]
+            frame_timestamp = frame["timestamp"]
+
+            if frame_timestamp <= prev_timestamp or frame_timestamp >= current_timestamp:
+                continue
+
+            if any(tid == track_id for _, tid in frame["tracked_poses"]):
+                continue
+
+            if any(tid == track_id for _, tid in frame["interpolated_poses"]):
+                continue
+
+            ratio = (frame_timestamp - prev_timestamp) / span
+            interpolated_bbox = (
+                int(round(prev_bbox[0] + (current_bbox[0] - prev_bbox[0]) * ratio)),
+                int(round(prev_bbox[1] + (current_bbox[1] - prev_bbox[1]) * ratio)),
+                int(round(prev_bbox[2] + (current_bbox[2] - prev_bbox[2]) * ratio)),
+                int(round(prev_bbox[3] + (current_bbox[3] - prev_bbox[3]) * ratio)),
+            )
+            frame["interpolated_poses"].append(({ **prev_pose, "bounding_box": interpolated_bbox, "interpolated": True }, track_id))
+
+    def _build_detected_poses(
+        self,
+        prediction: Results,
+        width: int,
+        height: int,
+        params: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        boxes, keypoints = prediction.boxes, prediction.keypoints
+
+        if boxes is None or boxes.id is None or keypoints is None:
+            return []
+
+        track_ids      = boxes.id.cpu().numpy().astype(int)
+        boxes_xyxy     = boxes.xyxy.cpu().numpy()
+        boxes_conf     = boxes.conf.cpu().numpy()
+        keypoints_xy   = keypoints.xy.cpu().numpy()
+        keypoints_conf = keypoints.conf.cpu().numpy() if keypoints.conf is not None else None
+
+        needs_openpose_keypoints = (
+            params["return_openpose_keypoints"]
+            or (params["return_skeleton_image"] and params["skeleton_format"] == "openpose")
+        )
+        needs_keypoints = (
+            params["return_keypoints"] or needs_openpose_keypoints
+            or (params["return_skeleton_image"] and params["skeleton_format"] == "natural")
+        )
+        min_visibility = params["min_presence_confidence"]
+
+        poses: List[Dict[str, Any]] = []
+
+        for index in range(track_ids.shape[0]):
+            x1, y1, x2, y2 = boxes_xyxy[index]
+            conf_row = keypoints_conf[index] if keypoints_conf is not None else None
+            pose_keypoints = self._build_keypoints(keypoints_xy[index], conf_row, min_visibility) if needs_keypoints else None
+            openpose_keypoints = coco.to_body_18(pose_keypoints) if needs_openpose_keypoints else None
+
+            pose: Dict[str, Any] = {
+                "track_id":     int(track_ids[index]),
+                "bounding_box": (int(x1), int(y1), int(x2), int(y2)),
+                "score":        float(boxes_conf[index]),
+                "width":        width,
+                "height":       height,
+            }
+
+            if pose_keypoints is not None:
+                pose["keypoints"] = pose_keypoints
+            if openpose_keypoints is not None:
+                pose["openpose_keypoints"] = openpose_keypoints
+
+            poses.append(pose)
+
+        return self._filter_poses(poses, params["min_pose_size"], params["max_pose_count_per_frame"])
+
+    def _build_keypoints(
+        self,
+        keypoints_xy: np.ndarray,
+        keypoints_conf: Optional[np.ndarray],
+        min_visibility: float,
+    ) -> List[Dict[str, Any]]:
+        keypoints: List[Dict[str, Any]] = []
+
+        for keypoint in range(keypoints_xy.shape[0]):
+            visibility = float(keypoints_conf[keypoint]) if keypoints_conf is not None else 1.0
+            x, y = int(keypoints_xy[keypoint, 0]), int(keypoints_xy[keypoint, 1])
+
+            if visibility < min_visibility or (x == 0 and y == 0):
+                keypoints.append({ "x": 0, "y": 0, "visibility": 0.0 })
+            else:
+                keypoints.append({ "x": x, "y": y, "visibility": visibility })
+
+        return keypoints
+
+    def _render_skeleton(self, pose: Dict[str, Any], params: Dict[str, Any]) -> Optional[PILImage.Image]:
+        width, height = pose["width"], pose["height"]
+
+        if params["skeleton_format"] == "openpose":
+            return openpose.render_skeleton(pose.get("openpose_keypoints"), width, height)
+
+        return coco.render_skeleton(pose.get("keypoints"), width, height)
+
+    def _crop_pose_image(self, pose: Dict[str, Any], padding: float) -> Optional[PILImage.Image]:
+        # No source frame is retained (only the pose metadata carries forward),
+        # so `return_track_image` is a no-op today. Wire the source frame
+        # through `_add_poses_to_tracks` if callers need real crops.
+        return None
 
     def _build_tracking_result(
         self,
@@ -547,7 +686,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                         "end_time":     format_timecode(tracked_segment["end"]),
                         "duration":     format_timecode(tracked_segment["end"] - tracked_segment["start"]),
                         "score":        best_pose["score"],
-                        "bounding_box": best_pose["bounding_box"],
+                        "bounding_box": self._serialize_bounding_box(best_pose["bounding_box"]),
                     }
 
                     if params["return_keypoints"] and "keypoints" in best_pose:
@@ -557,7 +696,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                     if params["return_skeleton_image"]:
                         segment["skeleton_image"] = self._render_skeleton(best_pose, params)
                     if params["return_track_image"]:
-                        segment["image"] = self._extract_pose_image(best_pose, params["bounding_box_padding"])
+                        segment["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
 
                     segments.append(segment)
 
@@ -574,24 +713,9 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             result["tracks"] = tracks
 
         if params["return_frames"]:
-            result["frames"] = [self._build_frame_view(tracked_frame, params) for tracked_frame in tracked_frames]
+            result["frames"] = [ self._serialize_tracked_frame(tracked_frame, params) for tracked_frame in tracked_frames ]
 
         return result
-
-    def _build_frame_view(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        view: Dict[str, Any] = {
-            "number":    tracked_frame["number"],
-            "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "poses":     [
-                { "track_id": int(track_id), "bounding_box": pose["bounding_box"] }
-                for pose, track_id in tracked_frame["tracked_poses"]
-            ],
-        }
-
-        if params["return_frame_image"] and "image" in tracked_frame:
-            view["image"] = tracked_frame["image"]
-
-        return view
 
     def _build_track_chunk(
         self,
@@ -629,7 +753,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             "duration":     format_timecode(tracked_segment["end"] - tracked_segment["start"]),
             "frame_count":  tracked_segment["frame_count"],
             "score":        best_pose["score"],
-            "bounding_box": best_pose["bounding_box"],
+            "bounding_box": self._serialize_bounding_box(best_pose["bounding_box"]),
         }
 
         if params["return_keypoints"] and "keypoints" in best_pose:
@@ -639,7 +763,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         if params["return_skeleton_image"]:
             segment["skeleton_image"] = self._render_skeleton(best_pose, params)
         if params["return_track_image"]:
-            segment["image"] = self._extract_pose_image(best_pose, params["bounding_box_padding"])
+            segment["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
 
         return {
             "type":     "segment",
@@ -652,10 +776,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             "type":      "frame",
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "poses":     [
-                { "track_id": int(track_id), "bounding_box": pose["bounding_box"] }
-                for pose, track_id in tracked_frame["tracked_poses"]
-            ],
+            "poses":     [ self._serialize_tracked_pose(tracked_pose, track_id) for tracked_pose, track_id in tracked_frame["tracked_poses"] ],
         }
 
         if params["return_frame_image"] and "image" in tracked_frame:
@@ -663,110 +784,41 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         return chunk
 
-    def _serialize_poses(
-        self,
-        prediction: Results,
-        width: int,
-        height: int,
-        params: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
-        boxes, keypoints = prediction.boxes, prediction.keypoints
+    def _serialize_tracked_frame(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        frame: Dict[str, Any] = {
+            "number":    tracked_frame["number"],
+            "timestamp": format_timecode(tracked_frame["timestamp"]),
+            "poses":     [ self._serialize_tracked_pose(tracked_pose, track_id) for tracked_pose, track_id in tracked_frame["tracked_poses"] ],
+        }
 
-        if boxes is None or boxes.id is None or keypoints is None:
-            return []
+        if params["return_frame_image"] and "image" in tracked_frame:
+            frame["image"] = tracked_frame["image"]
 
-        track_ids      = boxes.id.cpu().numpy().astype(int)
-        boxes_xyxy     = boxes.xyxy.cpu().numpy()
-        boxes_conf     = boxes.conf.cpu().numpy()
-        keypoints_xy   = keypoints.xy.cpu().numpy()
-        keypoints_conf = keypoints.conf.cpu().numpy() if keypoints.conf is not None else None
+        return frame
 
-        needs_openpose_keypoints = (
-            params["return_openpose_keypoints"]
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "openpose")
-        )
-        needs_keypoints = (
-            params["return_keypoints"] or needs_openpose_keypoints
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "natural")
-        )
-        min_visibility = params["min_presence_confidence"]
+    def _serialize_tracked_pose(self, tracked_pose: Dict[str, Any], track_id: int) -> Dict[str, Any]:
+        pose: Dict[str, Any] = {
+            "track_id":     int(track_id),
+            "bounding_box": self._serialize_bounding_box(tracked_pose["bounding_box"]),
+        }
 
-        poses: List[Dict[str, Any]] = []
+        if tracked_pose.get("interpolated"):
+            pose["interpolated"] = True
 
-        for index in range(track_ids.shape[0]):
-            conf_row = keypoints_conf[index] if keypoints_conf is not None else None
-            pose_keypoints = self._serialize_keypoints(keypoints_xy[index], conf_row, min_visibility) if needs_keypoints else None
-            openpose_keypoints = coco.to_body_18(pose_keypoints) if needs_openpose_keypoints else None
-
-            pose: Dict[str, Any] = {
-                "track_id":     int(track_ids[index]),
-                "bounding_box": self._serialize_bounding_box(boxes_xyxy[index]),
-                "score":        float(boxes_conf[index]),
-                "width":        width,
-                "height":       height,
-            }
-
-            if pose_keypoints is not None:
-                pose["keypoints"] = pose_keypoints
-            if openpose_keypoints is not None:
-                pose["openpose_keypoints"] = openpose_keypoints
-
-            poses.append(pose)
-
-        return self._filter_poses(poses, params["min_pose_size"], params["max_pose_count_per_frame"])
-
-    def _render_skeleton(self, pose: Dict[str, Any], params: Dict[str, Any]) -> Optional[PILImage.Image]:
-        width, height = pose["width"], pose["height"]
-
-        if params["skeleton_format"] == "openpose":
-            return openpose.render_skeleton(pose.get("openpose_keypoints"), width, height)
-
-        return coco.render_skeleton(pose.get("keypoints"), width, height)
-
-    def _extract_pose_image(self, pose: Dict[str, Any], padding: float) -> Optional[PILImage.Image]:
-        # No source frame is retained (only the pose metadata carries forward),
-        # so `return_track_image` is a no-op today. Wire the source frame
-        # through `_add_poses_to_tracks` if callers need real crops.
-        return None
-
-    def _serialize_keypoints(
-        self,
-        keypoints_xy: np.ndarray,
-        keypoints_conf: Optional[np.ndarray],
-        min_visibility: float,
-    ) -> List[Dict[str, Any]]:
-        keypoints: List[Dict[str, Any]] = []
-
-        for keypoint in range(keypoints_xy.shape[0]):
-            visibility = float(keypoints_conf[keypoint]) if keypoints_conf is not None else 1.0
-            x, y = int(keypoints_xy[keypoint, 0]), int(keypoints_xy[keypoint, 1])
-
-            if visibility < min_visibility or (x == 0 and y == 0):
-                keypoints.append({ "x": 0, "y": 0, "visibility": 0.0 })
-            else:
-                keypoints.append({ "x": x, "y": y, "visibility": visibility })
-
-        return keypoints
+        return pose
 
     @staticmethod
-    def _serialize_bounding_box(box_xyxy: np.ndarray) -> Dict[str, int]:
-        x1, y1, x2, y2 = box_xyxy
+    def _serialize_bounding_box(bounding_box: Tuple[int, int, int, int]) -> Dict[str, int]:
+        x1, y1, x2, y2 = bounding_box
 
-        return { "x": int(x1), "y": int(y1), "width": int(x2 - x1), "height": int(y2 - y1) }
+        return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     @staticmethod
-    def _filter_poses(
-        poses: List[Dict[str, Any]],
-        min_pose_size: int,
-        max_pose_count_per_frame: int,
-    ) -> List[Dict[str, Any]]:
-        if min_pose_size > 0:
-            poses = [ pose for pose in poses if min(pose["bounding_box"]["width"], pose["bounding_box"]["height"]) >= min_pose_size ]
+    def _bbox_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
+        """Whether both sides of `bounding_box` are at least `min_size` pixels."""
+        x1, y1, x2, y2 = bounding_box
 
-        if max_pose_count_per_frame > 0 and len(poses) > max_pose_count_per_frame:
-            poses = sorted(poses, key=lambda pose: pose["score"], reverse=True)[:max_pose_count_per_frame]
-
-        return poses
+        return min(x2 - x1, y2 - y1) >= min_size
 
 class YoloPoseTrackingTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

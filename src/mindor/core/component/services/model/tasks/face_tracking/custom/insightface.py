@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Union, Dict, List, Tuple, Any
+from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -21,23 +22,28 @@ if TYPE_CHECKING:
 class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     config: InsightfaceFaceTrackingModelActionConfig
 
-    def __init__(self, config: InsightfaceFaceTrackingModelActionConfig, model: FaceAnalysis):
+    def __init__(self, config: InsightfaceFaceTrackingModelActionConfig, model: FaceAnalysis, device_id: int):
         super().__init__(config)
 
         self.model: FaceAnalysis = model
+        self.device_id: int = device_id
         self._prepared: bool = False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
         detection_threshold = await context.render_scalar(self.config.params.detection_threshold, float)
+        detection_size      = await context.render_variable(self.config.params.detection_size)
         return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool)
 
         if not 0.0 <= detection_threshold <= 1.0:
             raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {detection_threshold}")
 
+        if not isinstance(detection_size, (list, tuple)) or len(detection_size) != 2:
+            raise ValueError(f"'detection_size' must be a (width, height) pair, got {detection_size!r}")
+
         params["detection_threshold"] = detection_threshold
-        params["detection_size"]      = tuple(self.config.params.detection_size)
+        params["detection_size"]      = (int(detection_size[0]), int(detection_size[1]))
         params["return_gender_age"]   = return_gender_age
 
         return params
@@ -47,14 +53,21 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frames_batch: List[ImageArrayValue],
         offsets_batch: List[float],
         frame_rate: float,
+        streaming: bool,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
+    ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
+        results: List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]] = []
 
         for frames, offset in zip(frames_batch, offsets_batch):
-            result = await self._track(frames, float(offset or 0.0), frame_rate, params)
-            results.append(result)
+            results.append(await self._track(
+                frames,
+                float(offset or 0.0),
+                frame_rate,
+                streaming,
+                params,
+                cancellation_token,
+            ))
 
         return results
 
@@ -63,34 +76,59 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frames: ImageArrayValue,
         offset: float,
         frame_rate: float,
+        streaming: bool,
         params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]:
+        """Track faces across one video's frames. Streaming mode returns an
+        async iterator of per-frame/per-segment/done events; non-streaming
+        mode runs to completion and returns the assembled result dict."""
+        if streaming:
+            return self._stream_tracks(frames, offset, frame_rate, params, cancellation_token)
+
+        return await self._collect_tracks(frames, offset, frame_rate, params, cancellation_token)
+
+    async def _collect_tracks(
+        self,
+        frames: ImageArrayValue,
+        offset: float,
+        frame_rate: float,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
         tracked_frames: List[Dict[str, Any]] = []
         frame_count = 0
 
-        def _track_frame(frame: PILImage.Image, timestamp: float) -> None:
-            faces = self._detect_frame(frame, params)
-            clusters = self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+        def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
+            faces = self._detect_frame(image, params)
+            tracked_faces, _ = self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+
+            tracked_frame: Dict[str, Any] = {
+                "number":        frame_count + 1,
+                "timestamp":     timestamp,
+                "tracked_faces": tracked_faces,
+            }
+
+            if params["return_frame_image"]:
+                tracked_frame["image"] = image
+
+            return tracked_frame
+
+        async for image in frames:
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                break
+
+            timestamp = offset + frame_count / frame_rate
+            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
+            frame_count += 1
 
             if params["return_frames"]:
-                tracked_frames.append({
-                    "number":    frame_count + 1,
-                    "timestamp": format_timecode(timestamp),
-                    "faces":     [
-                        {
-                            "track_id": cluster_id + 1,
-                            "bounding_box": face["bounding_box"]
-                        }
-                        for face, cluster_id in clusters
-                    ],
-                })
+                tracked_frames.append(tracked_frame)
 
-        async for frame in frames:
-            timestamp = offset + frame_count / frame_rate
-            await self._run_in_executor(_track_frame, frame, timestamp)
-            frame_count += 1
+        if params["return_frames"]:
+            self._interpolate_missing_faces(tracked_frames, frame_rate, params["merge_gap"] or 0.0, params["similarity_threshold"] or 0.0)
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -103,18 +141,155 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return await self._run_in_executor(self._build_tracking_result, cluster_tracks, centroids_state, frame_count, tracked_frames, params)
 
-    def _detect_frame(self, frame: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _stream_tracks(
+        self,
+        frames: ImageArrayValue,
+        offset: float,
+        frame_rate: float,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        cluster_tracks: Dict[int, Dict[str, Any]] = {}
+        centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
+        merge_gap = params["merge_gap"] or 0.0
+        similarity_threshold = params["similarity_threshold"] or 0.0
+        frame_period = 1.0 / frame_rate
+        frame_count = 0
+
+        # Frame chunk emission is delayed by `merge_gap` so that a detection in
+        # a later frame can back-fill missing detections in the frames between
+        # (linear bounding-box interpolation per cluster). Segment/track/idle
+        # chunks still flow at their original moment — consumers that only care
+        # about frames (e.g. face-mosaic) see the interpolated stream, and
+        # consumers that mix chunk types accept that segment/track chunks may
+        # precede their same-timestamp frame chunk.
+        pending_frames: List[Dict[str, Any]] = []
+        prev_detection: Dict[int, Tuple[float, Dict[str, int], Dict[str, Any]]] = {}
+
+        def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
+            faces = self._detect_frame(image, params)
+            tracked_faces, tracked_segments = self._cluster_faces(faces, timestamp, frame_rate, centroids_state, cluster_tracks, params)
+
+            tracked_frame: Dict[str, Any] = {
+                "number":            frame_count + 1,
+                "timestamp":         timestamp,
+                "tracked_faces":     tracked_faces,
+                "tracked_segments":  tracked_segments,
+                "interpolated_faces": [],
+            }
+
+            if params["return_frame_image"]:
+                tracked_frame["image"] = image
+
+            return tracked_frame
+
+        def _flush_ready_frames(force: bool) -> List[Dict[str, Any]]:
+            ready: List[Dict[str, Any]] = []
+
+            if not pending_frames:
+                return ready
+
+            cutoff = pending_frames[-1]["timestamp"] - merge_gap - frame_period - 1e-6
+
+            while pending_frames:
+                head = pending_frames[0]
+
+                if not force and head["timestamp"] > cutoff:
+                    break
+
+                pending_frames.pop(0)
+                head["tracked_faces"] = head["tracked_faces"] + head["interpolated_faces"]
+                del head["interpolated_faces"]
+                ready.append(head)
+
+            return ready
+
+        async for image in frames:
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                break
+
+            timestamp = offset + frame_count / frame_rate
+            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
+            frame_count += 1
+
+            # Fill gaps for every cluster that got a fresh detection this frame
+            # and had a prior detection within `merge_gap`. The prior/current
+            # pair anchors the linear interpolation across the pending frames
+            # in between.
+            if params["return_frames"]:
+                for face, cluster_id in tracked_frame["tracked_faces"]:
+                    prev = prev_detection.get(cluster_id)
+                    if prev is not None:
+                        prev_timestamp, prev_bbox, prev_face = prev
+                        if timestamp - prev_timestamp <= merge_gap + frame_period + 1e-6:
+                            self._interpolate_between_faces(
+                                pending_frames,
+                                0,
+                                len(pending_frames),
+                                cluster_id,
+                                prev_timestamp,
+                                prev_bbox,
+                                prev_face,
+                                timestamp,
+                                face["bounding_box"],
+                                face,
+                                similarity_threshold
+                            )
+                    prev_detection[cluster_id] = (timestamp, face["bounding_box"], face)
+
+                pending_frames.append(tracked_frame)
+
+                for ready_frame in _flush_ready_frames(force=False):
+                    yield self._build_frame_chunk(ready_frame, params)
+
+            if params["return_tracks"]:
+                for cluster_id, segment in tracked_frame["tracked_segments"]:
+                    yield self._build_segment_chunk(cluster_id, segment, params)
+
+                # Any cluster we didn't touch this frame whose gap now exceeds
+                # `merge_gap` is idle: seal its still-open segment and emit a
+                # track chunk. The `emitted` flag keeps us from re-emitting a
+                # long-idle cluster every frame — a fresh detection resets it
+                # in `_add_face_to_track` so the next idle period fires again.
+                for cluster_id, segment_chunk, track_chunk in self._sweep_idle_tracks(cluster_tracks, centroids_state, timestamp, frame_period, merge_gap, params):
+                    if segment_chunk is not None:
+                        yield segment_chunk
+                    yield track_chunk
+
+        if params["return_frames"]:
+            for ready_frame in _flush_ready_frames(force=True):
+                yield self._build_frame_chunk(ready_frame, params)
+
+        # Final flush: seal every still-open segment and emit any track that
+        # hasn't been announced yet (including clusters that never went idle).
+        if params["return_tracks"]:
+            for cluster_id, segment_chunk, track_chunk in self._flush_remaining_tracks(cluster_tracks, centroids_state, params):
+                if segment_chunk is not None:
+                    yield segment_chunk
+                yield track_chunk
+        else:
+            for track in cluster_tracks.values():
+                if track["current"] is not None:
+                    track["segments"].append(track["current"])
+                    track["current"] = None
+
+        logging.debug(f"InsightFace face tracking (streaming): {frame_count} frames at offset {offset:.3f}s")
+
+        if params["return_metadata"]:
+            yield { "type": "metadata", "frame_count": frame_count }
+
+    def _detect_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np
         import cv2
 
         if not self._prepared:
-            self.model.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.model.prepare(ctx_id=self.device_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
             self._prepared = True
 
-        image_cv = cv2.cvtColor(np.array(frame.convert("RGB")), cv2.COLOR_RGB2BGR)
+        image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
         detections = self.model.get(image_cv)
 
-        return self._serialize_faces(detections, image_cv, params["return_image"], params["return_gender_age"])
+        return self._serialize_faces(detections, image_cv, params["return_track_image"], params["return_gender_age"])
 
     def _cluster_faces(
         self,
@@ -124,15 +299,16 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         centroids_state: Dict[str, Any],
         cluster_tracks: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> List[Tuple[Dict[str, Any], int]]:
+    ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
         import numpy as np
 
-        similarity_threshold     = params["similarity_threshold"] or 0.0
-        min_face_size            = params["min_face_size"] or 0
-        max_face_count_per_frame = params["max_face_count_per_frame"] or 0
-        merge_gap                = params["merge_gap"] or 0.0
-        frame_period             = 1.0 / frame_rate
-        bounding_box_padding     = params["bounding_box_padding"] or 0.0
+        similarity_threshold      = params["similarity_threshold"] or 0.0
+        min_face_size             = params["min_face_size"] or 0
+        max_face_count_per_frame  = params["max_face_count_per_frame"] or 0
+        merge_gap                 = params["merge_gap"] or 0.0
+        frame_period              = 1.0 / frame_rate
+        bounding_box_padding      = params["bounding_box_padding"] or 0.0
+        max_reassignment_distance = params["max_reassignment_distance"] or 0.0
 
         candidates = self._filter_faces(faces, min_face_size, max_face_count_per_frame)
         centroids: List[np.ndarray] = centroids_state["centroids"]
@@ -150,58 +326,77 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         tie_margin: float = 0.05
         stale_after: float = 2.0
 
-        normalized_faces: List[np.ndarray] = []
+        embeddings: List[np.ndarray] = []
+
         for face in candidates:
             embedding = face["embedding"]
-            normalized_faces.append(embedding / (np.linalg.norm(embedding) + 1e-12))
+            embeddings.append(embedding / (np.linalg.norm(embedding) + 1e-12))
 
-        pairs: List[Tuple[float, int, int]] = []
-        for face_index, normalized in enumerate(normalized_faces):
+        face_cluster_scores: List[Tuple[float, int, int]] = []
+
+        for face_index, embedding in enumerate(embeddings):
             face_bbox = candidates[face_index]["bounding_box"]
             for cluster_id, centroid in enumerate(centroids):
-                similarity = float(np.dot(normalized, centroid))
+                similarity = float(np.dot(embedding, centroid))
+
                 if similarity < similarity_threshold:
                     continue
+
                 track = cluster_tracks.get(cluster_id)
                 last_bbox = track.get("last_bbox") if track else None
                 last_seen = track.get("last_seen") if track else None
                 is_stale = last_seen is None or (timestamp - last_seen) > stale_after
+
+                # A live cluster whose last detection is farther than `max_reassignment_distance`
+                # face-sizes away can't be the same person — reject the pair outright so the
+                # face falls through to a new cluster instead of hijacking this one.
+                if not is_stale and last_bbox is not None and max_reassignment_distance > 0.0:
+                    if self._bbox_center_distance(face_bbox, last_bbox) > max_reassignment_distance * max(face_bbox["width"], face_bbox["height"]):
+                        continue
+
                 overlap = 0.0 if is_stale or last_bbox is None else self._bbox_overlap(face_bbox, last_bbox)
-                pairs.append((similarity + tie_margin * overlap, face_index, cluster_id))
+                face_cluster_scores.append((similarity + tie_margin * overlap, face_index, cluster_id))
 
         # Sort by blended score, descending. Do NOT let face_index / cluster_id
         # influence the order on true ties — a plain reverse-tuple sort would
         # prefer higher indices, which is not a meaningful tie-break.
-        pairs.sort(key=lambda p: -p[0])
+        face_cluster_scores.sort(key=lambda p: -p[0])
 
-        assigned_face: Dict[int, int] = {}
+        face_cluster: Dict[int, int] = {}
         used_clusters: set = set()
 
-        for _, face_index, cluster_id in pairs:
-            if face_index in assigned_face or cluster_id in used_clusters:
+        for _, face_index, cluster_id in face_cluster_scores:
+            if face_index in face_cluster or cluster_id in used_clusters:
                 continue
-            assigned_face[face_index] = cluster_id
+
+            face_cluster[face_index] = cluster_id
             used_clusters.add(cluster_id)
 
-        clusters: List[Tuple[Dict[str, Any], int]] = []
+        tracked_faces: List[Tuple[Dict[str, Any], int]] = []
+        tracked_segments: List[Tuple[int, Dict[str, Any]]] = []
+
         for face_index, face in enumerate(candidates):
-            normalized = normalized_faces[face_index]
-            cluster_id = assigned_face.get(face_index, -1)
+            embedding = embeddings[face_index]
+            cluster_id = face_cluster.get(face_index, -1)
 
             if cluster_id >= 0:
                 count = counts[cluster_id]
-                updated = (centroids[cluster_id] * count + normalized) / (count + 1)
+                updated = (centroids[cluster_id] * count + embedding) / (count + 1)
                 centroids[cluster_id] = updated / (np.linalg.norm(updated) + 1e-12)
                 counts[cluster_id] += 1
             else:
-                centroids.append(normalized.copy())
+                centroids.append(embedding.copy())
                 counts.append(1)
                 cluster_id = len(centroids) - 1
 
-            self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding)
-            clusters.append((face, cluster_id))
+            tracked_segment = self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding)
 
-        return clusters
+            if tracked_segment is not None:
+                tracked_segments.append((cluster_id, tracked_segment))
+
+            tracked_faces.append((face, cluster_id))
+
+        return tracked_faces, tracked_segments
 
     def _add_face_to_track(
         self,
@@ -212,7 +407,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         merge_gap: float,
         frame_period: float,
         bounding_box_padding: float,
-    ) -> None:
+    ) -> Optional[Dict[str, Any]]:
         """Fold a new detection into its cluster's segment history. The
         cluster's `current` segment is extended if this frame is within one
         frame period plus `merge_gap` of the previous one; otherwise the
@@ -226,8 +421,19 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         The face crop is materialized here (lazily) rather than up-front in
         `_serialize_faces`, so frames that never become a segment's best
-        never pay the crop / PIL-conversion cost."""
-        track = cluster_tracks.setdefault(cluster_id, { "segments": [], "current": None, "last_bbox": None, "last_seen": None })
+        never pay the crop / PIL-conversion cost.
+
+        Returns the segment that this detection just closed off, or None
+        when the detection only extended the current segment. Streaming
+        callers use the return value to emit segment events; batch callers
+        can ignore it since `track["segments"]` accumulates the same data."""
+        track = cluster_tracks.setdefault(cluster_id, { 
+            "segments": [],
+            "current": None,
+            "last_bbox": None,
+            "last_seen": None,
+            "emitted": False
+        })
 
         track["last_bbox"] = face["bounding_box"]
         track["last_seen"] = timestamp
@@ -242,12 +448,16 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6:
             current["end"] = timestamp
             current["frame_count"] += 1
+
             if score > current["best_face"]["score"]:
                 current["best_face"] = self._build_face_snapshot(face, bounding_box_padding)
-            return
 
-        if current is not None:
-            track["segments"].append(current)
+            return None
+
+        tracked_segment = current
+
+        if tracked_segment is not None:
+            track["segments"].append(tracked_segment)
 
         track["current"] = {
             "start":       timestamp,
@@ -256,46 +466,220 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "best_face":   self._build_face_snapshot(face, bounding_box_padding),
         }
 
-    def _serialize_faces(
+        track["emitted"] = False
+
+        return tracked_segment
+
+    def _sweep_idle_tracks(
         self,
-        detections: List[Face],
-        image_cv: np.ndarray,
-        return_image: bool,
-        return_gender_age: bool,
-    ) -> List[Dict[str, Any]]:
-        # Defer cropping to _add_face_to_track: only the frames that actually
-        # become a segment's representative are worth converting to PIL, so
-        # we pass a reference to the source frame (cheap) instead of eagerly
-        # producing an RGB PIL crop for every detection (expensive when a
-        # track spans many frames or the input has many candidate faces).
-        faces: List[Dict[str, Any]] = []
+        cluster_tracks: Dict[int, Dict[str, Any]],
+        centroids_state: Dict[str, Any],
+        timestamp: float,
+        frame_period: float,
+        merge_gap: float,
+        params: Dict[str, Any],
+    ) -> List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]]:
+        """Sweep clusters that have gone idle past `merge_gap` at `timestamp`.
 
-        for detection in detections:
-            embedding = getattr(detection, "normed_embedding", None)
+        For each such cluster, seal any still-open `current` segment (returning
+        a segment chunk to emit) and produce a track chunk with the running
+        aggregates. Mutates track state: seals `current` into `segments`, sets
+        `emitted=True` so the same idle stretch is not announced twice. A later
+        detection on the same cluster resets `emitted` in `_add_face_to_track`,
+        so re-emission on the next idle period is intentional."""
+        chunks: List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]] = []
+        min_frame_count = params["min_frame_count"] or 1
 
-            if embedding is None:
+        for cluster_id in sorted(cluster_tracks.keys()):
+            track = cluster_tracks[cluster_id]
+            last_seen = track.get("last_seen")
+
+            if last_seen is None:
                 continue
 
-            face: Dict[str, Any] = {
-                "embedding":    embedding,
-                "bounding_box": self._serialize_bounding_box(detection.bbox),
-                "score":        float(getattr(detection, "det_score", 0.0)),
+            if timestamp - last_seen <= frame_period + merge_gap + 1e-6:
+                continue
+
+            if track["current"] is None and track["emitted"]:
+                continue
+
+            segment_chunk: Optional[Dict[str, Any]] = None
+            current = track["current"]
+
+            if current is not None:
+                track["segments"].append(current)
+                track["current"] = None
+                segment_chunk = self._build_segment_chunk(cluster_id, current, params)
+
+            track_frame_count = sum(segment["frame_count"] for segment in track["segments"])
+
+            if track_frame_count < min_frame_count:
+                continue
+
+            chunks.append((
+                cluster_id,
+                segment_chunk,
+                self._build_track_chunk(cluster_id, track, centroids_state, params),
+            ))
+
+            track["emitted"] = True
+
+        return chunks
+
+    def _flush_remaining_tracks(
+        self,
+        cluster_tracks: Dict[int, Dict[str, Any]],
+        centroids_state: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]]:
+        """Emit a track chunk (and any still-open segment) for every cluster
+        that hasn't been announced yet. Called once when the frame stream
+        ends: at that point every remaining cluster is authoritative, so we
+        skip the idle-timeout check and treat `emitted=True` as the only
+        reason to omit a cluster."""
+        chunks: List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]] = []
+        min_frame_count = params["min_frame_count"] or 1
+
+        for cluster_id in sorted(cluster_tracks.keys()):
+            track = cluster_tracks[cluster_id]
+
+            if track["current"] is None and track["emitted"]:
+                continue
+
+            segment_chunk: Optional[Dict[str, Any]] = None
+            current = track["current"]
+
+            if current is not None:
+                track["segments"].append(current)
+                track["current"] = None
+                segment_chunk = self._build_segment_chunk(cluster_id, current, params)
+
+            track_frame_count = sum(segment["frame_count"] for segment in track["segments"])
+
+            if track_frame_count < min_frame_count:
+                continue
+
+            chunks.append((
+                cluster_id,
+                segment_chunk,
+                self._build_track_chunk(cluster_id, track, centroids_state, params),
+            ))
+
+            track["emitted"] = True
+
+        return chunks
+
+    def _interpolate_missing_faces(
+        self,
+        tracked_frames: List[Dict[str, Any]],
+        frame_rate: float,
+        merge_gap: float,
+        similarity_threshold: float,
+    ) -> None:
+        """Walk every frame in chronological order, and for each cluster,
+        interpolate bounding boxes between consecutive detections whose gap is
+        within `merge_gap` + one frame period. Interpolated faces are merged
+        into each frame's `tracked_faces` in place; `interpolated_faces` is stripped
+        so downstream code sees a single unified list."""
+        frame_period = 1.0 / frame_rate
+        threshold = merge_gap + frame_period + 1e-6
+        # Track each cluster's most recent detection's frame index too so we
+        # can hand the interpolator a bounded [start, end) range instead of
+        # re-scanning every frame per anchor pair — otherwise the cost is
+        # O(anchor_pairs × total_frames) on long videos.
+        prev_detection: Dict[int, Tuple[int, float, Dict[str, int], Dict[str, Any]]] = {}
+
+        for frame in tracked_frames:
+            frame.setdefault("interpolated_faces", [])
+
+        for current_index, frame in enumerate(tracked_frames):
+            timestamp = frame["timestamp"]
+            for face, cluster_id in frame["tracked_faces"]:
+                prev = prev_detection.get(cluster_id)
+                if prev is not None:
+                    prev_index, prev_timestamp, prev_bbox, prev_face = prev
+                    if timestamp - prev_timestamp <= threshold:
+                        self._interpolate_between_faces(
+                            tracked_frames,
+                            prev_index + 1,
+                            current_index,
+                            cluster_id,
+                            prev_timestamp,
+                            prev_bbox,
+                            prev_face,
+                            timestamp,
+                            face["bounding_box"],
+                            face,
+                            similarity_threshold
+                        )
+                prev_detection[cluster_id] = (current_index, timestamp, face["bounding_box"], face)
+
+        for frame in tracked_frames:
+            frame["tracked_faces"] = frame["tracked_faces"] + frame["interpolated_faces"]
+            del frame["interpolated_faces"]
+
+    def _interpolate_between_faces(
+        self,
+        frames: List[Dict[str, Any]],
+        start_index: int,
+        end_index: int,
+        cluster_id: int,
+        prev_timestamp: float,
+        prev_bbox: Dict[str, int],
+        prev_face: Dict[str, Any],
+        current_timestamp: float,
+        current_bbox: Dict[str, int],
+        current_face: Dict[str, Any],
+        similarity_threshold: float,
+    ) -> None:
+        """Fill in a cluster's missing detections between two anchors by linear
+        bounding-box interpolation. Frames whose timestamp lies strictly between
+        `prev_timestamp` and `current_timestamp` and that have no detection (real or interpolated)
+        for `cluster_id` receive a synthetic face. The interpolated bboxes are
+        appended to `interpolated_faces` so callers can distinguish them from real
+        detections and merge later.
+
+        The two anchors' raw embeddings must agree above `similarity_threshold`;
+        otherwise the cluster's centroid has drifted (or overlap-based tie-break
+        put two different people into the same cluster) and interpolating would
+        paint a ghost face gliding between two different identities."""
+        import numpy as np
+
+        span = current_timestamp - prev_timestamp
+
+        if span <= 0:
+            return
+
+        prev_embedding = prev_face.get("embedding")
+        current_embedding = current_face.get("embedding")
+
+        if prev_embedding is not None and current_embedding is not None:
+            prev_normalized = prev_embedding / (np.linalg.norm(prev_embedding) + 1e-12)
+            current_normalized = current_embedding / (np.linalg.norm(current_embedding) + 1e-12)
+            if float(np.dot(prev_normalized, current_normalized)) < similarity_threshold:
+                return
+
+        for index in range(start_index, end_index):
+            frame = frames[index]
+            frame_timestamp = frame["timestamp"]
+
+            if frame_timestamp <= prev_timestamp or frame_timestamp >= current_timestamp:
+                continue
+
+            if any(cid == cluster_id for _, cid in frame["tracked_faces"]):
+                continue
+
+            if any(cid == cluster_id for _, cid in frame["interpolated_faces"]):
+                continue
+
+            ratio = (frame_timestamp - prev_timestamp) / span
+            interpolated_bbox = {
+                "x":      int(round(prev_bbox["x"]      + (current_bbox["x"]      - prev_bbox["x"]     ) * ratio)),
+                "y":      int(round(prev_bbox["y"]      + (current_bbox["y"]      - prev_bbox["y"]     ) * ratio)),
+                "width":  int(round(prev_bbox["width"]  + (current_bbox["width"]  - prev_bbox["width"] ) * ratio)),
+                "height": int(round(prev_bbox["height"] + (current_bbox["height"] - prev_bbox["height"]) * ratio)),
             }
-
-            if return_image:
-                face["image_source"] = image_cv
-
-            if return_gender_age:
-                gender = getattr(detection, "gender", None)
-                age = getattr(detection, "age", None)
-                if gender is not None:
-                    face["gender"] = self._gender_to_label(int(gender))
-                if age is not None:
-                    face["age"] = int(age)
-
-            faces.append(face)
-
-        return faces
+            frame["interpolated_faces"].append(({ **prev_face, "bounding_box": interpolated_bbox }, cluster_id))
 
     def _build_face_snapshot(self, face: Dict[str, Any], bounding_box_padding: float) -> Dict[str, Any]:
         snapshot: Dict[str, Any] = {
@@ -324,9 +708,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         tracked_frames: List[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "frame_count": frame_count,
-        }
+        result: Dict[str, Any] = {}
+
+        if params["return_metadata"]:
+            result["frame_count"] = frame_count
 
         if params["return_tracks"]:
             min_frame_count = params["min_frame_count"] or 1
@@ -334,29 +719,29 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             tracks: List[Dict[str, Any]] = []
 
             for cluster_id in sorted(cluster_tracks.keys()):
-                raw_segments = cluster_tracks[cluster_id]["segments"]
-                track_frame_count = sum(segment["frame_count"] for segment in raw_segments)
+                tracked_segments = cluster_tracks[cluster_id]["segments"]
+                track_frame_count = sum(segment["frame_count"] for segment in tracked_segments)
 
                 if track_frame_count < min_frame_count:
                     continue
 
                 segments: List[Dict[str, Any]] = []
 
-                for raw_segment in raw_segments:
-                    best_face = raw_segment["best_face"]
+                for tracked_segment in tracked_segments:
+                    best_face = tracked_segment["best_face"]
                     segment = {
-                        "start_time": format_timecode(raw_segment["start"]),
-                        "end_time":   format_timecode(raw_segment["end"]),
-                        "duration":   format_timecode(raw_segment["end"] - raw_segment["start"]),
+                        "start_time": format_timecode(tracked_segment["start"]),
+                        "end_time":   format_timecode(tracked_segment["end"]),
+                        "duration":   format_timecode(tracked_segment["end"] - tracked_segment["start"]),
                         "score":      best_face["score"],
                     }
 
-                    if params["return_image"] and "image" in best_face:
+                    if params["return_track_image"] and "image" in best_face:
                         segment["image"] = best_face["image"]
 
                     segments.append(segment)
 
-                best_segment = max(raw_segments, key=lambda s: s["best_face"]["score"])
+                best_segment = max(tracked_segments, key=lambda s: s["best_face"]["score"])
                 best_face = best_segment["best_face"]
 
                 track: Dict[str, Any] = {
@@ -381,9 +766,146 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             result["tracks"] = tracks
 
         if params["return_frames"]:
-            result["frames"] = tracked_frames
+            result["frames"] = [self._build_frame_view(tracked_frame, params) for tracked_frame in tracked_frames]
 
         return result
+
+    def _build_frame_view(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        view: Dict[str, Any] = {
+            "number":    tracked_frame["number"],
+            "timestamp": format_timecode(tracked_frame["timestamp"]),
+            "faces":     [
+                {
+                    "track_id":     cluster_id + 1,
+                    "bounding_box": face["bounding_box"],
+                }
+                for face, cluster_id in tracked_frame["tracked_faces"]
+            ],
+        }
+
+        if params["return_frame_image"] and "image" in tracked_frame:
+            view["image"] = tracked_frame["image"]
+
+        return view
+
+    def _build_track_chunk(
+        self,
+        cluster_id: int,
+        track: Dict[str, Any],
+        centroids_state: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        best_segment = max(track["segments"], key=lambda s: s["best_face"]["score"])
+        best_face = best_segment["best_face"]
+
+        chunk: Dict[str, Any] = {
+            "type":           "track",
+            "track_id":       cluster_id + 1,
+            "segment_count":  len(track["segments"]),
+            "frame_count":    sum(segment["frame_count"] for segment in track["segments"]),
+            "score":          best_face["score"],
+        }
+
+        if params["return_embedding"]:
+            chunk["embedding"] = FaceEmbedding(centroids_state["centroids"][cluster_id].tolist())
+
+        if params["return_gender_age"]:
+            if "gender" in best_face:
+                chunk["gender"] = best_face["gender"]
+            if "age" in best_face:
+                chunk["age"] = best_face["age"]
+
+        return chunk
+
+    def _build_segment_chunk(
+        self,
+        cluster_id: int,
+        tracked_segment: Dict[str, Any],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        best_face = tracked_segment["best_face"]
+        segment: Dict[str, Any] = {
+            "start_time":  format_timecode(tracked_segment["start"]),
+            "end_time":    format_timecode(tracked_segment["end"]),
+            "duration":    format_timecode(tracked_segment["end"] - tracked_segment["start"]),
+            "frame_count": tracked_segment["frame_count"],
+            "score":       best_face["score"],
+        }
+
+        if params["return_track_image"] and "image" in best_face:
+            segment["image"] = best_face["image"]
+
+        if params["return_gender_age"]:
+            if "gender" in best_face:
+                segment["gender"] = best_face["gender"]
+            if "age" in best_face:
+                segment["age"] = best_face["age"]
+
+        return {
+            "type":     "segment",
+            "track_id": cluster_id + 1,
+            "segment":  segment,
+        }
+
+    def _build_frame_chunk(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+        chunk: Dict[str, Any] = {
+            "type":      "frame",
+            "number":    tracked_frame["number"],
+            "timestamp": format_timecode(tracked_frame["timestamp"]),
+            "faces":     [
+                {
+                    "track_id":     cluster_id + 1,
+                    "bounding_box": face["bounding_box"],
+                }
+                for face, cluster_id in tracked_frame["tracked_faces"]
+            ],
+        }
+
+        if params["return_frame_image"] and "image" in tracked_frame:
+            chunk["image"] = tracked_frame["image"]
+
+        return chunk
+
+    def _serialize_faces(
+        self,
+        detections: List[Face],
+        image_cv: np.ndarray,
+        return_track_image: bool,
+        return_gender_age: bool,
+    ) -> List[Dict[str, Any]]:
+        # Defer cropping to _add_face_to_track: only the frames that actually
+        # become a segment's representative are worth converting to PIL, so
+        # we pass a reference to the source frame (cheap) instead of eagerly
+        # producing an RGB PIL crop for every detection (expensive when a
+        # track spans many frames or the input has many candidate faces).
+        faces: List[Dict[str, Any]] = []
+
+        for detection in detections:
+            embedding = getattr(detection, "normed_embedding", None)
+
+            if embedding is None:
+                continue
+
+            face: Dict[str, Any] = {
+                "embedding":    embedding,
+                "bounding_box": self._serialize_bounding_box(detection.bbox),
+                "score":        float(getattr(detection, "det_score", 0.0)),
+            }
+
+            if return_track_image:
+                face["image_source"] = image_cv
+
+            if return_gender_age:
+                gender = getattr(detection, "gender", None)
+                age = getattr(detection, "age", None)
+                if gender is not None:
+                    face["gender"] = self._gender_to_label(int(gender))
+                if age is not None:
+                    face["age"] = int(age)
+
+            faces.append(face)
+
+        return faces
 
     @staticmethod
     def _gender_to_label(gender: int) -> str:
@@ -449,6 +971,16 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_face_count_per_frame]
 
         return faces
+
+    @staticmethod
+    def _bbox_center_distance(a: Dict[str, int], b: Dict[str, int]) -> float:
+        """Euclidean distance between the centers of two bounding boxes."""
+        ax = a["x"] + a["width"]  / 2.0
+        ay = a["y"] + a["height"] / 2.0
+        bx = b["x"] + b["width"]  / 2.0
+        by = b["y"] + b["height"] / 2.0
+
+        return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
 
     @staticmethod
     def _bbox_overlap(a: Dict[str, int], b: Dict[str, int]) -> float:
@@ -586,4 +1118,4 @@ class InsightfaceFaceTrackingTaskService(ModelTaskService):
         return 0
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await InsightfaceFaceTrackingTaskAction(action, self.model).run(context)
+        return await InsightfaceFaceTrackingTaskAction(action, self.model, self._get_device_id()).run(context)

@@ -28,10 +28,13 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        detection_size = tuple(self.config.params.detection_size)
+        detection_size = await context.render_variable(self.config.params.detection_size)
         max_num_faces  = await context.render_scalar(self.config.params.max_num_faces, int)
 
-        params["detection_size"] = detection_size
+        if not isinstance(detection_size, (list, tuple)) or len(detection_size) != 2:
+            raise ValueError(f"'detection_size' must be a (width, height) pair, got {detection_size!r}")
+
+        params["detection_size"] = (int(detection_size[0]), int(detection_size[1]))
         params["max_num_faces"]  = max_num_faces
 
         return params

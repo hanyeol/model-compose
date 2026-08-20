@@ -33,7 +33,8 @@ model-compose provides various component types for performing different tasks.
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
-| `image-processor` | Process images | Image transformation, resizing, PNG compression, etc. |
+| `image-processor` | Process images | Image transformation, resizing, filters, etc. |
+| `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
@@ -46,6 +47,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
+| `media-downloader` | Download media from URL | Fetch audio or video from YouTube, Vimeo, etc. via yt-dlp; returns a stream ready for downstream processing |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 | `screen-capture` | Capture local screen and audio | Live desktop, region, or microphone/system audio as continuous encoded streams |
@@ -73,6 +75,7 @@ model-compose provides various component types for performing different tasks.
 - File/object storage → `file-store`
 - Text splitting → `text-splitter`
 - Image processing → `image-processor`
+- Image compression (PNG) → `image-compressor`
 - Video scene detection → `video-scene-detector`
 - Video frame extraction → `video-frame-extractor`
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
@@ -81,6 +84,7 @@ model-compose provides various component types for performing different tasks.
 - Audio mixing (concat / overlay for narration over background, layered SFX) → `audio-mixer`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
+- Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`
 - Web scraping → `web-scraper`
 
 **Browser Automation**

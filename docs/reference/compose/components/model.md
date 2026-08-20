@@ -593,7 +593,7 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
 | `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
 | `return_embedding` | bool | `false` | Include the track's L2-normalized identity centroid embedding in the result. |
-| `return_image` | bool | `false` | Include one representative face crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_track_image` | bool | `false` | Include one representative face crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
 | `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned face image. Grows the box by this fraction of its width/height on each side (e.g. `0.2` = +20% on each side). Only affects `segment.image`; embeddings and clustering still use the un-padded box. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
@@ -625,7 +625,7 @@ component:
     frames: ${input.frames}
     frame_rate: ${input.frame_rate}
     time_offset: 0.0
-    return_image: true
+    return_track_image: true
     return_embedding: false
     params:
       similarity_threshold: 0.4
@@ -658,9 +658,9 @@ component:
 ```
 
 - `tracks[i].score` is the highest detection confidence across all frames in the track. Useful for ranking or filtering tracks.
-- `tracks[i].segments[j].score` is the detection confidence of the representative frame for that segment (the highest-scoring frame within the segment; the same frame `image` is cropped from when `return_image` is enabled).
+- `tracks[i].segments[j].score` is the detection confidence of the representative frame for that segment (the highest-scoring frame within the segment; the same frame `image` is cropped from when `return_track_image` is enabled).
 - `tracks[i].embedding` is present only when `return_embedding` is enabled — a 512-d L2-normalized centroid (for antelopev2) suitable for cosine matching against an identity DB or for merging tracks that turn out to be the same person.
-- `tracks[i].segments[j].image` is present only when `return_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's native resolution.
+- `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's native resolution.
 - `tracks[i].gender` (`"male"` / `"female"`) and `tracks[i].age` (integer) are present only when `return_gender_age` is enabled — taken from the track's highest-scoring frame. Absent if the model pack doesn't ship gender/age submodels.
 - `frame_count` at the top level is the total number of sampled frames analyzed.
 

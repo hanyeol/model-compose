@@ -33,7 +33,8 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `workflow` | 调用工作流 | 将其他工作流作为子程序执行 |
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
 | `text-splitter` | 分割文本 | 将文档分割成块 |
-| `image-processor` | 处理图像 | 图像转换、调整大小、PNG 压缩等 |
+| `image-processor` | 处理图像 | 图像转换、调整大小、滤镜等 |
+| `image-compressor` | 压缩图像 | 通过 Pillow、oxipng 或 pngquant 进行 PNG 压缩 |
 | `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
 | `video-converter` | 视频转换 | 视频转码/格式转换（容器、编解码器、分辨率等） |
 | `video-encoder` | 视频编码 | 将 PIL 帧编码为视频，或对现有视频进行再编码，支持可选音轨（ffmpeg） |
@@ -70,6 +71,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 键值存储 → `key-value-store`
 - 文本分割 → `text-splitter`
 - 图像处理 → `image-processor`
+- 图像压缩 (PNG) → `image-compressor`
 - 视频场景检测 → `video-scene-detector`
 - 视频帧提取 → `video-frame-extractor`
 - 视频编码（帧 → 视频，或再编码）→ `video-encoder`

@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | audio-extractor | audio-converter | audio-feature-extractor | audio-clipper | audio-mixer | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | audio-extractor | audio-converter | audio-feature-extractor | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -61,6 +61,7 @@ Model-compose supports the following component types:
 | `shell` | Shell command execution | [shell.md](components/shell.md) |
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
+| `image-compressor` | PNG compression (Pillow, oxipng, pngquant) | [image-compressor.md](components/image-compressor.md) |
 | `video-scene-detector` | Video scene change detection | [video-scene-detector.md](components/video-scene-detector.md) |
 | `video-converter` | Video format/codec conversion | [video-converter.md](components/video-converter.md) |
 | `video-encoder` | Encode PIL frames into video, or re-encode existing video, with optional audio track (ffmpeg) | [video-encoder.md](components/video-encoder.md) |
@@ -72,6 +73,8 @@ Model-compose supports the following component types:
 | `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
 | `audio-clipper` | Clip one or more time ranges out of an audio file (ffmpeg stream copy) | [audio-clipper.md](components/audio-clipper.md) |
 | `audio-mixer` | Combine multiple audios into one — concat (join end-to-end) or overlay (layer with per-overlay timing, gain, pan, fade) via ffmpeg | [audio-mixer.md](components/audio-mixer.md) |
+| `media-inspector` | Read audio/video/image metadata (format, streams, EXIF) via ffprobe or exiftool | [media-inspector.md](components/media-inspector.md) |
+| `media-downloader` | Download audio or video from a URL (YouTube, Vimeo, etc.) via yt-dlp | [media-downloader.md](components/media-downloader.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 | `screen-capture` | Live screen and system/microphone audio capture as continuous streams | [screen-capture.md](components/screen-capture.md) |

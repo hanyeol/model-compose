@@ -66,12 +66,13 @@ ${input.user.email}         # 嵌套路径
 | `datasets` | `${result}` | - | 数据集样本 |
 | `text-splitter` | `${result}` | - | 分割的文本块 |
 | `image-processor` | `${result}` | - | 处理后的图像 |
+| `image-compressor` | `${result}` | - | 压缩后的 PNG 字节 |
 | `workflow` | `${output}` | - | 子工作流输出 |
 | `shell` | `${stdout}`, `${stderr}` | - | 命令执行结果 |
 
 **关键规则**:
 - 基于 HTTP 的组件 (`http-client`, `http-server`, `vector-store`, `mcp-client`) → `${response}`
-- 本地执行组件 (`model`, `datasets`, `text-splitter`, `image-processor`) → `${result}`
+- 本地执行组件 (`model`, `datasets`, `text-splitter`, `image-processor`, `image-compressor`) → `${result}`
 - Shell 命令 → `${stdout}` 或 `${stderr}`
 - 工作流调用 → `${output}`
 

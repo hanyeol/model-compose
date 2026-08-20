@@ -80,12 +80,17 @@ Component 是可重用的功能单元,代表特定的服务或操作。
 - 图像转换和处理
 - 格式转换、调整大小、滤镜
 
-**10. Shell 命令 (`shell`)**
+**10. 图像压缩器 (`image-compressor`)**
+- PNG 压缩（Pillow、oxipng、pngquant）
+- 输出为原始 PNG 字节
+- 用于文件保存或上传流水线
+
+**11. Shell 命令 (`shell`)**
 - 执行系统命令
 - 脚本集成
 - 捕获 stdout/stderr
 
-**11. Workflow (`workflow`)**
+**12. Workflow (`workflow`)**
 - 调用其他工作流
 - 组合和重用
 - 模块化设计

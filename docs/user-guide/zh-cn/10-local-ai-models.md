@@ -668,7 +668,7 @@ component:
   action:
     frames: ${input.frames}
     frame_rate: ${input.frame_rate}
-    return_image: true
+    return_track_image: true
     params:
       similarity_threshold: 0.4
       min_frame_count: 2

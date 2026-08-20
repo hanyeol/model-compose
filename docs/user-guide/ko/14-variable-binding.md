@@ -66,12 +66,13 @@ ${input.user.email}         # 중첩 경로
 | `datasets` | `${result}` | - | 데이터셋 샘플 |
 | `text-splitter` | `${result}` | - | 분할된 텍스트 청크 |
 | `image-processor` | `${result}` | - | 처리된 이미지 |
+| `image-compressor` | `${result}` | - | 압축된 PNG 바이트 |
 | `workflow` | `${output}` | - | 서브 워크플로우 출력 |
 | `shell` | `${stdout}`, `${stderr}` | - | 명령 실행 결과 |
 
 **핵심 규칙**:
 - HTTP 기반 컴포넌트 (`http-client`, `http-server`, `vector-store`, `mcp-client`) → `${response}`
-- 로컬 실행 컴포넌트 (`model`, `datasets`, `text-splitter`, `image-processor`) → `${result}`
+- 로컬 실행 컴포넌트 (`model`, `datasets`, `text-splitter`, `image-processor`, `image-compressor`) → `${result}`
 - 셸 명령 → `${stdout}` 또는 `${stderr}`
 - 워크플로우 호출 → `${output}`
 

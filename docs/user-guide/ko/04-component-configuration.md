@@ -33,7 +33,8 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `workflow` | 워크플로우 호출 | 다른 워크플로우를 서브루틴으로 실행 |
 | `shell` | 셸 명령 실행 | 스크립트 실행, 시스템 명령 |
 | `text-splitter` | 텍스트 분할 | 문서를 청크로 분할 |
-| `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, PNG 압축 등 |
+| `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, 필터 등 |
+| `image-compressor` | 이미지 압축 | Pillow, oxipng, pngquant를 통한 PNG 압축 |
 | `video-scene-detector` | 비디오 장면 감지 | PySceneDetect, FFmpeg, TransNetV2를 사용한 장면 전환 감지 |
 | `video-converter` | 비디오 변환 | 비디오 트랜스코딩/포맷 변환 (컨테이너, 코덱, 해상도 등) |
 | `video-encoder` | 비디오 인코딩 | PIL 프레임을 비디오로 인코딩하거나 기존 비디오를 재인코딩, 선택적 오디오 트랙 결합 (ffmpeg) |
@@ -70,6 +71,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 키-값 저장 → `key-value-store`
 - 텍스트 분할 → `text-splitter`
 - 이미지 처리 → `image-processor`
+- 이미지 압축 (PNG) → `image-compressor`
 - 비디오 장면 감지 → `video-scene-detector`
 - 비디오 프레임 추출 → `video-frame-extractor`
 - 비디오 인코딩 (프레임 → 비디오, 또는 재인코딩) → `video-encoder`

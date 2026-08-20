@@ -31,7 +31,7 @@ All image processor actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `overlay`, `mosaic`, `compress` |
+| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `overlay`, `mosaic` |
 | `image` | string / array | **required** | Input image(s) — a single image (file path, base64 string, or variable reference) or a list of images |
 | `batch_size` | integer / string | `null` | Number of input images to process in a single batch |
 | `output` | any | `null` | Output variable mapping |
@@ -367,63 +367,17 @@ component:
 | `block_scale` | number | `null` | Pixelate block size relative to each region's shorter side, in `(0.0, 1.0]`. Adapts automatically to region size — small faces get a proportionally finer block than large ones. Prefer this over `block_size` when regions vary widely in size (e.g. face bounding boxes at different distances). Used when `mode` is `pixelate`. Mutually exclusive with `block_size`. |
 | `min_block_size` | integer | `8` | Minimum pixelate block size in pixels. Only takes effect with `block_scale` — clamps the computed block size so tiny regions still get a visible mosaic instead of a 1–2 pixel block that looks nearly untouched. |
 | `max_block_size` | integer | `32` | Maximum pixelate block size in pixels. Only takes effect with `block_scale` — clamps the computed block size so large regions do not turn into a handful of oversized blocks that look like pixel art. |
-| `radius` | number | `8.0` | Blur radius in pixels. Used when `mode` is `blur`. |
+| `blur_radius` | number | `8.0` | Blur radius in pixels. Used when `mode` is `blur`. |
+| `corner_radius` | integer | `0` | Absolute corner radius in pixels for rounded-rectangle mosaic regions. `0` keeps square corners; larger values round each region's corners and leave the original pixels outside the rounded shape untouched. Mutually exclusive with `corner_scale`. Applied when neither is specified. |
+| `corner_scale` | number | `null` | Corner radius relative to each region's shorter side, in `[0.0, 0.5]`. Adapts automatically to region size — small faces get a proportionally smaller corner than large ones. Prefer this over `corner_radius` when regions vary widely in size. Mutually exclusive with `corner_radius`. |
 
 `block_size` and `block_scale` are mutually exclusive; setting both raises a validation error. When neither is set, `block_size: 16` is applied — a sensible fixed default matching FFmpeg's `pixelize` filter. For workflows where regions vary widely in size (e.g. face bounding boxes at different distances), set `block_scale` instead so the mosaic strength stays visually consistent across regions. `min_block_size` and `max_block_size` clamp `block_scale`'s output — the effective block size is `min(max_block_size, max(min_block_size, round(shorter_side * block_scale)))`.
 
+`corner_radius` and `corner_scale` are mutually exclusive; setting both raises a validation error. When neither is set, corners stay square. Radius (absolute or computed from `corner_scale`) is automatically clamped to half of each region's shorter side so it never exceeds the region. Under `mode: pixelate` the corner mask snaps to the block grid — each block is either fully kept or fully dropped, so no block is cut in half at the rounded edge and the pixel-art look stays intact. Under `mode: blur` the corner is a smooth anti-aliased curve.
+
 Each region shares the same `{x, y, width, height}` shape used by detection components' `bounding_box` outputs. Regions that extend past the image are clipped naturally. When multiple regions overlap, later regions mosaic the already-mosaicked pixels of earlier ones (so overlapping faces stay redacted).
 
-### Compress
-
-Encode an image as a compressed PNG and return the resulting **bytes** (not a PIL image). Three strategies trade off size, speed, and dependency footprint:
-
-```yaml
-component:
-  type: image-processor
-  action:
-    method: compress
-    image: ${input.image}
-    strategy: optimized
-    level: 6
-    strip_metadata: true
-    output: ${output}
-```
-
-**Compress Configuration:**
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `strategy` | string | `lossless` | Compression strategy: `lossless`, `optimized`, or `quantized` |
-| `compress_level` | integer | `9` | DEFLATE compression level (0-9). Higher is smaller and slower. Applies to all strategies. |
-| `level` | integer | `4` | `optimized` strategy oxipng level (0-6). Higher is smaller and slower. |
-| `min_quality` | integer | `null` | `quantized` strategy minimum quality (0-100). If output quality would fall below this, encoding fails. |
-| `max_quality` | integer | `null` | `quantized` strategy maximum quality (0-100). The compressor tries to stay at or below this. |
-| `speed` | integer | `3` | `quantized` strategy speed (1 = slowest/best, 11 = fastest). |
-| `strip_metadata` | boolean | `true` | Strip ancillary metadata chunks (tEXt, eXIf, iCCP, tIME, etc.). |
-
-**Strategies:**
-
-- **`lossless`** — Pure Pillow encode with `optimize=True` and `compress_level`. No extra dependencies. Small, predictable gains.
-- **`optimized`** — Lossless. Encodes with Pillow, then reruns oxipng's DEFLATE filter search for extra 10-30% size reduction. Requires the `pyoxipng` package.
-- **`quantized`** — Lossy. Runs the encoded PNG through `pngquant`, which builds an adaptive 256-color palette. Typically 50-70% smaller than lossless at visually similar quality. Requires the `pngquant` executable in `PATH` (install via `brew install pngquant` / `apt install pngquant`).
-
-**Return Value:**
-
-Unlike other image processor methods that return PIL images, `compress` returns raw PNG `bytes`. This preserves the compression that PIL's re-encoding would otherwise undo. Feed the result into a `file-store` write, an HTTP upload, or anywhere raw bytes are accepted.
-
-**Quality Range Examples (quantized):**
-
-```yaml
-# Balanced — pngquant chooses colors so output stays at ≤85 quality, fails if it can't reach 65
-min_quality: 65
-max_quality: 85
-
-# Cap only — allow any quality up to 80
-max_quality: 80
-
-# Floor only — never fall below quality 60
-min_quality: 60
-```
+> For PNG compression, see the [`image-compressor`](image-compressor.md) component.
 
 ## Multiple Actions Configuration
 

@@ -97,7 +97,7 @@ class TestRedisKeyValueStoreIntegration:
         del_config = RedisKeyValueDeleteActionConfig(method="delete", key="test:del")
         del_action = RedisKeyValueStoreAction(del_config, redis_client)
         del_result = await del_action.run(integration_context)
-        assert del_result["count"] == 1
+        assert del_result["deleted"] is True
 
         # Verify gone
         val = await redis_client.get("test:del")
@@ -105,11 +105,11 @@ class TestRedisKeyValueStoreIntegration:
 
     @pytest.mark.anyio
     async def test_delete_nonexistent(self, redis_client, integration_context):
-        """Verify DELETE on a nonexistent key returns count 0."""
+        """Verify DELETE on a nonexistent key returns deleted=False."""
         del_config = RedisKeyValueDeleteActionConfig(method="delete", key="test:nope")
         del_action = RedisKeyValueStoreAction(del_config, redis_client)
         del_result = await del_action.run(integration_context)
-        assert del_result["count"] == 0
+        assert del_result["deleted"] is False
 
     @pytest.mark.anyio
     async def test_exists(self, redis_client, integration_context):
@@ -199,7 +199,7 @@ class TestRedisKeyValueStoreIntegration:
             RedisKeyValueDeleteActionConfig(method="delete", key=key),
             redis_client,
         ).run(integration_context)
-        assert del_result["count"] == 1
+        assert del_result["deleted"] is True
 
         # EXISTS -> False
         exists_result = await RedisKeyValueStoreAction(

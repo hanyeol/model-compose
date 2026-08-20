@@ -19,7 +19,7 @@ def _kp(x: int, y: int, visibility: float = 1.0) -> dict:
 
 class TestDrawSkeleton:
     def test_returns_pil_image_of_given_size(self):
-        image = draw_skeleton([_kp(10, 10), _kp(20, 20)], [(0, 1)], 64, 48)
+        image = draw_skeleton([_kp(10, 10), _kp(20, 20)], [(0, 1)], 64, 48, background=(0, 0, 0))
 
         assert isinstance(image, PILImage.Image)
         assert image.size == (64, 48)
@@ -30,6 +30,7 @@ class TestDrawSkeleton:
             [_kp(0, 0, visibility=0.0), _kp(0, 0, visibility=0.0)],
             [(0, 1)],
             32, 32,
+            background=(0, 0, 0),
         )
 
         # Every pixel must be black — nothing was drawn.
@@ -41,6 +42,7 @@ class TestDrawSkeleton:
             [_kp(10, 10), _kp(20, 20, visibility=0.0)],
             [(0, 1)],
             32, 32,
+            background=(0, 0, 0),
         )
 
         pixels = list(image.getdata())
@@ -49,7 +51,7 @@ class TestDrawSkeleton:
         assert image.getpixel((20, 20)) == (0, 0, 0)
 
     def test_visible_joints_produce_non_black_pixels(self):
-        image = draw_skeleton([_kp(16, 16)], [], 32, 32)
+        image = draw_skeleton([_kp(16, 16)], [], 32, 32, background=(0, 0, 0))
 
         # At (16, 16) there should be a joint dot; expect a non-black pixel.
         assert image.getpixel((16, 16)) != (0, 0, 0)
@@ -67,6 +69,7 @@ class TestDrawSkeleton:
             32, 32,
             limb_colors=[red],
             joint_colors=[red, red],
+            background=(0, 0, 0),
         )
         # At least some pixel must be the exact red we passed in.
         assert red in image.getdata()

@@ -22,18 +22,18 @@ def _body_18(visibility: float = 1.0) -> list[dict]:
 
 class TestRenderSkeleton:
     def test_returns_pil_image_of_given_size(self):
-        image = openpose.render_skeleton(_body_18(), 200, 200)
+        image = openpose.render_skeleton(_body_18(), 200, 200, background=(0, 0, 0))
 
         assert isinstance(image, PILImage.Image)
         assert image.size == (200, 200)
         assert image.mode == "RGB"
 
     def test_black_background_when_no_visible_keypoints(self):
-        image = openpose.render_skeleton(_body_18(visibility=0.0), 64, 64)
+        image = openpose.render_skeleton(_body_18(visibility=0.0), 64, 64, background=(0, 0, 0))
         assert image.getextrema() == ((0, 0), (0, 0), (0, 0))
 
     def test_uses_openpose_standard_colors(self):
-        image = openpose.render_skeleton(_body_18(), 200, 200)
+        image = openpose.render_skeleton(_body_18(), 200, 200, background=(0, 0, 0))
 
         # OpenPose standard joint colors include pure red at BODY_18 index 0 (nose)
         # and pure yellow at index 3. Both should appear in the rendered canvas.

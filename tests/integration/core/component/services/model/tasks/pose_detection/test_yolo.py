@@ -301,8 +301,8 @@ class TestRealHumanPose:
 
         for pose in result["poses"]:
             assert "bounding_box" in pose
-            x, y, w, h = pose["bounding_box"]
-            assert w > 0 and h > 0
+            box = pose["bounding_box"]
+            assert box["width"] > 0 and box["height"] > 0
 
             assert "score" in pose
             assert 0.0 <= pose["score"] <= 1.0

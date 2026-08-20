@@ -102,7 +102,7 @@ class TestRedisContract:
             redis_client,
         ).run(integration_context)
 
-        assert result == {"value": "v1"}
+        assert result == {"key": "k1", "value": "v1"}
 
     @pytest.mark.anyio
     async def test_set_then_exists_then_delete(self, redis_client, integration_context):
@@ -115,19 +115,19 @@ class TestRedisContract:
             RedisKeyValueExistsActionConfig(method="exists", key="k2"),
             redis_client,
         ).run(integration_context)
-        assert exists_before == {"exists": True}
+        assert exists_before == {"key": "k2", "exists": True}
 
         deleted = await RedisKeyValueStoreAction(
             RedisKeyValueDeleteActionConfig(method="delete", key="k2"),
             redis_client,
         ).run(integration_context)
-        assert deleted == {"count": 1}
+        assert deleted == {"key": "k2", "deleted": True}
 
         exists_after = await RedisKeyValueStoreAction(
             RedisKeyValueExistsActionConfig(method="exists", key="k2"),
             redis_client,
         ).run(integration_context)
-        assert exists_after == {"exists": False}
+        assert exists_after == {"key": "k2", "exists": False}
 
     @pytest.mark.anyio
     async def test_set_json_object_roundtrips(self, redis_client, integration_context):
@@ -143,7 +143,7 @@ class TestRedisContract:
             redis_client,
         ).run(integration_context)
 
-        assert result == {"value": payload}
+        assert result == {"key": "obj", "value": payload}
 
 
 class TestRedisNonBlocking:
@@ -163,7 +163,7 @@ class TestRedisNonBlocking:
                     RedisKeyValueGetActionConfig(method="get", key=f"k:{i}"),
                     redis_client,
                 ).run(integration_context)
-                assert got == {"value": f"v{i}"}
+                assert got == {"key": f"k:{i}", "value": f"v{i}"}
 
         # We can't easily force a slow real Redis here, so if the burst
         # completes too fast the helper soft-passes — that's still the
@@ -185,15 +185,15 @@ class TestRedisThreadAffinity:
     async def test_run_stays_on_event_loop_thread(self, redis_client, integration_context):
         main_thread = threading.current_thread()
 
-        # Wrap `set` so we can record which thread it's called on.
+        # Wrap `mset` so we can record which thread it's called on.
         thread_at_call = {}
-        original_set = redis_client.set
+        original_mset = redis_client.mset
 
-        async def _instrumented_set(*args, **kwargs):
+        async def _instrumented_mset(*args, **kwargs):
             thread_at_call["thread"] = threading.current_thread()
-            return await original_set(*args, **kwargs)
+            return await original_mset(*args, **kwargs)
 
-        redis_client.set = _instrumented_set  # type: ignore[assignment]
+        redis_client.mset = _instrumented_mset  # type: ignore[assignment]
 
         try:
             await RedisKeyValueStoreAction(
@@ -201,7 +201,7 @@ class TestRedisThreadAffinity:
                 redis_client,
             ).run(integration_context)
         finally:
-            redis_client.set = original_set  # type: ignore[assignment]
+            redis_client.mset = original_mset  # type: ignore[assignment]
 
         assert thread_at_call["thread"] is main_thread, (
             f"Expected the redis call to execute on the event-loop thread "

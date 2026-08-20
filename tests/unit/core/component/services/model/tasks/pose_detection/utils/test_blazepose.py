@@ -75,5 +75,5 @@ class TestRenderSkeleton:
         assert image.size == (64, 48)
 
     def test_black_background_when_no_visible_keypoints(self):
-        image = blazepose.render_skeleton(_blazepose_33(visibility=0.0), 32, 32)
+        image = blazepose.render_skeleton(_blazepose_33(visibility=0.0), 32, 32, background=(0, 0, 0))
         assert image.getextrema() == ((0, 0), (0, 0), (0, 0))

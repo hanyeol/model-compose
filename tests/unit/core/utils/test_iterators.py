@@ -73,8 +73,11 @@ class TestBatchSourceIteratorWithTupleZip:
 
     @pytest.mark.anyio
     async def test_none_slot_is_broadcast_as_none(self):
+        # A `None` slot is broadcast as a same-length list of `None`s so
+        # consumers can uniformly `zip(*)` each packed tuple without
+        # special-casing the missing slot.
         result = await _collect(BatchSourceIterator(([1, 2], None), batch_size=1))
-        assert result == [([1], None), ([2], None)]
+        assert result == [([1], [None]), ([2], [None])]
 
     @pytest.mark.anyio
     async def test_unequal_lengths_raise(self):
@@ -134,10 +137,14 @@ class TestBatchSourceIteratorWithTupleBroadcast:
 
     @pytest.mark.anyio
     async def test_scalar_and_none_broadcast_together(self):
+        # `None` broadcasts as a same-length list of `None`s (see
+        # ``test_none_slot_is_broadcast_as_none``); scalar `"z"` broadcasts
+        # as a repeated scalar. Both fill each batch tick alongside the
+        # driving list.
         result = await _collect(BatchSourceIterator((["a", "b"], None, "z"), batch_size=1))
         assert result == [
-            (["a"], None, ["z"]),
-            (["b"], None, ["z"]),
+            (["a"], [None], ["z"]),
+            (["b"], [None], ["z"]),
         ]
 
     @pytest.mark.anyio

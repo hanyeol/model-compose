@@ -136,8 +136,14 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
             return [ _media(label) for label in audio_value ]
         return _media(audio_value)
 
+    async def render_time(_value, default=None):
+        # The speech-to-text action reads `time_offset` via `render_time`; the
+        # tests don't exercise offset shifting, so return the default (0.0).
+        return default
+
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_audio = AsyncMock(side_effect=render_audio)
+    ctx.render_time = AsyncMock(side_effect=render_time)
     return ctx
 
 

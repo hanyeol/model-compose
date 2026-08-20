@@ -308,10 +308,10 @@ class TestRealHumanFace:
 
         for face in result["faces"]:
             assert set(face.keys()) >= { "bounding_box", "score" }
-            x, y, w, h = face["bounding_box"]
-            assert 0 <= x < width
-            assert 0 <= y < height
-            assert w > 0 and h > 0
+            box = face["bounding_box"]
+            assert 0 <= box["x"] < width
+            assert 0 <= box["y"] < height
+            assert box["width"] > 0 and box["height"] > 0
             assert 0.0 <= face["score"] <= 1.0
             assert "landmarks" not in face
 

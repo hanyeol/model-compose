@@ -5,7 +5,7 @@ import json
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 from mindor.dsl.schema.component import ComponentConfig, KeyValueStoreComponentConfig, KeyValueStoreDriver
 from mindor.dsl.schema.action import (
@@ -203,205 +203,232 @@ class TestKeyValueStoreSchema:
 
 @pytest.fixture
 def mock_context():
-    """Create a mock ComponentActionContext with a passthrough render_variable."""
+    """Mock ComponentActionContext with real ArrayValue rendering.
+
+    The Redis driver goes through ``render_array`` for keys/values and
+    ``render_variable`` for other config fields, so those need working
+    implementations. Everything else stays mocked so tests can assert on it.
+    """
+    from mindor.core.foundation.variable.array import ArrayValueRenderer
+
     context = MagicMock(spec=ComponentActionContext)
     context.cancellation_token = None
-    async def render_variable(value, ignore_files=False):
+
+    async def render_variable(value, **kwargs):
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
+
+    async def render_array(value, single_as_array=False):
+        return await ArrayValueRenderer().render(value, single_as_array)
+    context.render_array = AsyncMock(side_effect=render_array)
+
     context.register_source = MagicMock()
     return context
 
 
+def _make_pipeline():
+    """Build an async-context-manager pipeline mock that records commands."""
+    pipe = AsyncMock()
+    pipe.__aenter__ = AsyncMock(return_value=pipe)
+    pipe.__aexit__ = AsyncMock(return_value=None)
+    # Command builders (setex/delete/exists) are sync on the pipeline object.
+    pipe.setex = MagicMock()
+    pipe.delete = MagicMock()
+    pipe.exists = MagicMock()
+    return pipe
+
+
 class TestRedisKeyValueStoreActionUnit:
-    """Unit tests with mocked Redis client."""
+    """Unit tests with mocked Redis client — single-key inputs.
+
+    Result shape for a single key is a single dict (not a list):
+      - GET    str → ``{"key": k, "value": <decoded>}``      (MGET [k])
+      - SET    str → ``{"key": k, "success": True}``         (MSET or pipelined SETEX)
+      - DELETE str → ``{"key": k, "deleted": bool}``         (pipelined DEL k)
+      - EXISTS str → ``{"key": k, "exists": bool}``          (pipelined EXISTS k)
+    The driver always batches — even a single key goes through MGET / MSET / pipelines.
+    """
 
     @pytest.mark.anyio
     async def test_get_existing_key(self, mock_context):
         """Verify GET returns the deserialized value for an existing key."""
         client = AsyncMock()
-        client.get = AsyncMock(return_value=b'"hello"')
+        client.mget = AsyncMock(return_value=[b'"hello"'])
 
         config = RedisKeyValueGetActionConfig(method="get", key="test-key")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.get.assert_called_once_with("test-key")
-        mock_context.register_source.assert_called_once_with("result", {"value": "hello"})
+        client.mget.assert_called_once_with(["test-key"])
+        assert result == {"key": "test-key", "value": "hello"}
+        mock_context.register_source.assert_called_once_with("result", {"key": "test-key", "value": "hello"})
 
     @pytest.mark.anyio
     async def test_get_missing_key(self, mock_context):
         """Verify GET returns None for a missing key."""
         client = AsyncMock()
-        client.get = AsyncMock(return_value=None)
+        client.mget = AsyncMock(return_value=[None])
 
         config = RedisKeyValueGetActionConfig(method="get", key="missing")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        mock_context.register_source.assert_called_once_with("result", {"value": None})
+        assert result == {"key": "missing", "value": None}
 
     @pytest.mark.anyio
     async def test_get_json_object(self, mock_context):
         """Verify GET deserializes a JSON object value."""
         client = AsyncMock()
-        client.get = AsyncMock(return_value=b'{"name": "Alice", "age": 30}')
+        client.mget = AsyncMock(return_value=[b'{"name": "Alice", "age": 30}'])
 
         config = RedisKeyValueGetActionConfig(method="get", key="user:1")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["value"] == {"name": "Alice", "age": 30}
+        assert result["value"] == {"name": "Alice", "age": 30}
 
     @pytest.mark.anyio
     async def test_get_plain_string(self, mock_context):
         """Verify GET returns a plain string when the value is not valid JSON."""
         client = AsyncMock()
-        client.get = AsyncMock(return_value=b"plain text")
+        client.mget = AsyncMock(return_value=[b"plain text"])
 
         config = RedisKeyValueGetActionConfig(method="get", key="msg")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["value"] == "plain text"
+        assert result["value"] == "plain text"
 
     @pytest.mark.anyio
     async def test_set_string_no_ttl(self, mock_context):
-        """Verify SET stores a string value without TTL."""
+        """Verify SET without TTL uses MSET."""
         client = AsyncMock()
-        client.set = AsyncMock(return_value=True)
+        client.mset = AsyncMock(return_value=True)
 
         config = RedisKeyValueSetActionConfig(method="set", key="k", value="v")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.set.assert_called_once_with("k", "v")
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["success"] is True
+        client.mset.assert_called_once_with({"k": "v"})
+        assert result == {"key": "k", "success": True}
 
     @pytest.mark.anyio
     async def test_set_with_ttl(self, mock_context):
-        """Verify SET with TTL uses SETEX."""
+        """Verify SET with TTL uses a pipelined SETEX."""
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[True])
         client = AsyncMock()
-        client.setex = AsyncMock(return_value=True)
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueSetActionConfig(method="set", key="k", value="v", ttl=60)
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.setex.assert_called_once_with("k", 60, "v")
+        client.pipeline.assert_called_once_with(transaction=False)
+        pipe.setex.assert_called_once_with("k", 60, "v")
+        assert result == {"key": "k", "success": True}
 
     @pytest.mark.anyio
     async def test_set_dict_value_serialized(self, mock_context):
         """Verify SET serializes dict values as JSON."""
         client = AsyncMock()
-        client.set = AsyncMock(return_value=True)
+        client.mset = AsyncMock(return_value=True)
 
         data = {"name": "Alice", "roles": ["admin"]}
         config = RedisKeyValueSetActionConfig(method="set", key="user", value=data)
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        call_args = client.set.call_args[0]
-        assert call_args[0] == "user"
-        assert json.loads(call_args[1]) == data
+        stored = client.mset.call_args[0][0]
+        assert set(stored.keys()) == {"user"}
+        assert json.loads(stored["user"]) == data
 
     @pytest.mark.anyio
     async def test_set_list_value_serialized(self, mock_context):
-        """Verify SET serializes list values as JSON."""
+        """Verify SET serializes list values as JSON.
+
+        A single-key SET stores the list intact rather than splitting entries
+        across per-key writes.
+        """
         client = AsyncMock()
-        client.set = AsyncMock(return_value=True)
+        client.mset = AsyncMock(return_value=True)
 
         data = [1, 2, 3]
         config = RedisKeyValueSetActionConfig(method="set", key="nums", value=data)
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        call_args = client.set.call_args[0]
-        assert json.loads(call_args[1]) == [1, 2, 3]
+        stored = client.mset.call_args[0][0]
+        assert json.loads(stored["nums"]) == [1, 2, 3]
 
     @pytest.mark.anyio
     async def test_set_int_value_to_string(self, mock_context):
-        """Verify SET converts integer values to string."""
+        """Verify SET converts non-string, non-JSON values to string."""
         client = AsyncMock()
-        client.set = AsyncMock(return_value=True)
+        client.mset = AsyncMock(return_value=True)
 
         config = RedisKeyValueSetActionConfig(method="set", key="count", value=42)
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        call_args = client.set.call_args[0]
-        assert call_args[1] == "42"
+        assert client.mset.call_args[0][0]["count"] == "42"
 
     @pytest.mark.anyio
     async def test_delete(self, mock_context):
-        """Verify DELETE removes a key and reports the count."""
+        """Verify DELETE uses a pipelined DEL and reports per-key removal."""
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[1])
         client = AsyncMock()
-        client.delete = AsyncMock(return_value=1)
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueDeleteActionConfig(method="delete", key="k")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.delete.assert_called_once_with("k")
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["count"] == 1
+        pipe.delete.assert_called_once_with("k")
+        assert result == {"key": "k", "deleted": True}
 
     @pytest.mark.anyio
     async def test_delete_nonexistent(self, mock_context):
-        """Verify DELETE on a nonexistent key reports count of 0."""
+        """Verify DELETE on a nonexistent key reports ``deleted=False``."""
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[0])
         client = AsyncMock()
-        client.delete = AsyncMock(return_value=0)
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueDeleteActionConfig(method="delete", key="missing")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["count"] == 0
+        assert result == {"key": "missing", "deleted": False}
 
     @pytest.mark.anyio
     async def test_exists_true(self, mock_context):
         """Verify EXISTS returns True for an existing key."""
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[1])
         client = AsyncMock()
-        client.exists = AsyncMock(return_value=1)
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueExistsActionConfig(method="exists", key="k")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["exists"] is True
+        pipe.exists.assert_called_once_with("k")
+        assert result == {"key": "k", "exists": True}
 
     @pytest.mark.anyio
     async def test_exists_false(self, mock_context):
         """Verify EXISTS returns False for a nonexistent key."""
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[0])
         client = AsyncMock()
-        client.exists = AsyncMock(return_value=0)
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueExistsActionConfig(method="exists", key="missing")
-        action = RedisKeyValueStoreAction(config, client)
-        result = await action.run(mock_context)
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        registered = mock_context.register_source.call_args[0][1]
-        assert registered["exists"] is False
+        assert result == {"key": "missing", "exists": False}
 
 
 class TestRedisKeyValueStoreIOMatrix:
-    """I/O matrix for GET / DELETE / EXISTS with single-key vs list-key inputs.
+    """I/O matrix for GET / SET / DELETE / EXISTS with list-key inputs.
 
-    The Redis driver uses batched commands (MGET / DELETE k1 k2 ... / EXISTS k1 k2 ...)
-    for list-key inputs, producing a single aggregate dict rather than per-key entries:
-      - GET    list  → ``{"values": [v1, v2, ...]}``        (MGET)
-      - GET    str   → ``{"value":  v}``                    (GET)
-      - DELETE list  → ``{"count":  n}``                    (DELETE k1 k2 ...)
-      - DELETE str   → ``{"count":  n}``                    (DELETE k)
-      - EXISTS list  → ``{"count":  n}``                    (EXISTS k1 k2 ...)
-      - EXISTS str   → ``{"exists": bool}``                 (EXISTS k)
-    The KV schema does not expose ``batch_size`` or ``${result[]}`` streaming —
-    list-key splitting + per-key streaming would be a separate feature.
+    Result shape for list-key inputs is a list of per-key dicts:
+      - GET    list → ``[{"key": k, "value": v}, ...]``      (single MGET)
+      - SET    list → ``[{"key": k, "success": bool}, ...]`` (single MSET, or pipelined SETEX with TTL)
+      - DELETE list → ``[{"key": k, "deleted": bool}, ...]`` (pipelined DEL per key)
+      - EXISTS list → ``[{"key": k, "exists":  bool}, ...]`` (pipelined EXISTS per key)
+    The driver batches natively (MGET / MSET / pipelines) so one request maps
+    to one round-trip regardless of list length.
     """
 
     @pytest.mark.anyio
@@ -413,37 +440,67 @@ class TestRedisKeyValueStoreIOMatrix:
         result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
         client.mget.assert_called_once_with(["k1", "k2", "k3"])
-        assert result == {"values": ["a", "b", None]}
+        assert result == [
+            {"key": "k1", "value": "a"},
+            {"key": "k2", "value": "b"},
+            {"key": "k3", "value": None},
+        ]
 
     @pytest.mark.anyio
-    async def test_get_single_key_returns_single_dict(self, mock_context):
+    async def test_set_list_keys_uses_mset(self, mock_context):
         client = AsyncMock()
-        client.get = AsyncMock(return_value=b'"hello"')
+        client.mset = AsyncMock(return_value=True)
 
-        config = RedisKeyValueGetActionConfig(method="get", key="solo")
+        config = RedisKeyValueSetActionConfig(method="set", key=["k1", "k2"], value=["v1", "v2"])
         result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.get.assert_called_once_with("solo")
-        assert result == {"value": "hello"}
+        client.mset.assert_called_once_with({"k1": "v1", "k2": "v2"})
+        assert result == [
+            {"key": "k1", "success": True},
+            {"key": "k2", "success": True},
+        ]
 
     @pytest.mark.anyio
-    async def test_delete_list_keys_uses_batched_delete(self, mock_context):
+    async def test_set_list_keys_broadcasts_single_value(self, mock_context):
+        """A single value paired with a list of keys is broadcast to every key."""
         client = AsyncMock()
-        client.delete = AsyncMock(return_value=2)
+        client.mset = AsyncMock(return_value=True)
+
+        config = RedisKeyValueSetActionConfig(method="set", key=["k1", "k2"], value="shared")
+        result = await RedisKeyValueStoreAction(config, client).run(mock_context)
+
+        client.mset.assert_called_once_with({"k1": "shared", "k2": "shared"})
+        assert len(result) == 2
+
+    @pytest.mark.anyio
+    async def test_delete_list_keys_uses_pipeline(self, mock_context):
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[1, 0, 1])
+        client = AsyncMock()
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueDeleteActionConfig(method="delete", key=["k1", "k2", "k3"])
         result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.delete.assert_called_once_with("k1", "k2", "k3")
-        assert result == {"count": 2}
+        assert pipe.delete.call_args_list == [call("k1"), call("k2"), call("k3")]
+        assert result == [
+            {"key": "k1", "deleted": True},
+            {"key": "k2", "deleted": False},
+            {"key": "k3", "deleted": True},
+        ]
 
     @pytest.mark.anyio
-    async def test_exists_list_keys_uses_batched_exists(self, mock_context):
+    async def test_exists_list_keys_uses_pipeline(self, mock_context):
+        pipe = _make_pipeline()
+        pipe.execute = AsyncMock(return_value=[1, 0])
         client = AsyncMock()
-        client.exists = AsyncMock(return_value=1)
+        client.pipeline = MagicMock(return_value=pipe)
 
         config = RedisKeyValueExistsActionConfig(method="exists", key=["k1", "k2"])
         result = await RedisKeyValueStoreAction(config, client).run(mock_context)
 
-        client.exists.assert_called_once_with("k1", "k2")
-        assert result == {"count": 1}
+        assert pipe.exists.call_args_list == [call("k1"), call("k2")]
+        assert result == [
+            {"key": "k1", "exists": True},
+            {"key": "k2", "exists": False},
+        ]

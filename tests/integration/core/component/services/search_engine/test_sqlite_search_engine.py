@@ -4,6 +4,7 @@ import asyncio
 import os
 import sqlite3
 
+import aiosqlite
 import pytest
 
 from mindor.dsl.schema.action import (
@@ -34,12 +35,12 @@ def context():
 
 
 
-def _connect(path: str) -> sqlite3.Connection:
+async def _connect(path: str) -> aiosqlite.Connection:
     """Mirror SQLiteSearchEngineService: open a connection with row_factory and ensure parent dir."""
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    database = sqlite3.connect(path, check_same_thread=False)
+    database = await aiosqlite.connect(path)
     database.row_factory = sqlite3.Row
     return database
 
@@ -52,11 +53,11 @@ async def _run_action(action_config, path: str, context):
     from mindor.dsl.schema.action import SearchEngineActionMethod
     if action_config.method != SearchEngineActionMethod.INDEX and not os.path.exists(path):
         raise FileNotFoundError(f"Search engine database does not exist: {path}. Run an 'index' action first to create the database.")
-    database = _connect(path)
+    database = await _connect(path)
     try:
-        return await SQLiteSearchEngineAction(action_config).run(context, database)
+        return await SQLiteSearchEngineAction(action_config, database).run(context)
     finally:
-        database.close()
+        await database.close()
 
 
 class TestSQLiteSearchEngineIntegration:
@@ -71,7 +72,7 @@ class TestSQLiteSearchEngineIntegration:
             method="index",
             index="docs",
             fields=[{ "name": "title", "type": "text" }],
-            documents=[{ "title": "hello" }],
+            document={ "title": "hello" },
         )
         result = await _run_action(config, nested_path, context)
 
@@ -89,7 +90,7 @@ class TestSQLiteSearchEngineIntegration:
                 { "name": "title",   "type": "text" },
                 { "name": "content", "type": "text" },
             ],
-            documents=[
+            document=[
                 { "title": "Python tutorial",  "content": "Learn Python basics" },
                 { "title": "JavaScript guide", "content": "Modern JavaScript features" },
                 { "title": "Rust handbook",    "content": "Systems programming in Rust" },
@@ -103,10 +104,11 @@ class TestSQLiteSearchEngineIntegration:
             query="Python",
         )
         result = await _run_action(search_config, database_path, context)
+        hits = result[0]
 
-        assert len(result) == 1
-        assert result[0]["document"]["title"] == "Python tutorial"
-        assert result[0]["score"] > 0
+        assert len(hits) == 1
+        assert hits[0]["document"]["title"] == "Python tutorial"
+        assert hits[0]["score"] > 0
 
     @pytest.mark.anyio
     async def test_search_orders_by_relevance(self, database_path, context):
@@ -115,7 +117,7 @@ class TestSQLiteSearchEngineIntegration:
             method="index",
             index="docs",
             fields=[{ "name": "content", "type": "text" }],
-            documents=[
+            document=[
                 { "content": "apple apple apple" },
                 { "content": "apple banana" },
                 { "content": "banana cherry" },
@@ -129,11 +131,12 @@ class TestSQLiteSearchEngineIntegration:
             query="apple",
         )
         result = await _run_action(search_config, database_path, context)
+        hits = result[0]
 
-        assert len(result) == 2
+        assert len(hits) == 2
         # Descending score: triple-apple doc should outrank single-apple doc.
-        assert result[0]["score"] >= result[1]["score"]
-        assert result[0]["document"]["content"] == "apple apple apple"
+        assert hits[0]["score"] >= hits[1]["score"]
+        assert hits[0]["document"]["content"] == "apple apple apple"
 
     @pytest.mark.anyio
     async def test_search_with_field_filter(self, database_path, context):
@@ -145,7 +148,7 @@ class TestSQLiteSearchEngineIntegration:
                 { "name": "title", "type": "text" },
                 { "name": "body",  "type": "text" },
             ],
-            documents=[
+            document=[
                 { "title": "pizza recipe", "body": "tomato cheese" },
                 { "title": "salad bowl",   "body": "pizza topping idea" },
             ],
@@ -160,9 +163,10 @@ class TestSQLiteSearchEngineIntegration:
             search_fields=["title"],
         )
         result = await _run_action(search_config, database_path, context)
+        hits = result[0]
 
-        assert len(result) == 1
-        assert result[0]["document"]["title"] == "pizza recipe"
+        assert len(hits) == 1
+        assert hits[0]["document"]["title"] == "pizza recipe"
 
     @pytest.mark.anyio
     async def test_search_respects_limit(self, database_path, context):
@@ -171,7 +175,7 @@ class TestSQLiteSearchEngineIntegration:
             method="index",
             index="docs",
             fields=[{ "name": "content", "type": "text" }],
-            documents=[{ "content": f"keyword doc {i}" } for i in range(10)],
+            document=[{ "content": f"keyword doc {i}" } for i in range(10)],
         )
         await _run_action(index_config, database_path, context)
 
@@ -182,9 +186,9 @@ class TestSQLiteSearchEngineIntegration:
             limit=3,
         )
         result = await _run_action(search_config, database_path, context)
+        hits = result[0]
 
-        assert len(result) == 3
-        assert len(result) == 3
+        assert len(hits) == 3
 
     @pytest.mark.anyio
     async def test_index_upserts_on_id_collision(self, database_path, context):
@@ -196,18 +200,19 @@ class TestSQLiteSearchEngineIntegration:
 
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="docs", fields=fields,
-                documents=[{ "document_id": "1", "content": "first version" }],
+                document=[{ "document_id": "1", "content": "first version" }],
             ), database_path, context)
 
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="docs",
-                documents=[{ "document_id": "1", "content": "second version" }],
+                document=[{ "document_id": "1", "content": "second version" }],
             ), database_path, context)
 
         result = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="docs", query="version"), database_path, context)
+        hits = result[0]
 
-        assert len(result) == 1
-        assert result[0]["document"]["content"] == "second version"
+        assert len(hits) == 1
+        assert hits[0]["document"]["content"] == "second version"
 
     @pytest.mark.anyio
     async def test_delete_removes_documents(self, database_path, context):
@@ -218,19 +223,20 @@ class TestSQLiteSearchEngineIntegration:
         ]
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="docs", fields=fields,
-                documents=[
+                document=[
                     { "document_id": "1", "content": "alpha" },
                     { "document_id": "2", "content": "beta" },
                     { "document_id": "3", "content": "gamma" },
                 ],
             ), database_path, context)
 
-        delete_result = await _run_action(SQLiteSearchDeleteActionConfig(method="delete", index="docs", document_ids=["1", "3"]), database_path, context)
-        assert delete_result["affected_documents"] == 2
+        delete_result = await _run_action(SQLiteSearchDeleteActionConfig(method="delete", index="docs", document_id=["1", "3"]), database_path, context)
+        total_affected = sum(r["affected_documents"] for r in delete_result)
+        assert total_affected == 2
 
         # Only document_id=2 should remain searchable.
         search_result = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="docs", query="alpha OR beta OR gamma"), database_path, context)
-        contents = [hit["document"]["content"] for hit in search_result]
+        contents = [hit["document"]["content"] for hit in search_result[0]]
         assert contents == ["beta"]
 
     @pytest.mark.anyio
@@ -250,7 +256,7 @@ class TestSQLiteSearchEngineIntegration:
         """DELETE raises FileNotFoundError and does not create the database file."""
         missing_path = str(tmp_path / "never-created.db")
 
-        config = SQLiteSearchDeleteActionConfig(method="delete", index="docs", document_ids=["1"])
+        config = SQLiteSearchDeleteActionConfig(method="delete", index="docs", document_id=["1"])
 
         with pytest.raises(FileNotFoundError, match="does not exist"):
             await _run_action(config, missing_path, context)
@@ -264,7 +270,7 @@ class TestSQLiteSearchEngineIntegration:
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="other",
                 fields=[{ "name": "content", "type": "text" }],
-                documents=[{ "content": "hi" }],
+                document=[{ "content": "hi" }],
             ), database_path, context)
 
         config = SQLiteSearchSearchActionConfig(method="search", index="missing", query="x")
@@ -276,7 +282,7 @@ class TestSQLiteSearchEngineIntegration:
         """INDEX without `fields` on a new index raises a clear ValueError."""
         config = SQLiteSearchIndexActionConfig(
             method="index", index="docs",
-            documents=[{ "title": "hello" }],
+            document={ "title": "hello" },
         )
         with pytest.raises(LookupError, match="no fields were provided"):
             await _run_action(config, database_path, context)
@@ -288,13 +294,13 @@ class TestSQLiteSearchEngineIntegration:
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="docs",
                 fields=[{ "name": "content", "type": "text" }],
-                documents=[{ "content": "first" }],
+                document={ "content": "first" },
             ), database_path, context)
 
         # Append without re-declaring fields.
         result = await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="docs",
-                documents=[{ "content": "second" }],
+                document={ "content": "second" },
             ), database_path, context)
 
         assert result["affected_documents"] == 1
@@ -306,20 +312,20 @@ class TestSQLiteSearchEngineIntegration:
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="articles",
                 fields=[{ "name": "body", "type": "text" }],
-                documents=[{ "body": "article one" }],
+                document=[{ "body": "article one" }],
             ), database_path, context)
 
         await _run_action(SQLiteSearchIndexActionConfig(
                 method="index", index="comments",
                 fields=[{ "name": "body", "type": "text" }],
-                documents=[{ "body": "comment one" }],
+                document=[{ "body": "comment one" }],
             ), database_path, context)
 
         articles = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="articles", query="article"), database_path, context)
         comments = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="comments", query="comment"), database_path, context)
 
-        assert len(articles) == 1 and articles[0]["document"]["body"] == "article one"
-        assert len(comments) == 1 and comments[0]["document"]["body"] == "comment one"
+        assert len(articles[0]) == 1 and articles[0][0]["document"]["body"] == "article one"
+        assert len(comments[0]) == 1 and comments[0][0]["document"]["body"] == "comment one"
 
 
 class TestSQLiteSearchEngineSearchIO:
@@ -332,7 +338,7 @@ class TestSQLiteSearchEngineSearchIO:
                     { "name": "title",   "type": "text" },
                     { "name": "content", "type": "text" },
                 ],
-                documents=[
+                document=[
                     { "title": "Python tutorial",  "content": "Learn Python basics" },
                     { "title": "JavaScript guide", "content": "Modern JavaScript features" },
                     { "title": "Rust handbook",    "content": "Systems programming in Rust" },
@@ -345,7 +351,8 @@ class TestSQLiteSearchEngineSearchIO:
 
         config = SQLiteSearchSearchActionConfig(method="search", index="docs", query="Python")
         result = await _run_action(config, database_path, context)
+        hits = result[0]
 
-        assert isinstance(result, list)
-        assert len(result) >= 1
-        assert "document" in result[0] and "score" in result[0]
+        assert isinstance(hits, list)
+        assert len(hits) >= 1
+        assert "document" in hits[0] and "score" in hits[0]

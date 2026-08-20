@@ -317,8 +317,8 @@ class TestRealHumanPose:
 
         for pose in result["poses"]:
             assert "bounding_box" in pose
-            x, y, w, h = pose["bounding_box"]
-            assert w > 0 and h > 0
+            box = pose["bounding_box"]
+            assert box["width"] > 0 and box["height"] > 0
 
             assert "keypoints" in pose
             assert isinstance(pose["keypoints"], list)
@@ -432,7 +432,7 @@ class TestOpenposeAndSkeleton:
     @pytest.mark.anyio
     async def test_skeleton_image_natural_layout(self, make_action, sample_pose_image):
         width, height = sample_pose_image.size
-        action = make_action(return_skeleton_image=True)  # default skeleton_format='natural'
+        action = make_action(return_skeleton_image=True, skeleton_background="#000000")  # default skeleton_format='natural'
         context = ComponentActionContext("run-skel-natural", { "image": sample_pose_image })
 
         result = await action.run(context)

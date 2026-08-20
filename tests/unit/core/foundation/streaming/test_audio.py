@@ -139,11 +139,11 @@ class TestCollectPcm:
     async def test_pcm_s16le_mono_default(self):
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples)
-        waveform, sr = await AudioBufferStreamer(src).collect()
-        assert waveform.dtype == np.float32
-        assert waveform.shape == (1000,)
-        assert sr == 16000
-        assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
+        buffer = await AudioBufferStreamer(src).collect()
+        assert buffer.waveform.dtype == np.float32
+        assert buffer.waveform.shape == (1000,)
+        assert buffer.sample_rate == 16000
+        assert np.allclose(buffer.waveform, samples.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_s16le_stereo_default_preserves_channels(self):
@@ -151,42 +151,42 @@ class TestCollectPcm:
         left = np.full(500, 1000, dtype=np.int16)
         right = np.full(500, 3000, dtype=np.int16)
         src = pcm_stereo_source(left, right)
-        waveform, sr = await AudioBufferStreamer(src).collect()
-        assert waveform.shape == (2, 500)
-        assert waveform.dtype == np.float32
-        assert sr == 16000
-        assert np.allclose(waveform[0], 1000.0 / 32768.0)
-        assert np.allclose(waveform[1], 3000.0 / 32768.0)
+        buffer = await AudioBufferStreamer(src).collect()
+        assert buffer.waveform.shape == (2, 500)
+        assert buffer.waveform.dtype == np.float32
+        assert buffer.sample_rate == 16000
+        assert np.allclose(buffer.waveform[0], 1000.0 / 32768.0)
+        assert np.allclose(buffer.waveform[1], 3000.0 / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_mean_downmix(self):
         left = np.full(500, 1000, dtype=np.int16)
         right = np.full(500, 3000, dtype=np.int16)
         src = pcm_stereo_source(left, right)
-        waveform, sr = await AudioBufferStreamer(src, channel="mono").collect()
-        assert waveform.shape == (500,)
-        assert waveform.dtype == np.float32
+        buffer = await AudioBufferStreamer(src, channel="mono").collect()
+        assert buffer.waveform.shape == (500,)
+        assert buffer.waveform.dtype == np.float32
         # Mean of (1000, 3000) = 2000, normalized to float32 by /32768.
-        assert np.allclose(waveform, 2000.0 / 32768.0)
+        assert np.allclose(buffer.waveform, 2000.0 / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_select_left(self):
         left = np.arange(500, dtype=np.int16)
         right = np.arange(500, dtype=np.int16) + 1000
         src = pcm_stereo_source(left, right)
-        waveform, sr = await AudioBufferStreamer(src, channel=0).collect()
-        assert waveform.shape == (500,)
-        assert waveform.dtype == np.float32
-        assert np.allclose(waveform, left.astype(np.float32) / 32768.0)
+        buffer = await AudioBufferStreamer(src, channel=0).collect()
+        assert buffer.waveform.shape == (500,)
+        assert buffer.waveform.dtype == np.float32
+        assert np.allclose(buffer.waveform, left.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_stereo_select_right(self):
         left = np.arange(500, dtype=np.int16)
         right = np.arange(500, dtype=np.int16) + 1000
         src = pcm_stereo_source(left, right)
-        waveform, sr = await AudioBufferStreamer(src, channel=1).collect()
-        assert waveform.dtype == np.float32
-        assert np.allclose(waveform, right.astype(np.float32) / 32768.0)
+        buffer = await AudioBufferStreamer(src, channel=1).collect()
+        assert buffer.waveform.dtype == np.float32
+        assert np.allclose(buffer.waveform, right.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_channel_out_of_range_raises(self):
@@ -201,9 +201,9 @@ class TestCollectPcm:
         # Mono waveform is 1-D; channel is silently ignored.
         samples = np.arange(100, dtype=np.int16)
         src = pcm_mono_source(samples)
-        waveform, _ = await AudioBufferStreamer(src, channel=5).collect()
-        assert waveform.dtype == np.float32
-        assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
+        buffer = await AudioBufferStreamer(src, channel=5).collect()
+        assert buffer.waveform.dtype == np.float32
+        assert np.allclose(buffer.waveform, samples.astype(np.float32) / 32768.0)
 
     @pytest.mark.anyio
     async def test_pcm_missing_sample_rate_raises(self):
@@ -223,21 +223,21 @@ class TestCollectPcm:
         n = sr_in
         samples = (np.sin(2 * np.pi * 440 * np.arange(n) / sr_in) * 10000).astype(np.int16)
         src = pcm_mono_source(samples, sample_rate=sr_in, chunk_size=n * 2)
-        waveform, sr_out = await AudioBufferStreamer(src, sample_rate=8000).collect()
-        assert sr_out == 8000
-        assert waveform.dtype == np.float32
+        buffer = await AudioBufferStreamer(src, sample_rate=8000).collect()
+        assert buffer.sample_rate == 8000
+        assert buffer.waveform.dtype == np.float32
         # ~8000 samples with some soxr tail tolerance
-        assert 7900 <= waveform.shape[0] <= 8100
+        assert 7900 <= buffer.waveform.shape[0] <= 8100
 
     @pytest.mark.anyio
     async def test_pcm_resample_same_rate_is_noop(self):
         samples = np.arange(1000, dtype=np.int16)
         src = pcm_mono_source(samples, sample_rate=16000)
-        waveform, sr = await AudioBufferStreamer(src, sample_rate=16000).collect()
-        assert sr == 16000
+        buffer = await AudioBufferStreamer(src, sample_rate=16000).collect()
+        assert buffer.sample_rate == 16000
         # Integer PCM is normalized to float32 in [-1, 1] even without resampling.
-        assert waveform.dtype == np.float32
-        assert np.allclose(waveform, samples.astype(np.float32) / 32768.0)
+        assert buffer.waveform.dtype == np.float32
+        assert np.allclose(buffer.waveform, samples.astype(np.float32) / 32768.0)
 
 
 class TestCollectCompressed:
@@ -246,22 +246,22 @@ class TestCollectCompressed:
         samples = np.arange(1600, dtype=np.int16)
         wav_bytes = build_wav_bytes(samples, sample_rate=16000, channels=1)
         src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
-        waveform, sr = await AudioBufferStreamer(src).collect()
-        assert sr == 16000
+        buffer = await AudioBufferStreamer(src).collect()
+        assert buffer.sample_rate == 16000
         # torchaudio yields (1, N) tensor for mono, our code preserves that shape
         # unless channel selection kicks in
-        assert waveform.ndim in (1, 2)
+        assert buffer.waveform.ndim in (1, 2)
 
     @pytest.mark.anyio
     async def test_wav_container_resample_and_downmix(self):
         samples = np.arange(3200, dtype=np.int16)
         wav_bytes = build_wav_bytes(samples, sample_rate=32000, channels=1)
         src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
-        waveform, sr = await AudioBufferStreamer(src, sample_rate=16000, channel="mono").collect()
-        assert sr == 16000
-        assert waveform.dtype == np.float32
+        buffer = await AudioBufferStreamer(src, sample_rate=16000, channel="mono").collect()
+        assert buffer.sample_rate == 16000
+        assert buffer.waveform.dtype == np.float32
         # ~half length; allow tolerance for filter tail
-        assert 1500 <= waveform.shape[-1] <= 1700
+        assert 1500 <= buffer.waveform.shape[-1] <= 1700
 
 
 # ---- AudioBufferStreamer ----

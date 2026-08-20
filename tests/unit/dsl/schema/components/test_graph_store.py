@@ -236,21 +236,21 @@ class TestNeo4jActionSchema:
         """Test insert action with node data."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
-            "nodes": {
+            "node": {
                 "label": "Person",
                 "properties": {"name": "Alice", "age": 30},
             },
         })
         assert isinstance(config, Neo4jGraphInsertActionConfig)
         assert config.method == GraphStoreActionMethod.INSERT
-        assert config.nodes.label == "Person"
-        assert config.relationships is None
+        assert config.node.label == "Person"
+        assert config.relationship is None
 
     def test_insert_action_with_relationships(self):
         """Test insert action with relationship data."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
-            "relationships": {
+            "relationship": {
                 "type": "KNOWS",
                 "from": "node1",
                 "to": "node2",
@@ -258,20 +258,20 @@ class TestNeo4jActionSchema:
             },
         })
         assert isinstance(config, Neo4jGraphInsertActionConfig)
-        assert config.relationships.type == "KNOWS"
-        assert config.nodes is None
+        assert config.relationship.type == "KNOWS"
+        assert config.node is None
 
     def test_insert_action_with_multiple_nodes(self):
         """Test insert action with a list of nodes."""
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
-            "nodes": [
+            "node": [
                 {"label": "Person", "properties": {"name": "Alice"}},
                 {"label": "Person", "properties": {"name": "Bob"}},
             ],
         })
-        assert isinstance(config.nodes, list)
-        assert len(config.nodes) == 2
+        assert isinstance(config.node, list)
+        assert len(config.node) == 2
 
     def test_update_action(self):
         """Test update action with properties and labels."""
@@ -436,8 +436,8 @@ class TestArangoDBActionSchema:
             "collection": "persons",
             "edge_collection": "friendships",
             "graph": "social_graph",
-            "nodes": {"label": "persons", "properties": {"name": "Alice"}},
-            "relationships": {"type": "friendships", "from": "persons/1", "to": "persons/2"},
+            "node": {"label": "persons", "properties": {"name": "Alice"}},
+            "relationship": {"type": "friendships", "from": "persons/1", "to": "persons/2"},
         })
         assert isinstance(config, ArangoDBGraphInsertActionConfig)
         assert config.collection == "persons"
@@ -523,7 +523,7 @@ class TestGraphStoreIntegration:
                 {
                     "id": "add-person",
                     "method": "insert",
-                    "nodes": {"label": "Person", "properties": {"name": "${input.name}"}},
+                    "node": {"label": "Person", "properties": {"name": "${input.name}"}},
                 },
                 {
                     "id": "find-person",
@@ -571,7 +571,7 @@ class TestGraphStoreIntegration:
                     "id": "add-person",
                     "method": "insert",
                     "collection": "persons",
-                    "nodes": {"label": "persons", "properties": {"name": "${input.name}"}},
+                    "node": {"label": "persons", "properties": {"name": "${input.name}"}},
                 },
                 {
                     "id": "find-friends",
@@ -621,9 +621,9 @@ class TestSchemaAcceptsArbitraryIdentifierStrings:
     def test_template_variable_allowed_in_label(self):
         config = Neo4jActionAdapter.validate_python({
             "method": "insert",
-            "nodes": {"label": "${input.label}", "properties": {}},
+            "node": {"label": "${input.label}", "properties": {}},
         })
-        assert config.nodes.label == "${input.label}"
+        assert config.node.label == "${input.label}"
 
     def test_label_with_space_accepted_at_schema_layer(self):
         config = Neo4jActionAdapter.validate_python({

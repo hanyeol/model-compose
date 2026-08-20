@@ -152,6 +152,7 @@ def _make_context(audio_value: Any) -> ComponentActionContext:
 
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_audio = AsyncMock(side_effect=render_audio)
+    ctx.render_time = AsyncMock(return_value=0.0)
 
     async def render_scalar(value, cast, default=None):
         if value is None:

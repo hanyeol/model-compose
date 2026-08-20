@@ -82,7 +82,7 @@ class TestPassThrough:
         pcm = PcmStreamResource(BytesStreamResource(pcm_bytes), attrs=attrs)
         source = MediaSource(pcm, format=pcm.format, attrs=attrs)
 
-        out = AudioDecodingStreamer(source).to_pcm_stream()
+        out = AudioDecodingStreamer(source).as_pcm_stream()
 
         # Bytes untouched when the source already matches (no re-decode)
         assert out.attrs == attrs
@@ -97,7 +97,7 @@ class TestPassThrough:
         pcm = PcmStreamResource(BytesStreamResource(pcm_bytes), attrs=attrs)
         source = MediaSource(pcm, format=pcm.format, attrs=attrs)
 
-        out = AudioDecodingStreamer(source, sample_rate=16000, channels=1).to_pcm_stream()
+        out = AudioDecodingStreamer(source, sample_rate=16000, channels=1).as_pcm_stream()
         assert out.attrs == attrs
         data = await collect_bytes(out)
         assert data == pcm_bytes
@@ -112,7 +112,7 @@ class TestFFmpegDecode:
         wav = build_wav_bytes(samples, sample_rate=16000, channels=1)
 
         source = MediaSource(BytesStreamResource(wav), format="wav")
-        out = AudioDecodingStreamer(source).to_pcm_stream()
+        out = AudioDecodingStreamer(source).as_pcm_stream()
 
         assert isinstance(out, PcmStreamResource)
         assert out.attrs.get("bit_depth") == 16
@@ -130,7 +130,7 @@ class TestFFmpegDecode:
         wav = build_wav_bytes(samples, sample_rate=44100, channels=1)
 
         source = MediaSource(BytesStreamResource(wav), format="wav")
-        out = AudioDecodingStreamer(source, sample_rate=16000).to_pcm_stream()
+        out = AudioDecodingStreamer(source, sample_rate=16000).as_pcm_stream()
 
         assert out.attrs["sample_rate"] == 16000
         pcm = await collect_bytes(out)
@@ -148,7 +148,7 @@ class TestFFmpegDecode:
         wav = build_wav_bytes(stereo, sample_rate=16000, channels=2)
 
         source = MediaSource(BytesStreamResource(wav), format="wav")
-        out = AudioDecodingStreamer(source, channels=1).to_pcm_stream()
+        out = AudioDecodingStreamer(source, channels=1).as_pcm_stream()
 
         assert out.attrs["channels"] == 1
         pcm = await collect_bytes(out)
@@ -158,7 +158,7 @@ class TestFFmpegDecode:
     @pytest.mark.anyio
     async def test_ffmpeg_invalid_input_raises(self):
         source = MediaSource(BytesStreamResource(b"not audio data"), format="wav")
-        out = AudioDecodingStreamer(source).to_pcm_stream()
+        out = AudioDecodingStreamer(source).as_pcm_stream()
 
         with pytest.raises(RuntimeError, match="ffmpeg audio decoding failed"):
             await collect_bytes(out)
@@ -172,7 +172,7 @@ class TestFFmpegDecode:
         pcm = PcmStreamResource(BytesStreamResource(samples.tobytes()), attrs=attrs)
         source = MediaSource(pcm, format=pcm.format, attrs=attrs)
 
-        out = AudioDecodingStreamer(source, sample_rate=16000).to_pcm_stream()
+        out = AudioDecodingStreamer(source, sample_rate=16000).as_pcm_stream()
 
         assert out is not pcm
         assert out.attrs["sample_rate"] == 16000
@@ -193,7 +193,7 @@ class TestWavPassThrough:
         wav = WavStreamResource(pcm)
 
         source = MediaSource(wav, format="wav", attrs=attrs)
-        out = AudioDecodingStreamer(source).to_pcm_stream()
+        out = AudioDecodingStreamer(source).as_pcm_stream()
 
         assert out.attrs == attrs
         # Bytes untouched — same raw PCM, no ffmpeg round-trip / WAV header.
@@ -209,7 +209,7 @@ class TestWavPassThrough:
         wav = WavStreamResource(wav_bytes)  # no attrs → treated as opaque WAV
 
         source = MediaSource(wav, format="wav")
-        out = AudioDecodingStreamer(source).to_pcm_stream()
+        out = AudioDecodingStreamer(source).as_pcm_stream()
 
         pcm = await collect_bytes(out)
         decoded = np.frombuffer(pcm, dtype="<i2")
@@ -261,7 +261,7 @@ class TestTorchaudioFallback:
         wav = build_wav_bytes(samples, sample_rate=16000, channels=1)
 
         source = MediaSource(BytesStreamResource(wav), format="wav")
-        out = AudioDecodingStreamer(source).to_pcm_stream()
+        out = AudioDecodingStreamer(source).as_pcm_stream()
 
         assert isinstance(out, PcmStreamResource)
         pcm = await collect_bytes(out)
@@ -280,4 +280,4 @@ class TestTorchaudioFallback:
 
         source = MediaSource(BytesStreamResource(b"whatever"), format="wav")
         with pytest.raises(RuntimeError, match="No audio decoder available"):
-            AudioDecodingStreamer(source).to_pcm_stream()
+            AudioDecodingStreamer(source).as_pcm_stream()

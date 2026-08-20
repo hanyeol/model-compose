@@ -30,6 +30,8 @@ def anyio_backend():
 @pytest.fixture
 def mock_context():
     """Create a mock ComponentActionContext with Pydantic model conversion."""
+    from mindor.core.foundation.variable.array import ArrayValue
+
     context = MagicMock(spec=ComponentActionContext)
     context.cancellation_token = None
 
@@ -46,7 +48,18 @@ def mock_context():
     async def render_variable(value, ignore_files=False):
         return _convert(value)
 
+    async def render_array(value, single_as_array=False):
+        converted = _convert(value)
+        if converted is None:
+            return None
+        if isinstance(converted, list):
+            return ArrayValue(converted)
+        if single_as_array:
+            return ArrayValue([converted], is_single=True)
+        return ArrayValue([converted])
+
     context.render_variable = AsyncMock(side_effect=render_variable)
+    context.render_array = AsyncMock(side_effect=render_array)
     context.register_source = MagicMock()
     return context
 
@@ -157,7 +170,7 @@ class TestNeo4jInsertAction:
 
         config = ActionAdapter.validate_python({
             "method": "insert",
-            "nodes": {"label": "Person", "properties": {"name": "Alice", "age": 30}},
+            "node": {"label": "Person", "properties": {"name": "Alice", "age": 30}},
         })
         action = Neo4jGraphStoreAction(config, mock_session)
         result = await action.run(mock_context)
@@ -183,7 +196,7 @@ class TestNeo4jInsertAction:
 
         config = ActionAdapter.validate_python({
             "method": "insert",
-            "nodes": [
+            "node": [
                 {"label": "Person", "properties": {"name": "Alice"}},
                 {"label": "Person", "properties": {"name": "Bob"}},
             ],
@@ -191,8 +204,11 @@ class TestNeo4jInsertAction:
         action = Neo4jGraphStoreAction(config, mock_session)
         result = await action.run(mock_context)
 
-        assert result["created_nodes"] == 2
-        assert result["ids"] == ["4:abc:1", "4:abc:2"]
+        assert result == [{
+            "ids": ["4:abc:1", "4:abc:2"],
+            "created_nodes": 2,
+            "created_relationships": 0,
+        }]
         assert mock_session.run.call_count == 2
 
     @pytest.mark.anyio
@@ -208,7 +224,7 @@ class TestNeo4jInsertAction:
 
         config = ActionAdapter.validate_python({
             "method": "insert",
-            "relationships": {
+            "relationship": {
                 "type": "KNOWS",
                 "from": "4:abc:1",
                 "to": "4:abc:2",

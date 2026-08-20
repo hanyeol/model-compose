@@ -38,6 +38,7 @@ class FakeJobContext:
     def __init__(self):
         self.workflow = FakeWorkflow()
         self.is_terminal = False
+        self.cancellation_token = None
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
         self.renderer = VariableRenderer(self.resolve_source)
         self.register_calls: list[tuple[Optional[str], str, Any]] = []

@@ -15,14 +15,14 @@ class TestKeypointsToBoundingBox:
     def test_returns_xywh_covering_all_visible_points(self):
         box = keypoints_to_bounding_box([_kp(10, 20), _kp(50, 40), _kp(30, 5)])
 
-        assert box == [10, 5, 40, 35]
+        assert box == { "x": 10, "y": 5, "width": 40, "height": 35 }
 
     def test_ignores_hidden_keypoints(self):
         keypoints = [_kp(10, 10), _kp(999, 999, visibility=0.0), _kp(50, 50)]
         box = keypoints_to_bounding_box(keypoints)
 
         # The hidden point at (999, 999) must not stretch the bbox.
-        assert box == [10, 10, 40, 40]
+        assert box == { "x": 10, "y": 10, "width": 40, "height": 40 }
 
     def test_returns_none_when_all_keypoints_hidden(self):
         keypoints = [_kp(10, 10, visibility=0.0), _kp(20, 20, visibility=0.0)]
@@ -35,10 +35,10 @@ class TestKeypointsToBoundingBox:
     def test_single_visible_keypoint_produces_zero_size_box(self):
         box = keypoints_to_bounding_box([_kp(42, 17)])
 
-        assert box == [42, 17, 0, 0]
+        assert box == { "x": 42, "y": 17, "width": 0, "height": 0 }
 
     def test_missing_visibility_defaults_to_visible(self):
         # visibility 키가 없어도 visible로 취급.
         box = keypoints_to_bounding_box([{ "x": 10, "y": 20 }, { "x": 30, "y": 40 }])
 
-        assert box == [10, 20, 20, 20]
+        assert box == { "x": 10, "y": 20, "width": 20, "height": 20 }

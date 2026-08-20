@@ -110,7 +110,7 @@ class TestEncodeWaveformToPcm:
 
     def test_3d_input_raises(self):
         import numpy as np
-        with pytest.raises(ValueError, match="mono or stereo"):
+        with pytest.raises(ValueError, match="1-D or 2-D waveform"):
             encode_waveform_to_pcm(np.zeros((2, 3, 4), dtype=np.float32))
 
     def test_torch_tensor_input(self):

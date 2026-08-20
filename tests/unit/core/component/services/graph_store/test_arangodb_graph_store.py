@@ -30,6 +30,8 @@ def anyio_backend():
 @pytest.fixture
 def mock_context():
     """Create a mock ComponentActionContext with Pydantic model conversion."""
+    from mindor.core.foundation.variable.array import ArrayValue
+
     context = MagicMock(spec=ComponentActionContext)
     context.cancellation_token = None
 
@@ -46,7 +48,18 @@ def mock_context():
     async def render_variable(value, ignore_files=False):
         return _convert(value)
 
+    async def render_array(value, single_as_array=False):
+        converted = _convert(value)
+        if converted is None:
+            return None
+        if isinstance(converted, list):
+            return ArrayValue(converted)
+        if single_as_array:
+            return ArrayValue([converted], is_single=True)
+        return ArrayValue([converted])
+
     context.render_variable = AsyncMock(side_effect=render_variable)
+    context.render_array = AsyncMock(side_effect=render_array)
     context.register_source = MagicMock()
     return context
 
@@ -135,7 +148,7 @@ class TestArangoDBInsertAction:
         config = ActionAdapter.validate_python({
             "method": "insert",
             "collection": "persons",
-            "nodes": {"label": "persons", "properties": {"name": "Alice", "age": 30}},
+            "node": {"label": "persons", "properties": {"name": "Alice", "age": 30}},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
         result = await action.run(mock_context)
@@ -157,7 +170,7 @@ class TestArangoDBInsertAction:
 
         config = ActionAdapter.validate_python({
             "method": "insert",
-            "nodes": [
+            "node": [
                 {"label": "persons", "properties": {"name": "Alice"}},
                 {"label": "persons", "properties": {"name": "Bob"}},
             ],
@@ -165,8 +178,11 @@ class TestArangoDBInsertAction:
         action = ArangoDBGraphStoreAction(config, mock_db)
         result = await action.run(mock_context)
 
-        assert result["created_nodes"] == 2
-        assert result["ids"] == ["persons/1", "persons/2"]
+        assert result == [{
+            "ids": ["persons/1", "persons/2"],
+            "created_nodes": 2,
+            "created_relationships": 0,
+        }]
         assert mock_collection.insert.call_count == 2
 
     @pytest.mark.anyio
@@ -179,7 +195,7 @@ class TestArangoDBInsertAction:
         config = ActionAdapter.validate_python({
             "method": "insert",
             "edge_collection": "friendships",
-            "relationships": {
+            "relationship": {
                 "type": "friendships",
                 "from": "persons/1",
                 "to": "persons/2",
@@ -206,7 +222,7 @@ class TestArangoDBInsertAction:
 
         config = ActionAdapter.validate_python({
             "method": "insert",
-            "nodes": {"label": "persons", "id": "alice", "properties": {"name": "Alice"}},
+            "node": {"label": "persons", "id": "alice", "properties": {"name": "Alice"}},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
         await action.run(mock_context)
@@ -225,7 +241,7 @@ class TestArangoDBInsertAction:
 
         config = ActionAdapter.validate_python({
             "method": "insert",
-            "nodes": {"label": "new_collection", "properties": {"name": "Alice"}},
+            "node": {"label": "new_collection", "properties": {"name": "Alice"}},
         })
         action = ArangoDBGraphStoreAction(config, mock_db)
         await action.run(mock_context)
@@ -289,7 +305,7 @@ class TestArangoDBUpdateAction:
         action = ArangoDBGraphStoreAction(config, mock_db)
         result = await action.run(mock_context)
 
-        assert result["affected_rows"] == 2
+        assert result == [{"affected_rows": 2}]
         assert mock_collection.update.call_count == 2
 
 
@@ -327,7 +343,7 @@ class TestArangoDBDeleteAction:
         action = ArangoDBGraphStoreAction(config, mock_db)
         result = await action.run(mock_context)
 
-        assert result["affected_rows"] == 2
+        assert result == [{"affected_rows": 2}]
         assert mock_collection.delete.call_count == 2
 
     @pytest.mark.anyio

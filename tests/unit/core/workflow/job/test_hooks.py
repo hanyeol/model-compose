@@ -30,6 +30,7 @@ class _FakeWorkflowContext:
 class _FakeJobContext:
     def __init__(self, task_id: str = "task-1"):
         self.workflow = _FakeWorkflowContext(task_id=task_id)
+        self.cancellation_token = None
 
 
 class _FakeConfig:
@@ -352,6 +353,7 @@ class _FakeCtx:
         self.workflow = _FakeWorkflowForOutput()
         self.workflow.input = workflow_input
         self.is_terminal = False
+        self.cancellation_token = None
         self.renderer = VariableRenderer(self.resolve_source)
 
     def register_source(self, scope, key, value):

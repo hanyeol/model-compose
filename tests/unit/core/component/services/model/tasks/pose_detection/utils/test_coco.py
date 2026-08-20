@@ -76,7 +76,7 @@ class TestRenderSkeleton:
         assert image.size == (64, 48)
 
     def test_black_background_when_no_visible_keypoints(self):
-        image = coco.render_skeleton(_coco_17(visibility=0.0), 32, 32)
+        image = coco.render_skeleton(_coco_17(visibility=0.0), 32, 32, background=(0, 0, 0))
         assert image.getextrema() == ((0, 0), (0, 0), (0, 0))
 
     def test_draws_something_when_visible(self):

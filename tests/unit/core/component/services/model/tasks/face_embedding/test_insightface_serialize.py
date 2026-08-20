@@ -39,7 +39,7 @@ def _serialize(
 ) -> Dict[str, Any]:
     # Instantiate without going through __init__ (which needs a real model handle).
     action = InsightfaceFaceEmbeddingTaskAction.__new__(InsightfaceFaceEmbeddingTaskAction)
-    return action._serialize(faces or [], width, height, params or {})
+    return action._serialize_embedding_result(faces or [], width, height, params or {})
 
 
 def _default_params(**overrides) -> Dict[str, Any]:
@@ -50,6 +50,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_landmarks":     False,
         "return_gender_age":    False,
         "max_num_faces":        0,  # 0 = no limit
+        "min_face_size":        0,
     }
     base.update(overrides)
     return base
@@ -76,7 +77,7 @@ class TestOutputContainer:
         # Only the always-present fields, no landmarks/age/gender/pose.
         assert set(fd.keys()) == {"embedding", "bounding_box", "score"}
         assert fd["embedding"] == [1.0, 0.0, 0.0]  # normed picked
-        assert fd["bounding_box"] == [10, 20, 100, 200]  # xywh
+        assert fd["bounding_box"] == { "x": 10, "y": 20, "width": 100, "height": 200 }  # xywh
         assert fd["score"] == pytest.approx(0.87)
 
 
@@ -113,11 +114,15 @@ class TestBoundingBox:
             normed_embedding=np.array([0.0]),
         )
         result = _serialize(params=_default_params(), faces=[face])
-        # x1=25, y1=40, x2=125, y2=240 -> [25, 40, 100, 200]
-        assert result["faces"][0]["bounding_box"] == [25, 40, 100, 200]
+        # x1=25, y1=40, x2=125, y2=240 -> xywh dict
+        assert result["faces"][0]["bounding_box"] == { "x": 25, "y": 40, "width": 100, "height": 200 }
 
 
 class TestMaxNumFaces:
+    # Truncation now happens upstream in the InsightFace model call
+    # (`self.model.get(bgr_frame, max_num=max_num)`), not in the serializer.
+    # These tests only cover the serializer's passthrough behavior on a
+    # pre-truncated detection list.
 
     def _make(self, n: int) -> List[SimpleNamespace]:
         return [
@@ -128,10 +133,6 @@ class TestMaxNumFaces:
             )
             for i in range(n)
         ]
-
-    def test_limit_truncates(self):
-        result = _serialize(params=_default_params(max_num_faces=2), faces=self._make(5))
-        assert len(result["faces"]) == 2
 
     def test_zero_means_unlimited(self):
         result = _serialize(params=_default_params(max_num_faces=0), faces=self._make(4))

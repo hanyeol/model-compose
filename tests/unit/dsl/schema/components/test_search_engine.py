@@ -63,7 +63,7 @@ class TestSearchEngineComponentSchema:
                     { "name": "title",   "type": "text" },
                     { "name": "content", "type": "text" },
                 ],
-                "documents": [{ "document_id": "1", "title": "t", "content": "c" }],
+                "document": [{ "document_id": "1", "title": "t", "content": "c" }],
             }],
         })
         assert isinstance(config, SQLiteSearchEngineComponentConfig)
@@ -105,7 +105,7 @@ class TestSQLiteSearchEngineActionSchema:
             "method": "index",
             "index": "docs",
             "fields": [{ "name": "title", "type": "text" }],
-            "documents": [{ "title": "hello" }],
+            "document": [{ "title": "hello" }],
         })
         assert isinstance(config, SQLiteSearchIndexActionConfig)
         assert config.method == SearchEngineActionMethod.INDEX
@@ -137,17 +137,17 @@ class TestSQLiteSearchEngineActionSchema:
         config = SQLiteActionAdapter.validate_python({
             "method": "delete",
             "index": "docs",
-            "document_ids": ["a", "b"],
+            "document_id": ["a", "b"],
         })
         assert isinstance(config, SQLiteSearchDeleteActionConfig)
-        assert config.document_ids == ["a", "b"]
+        assert config.document_id == ["a", "b"]
 
     def test_unknown_method_rejected(self):
         with pytest.raises(ValidationError):
             SQLiteActionAdapter.validate_python({
                 "method": "upsert",
                 "index": "docs",
-                "documents": [],
+                "document": [],
             })
 
     def test_field_type_defaults_to_text(self):
@@ -156,6 +156,6 @@ class TestSQLiteSearchEngineActionSchema:
             "method": "index",
             "index": "docs",
             "fields": [{ "name": "body" }],
-            "documents": [],
+            "document": [],
         })
         assert config.fields[0].type == SearchEngineFieldType.TEXT

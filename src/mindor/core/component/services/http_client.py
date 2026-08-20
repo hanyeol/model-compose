@@ -117,8 +117,6 @@ class HttpClientAction:
 
         context.register_source("response", response)
 
-        result = None
-
         if self.completion:
             is_direct_output = not self.config.output or self.config.output == "${result}"
 

@@ -92,10 +92,11 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
                 pose["segmentation_mask"] = self._to_pil_image(segmentation_masks[index])
 
             if params["return_skeleton_image"]:
+                background = params["skeleton_background"]
                 if params["skeleton_format"] == "openpose":
-                    pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height)
+                    pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height, background=background)
                 else:
-                    pose["skeleton_image"] = blazepose.render_skeleton(keypoints, width, height)
+                    pose["skeleton_image"] = blazepose.render_skeleton(keypoints, width, height, background=background)
 
             poses.append(pose)
 

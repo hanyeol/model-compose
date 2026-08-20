@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, Union, List
 from PIL import Image as PILImage
 
 # Rendering-time keypoint: (x, y) in pixel coords, or None for a missing joint.
@@ -38,11 +38,22 @@ def draw_skeleton(
     joint_colors: Optional[List[Tuple[int, int, int]]] = None,
     limb_thickness: int = 4,
     joint_radius: int = 4,
+    background: Optional[Union[Tuple[int, int, int], Tuple[int, int, int, int]]] = None,
 ) -> PILImage.Image:
-    """Draw a pose on a black canvas.
+    """Draw a pose skeleton.
 
     `limb_colors` / `joint_colors` default to HSV-spaced palettes sized to the
     given limbs / keypoints so different limbs stay visually distinguishable.
+
+    `background` controls the canvas fill and output mode:
+    - `None` (default) — transparent RGBA canvas, right for alpha-compositing
+      the skeleton onto a source frame.
+    - `(r, g, b)` or `(r, g, b, 255)` — solid RGB canvas; pass `(0, 0, 0)`
+      for the black-canvas variant that ControlNet OpenPose models expect
+      as their conditioning input.
+    - `(r, g, b, a)` with `a < 255` — RGBA canvas pre-filled with that
+      semi-transparent color, so alpha-compositing it onto a source frame
+      tints the frame instead of fully replacing it.
     """
     from PIL import ImageDraw
 
@@ -50,7 +61,13 @@ def draw_skeleton(
     limb_colors = limb_colors if limb_colors is not None else _hsv_palette(len(limbs))
     joint_colors = joint_colors if joint_colors is not None else _hsv_palette(len(points))
 
-    image = PILImage.new("RGB", (width, height), color=(0, 0, 0))
+    if background is None:
+        image = PILImage.new("RGBA", (width, height), color=(0, 0, 0, 0))
+    elif len(background) == 4 and background[3] < 255:
+        image = PILImage.new("RGBA", (width, height), color=background)
+    else:
+        image = PILImage.new("RGB", (width, height), color=background[:3])
+
     draw = ImageDraw.Draw(image)
 
     for index, (a, b) in enumerate(limbs):

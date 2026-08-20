@@ -51,6 +51,7 @@ class PoseDetectionTaskAction(ComponentAction):
         return_segmentation_mask  = await context.render_scalar(self.config.return_segmentation_mask, bool)
         return_skeleton_image     = await context.render_scalar(self.config.return_skeleton_image, bool)
         skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
+        skeleton_background       = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
         min_confidence            = await context.render_scalar(self.config.params.min_confidence, float)
         min_presence_confidence   = await context.render_scalar(self.config.params.min_presence_confidence, float)
         min_tracking_confidence   = await context.render_scalar(self.config.params.min_tracking_confidence, float)
@@ -80,6 +81,7 @@ class PoseDetectionTaskAction(ComponentAction):
             "return_segmentation_mask":  return_segmentation_mask,
             "return_skeleton_image":     return_skeleton_image,
             "skeleton_format":           skeleton_format,
+            "skeleton_background":       skeleton_background,
         }
 
     @abstractmethod

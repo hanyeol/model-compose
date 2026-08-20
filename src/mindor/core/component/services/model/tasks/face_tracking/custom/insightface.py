@@ -135,7 +135,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 tracked_frames.append(tracked_frame)
 
         if params["return_frames"]:
-            self._interpolate_missing_faces(tracked_frames, frame_rate, params["merge_gap"] or 0.0, params["similarity_threshold"] or 0.0)
+            self._interpolate_missing_faces(tracked_frames, frame_rate, params["merge_gap"] or 0.0, params["max_track_distance"] or 0.0)
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -159,7 +159,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
         merge_gap = params["merge_gap"] or 0.0
-        similarity_threshold = params["similarity_threshold"] or 0.0
+        max_track_distance = params["max_track_distance"] or 0.0
         frame_period = 1.0 / frame_rate
         frame_count = 0
 
@@ -245,7 +245,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                                 prev_face,
                                 timestamp,
                                 face,
-                                similarity_threshold
+                                frame_period,
+                                max_track_distance,
                             )
                     last_face_by_cluster[cluster_id] = (timestamp, face)
 
@@ -602,7 +603,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         tracked_frames: List[Dict[str, Any]],
         frame_rate: float,
         merge_gap: float,
-        similarity_threshold: float,
+        max_track_distance: float,
     ) -> None:
         """Walk every frame in chronological order, and for each cluster,
         interpolate bounding boxes between consecutive detections whose gap is
@@ -637,7 +638,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                             prev_face,
                             timestamp,
                             face,
-                            similarity_threshold
+                            frame_period,
+                            max_track_distance,
                         )
                 last_face_by_cluster[cluster_id] = (current_index, timestamp, face)
 
@@ -655,7 +657,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         prev_face: Dict[str, Any],
         current_timestamp: float,
         current_face: Dict[str, Any],
-        similarity_threshold: float,
+        frame_period: float,
+        max_track_distance: float,
     ) -> None:
         """Fill in a cluster's missing detections between two anchors by linear
         bounding-box interpolation. Frames whose timestamp lies strictly between
@@ -664,29 +667,24 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         appended to `interpolated_faces` so callers can distinguish them from real
         detections and merge later.
 
-        The two anchors' raw embeddings must agree above `similarity_threshold`;
-        otherwise the cluster's centroid has drifted (or overlap-based tie-break
-        put two different people into the same cluster) and interpolating would
-        paint a ghost face gliding between two different identities."""
-        import numpy as np
-
+        Anchors that jump farther than `max_track_distance * face_size` per
+        frame are treated as an implausible trajectory (fast pan, cut, tracker
+        id reuse) and skipped so downstream doesn't see a ghost sliding across
+        the frame. The allowance scales with the number of frames in the gap
+        so a normal moving subject over a few missed frames still qualifies."""
         span = current_timestamp - prev_timestamp
 
         if span <= 0:
             return
 
-        current_embedding = current_face.get("embedding")
-        prev_embedding = prev_face.get("embedding")
-
-        if current_embedding is not None and prev_embedding is not None:
-            current_embedding = current_embedding / (np.linalg.norm(current_embedding) + 1e-12)
-            prev_embedding = prev_embedding / (np.linalg.norm(prev_embedding) + 1e-12)
-
-            if float(np.dot(current_embedding, prev_embedding)) < similarity_threshold:
-                return
-
         current_bbox = current_face["bounding_box"]
         prev_bbox = prev_face["bounding_box"]
+
+        if max_track_distance > 0.0:
+            gap_frames = max(1, int(round(span / frame_period)))
+            face_size = max(current_bbox[2] - current_bbox[0], current_bbox[3] - current_bbox[1])
+            if self._bbox_center_distance(prev_bbox, current_bbox) > max_track_distance * face_size * gap_frames:
+                return
 
         for index in range(start_index, end_index):
             frame = frames[index]
@@ -939,7 +937,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "type":      "frame",
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "faces":     [ self._serialize_tracked_face(face, cluster_id) for face, cluster_id in tracked_frame["tracked_faces"] ],
+            "faces":     [ self._serialize_tracked_face(tracked_face, cluster_id, params) for tracked_face, cluster_id in tracked_frame["tracked_faces"] ],
         }
 
         if params["return_frame_image"] and "image" in tracked_frame:
@@ -951,7 +949,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frame: Dict[str, Any] = {
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "faces":     [ self._serialize_tracked_face(tracked_face, cluster_id) for tracked_face, cluster_id in tracked_frame["tracked_faces"] ],
+            "faces":     [ self._serialize_tracked_face(tracked_face, cluster_id, params) for tracked_face, cluster_id in tracked_frame["tracked_faces"] ],
         }
 
         if params["return_frame_image"] and "image" in tracked_frame:
@@ -959,11 +957,26 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return frame
 
-    def _serialize_tracked_face(self, tracked_face: Dict[str, Any], cluster_id: int) -> Dict[str, Any]:
+    def _serialize_tracked_face(self, tracked_face: Dict[str, Any], cluster_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
         face: Dict[str, Any] = {
             "track_id":     cluster_id + 1,
             "bounding_box": self._serialize_bounding_box(tracked_face["bounding_box"]),
+            "score":        tracked_face["score"],
         }
+
+        if params["return_track_image"]:
+            image_source = tracked_face.get("image_source")
+
+            if image_source is not None and not tracked_face.get("interpolated"):
+                face["image"] = self._crop_face_image(image_source, tracked_face["bounding_box"], params["bounding_box_padding"])
+            else:
+                face["image"] = None
+
+        if params["return_gender_age"]:
+            if "gender" in tracked_face:
+                face["gender"] = self._gender_to_label(tracked_face["gender"])
+            if "age" in tracked_face:
+                face["age"] = tracked_face["age"]
 
         if tracked_face.get("interpolated"):
             face["interpolated"] = True

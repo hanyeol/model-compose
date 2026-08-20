@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from PIL import Image as PILImage
 from .skeleton import draw_skeleton
 
@@ -36,12 +36,18 @@ def render_skeleton(
     height: int,
     limb_thickness: int = 4,
     joint_radius: int = 4,
+    background: Optional[Union[Tuple[int, int, int], Tuple[int, int, int, int]]] = None,
 ) -> PILImage.Image:
-    """Render an OpenPose BODY_18 pose in standard OpenPose colors on a black canvas."""
+    """Render an OpenPose BODY_18 pose in standard OpenPose colors. See
+    `draw_skeleton` for `background` semantics."""
     return draw_skeleton(
-        keypoints, _BODY_18_LIMBS, width, height,
+        keypoints,
+        _BODY_18_LIMBS,
+        width,
+        height,
         limb_colors=_BODY_18_LIMB_COLORS,
         joint_colors=_BODY_18_JOINT_COLORS,
         limb_thickness=limb_thickness,
         joint_radius=joint_radius,
+        background=background,
     )

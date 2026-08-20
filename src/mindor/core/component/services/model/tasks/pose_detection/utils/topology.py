@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-
 def keypoints_to_bounding_box(keypoints: List[Dict[str, Any]]) -> Optional[Dict[str, int]]:
     """Compute an axis-aligned bounding box from visible keypoints.
 

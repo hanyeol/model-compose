@@ -1,4 +1,4 @@
-from typing import Literal, Union, List
+from typing import Literal, Optional, Tuple, Union, List
 from pydantic import BaseModel, Field
 from ...common import CommonModelActionConfig
 
@@ -16,5 +16,6 @@ class CommonPoseDetectionModelActionConfig(CommonModelActionConfig):
     return_openpose_keypoints: Union[bool, str] = Field(default=False, description="Whether OpenPose BODY_18 keypoints are included in the result.")
     return_segmentation_mask: Union[bool, str] = Field(default=False, description="Whether the per-pose segmentation mask is included in the result.")
     return_skeleton_image: Union[bool, str] = Field(default=False, description="Whether a rendered per-pose skeleton image is included in the result.")
+    skeleton_background: Optional[Union[str, Tuple[int, int, int], Tuple[int, int, int, int], List[int]]] = Field(default=None, description="Skeleton canvas background: None yields a transparent RGBA PNG; a color (e.g. '#000000') flattens to that solid RGB fill.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input images processed per batch.")
     params: CommonPoseDetectionParamsConfig = Field(default_factory=CommonPoseDetectionParamsConfig, description="Detection confidence thresholds applied to the pose detector.")

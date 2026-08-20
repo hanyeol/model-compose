@@ -74,6 +74,8 @@ class PoseTrackingTaskAction(ComponentAction):
         max_pose_count_per_frame  = await context.render_scalar(self.config.params.max_pose_count_per_frame, int)
         merge_gap                 = await context.render_scalar(self.config.params.merge_gap, float)
         skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
+        skeleton_background       = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
+        bounding_box_padding      = await context.render_scalar(self.config.bounding_box_padding, float)
         return_tracks             = await context.render_scalar(self.config.return_tracks, bool)
         return_keypoints          = await context.render_scalar(self.config.return_keypoints, bool)
         return_openpose_keypoints = await context.render_scalar(self.config.return_openpose_keypoints, bool)
@@ -82,7 +84,6 @@ class PoseTrackingTaskAction(ComponentAction):
         return_frames             = await context.render_scalar(self.config.return_frames, bool)
         return_frame_image        = await context.render_scalar(self.config.return_frame_image, bool)
         return_metadata           = await context.render_scalar(self.config.return_metadata, bool)
-        bounding_box_padding      = await context.render_scalar(self.config.bounding_box_padding, float)
 
         if skeleton_format not in ("natural", "openpose"):
             raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")
@@ -113,6 +114,8 @@ class PoseTrackingTaskAction(ComponentAction):
             "max_pose_count_per_frame":  max_pose_count_per_frame,
             "merge_gap":                 merge_gap,
             "skeleton_format":           skeleton_format,
+            "skeleton_background":       skeleton_background,
+            "bounding_box_padding":      bounding_box_padding,
             "return_tracks":             return_tracks,
             "return_keypoints":          return_keypoints,
             "return_openpose_keypoints": return_openpose_keypoints,
@@ -121,7 +124,6 @@ class PoseTrackingTaskAction(ComponentAction):
             "return_frames":             return_frames,
             "return_frame_image":        return_frame_image,
             "return_metadata":           return_metadata,
-            "bounding_box_padding":      bounding_box_padding,
         }
 
     @abstractmethod

@@ -294,7 +294,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         prediction = predictions[0]
         width, height = image.size
 
-        return self._build_detected_poses(prediction, width, height, params)
+        return self._build_detected_poses(prediction, image, width, height, params)
 
     def _filter_poses(
         self,
@@ -571,6 +571,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     def _build_detected_poses(
         self,
         prediction: Results,
+        image: PILImage.Image,
         width: int,
         height: int,
         params: Dict[str, Any],
@@ -616,6 +617,8 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                 pose["keypoints"] = pose_keypoints
             if openpose_keypoints is not None:
                 pose["openpose_keypoints"] = openpose_keypoints
+            if params["return_track_image"]:
+                pose["image_source"] = image
 
             poses.append(pose)
 
@@ -642,17 +645,43 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
     def _render_skeleton(self, pose: Dict[str, Any], params: Dict[str, Any]) -> Optional[PILImage.Image]:
         width, height = pose["width"], pose["height"]
+        background = params["skeleton_background"]
 
         if params["skeleton_format"] == "openpose":
-            return openpose.render_skeleton(pose.get("openpose_keypoints"), width, height)
+            return openpose.render_skeleton(pose.get("openpose_keypoints"), width, height, background=background)
 
-        return coco.render_skeleton(pose.get("keypoints"), width, height)
+        return coco.render_skeleton(pose.get("keypoints"), width, height, background=background)
 
     def _crop_pose_image(self, pose: Dict[str, Any], padding: float) -> Optional[PILImage.Image]:
-        # No source frame is retained (only the pose metadata carries forward),
-        # so `return_track_image` is a no-op today. Wire the source frame
-        # through `_add_poses_to_tracks` if callers need real crops.
-        return None
+        """Crop the pose at its bounding box from the source frame. Returns None
+        when the source frame wasn't retained on the pose (per-segment `best_pose`
+        currently keeps only metadata; per-frame poses carry `image_source` when
+        `return_track_image` is enabled)."""
+        image_source: Optional[PILImage.Image] = pose.get("image_source")
+
+        if image_source is None:
+            return None
+
+        width, height = image_source.size
+        x1, y1, x2, y2 = pose["bounding_box"]
+
+        if padding > 0.0:
+            w = x2 - x1
+            h = y2 - y1
+            x1 -= int(w * padding)
+            y1 -= int(h * padding)
+            x2 += int(w * padding)
+            y2 += int(h * padding)
+
+        cx1 = max(0, x1)
+        cy1 = max(0, y1)
+        cx2 = min(width, x2)
+        cy2 = min(height, y2)
+
+        if cx2 <= cx1 or cy2 <= cy1:
+            return None
+
+        return image_source.crop((cx1, cy1, cx2, cy2))
 
     def _build_tracking_result(
         self,
@@ -776,7 +805,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             "type":      "frame",
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "poses":     [ self._serialize_tracked_pose(tracked_pose, track_id) for tracked_pose, track_id in tracked_frame["tracked_poses"] ],
+            "poses":     [ self._serialize_tracked_pose(tracked_pose, track_id, params) for tracked_pose, track_id in tracked_frame["tracked_poses"] ],
         }
 
         if params["return_frame_image"] and "image" in tracked_frame:
@@ -788,7 +817,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         frame: Dict[str, Any] = {
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
-            "poses":     [ self._serialize_tracked_pose(tracked_pose, track_id) for tracked_pose, track_id in tracked_frame["tracked_poses"] ],
+            "poses":     [ self._serialize_tracked_pose(tracked_pose, track_id, params) for tracked_pose, track_id in tracked_frame["tracked_poses"] ],
         }
 
         if params["return_frame_image"] and "image" in tracked_frame:
@@ -796,11 +825,24 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         return frame
 
-    def _serialize_tracked_pose(self, tracked_pose: Dict[str, Any], track_id: int) -> Dict[str, Any]:
+    def _serialize_tracked_pose(self, tracked_pose: Dict[str, Any], track_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
         pose: Dict[str, Any] = {
             "track_id":     int(track_id),
             "bounding_box": self._serialize_bounding_box(tracked_pose["bounding_box"]),
+            "score":        tracked_pose["score"],
         }
+
+        if params["return_keypoints"] and "keypoints" in tracked_pose:
+            pose["keypoints"] = tracked_pose["keypoints"]
+        if params["return_openpose_keypoints"] and "openpose_keypoints" in tracked_pose:
+            pose["openpose_keypoints"] = tracked_pose["openpose_keypoints"]
+        if params["return_skeleton_image"]:
+            pose["skeleton_image"] = self._render_skeleton(tracked_pose, params)
+        if params["return_track_image"]:
+            # Interpolated poses carry the anchor frame's `image_source`, so
+            # cropping at the interpolated bbox would show the person from the
+            # wrong frame; skip the crop for those and rely on the real anchors.
+            pose["image"] = self._crop_pose_image(tracked_pose, params["bounding_box_padding"]) if not tracked_pose.get("interpolated") else None
 
         if tracked_pose.get("interpolated"):
             pose["interpolated"] = True

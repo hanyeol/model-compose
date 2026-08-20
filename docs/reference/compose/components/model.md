@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `text-to-speech`, `speech-to-text`, `voice-activity-detection`, `image-generation`, `image-upscale`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `music-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `text-to-speech`, `speech-to-text`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `music-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -949,6 +949,132 @@ jobs:
 
 Segments are sorted by `score` in descending order and truncated to `max_segment_count`. List and async-stream inputs behave the same way as face detection.
 
+### Text to Video
+
+Generate a short video clip from a text prompt. This task uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `text-to-video` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `wan`) |
+| `preset` | string | `wan2.2-ti2v-5b` | Checkpoint preset (`wan2.2-t2v-a14b`, `wan2.2-ti2v-5b`) |
+| `model` | string | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Text description of the video to generate |
+| `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of prompts processed per batch |
+| `params.num_frames` | int | `81` | Number of frames to generate |
+| `params.fps` | int | `24` | Output video frame rate |
+| `params.width` | int | `1280` | Output video width in pixels |
+| `params.height` | int | `720` | Output video height in pixels |
+| `params.inference_steps` | int | `50` | Number of diffusion inference steps |
+| `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
+| `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: wan
+  preset: wan2.2-t2v-a14b
+  model: Wan-AI/Wan2.2-T2V-A14B
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    params:
+      num_frames: 81
+      fps: 24
+      width: 1280
+      height: 720
+      inference_steps: 50
+      guidance_scale: 5.0
+```
+
+#### Supported families
+
+| Family | Preset | Notes |
+|--------|--------|-------|
+| `wan` | `wan2.2-t2v-a14b` | Wan2.2 T2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
+| `wan` | `wan2.2-ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU (e.g. RTX 4090). |
+
+**Result Shape:**
+
+Returns a single mp4 stream (or a list of streams for batched prompts). Each stream carries `format: "mp4"` and an `fps` attribute matching the requested frame rate.
+
+### Image to Video
+
+Generate a short video clip that animates an input image, optionally guided by a text prompt.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-to-video` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `wan`) |
+| `preset` | string | `wan2.2-i2v-a14b` | Checkpoint preset (`wan2.2-i2v-a14b`, `wan2.2-ti2v-5b`) |
+| `model` | string | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image (or list/stream of images) used as the first frame |
+| `prompt` | string/array | `null` | Text prompt guiding motion and content |
+| `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
+| `params.num_frames` | int | `81` | Number of frames to generate |
+| `params.fps` | int | `24` | Output video frame rate |
+| `params.width` | int | `null` | Output video width in pixels; defaults to the input image width |
+| `params.height` | int | `null` | Output video height in pixels; defaults to the input image height |
+| `params.inference_steps` | int | `40` | Number of diffusion inference steps |
+| `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
+| `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: image-to-video
+  driver: custom
+  family: wan
+  preset: wan2.2-i2v-a14b
+  model: Wan-AI/Wan2.2-I2V-A14B
+  device: cuda:0
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt | ""}
+    params:
+      num_frames: 81
+      fps: 24
+      inference_steps: 40
+      guidance_scale: 5.0
+```
+
+#### Supported families
+
+| Family | Preset | Notes |
+|--------|--------|-------|
+| `wan` | `wan2.2-i2v-a14b` | Wan2.2 I2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
+| `wan` | `wan2.2-ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU. |
+
+**Result Shape:**
+
+Returns a single mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate.
+
 ### Text to Speech
 
 Generate speech audio from text using TTS models. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to select the generation method.
@@ -1116,6 +1242,70 @@ When the input is a list, the action returns a list of per-audio segment lists. 
 | Family | Backend | Notes |
 |--------|---------|-------|
 | `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | Lightweight CNN (~1MB), 16 kHz and 8 kHz supported, frame size 32 ms @ 16 kHz |
+
+### Music Generation
+
+Generate music audio from a text description, optionally with lyrics for vocal generation. This task uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `music-generation` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `ace-step`) |
+| `preset` | string | `acestep-v15-turbo` | Checkpoint preset (`acestep-v15-turbo`, `acestep-v15-base`, `acestep-v15-sft`) |
+| `model` | string | **required** | Local checkpoint directory. ACE-Step does not accept HuggingFace Hub identifiers |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Text description of the music style, genre, mood, and instrumentation |
+| `lyrics` | string/array | `null` | Song lyrics used when the driver supports vocal generation |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of prompts processed per batch |
+| `params.duration` | int | `30` | Duration of the generated music in seconds |
+| `params.bpm` | int | `120` | Target tempo in beats per minute |
+| `params.key_scale` | string | `null` | Musical key of the generated music (e.g., `C`, `D`, `Em`) |
+| `params.time_signature` | string | `4/4` | Musical time signature (e.g., `4/4`, `3/4`) |
+| `params.inference_steps` | int | `8` | Number of diffusion inference steps (turbo: `8`, base: `32`, sft: `50`) |
+| `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale applied during sampling |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: ace-step
+  preset: acestep-v15-turbo
+  model: /path/to/ace-step-checkpoints
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics | ""}
+    params:
+      duration: 30
+      bpm: 120
+      key_scale: C
+      time_signature: 4/4
+      inference_steps: 8
+      guidance_scale: 5.0
+```
+
+#### Supported families
+
+| Family | Preset | Notes |
+|--------|--------|-------|
+| `ace-step` | `acestep-v15-turbo` | Fast turbo variant; default `inference_steps: 8`. |
+| `ace-step` | `acestep-v15-base` | Base variant; recommended `inference_steps: 32`. |
+| `ace-step` | `acestep-v15-sft` | SFT variant; recommended `inference_steps: 50`. |
+
+**Result Shape:**
+
+Returns a single PCM audio stream (or a list of streams for batched prompts). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes.
 
 ## Multiple Actions
 

@@ -261,6 +261,8 @@ model-compose supports the following task types:
 | `pose-detection` | Pose detection | Keypoint estimation |
 | `object-detection` | Object detection | Detect objects with class labels and bounding boxes |
 | `image-segmentation` | Image segmentation | Generate per-region binary masks (automatic or box-prompted) |
+| `text-to-video` | Video generation from text | Prompt-driven short video clips |
+| `image-to-video` | Video generation from an image | Animate a still image, optionally guided by a prompt |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 | `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
 | `music-generation` | Music generation | Audio/music synthesis |
@@ -772,6 +774,101 @@ component:
 ```
 
 Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.
+
+### 10.3.17 text-to-video
+
+Generates a short video clip from a text prompt. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: wan
+  preset: wan2.2-t2v-a14b
+  model: Wan-AI/Wan2.2-T2V-A14B
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    negative_prompt: ${input.negative_prompt | ""}
+    params:
+      num_frames: 81
+      fps: 24
+      width: 1280
+      height: 720
+      inference_steps: 50
+      guidance_scale: 5.0
+```
+
+**Supported families and presets:**
+- `wan`
+  - `wan2.2-t2v-a14b` — Wan2.2 T2V 27B (14B active); requires ~80GB+ VRAM.
+  - `wan2.2-ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU (RTX 4090).
+
+The result is a single mp4 stream (or a list of mp4 streams for batched prompts). See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
+
+### 10.3.18 image-to-video
+
+Generates a short video clip that animates an input image, optionally guided by a text prompt.
+
+```yaml
+component:
+  type: model
+  task: image-to-video
+  driver: custom
+  family: wan
+  preset: wan2.2-i2v-a14b
+  model: Wan-AI/Wan2.2-I2V-A14B
+  device: cuda:0
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt | ""}
+    params:
+      num_frames: 81
+      fps: 24
+      inference_steps: 40
+      guidance_scale: 5.0
+```
+
+**Supported families and presets:**
+- `wan`
+  - `wan2.2-i2v-a14b` — Wan2.2 I2V 27B (14B active); requires ~80GB+ VRAM.
+  - `wan2.2-ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU.
+
+`width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
+
+### 10.3.19 music-generation
+
+Generates music audio from a text description, optionally with lyrics for vocal generation. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: ace-step
+  preset: acestep-v15-turbo
+  model: /path/to/ace-step-checkpoints
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics | ""}
+    params:
+      duration: 30
+      bpm: 120
+      key_scale: C
+      time_signature: 4/4
+      inference_steps: 8
+      guidance_scale: 5.0
+```
+
+**Supported families and presets:**
+- `ace-step`
+  - `acestep-v15-turbo` — fast turbo variant (default `inference_steps: 8`).
+  - `acestep-v15-base` — base variant (recommended `inference_steps: 32`).
+  - `acestep-v15-sft` — SFT variant (recommended `inference_steps: 50`).
+
+The ACE-Step family does not support HuggingFace Hub identifiers — `model` must be a local checkpoint directory. The result is a PCM audio stream per prompt (or a list of streams for batched prompts).
 
 ---
 

@@ -21,6 +21,8 @@ class ModelTaskType(str, Enum):
     IMAGE_UPSCALE            = "image-upscale"
     IMAGE_BACKGROUND_REMOVAL = "image-background-removal"
     IMAGE_SEGMENTATION       = "image-segmentation"
+    TEXT_TO_VIDEO            = "text-to-video"
+    IMAGE_TO_VIDEO           = "image-to-video"
     OBJECT_DETECTION         = "object-detection"
     FACE_DETECTION           = "face-detection"
     FACE_EMBEDDING           = "face-embedding"

@@ -13,6 +13,8 @@ from .image_embedding import *
 from .image_upscale import *
 from .image_background_removal import *
 from .image_segmentation import *
+from .text_to_video import *
+from .image_to_video import *
 from .object_detection import *
 from .face_detection import *
 from .face_embedding import *

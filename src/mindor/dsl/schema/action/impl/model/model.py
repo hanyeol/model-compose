@@ -15,6 +15,8 @@ ModelActionConfig = Union[
     ImageUpscaleModelActionConfig,
     ImageBackgroundRemovalModelActionConfig,
     ImageSegmentationModelActionConfig,
+    TextToVideoModelActionConfig,
+    ImageToVideoModelActionConfig,
     ObjectDetectionModelActionConfig,
     FaceDetectionModelActionConfig,
     PoseDetectionModelActionConfig,

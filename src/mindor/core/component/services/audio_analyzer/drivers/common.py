@@ -16,7 +16,7 @@ from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import os
+import asyncio, os
 
 class AudioLoudness(AtomicDict):
     def __log__(self) -> str:
@@ -132,12 +132,9 @@ class AudioAnalyzerAction(ComponentAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[dict]:
-        results: List[dict] = []
-
-        for audio in audios:
-            results.append(await self._analyze(metric, audio, params, cancellation_token))
-
-        return results
+        return await asyncio.gather(*[
+            self._analyze(metric, audio, params, cancellation_token) for audio in audios
+        ])
 
     async def _analyze(
         self,

@@ -16,7 +16,7 @@ from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import os
+import asyncio, os
 
 class VideoBlack(AtomicDict):
     def __log__(self) -> str:
@@ -126,12 +126,9 @@ class VideoAnalyzerAction(ComponentAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[dict]:
-        results: List[dict] = []
-
-        for video in videos:
-            results.append(await self._analyze(metric, video, params, cancellation_token))
-
-        return results
+        return await asyncio.gather(*[
+            self._analyze(metric, video, params, cancellation_token) for video in videos
+        ])
 
     async def _analyze(
         self,

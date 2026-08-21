@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | audio-extractor | audio-converter | audio-feature-extractor | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -62,15 +62,18 @@ Model-compose supports the following component types:
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `image-compressor` | PNG compression (Pillow, oxipng, pngquant) | [image-compressor.md](components/image-compressor.md) |
+| `image-analyzer` | Measure brightness, contrast, sharpness (blur), and exposure clipping via Pillow + numpy | [image-analyzer.md](components/image-analyzer.md) |
 | `video-scene-detector` | Video scene change detection | [video-scene-detector.md](components/video-scene-detector.md) |
 | `video-converter` | Video format/codec conversion | [video-converter.md](components/video-converter.md) |
 | `video-encoder` | Encode PIL frames into video, or re-encode existing video, with optional audio track (ffmpeg) | [video-encoder.md](components/video-encoder.md) |
 | `video-frame-extractor` | Decode video and extract frames as images | [video-frame-extractor.md](components/video-frame-extractor.md) |
 | `video-clipper` | Clip one or more time ranges out of a video (ffmpeg stream copy) | [video-clipper.md](components/video-clipper.md) |
 | `video-mixer` | Composite multiple videos into one — concat (join end-to-end) or overlay (watermark, picture-in-picture) via ffmpeg | [video-mixer.md](components/video-mixer.md) |
+| `video-analyzer` | Measure black frames, freezes, brightness, and motion via ffmpeg filters | [video-analyzer.md](components/video-analyzer.md) |
 | `audio-extractor` | Extract audio streams from media | [audio-extractor.md](components/audio-extractor.md) |
 | `audio-converter` | Audio format/codec conversion | [audio-converter.md](components/audio-converter.md) |
 | `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
+| `audio-analyzer` | Measure loudness (LUFS), peak, gain, clipping, and silence via ffmpeg filters | [audio-analyzer.md](components/audio-analyzer.md) |
 | `audio-clipper` | Clip one or more time ranges out of an audio file (ffmpeg stream copy) | [audio-clipper.md](components/audio-clipper.md) |
 | `audio-mixer` | Combine multiple audios into one — concat (join end-to-end) or overlay (layer with per-overlay timing, gain, pan, fade) via ffmpeg | [audio-mixer.md](components/audio-mixer.md) |
 | `media-inspector` | Read audio/video/image metadata (format, streams, EXIF) via ffprobe or exiftool | [media-inspector.md](components/media-inspector.md) |

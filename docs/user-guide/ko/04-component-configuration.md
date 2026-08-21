@@ -35,14 +35,17 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `text-splitter` | 텍스트 분할 | 문서를 청크로 분할 |
 | `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, 필터 등 |
 | `image-compressor` | 이미지 압축 | Pillow, oxipng, pngquant를 통한 PNG 압축 |
+| `image-analyzer` | 이미지 속성 측정 | Pillow + numpy로 밝기, 대비, 선명도(블러), 노출 클리핑 측정 |
 | `video-scene-detector` | 비디오 장면 감지 | PySceneDetect, FFmpeg, TransNetV2를 사용한 장면 전환 감지 |
 | `video-converter` | 비디오 변환 | 비디오 트랜스코딩/포맷 변환 (컨테이너, 코덱, 해상도 등) |
 | `video-encoder` | 비디오 인코딩 | PIL 프레임을 비디오로 인코딩하거나 기존 비디오를 재인코딩, 선택적 오디오 트랙 결합 (ffmpeg) |
 | `video-frame-extractor` | 비디오 프레임 추출 | 비디오를 PIL 이미지 프레임으로 디코딩하며 샘플링과 시간 범위 지원 |
 | `video-clipper` | 비디오 구간 클리핑 | ffmpeg 스트림 카피로 비디오에서 하나 이상의 시간 범위를 무손실로 잘라내기 |
+| `video-analyzer` | 비디오 속성 측정 | ffmpeg 필터로 블랙 프레임·프리즈·밝기·움직임 측정 |
 | `audio-extractor` | 오디오 추출 | 비디오/미디어에서 오디오 스트림 추출 |
 | `audio-converter` | 오디오 변환 | 오디오 트랜스코딩/포맷 변환 (코덱, 샘플레이트, 채널 등) |
 | `audio-feature-extractor` | 오디오 특징 추출 | 시각화용 프레임별 스펙트럼 밴드 / 파형 포인트 |
+| `audio-analyzer` | 오디오 레벨 측정 | ffmpeg 필터로 라우드니스(LUFS/LRA), 피크, RMS/게인, 클리핑, 무음 측정 |
 | `audio-clipper` | 오디오 구간 클리핑 | ffmpeg 스트림 카피로 오디오에서 하나 이상의 시간 범위를 무손실로 잘라내기 |
 | `media-inspector` | 미디어 메타데이터 조회 | ffprobe 또는 exiftool로 디코딩 없이 코덱·재생시간·해상도·EXIF/GPS 등 조회 |
 | `web-scraper` | 웹 스크래핑 | CSS/XPath를 사용한 웹 데이터 추출 |
@@ -72,11 +75,14 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 텍스트 분할 → `text-splitter`
 - 이미지 처리 → `image-processor`
 - 이미지 압축 (PNG) → `image-compressor`
+- 이미지 분석 (밝기, 대비, 선명도/블러, 노출 클리핑) → `image-analyzer`
 - 비디오 장면 감지 → `video-scene-detector`
 - 비디오 프레임 추출 → `video-frame-extractor`
 - 비디오 인코딩 (프레임 → 비디오, 또는 재인코딩) → `video-encoder`
 - 비디오 / 오디오 클리핑 (무손실 시간 범위 잘라내기) → `video-clipper` / `audio-clipper`
+- 비디오 분석 (블랙 프레임, 프리즈, 밝기, 움직임) → `video-analyzer`
 - 오디오 특징 추출 (시각화용 스펙트럼 / 파형) → `audio-feature-extractor`
+- 오디오 분석 (라우드니스, 피크, 게인, 클리핑, 무음 감지) → `audio-analyzer`
 - 미디어 메타데이터 조회 (코덱, 재생시간, EXIF/GPS 등) → `media-inspector`
 - 웹 스크래핑 → `web-scraper`
 

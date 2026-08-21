@@ -84,7 +84,10 @@ async def run_subprocess(
     if on_started is not None:
         await on_started()
 
+    feed_error: Optional[BaseException] = None
+
     async def _feed_stdin() -> None:
+        nonlocal feed_error
         try:
             async for chunk in source:
                 try:
@@ -92,6 +95,10 @@ async def run_subprocess(
                     await process.stdin.drain()
                 except (BrokenPipeError, ConnectionResetError):
                     break
+        except asyncio.CancelledError:
+            raise
+        except BaseException as error:
+            feed_error = error
         finally:
             try:
                 process.stdin.close()
@@ -125,6 +132,9 @@ async def run_subprocess(
                 pass
 
         await kill_process(process, timeout=2.0)
+
+    if feed_error is not None:
+        raise feed_error
 
     return process, stdout_result, stderr_result
 
@@ -168,7 +178,10 @@ async def stream_subprocess(
     if on_started is not None:
         await on_started()
 
+    feed_error: Optional[BaseException] = None
+
     async def _feed_stdin() -> None:
+        nonlocal feed_error
         try:
             async for chunk in source:
                 try:
@@ -176,6 +189,10 @@ async def stream_subprocess(
                     await process.stdin.drain()
                 except (BrokenPipeError, ConnectionResetError):
                     break
+        except asyncio.CancelledError:
+            raise
+        except BaseException as error:
+            feed_error = error
         finally:
             try:
                 process.stdin.close()
@@ -200,9 +217,7 @@ async def stream_subprocess(
                     yield chunk
         stdout_iterator = _drain_stdout()
 
-    try:
-        yield process, stdout_iterator, stderr_task
-    finally:
+    async def _finalize() -> None:
         await kill_process(process, timeout=2.0)
 
         if stdin_feeder is not None:
@@ -216,6 +231,17 @@ async def stream_subprocess(
                 await stderr_task
             except Exception:
                 pass
+
+    try:
+        yield process, stdout_iterator, stderr_task
+    except BaseException:
+        await _finalize()
+        raise
+    else:
+        await _finalize()
+
+        if feed_error is not None:
+            raise feed_error
 
 async def kill_process(process: Process, timeout: Optional[float] = None) -> bool:
     if process.returncode is None:

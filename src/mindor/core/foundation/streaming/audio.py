@@ -630,17 +630,18 @@ class AudioBufferStreamer:
         # in. Prime the iterator so the layout is resolved before
         # ``_create_stream_context`` reads sr/channels.
         source_iterator = aiter(source)
-        primed_chunks: List[bytes] = []
+        prefetched_chunks: List[bytes] = []
+
         try:
             while "sample_rate" not in source.attrs:
-                primed_chunks.append(await anext(source_iterator))
+                prefetched_chunks.append(await anext(source_iterator))
         except StopAsyncIteration:
             pass
 
         context = self._create_stream_context(source, frame_size, hop_size, pad_final)
 
         async def _remaining_chunks() -> AsyncIterator[bytes]:
-            for chunk in primed_chunks:
+            for chunk in prefetched_chunks:
                 yield chunk
             async for chunk in source_iterator:
                 yield chunk

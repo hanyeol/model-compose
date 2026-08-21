@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioAnalyzerActionConfig
-from mindor.dsl.schema.action.impl.audio_analyzer.impl.common import AudioMetric
+from mindor.dsl.schema.action.impl.audio_analyzer.impl.common import AudioAnalyzerMetric
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -85,8 +85,8 @@ class AudioAnalyzerAction(ComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_params(self, metric: AudioMetric, context: ComponentActionContext) -> Dict[str, Any]:
-        if metric == AudioMetric.LOUDNESS:
+    async def _resolve_params(self, metric: AudioAnalyzerMetric, context: ComponentActionContext) -> Dict[str, Any]:
+        if metric == AudioAnalyzerMetric.LOUDNESS:
             target_loudness  = await context.render_scalar(self.config.target_loudness, float)
             include_timeline = await context.render_scalar(self.config.include_timeline, bool)
 
@@ -95,17 +95,17 @@ class AudioAnalyzerAction(ComponentAction):
                 "include_timeline": include_timeline,
             }
 
-        if metric == AudioMetric.PEAK:
+        if metric == AudioAnalyzerMetric.PEAK:
             true_peak = await context.render_scalar(self.config.true_peak, bool)
 
             return {
                 "true_peak": true_peak,
             }
 
-        if metric == AudioMetric.GAIN:
+        if metric == AudioAnalyzerMetric.GAIN:
             return {}
 
-        if metric == AudioMetric.CLIPPING:
+        if metric == AudioAnalyzerMetric.CLIPPING:
             threshold               = await context.render_scalar(self.config.threshold, float)
             min_consecutive_samples = await context.render_scalar(self.config.min_consecutive_samples, int)
 
@@ -114,7 +114,7 @@ class AudioAnalyzerAction(ComponentAction):
                 "min_consecutive_samples": min_consecutive_samples,
             }
 
-        if metric == AudioMetric.SILENCE:
+        if metric == AudioAnalyzerMetric.SILENCE:
             threshold    = await context.render_scalar(self.config.threshold, float)
             min_duration = await context.render_scalar(self.config.min_duration, "time")
 
@@ -128,7 +128,7 @@ class AudioAnalyzerAction(ComponentAction):
     async def _analyze_batch(
         self,
         audios: List[MediaSource],
-        metric: AudioMetric,
+        metric: AudioAnalyzerMetric,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[dict]:
@@ -141,24 +141,24 @@ class AudioAnalyzerAction(ComponentAction):
 
     async def _analyze(
         self,
-        metric: AudioMetric,
+        metric: AudioAnalyzerMetric,
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> dict:
-        if metric == AudioMetric.LOUDNESS:
+        if metric == AudioAnalyzerMetric.LOUDNESS:
             return await self._analyze_loudness(source, params, cancellation_token)
 
-        if metric == AudioMetric.PEAK:
+        if metric == AudioAnalyzerMetric.PEAK:
             return await self._analyze_peak(source, params, cancellation_token)
 
-        if metric == AudioMetric.GAIN:
+        if metric == AudioAnalyzerMetric.GAIN:
             return await self._analyze_gain(source, params, cancellation_token)
 
-        if metric == AudioMetric.CLIPPING:
+        if metric == AudioAnalyzerMetric.CLIPPING:
             return await self._analyze_clipping(source, params, cancellation_token)
 
-        if metric == AudioMetric.SILENCE:
+        if metric == AudioAnalyzerMetric.SILENCE:
             return await self._analyze_silence(source, params, cancellation_token)
 
         raise ValueError(f"Unsupported audio metric: {metric}")

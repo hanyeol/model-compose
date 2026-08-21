@@ -496,7 +496,13 @@ class AudioDecodingStreamer:
             async for chunk in stream:
                 yield chunk
 
-        return _stream(), stream.attrs
+        # Advertise the layout this pass-through actually resolves to, defaults
+        # filled in. A partially-declared source (say ``sample_rate`` but no
+        # ``channels``) would otherwise leave consumers waiting on a key that no
+        # amount of reading will ever produce — these bytes carry no header.
+        attrs = { **stream.attrs, "sample_rate": source_sample_rate, "channels": source_channels }
+
+        return _stream(), attrs
 
     @staticmethod
     def _is_torchaudio_available() -> bool:
@@ -629,10 +635,15 @@ class AudioBufferStreamer:
         # header (or the torchaudio decode result) as its first chunks stream
         # in. Prime the iterator so the layout is resolved before
         # ``_create_stream_context`` reads sr/channels.
+        #
+        # Both keys have to be waited on, not just ``sample_rate``: the ffmpeg
+        # path pre-fills ``sample_rate`` when the caller requested one, so
+        # keying off it alone would skip priming entirely and leave
+        # ``channels`` unset — silently decoding stereo as mono.
         source_iterator = aiter(source)
         primed_chunks: List[bytes] = []
         try:
-            while "sample_rate" not in source.attrs:
+            while "sample_rate" not in source.attrs or "channels" not in source.attrs:
                 primed_chunks.append(await anext(source_iterator))
         except StopAsyncIteration:
             pass

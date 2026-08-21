@@ -8,6 +8,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import wave
 
@@ -262,6 +263,46 @@ class TestCollectCompressed:
         assert buffer.waveform.dtype == np.float32
         # ~half length; allow tolerance for filter tail
         assert 1500 <= buffer.waveform.shape[-1] <= 1700
+
+    @pytest.mark.anyio
+    async def test_wav_container_explicit_rate_keeps_stereo_layout(self):
+        # Regression: an explicit ``sample_rate`` makes the decoder pre-fill
+        # ``attrs["sample_rate"]``. Priming used to stop on that key alone, so
+        # the decoded WAV header was never read and ``channels`` stayed unset.
+        # The interleaved stereo stream was then decoded as mono, doubling the
+        # frame count and folding both channels into one signal.
+        left = np.full(1600, 1000, dtype=np.int16)
+        right = np.full(1600, 3000, dtype=np.int16)
+        wav_bytes = build_wav_bytes(np.stack([left, right], axis=0), sample_rate=16000, channels=2)
+        src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
+
+        buffer = await AudioBufferStreamer(src, sample_rate=16000).collect()
+
+        assert buffer.sample_rate == 16000
+        assert buffer.waveform.shape == (2, 1600)
+        assert np.allclose(buffer.waveform[0], 1000.0 / 32768.0, atol=1e-4)
+        assert np.allclose(buffer.waveform[1], 3000.0 / 32768.0, atol=1e-4)
+
+    @pytest.mark.anyio
+    async def test_wav_container_resample_keeps_stereo_layout(self):
+        # Same regression with resampling on: a wrong channel count also builds
+        # the resampler for the wrong layout, so the output is checked for both
+        # shape and per-channel content.
+        left = np.full(3200, 1000, dtype=np.int16)
+        right = np.full(3200, 3000, dtype=np.int16)
+        wav_bytes = build_wav_bytes(np.stack([left, right], axis=0), sample_rate=32000, channels=2)
+        src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
+
+        buffer = await AudioBufferStreamer(src, sample_rate=16000).collect()
+
+        assert buffer.sample_rate == 16000
+        assert buffer.waveform.ndim == 2
+        assert buffer.waveform.shape[0] == 2
+        # ~half length; allow tolerance for filter tail
+        assert 1500 <= buffer.waveform.shape[1] <= 1700
+        # Steady-state level per channel, skipping the resampler's edge ramps.
+        assert np.allclose(buffer.waveform[0, 100:-100], 1000.0 / 32768.0, atol=1e-3)
+        assert np.allclose(buffer.waveform[1, 100:-100], 3000.0 / 32768.0, atol=1e-3)
 
 
 # ---- AudioBufferStreamer ----
@@ -601,6 +642,36 @@ class TestStreamAudioArrayValidation:
         with pytest.raises(RuntimeError, match="ffmpeg audio decoding failed"):
             async for _ in AudioBufferStreamer(src, 512):
                 pass
+
+    @pytest.mark.anyio
+    async def test_partially_declared_pcm_source_does_not_stall(self):
+        # A pass-through PCM source declaring only ``sample_rate`` must still
+        # produce frames. Waiting for a complete layout to arrive from the
+        # stream would block forever here: raw PCM carries no header, so the
+        # missing ``channels`` never shows up and an endless capture would be
+        # buffered without ever emitting.
+        class EndlessPcm(StreamResource):
+            def __init__(self):
+                super().__init__("audio/pcm", None)
+
+            async def close(self) -> None:
+                pass
+
+            async def _iterate_stream(self):
+                block = np.zeros(1600, dtype="<i2").tobytes()
+                while True:
+                    await asyncio.sleep(0)
+                    yield block
+
+        attrs = {"sample_rate": 16000}
+        pcm = PcmStreamResource(EndlessPcm(), attrs=attrs)
+        src = MediaSource(pcm, format=pcm.format, attrs=attrs)
+
+        frames = aiter(AudioBufferStreamer(src, 512, sample_rate=16000))
+        buffer = await asyncio.wait_for(anext(frames), timeout=5.0)
+
+        # Undeclared channel count falls back to mono, as it always has.
+        assert buffer.waveform.shape == (512,)
 
 
 class TestStreamAudioArrayFloat32Source:

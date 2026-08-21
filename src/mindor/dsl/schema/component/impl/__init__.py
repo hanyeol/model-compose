@@ -19,6 +19,7 @@ from .sentence_splitter import *
 from .transcript_corrector import *
 from .image_processor import *
 from .image_compressor import *
+from .image_analyzer import *
 from .vector_processor import *
 from .web_scraper import *
 from .web_browser import *

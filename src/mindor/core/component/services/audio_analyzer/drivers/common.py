@@ -107,11 +107,11 @@ class AudioAnalyzerAction(ComponentAction):
 
         if metric == AudioAnalyzerMetric.CLIPPING:
             threshold               = await context.render_scalar(self.config.threshold, float)
-            min_consecutive_samples = await context.render_scalar(self.config.min_consecutive_samples, int)
+            min_consecutive_length = await context.render_scalar(self.config.min_consecutive_length, int)
 
             return {
                 "threshold":               threshold,
-                "min_consecutive_samples": min_consecutive_samples,
+                "min_consecutive_length": min_consecutive_length,
             }
 
         if metric == AudioAnalyzerMetric.SILENCE:

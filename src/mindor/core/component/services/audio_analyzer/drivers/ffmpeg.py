@@ -91,13 +91,13 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         clipped_ratio = (clipped / number_of_samples) if number_of_samples else 0.0
 
         return AudioClipping({
-            "threshold_dbfs":        params["threshold"],
-            "min_consecutive_samples": params["min_consecutive_samples"],
-            "sample_count":          number_of_samples,
-            "clipped_sample_count":  clipped,
-            "clipped_ratio":         clipped_ratio,
-            "peak_dbfs":             stats.get("peak_level"),
-            "regions":               [],
+            "threshold_dbfs":         params["threshold"],
+            "min_consecutive_length": params["min_consecutive_length"],
+            "sample_count":           number_of_samples,
+            "clipped_sample_count":   clipped,
+            "clipped_ratio":          clipped_ratio,
+            "peak_dbfs":              stats.get("peak_level"),
+            "regions":                [],
         })
 
     async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:

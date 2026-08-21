@@ -1,0 +1,211 @@
+from __future__ import annotations
+
+from typing import Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
+from abc import abstractmethod
+from mindor.dsl.schema.action import AudioAnalyzerActionConfig
+from mindor.dsl.schema.action.impl.audio_analyzer.impl.common import AudioMetric
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.atomic import AtomicDict
+from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.audio import is_streamable_audio_format
+from mindor.core.logger import logging
+from ....action.base import ComponentAction
+from ..base import ComponentActionContext
+import os
+
+class AudioLoudness(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioLoudness integrated={self.get('integrated_loudness')}LUFS "
+            f"range={self.get('loudness_range')}LU>"
+        )
+
+class AudioPeak(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioPeak sample_peak={self.get('sample_peak_dbfs')}dBFS "
+            f"true_peak={self.get('true_peak_dbtp')}dBTP>"
+        )
+
+class AudioGain(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioGain rms={self.get('rms_dbfs')}dBFS "
+            f"dc_offset={self.get('dc_offset')}>"
+        )
+
+class AudioClipping(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioClipping regions={len(self.get('regions', []))} "
+            f"clipped_ratio={self.get('clipped_ratio', 0.0):.4f}>"
+        )
+
+class AudioSilence(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<AudioSilence regions={len(self.get('regions', []))} "
+            f"silent_ratio={self.get('silent_ratio', 0.0):.4f}>"
+        )
+
+class AudioAnalyzerAction(ComponentAction):
+    def __init__(self, config: AudioAnalyzerActionConfig):
+        self.config: AudioAnalyzerActionConfig = config
+
+    async def run(self, context: ComponentActionContext) -> Any:
+        audio      = await context.render_audio(self.config.audio)
+        batch_size = await context.render_variable(self.config.batch_size)
+
+        params = await self._resolve_params(self.config.metric, context)
+
+        is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if isinstance(audio, (StreamIterator, AsyncIterator)):
+            async def _stream_output_generator():
+                async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                    batch_results = await self._analyze_batch(batch_audios, self.config.metric, params, context.cancellation_token)
+                    for result in batch_results:
+                        yield result
+
+            return _stream_output_generator()
+        else:
+            results: List[Dict[str, Any]] = []
+            async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                batch_results = await self._analyze_batch(batch_audios, self.config.metric, params, context.cancellation_token)
+                results.extend(batch_results)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, metric: AudioMetric, context: ComponentActionContext) -> Dict[str, Any]:
+        if metric == AudioMetric.LOUDNESS:
+            target_loudness  = await context.render_scalar(self.config.target_loudness, float)
+            include_timeline = await context.render_scalar(self.config.include_timeline, bool)
+
+            return {
+                "target_loudness":  target_loudness,
+                "include_timeline": include_timeline,
+            }
+
+        if metric == AudioMetric.PEAK:
+            true_peak = await context.render_scalar(self.config.true_peak, bool)
+
+            return {
+                "true_peak": true_peak,
+            }
+
+        if metric == AudioMetric.GAIN:
+            return {}
+
+        if metric == AudioMetric.CLIPPING:
+            threshold               = await context.render_scalar(self.config.threshold, float)
+            min_consecutive_samples = await context.render_scalar(self.config.min_consecutive_samples, int)
+
+            return {
+                "threshold":               threshold,
+                "min_consecutive_samples": min_consecutive_samples,
+            }
+
+        if metric == AudioMetric.SILENCE:
+            threshold    = await context.render_scalar(self.config.threshold, float)
+            min_duration = await context.render_scalar(self.config.min_duration, "time")
+
+            return {
+                "threshold":    threshold,
+                "min_duration": min_duration,
+            }
+
+        raise ValueError(f"Unsupported audio metric: {metric}")
+
+    async def _analyze_batch(
+        self,
+        audios: List[MediaSource],
+        metric: AudioMetric,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[dict]:
+        results: List[dict] = []
+
+        for audio in audios:
+            results.append(await self._analyze(metric, audio, params, cancellation_token))
+
+        return results
+
+    async def _analyze(
+        self,
+        metric: AudioMetric,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> dict:
+        if metric == AudioMetric.LOUDNESS:
+            return await self._analyze_loudness(source, params, cancellation_token)
+
+        if metric == AudioMetric.PEAK:
+            return await self._analyze_peak(source, params, cancellation_token)
+
+        if metric == AudioMetric.GAIN:
+            return await self._analyze_gain(source, params, cancellation_token)
+
+        if metric == AudioMetric.CLIPPING:
+            return await self._analyze_clipping(source, params, cancellation_token)
+
+        if metric == AudioMetric.SILENCE:
+            return await self._analyze_silence(source, params, cancellation_token)
+
+        raise ValueError(f"Unsupported audio metric: {metric}")
+
+    @staticmethod
+    async def _resolve_input_path(source: MediaSource) -> Tuple[Optional[str], bool]:
+        """Decide how the analyzer CLI should read the input.
+
+        Same rules as the media inspector: seekable containers get spooled to
+        a temp file; streamable audio formats can be piped via stdin. Returns
+        (input_path, spooled) where `input_path is None` means stdin.
+        """
+        if isinstance(source.stream, FileStreamResource):
+            return source.stream.path, False
+
+        if is_streamable_audio_format(source.format):
+            return None, False
+
+        logging.debug("audio analyzer input is not streamable; spooling to a temp file before probing")
+
+        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
+
+        return spooled_path, True
+
+    @staticmethod
+    def _remove_file(path: str) -> None:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+
+    @abstractmethod
+    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+        pass
+
+    @abstractmethod
+    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+        pass
+
+    @abstractmethod
+    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+        pass
+
+    @abstractmethod
+    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+        pass
+
+    @abstractmethod
+    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+        pass

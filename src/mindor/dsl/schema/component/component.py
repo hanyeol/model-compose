@@ -42,6 +42,7 @@ ComponentConfig = Annotated[
         AudioConverterComponentConfig,
         AudioProcessorComponentConfig,
         AudioFeatureExtractorComponentConfig,
+        AudioAnalyzerComponentConfig,
         AudioPlaybackComponentConfig,
         AudioMixerComponentConfig,
         KeyValueStoreComponentConfig,

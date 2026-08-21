@@ -90,6 +90,21 @@ class TestPassThrough:
         assert data == pcm_bytes
 
     @pytest.mark.anyio
+    async def test_passthrough_completes_partially_declared_attrs(self):
+        # Raw PCM carries no header, so whatever the source declares is all a
+        # consumer will ever get. Report the layout the pass-through actually
+        # resolves to, defaults included, rather than a half-filled dict.
+        samples = make_sine_int16(440.0, 16000, 0.05)
+        pcm = PcmStreamResource(BytesStreamResource(samples.tobytes()), attrs={"sample_rate": 16000})
+        source = MediaSource(pcm, format=pcm.format, attrs={"sample_rate": 16000})
+
+        out = AudioDecodingStreamer(source, sample_rate=16000).as_pcm_stream()
+
+        assert out.attrs["sample_rate"] == 16000
+        assert out.attrs["channels"] == 1
+        assert await collect_bytes(out) == samples.tobytes()
+
+    @pytest.mark.anyio
     async def test_raw_pcm_with_matching_target_still_passes_through(self):
         samples = make_sine_int16(440.0, 16000, 0.05)
         pcm_bytes = samples.tobytes()

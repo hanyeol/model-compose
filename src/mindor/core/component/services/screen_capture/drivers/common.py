@@ -31,6 +31,7 @@ class ScreenCaptureAction(MediaComponentAction):
         include_audio = await context.render_scalar(self.config.include_audio, bool)
         display       = await context.render_scalar(self.config.display, int)
         region        = await self._resolve_region(context) if self.config.region is not None else None
+        window        = await self._resolve_window(context) if self.config.window is not None else None
         framerate     = await context.render_scalar(self.config.framerate, float)
         encoding      = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
         duration      = await context.render_scalar(self.config.duration, "time", None)
@@ -54,10 +55,14 @@ class ScreenCaptureAction(MediaComponentAction):
         if video_source == ScreenCaptureVideoSource.REGION and region is None:
             raise ValueError("'region' must be provided when video_source='region'.")
 
+        if video_source == ScreenCaptureVideoSource.WINDOW and window is None:
+            raise ValueError("'window' must be provided when video_source='window'.")
+
         return {
             "video_source":  video_source,
             "display":       display,
             "region":        region,
+            "window":        window,
             "include_video": include_video,
             "include_audio": include_audio,
             "audio_source":  audio_source,
@@ -79,6 +84,15 @@ class ScreenCaptureAction(MediaComponentAction):
             raise ValueError(f"region origin must be >= 0, got x={x}, y={y}")
 
         return { "x": x, "y": y, "width": width, "height": height }
+
+    async def _resolve_window(self, context: ComponentActionContext) -> Dict[str, Optional[str]]:
+        title = await context.render_scalar(self.config.window.title, str, None) if self.config.window.title else None
+        app   = await context.render_scalar(self.config.window.app, str, None) if self.config.window.app else None
+
+        if not title and not app:
+            raise ValueError("window selector must include at least one of 'title' or 'app'.")
+
+        return { "title": title, "app": app }
 
     @abstractmethod
     async def _capture(self, params: Dict[str, Any]) -> Dict[str, Any]:

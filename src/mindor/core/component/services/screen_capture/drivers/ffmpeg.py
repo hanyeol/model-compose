@@ -13,6 +13,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.utils.audio import is_audio_only_format
 from mindor.core.utils.shell import kill_process
+from mindor.core.utils.screen.window import WindowSelector, find_window
 from mindor.core.logger import logging
 from ..base import ScreenCaptureService, ScreenCaptureDriver, register_screen_capture_service
 from ..base import ComponentActionContext
@@ -78,18 +79,39 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         framerate    = params["framerate"]
         display      = params["display"]
         region       = params.get("region")
+        window       = params.get("window")
 
-        if video_source not in (ScreenCaptureVideoSource.DISPLAY, ScreenCaptureVideoSource.REGION):
-            # MVP covers display + region only. Window capture needs per-OS
-            # lookups (window titles/IDs) that aren't wired up yet.
+        if video_source not in (
+            ScreenCaptureVideoSource.DISPLAY,
+            ScreenCaptureVideoSource.REGION,
+            ScreenCaptureVideoSource.WINDOW,
+        ):
             raise NotImplementedError(f"screen-capture video_source '{video_source.value}' is not supported yet")
+
+        window_title: Optional[str] = None
+
+        if video_source == ScreenCaptureVideoSource.WINDOW:
+            info = await find_window(WindowSelector(title=window["title"], app=window["app"]))
+            logging.info(
+                "screen-capture: matched window app='%s' title='%s' at %dx%d+%d+%d",
+                info.app, info.title, info.width, info.height, info.x, info.y,
+            )
+            if system == "Windows":
+                # gdigrab keys off the exact window title string; the rest of
+                # the pipeline stays on the display path.
+                window_title = info.title
+            else:
+                # macOS avfoundation and Linux x11grab can't target a window
+                # directly, so fall through to the region path using the
+                # window's current screen-space rect.
+                region = { "x": info.x, "y": info.y, "width": info.width, "height": info.height }
 
         video_format  = self._resolve_container_format(encoding)
         video_codec   = self._resolve_video_codec(encoding)
         video_bitrate = encoding.video.bitrate if encoding and encoding.video and encoding.video.bitrate else None
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
-        command.extend(self._build_video_input_args(system, display, framerate, region))
+        command.extend(self._build_video_input_args(system, display, framerate, region, window_title))
         command.extend([
             "-c:v", video_codec,
             "-preset", "veryfast",
@@ -242,6 +264,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         display: int,
         framerate: float,
         region: Optional[Dict[str, int]] = None,
+        window_title: Optional[str] = None,
     ) -> List[str]:
         if system == "Darwin":
             # avfoundation video inputs are indexed independently of audio;
@@ -260,6 +283,12 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
                 "-f", "gdigrab",
                 "-framerate", str(framerate),
             ]
+
+            if window_title is not None:
+                # gdigrab tracks the window by title, so the capture keeps
+                # following it as it moves or resizes on screen.
+                args.extend([ "-i", f"title={window_title}" ])
+                return args
 
             if region is not None:
                 # gdigrab reads a rectangle when offsets + video_size are set.
@@ -485,6 +514,12 @@ class FFmpegScreenCaptureService(ScreenCaptureService):
         super().__init__(id, config, daemon)
 
     def get_setup_requirements(self) -> Optional[List[str]]:
+        # Quartz is needed to resolve window titles → screen-space rects for
+        # window capture on macOS. Linux relies on the 'xdotool' / 'xwininfo'
+        # CLIs (not pip-installable); Windows uses ctypes from stdlib.
+        if platform.system() == "Darwin":
+            return [ "pyobjc-framework-Quartz" ]
+
         return None
 
     async def _run(self, action: ScreenCaptureActionConfig, context: ComponentActionContext) -> Any:

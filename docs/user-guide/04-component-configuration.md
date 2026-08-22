@@ -28,7 +28,7 @@ model-compose provides various component types for performing different tasks.
 | `vector-store` | Vector DB integration | RAG systems with Chroma, Milvus, etc. |
 | `graph-store` | Graph DB integration | Knowledge graphs, social networks with Neo4j, ArangoDB |
 | `search-engine` | Full-text search | BM25-ranked keyword search with SQLite FTS5 |
-| `key-value-store` | Key-value storage | Caching, session management with Redis |
+| `key-value-store` | Key-value storage | Caching, session management with in-memory, Redis, or SQLite backends |
 | `file-store` | File/object storage | Local filesystem, AWS S3, GCP Storage, Azure Blob with streaming I/O |
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |

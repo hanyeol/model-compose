@@ -24,7 +24,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `key-value-store` |
-| `driver` | string | **required** | Backend driver: `redis` |
+| `driver` | string | **required** | Backend driver: `memory`, `redis`, or `sqlite` |
 | `actions` | array | `[]` | List of key-value store actions |
 
 ### Common Action Configuration
@@ -36,6 +36,58 @@ All key-value store actions share these common settings:
 | `method` | string | **required** | Operation method: `get`, `set`, `delete`, `exists` |
 
 ## Supported Drivers
+
+### Memory
+
+An in-process, in-memory store. Ideal for caches, testing, and single-process workloads. Data is lost when the controller stops.
+
+```yaml
+component:
+  type: key-value-store
+  driver: memory
+```
+
+**Memory Configuration:** no driver-specific fields.
+
+**Characteristics:**
+
+- Process-local: not shared between controller processes or restarts.
+- TTL: expired entries are dropped lazily on read (`get`/`exists`/`delete`).
+- Concurrency: guarded by an internal `asyncio.Lock`, safe for concurrent actions within one controller.
+
+### SQLite
+
+A file-backed store using [aiosqlite](https://pypi.org/project/aiosqlite/). Good for durable, single-node deployments without running a separate service.
+
+```yaml
+component:
+  type: key-value-store
+  driver: sqlite
+  path: kv-store.sqlite
+```
+
+**SQLite Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | `kv-store.sqlite` | Filesystem path to the database file. Use `:memory:` for an in-memory database (not shared across connections). |
+| `table` | string | `kv_store` | Name of the table used to store entries. Must match `[A-Za-z_][A-Za-z0-9_]*`. |
+
+**Characteristics:**
+
+- Durability: persists across restarts (unless `path: :memory:`).
+- Concurrency: opens with `journal_mode=WAL` and `synchronous=NORMAL` for concurrent readers alongside a single writer with low write latency.
+- TTL: expired rows are hidden immediately on read and physically purged on write, at most once per 60 seconds (debounced), riding the existing `SET` transaction. A partial index on `expires_at` keeps the purge scan cheap.
+- Requires the `aiosqlite` package.
+
+**Using an in-memory SQLite database:**
+
+```yaml
+component:
+  type: key-value-store
+  driver: sqlite
+  path: ":memory:"
+```
 
 ### Redis
 
@@ -365,10 +417,10 @@ components:
 
 Key-value store operations can fail for various reasons:
 
-- **Connection Issues**: Redis server unreachable
-- **Authentication Errors**: Invalid password or access denied
+- **Connection Issues**: Redis server unreachable, or SQLite file path unwritable
+- **Authentication Errors**: Invalid Redis password or access denied
 - **Key Not Found**: `get` returns `null` for non-existent keys (not an error)
-- **Memory Limits**: Redis server out of memory
+- **Storage Limits**: Redis server out of memory, or SQLite disk full
 
 Use workflow error handling to manage failures:
 
@@ -407,12 +459,16 @@ component:
 
 ## Best Practices
 
-1. **Key Naming**: Use consistent key naming conventions with namespaces (e.g., `session:user123`, `cache:api:response`)
-2. **TTL Management**: Always set TTL for cache entries to prevent unbounded memory growth
-3. **Value Size**: Keep values reasonably sized; use references for large objects
-4. **Connection Reuse**: Define one key-value store component and reference it from multiple workflows
-5. **Error Handling**: Handle `null` return values from `get` gracefully in workflow conditions
-6. **Security**: Store Redis passwords in environment variables, use TLS for remote connections
+1. **Driver Selection**:
+   - `memory` for ephemeral caches inside a single controller process (tests, dev, hot caches).
+   - `sqlite` for durable storage on a single node without running a separate service.
+   - `redis` for shared state across processes or hosts, and for high-throughput workloads.
+2. **Key Naming**: Use consistent key naming conventions with namespaces (e.g., `session:user123`, `cache:api:response`)
+3. **TTL Management**: Always set TTL for cache entries to prevent unbounded memory growth
+4. **Value Size**: Keep values reasonably sized; use references for large objects
+5. **Connection Reuse**: Define one key-value store component and reference it from multiple workflows
+6. **Error Handling**: Handle `null` return values from `get` gracefully in workflow conditions
+7. **Security**: Store Redis passwords in environment variables, use TLS for remote connections
 
 ## Integration with Workflows
 

@@ -44,7 +44,7 @@ class SQLiteSearchEngineAction(SearchEngineAction):
             column_names = [ field["name"] for field in meta["fields"] ]
             id_field = meta["id_field"]
             quoted_index = quote_identifier(index)
-            columns_sql = ", ".join(quote_identifier(n) for n in column_names)
+            columns_sql = ", ".join(quote_identifier(name) for name in column_names)
             placeholders = ", ".join([ "?" ] * len(column_names) )
             insert_sql = f'INSERT INTO {quoted_index} ({columns_sql}) VALUES ({placeholders})'
             delete_sql = f'DELETE FROM {quoted_index} WHERE {quote_identifier(id_field)} = ?' if id_field else None

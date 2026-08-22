@@ -51,6 +51,8 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
 | `screen-capture` | 本地屏幕与音频采集 | 将桌面/区域/系统或麦克风音频作为连续编码流实时输出 |
+| `audio-capture` | 本地音频采集 | 将麦克风或系统回环作为连续编码流实时输出 |
+| `video-capture` | 本地摄像头采集 | 将网络摄像头、采集卡或虚拟摄像头作为连续编码流实时输出 |
 | `rtmp-publisher` | 发布到 RTMP 端点 | 将视频、帧或音频实时推流到 YouTube Live、Twitch、Facebook Live 等（ffmpeg） |
 
 ### 组件选择指南
@@ -91,6 +93,8 @@ model-compose 提供了多种组件类型来执行不同的任务。
 
 **实时采集**
 - 本地屏幕 / 区域 / 系统音频作为实时源 → `screen-capture`
+- 本地麦克风或系统音频作为实时源 → `audio-capture`
+- 本地摄像头 / 采集卡 / 虚拟摄像头作为实时源 → `video-capture`
 
 **实时直播**
 - 将视频、帧或音频推送到 RTMP 端点（YouTube Live、Twitch、Facebook Live 等）→ `rtmp-publisher`

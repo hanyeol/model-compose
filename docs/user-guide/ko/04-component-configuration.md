@@ -51,6 +51,8 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `web-scraper` | 웹 스크래핑 | CSS/XPath를 사용한 웹 데이터 추출 |
 | `web-browser` | 브라우저 자동화 | Chrome DevTools Protocol을 통한 브라우저 제어 |
 | `screen-capture` | 로컬 화면·오디오 캡처 | 데스크탑/영역/시스템·마이크 오디오를 연속 인코딩 스트림으로 방출 |
+| `audio-capture` | 로컬 오디오 캡처 | 마이크 또는 시스템 루프백을 연속 인코딩 스트림으로 방출 |
+| `video-capture` | 로컬 카메라 캡처 | 웹캠, 캡처 카드, 가상 카메라를 연속 인코딩 스트림으로 방출 |
 | `rtmp-publisher` | RTMP 엔드포인트 발행 | YouTube Live, Twitch, Facebook Live 등으로 비디오·프레임·오디오 라이브 스트리밍 (ffmpeg) |
 
 ### 컴포넌트 선택 가이드
@@ -91,6 +93,8 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 
 **라이브 캡처**
 - 로컬 화면 / 영역 / 시스템 오디오를 라이브 소스로 → `screen-capture`
+- 로컬 마이크 또는 시스템 오디오를 라이브 소스로 → `audio-capture`
+- 로컬 카메라 / 캡처 카드 / 가상 카메라를 라이브 소스로 → `video-capture`
 
 **라이브 방송**
 - RTMP 엔드포인트(YouTube Live, Twitch, Facebook Live 등)로 비디오·프레임·오디오 발행 → `rtmp-publisher`

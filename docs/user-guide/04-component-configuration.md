@@ -54,6 +54,8 @@ model-compose provides various component types for performing different tasks.
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 | `screen-capture` | Capture local screen and audio | Live desktop, region, or microphone/system audio as continuous encoded streams |
+| `audio-capture` | Capture local audio | Live microphone or system loopback as a continuous encoded stream |
+| `video-capture` | Capture local camera | Live webcam, capture card, or virtual camera as a continuous encoded stream |
 | `rtmp-publisher` | Publish to RTMP endpoints | Live-stream video, frames, or audio to YouTube Live, Twitch, Facebook Live, etc. (ffmpeg) |
 
 ### Component Selection Guide
@@ -98,6 +100,8 @@ model-compose provides various component types for performing different tasks.
 
 **Live Capture**
 - Local screen / region / system audio as a live source → `screen-capture`
+- Local microphone or system audio as a live source → `audio-capture`
+- Local camera / capture card / virtual camera as a live source → `video-capture`
 
 **Live Broadcasting**
 - Publish video / frames / audio to RTMP endpoints (YouTube Live, Twitch, Facebook Live, etc.) → `rtmp-publisher`

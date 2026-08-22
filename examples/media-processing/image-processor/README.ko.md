@@ -90,7 +90,7 @@
 graph TD
     J1((Default<br/>작업))
     C1[Image Processor<br/>resize 액션]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |크기 조정된 이미지| J1
     Input((입력)) --> J1
     J1 --> Output((출력))

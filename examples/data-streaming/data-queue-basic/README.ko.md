@@ -105,7 +105,7 @@ graph TD
     J1((publish<br/>job))
     C1[Data Queue<br/>component]
 
-    J1 --> C1
+    J1 -.-> C1
     Input((Input)) --> J1
 ```
 
@@ -137,9 +137,9 @@ graph TD
     C1[Data Queue<br/>component]
     C2[File Store<br/>component]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |message stream| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |saved path| J2
 
     J1 -.-> |message stream| J2

@@ -97,8 +97,8 @@ graph TD
     %% Components (rectangles)
     C1[OpenAI DALL·E<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |variation image| J1
 
     %% Input/Output

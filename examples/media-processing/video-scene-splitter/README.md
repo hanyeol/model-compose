@@ -108,12 +108,12 @@ graph TD
     C2[Video Clipper<br/>component]
     C3[File Store<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |stream of scenes| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |stream of clips| J2
-    J3 --> C3
+    J3 -.-> C3
     C3 -.-> |saved path| J3
 
     %% Job flow

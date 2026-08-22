@@ -109,7 +109,7 @@ graph TD
     C1 -.-> |[{image, timestamp, ...}]| J1
 
     J1 --> J2((track<br/>job))
-    J2 --> C2[Pose Tracker<br/>yolo]
+    J2 -.-> C2[Pose Tracker<br/>yolo]
     C2 -.-> |{tracks, frame_count}| J2
 
     J2 --> Output((Output<br/>report))

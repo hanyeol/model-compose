@@ -1,0 +1,205 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # -------------- Main workflow: overlay pose skeletons on a video --------------
+  - id: pose-skeleton-overlay
+    default: true
+    title: Pose Skeleton Overlay
+    description: |
+      Detect and track every person in a video with YOLOv8-pose, render a
+      skeleton for each pose on top of its source frame, and reassemble the
+      overlaid frames back into an mp4 with the original audio track
+      preserved.
+
+      The pipeline runs end-to-end in streaming mode so memory stays bounded
+      regardless of clip length: frames flow one-by-one from the extractor
+      through pose-tracking, and each per-frame chunk (carrying the source
+      image plus one full-frame skeleton image per detected pose) is merged
+      into a single composited frame and handed directly to ffmpeg's encoder
+      without materialising the full frame set.
+    jobs:
+      # 1. Stash the uploaded video on the local file-store so the audio
+      #    branch and the frame extractor can independently re-read it
+      #    (the raw upload stream is single-use).
+      - id: store
+        component: storage
+        input:
+          path: uploads/${context.task_id}
+          source: ${input.video as video}
+
+      # 2. Split the audio track out of the stored video (preserved unchanged).
+      - id: extract-audio
+        component: audio-extractor
+        input:
+          source: ${jobs.store.output.url as video;url}
+        depends_on: [ store ]
+
+      # 3. Stream frames out of the stored video. `streaming: true` emits
+      #    frames as ffmpeg decodes them, without buffering the whole video.
+      - id: extract-frames
+        component: frame-extractor
+        input:
+          video: ${jobs.store.output.url as video;url}
+          frame_interval: 1
+        depends_on: [ store ]
+
+      # 4. Pose-tracking runs on the frame stream and re-emits a chunk stream.
+      #    We disable tracks/metadata and enable frame chunks (with the source
+      #    image + per-pose skeleton renders) so the downstream stream contains
+      #    only `{type: "frame", number, timestamp, poses: [{track_id,
+      #    bounding_box, skeleton_image}], image}` — exactly the shape the
+      #    merge step needs.
+      - id: track-poses
+        component: pose-tracker
+        input:
+          frames: ${jobs.extract-frames.output}
+          frame_rate: ${input.frame_rate as number | 30}
+          min_confidence: ${input.min_confidence as number | 0.4}
+          skeleton_format: ${input.skeleton_format as select/natural,openpose | natural}
+        depends_on: [ extract-frames ]
+
+      # 5. For each per-frame chunk, composite every pose's skeleton image
+      #    (already rendered at the full frame size) on top of the source
+      #    frame in one pass. Because the input is a stream the for-each
+      #    output is also a stream — overlaid frames flow lazily into the
+      #    encoder below.
+      - id: overlay-skeletons
+        type: for-each
+        input: ${jobs.track-poses.output}
+        batch_size: 8
+        depends_on: [ track-poses ]
+        do:
+          component: skeleton-merger
+          input:
+            # Prepend the source frame as the base layer, then spread every
+            # detected pose's full-frame skeleton PNG on top with `...` so
+            # `[frame, skel1, skel2, ...]` reaches `merge` as a single flat
+            # image list — the shape `merge` expects.
+            images:
+              - ${item.image}
+              - ...${item.poses[*].skeleton_image}
+
+      # 6. Reassemble the overlaid frame stream + the original audio into mp4.
+      #    The encoder pulls frames from the stream as ffmpeg is ready for
+      #    them, so no full-video buffering happens at this stage either.
+      - id: encode-video
+        component: encoder
+        input:
+          # The for-each above emits a stream where each chunk is a single
+          # PIL image. The encoder expects an image-array input (one array
+          # per video), so wrap the stream with `+` — the renderer treats
+          # `+` as "flatten these chunks into one continuous image array
+          # stream" so ffmpeg pulls frames one by one without materialising
+          # the full list.
+          frames:
+            "+": ${jobs.overlay-skeletons.output}
+          frame_rate: ${input.frame_rate as number | 30}
+          audio: ${jobs.extract-audio.output}
+        depends_on: [ extract-audio, overlay-skeletons ]
+
+    output:
+      video: ${jobs.encode-video.output as video}
+
+components:
+  # Local file-store used as a scratch area for the uploaded video. On S3
+  # or GCS you would swap the driver.
+  - id: storage
+    type: file-store
+    driver: local
+    base_path: ./storage
+    action:
+      method: put
+      path: ${input.path}
+      source: ${input.source}
+
+  # ---- Split audio track out (mp3 by default) ----
+  - id: audio-extractor
+    type: audio-extractor
+    driver: ffmpeg
+    action:
+      source: ${input.source}
+      format: mp3
+
+  # ---- Stream every frame at native fps ----
+  # `output: ${result[].image}` projects the extractor's default
+  # `{image, timestamp}` chunk stream down to just the PIL images —
+  # pose-tracking's `frames` input expects an image stream, not a dict
+  # stream.
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+      output: ${result[].image}
+
+  # ---- Pose tracker (YOLOv8-pose) ----
+  # The YOLOv8n-pose weights are downloaded automatically on first run from
+  # the ultralytics assets release. Swap for yolov8s/m/l/x-pose.pt for
+  # higher accuracy at higher cost.
+  #
+  # We use the tracker (not a bare detector) so identity stays stable
+  # across frames and each per-frame chunk arrives packaged with both the
+  # source image (`return_frame_image: true`) and one full-frame skeleton
+  # PNG per detected pose (`return_skeleton_image: true`) — the merge step
+  # only needs to composite them. Track segments and terminal metadata are
+  # suppressed since the overlay pipeline ignores them.
+  - id: pose-tracker
+    type: model
+    task: pose-tracking
+    driver: custom
+    family: yolo
+    max_concurrent_count: 1
+    model:
+      provider: local
+      url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n-pose.pt
+    action:
+      frames: ${input.frames as image}
+      frame_rate: ${input.frame_rate}
+      streaming: true
+      return_tracks: false
+      return_frames: true
+      return_frame_image: true
+      return_skeleton_image: true
+      return_metadata: false
+      skeleton_format: ${input.skeleton_format}
+      params:
+        min_confidence: ${input.min_confidence}
+
+  # ---- Composite frame + N skeleton images in one pass ----
+  # `merge` alpha-composites every input image onto a shared canvas sized
+  # to the largest input. Since the skeleton renders are the same size as
+  # the source frame, everything lines up 1:1 — no per-pose x/y math
+  # needed.
+  - id: skeleton-merger
+    type: image-processor
+    driver: native
+    action:
+      method: merge
+      image: ${input.images as image[]}
+      anchor: top-left
+
+  # ---- Reassemble overlaid frames + original audio into an mp4 ----
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      frames: ${input.frames as image}
+      frame_rate: ${input.frame_rate}
+      audio: ${input.audio}
+      encoding:
+        format: mp4
+        video:
+          codec: libx264
+          bitrate: 8M
+        audio:
+          codec: aac
+          bitrate: 192k

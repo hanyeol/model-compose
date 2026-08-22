@@ -94,7 +94,7 @@
 graph TD
     J1((Default<br/>작업))
     C1[Spectrum<br/>extractor]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |frames: number[][]| J1
     Input((입력)) --> J1
     J1 --> Output((출력))

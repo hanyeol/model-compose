@@ -119,11 +119,11 @@ graph TD
     C3[match-scene-ref<br/>workflow 컴포넌트]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |target embedding| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |scene list| J2
-    J3 --> C3
+    J3 -.-> C3
     C3 -.-> |per-scene hits| J3
 
     %% Job flow

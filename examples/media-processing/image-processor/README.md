@@ -90,7 +90,7 @@ This workflow provides image processing capabilities that:
 graph TD
     J1((Default<br/>job))
     C1[Image Processor<br/>resize action]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |resized image| J1
     Input((Input)) --> J1
     J1 --> Output((Output))

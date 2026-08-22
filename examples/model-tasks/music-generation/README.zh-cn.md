@@ -91,7 +91,7 @@
 graph TD
     J1((默认<br/>作业))
     C1[音乐生成<br/>组件]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |audio| J1
     Input((输入)) --> J1
     J1 --> Output((输出))

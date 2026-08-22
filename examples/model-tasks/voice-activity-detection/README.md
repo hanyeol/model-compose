@@ -102,7 +102,7 @@ graph TD
     J1((Default<br/>job))
     C1[Voice Activity Detection Model<br/>component]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |segments| J1
 
     Input((Input)) --> J1

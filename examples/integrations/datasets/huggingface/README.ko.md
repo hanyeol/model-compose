@@ -143,8 +143,8 @@ graph TD
     %% Components (rectangles)
     C1[HuggingFace Datasets<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |dataset object| J1
 
     %% Input/Output
@@ -193,12 +193,12 @@ graph TD
     %% Components (rectangles)
     C1[HuggingFace Datasets<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |dataset1| J1
-    J2 --> C1
+    J2 -.-> C1
     C1 -.-> |dataset2| J2
-    J3 --> C1
+    J3 -.-> C1
     C1 -.-> |concatenated dataset| J3
 
     %% Job dependencies

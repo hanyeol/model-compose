@@ -87,7 +87,7 @@ graph TD
     C1[HTTP Client<br/>컴포넌트]
     D1[(Nginx<br/>컨테이너)]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 --> D1
     D1 -.-> |HTML 콘텐츠| C1
     C1 -.-> J1

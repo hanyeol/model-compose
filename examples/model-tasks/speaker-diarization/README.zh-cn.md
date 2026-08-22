@@ -105,7 +105,7 @@ graph TD
     J1((Default<br/>job))
     C1[Speaker Diarization Model<br/>component]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |segments| J1
 
     Input((Input)) --> J1

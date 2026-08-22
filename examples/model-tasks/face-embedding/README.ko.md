@@ -115,8 +115,8 @@ graph TD
     %% Component
     C1[Face Embedding Model<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |임베딩 벡터| J1
 
     %% Input/Output

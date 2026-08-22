@@ -4,7 +4,7 @@
 
 ## 개요
 
-워크플로우는 두 개의 잡으로 구성됩니다:
+워크플로우는 두 개의 작업으로 구성됩니다:
 
 1. **`detect`** — Silero VAD 모델을 로컬에서 실행해, 입력 오디오에서 `{start_time, end_time, confidence}` 형태의 음성 구간 리스트를 생성합니다.
 2. **`refine`** — 그 구간 리스트를 그대로 `audio-clipper`의 `span`으로 넘기고 `merge: true`를 지정해, ffmpeg가 모든 음성 클립을 하나의 오디오로 이어붙이도록 합니다.
@@ -109,7 +109,7 @@ ffmpeg -version
 
 **설명**: Silero VAD로 음성 구간을 감지하고, 이를 병합해 하나의 정제된 오디오 파일을 생성합니다.
 
-#### 잡 흐름
+#### 작업 흐름
 
 ```mermaid
 graph TD
@@ -119,10 +119,10 @@ graph TD
     C2[clipper<br/>audio-clipper]
 
     Input((Input)) --> J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |segments| J1
     J1 --> J2
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |merged audio| J2
     J2 --> Output((Output))
 ```
@@ -174,7 +174,7 @@ components:
 
 ### 정제된 오디오를 다운스트림 ASR에 연결
 
-세 번째 잡을 추가해 `${jobs.refine.output.audio}`를 `speech-to-text` 모델 컴포넌트의 입력으로 넘기면 됩니다. 정제된 오디오에 ASR을 돌리면 비용과 hallucination이 모두 감소하는 경향이 있습니다.
+세 번째 작업을 추가해 `${jobs.refine.output.audio}`를 `speech-to-text` 모델 컴포넌트의 입력으로 넘기면 됩니다. 정제된 오디오에 ASR을 돌리면 비용과 hallucination이 모두 감소하는 경향이 있습니다.
 
 ## 팁
 

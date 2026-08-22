@@ -107,11 +107,11 @@ graph TD
     C3[File Store put<br/>component]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |video items| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |frame streams| J2
-    J3 --> C3
+    J3 -.-> C3
     C3 -.-> |saved path| J3
 
     %% Job flow

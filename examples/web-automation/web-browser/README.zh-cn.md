@@ -85,15 +85,15 @@ graph TD
     C1[browser<br/>组件]
 
     Input((输入)) --> J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> J1
     J1 --> J2
-    J2 --> C1
+    J2 -.-> C1
     C1 -.-> J2
     J2 -. "CAPTCHA? → interrupt" .-> Human((通过 noVNC 解决))
     Human -.-> J2
     J2 --> J3
-    J3 --> C1
+    J3 -.-> C1
     C1 -.-> J3
     J3 --> Output((输出))
 ```

@@ -119,10 +119,10 @@ graph TD
     C2[clipper<br/>audio-clipper]
 
     Input((Input)) --> J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |segments| J1
     J1 --> J2
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |merged audio| J2
     J2 --> Output((Output))
 ```

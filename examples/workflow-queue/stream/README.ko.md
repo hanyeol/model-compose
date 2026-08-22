@@ -106,7 +106,7 @@ graph TD
     subgraph Dispatcher
         J1((Default<br/>job))
         C1[Workflow<br/>component]
-        J1 --> C1
+        J1 -.-> C1
     end
 
     %% Redis
@@ -117,7 +117,7 @@ graph TD
     subgraph Subscriber
         J2((Chat<br/>job))
         C2[HTTP Client<br/>OpenAI GPT-4o]
-        J2 --> C2
+        J2 -.-> C2
         C2 -.-> |stream chunks| J2
     end
 

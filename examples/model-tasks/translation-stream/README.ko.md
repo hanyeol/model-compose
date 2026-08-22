@@ -114,8 +114,8 @@ graph TD
     %% Components (rectangles)
     C1[스트리밍 텍스트 번역 모델<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |streaming translation| J1
 
     %% Input/Output

@@ -62,7 +62,7 @@ graph TD
     C1[shell-executor<br/>컴포넌트]
 
     Start((시작)) --> |before hook| J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |result| J1
     J1 --> |after hook| Output((출력))
 ```

@@ -93,10 +93,10 @@ graph TD
     C1[Shell Command<br/>component]
     C2[OpenAI GPT-4o<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |df -h output| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> J2
 
     %% Job flow

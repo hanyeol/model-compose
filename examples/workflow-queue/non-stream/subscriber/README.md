@@ -90,7 +90,7 @@ graph TD
     subgraph Subscriber
         J1((Default<br/>echo job))
         C1[Shell Command<br/>component]
-        J1 --> C1
+        J1 -.-> C1
         C1 -.-> |stdout| J1
     end
 

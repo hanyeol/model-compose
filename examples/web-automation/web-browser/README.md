@@ -85,15 +85,15 @@ graph TD
     C1[browser<br/>component]
 
     Input((Input)) --> J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> J1
     J1 --> J2
-    J2 --> C1
+    J2 -.-> C1
     C1 -.-> J2
     J2 -. "CAPTCHA? → interrupt" .-> Human((Human via noVNC))
     Human -.-> J2
     J2 --> J3
-    J3 --> C1
+    J3 -.-> C1
     C1 -.-> J3
     J3 --> Output((Output))
 ```

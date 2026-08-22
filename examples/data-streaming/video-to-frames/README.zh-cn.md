@@ -89,10 +89,10 @@ graph TD
     C1[Video Frame Extractor<br/>component]
     C2[File Store<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |frame stream| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |saved path| J2
 
     %% Job flow

@@ -51,7 +51,7 @@ components:
       - id: add-person
         method: insert
         collection: persons
-        nodes:
+        node:
           label: persons
           properties:
             name: ${input.name}
@@ -61,7 +61,7 @@ components:
         method: insert
         edge_collection: friendships
         graph: social_graph
-        relationships:
+        relationship:
           type: friendships
           from: ${input.from_id}
           to: ${input.to_id}

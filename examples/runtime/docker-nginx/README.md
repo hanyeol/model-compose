@@ -87,7 +87,7 @@ graph TD
     C1[HTTP Server<br/>component]
     D1[(Nginx<br/>container)]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 --> D1
     D1 -.-> |HTML content| C1
     C1 -.-> J1

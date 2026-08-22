@@ -114,8 +114,8 @@ graph TD
     %% Component
     C1[Image Upscale Model<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |upscaled image| J1
 
     %% Input/Output

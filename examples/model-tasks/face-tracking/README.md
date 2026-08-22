@@ -123,7 +123,7 @@ graph TD
     C1 -.-> |[{image, timestamp, ...}]| J1
 
     J1 --> J2((track<br/>job))
-    J2 --> C2[Face Tracker<br/>insightface]
+    J2 -.-> C2[Face Tracker<br/>insightface]
     C2 -.-> |{tracks, frame_count}| J2
 
     J2 --> Output((Output<br/>report))
@@ -139,7 +139,7 @@ graph TD
 | `similarity_threshold` | number | No | 0.4 | Cosine similarity above which two faces are grouped into the same track |
 | `min_frame_count` | number | No | 2 | Discard tracks that appear in fewer than this many sampled frames |
 | `merge_gap` | number | No | 1.0 | Merge adjacent segments separated by less than this many seconds |
-| `return_image` | boolean | No | true | Attach one face crop per segment, taken at the detected bounding box in the original frame's resolution. Useful for displaying the face, resizing it for a UI, or feeding it into another embedding backbone (see [Re-embedding with a Different Model](#re-embedding-with-a-different-model)). Set to `false` to trim the payload when you only need timecodes. |
+| `return_track_image` | boolean | No | true | Attach one face crop per segment, taken at the detected bounding box in the original frame's resolution. Useful for displaying the face, resizing it for a UI, or feeding it into another embedding backbone (see [Re-embedding with a Different Model](#re-embedding-with-a-different-model)). Set to `false` to trim the payload when you only need timecodes. |
 | `return_gender_age` | boolean | No | false | Attach `gender` (`"male"` / `"female"`) and `age` (integer) to each track, taken from the track's highest-scoring frame. Requires a model pack that ships gender/age submodels (`antelopev2`, `buffalo_l`). |
 | `bounding_box_padding` | number | No | 0.2 | Grow each face crop's bounding box by this fraction on every side (e.g. `0.2` = +20% left/right/top/bottom). Only affects the returned crop image; embeddings and clustering still use the un-padded box. Useful when the detected box is too tight (hair, chin, ears cut off) or when the crop looks blurry because the face is small in the frame. |
 
@@ -157,7 +157,7 @@ Each `tracks[i]` entry:
 | Field | Type | Description |
 |-------|------|-------------|
 | `embedding` | number[] | L2-normalized identity centroid (512-d for antelopev2). Suitable for direct cosine matching against an identity DB or for merging tracks that turn out to be the same person. Present only when `return_embedding` is enabled. |
-| `segments` | array | List of `{start_time, end_time, duration, score}` (with `image` when `return_image` is enabled). See below. |
+| `segments` | array | List of `{start_time, end_time, duration, score}` (with `image` when `return_track_image` is enabled). See below. |
 | `frame_count` | integer | Number of sampled frames this track appeared in |
 | `score` | number | Highest detection confidence across all frames in this track. Useful for ranking or filtering tracks. |
 | `gender` | string | `"male"` or `"female"`, taken from the track's highest-scoring frame. Present only when `return_gender_age` is enabled and the model pack ships a gender submodel. |
@@ -171,9 +171,9 @@ Each `segments[j]` entry:
 | `end_time` | string | Segment end in `H:MM:SS.mmm` timecode |
 | `duration` | string | `end_time - start_time` in `H:MM:SS.mmm` timecode |
 | `score` | number | Detection confidence of the representative frame for this segment (the highest-scoring frame within the segment; same frame `image` is cropped from) |
-| `image` | image | Face crop from the best-scoring frame in this segment, taken at the detected bounding box in the frame's original resolution (variable size per face). Present only when `return_image` is enabled. |
+| `image` | image | Face crop from the best-scoring frame in this segment, taken at the detected bounding box in the frame's original resolution (variable size per face). Present only when `return_track_image` is enabled. |
 
-Example (with `return_image: false`, `return_embedding: false`):
+Example (with `return_track_image: false`, `return_embedding: false`):
 
 ```json
 {
@@ -195,7 +195,7 @@ Example (with `return_image: false`, `return_embedding: false`):
 
 ### Re-embedding with a Different Model
 
-Enabling `return_image` gives you one face crop per segment — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's original resolution. Pipe those crops into a separate `face-embedding` component (or your own vision model) to obtain embeddings from a different backbone while reusing this task's detection and clustering work. The downstream component runs its own detection/alignment step on the crop, so the two embedding models stay decoupled:
+Enabling `return_track_image` gives you one face crop per segment — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's original resolution. Pipe those crops into a separate `face-embedding` component (or your own vision model) to obtain embeddings from a different backbone while reusing this task's detection and clustering work. The downstream component runs its own detection/alignment step on the crop, so the two embedding models stay decoupled:
 
 ```yaml
 - id: track
@@ -203,7 +203,7 @@ Enabling `return_image` gives you one face crop per segment — the highest-scor
   input:
     frames: ${jobs.frames.output}
     frame_rate: ${input.sampled_frame_rate}
-    return_image: true
+    return_track_image: true
 
 - id: reembed
   component: alt-face-embedder

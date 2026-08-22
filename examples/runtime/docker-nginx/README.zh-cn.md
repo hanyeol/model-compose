@@ -87,7 +87,7 @@ graph TD
     C1[HTTP Client<br/>组件]
     D1[(Nginx<br/>容器)]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 --> D1
     D1 -.-> |HTML 内容| C1
     C1 -.-> J1

@@ -78,7 +78,7 @@ graph TD
     C1[shell-executor<br/>组件]
 
     Start((开始)) --> |before interrupt| J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |结果| J1
     J1 --> |after interrupt| Output((输出))
 ```

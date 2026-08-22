@@ -137,8 +137,8 @@ graph TD
     %% Component
     C1[Speech to Text Model<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |transcription text| J1
 
     %% Input/Output

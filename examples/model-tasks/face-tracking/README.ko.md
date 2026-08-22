@@ -118,7 +118,7 @@ graph TD
     C1 -.-> |[{image, timestamp, ...}]| J1
 
     J1 --> J2((track<br/>job))
-    J2 --> C2[Face Tracker<br/>insightface]
+    J2 -.-> C2[Face Tracker<br/>insightface]
     C2 -.-> |{tracks, frame_count}| J2
 
     J2 --> Output((Output<br/>report))
@@ -134,7 +134,7 @@ graph TD
 | `similarity_threshold` | number | No | 0.4 | 두 얼굴을 같은 트랙으로 묶기 위한 코사인 유사도 임계값 |
 | `min_frame_count` | number | No | 2 | 이 값보다 적은 프레임에만 등장하는 트랙은 폐기 |
 | `merge_gap` | number | No | 1.0 | 이 값(초)보다 짧은 간격의 인접 세그먼트는 병합 |
-| `return_image` | boolean | No | true | 세그먼트마다 얼굴 크롭을 하나씩 첨부. 원본 프레임의 해상도에서 검출된 bounding box 그대로 잘라내며, UI 표시·리사이즈·다른 임베딩 백본으로의 재임베딩에 적합 (아래 [다른 모델로 재임베딩](#다른-모델로-재임베딩) 참조). 타임코드만 필요하면 `false`로 두어 페이로드를 줄일 수 있음 |
+| `return_track_image` | boolean | No | true | 세그먼트마다 얼굴 크롭을 하나씩 첨부. 원본 프레임의 해상도에서 검출된 bounding box 그대로 잘라내며, UI 표시·리사이즈·다른 임베딩 백본으로의 재임베딩에 적합 (아래 [다른 모델로 재임베딩](#다른-모델로-재임베딩) 참조). 타임코드만 필요하면 `false`로 두어 페이로드를 줄일 수 있음 |
 | `return_gender_age` | boolean | No | false | 트랙마다 `gender` (`"male"` / `"female"`)와 `age`(정수)를 첨부. 트랙의 최고 스코어 프레임 기준값. 모델 팩이 gender/age 서브모델을 포함해야 함 (`antelopev2`, `buffalo_l`) |
 | `bounding_box_padding` | number | No | 0.2 | 얼굴 크롭의 bounding box를 각 변에서 이 비율만큼 확장 (예: `0.2` = 상하좌우 +20%). 반환되는 크롭 이미지에만 적용되며, 임베딩과 클러스터링은 원본 박스를 그대로 사용. 검출 박스가 너무 타이트해서 머리·턱·귀가 잘리는 경우, 또는 얼굴이 프레임에서 작아 크롭이 흐리게 보이는 경우에 유용 |
 
@@ -152,7 +152,7 @@ graph TD
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | `embedding` | number[] | L2 정규화된 아이덴티티 centroid (antelopev2는 512차원). 아이덴티티 DB와 코사인 매칭하거나 같은 인물로 판명된 트랙을 병합하는 데 사용 가능. `return_embedding`이 활성화된 경우에만 존재 |
-| `segments` | array | `{start_time, end_time, duration, score}` 리스트 (`return_image` 활성화 시 `image` 포함). 아래 참조 |
+| `segments` | array | `{start_time, end_time, duration, score}` 리스트 (`return_track_image` 활성화 시 `image` 포함). 아래 참조 |
 | `frame_count` | integer | 이 트랙이 등장한 샘플 프레임 수 |
 | `score` | number | 이 트랙에 속한 모든 프레임 중 최고 검출 신뢰도. 트랙 정렬/필터링에 유용 |
 | `gender` | string | `"male"` 또는 `"female"`. 트랙의 최고 스코어 프레임 기준. `return_gender_age`가 활성화되고 모델 팩이 gender 서브모델을 포함할 때만 존재 |
@@ -166,9 +166,9 @@ graph TD
 | `end_time` | string | 세그먼트 종료 (`H:MM:SS.mmm` 타임코드) |
 | `duration` | string | `end_time - start_time` (`H:MM:SS.mmm` 타임코드) |
 | `score` | number | 이 세그먼트의 대표 프레임(세그먼트 내 최고 스코어 프레임, `image`가 잘려 나오는 그 프레임)의 검출 신뢰도 |
-| `image` | image | 이 세그먼트에서 최고 스코어를 얻은 프레임의 얼굴 크롭. 원본 프레임의 해상도에서 검출된 bounding box 크기 그대로 잘라내므로 얼굴마다 크기가 다름. `return_image`가 활성화된 경우에만 존재 |
+| `image` | image | 이 세그먼트에서 최고 스코어를 얻은 프레임의 얼굴 크롭. 원본 프레임의 해상도에서 검출된 bounding box 크기 그대로 잘라내므로 얼굴마다 크기가 다름. `return_track_image`가 활성화된 경우에만 존재 |
 
-예시 (`return_image: false`, `return_embedding: false`):
+예시 (`return_track_image: false`, `return_embedding: false`):
 
 ```json
 {
@@ -190,7 +190,7 @@ graph TD
 
 ### 다른 모델로 재임베딩
 
-`return_image`를 켜면 세그먼트마다 얼굴 크롭이 하나씩 붙어 나옵니다. 해당 세그먼트에서 가장 스코어가 높은 프레임을, 원본 해상도에서 검출된 bounding box 그대로 잘라낸 이미지입니다. 이 크롭을 별도의 `face-embedding` 컴포넌트(또는 자체 비전 모델)로 흘려 넣으면, 이 태스크의 검출과 클러스터링 결과는 재사용하면서 다른 백본으로 임베딩을 뽑을 수 있습니다. 다운스트림 컴포넌트가 크롭 위에서 검출/정렬을 다시 수행하므로 두 임베딩 모델의 결합이 느슨하게 유지됩니다:
+`return_track_image`를 켜면 세그먼트마다 얼굴 크롭이 하나씩 붙어 나옵니다. 해당 세그먼트에서 가장 스코어가 높은 프레임을, 원본 해상도에서 검출된 bounding box 그대로 잘라낸 이미지입니다. 이 크롭을 별도의 `face-embedding` 컴포넌트(또는 자체 비전 모델)로 흘려 넣으면, 이 태스크의 검출과 클러스터링 결과는 재사용하면서 다른 백본으로 임베딩을 뽑을 수 있습니다. 다운스트림 컴포넌트가 크롭 위에서 검출/정렬을 다시 수행하므로 두 임베딩 모델의 결합이 느슨하게 유지됩니다:
 
 ```yaml
 - id: track
@@ -198,7 +198,7 @@ graph TD
   input:
     frames: ${jobs.frames.output}
     frame_rate: ${input.sampled_frame_rate}
-    return_image: true
+    return_track_image: true
 
 - id: reembed
   component: alt-face-embedder

@@ -91,7 +91,7 @@
 graph TD
     J1((Default<br/>작업))
     C1[음악 생성<br/>컴포넌트]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |audio| J1
     Input((입력)) --> J1
     J1 --> Output((출력))

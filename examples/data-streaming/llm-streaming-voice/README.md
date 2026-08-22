@@ -101,8 +101,8 @@ graph LR
     J1 -->|token stream| J2[split<br/>job]
     J2 -->|sentence stream| J3[tts<br/>job]
     J3 -->|audio segment stream| J4[enqueue<br/>job]
-    J4 --> Q[(audio-queue)]
-    Q --> J5[dequeue<br/>job]
+    J4 -.-> Q[(audio-queue)]
+    Q -.-> J5[dequeue<br/>job]
     J5 -->|audio segment stream| J6[play<br/>job]
     J6 --> Speaker((speaker))
 

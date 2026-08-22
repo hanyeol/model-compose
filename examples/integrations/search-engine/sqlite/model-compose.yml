@@ -52,7 +52,7 @@ components:
             type: text
           - name: content
             type: text
-        documents: ${input.documents}
+        document: ${input.documents}
 
       - id: search
         method: search
@@ -64,4 +64,4 @@ components:
       - id: delete
         method: delete
         index: docs
-        document_ids: ${input.document_ids}
+        document_id: ${input.document_ids}

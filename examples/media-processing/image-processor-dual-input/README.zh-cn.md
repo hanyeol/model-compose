@@ -97,8 +97,8 @@ graph TD
     %% Component
     C1[Image Processor<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |resized image| J1
 
     %% Input/Output
@@ -124,7 +124,7 @@ graph TD
 graph TD
     J1((Default<br/>job))
     C1[Image Processor<br/>component]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |resized image| J1
     Input((Upload Input)) --> J1
     J1 --> Output((Output))

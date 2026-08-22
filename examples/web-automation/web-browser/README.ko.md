@@ -85,15 +85,15 @@ graph TD
     C1[browser<br/>컴포넌트]
 
     Input((입력)) --> J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> J1
     J1 --> J2
-    J2 --> C1
+    J2 -.-> C1
     C1 -.-> J2
     J2 -. "CAPTCHA? → interrupt" .-> Human((noVNC로 해결))
     Human -.-> J2
     J2 --> J3
-    J3 --> C1
+    J3 -.-> C1
     C1 -.-> J3
     J3 --> Output((출력))
 ```

@@ -1,56 +1,30 @@
-# YouTube 라이브 채팅 — AI가 발견한 선택자
+# YouTube 라이브 채팅 수집기
 
-이 예제는 세 단계 워크플로우를 보여줍니다:
+이 예제는 YouTube 라이브 스트림의 채팅 메시지를 지속적으로 수집하여, 새 메시지가 도착할 때마다 공유 큐를 통해 소비자 워크플로우로 넘겨줍니다. model-compose의 세 가지 기본 요소를 결합하는 방법을 보여줍니다:
 
-1. **Snapshot** — `web-scraper`가 JS 렌더링과 함께 YouTube 라이브 채팅 팝아웃을 열어 채팅 컨테이너의 HTML 조각만 반환합니다
-2. **Detect** — `http-client`가 그 HTML을 GPT-4o에 보내면, 각 메시지의 CSS 선택자와 id, 작성자, 메시지 본문 선택자를 담은 JSON 객체를 반환합니다
-3. **Scrape** — 두 번째 `web-scraper` 호출이 그 선택자들을 선택자 사전에 꽂아 폴링 루프에서 구조화된 메시지를 가져오며, Redis 기반 워터마크로 중복을 제거합니다
-
-발견 단계는 스트림당 한 번 실행되고 Redis에 6시간 캐시되므로, 반복되는 GPT 비용은 제한됩니다.
+- 폴링 틱 사이에도 유지되는 지속적 `web-browser` 세션
+- 이미 보고한 메시지를 추적하는 작은 페이지 내 리더 스크립트
+- 수집기와 후속 처리 로직을 분리해주는 `data-queue` 컴포넌트
 
 ## 개요
 
-이 워크플로우는 다음 프로세스를 통해 작동합니다:
+두 워크플로우가 하나의 `data-queue` 인스턴스와 하나의 장수(long-lived) `web-browser` 컴포넌트를 공유합니다:
 
-1. **HTML 스냅샷**: 팝아웃 채팅 페이지를 렌더링하고 채팅 컨테이너 HTML을 추출
-2. **선택자 감지**: GPT-4o에 HTML을 보내 엄격한 JSON 스키마로 CSS 선택자 세트를 요청
-3. **선택자 캐시**: Redis에 6시간 TTL로 저장
-4. **폴링**: 캐시된 선택자로 페이지를 다시 스크랩하고, 워터마크 기반 중복 제거 후 sink로 새 메시지 전송
-5. **자기 재귀**: 지연 이후 폴링 워크플로우를 반복 호출하여 무기한 유지
+1. **collect-chat** (기본) — 팝아웃 채팅 페이지를 한 번만 열고, `window`에 리더 스크립트를 설치한 뒤, `poll-chat`으로 tail-recurse하며 몇 초마다 새 메시지를 뽑아 큐에 push합니다.
+2. **save-chat** — 큐를 지속적으로 드레인하며 각 메시지를 JSON 파일로 디스크에 저장하는 장기 실행 소비자.
 
-## 이 패턴을 언제 사용하는가
-
-핵심은 사실 YouTube가 아닙니다 — YouTube 자체는 `yt-live-chat-text-message-renderer` + `#author-name` + `#message`를 하드코딩하고 AI를 건너뛸 수 있습니다. 흥미로운 경우는 **사전에 마크업을 알 수 없거나 클래스 이름이 순환하는 사이트**입니다. 동일한 3단계 형태가 적용됩니다: 렌더 → 모델에 선택자 요청 → 그것으로 스크랩.
-
-## 주의사항
-
-- 라이브 채팅 HTML은 웹 컴포넌트 기반이 강해 GPT가 클래스 대신 태그명 선택자(예: `yt-live-chat-text-message-renderer`)를 반환할 수 있습니다. 정상적이고 예상된 결과입니다.
-- 스냅샷 컴포넌트의 초기 `wait_for`는 최소 하나의 메시지가 렌더링되었다고 가정합니다. 시작 직후 메시지가 0인 스트림에서는 더 오래 기다리거나 빈 컨테이너 스크래핑으로 대체해야 할 수 있습니다.
-- 폴링 워크플로우는 매 틱마다 페이지를 다시 탐색합니다 (`web-scraper`는 호출마다 새 Chromium 컨텍스트를 만드므로). 장기 관찰에는 지속적 `session_id`가 있는 `web-browser` 컴포넌트나 `web-scraper`의 향후 `watch` 모드가 필요합니다.
+`web-browser` 컴포넌트는 id로 캐시되므로, 페이지와 `window.__seenIds` 집합이 폴링 반복을 넘어 그대로 유지됩니다. 이것이 바로 리더 스크립트가 외부 워터마크 없이도 매 틱마다 **새** 메시지만 방출할 수 있는 이유입니다.
 
 ## 준비사항
 
 ### 필수 요구사항
 
 - model-compose가 설치되어 PATH에서 사용 가능
-- `localhost:6379`에서 수신 대기 중인 Redis
-- OpenAI API 키
-- 각 신규 메시지 배치를 수신할 sink 엔드포인트 (선택 사항이지만 실제로 스트림을 소비하려면 필요)
+- Playwright의 Chromium (브라우저 최초 사용 시 자동 설치됨)
 
 ### 환경 구성
 
-1. 이 예제 디렉토리로 이동:
-   ```bash
-   cd examples/data-streaming/youtube-live-chat
-   ```
-
-2. 환경 변수 내보내기:
-   ```bash
-   export OPENAI_API_KEY=sk-...
-   export SINK_URL=http://localhost:9000   # 사용자의 ingest 엔드포인트
-   ```
-
-   `SINK_URL`이 설정되지 않으면 `chat-sink`는 설정 구문 분석을 위해 `http://localhost:9999`로 폴백합니다.
+환경 변수가 필요하지 않습니다.
 
 ## 실행 방법
 
@@ -59,94 +33,82 @@
    model-compose up
    ```
 
-2. **특정 라이브 비디오에 대해 워크플로우 실행:**
+2. **소비자 시작 (계속 실행되도록 두기):**
+
+   한 터미널에서 소비자 워크플로우를 시작합니다. 첫 메시지를 기다리며 블록됩니다:
+
+   ```bash
+   model-compose run save-chat
+   ```
+
+   또는 Web UI(http://localhost:8081)를 열어 `save-chat`을 실행하세요.
+
+3. **라이브 스트림에서 수집 시작:**
+
+   다른 터미널(또는 Web UI)에서 활성 라이브 방송의 video id로 수집기를 시작합니다:
+
+   ```bash
+   model-compose run collect-chat \
+     --input '{"video_id": "jfKfPfyJRdk", "poll_interval": "2s"}'
+   ```
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -X POST http://localhost:8080/api/workflows/collect-chat/runs \
      -H "Content-Type: application/json" \
-     -d '{"workflow": "__workflow__", "input": {"video_id": "jfKfPfyJRdk", "poll_interval": "3s"}}'
+     -d '{"input": {"video_id": "jfKfPfyJRdk", "poll_interval": "2s"}}'
    ```
 
-   **웹 UI 사용:**
-   - Web UI 열기: http://localhost:8081
-   - `video_id`와 `poll_interval` 입력 후 "Run Workflow" 클릭
+4. **중지:**
 
-   **CLI 사용:**
-   ```bash
-   model-compose run __workflow__ \
-     --input '{"video_id":"jfKfPfyJRdk","poll_interval":"3s"}'
-   ```
+   `collect-chat` 실행을 취소하면 폴링이 멈춥니다. `save-chat`을 취소하면 저장이 멈춥니다. 브라우저 컴포넌트가 캐시되므로 `collect-chat`을 다시 시작해도 동일한 페이지가 재사용됩니다.
 
 ## 컴포넌트 세부사항
 
-### Chat HTML Snapshot 컴포넌트 (chat-html-snapshot)
-- **유형**: `web-scraper` 컴포넌트
-- **목적**: 팝아웃 채팅 페이지의 렌더링된 HTML 캡처
-- **참고**: 실제 데스크톱 UA로 위장하고 EU 동의 쿠키를 사전 설정하며, `wait_until: domcontentloaded`를 사용해 무한한 networkidle을 피함
+### Web Browser 컴포넌트 (browser)
+- **유형**: `web-browser` 컴포넌트
+- **드라이버**: `playwright` (헤드리스 Chromium)
+- **목적**: 팝아웃 채팅 페이지를 계속 열어두며 세 가지 액션을 노출:
+  - `open-chat` (method `navigate`): `https://www.youtube.com/live_chat?v=<id>&is_popout=1`로 이동, `wait_until: domcontentloaded`. 팝아웃은 `/watch`보다 가벼워서(비디오 플레이어 없음) 탭이 `networkidle`을 무한히 붙잡지 않음.
+  - `install-reader` (method `evaluate`): `window.__chatReader`와 `window.__seenIds`를 정의. 리더는 `yt-live-chat-text-message-renderer` 노드를 스캔하고, 이미 보고한 id를 기억하며, 새로운 것만 반환.
+  - `pull-new-messages` (method `evaluate`): `window.__chatReader()`를 호출하여 새 배치를 반환.
 
-### Selector Detector 컴포넌트 (selector-detector)
-- **유형**: `http-client` 컴포넌트 (OpenAI Chat Completions)
-- **모델**: `gpt-4o`, `response_format: json_object`
-- **출력**: `item_selector`, `id_selector`, `author_selector`, `message_selector`
+### Data Queue 컴포넌트 (chat-messages)
+- **유형**: `data-queue` 컴포넌트
+- **드라이버**: `memory`
+- **목적**: 수집기와 저장기 사이의 FIFO 버퍼
+- **액션**: `enqueue` (메시지 한 건 추가), `dequeue` (취소될 때까지 메시지 스트림)
 
-### Dynamic Chat Scraper 컴포넌트 (dynamic-chat-scraper)
-- **유형**: `web-scraper` 컴포넌트
-- **목적**: GPT가 발견한 선택자로 채팅을 다시 스크랩하고 항목당 파싱된 객체 목록 반환
+### File Store 컴포넌트 (storage)
+- **유형**: `file-store` 컴포넌트
+- **드라이버**: `local`
+- **베이스 경로**: `./output`
+- **목적**: 각 메시지를 `./output/<video_id>/<message_id>.json`으로 저장
 
-### Key-Value Store 컴포넌트 (kv)
-- **유형**: `key-value-store` 컴포넌트
-- **드라이버**: `redis` (`localhost:6379`)
-- **액션**: `get`, `set` (TTL 지원). 선택자 캐시와 워터마크에 사용
-
-### Chat Sink 컴포넌트 (chat-sink)
-- **유형**: `http-client` 컴포넌트
-- **엔드포인트**: `${env.SINK_URL | http://localhost:9999}/ingest`
-- **목적**: 각 폴 틱의 새 메시지 배치를 수신
-
-### 워크플로우 자기 참조
-- `self-discover` → `discover-selectors` 워크플로우
-- `self-poll` → `poll-chat` 워크플로우
+### Poller 컴포넌트 (poller)
+- **유형**: `workflow` 컴포넌트
+- **대상**: `poll-chat` 워크플로우
+- **목적**: `collect-chat`이 폴링 루프를 서브워크플로우로 호출하고, `poll-chat`이 자기 자신으로 tail-recurse할 수 있도록 함
 
 ## 워크플로우 세부사항
 
-이 예제는 세 개의 워크플로우를 정의합니다:
+### "Collect YouTube live chat" 워크플로우 (collect-chat, 기본)
 
-- `discover-selectors` — HTML 스냅샷, GPT 감지, 선택자 캐시
-- `poll-chat` — 선택자 로드, 워터마크 로드, 스크랩, 증분 필터, sink 전송, 워터마크 갱신, 지연, 자기 재귀
-- `__workflow__` (기본) — `discover-selectors`를 실행한 뒤 `poll-chat`을 시작
+**설명**: 일회성 셋업(채팅 페이지 열기 + 리더 설치) 후 폴링 루프로 넘겨줌.
+
+#### 잡 흐름
+
+1. **open**: 팝아웃 채팅 페이지로 이동
+2. **install-reader**: `window.__chatReader`와 seen-ids 집합을 주입
+3. **poll**: `poll-chat` 서브워크플로우로 진입
 
 ```mermaid
 graph TD
-    %% Orchestrator
-    W0((__workflow__<br/>기본))
-    W1((discover-selectors))
-    W2((poll-chat))
+    J1((open))
+    J2((install-reader))
+    J3((poll<br/>subworkflow))
 
-    W0 --> W1
-    W0 --> W2
-
-    %% discover jobs
-    D1((snapshot))
-    D2((detect))
-    D3((cache))
-    W1 --> D1 --> D2 --> D3
-
-    %% poll jobs
-    P1((load-selectors))
-    P2((load-watermark))
-    P3((scrape))
-    P4((incremental))
-    P5((ship))
-    P6((advance-watermark))
-    P7((wait))
-    P8((loop))
-    W2 --> P1
-    W2 --> P2
-    P1 --> P3
-    P2 --> P3
-    P3 --> P4 --> P5 --> P6 --> P7 --> P8
-    P8 -.-> |자기 재귀| W2
+    J1 --> J2 --> J3
 ```
 
 #### 입력 매개변수
@@ -154,38 +116,71 @@ graph TD
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `video_id` | text | 예 | - | YouTube 라이브 비디오 ID |
-| `poll_interval` | duration | 아니오 | `3s` | 각 폴 사이의 지연 |
+| `poll_interval` | duration | 아니오 | `2s` | 폴링 틱 사이의 지연 |
 
-#### 출력 형식
+### "poll-chat" 워크플로우
 
-`discover-selectors`는 감지된 선택자 사전을 반환합니다:
+**설명**: 새 메시지를 pull하고, 큐에 enqueue하고, 대기 후 자기 자신을 재호출. 직접 호출하도록 의도된 것은 아님 — `collect-chat`이 셋업 후 시작.
 
-| 필드 | 유형 | 설명 |
-|-----|------|------|
-| `selectors.item_selector` | text | 각 메시지 요소를 선택 |
-| `selectors.id_selector` | text | 안정적인 메시지 ID |
-| `selectors.author_selector` | text | 작성자 이름 (항목 기준 상대 경로) |
-| `selectors.message_selector` | text | 메시지 본문 (항목 기준 상대 경로) |
+#### 잡 흐름
 
-`poll-chat`은 각 틱에서 새 메시지를 sink로 스트리밍합니다; 워크플로우 자체는 무기한 자기 재귀합니다.
+1. **pull**: `window.__chatReader()`를 호출하여 새 메시지 반환
+2. **enqueue**: 각 메시지를 `chat-messages`에 append
+3. **wait**: `poll_interval`만큼 지연
+4. **loop**: `poller` 컴포넌트를 통해 `poll-chat` 재진입
+
+```mermaid
+graph TD
+    J1((pull))
+    J2((enqueue<br/>for-each))
+    J3((wait<br/>delay))
+    J4((loop))
+
+    J1 --> J2 --> J3 --> J4
+    J4 -.-> |자기 재귀| J1
+```
+
+### "Save chat messages to disk" 워크플로우 (save-chat)
+
+**설명**: 큐를 지속적으로 드레인하여 각 메시지를 JSON으로 저장하는 장기 실행 소비자.
+
+#### 잡 흐름
+
+1. **subscribe**: `chat-messages`에 소비 스트림 오픈
+2. **save**: 스트리밍된 각 메시지를 `./output/<video_id>/<id>.json`으로 저장
+
+```mermaid
+graph TD
+    J1((subscribe))
+    J2((save<br/>for-each))
+
+    J1 -.-> |메시지 스트림| J2
+```
 
 ## 예제 출력
 
-`chat-sink`에 게시된 각 배치는 다음 형태입니다:
+두 워크플로우가 모두 실행 중이면 `./output/<video_id>/` 아래에 파일이 나타납니다:
+
+```
+output/jfKfPfyJRdk/ChwKGkNMbjMwc21VbTQ4REZjekF3Z1FkVFo0S0lB.json
+output/jfKfPfyJRdk/ChwKGkNKM3JzOUM3bjQ4REZlOEF3Z1FkbG5jS3RB.json
+```
+
+각 파일에는 한 건의 메시지가 담깁니다:
 
 ```json
 {
+  "id": "ChwKGkNMbjMwc21VbTQ4REZjekF3Z1FkVFo0S0lB",
   "video_id": "jfKfPfyJRdk",
-  "messages": [
-    { "id": "abc123", "author": "SomeUser", "message": "Hello!" },
-    { "id": "abc124", "author": "AnotherUser", "message": "Nice stream" }
-  ]
+  "author": "SomeUser",
+  "message": "안녕하세요!",
+  "timestamp": "2:15 PM"
 }
 ```
 
 ## 사용자 정의
 
-- `selector-detector` 시스템 프롬프트를 조정해 다른 사이트에 맞게 변경
-- 선택자 캐시 `ttl`(기본 21600초)을 조정
-- 다른 KV 스토어(Redis 이외)나 sink URL로 교체
-- 지속적 브라우저 세션이 필요하면 `web-scraper`를 `web-browser` 컴포넌트로 교체
+- `save-chat`의 `storage` 컴포넌트를 다른 것으로 교체하세요 (ingest 엔드포인트로 POST하는 `http-client`, 검색용 `vector-store`, 소셜 분석용 `graph-store` 등) — 큐는 누가 드레인하든 상관하지 않습니다.
+- 동일한 큐에 여러 소비자를 추가하여 작업 큐 스타일로 팬아웃하세요 (각 메시지는 정확히 하나의 소비자에게 전달됨).
+- `poll_interval`을 조절하여 신선도와 브라우저 CPU 사용량을 트레이드오프하세요.
+- 다른 메시지 유형을 원하면 리더 스크립트의 CSS 선택자를 교체하세요 — 예를 들어 Super Chat은 `yt-live-chat-paid-message-renderer`.

@@ -97,8 +97,8 @@ graph TD
     %% Component
     C1[Image Processor<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |resized image| J1
 
     %% Input/Output
@@ -124,7 +124,7 @@ graph TD
 graph TD
     J1((Default<br/>작업))
     C1[Image Processor<br/>컴포넌트]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |resized image| J1
     Input((업로드 입력)) --> J1
     J1 --> Output((출력))
@@ -166,5 +166,5 @@ graph TD
 ## 사용자 정의
 
 - **더 많은 액션 추가**: `image-processor` 컴포넌트에 `crop`, `rotate`, `convert` 등을 확장하고 새 워크플로우에서 참조
-- **워크플로우 체인**: `resize-from-url`과 다운스트림 분석기/업로드 단계를 멀티 잡 워크플로우로 래핑
+- **워크플로우 체인**: `resize-from-url`과 다운스트림 분석기/업로드 단계를 멀티 작업 워크플로우로 래핑
 - **입력 소스 교체**: 이중 입력 패턴은 `as X;url`과 `as X`를 페어링하여 `audio`, `video`, `file` 등 모든 바이너리 자산으로 일반화됩니다

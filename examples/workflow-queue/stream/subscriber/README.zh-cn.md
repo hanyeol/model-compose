@@ -114,7 +114,7 @@ graph TD
     subgraph Subscriber
         J1((Default<br/>chat job))
         C1[HTTP Client<br/>OpenAI GPT-4o]
-        J1 --> C1
+        J1 -.-> C1
         C1 -.-> |stream chunks| J1
     end
 

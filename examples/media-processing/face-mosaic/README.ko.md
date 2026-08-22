@@ -56,7 +56,7 @@ end-to-end 스트리밍이면 최대 `batch_size` 개의 프레임만 검출 파
 
    **Web UI:**
    - Web UI 열기: http://localhost:8081
-   - 비디오 업로드하고 필요 시 `mode` / `block_scale` / `radius` / `frame_rate` / `min_confidence` 조정
+   - 비디오 업로드하고 필요 시 `mode` / `block_scale` / `blur_radius` / `frame_rate` / `min_confidence` 조정
    - "Run Workflow" 클릭
 
    **API:**
@@ -83,7 +83,7 @@ end-to-end 스트리밍이면 최대 `batch_size` 개의 프레임만 검출 파
 | `video` | video (file) | Yes | - | 처리할 입력 비디오 |
 | `mode` | string | No | `pixelate` | 모자이크 알고리즘: `pixelate` 또는 `blur` |
 | `block_scale` | number | No | `0.1` | 각 얼굴의 짧은 변에 대한 상대 블록 크기 비율 (0.0 – 1.0). region 크기에 자동으로 적응 — 멀리 있는 작은 얼굴과 가까이 있는 큰 얼굴이 시각적으로 동일한 강도로 처리됩니다. `mode: pixelate`일 때 사용 |
-| `radius` | number | No | `8.0` | 블러 반경(픽셀). `mode: blur`일 때 사용 |
+| `blur_radius` | number | No | `8.0` | 블러 반경(픽셀). `mode: blur`일 때 사용 |
 | `min_confidence` | number | No | `0.5` | 얼굴 검출 최소 신뢰도(0.0 – 1.0). InsightFace `det_thresh`로 전달됨. 얼굴이 놓쳐지면 낮추세요(예: `0.3`) — 마스킹 목적에는 놓치는 얼굴보다 오탐지가 낫습니다 |
 | `frame_rate` | number | No | `30` | 출력 프레임 레이트. 원본 fps에 맞추지 않으면 오디오 싱크가 어긋남 |
 
@@ -129,6 +129,6 @@ end-to-end 스트리밍이면 최대 `batch_size` 개의 프레임만 검출 파
 - **동시성**: `for-each`의 `batch_size: 4`는 최대 4개의 detect+mosaic 파이프라인을 동시에 실행. 값을 올리면 메모리와 처리량을 교환하고, 모델 컴포넌트가 경합의 병목이 되면 낮추세요.
 - **프레임 레이트**: 원본과 출력 fps가 다르면 오디오/비디오 싱크가 어긋납니다. 원본의 실제 fps를 `frame_rate`로 넘기세요.
 - **놓치는 얼굴**: 그래도 얼굴이 놓쳐지면 `min_confidence`를 낮추세요(예: `0.3`) — 오탐지도 모자이크되지만 마스킹 목적엔 옳은 트레이드오프입니다. 매우 작은 얼굴이라면 `face-detector`의 `params.detection_size`를 올리세요(예: `[960, 960]`, `[1280, 1280]`) — 검출기가 이 입력 해상도에서 실행되므로 크기를 키우면 작은 얼굴을 더 많이 잡지만 처리량이 낮아집니다.
-- **모자이크 강도**: `pixelate`는 `block_scale`이 클수록 강하게 가림(일반적으로 `0.05`–`0.2`). 블록 크기는 각 region의 짧은 변을 기준으로 계산되므로 같은 `block_scale`이면 원근과 무관하게 시각적으로 일관된 강도를 유지합니다. 계산된 블록은 `min_block_size`(기본 `8`)로 하한, `max_block_size`(기본 `32`)로 상한이 걸려 — 작은 얼굴은 1–2픽셀짜리 무의미한 블록 대신 여전히 눈에 띄는 모자이크가 되고, 화면을 꽉 채우는 큰 얼굴이 픽셀아트 같은 커다란 타일 몇 개로 바뀌지 않습니다. 어느 한쪽 극단이 여전히 어색하면 해당 하/상한을 조정하세요. 절대 픽셀 크기를 고정하고 싶으면(mosaic 컴포넌트 config에서) `block_size`를 대신 사용하세요. `blur`는 `radius`를 올림(일반적으로 8–20). 블러는 반경이 낮으면 얼굴 윤곽이 남을 수 있으니, 완전히 알아볼 수 없게 하려면 `pixelate` 추천.
+- **모자이크 강도**: `pixelate`는 `block_scale`이 클수록 강하게 가림(일반적으로 `0.05`–`0.2`). 블록 크기는 각 region의 짧은 변을 기준으로 계산되므로 같은 `block_scale`이면 원근과 무관하게 시각적으로 일관된 강도를 유지합니다. 계산된 블록은 `min_block_size`(기본 `8`)로 하한, `max_block_size`(기본 `32`)로 상한이 걸려 — 작은 얼굴은 1–2픽셀짜리 무의미한 블록 대신 여전히 눈에 띄는 모자이크가 되고, 화면을 꽉 채우는 큰 얼굴이 픽셀아트 같은 커다란 타일 몇 개로 바뀌지 않습니다. 어느 한쪽 극단이 여전히 어색하면 해당 하/상한을 조정하세요. 절대 픽셀 크기를 고정하고 싶으면(mosaic 컴포넌트 config에서) `block_size`를 대신 사용하세요. `blur`는 `blur_radius`를 올림(일반적으로 8–20). 블러는 반경이 낮으면 얼굴 윤곽이 남을 수 있으니, 완전히 알아볼 수 없게 하려면 `pixelate` 추천.
 - **겹치는 얼굴**: 박스가 겹칠 때 뒤 region은 앞 region이 이미 모자이크한 픽셀 위에 다시 적용되므로, 겹친 얼굴도 모두 가려집니다.
 - **박스 여유**: 검출기가 눈/코 위주로 타이트하게 잡아 머리/턱이 남는 경우가 있습니다. `face-detector`에 `bounding_box_padding`(예: `0.2`)을 지정하면 각 반환 박스를 모든 방향으로 20% 확장한 뒤 mosaic으로 흘려보냅니다.

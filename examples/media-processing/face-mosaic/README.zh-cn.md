@@ -56,7 +56,7 @@ end-to-end 流式则最多让 `batch_size` 帧同时通过检测流水线，enco
 
    **Web UI：**
    - 打开 Web UI：http://localhost:8081
-   - 上传视频，按需覆盖 `mode` / `block_scale` / `radius` / `frame_rate` / `min_confidence`
+   - 上传视频，按需覆盖 `mode` / `block_scale` / `blur_radius` / `frame_rate` / `min_confidence`
    - 点击 "Run Workflow"
 
    **API：**
@@ -83,7 +83,7 @@ end-to-end 流式则最多让 `batch_size` 帧同时通过检测流水线，enco
 | `video` | video (file) | 是 | - | 待处理的输入视频 |
 | `mode` | string | 否 | `pixelate` | 马赛克算法：`pixelate` 或 `blur` |
 | `block_scale` | number | 否 | `0.1` | 相对于每张人脸短边的像素块大小比例（0.0 – 1.0）。会自动适应 region 大小 — 远处的小脸和近处的大脸会得到视觉上一致的遮蔽强度。`mode: pixelate` 时使用 |
-| `radius` | number | 否 | `8.0` | 模糊半径（像素）。`mode: blur` 时使用 |
+| `blur_radius` | number | 否 | `8.0` | 模糊半径（像素）。`mode: blur` 时使用 |
 | `min_confidence` | number | 否 | `0.5` | 最小人脸检测置信度（0.0 – 1.0）。传给 InsightFace 的 `det_thresh`。若仍有漏检，请降低（例如 `0.3`）— 遮蔽场景下多几个假阳性优于漏检 |
 | `frame_rate` | number | 否 | `30` | 输出帧率。设为源视频真实 fps，否则音视频会漂移 |
 
@@ -129,6 +129,6 @@ end-to-end 流式则最多让 `batch_size` 帧同时通过检测流水线，enco
 - **并发**：`for-each` 上的 `batch_size: 4` 会并发执行最多 4 条 detect+mosaic 流水线。提高该值可用内存换吞吐；如果模型组件在竞争下成为瓶颈，则降低。
 - **帧率**：源与输出 fps 不同会导致音视频漂移。将源的真实 fps 作为 `frame_rate` 传入。
 - **漏检人脸**：若仍有漏检，降低 `min_confidence`（例如 `0.3`）— 假阳性也会被马赛克，但遮蔽场景下这是正确的权衡。对非常小的人脸，请提高 `face-detector` 的 `params.detection_size`（例如 `[960, 960]` 或 `[1280, 1280]`）— 检测器在该输入分辨率下运行，加大尺寸可以捕获更多小人脸，代价是吞吐量下降。
-- **遮蔽强度**：`pixelate` 用更大的 `block_scale` 遮得更狠（典型 `0.05`–`0.2`）。块大小按每个 region 的短边计算，因此相同的 `block_scale` 在远近不同的人脸上呈现视觉上一致的强度。计算出的块会被 `min_block_size`（默认 `8`）从下方兜底、`max_block_size`（默认 `32`）从上方封顶 — 小脸不会生成 1–2 像素的几乎无效块，占满画面的近景大脸也不会变成像素艺术般的几块超大瓷砖。若某一端仍显得不理想，请调整对应的上/下限。若需要固定绝对像素大小（不随 region 变化），改用 mosaic 组件配置中的 `block_size`。`blur` 提高 `radius`（典型 8–20）。半径较低时模糊仍可能留下轮廓，若需完全不可辨认，优先使用 `pixelate`。
+- **遮蔽强度**：`pixelate` 用更大的 `block_scale` 遮得更狠（典型 `0.05`–`0.2`）。块大小按每个 region 的短边计算，因此相同的 `block_scale` 在远近不同的人脸上呈现视觉上一致的强度。计算出的块会被 `min_block_size`（默认 `8`）从下方兜底、`max_block_size`（默认 `32`）从上方封顶 — 小脸不会生成 1–2 像素的几乎无效块，占满画面的近景大脸也不会变成像素艺术般的几块超大瓷砖。若某一端仍显得不理想，请调整对应的上/下限。若需要固定绝对像素大小（不随 region 变化），改用 mosaic 组件配置中的 `block_size`。`blur` 提高 `blur_radius`（典型 8–20）。半径较低时模糊仍可能留下轮廓，若需完全不可辨认，优先使用 `pixelate`。
 - **重叠人脸**：当框重叠时，后处理的 region 会在前一 region 已马赛克的像素之上再次应用，因此重叠的人脸也保持被遮蔽。
 - **框的边距**：检测器有时会紧贴眼鼻裁剪而留下头发/下巴。在 `face-detector` 上设置 `bounding_box_padding`（例如 `0.2`）可在每个返回框每一侧扩展 20% 后再送入 mosaic。

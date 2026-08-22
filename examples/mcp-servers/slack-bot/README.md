@@ -120,7 +120,7 @@ graph TD
     C1[Slack API<br/>component]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |API response| J1
 
     %% Input/Output
@@ -157,7 +157,7 @@ graph TD
     C1[Slack API<br/>component]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |channel list| J1
 
     %% Input/Output
@@ -192,7 +192,7 @@ graph TD
     C1[Slack API<br/>component]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |join result| J1
 
     %% Input/Output

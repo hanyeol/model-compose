@@ -101,7 +101,7 @@ graph TD
     J1((Default<br/>job))
     C1[Web Browser<br/>component]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |video stream| J1
 
     Input((Input)) --> J1

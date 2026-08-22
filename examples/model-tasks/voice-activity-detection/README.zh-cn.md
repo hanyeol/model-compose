@@ -102,7 +102,7 @@ graph TD
     J1((默认<br/>作业))
     C1[Voice Activity Detection Model<br/>组件]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |segments| J1
 
     Input((Input)) --> J1

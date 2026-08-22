@@ -116,8 +116,8 @@ graph TD
     %% Component
     C1[Text Embedding Model<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |embedding vector| J1
 
     %% Input/Output

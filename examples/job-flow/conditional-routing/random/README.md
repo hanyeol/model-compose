@@ -98,9 +98,9 @@ graph TD
     J0 -. 1/3 .-> J3
 
     %% Job to component connections
-    J1 --> C1
-    J2 --> C1
-    J3 --> C1
+    J1 -.-> C1
+    J2 -.-> C1
+    J3 -.-> C1
     C1 -.-> J1
     C1 -.-> J2
     C1 -.-> J3
@@ -137,9 +137,9 @@ graph TD
     J0 -. 10% .-> J3
 
     %% Job to component connections
-    J1 --> C1
-    J2 --> C1
-    J3 --> C1
+    J1 -.-> C1
+    J2 -.-> C1
+    J3 -.-> C1
     C1 -.-> J1
     C1 -.-> J2
     C1 -.-> J3

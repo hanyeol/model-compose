@@ -116,8 +116,8 @@ graph TD
     %% Component
     C1[Text Summarization Model<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |summary text| J1
 
     %% Input/Output

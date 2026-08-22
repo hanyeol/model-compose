@@ -154,18 +154,18 @@ graph TD
 
     %% main workflow
     Input((입력)) --> JM
-    JM --> CA
+    JM -.-> CA
     CA -.-> |마크다운 요약| JM
     JM --> Output((출력))
 
     %% search-fancams (에이전트 도구)
     CA -.-> |도구 호출| JS
-    JS --> CS
+    JS -.-> CS
     CS -.-> |영상 목록| JS
 
     %% get-video-metadata (에이전트 도구)
     CA -.-> |도구 호출| JD
-    JD --> CD
+    JD -.-> CD
     CD -.-> |width, height, duration| JD
 ```
 

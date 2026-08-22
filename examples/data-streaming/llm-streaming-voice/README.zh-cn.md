@@ -94,8 +94,8 @@ graph LR
     J1 -->|token 流| J2[split<br/>作业]
     J2 -->|句子流| J3[tts<br/>作业]
     J3 -->|音频段流| J4[enqueue<br/>作业]
-    J4 --> Q[(audio-queue)]
-    Q --> J5[dequeue<br/>作业]
+    J4 -.-> Q[(audio-queue)]
+    Q -.-> J5[dequeue<br/>作业]
     J5 -->|音频段流| J6[play<br/>作业]
     J6 --> Speaker((扬声器))
 

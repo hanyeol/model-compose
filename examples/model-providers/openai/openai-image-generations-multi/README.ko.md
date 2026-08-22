@@ -133,7 +133,7 @@ graph TD
     C1[OpenAI HTTP Client<br/>컴포넌트]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |이미지 URL 리스트| J1
 
     %% Input/Output
@@ -170,7 +170,7 @@ graph TD
     C1[OpenAI HTTP Client<br/>컴포넌트]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |base64 이미지 리스트| J1
 
     %% Input/Output

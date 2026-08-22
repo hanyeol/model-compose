@@ -100,8 +100,8 @@ graph LR
     J1 -->|토큰 스트림| J2[split<br/>작업]
     J2 -->|문장 스트림| J3[tts<br/>작업]
     J3 -->|오디오 세그먼트 스트림| J4[enqueue<br/>작업]
-    J4 --> Q[(audio-queue)]
-    Q --> J5[dequeue<br/>작업]
+    J4 -.-> Q[(audio-queue)]
+    Q -.-> J5[dequeue<br/>작업]
     J5 -->|오디오 세그먼트 스트림| J6[play<br/>작업]
     J6 --> Speaker((스피커))
 

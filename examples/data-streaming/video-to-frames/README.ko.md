@@ -89,10 +89,10 @@ graph TD
     C1[Video Frame Extractor<br/>컴포넌트]
     C2[File Store<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |프레임 스트림| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |저장된 경로| J2
 
     %% Job flow

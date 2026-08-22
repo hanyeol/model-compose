@@ -19,8 +19,9 @@ workflows:
 
       The pipeline runs end-to-end in streaming mode so memory stays bounded
       regardless of clip length: frames flow one-by-one from the extractor
-      into per-frame detect + mosaic, and each redacted frame is handed
-      directly to ffmpeg's encoder without materialising the full frame set.
+      through face-tracking, and each per-frame chunk (carrying the source
+      image plus its face bounding boxes) is mosaicked and handed directly
+      to ffmpeg's encoder without materialising the full frame set.
     jobs:
       # 1. Stash the uploaded video on the local file-store so the audio
       #    branch and the frame extractor can independently re-read it
@@ -47,25 +48,42 @@ workflows:
           frame_interval: 1
         depends_on: [ store ]
 
-      # 4. For each frame, run detect + mosaic. Because the input is a stream
-      #    the for-each output is also a stream — mosaicked frames flow
-      #    lazily into the encoder below. `batch_size` bounds how many
-      #    frames run detect concurrently.
+      # 4. Face-tracking runs on the frame stream and re-emits a chunk stream.
+      #    We disable tracks/metadata and enable frame chunks (with the source
+      #    image) so the downstream stream contains only `{type: "frame",
+      #    number, timestamp, faces: [{track_id, bounding_box}], image}` —
+      #    exactly the shape the mosaic step needs.
+      - id: track-faces
+        component: face-tracker
+        input:
+          frames: ${jobs.extract-frames.output}
+          frame_rate: ${input.frame_rate as number | 30}
+          detection_threshold: ${input.min_confidence as number | 0.5}
+          # Raise this if small / distant faces are being missed. The InsightFace
+          # SCRFD detector runs on a square input at this resolution, so bigger
+          # values recover smaller faces at proportional cost per frame.
+          detection_size: ${input.detection_size as number | 640}
+        depends_on: [ extract-frames ]
+
+      # 5. For each per-frame chunk, mosaic the tracked face regions. Because
+      #    the input is a stream the for-each output is also a stream —
+      #    mosaicked frames flow lazily into the encoder below.
       - id: mosaic-faces
         type: for-each
-        input: ${jobs.extract-frames.output}
-        batch_size: 4
-        depends_on: [ extract-frames ]
+        input: ${jobs.track-faces.output}
+        batch_size: 16
+        depends_on: [ track-faces ]
         do:
-          component: mosaic-faces-in-frame
+          component: mosaic
           input:
             image: ${item.image}
+            region: ${item.faces[*].bounding_box}
             mode: ${input.mode as select/pixelate,blur | pixelate}
             block_scale: ${input.block_scale as number | 0.1}
-            radius: ${input.radius as number | 8.0}
-            min_confidence: ${input.min_confidence as number | 0.5}
+            blur_radius: ${input.blur_radius as number | 8.0}
+            corner_scale: ${input.corner_scale as number | 0.3}
 
-      # 5. Reassemble the mosaicked frame stream + the original audio into mp4.
+      # 6. Reassemble the mosaicked frame stream + the original audio into mp4.
       #    The encoder pulls frames from the stream as ffmpeg is ready for
       #    them, so no full-video buffering happens at this stage either.
       - id: encode-video
@@ -85,33 +103,6 @@ workflows:
 
     output:
       video: ${jobs.encode-video.output as video}
-
-  # ---------------- Sub-workflow: mosaic every face in one frame ----------------
-  # A private workflow so the main for-each can call detect + mosaic as if
-  # it were one component.
-  - id: mosaic-faces-in-frame
-    private: true
-    jobs:
-      - id: detect
-        component: face-detector
-        input:
-          image: ${input.image}
-          min_confidence: ${input.min_confidence}
-
-      # face-detection returns `{faces: [{bounding_box: {x,y,width,height},
-      # score, ...}], width, height}`. `faces[*].bounding_box` is a list of
-      # `{x,y,width,height}` dicts, which mosaic's `region` accepts directly.
-      - id: mosaic
-        component: mosaic
-        input:
-          image: ${input.image}
-          region: ${jobs.detect.output.faces[*].bounding_box}
-          mode: ${input.mode}
-          block_scale: ${input.block_scale}
-          radius: ${input.radius}
-        depends_on: [ detect ]
-
-    output: ${jobs.mosaic.output as image}
 
 components:
   # Local file-store used as a scratch area for the uploaded video. On S3
@@ -134,6 +125,10 @@ components:
       format: mp3
 
   # ---- Stream every frame at native fps ----
+  # `output: ${result[].image}` projects the extractor's default
+  # `{image, timestamp}` chunk stream down to just the PIL images —
+  # face-tracking's `frames` input expects an image stream, not a dict
+  # stream.
   - id: frame-extractor
     type: video-frame-extractor
     driver: ffmpeg
@@ -141,24 +136,40 @@ components:
       video: ${input.video}
       frame_interval: ${input.frame_interval}
       streaming: true
+      output: ${result[].image}
 
-  # ---- Face detector (InsightFace antelopev2) ----
+  # ---- Face tracker (InsightFace antelopev2) ----
   # antelopev2 is downloaded automatically on first run (no `path` or `url`
-  # needed — the LocalModelConfig applies its default). Chosen over
-  # BlazeFace because it holds up on non-frontal and small faces, which is
-  # what a redaction workflow needs.
-  - id: face-detector
+  # needed — the LocalModelConfig applies its default).
+  #
+  # We use the tracker (not a bare detector) so re-identification is
+  # available if a later stage wants it, and we run it in streaming mode
+  # with per-frame chunks that carry the source image and detected face
+  # boxes — everything the mosaic step below needs, without the tracker's
+  # segment/track/metadata chunks (which the mosaic pipeline ignores).
+  - id: face-tracker
     type: model
-    task: face-detection
+    task: face-tracking
     driver: custom
     family: insightface
     max_concurrent_count: 1
     model:
       provider: local
     action:
-      image: ${input.image as image}
+      frames: ${input.frames as image}
+      frame_rate: ${input.frame_rate}
+      streaming: true
+      return_tracks: false
+      return_frames: true
+      return_frame_image: true
+      return_metadata: false
       params:
-        min_confidence: ${input.min_confidence}
+        detection_threshold: ${input.detection_threshold}
+        # Expand the user-supplied square size (e.g. 640, 960, 1280) into the
+        # (width, height) tuple that the InsightFace detector expects.
+        detection_size:
+          - ${input.detection_size as number | 640}
+          - ${input.detection_size as number | 640}
 
   # ---- Mosaic each face bounding box in a single pass per frame ----
   - id: mosaic
@@ -170,19 +181,8 @@ components:
       region: ${input.region}
       mode: ${input.mode}
       block_scale: ${input.block_scale}
-      radius: ${input.radius}
-
-  # ---- Wrapper so the main workflow can call the per-frame sub-workflow ----
-  - id: mosaic-faces-in-frame
-    type: workflow
-    action:
-      workflow: mosaic-faces-in-frame
-      input:
-        image: ${input.image}
-        mode: ${input.mode}
-        block_scale: ${input.block_scale}
-        radius: ${input.radius}
-        min_confidence: ${input.min_confidence}
+      blur_radius: ${input.blur_radius}
+      corner_scale: ${input.corner_scale}
 
   # ---- Reassemble mosaicked frames + original audio into an mp4 ----
   - id: encoder

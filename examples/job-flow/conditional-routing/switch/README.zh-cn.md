@@ -105,11 +105,11 @@ graph TD
     J0 -. en .-> J3
     J0 -. otherwise .-> J4
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
-    J2 --> C1
-    J3 --> C1
-    J4 --> C1
+    %% Job to component connections
+    J1 -.-> C1
+    J2 -.-> C1
+    J3 -.-> C1
+    J4 -.-> C1
     C1 -.-> J1
     C1 -.-> J2
     C1 -.-> J3

@@ -98,8 +98,8 @@ graph TD
     %% Component
     C1[Echo Server<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |echoed response| J1
 
     %% Input/Output

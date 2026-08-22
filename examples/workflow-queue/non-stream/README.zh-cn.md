@@ -101,7 +101,7 @@ graph TD
     subgraph Dispatcher
         J1((Default<br/>job))
         C1[Workflow<br/>component]
-        J1 --> C1
+        J1 -.-> C1
     end
 
     %% Redis Queue
@@ -111,7 +111,7 @@ graph TD
     subgraph Subscriber
         J2((Default<br/>job))
         C2[Shell Command<br/>component]
-        J2 --> C2
+        J2 -.-> C2
         C2 -.-> |stdout| J2
     end
 

@@ -148,10 +148,10 @@ graph TD
     C1[Text Embedding Model<br/>컴포넌트]
     C2[Milvus Vector Store<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |embedding vector| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |storage confirmation| J2
 
     %% Job flow
@@ -191,10 +191,10 @@ graph TD
     C1[Text Embedding Model<br/>컴포넌트]
     C2[Milvus Vector Store<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |query embedding| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |ranked results| J2
 
     %% Job flow
@@ -236,10 +236,10 @@ graph TD
     C1[Text Embedding Model<br/>컴포넌트]
     C2[Milvus Vector Store<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |embedding vector| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |update confirmation| J2
 
     %% Job flow
@@ -280,7 +280,7 @@ graph TD
     C1[Milvus Vector Store<br/>컴포넌트]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |deletion result| J1
 
     %% Input/Output

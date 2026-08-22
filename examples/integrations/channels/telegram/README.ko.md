@@ -50,5 +50,5 @@ Telegram --> listener (POST /webhook) --> handle-message 워크플로우
 ```
 
 1. Telegram이 웹훅을 통해 `http-trigger` 리스너로 수신 메시지를 전송
-2. `generate-reply` 잡이 메시지를 OpenAI GPT-4o에 보내 응답을 생성
-3. `send-reply` 잡이 Telegram `sendMessage` API를 통해 생성된 응답을 사용자에게 전송
+2. `generate-reply` 작업이 메시지를 OpenAI GPT-4o에 보내 응답을 생성
+3. `send-reply` 작업이 Telegram `sendMessage` API를 통해 생성된 응답을 사용자에게 전송

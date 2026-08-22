@@ -99,8 +99,8 @@ graph TD
     %% Component
     C1[Anthropic Claude<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |스트리밍 응답| J1
 
     %% Input/Output

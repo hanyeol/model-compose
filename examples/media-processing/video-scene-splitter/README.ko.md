@@ -108,12 +108,12 @@ graph TD
     C2[Video Clipper<br/>컴포넌트]
     C3[File Store<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |씬 스트림| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |클립 스트림| J2
-    J3 --> C3
+    J3 -.-> C3
     C3 -.-> |저장된 경로| J3
 
     %% Job flow

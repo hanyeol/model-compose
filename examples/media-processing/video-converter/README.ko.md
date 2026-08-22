@@ -86,8 +86,8 @@ graph TD
     %% Component
     C1[Video Converter<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |변환된 비디오| J1
 
     %% Input/Output

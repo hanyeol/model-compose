@@ -133,7 +133,7 @@ graph TD
     C1[OpenAI HTTP Client<br/>component]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |image URL list| J1
 
     %% Input/Output
@@ -170,7 +170,7 @@ graph TD
     C1[OpenAI HTTP Client<br/>component]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |base64 image list| J1
 
     %% Input/Output

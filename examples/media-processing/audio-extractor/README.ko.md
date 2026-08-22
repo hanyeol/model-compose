@@ -84,8 +84,8 @@ graph TD
     %% Component
     C1[Audio Extractor<br/>컴포넌트]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |extracted audio| J1
 
     %% Input/Output

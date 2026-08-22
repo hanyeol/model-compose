@@ -138,10 +138,10 @@ graph TD
     C2[Data Queue<br/>component]
 
     Input((Input)) --> J1
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |video stream| J2
     Input -. |audio| .-> J2
-    J2 --> C2
+    J2 -.-> C2
 ```
 
 #### 입력 매개변수
@@ -172,10 +172,10 @@ graph TD
     C1[Data Queue<br/>component]
     C2[RTMP Publisher<br/>component]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |item stream| J1
     J1 -.-> |video + audio streams via `\|`| J2
-    J2 --> C2
+    J2 -.-> C2
 ```
 
 #### 입력 매개변수

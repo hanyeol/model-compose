@@ -1,0 +1,39 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Generate Text Embedding with LFM2.5 Encoder
+  description: Generate a multilingual text embedding vector using LiquidAI's LFM2.5-Encoder-350M model.
+  job:
+    input: ${input}
+    output:
+      embedding: ${output as json}
+
+component:
+  type: model
+  task: text-embedding
+  driver: huggingface
+  # LFM2.5-Encoder-350M is a multilingual bidirectional encoder (~354M params)
+  # built on the LFM2 architecture. It supports 15 languages and up to 8,192-token
+  # context windows, producing 1024-dimensional hidden states per token.
+  model: LiquidAI/LFM2.5-Encoder-350M
+  # "auto" lets AutoModel infer the encoder body from the model config;
+  # required here because the model ships with trust_remote_code implementations.
+  architecture: auto
+  max_concurrent_count: 1
+  action:
+    text: ${input.text}
+    # Mean-pooling over token embeddings works well for a generic encoder that
+    # does not ship with a task-specific pooler head. Use "cls" if you fine-tune
+    # a downstream head that reads from the first token instead.
+    pooling: mean
+    normalize: true
+    # LFM2.5 supports up to 8,192 tokens; keep default (tokenizer.model_max_length)
+    # unless you have very long inputs and enough RAM/VRAM to hold them.
+    # max_input_length: 8192

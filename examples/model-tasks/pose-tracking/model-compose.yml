@@ -42,7 +42,7 @@ workflow:
         frame_rate: ${input.sampled_frame_rate | 6.0}
         min_confidence: ${input.min_confidence | 0.4}
         min_frame_count: ${input.min_frame_count | 3}
-        merge_gap: ${input.merge_gap | 1.0}
+        merge_gap: ${input.merge_gap | 0.5}
         tracker: ${input.tracker | bytetrack}
         return_keypoints: ${input.return_keypoints as boolean | true}
         return_openpose_keypoints: ${input.return_openpose_keypoints as boolean | false}

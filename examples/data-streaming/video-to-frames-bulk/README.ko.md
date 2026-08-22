@@ -107,11 +107,11 @@ graph TD
     C3[File Store put<br/>컴포넌트]
 
     %% Job to component connections
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |비디오 항목| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |프레임 스트림| J2
-    J3 --> C3
+    J3 -.-> C3
     C3 -.-> |저장된 경로| J3
 
     %% Job flow

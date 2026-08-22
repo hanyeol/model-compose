@@ -102,7 +102,7 @@ graph TD
     J1((Default<br/>작업))
     C1[Web Browser<br/>컴포넌트]
 
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |video stream| J1
 
     Input((입력)) --> J1

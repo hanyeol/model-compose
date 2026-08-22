@@ -118,7 +118,7 @@ graph TD
     C1 -.-> |[{image, timestamp, ...}]| J1
 
     J1 --> J2((track<br/>job))
-    J2 --> C2[Face Tracker<br/>insightface]
+    J2 -.-> C2[Face Tracker<br/>insightface]
     C2 -.-> |{tracks, frame_count}| J2
 
     J2 --> Output((Output<br/>report))
@@ -134,7 +134,7 @@ graph TD
 | `similarity_threshold` | number | No | 0.4 | 两张人脸被归入同一轨迹的余弦相似度阈值 |
 | `min_frame_count` | number | No | 2 | 出现帧数少于该值的轨迹被丢弃 |
 | `merge_gap` | number | No | 1.0 | 相邻片段之间间隔小于该秒数则合并 |
-| `return_image` | boolean | No | true | 为每个片段附加一张人脸裁剪。在原始帧分辨率下按检测到的 bounding box 直接裁切，适用于 UI 显示、缩放，或送入其他嵌入主干网络重新嵌入（见下方[使用其他模型重新嵌入](#使用其他模型重新嵌入)）。仅需时间码时设为 `false` 可减小载荷 |
+| `return_track_image` | boolean | No | true | 为每个片段附加一张人脸裁剪。在原始帧分辨率下按检测到的 bounding box 直接裁切，适用于 UI 显示、缩放，或送入其他嵌入主干网络重新嵌入（见下方[使用其他模型重新嵌入](#使用其他模型重新嵌入)）。仅需时间码时设为 `false` 可减小载荷 |
 | `return_gender_age` | boolean | No | false | 为每条轨迹附加 `gender`（`"male"` / `"female"`）与 `age`（整数），取自轨迹中得分最高的帧。需要模型包含 gender/age 子模型（`antelopev2`、`buffalo_l`） |
 | `bounding_box_padding` | number | No | 0.2 | 将人脸裁剪的 bounding box 按此比例向每一侧扩展（例如 `0.2` = 上下左右各 +20%）。仅影响返回的裁剪图像；嵌入与聚类仍使用未扩展的框。适用于检测框过紧（头发/下巴/耳朵被切）或人脸在画面中较小导致裁剪显得模糊的情况 |
 
@@ -152,7 +152,7 @@ graph TD
 | 字段 | 类型 | 描述 |
 |------|------|------|
 | `embedding` | number[] | L2 归一化的身份 centroid（antelopev2 为 512 维）。适合与身份数据库直接进行余弦匹配，或用于合并被判定为同一人的轨迹。仅在启用 `return_embedding` 时存在 |
-| `segments` | array | `{start_time, end_time, duration, score}` 列表（启用 `return_image` 时包含 `image`）。见下方 |
+| `segments` | array | `{start_time, end_time, duration, score}` 列表（启用 `return_track_image` 时包含 `image`）。见下方 |
 | `frame_count` | integer | 该轨迹出现的采样帧数 |
 | `score` | number | 该轨迹所有帧中的最高检测置信度。可用于轨迹排序或过滤 |
 | `gender` | string | `"male"` 或 `"female"`，取自该轨迹得分最高的帧。仅在启用 `return_gender_age` 且模型包含 gender 子模型时存在 |
@@ -166,9 +166,9 @@ graph TD
 | `end_time` | string | 片段结束（`H:MM:SS.mmm` 时间码） |
 | `duration` | string | `end_time - start_time`（`H:MM:SS.mmm` 时间码） |
 | `score` | number | 该片段代表帧（片段中得分最高的帧，即 `image` 的裁切来源帧）的检测置信度 |
-| `image` | image | 该片段得分最高帧的人脸裁剪，在原始帧分辨率下按检测到的 bounding box 直接裁切（每张人脸尺寸不同）。仅在启用 `return_image` 时存在 |
+| `image` | image | 该片段得分最高帧的人脸裁剪，在原始帧分辨率下按检测到的 bounding box 直接裁切（每张人脸尺寸不同）。仅在启用 `return_track_image` 时存在 |
 
-示例（`return_image: false`，`return_embedding: false`）：
+示例（`return_track_image: false`，`return_embedding: false`）：
 
 ```json
 {
@@ -190,7 +190,7 @@ graph TD
 
 ### 使用其他模型重新嵌入
 
-启用 `return_image` 后，每个片段会附带一张人脸裁剪——该片段中得分最高帧，在原始分辨率下按检测到的 bounding box 直接裁切得到的图像。将这些裁剪送入另一个 `face-embedding` 组件（或您自己的视觉模型），即可复用本任务的检测与聚类结果，同时用不同的主干网络获取嵌入。下游组件会在裁剪上自行执行检测/对齐，从而两个嵌入模型之间保持松散耦合：
+启用 `return_track_image` 后，每个片段会附带一张人脸裁剪——该片段中得分最高帧，在原始分辨率下按检测到的 bounding box 直接裁切得到的图像。将这些裁剪送入另一个 `face-embedding` 组件（或您自己的视觉模型），即可复用本任务的检测与聚类结果，同时用不同的主干网络获取嵌入。下游组件会在裁剪上自行执行检测/对齐，从而两个嵌入模型之间保持松散耦合：
 
 ```yaml
 - id: track
@@ -198,7 +198,7 @@ graph TD
   input:
     frames: ${jobs.frames.output}
     frame_rate: ${input.sampled_frame_rate}
-    return_image: true
+    return_track_image: true
 
 - id: reembed
   component: alt-face-embedder

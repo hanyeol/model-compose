@@ -126,10 +126,10 @@ graph TD
     C1[OpenAI GPT-4o<br/>component]
     C2[ElevenLabs TTS<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |generated quote| J1
-    J2 --> C2
+    J2 -.-> C2
     C2 -.-> |audio data| J2
 
     %% Job flow with dependencies

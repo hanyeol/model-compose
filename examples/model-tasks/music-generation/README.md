@@ -91,7 +91,7 @@ This workflow provides local music generation that:
 graph TD
     J1((Default<br/>job))
     C1[Music Generation<br/>component]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |audio| J1
     Input((Input)) --> J1
     J1 --> Output((Output))

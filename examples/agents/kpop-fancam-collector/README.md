@@ -154,18 +154,18 @@ graph TD
 
     %% main workflow
     Input((Input)) --> JM
-    JM --> CA
+    JM -.-> CA
     CA -.-> |markdown summary| JM
     JM --> Output((Output))
 
     %% search-fancams (agent tool)
     CA -.-> |tool call| JS
-    JS --> CS
+    JS -.-> CS
     CS -.-> |video list| JS
 
     %% get-video-metadata (agent tool)
     CA -.-> |tool call| JD
-    JD --> CD
+    JD -.-> CD
     CD -.-> |width, height, duration| JD
 ```
 

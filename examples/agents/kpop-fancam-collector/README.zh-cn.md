@@ -154,18 +154,18 @@ graph TD
 
     %% main workflow
     Input((输入)) --> JM
-    JM --> CA
+    JM -.-> CA
     CA -.-> |Markdown 摘要| JM
     JM --> Output((输出))
 
     %% search-fancams (代理工具)
     CA -.-> |工具调用| JS
-    JS --> CS
+    JS -.-> CS
     CS -.-> |视频列表| JS
 
     %% get-video-metadata (代理工具)
     CA -.-> |工具调用| JD
-    JD --> CD
+    JD -.-> CD
     CD -.-> |width, height, duration| JD
 ```
 

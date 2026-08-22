@@ -125,8 +125,8 @@ graph TD
     %% Component
     C1[Image to Text Model<br/>component]
 
-    %% Job to component connections (solid: invokes, dotted: returns)
-    J1 --> C1
+    %% Job to component connections
+    J1 -.-> C1
     C1 -.-> |image description| J1
 
     %% Input/Output

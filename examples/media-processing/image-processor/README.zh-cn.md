@@ -90,7 +90,7 @@
 graph TD
     J1((Default<br/>作业))
     C1[Image Processor<br/>resize 操作]
-    J1 --> C1
+    J1 -.-> C1
     C1 -.-> |调整大小后的图像| J1
     Input((输入)) --> J1
     J1 --> Output((输出))

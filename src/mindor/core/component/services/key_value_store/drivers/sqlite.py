@@ -14,12 +14,15 @@ import json, time
 if TYPE_CHECKING:
     from aiosqlite import Connection as AsyncConnection
 
+_PURGE_INTERVAL_SECONDS = 60.0
+
 class SqliteKeyValueStoreAction(KeyValueStoreAction):
-    def __init__(self, config: SqliteKeyValueStoreActionConfig, connection: AsyncConnection, table: str):
+    def __init__(self, config: SqliteKeyValueStoreActionConfig, connection: AsyncConnection, table: str, purge_state: Dict[str, float]):
         super().__init__(config)
 
         self.connection: AsyncConnection = connection
         self.table: str = table
+        self.purge_state: Dict[str, float] = purge_state
 
     async def _get(
         self,
@@ -41,7 +44,8 @@ class SqliteKeyValueStoreAction(KeyValueStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> List[Dict[str, Any]]:
-        expires_at = (time.time() + params["ttl"]) if params["ttl"] is not None else None
+        now = time.time()
+        expires_at = (now + params["ttl"]) if params["ttl"] is not None else None
         rows = [ (key, self._encode_value(value), expires_at) for key, value in zip(keys, values) ]
 
         await self.connection.executemany(
@@ -49,6 +53,7 @@ class SqliteKeyValueStoreAction(KeyValueStoreAction):
             f"ON CONFLICT(key) DO UPDATE SET value=excluded.value, expires_at=excluded.expires_at",
             rows,
         )
+        await self._purge_expired_values(now)
         await self.connection.commit()
 
         return [ { "key": key, "success": True } for key in keys ]
@@ -115,14 +120,20 @@ class SqliteKeyValueStoreAction(KeyValueStoreAction):
 
         return [ (key, self._decode_value(value)) for key, value in rows ]
 
-    def _decode_value(self, value: Any) -> Any:
-        if value is None:
-            return None
+    async def _purge_expired_values(self, now: float) -> None:
+        # Debounced global cleanup on the write path. Riding an existing
+        # write transaction keeps read paths free of side-effects, and the
+        # expires_at index makes the scan cheap.
+        last_purge_at = self.purge_state.get("last_purge_at", 0.0)
 
-        try:
-            return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            return value
+        if now - last_purge_at < _PURGE_INTERVAL_SECONDS:
+            return
+
+        await self.connection.execute(
+            f"DELETE FROM {self.table} WHERE expires_at IS NOT NULL AND expires_at <= ?",
+            (now,),
+        )
+        self.purge_state["last_purge_at"] = now
 
     def _encode_value(self, value: Any) -> str:
         if isinstance(value, (dict, list)):
@@ -133,6 +144,15 @@ class SqliteKeyValueStoreAction(KeyValueStoreAction):
 
         return value
 
+    def _decode_value(self, value: Any) -> Any:
+        if value is None:
+            return None
+
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return value
+
 @register_kv_store_service(KeyValueStoreDriver.SQLITE)
 class SqliteKeyValueStoreService(KeyValueStoreService):
     def __init__(self, id: str, config: SqliteKeyValueStoreComponentConfig, daemon: bool):
@@ -141,6 +161,7 @@ class SqliteKeyValueStoreService(KeyValueStoreService):
         validate_identifier(self.config.table, kind="sqlite table")
 
         self.connection: Optional[AsyncConnection] = None
+        self.purge_state: Dict[str, float] = {}
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "aiosqlite" ]
@@ -163,6 +184,10 @@ class SqliteKeyValueStoreService(KeyValueStoreService):
             f"  expires_at REAL"
             f")"
         )
+        await self.connection.execute(
+            f"CREATE INDEX IF NOT EXISTS {self.config.table}_expires_at_idx "
+            f"ON {self.config.table} (expires_at) WHERE expires_at IS NOT NULL"
+        )
         await self.connection.commit()
 
         await super()._start()
@@ -175,4 +200,4 @@ class SqliteKeyValueStoreService(KeyValueStoreService):
             self.connection = None
 
     async def _run(self, action: KeyValueStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await SqliteKeyValueStoreAction(action, self.connection, self.config.table).run(context)
+        return await SqliteKeyValueStoreAction(action, self.connection, self.config.table, self.purge_state).run(context)

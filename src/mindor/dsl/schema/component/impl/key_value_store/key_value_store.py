@@ -4,7 +4,9 @@ from .impl import *
 
 KeyValueStoreComponentConfig = Annotated[
     Union[
-        RedisKeyValueStoreComponentConfig
+        MemoryKeyValueStoreComponentConfig,
+        RedisKeyValueStoreComponentConfig,
+        SqliteKeyValueStoreComponentConfig,
     ],
     Field(discriminator="driver")
 ]

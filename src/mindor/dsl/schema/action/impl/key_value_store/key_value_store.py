@@ -3,5 +3,7 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 KeyValueStoreActionConfig = Union[
-    RedisKeyValueStoreActionConfig
+    MemoryKeyValueStoreActionConfig,
+    RedisKeyValueStoreActionConfig,
+    SqliteKeyValueStoreActionConfig,
 ]

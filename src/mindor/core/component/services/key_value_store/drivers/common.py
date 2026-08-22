@@ -88,7 +88,7 @@ class KeyValueStoreAction(ComponentAction):
         context: ComponentActionContext,
     ) -> Dict[str, Any]:
         if method == KeyValueStoreActionMethod.SET:
-            ttl = await context.render_variable(self.config.ttl)
+            ttl = await context.render_scalar(self.config.ttl, "time")
 
             return { "ttl": ttl }
 

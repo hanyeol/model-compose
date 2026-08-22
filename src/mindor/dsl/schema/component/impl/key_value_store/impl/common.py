@@ -5,7 +5,9 @@ from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
 
 class KeyValueStoreDriver(str, Enum):
-    REDIS = "redis"
+    MEMORY = "memory"
+    REDIS  = "redis"
+    SQLITE = "sqlite"
 
 class CommonKeyValueStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.KEY_VALUE_STORE]

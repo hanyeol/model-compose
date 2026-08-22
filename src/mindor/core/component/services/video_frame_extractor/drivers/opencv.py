@@ -27,10 +27,13 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
-        results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
-
-        for video in videos:
-            results.append(await self._extract(
+        # In non-streaming mode each _extract offloads its cv2 loop to the
+        # executor, so the batch can run concurrently on different worker
+        # threads. In streaming mode each result is an AsyncIterator; the pump
+        # thread starts once the caller iterates, so the batch-level speedup
+        # depends on how the consumer drives the iterators.
+        return await asyncio.gather(*[
+            self._extract(
                 video,
                 params["frame_interval"],
                 params["start_time"],
@@ -39,9 +42,9 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                 params["filename_format"],
                 streaming,
                 cancellation_token,
-            ))
-
-        return results
+            )
+            for video in videos
+        ])
 
     async def _extract(
         self,

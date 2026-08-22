@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Callable, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import VideoConverterComponentConfig
-from mindor.dsl.schema.action import VideoConverterActionConfig
+from mindor.dsl.schema.component import VideoProcessorComponentConfig
+from mindor.dsl.schema.action import (
+    VideoProcessorActionConfig,
+    VideoProcessorActionMethod,
+    VideoScaleMode,
+    VideoFlipDirection,
+)
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -14,9 +19,9 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
-from ..base import VideoConverterService, VideoConverterDriver, register_video_converter_service
+from ..base import VideoProcessorService, VideoProcessorDriver, register_video_processor_service
 from ..base import ComponentActionContext
-from .common import VideoConverterAction
+from .common import VideoProcessorAction
 import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
@@ -32,30 +37,34 @@ _FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
     "ogv":  ("libtheora",  "libvorbis"),
 }
 
-class FFmpegVideoConverterAction(VideoConverterAction):
-    async def _convert_batch(
+class FFmpegVideoProcessorAction(VideoProcessorAction):
+    async def _process_batch(
         self,
+        method: VideoProcessorActionMethod,
         videos: List[MediaSource],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
         return await asyncio.gather(*[
-            self._convert(video, params["encoding"], cancellation_token) for video in videos
+            self._process(method, video, params, cancellation_token) for video in videos
         ])
 
-    async def _convert(
+    async def _process(
         self,
+        method: VideoProcessorActionMethod,
         source: MediaSource,
-        encoding: VideoAudioEncodingParams,
+        params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        format = self._resolve_container_format(encoding)
-        video, audio = encoding.video, encoding.audio
+        encoding: VideoAudioEncodingParams = params["encoding"]
+        format = self._resolve_container_format(encoding, source)
+        video_encoder = encoding.video
+        audio_encoder = encoding.audio
 
         input_path, spooled = await self._resolve_input_path(source)
         is_streamable_output = is_streamable_video_format(format.lower())
 
-        command = [ "ffmpeg", "-hide_banner" ]
+        command: List[str] = [ "ffmpeg", "-hide_banner" ]
 
         if source.format and input_path is None:
             command.extend([ "-f", source.format ])
@@ -68,21 +77,24 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
 
-        video_codec = self._resolve_video_codec(encoding)
+        video_filter = self._build_video_filter(method, params)
+        command.extend([ "-vf", video_filter ])
+
+        video_codec = self._resolve_video_codec(encoding, format)
         audio_codec = self._resolve_audio_codec(encoding)
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
-        if video and video.bitrate:
-            command.extend([ "-b:v", str(video.bitrate) ])
+        if video_encoder and video_encoder.bitrate:
+            command.extend([ "-b:v", str(video_encoder.bitrate) ])
         if audio_codec:
             command.extend([ "-c:a", audio_codec ])
-        if audio and audio.bitrate:
-            command.extend([ "-b:a", str(audio.bitrate) ])
-        if video and video.resolution:
-            command.extend([ "-s", video.resolution ])
-        if video and video.fps is not None:
-            command.extend([ "-r", str(video.fps) ])
+        if audio_encoder and audio_encoder.bitrate:
+            command.extend([ "-b:a", str(audio_encoder.bitrate) ])
+        if video_encoder and video_encoder.resolution:
+            command.extend([ "-s", video_encoder.resolution ])
+        if video_encoder and video_encoder.fps is not None:
+            command.extend([ "-r", str(video_encoder.fps) ])
 
         def _cleanup() -> None:
             if spooled and input_path is not None:
@@ -92,18 +104,101 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                     pass
 
         logging.debug(
-            "Converting video to '%s' format (%s input, %s output)",
-            format,
+            "Processing video with '%s' (%s input, %s output, filter='%s')",
+            method.value,
             "path" if input_path else "pipe",
             "stream" if is_streamable_output else "file",
+            video_filter,
         )
 
         if is_streamable_output:
-            return await self._convert_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
+            return await self._process_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
-        return await self._convert_to_file(command, source, input_path, format, _cleanup, cancellation_token)
+        return await self._process_to_file(command, source, input_path, format, _cleanup, cancellation_token)
 
-    async def _convert_to_file(
+    def _build_video_filter(self, method: VideoProcessorActionMethod, params: Dict[str, Any]) -> str:
+        if method == VideoProcessorActionMethod.RESIZE:
+            return self._build_resize_filter(params)
+
+        if method == VideoProcessorActionMethod.CROP:
+            return self._build_crop_filter(params)
+
+        if method == VideoProcessorActionMethod.PAD:
+            return self._build_pad_filter(params)
+
+        if method == VideoProcessorActionMethod.FLIP:
+            return self._build_flip_filter(params)
+
+        if method == VideoProcessorActionMethod.ROTATE:
+            return self._build_rotate_filter(params)
+
+        raise ValueError(f"Unsupported video processing action method: {method}")
+
+    def _build_resize_filter(self, params: Dict[str, Any]) -> str:
+        width      = params["width"]
+        height     = params["height"]
+        scale_mode = params["scale_mode"]
+
+        # ffmpeg's scale filter uses -1 to mean "preserve aspect ratio from the other axis".
+        # scale=w:h uses stretch semantics by default; force_original_aspect_ratio adds fit/fill.
+        target_w = str(width)  if width  is not None else "-2"
+        target_h = str(height) if height is not None else "-2"
+
+        if scale_mode == VideoScaleMode.STRETCH:
+            return f"scale={target_w}:{target_h}"
+
+        # For fit/fill both dimensions must be known; if only one is set the aspect-preserving
+        # -2 already gives fit semantics, so we can short-circuit.
+        if width is None or height is None:
+            return f"scale={target_w}:{target_h}"
+
+        if scale_mode == VideoScaleMode.FIT:
+            # Fit inside the target box, then pad to exact size so downstream sees width x height.
+            return (
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
+            )
+
+        # FILL: cover the target box and center-crop the overflow.
+        return (
+            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}"
+        )
+
+    def _build_crop_filter(self, params: Dict[str, Any]) -> str:
+        return f"crop={params['width']}:{params['height']}:{params['x']}:{params['y']}"
+
+    def _build_pad_filter(self, params: Dict[str, Any]) -> str:
+        left, right, top, bottom = params["left"], params["right"], params["top"], params["bottom"]
+        color = self._format_color(params["color"])
+
+        # ffmpeg pad: pad=out_w:out_h:x:y where (x, y) is the top-left of the source inside the padded canvas.
+        return f"pad=iw+{left + right}:ih+{top + bottom}:{left}:{top}:color={color}"
+
+    def _build_flip_filter(self, params: Dict[str, Any]) -> str:
+        if params["direction"] == VideoFlipDirection.HORIZONTAL:
+            return "hflip"
+
+        return "vflip"
+
+    def _build_rotate_filter(self, params: Dict[str, Any]) -> str:
+        angle = params["angle"]
+        # ffmpeg's rotate filter takes radians and rotates clockwise; our schema follows
+        # image_processor's counter-clockwise degrees convention, so negate.
+        import math
+        radians = -math.radians(angle)
+
+        if params["expand"]:
+            # Grow the output canvas to fit the rotated frame (transparent background).
+            return (
+                f"rotate={radians}:"
+                f"ow='hypot(iw,ih)':oh='hypot(iw,ih)':"
+                f"c=none"
+            )
+
+        return f"rotate={radians}"
+
+    async def _process_to_file(
         self,
         command: list,
         source: MediaSource,
@@ -117,10 +212,6 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         command = command + [ "-movflags", "+faststart", "-y", output_path ]
 
-        # run_subprocess only reacts to asyncio cancellation, but our
-        # CancellationToken is a threading.Event that has to be polled.
-        # Wrap the ffmpeg run in a task and cancel it when the token fires;
-        # run_subprocess then kills the process on its way out.
         process_task = asyncio.create_task(run_subprocess(
             command,
             source.stream if input_path is None else None,
@@ -144,9 +235,9 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
             if process.returncode != 0:
                 error_message = error.decode("utf-8", errors="replace") if error else ""
-                raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_message}")
+                raise RuntimeError(f"ffmpeg video processing failed (exit code {process.returncode}): {error_message}")
         except asyncio.CancelledError:
-            logging.info("Video conversion cancelled")
+            logging.info("Video processing cancelled")
             raise
         finally:
             if watcher_task is not None and not watcher_task.done():
@@ -158,11 +249,11 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
             cleanup()
 
-        logging.debug("Video conversion completed: '%s'", output_path)
+        logging.debug("Video processing completed: '%s'", output_path)
 
         return VideoStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
 
-    async def _convert_to_stream(
+    async def _process_to_stream(
         self,
         command: list,
         source: MediaSource,
@@ -217,7 +308,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
                 if process.returncode is not None and process.returncode != 0:
                     error_message = b"".join(error).decode("utf-8", errors="replace")
-                    raise RuntimeError(f"ffmpeg video conversion failed (exit code {process.returncode}): {error_message}")
+                    raise RuntimeError(f"ffmpeg video processing failed (exit code {process.returncode}): {error_message}")
             finally:
                 if watcher_task is not None and not watcher_task.done():
                     watcher_task.cancel()
@@ -246,39 +337,63 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         if is_streamable_video_format(source.format):
             return None, False
 
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before conversion")
+        logging.debug("ffmpeg input is not streamable; spooling to a temp file before processing")
 
         spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
 
         return spooled_path, True
 
     @staticmethod
-    def _resolve_container_format(encoding: VideoAudioEncodingParams) -> str:
+    def _resolve_container_format(encoding: VideoAudioEncodingParams, source: MediaSource) -> str:
+        # Priority: explicit encoding.format > source.format > default (mp4).
+        # Applying a video filter forces re-encode, so the container just needs
+        # to be something ffmpeg can mux the resulting streams into.
         if encoding.format:
             return encoding.format.lower()
+
+        if source.format:
+            return source.format.lower()
 
         return _DEFAULT_FORMAT
 
     @staticmethod
-    def _resolve_video_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+    def _resolve_video_codec(encoding: VideoAudioEncodingParams, format: str) -> Optional[str]:
+        # Filter graphs decode frames, so we always re-encode the video track;
+        # -c:v copy is not a valid option here. Fall back to the container default.
         if encoding.video and encoding.video.codec:
             return encoding.video.codec
 
-        default_video_codec, _ = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
+        default_video_codec, _ = _FORMAT_CODEC_MAP.get(format, (None, None))
         return default_video_codec
 
     @staticmethod
     def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+        # Filters only touch the video stream, so we can stream-copy audio when
+        # the user hasn't asked for anything specific.
         if encoding.audio and encoding.audio.codec:
             return encoding.audio.codec
 
-        _, default_audio_codec = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
-        return default_audio_codec
+        return "copy"
 
-@register_video_converter_service(VideoConverterDriver.FFMPEG)
-class FFmpegVideoConverterService(VideoConverterService):
-    def __init__(self, id: str, config: VideoConverterComponentConfig, daemon: bool):
+    @staticmethod
+    def _format_color(color: Any) -> str:
+        if isinstance(color, str):
+            return color
+
+        if isinstance(color, (list, tuple)):
+            if len(color) == 4:
+                r, g, b, a = color
+                return f"0x{r:02X}{g:02X}{b:02X}{a:02X}"
+            if len(color) == 3:
+                r, g, b = color
+                return f"0x{r:02X}{g:02X}{b:02X}"
+
+        return "black@0"
+
+@register_video_processor_service(VideoProcessorDriver.FFMPEG)
+class FFmpegVideoProcessorService(VideoProcessorService):
+    def __init__(self, id: str, config: VideoProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    async def _run(self, action: VideoConverterActionConfig, context: ComponentActionContext) -> Any:
-        return await FFmpegVideoConverterAction(action).run(context)
+    async def _run(self, action: VideoProcessorActionConfig, context: ComponentActionContext) -> Any:
+        return await FFmpegVideoProcessorAction(action).run(context)

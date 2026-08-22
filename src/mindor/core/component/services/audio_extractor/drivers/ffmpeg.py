@@ -36,18 +36,16 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[AudioStreamResource]:
-        results: List[AudioStreamResource] = []
-
-        for source in sources:
-            results.append(await self._extract(
+        return await asyncio.gather(*[
+            self._extract(
                 source,
                 params["format"],
                 params["encoding"],
                 params["track"],
-                cancellation_token,
-            ))
-
-        return results
+                cancellation_token
+            )
+            for source in sources
+        ])
 
     async def _extract(
         self,

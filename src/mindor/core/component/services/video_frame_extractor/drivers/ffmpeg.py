@@ -31,10 +31,8 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
-        results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
-
-        for video in videos:
-            results.append(await self._extract(
+        return await asyncio.gather(*[
+            self._extract(
                 video,
                 params["frame_interval"],
                 params["start_time"],
@@ -43,9 +41,9 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
                 params["filename_format"],
                 streaming,
                 cancellation_token,
-            ))
-
-        return results
+            )
+            for video in videos
+        ])
 
     async def _extract(
         self,

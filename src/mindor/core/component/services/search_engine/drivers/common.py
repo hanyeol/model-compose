@@ -90,7 +90,7 @@ class SearchEngineAction(ComponentAction):
             }
 
         if method == SearchEngineActionMethod.SEARCH:
-            limit         = await context.render_variable(self.config.limit)
+            limit         = await context.render_scalar(self.config.limit, int)
             search_fields = await context.render_variable(self.config.search_fields)
 
             return {

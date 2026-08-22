@@ -31,6 +31,8 @@ from .video_frame_extractor import *
 from .video_mixer import *
 from .video_analyzer import *
 from .screen_capture import *
+from .audio_capture import *
+from .video_capture import *
 from .rtmp_publisher import *
 from .media_inspector import *
 from .media_downloader import *

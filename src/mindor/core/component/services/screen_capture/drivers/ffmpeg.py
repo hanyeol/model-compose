@@ -256,26 +256,26 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
             ]
 
         if system == "Windows":
-            argv: List[str] = [
+            args: List[str] = [
                 "-f", "gdigrab",
                 "-framerate", str(framerate),
             ]
 
             if region is not None:
                 # gdigrab reads a rectangle when offsets + video_size are set.
-                argv.extend([
+                args.extend([
                     "-offset_x", str(region["x"]),
                     "-offset_y", str(region["y"]),
                     "-video_size", f"{region['width']}x{region['height']}",
                 ])
 
-            argv.extend([ "-i", "desktop" ])
+            args.extend([ "-i", "desktop" ])
 
-            return argv
+            return args
 
         if system == "Linux":
             display_env = os.environ.get("DISPLAY", ":0.0")
-            argv: List[str] = [
+            args: List[str] = [
                 "-f", "x11grab",
                 "-framerate", str(framerate),
             ]
@@ -283,12 +283,12 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
             if region is not None:
                 # x11grab accepts the region size at the input and the origin
                 # baked into the display spec (e.g. ':0.0+100,200').
-                argv.extend([ "-video_size", f"{region['width']}x{region['height']}" ])
-                argv.extend([ "-i", f"{display_env}+{region['x']},{region['y']}" ])
+                args.extend([ "-video_size", f"{region['width']}x{region['height']}" ])
+                args.extend([ "-i", f"{display_env}+{region['x']},{region['y']}" ])
             else:
-                argv.extend([ "-i", display_env ])
+                args.extend([ "-i", display_env ])
 
-            return argv
+            return args
 
         raise NotImplementedError(f"Video capture is not supported on platform: {system}")
 

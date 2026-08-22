@@ -29,6 +29,8 @@ ActionConfig = Union[
     VideoFrameExtractorActionConfig,
     VideoMixerActionConfig,
     ScreenCaptureActionConfig,
+    AudioCaptureActionConfig,
+    VideoCaptureActionConfig,
     RtmpPublisherActionConfig,
     MediaInspectorActionConfig,
     MediaDownloaderActionConfig,

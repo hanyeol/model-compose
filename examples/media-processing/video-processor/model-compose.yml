@@ -1,0 +1,93 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: resize
+    title: Resize Video
+    description: Resize a video with fit, fill, or stretch mode
+    job:
+      component: processor
+      action: resize
+      output:
+        video: ${output as video}
+
+  - id: crop
+    title: Crop Video
+    description: Crop a rectangular region from a video
+    job:
+      component: processor
+      action: crop
+      output:
+        video: ${output as video}
+
+  - id: pad
+    title: Pad Video
+    description: Add solid-color borders around a video
+    job:
+      component: processor
+      action: pad
+      output:
+        video: ${output as video}
+
+  - id: flip
+    title: Flip Video
+    description: Flip a video horizontally or vertically
+    job:
+      component: processor
+      action: flip
+      output:
+        video: ${output as video}
+
+  - id: rotate
+    title: Rotate Video
+    description: Rotate a video by a specified angle
+    job:
+      component: processor
+      action: rotate
+      output:
+        video: ${output as video}
+
+components:
+  - id: processor
+    type: video-processor
+    actions:
+      - id: resize
+        method: resize
+        video: ${input.video as video}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
+        scale_mode: ${input.scale_mode as select/fit,fill,stretch | fit}
+
+      - id: crop
+        method: crop
+        video: ${input.video as video}
+        x: ${input.x as integer | 0}
+        y: ${input.y as integer | 0}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
+
+      - id: pad
+        method: pad
+        video: ${input.video as video}
+        left: ${input.left as integer | 0}
+        right: ${input.right as integer | 0}
+        top: ${input.top as integer | 0}
+        bottom: ${input.bottom as integer | 0}
+        color: ${input.color | black}
+
+      - id: flip
+        method: flip
+        video: ${input.video as video}
+        direction: ${input.direction as select/horizontal,vertical | horizontal}
+
+      - id: rotate
+        method: rotate
+        video: ${input.video as video}
+        angle: ${input.angle as number}
+        expand: ${input.expand as boolean | true}

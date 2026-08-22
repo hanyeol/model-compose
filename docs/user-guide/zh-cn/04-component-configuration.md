@@ -50,7 +50,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `media-inspector` | 检查媒体元数据 | 通过 ffprobe 或 exiftool 无需解码即可读取编解码器、时长、分辨率、EXIF/GPS 等 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
-| `screen-capture` | 本地屏幕与音频采集 | 将桌面/区域/系统或麦克风音频作为连续编码流实时输出 |
+| `screen-capture` | 本地屏幕与音频采集 | 将桌面/区域/窗口/系统或麦克风音频作为连续编码流实时输出 |
 | `audio-capture` | 本地音频采集 | 将麦克风或系统回环作为连续编码流实时输出 |
 | `video-capture` | 本地摄像头采集 | 将网络摄像头、采集卡或虚拟摄像头作为连续编码流实时输出 |
 | `rtmp-publisher` | 发布到 RTMP 端点 | 将视频、帧或音频实时推流到 YouTube Live、Twitch、Facebook Live 等（ffmpeg） |
@@ -92,7 +92,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 浏览器控制 (CDP) → `web-browser`
 
 **实时采集**
-- 本地屏幕 / 区域 / 系统音频作为实时源 → `screen-capture`
+- 本地屏幕 / 区域 / 窗口 / 系统音频作为实时源 → `screen-capture`
 - 本地麦克风或系统音频作为实时源 → `audio-capture`
 - 本地摄像头 / 采集卡 / 虚拟摄像头作为实时源 → `video-capture`
 

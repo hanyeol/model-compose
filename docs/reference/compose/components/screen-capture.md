@@ -34,10 +34,11 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `method` | string | `capture` | Only `capture` is defined today |
-| `video_source` | string | `display` | Capture target kind: `display`, `region` |
+| `video_source` | string | `display` | Capture target kind: `display`, `region`, `window` |
 | `audio_source` | string | `system` | Which audio to capture: `system` loopback, `microphone`, or `none` |
 | `display` | integer | `0` | Display index when `video_source` is `display` or `region` |
 | `region` | object | `null` | Region rectangle on the target display; required when `video_source: region` |
+| `window` | object | `null` | Window selector; required when `video_source: window` |
 | `include_video` | boolean | `true` | Include a video track in the capture |
 | `include_audio` | boolean | `true` | Include an audio track in the capture |
 | `framerate` | number | `30` | Video framerate (frames per second) |
@@ -55,6 +56,17 @@ Required when `video_source: region`. All coordinates are pixels relative to the
 | `y` | integer | Top edge |
 | `width` | integer | Region width |
 | `height` | integer | Region height |
+
+### Window Object
+
+Required when `video_source: window`. Both fields are case-insensitive substring matches — provide either or both. When multiple windows match, the frontmost normal application window wins.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Substring of the window title |
+| `app` | string | Substring of the owning application name |
+
+Window tracking behaves differently per platform: on Windows, `gdigrab` follows the window as it moves; on macOS and Linux, the driver looks up the window's on-screen rect once and captures that region, so the window must stay in place for the duration of the capture.
 
 ### Encoding Object
 
@@ -83,6 +95,8 @@ The FFmpeg driver auto-detects the platform and picks the right capture backend 
 **Requires:** `ffmpeg` binary on the system path.
 
 **macOS system audio also requires:** the `audiotee` CLI on the system path. macOS blocks direct system-audio loopback in ffmpeg, so the driver pipes PCM from `audiotee` (Core Audio process-tap) into an ffmpeg encoder. See [makeusabrew/audiotee](https://github.com/makeusabrew/audiotee).
+
+**Linux window capture also requires:** `xdotool` and `xwininfo` on the system path (e.g. `apt install xdotool x11-utils`). They are used to resolve the window selector into an on-screen rect.
 
 **Permissions:**
 - macOS asks for Screen Recording permission the first time either the video capture or `audiotee` runs. Denying the prompt yields empty streams, not an exception.
@@ -142,6 +156,14 @@ component:
         y: ${input.y}
         width: 1280
         height: 720
+      include_audio: false
+
+    - id: capture-obs
+      video_source: window
+      window:
+        title: OBS
+        app: obs
+      framerate: 15
       include_audio: false
 ```
 
@@ -204,20 +226,24 @@ components:
 - The `display` field is really the avfoundation device index, which starts *after* the list of video cameras. Run `ffmpeg -f avfoundation -list_devices true -i ""` to find the correct index for your display (often `2`–`5` depending on how many cameras are attached).
 - The Core Audio process-tap API used by `audiotee` needs macOS 14.2 or newer.
 - The first system-audio chunk can take ~4–5 seconds to arrive; this is a startup characteristic of the process-tap API, not the driver.
+- `video_source: window` reads the window's on-screen rect via CoreGraphics once and then captures that region — the window must stay in place. Enumerating windows requires Screen Recording permission; without it the driver cannot see window titles and will fail to match.
 
 ### Windows
 
 - `gdigrab` cannot capture windows that are minimized. The `region` path works against the whole desktop, so windows partially obscured by others are still captured cleanly.
+- `video_source: window` uses `gdigrab`'s native window-follow mode: the capture stays locked to the target window as it moves or resizes. Match relies on the exact title string that Windows reports, so titles that change during capture (e.g. tabs) can drop the source.
 
 ### Linux
 
 - X11 sessions work out of the box via `x11grab`. Wayland sessions require PipeWire portals with per-session user permission.
 - System audio requires PulseAudio or PipeWire's PulseAudio compatibility layer. The default monitor source (`default.monitor`) is used automatically.
+- `video_source: window` resolves the selector through `xdotool` + `xwininfo` and then captures the resulting rect with `x11grab` — the window must stay in place. Wayland sessions do not expose window geometry to X11 tools, so window capture is X11-only.
 
 ## Best Practices
 
 1. **Match `framerate` to what the downstream consumer actually needs.** 5–10 fps is plenty for scene/face analysis and dramatically cuts CPU load compared with a 30 fps capture.
 2. **Prefer `ts` for pipeline consumers, `mp4` for file writes.** The default `ts` container yields chunks with sub-second latency; `mp4` is easier for downstream tools that expect a seekable file.
 3. **Use `region` to isolate a broadcast preview window.** Capturing the whole display and cropping downstream wastes encoder work; letting ffmpeg / gdigrab / x11grab crop at the source is much cheaper.
-4. **Anchor timelines with `capture_pts`.** When you stream video and audio through independent processes, the shared `capture_pts` is what lets you re-align them without decoding timestamps back out of the encoded stream.
-5. **Set `duration` in short-lived tests, leave it `null` in production sources.** An unbounded stream stops the moment the consumer closes the resource, so long-running captures don't need an explicit timeout.
+4. **Use `window` when the target moves, but only on Windows.** Windows follows the window natively via `gdigrab`; on macOS and Linux the rect is resolved once and any window movement leaves the capture behind. If the window is expected to move, prefer a fixed `region` outside Windows.
+5. **Anchor timelines with `capture_pts`.** When you stream video and audio through independent processes, the shared `capture_pts` is what lets you re-align them without decoding timestamps back out of the encoded stream.
+6. **Set `duration` in short-lived tests, leave it `null` in production sources.** An unbounded stream stops the moment the consumer closes the resource, so long-running captures don't need an explicit timeout.

@@ -80,7 +80,7 @@ Model-compose supports the following component types:
 | `media-downloader` | Download audio or video from a URL (YouTube, Vimeo, etc.) via yt-dlp | [media-downloader.md](components/media-downloader.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
-| `screen-capture` | Live screen and system/microphone audio capture as continuous streams | [screen-capture.md](components/screen-capture.md) |
+| `screen-capture` | Live screen, region, or window capture with system/microphone audio as continuous streams | [screen-capture.md](components/screen-capture.md) |
 | `rtmp-publisher` | Publish video, frames, or audio to RTMP endpoints (YouTube Live, Twitch, Facebook Live, etc.) via ffmpeg | [rtmp-publisher.md](components/rtmp-publisher.md) |
 
 ## Common Configuration Properties

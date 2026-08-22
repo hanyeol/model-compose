@@ -20,7 +20,19 @@ _CHUNK_QUEUE_SIZE = 32
 # MPEG-TS is the default for the same reason as screen-capture: each packet is
 # self-contained so encoded chunks are available immediately over a pipe.
 _DEFAULT_VIDEO_FORMAT = "ts"
-_DEFAULT_VIDEO_CODEC  = "libx264"
+
+# libx264 with `-preset veryfast -tune zerolatency` cannot keep up with 1080p30
+# camera input on typical laptop CPUs, so it silently drops frames — producing
+# the "choppy 9 fps" video the smoke test caught. macOS ships h264_videotoolbox
+# which offloads to the hardware encoder and easily hits real-time at 1080p60.
+# Linux and Windows have no equally universal hardware encoder, so they stay
+# on libx264 and users needing higher resolutions should override `encoding.video.codec`.
+_DEFAULT_VIDEO_CODEC_BY_SYSTEM = {
+    "Darwin":  "h264_videotoolbox",
+    "Windows": "libx264",
+    "Linux":   "libx264",
+}
+_FALLBACK_VIDEO_CODEC = "libx264"
 
 # Default device index per platform when the user leaves `device` unset.
 # On Linux we default to /dev/video0 which is where v4l2 usually exposes the
@@ -64,19 +76,41 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
             raise NotImplementedError(f"video-capture source '{source.value}' is not supported yet")
 
         video_format  = self._resolve_container_format(encoding)
-        video_codec   = self._resolve_video_codec(encoding)
+        video_codec   = self._resolve_video_codec(encoding, system)
         video_bitrate = encoding.video.bitrate if encoding and encoding.video and encoding.video.bitrate else None
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_video_input_args(system, device, framerate, resolution, pixel_format))
+        command.extend([ "-c:v", video_codec ])
+
+        # `-preset` and `-tune` are x264/x265-only flags; hardware encoders
+        # like h264_videotoolbox reject them. Real-time keyframe cadence is
+        # still important on any codec, so `-g` and `-pix_fmt` stay universal.
+        if video_codec in ("libx264", "libx265"):
+            command.extend([ "-preset", "veryfast", "-tune", "zerolatency" ])
+
         command.extend([
-            "-c:v", video_codec,
-            "-preset", "veryfast",
-            "-tune", "zerolatency",
             "-g", str(max(1, int(framerate))),
             "-pix_fmt", "yuv420p",
             "-flush_packets", "1",
         ])
+
+        # Tag the encoded stream with a well-defined colorspace. Camera
+        # inputs (avfoundation uyvy422, dshow, v4l2) leave color metadata
+        # unset, so players fall back to guessing — which is what causes
+        # washed-out or oversaturated playback. bt709 tv-range matches how
+        # consumer webcams and capture cards actually deliver pixels.
+        command.extend([
+            "-color_range",     "tv",
+            "-colorspace",      "bt709",
+            "-color_primaries", "bt709",
+            "-color_trc",       "bt709",
+        ])
+
+        # x264 also writes the same tags into the H.264 VUI so decoders
+        # that ignore container-level metadata still see them.
+        if video_codec == "libx264":
+            command.extend([ "-x264opts", "colorprim=bt709:transfer=bt709:colormatrix=bt709" ])
 
         if video_bitrate:
             command.extend([ "-b:v", str(video_bitrate) ])
@@ -218,11 +252,11 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         return _DEFAULT_VIDEO_FORMAT
 
     @staticmethod
-    def _resolve_video_codec(encoding: Optional[VideoAudioEncodingParams]) -> str:
+    def _resolve_video_codec(encoding: Optional[VideoAudioEncodingParams], system: str) -> str:
         if encoding and encoding.video and encoding.video.codec:
             return encoding.video.codec
 
-        return _DEFAULT_VIDEO_CODEC
+        return _DEFAULT_VIDEO_CODEC_BY_SYSTEM.get(system, _FALLBACK_VIDEO_CODEC)
 
     @staticmethod
     def _container_muxer(video_format: str) -> str:

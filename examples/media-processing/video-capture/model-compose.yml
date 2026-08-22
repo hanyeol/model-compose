@@ -1,0 +1,53 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: capture-webcam
+    title: Capture Webcam
+    description: |
+      Capture a short clip from the default camera and return the encoded
+      MP4 stream directly in the HTTP response. Uses fragmented MP4 so the
+      response is playable as soon as the first fragment lands, and any
+      device the OS exposes as a camera works — physical webcams, USB
+      capture cards, and virtual cameras (OBS Virtual Camera, etc.) all
+      appear to ffmpeg as ordinary video devices.
+    job:
+      component: video-capture
+      action: webcam
+      input:
+        duration: ${input.duration as string | 10s}
+        framerate: ${input.framerate as number | 30}
+        width: ${input.width as integer | 1280}
+        height: ${input.height as integer | 720}
+      output:
+        video: ${output.video as video}
+
+components:
+  - id: video-capture
+    type: video-capture
+    driver: ffmpeg
+    actions:
+      # Default-camera capture with fragmented MP4 output so the stream is
+      # playable while it is still being written. Platform notes:
+      # - macOS: `device` is the avfoundation index (e.g. "0") or a device
+      #   name. Built-in cameras usually appear at index 0.
+      # - Windows: `device` is a dshow device name (e.g. "USB Video Device");
+      #   numeric indices are not supported, so `device` is required.
+      # - Linux: `device` is a v4l2 node path (default "/dev/video0").
+      - id: webcam
+        source: camera
+        framerate: ${input.framerate}
+        resolution:
+          width: ${input.width}
+          height: ${input.height}
+        duration: ${input.duration}
+        encoding:
+          format: mp4
+          video:
+            bitrate: 4M

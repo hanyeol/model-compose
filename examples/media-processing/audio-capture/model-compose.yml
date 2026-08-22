@@ -1,0 +1,58 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: capture-microphone
+    title: Capture Microphone
+    description: |
+      Record from the default microphone and return the encoded audio
+      stream directly in the HTTP response. Uses avfoundation on macOS,
+      dshow on Windows, and PulseAudio on Linux. Only microphone
+      permission is required — no Screen Recording prompt.
+    job:
+      component: audio-capture
+      action: microphone
+      input:
+        duration: ${input.duration as string | 10s}
+      output:
+        audio: ${output.audio as audio}
+
+  - id: capture-system-audio
+    title: Capture System Audio
+    description: |
+      Record system output (loopback) and return the encoded audio stream
+      directly in the HTTP response. On macOS this uses the external
+      `audiotee` CLI to tap Core Audio; install it with `brew install audiotee`.
+      On Windows it uses the DirectShow `virtual-audio-capture` device;
+      on Linux it reads the PulseAudio monitor of the default sink.
+    job:
+      component: audio-capture
+      action: system
+      input:
+        duration: ${input.duration as string | 10s}
+      output:
+        audio: ${output.audio as audio}
+
+components:
+  - id: audio-capture
+    type: audio-capture
+    driver: ffmpeg
+    actions:
+      # Microphone capture from the default input device. Override `device`
+      # to select a specific device by index (avfoundation) or name (dshow/pulse).
+      - id: microphone
+        source: microphone
+        duration: ${input.duration}
+
+      # System loopback capture. macOS requires the audiotee CLI on PATH;
+      # Windows uses virtual-audio-capture via dshow; Linux uses PulseAudio's
+      # default.monitor source.
+      - id: system
+        source: system
+        duration: ${input.duration}

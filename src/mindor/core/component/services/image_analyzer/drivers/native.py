@@ -80,12 +80,11 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
                 + luma[1:-1, 2:]
             )
             variance = float(laplacian.var())
-            blur_threshold = params["blur_threshold"]
 
             return ImageSharpness({
                 "laplacian_variance": variance,
-                "blur_threshold":     blur_threshold,
-                "is_blurry":          variance < blur_threshold,
+                "blur_threshold":     params["blur_threshold"],
+                "is_blurry":          variance < params["blur_threshold"],
                 "width":              image.width,
                 "height":             image.height,
             })

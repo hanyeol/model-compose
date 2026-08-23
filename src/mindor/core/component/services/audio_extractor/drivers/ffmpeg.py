@@ -11,6 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.audio import is_streamable_audio_format
+from mindor.core.utils.ffmpeg.codecs import get_audio_codec_for_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
@@ -18,16 +19,6 @@ from ..base import AudioExtractorService, AudioExtractorDriver, register_audio_e
 from ..base import ComponentActionContext
 from .common import AudioExtractorAction
 import asyncio, os
-
-_FORMAT_CODEC_MAP: Dict[str, str] = {
-    "mp3":  "libmp3lame",
-    "wav":  "pcm_s16le",
-    "flac": "flac",
-    "aac":  "aac",
-    "m4a":  "aac",
-    "opus": "libopus",
-    "ogg":  "libvorbis",
-}
 
 class FFmpegAudioExtractorAction(AudioExtractorAction):
     async def _extract_batch(
@@ -241,7 +232,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         if encoding.codec:
             return encoding.codec
 
-        return _FORMAT_CODEC_MAP.get(format)
+        return get_audio_codec_for_format(format)
 
 @register_audio_extractor_service(AudioExtractorDriver.FFMPEG)
 class FFmpegAudioExtractorService(AudioExtractorService):

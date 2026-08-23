@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Callable, Any
+from typing import List, Optional, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoProcessorComponentConfig
 from mindor.dsl.schema.action import (
     VideoProcessorActionConfig,
-    VideoProcessorActionMethod,
     VideoScaleMode,
     VideoFlipDirection,
 )
@@ -15,6 +14,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.video import is_streamable_video_format
@@ -26,37 +26,116 @@ import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
 
-# Fallback (video_codec, audio_codec) when the encoder config leaves them unset.
-_FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
-    "mp4":  ("libx264",    "aac"),
-    "m4v":  ("libx264",    "aac"),
-    "mov":  ("libx264",    "aac"),
-    "mkv":  ("libx264",    "aac"),
-    "webm": ("libvpx-vp9", "libopus"),
-    "avi":  ("mpeg4",      "libmp3lame"),
-    "ogv":  ("libtheora",  "libvorbis"),
-}
-
 class FFmpegVideoProcessorAction(VideoProcessorAction):
-    async def _process_batch(
+    async def _resize(
         self,
-        method: VideoProcessorActionMethod,
-        videos: List[MediaSource],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[VideoStreamResource]:
-        return await asyncio.gather(*[
-            self._process(method, video, params, cancellation_token) for video in videos
-        ])
-
-    async def _process(
-        self,
-        method: VideoProcessorActionMethod,
-        source: MediaSource,
-        params: Dict[str, Any],
+        video: MediaSource,
+        width: Optional[int],
+        height: Optional[int],
+        scale_mode: VideoScaleMode,
+        encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        encoding: VideoAudioEncodingParams = params["encoding"]
+        # ffmpeg's scale filter uses -1 to mean "preserve aspect ratio from the other axis".
+        # scale=w:h uses stretch semantics by default; force_original_aspect_ratio adds fit/fill.
+        target_w = str(width)  if width  is not None else "-2"
+        target_h = str(height) if height is not None else "-2"
+
+        if scale_mode == VideoScaleMode.STRETCH:
+            video_filter = f"scale={target_w}:{target_h}"
+        elif width is None or height is None:
+            # For fit/fill both dimensions must be known; if only one is set the aspect-preserving
+            # -2 already gives fit semantics, so we can short-circuit.
+            video_filter = f"scale={target_w}:{target_h}"
+        elif scale_mode == VideoScaleMode.FIT:
+            # Fit inside the target box, then pad to exact size so downstream sees width x height.
+            video_filter = (
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
+            )
+        else:
+            # FILL: cover the target box and center-crop the overflow.
+            video_filter = (
+                f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height}"
+            )
+
+        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+
+    async def _crop(
+        self,
+        video: MediaSource,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        video_filter = f"crop={width}:{height}:{x}:{y}"
+
+        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+
+    async def _pad(
+        self,
+        video: MediaSource,
+        left: int,
+        right: int,
+        top: int,
+        bottom: int,
+        color: Any,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # ffmpeg pad: pad=out_w:out_h:x:y where (x, y) is the top-left of the source inside the padded canvas.
+        video_filter = f"pad=iw+{left + right}:ih+{top + bottom}:{left}:{top}:color={self._format_color(color)}"
+
+        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+
+    async def _flip(
+        self,
+        video: MediaSource,
+        direction: VideoFlipDirection,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        video_filter = "hflip" if direction == VideoFlipDirection.HORIZONTAL else "vflip"
+
+        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+
+    async def _rotate(
+        self,
+        video: MediaSource,
+        angle: float,
+        expand: bool,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        import math
+
+        # ffmpeg's rotate filter takes radians and rotates clockwise; our schema follows
+        # image_processor's counter-clockwise degrees convention, so negate.
+        radians = -math.radians(angle)
+
+        if expand:
+            # Grow the output canvas to fit the rotated frame (transparent background).
+            video_filter = (
+                f"rotate={radians}:"
+                f"ow='hypot(iw,ih)':oh='hypot(iw,ih)':"
+                f"c=none"
+            )
+        else:
+            video_filter = f"rotate={radians}"
+
+        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+
+    async def _run_ffmpeg_filter(
+        self,
+        source: MediaSource,
+        video_filter: str,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
         format = self._resolve_container_format(encoding, source)
         video_encoder = encoding.video
         audio_encoder = encoding.audio
@@ -76,8 +155,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             command.extend([ "-pix_fmt", str(source.attrs["pixel_format"]) ])
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
-
-        video_filter = self._build_video_filter(method, params)
         command.extend([ "-vf", video_filter ])
 
         video_codec = self._resolve_video_codec(encoding, format)
@@ -104,8 +181,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
                     pass
 
         logging.debug(
-            "Processing video with '%s' (%s input, %s output, filter='%s')",
-            method.value,
+            "Processing video (%s input, %s output, filter='%s')",
             "path" if input_path else "pipe",
             "stream" if is_streamable_output else "file",
             video_filter,
@@ -115,88 +191,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             return await self._process_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
         return await self._process_to_file(command, source, input_path, format, _cleanup, cancellation_token)
-
-    def _build_video_filter(self, method: VideoProcessorActionMethod, params: Dict[str, Any]) -> str:
-        if method == VideoProcessorActionMethod.RESIZE:
-            return self._build_resize_filter(params)
-
-        if method == VideoProcessorActionMethod.CROP:
-            return self._build_crop_filter(params)
-
-        if method == VideoProcessorActionMethod.PAD:
-            return self._build_pad_filter(params)
-
-        if method == VideoProcessorActionMethod.FLIP:
-            return self._build_flip_filter(params)
-
-        if method == VideoProcessorActionMethod.ROTATE:
-            return self._build_rotate_filter(params)
-
-        raise ValueError(f"Unsupported video processing action method: {method}")
-
-    def _build_resize_filter(self, params: Dict[str, Any]) -> str:
-        width      = params["width"]
-        height     = params["height"]
-        scale_mode = params["scale_mode"]
-
-        # ffmpeg's scale filter uses -1 to mean "preserve aspect ratio from the other axis".
-        # scale=w:h uses stretch semantics by default; force_original_aspect_ratio adds fit/fill.
-        target_w = str(width)  if width  is not None else "-2"
-        target_h = str(height) if height is not None else "-2"
-
-        if scale_mode == VideoScaleMode.STRETCH:
-            return f"scale={target_w}:{target_h}"
-
-        # For fit/fill both dimensions must be known; if only one is set the aspect-preserving
-        # -2 already gives fit semantics, so we can short-circuit.
-        if width is None or height is None:
-            return f"scale={target_w}:{target_h}"
-
-        if scale_mode == VideoScaleMode.FIT:
-            # Fit inside the target box, then pad to exact size so downstream sees width x height.
-            return (
-                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
-            )
-
-        # FILL: cover the target box and center-crop the overflow.
-        return (
-            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}"
-        )
-
-    def _build_crop_filter(self, params: Dict[str, Any]) -> str:
-        return f"crop={params['width']}:{params['height']}:{params['x']}:{params['y']}"
-
-    def _build_pad_filter(self, params: Dict[str, Any]) -> str:
-        left, right, top, bottom = params["left"], params["right"], params["top"], params["bottom"]
-        color = self._format_color(params["color"])
-
-        # ffmpeg pad: pad=out_w:out_h:x:y where (x, y) is the top-left of the source inside the padded canvas.
-        return f"pad=iw+{left + right}:ih+{top + bottom}:{left}:{top}:color={color}"
-
-    def _build_flip_filter(self, params: Dict[str, Any]) -> str:
-        if params["direction"] == VideoFlipDirection.HORIZONTAL:
-            return "hflip"
-
-        return "vflip"
-
-    def _build_rotate_filter(self, params: Dict[str, Any]) -> str:
-        angle = params["angle"]
-        # ffmpeg's rotate filter takes radians and rotates clockwise; our schema follows
-        # image_processor's counter-clockwise degrees convention, so negate.
-        import math
-        radians = -math.radians(angle)
-
-        if params["expand"]:
-            # Grow the output canvas to fit the rotated frame (transparent background).
-            return (
-                f"rotate={radians}:"
-                f"ow='hypot(iw,ih)':oh='hypot(iw,ih)':"
-                f"c=none"
-            )
-
-        return f"rotate={radians}"
 
     async def _process_to_file(
         self,
@@ -363,8 +357,8 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         if encoding.video and encoding.video.codec:
             return encoding.video.codec
 
-        default_video_codec, _ = _FORMAT_CODEC_MAP.get(format, (None, None))
-        return default_video_codec
+        video_codec, _ = get_video_codecs_for_format(format)
+        return video_codec
 
     @staticmethod
     def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:

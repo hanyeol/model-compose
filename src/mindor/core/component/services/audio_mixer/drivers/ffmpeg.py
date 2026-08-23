@@ -16,6 +16,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.probe import probe_audio
+from mindor.core.utils.ffmpeg.codecs import get_audio_codec_for_format
 from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -26,17 +27,6 @@ from .common import AudioMixerAction
 import asyncio, os
 
 _DEFAULT_FORMAT = "wav"
-
-# Fallback codec when the encoding config leaves it unset.
-_FORMAT_CODEC_MAP: Dict[str, str] = {
-    "mp3":  "libmp3lame",
-    "wav":  "pcm_s16le",
-    "flac": "flac",
-    "aac":  "aac",
-    "m4a":  "aac",
-    "opus": "libopus",
-    "ogg":  "libvorbis",
-}
 
 class FFmpegAudioMixerAction(AudioMixerAction):
     async def _concat(
@@ -120,7 +110,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         output_duration: Optional[float] = None
 
         if params["duration_mode"] == AudioMixerOverlayDurationMode.BASE:
-            (output_duration,) = await probe_audio(base_path, ["duration"])
+            (output_duration,) = await probe_audio(base_path, [ "duration" ])
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
         command.extend([ "-i", base_path ])
@@ -440,7 +430,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         if encoding.codec:
             return encoding.codec
 
-        return _FORMAT_CODEC_MAP.get(format)
+        return get_audio_codec_for_format(format)
 
 @register_audio_mixer_service(AudioMixerDriver.FFMPEG)
 class FFmpegAudioMixerService(AudioMixerService):

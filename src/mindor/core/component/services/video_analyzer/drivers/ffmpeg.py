@@ -13,14 +13,19 @@ from .common import VideoAnalyzerAction, VideoBlack, VideoFreeze, VideoBrightnes
 import re
 
 class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
-    async def _analyze_black(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_black(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> dict:
         # blackdetect emits `black_start`/`black_end`/`black_duration` on stderr.
-        filter_str = (
+        video_filter = (
             f"blackdetect=d={params['min_duration']}"
             f":pix_th={params['pixel_threshold']}"
             f":pic_th={params['picture_threshold']}"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, filter_str)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
 
         regions = self._parse_blackdetect(stderr_text)
         total_black = sum((region.get("duration") or 0.0) for region in regions)
@@ -37,15 +42,20 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             "regions":            regions,
         })
 
-    async def _analyze_freeze(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_freeze(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> dict:
         # freezedetect emits `freeze_start`/`freeze_end`/`freeze_duration`. The
         # `n` parameter is a normalized noise threshold (0.0-1.0); ffmpeg also
         # accepts dB values with a `dB` suffix but we standardize on the ratio.
-        filter_str = (
+        video_filter = (
             f"freezedetect=n={params['noise_threshold']}"
             f":d={params['min_duration']}"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, filter_str)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
 
         regions = self._parse_freezedetect(stderr_text)
         total_freeze = sum((region.get("duration") or 0.0) for region in regions)
@@ -61,16 +71,21 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             "regions":         regions,
         })
 
-    async def _analyze_brightness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_brightness(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> dict:
         # signalstats.YAVG is the mean luma per frame (0-255 for 8-bit).
         # metadata=print pushes it to stderr; fps=... limits how many frames
         # we sample so long videos don't burn CPU.
         sample_rate = params["sample_rate"]
-        filter_str = (
+        video_filter = (
             f"fps={sample_rate},signalstats,"
             "metadata=print:key=lavfi.signalstats.YAVG:direct=1"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, filter_str)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
 
         samples = self._parse_metadata_samples(stderr_text, "lavfi.signalstats.YAVG")
         values = [ sample["value"] for sample in samples ]
@@ -93,17 +108,22 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
 
         return VideoBrightness(result)
 
-    async def _analyze_motion(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_motion(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None
+    ) -> dict:
         # scdet reports a scene-change score per frame; higher = more different
         # from the previous frame. It's a coarse but cheap motion proxy that
         # doesn't need actual motion vectors. `t=0` disables the built-in
         # threshold gate so we get every frame's score.
         sample_rate = params["sample_rate"]
-        filter_str = (
+        video_filter = (
             f"fps={sample_rate},scdet=t=0,"
             "metadata=print:key=lavfi.scd.score:direct=1"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, filter_str)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
 
         samples = self._parse_metadata_samples(stderr_text, "lavfi.scd.score")
         values = [ sample["value"] for sample in samples ]
@@ -126,7 +146,12 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
 
         return VideoMotion(result)
 
-    async def _run_ffmpeg_filter(self, source: MediaSource, video_filter: str) -> str:
+    async def _run_ffmpeg_filter(
+        self,
+        source: MediaSource,
+        video_filter: str,
+        cancellation_token: Optional[CancellationToken]
+    ) -> str:
         input_path, spooled = await self._resolve_input_path(source)
 
         command = [ "ffmpeg", "-hide_banner", "-nostats" ]
@@ -138,20 +163,20 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         command.extend([ "-an", "-vf", video_filter, "-f", "null", "-" ])
 
         try:
-            process, _out, err = await run_subprocess(
+            process, _, stderr = await run_subprocess(
                 command,
                 source.stream if input_path is None else None,
                 stdout_handler=lambda r: r.read(),
                 stderr_handler=lambda r: r.read(),
             )
             if process.returncode != 0:
-                error_message = err.decode("utf-8", errors="replace") if err else ""
+                error_message = stderr.decode("utf-8", errors="replace") if stderr else ""
                 raise RuntimeError(f"ffmpeg filter '{video_filter}' failed (exit code {process.returncode}): {error_message}")
         finally:
             if spooled and input_path is not None:
                 self._remove_file(input_path)
 
-        return err.decode("utf-8", errors="replace") if err else ""
+        return stderr.decode("utf-8", errors="replace") if stderr else ""
 
     @staticmethod
     def _parse_blackdetect(text: str) -> List[Dict[str, float]]:
@@ -162,6 +187,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             r"black_end:\s*(?P<end>-?\d+(?:\.\d+)?)\s+"
             r"black_duration:\s*(?P<duration>-?\d+(?:\.\d+)?)"
         )
+
         return [
             {
                 "start":    float(m.group("start")),
@@ -185,13 +211,16 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
                 flags=re.DOTALL,
             )
         ]
+
         regions: List[Dict[str, float]] = []
+
         for index, start in enumerate(starts):
             if index < len(end_pairs):
                 duration, end = end_pairs[index]
                 regions.append({ "start": start, "end": end, "duration": duration })
             else:
                 regions.append({ "start": start, "end": None, "duration": None })
+
         return regions
 
     @staticmethod
@@ -205,21 +234,28 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
 
         samples: List[Dict[str, float]] = []
         cursor = 0
+
         while True:
-            timing = timing_pattern.search(text, cursor)
-            if not timing:
+            timing_match = timing_pattern.search(text, cursor)
+
+            if not timing_match:
                 break
-            value = value_pattern.search(text, timing.end())
-            if not value:
+
+            value_match = value_pattern.search(text, timing_match.end())
+
+            if not value_match:
                 break
-            parsed = ffmpeg_values.parse_float(value.group(1))
-            if parsed is not None:
+
+            value = ffmpeg_values.parse_float(value_match.group(1))
+
+            if value is not None:
                 samples.append({
-                    "frame": int(timing.group(1)),
-                    "time":  float(timing.group(2)),
-                    "value": parsed,
+                    "frame": int(timing_match.group(1)),
+                    "time":  float(timing_match.group(2)),
+                    "value": value,
                 })
-            cursor = value.end()
+            cursor = value_match.end()
+
         return samples
 
     @staticmethod

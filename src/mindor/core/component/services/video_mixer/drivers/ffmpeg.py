@@ -18,6 +18,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.probe import probe_video
+from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -28,17 +29,6 @@ from .common import VideoMixerAction
 import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
-
-# Fallback (video_codec, audio_codec) when the encoding config leaves them unset.
-_FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
-    "mp4":  ("libx264",    "aac"),
-    "m4v":  ("libx264",    "aac"),
-    "mov":  ("libx264",    "aac"),
-    "mkv":  ("libx264",    "aac"),
-    "webm": ("libvpx-vp9", "libopus"),
-    "avi":  ("mpeg4",      "libmp3lame"),
-    "ogv":  ("libtheora",  "libvorbis"),
-}
 
 _ANCHOR_OFFSETS: Dict[VideoOverlayAnchor, Tuple[str, str]] = {
     VideoOverlayAnchor.TOP_LEFT:      ("0",       "0"),
@@ -521,16 +511,16 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         if encoding.video and encoding.video.codec:
             return encoding.video.codec
 
-        default_video_codec, _ = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
-        return default_video_codec
+        video_codec, _ = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+        return video_codec
 
     @staticmethod
     def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
         if encoding.audio and encoding.audio.codec:
             return encoding.audio.codec
 
-        _, default_audio_codec = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
-        return default_audio_codec
+        _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+        return audio_codec
 
 @register_video_mixer_service(VideoMixerDriver.FFMPEG)
 class FFmpegVideoMixerService(VideoMixerService):

@@ -10,6 +10,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.video import is_streamable_video_format
@@ -20,17 +21,6 @@ from .common import VideoConverterAction
 import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
-
-# Fallback (video_codec, audio_codec) when the encoder config leaves them unset.
-_FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
-    "mp4":  ("libx264",    "aac"),
-    "m4v":  ("libx264",    "aac"),
-    "mov":  ("libx264",    "aac"),
-    "mkv":  ("libx264",    "aac"),
-    "webm": ("libvpx-vp9", "libopus"),
-    "avi":  ("mpeg4",      "libmp3lame"),
-    "ogv":  ("libtheora",  "libvorbis"),
-}
 
 class FFmpegVideoConverterAction(VideoConverterAction):
     async def _convert_batch(
@@ -264,16 +254,16 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         if encoding.video and encoding.video.codec:
             return encoding.video.codec
 
-        default_video_codec, _ = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
-        return default_video_codec
+        video_codec, _ = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+        return video_codec
 
     @staticmethod
     def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
         if encoding.audio and encoding.audio.codec:
             return encoding.audio.codec
 
-        _, default_audio_codec = _FORMAT_CODEC_MAP.get(encoding.format or _DEFAULT_FORMAT, (None, None))
-        return default_audio_codec
+        _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+        return audio_codec
 
 @register_video_converter_service(VideoConverterDriver.FFMPEG)
 class FFmpegVideoConverterService(VideoConverterService):

@@ -17,6 +17,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.media import MediaComponentAction
 from ..base import ComponentActionContext
+import asyncio
 
 class VideoProcessorAction(MediaComponentAction):
     def __init__(self, config: VideoProcessorActionConfig):
@@ -115,7 +116,6 @@ class VideoProcessorAction(MediaComponentAction):
 
         raise ValueError(f"Unsupported video processing action method: {method}")
 
-    @abstractmethod
     async def _process_batch(
         self,
         method: VideoProcessorActionMethod,
@@ -123,4 +123,127 @@ class VideoProcessorAction(MediaComponentAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
+        return await asyncio.gather(*[
+            self._process(method, video, params, cancellation_token) for video in videos
+        ])
+
+    async def _process(
+        self,
+        method: VideoProcessorActionMethod,
+        video: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        encoding: VideoAudioEncodingParams = params["encoding"]
+
+        if method == VideoProcessorActionMethod.RESIZE:
+            return await self._resize(
+                video,
+                params["width"],
+                params["height"],
+                params["scale_mode"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.CROP:
+            return await self._crop(
+                video,
+                params["x"],
+                params["y"],
+                params["width"],
+                params["height"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.PAD:
+            return await self._pad(
+                video,
+                params["left"],
+                params["right"],
+                params["top"],
+                params["bottom"],
+                params["color"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.FLIP:
+            return await self._flip(
+                video,
+                params["direction"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ROTATE:
+            return await self._rotate(
+                video,
+                params["angle"],
+                params["expand"],
+                encoding,
+                cancellation_token,
+            )
+
+        raise ValueError(f"Unsupported video processing action method: {method}")
+
+    @abstractmethod
+    async def _resize(
+        self,
+        video: MediaSource,
+        width: Optional[int],
+        height: Optional[int],
+        scale_mode: VideoScaleMode,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _crop(
+        self,
+        video: MediaSource,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _pad(
+        self,
+        video: MediaSource,
+        left: int,
+        right: int,
+        top: int,
+        bottom: int,
+        color: Any,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _flip(
+        self,
+        video: MediaSource,
+        direction: VideoFlipDirection,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _rotate(
+        self,
+        video: MediaSource,
+        angle: float,
+        expand: bool,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
         pass

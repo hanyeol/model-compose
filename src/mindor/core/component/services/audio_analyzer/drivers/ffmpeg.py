@@ -19,8 +19,8 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         target           = params["target_loudness"]
         include_timeline = params["include_timeline"]
 
-        filter_str = f"ebur128=peak=true:target={int(target)}"
-        stderr_text = await self._run_ffmpeg_filter(source, filter_str)
+        audio_filter = f"ebur128=peak=true:target={int(target)}"
+        stderr_text = await self._run_ffmpeg_filter(source, audio_filter)
 
         summary = self._parse_ebur128_summary(stderr_text)
 
@@ -104,8 +104,8 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         threshold    = params["threshold"]
         min_duration = params["min_duration"]
 
-        filter_str = f"silencedetect=noise={threshold}dB:d={min_duration}"
-        stderr_text = await self._run_ffmpeg_filter(source, filter_str)
+        audio_filter = f"silencedetect=noise={threshold}dB:d={min_duration}"
+        stderr_text = await self._run_ffmpeg_filter(source, audio_filter)
 
         regions = self._parse_silencedetect(stderr_text)
         total_silent = sum((region.get("duration") or 0.0) for region in regions)
@@ -125,7 +125,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "regions":            regions,
         })
 
-    async def _run_ffmpeg_filter(self, source: MediaSource, audio_filter: str) -> str:
+    async def _run_ffmpeg_filter(
+        self,
+        source: MediaSource,
+        audio_filter: str,
+        cancellation_token: Optional[CancellationToken]
+    ) -> str:
         input_path, spooled = await self._resolve_input_path(source)
 
         command = [ "ffmpeg", "-hide_banner", "-nostats" ]
@@ -137,20 +142,20 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         command.extend([ "-af", audio_filter, "-f", "null", "-" ])
 
         try:
-            process, _out, err = await run_subprocess(
+            process, _, stderr = await run_subprocess(
                 command,
                 source.stream if input_path is None else None,
                 stdout_handler=lambda r: r.read(),
                 stderr_handler=lambda r: r.read(),
             )
             if process.returncode != 0:
-                error_message = err.decode("utf-8", errors="replace") if err else ""
+                error_message = stderr.decode("utf-8", errors="replace") if stderr else ""
                 raise RuntimeError(f"ffmpeg filter '{audio_filter}' failed (exit code {process.returncode}): {error_message}")
         finally:
             if spooled and input_path is not None:
                 self._remove_file(input_path)
 
-        return err.decode("utf-8", errors="replace") if err else ""
+        return stderr.decode("utf-8", errors="replace") if stderr else ""
 
     @staticmethod
     def _parse_ebur128_summary(text: str) -> Dict[str, Optional[float]]:

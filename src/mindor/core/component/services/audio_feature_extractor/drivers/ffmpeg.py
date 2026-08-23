@@ -33,14 +33,14 @@ class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         command.extend([ "-f", "s16le", "-ac", "1", "-ar", str(sample_rate), "pipe:1" ])
 
         try:
-            process, out, err = await run_subprocess(
+            process, stdout, stderr = await run_subprocess(
                 command,
                 source.stream if input_path is None else None,
                 stdout_handler=lambda r: r.read(),
                 stderr_handler=lambda r: r.read(),
             )
             if process.returncode != 0:
-                error_message = err.decode("utf-8", errors="replace") if err else ""
+                error_message = stderr.decode("utf-8", errors="replace") if stderr else ""
                 raise RuntimeError(f"ffmpeg PCM decode failed (exit code {process.returncode}): {error_message}")
         finally:
             if spooled and input_path is not None:
@@ -49,7 +49,7 @@ class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
                 except FileNotFoundError:
                     pass
 
-        return np.frombuffer(out, dtype=np.int16).astype(np.float32) / 32768.0
+        return np.frombuffer(stdout, dtype=np.int16).astype(np.float32) / 32768.0
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
         """

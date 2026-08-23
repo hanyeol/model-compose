@@ -238,8 +238,10 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         if video and video.fps is not None:
             steps.append(f"fps={video.fps}")
+
         if video and video.resolution:
             width, _, height = video.resolution.partition("x")
+
             if width and height:
                 steps.append(f"scale={width}:{height}:flags=lanczos")
 

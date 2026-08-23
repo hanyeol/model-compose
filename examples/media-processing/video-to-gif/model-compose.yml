@@ -1,0 +1,68 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: convert
+    title: Video to GIF
+    description: Convert a video file to an animated GIF.
+    job:
+      component: converter
+      input:
+        video: ${input.video as video}
+        fps: ${input.fps as select/8,10,12,15,20,24 | 12}
+        resolution: ${input.resolution as select/320x-1,480x-1,640x-1,800x-1,1080x-1 | 480x-1}
+      output:
+        gif: ${output as video}
+
+  - id: clip-to-gif
+    title: Trim and Convert to GIF
+    description: Trim a segment out of a video, then convert that segment to an animated GIF.
+    jobs:
+      - id: clip
+        component: clipper
+        input:
+          video: ${input.video as video}
+          start_time: ${input.start_time | 0s}
+          end_time: ${input.end_time | 5s}
+
+      - id: convert
+        component: converter
+        input:
+          # Feed the trimmed clip straight into the GIF converter.
+          video: ${jobs.clip.output as video}
+          fps: ${input.fps as select/8,10,12,15,20,24 | 12}
+          resolution: ${input.resolution as select/320x-1,480x-1,640x-1,800x-1,1080x-1 | 480x-1}
+        output:
+          gif: ${output as video}
+        depends_on: [ clip ]
+
+components:
+  - id: clipper
+    type: video-clipper
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      span:
+        start_time: ${input.start_time}
+        end_time: ${input.end_time}
+
+  - id: converter
+    type: video-converter
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      # format: gif triggers the palettegen/paletteuse filter chain in the
+      # ffmpeg driver, so the output uses an optimized per-clip palette
+      # instead of the default 256-color web palette. Audio is dropped
+      # automatically since GIF has no audio track.
+      encoding:
+        format: gif
+        video:
+          fps: ${input.fps}
+          resolution: ${input.resolution}

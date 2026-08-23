@@ -1245,7 +1245,7 @@ When the input is a list, the action returns a list of per-audio segment lists. 
 
 ### Music Generation
 
-Generate music audio from a text description, optionally with lyrics for vocal generation. This task uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+Generate or edit music audio. The action selects an operation via the `method` field — from scratch generation, cover of an existing track, in-place region rewrite, continuation past the end, adding a new instrument layer, or generating accompaniment for a vocal-only stem. This task uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 
 **Component Settings:**
 
@@ -1257,14 +1257,15 @@ Generate music audio from a text description, optionally with lyrics for vocal g
 | `preset` | string | `acestep-v15-turbo` | Checkpoint preset (`acestep-v15-turbo`, `acestep-v15-base`, `acestep-v15-sft`) |
 | `model` | string | **required** | Local checkpoint directory. ACE-Step does not accept HuggingFace Hub identifiers |
 
-**Action Fields:**
+**Common Action Fields:**
+
+Every method shares these fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `prompt` | string/array | **required** | Text description of the music style, genre, mood, and instrumentation |
-| `lyrics` | string/array | `null` | Song lyrics used when the driver supports vocal generation |
+| `method` | string | **required** | Operation: `generate`, `cover`, `rewrite`, `extend`, `layer`, `accompany` |
 | `seed` | int | `null` | Random seed for reproducible generation |
-| `batch_size` | int | `1` | Number of prompts processed per batch |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.duration` | int | `30` | Duration of the generated music in seconds |
 | `params.bpm` | int | `120` | Target tempo in beats per minute |
 | `params.key_scale` | string | `null` | Musical key of the generated music (e.g., `C`, `D`, `Em`) |
@@ -1272,7 +1273,116 @@ Generate music audio from a text description, optionally with lyrics for vocal g
 | `params.inference_steps` | int | `8` | Number of diffusion inference steps (turbo: `8`, base: `32`, sft: `50`) |
 | `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale applied during sampling |
 
-**Example:**
+#### `method: generate`
+
+Generate music from scratch. Optionally condition on a reference audio to nudge timbre and performance style toward it.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Text description of the music style, genre, mood, and instrumentation |
+| `lyrics` | string/array | `null` | Song lyrics used for vocal generation |
+| `reference_audio` | string | `null` | Optional reference audio guiding timbre, mixing, and performance style |
+
+```yaml
+action:
+  method: generate
+  prompt: ${input.prompt as text}
+  lyrics: ${input.lyrics | ""}
+  params:
+    duration: 30
+    bpm: 120
+```
+
+#### `method: cover`
+
+Cover an existing track in a new style described by `prompt`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `source` | string | **required** | Path or URL of the source audio to create a cover from |
+| `prompt` | string/array | **required** | Text description of the target cover style |
+| `lyrics` | string/array | `null` | Optional lyrics to sing in the cover |
+
+```yaml
+action:
+  method: cover
+  source: ${input.source}
+  prompt: "acoustic folk arrangement, warm and intimate"
+```
+
+#### `method: rewrite`
+
+Regenerate a specific `[start_time, end_time]` region of the source while keeping the rest intact.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `source` | string | **required** | Path or URL of the source audio containing the region to rewrite |
+| `start_time` | float | **required** | Start time in seconds of the region to regenerate |
+| `end_time` | float | **required** | End time in seconds of the region to regenerate |
+| `prompt` | string/array | **required** | Text description guiding the rewritten region |
+| `lyrics` | string/array | `null` | Optional lyrics for the rewritten region |
+
+```yaml
+action:
+  method: rewrite
+  source: ${input.source}
+  start_time: 32.0
+  end_time: 48.0
+  prompt: "add a saxophone solo over the existing chord progression"
+```
+
+#### `method: extend`
+
+Continue the source audio past its natural end.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `source` | string | **required** | Path or URL of the source audio to continue past its end |
+| `prompt` | string/array | **required** | Text description of the continuation style |
+| `lyrics` | string/array | `null` | Optional lyrics for the continuation |
+
+```yaml
+action:
+  method: extend
+  source: ${input.source}
+  prompt: "outro fading into ambient pads"
+  params:
+    duration: 20
+```
+
+#### `method: layer`
+
+Add a new instrument or part on top of the source, keeping the existing mix underneath.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `source` | string | **required** | Path or URL of the source audio to layer a new track on top of |
+| `prompt` | string/array | **required** | Text description of the layer to add (e.g., instrument, part) |
+
+```yaml
+action:
+  method: layer
+  source: ${input.source}
+  prompt: "punchy 808 kick and hi-hat pattern"
+```
+
+#### `method: accompany`
+
+Generate an instrumental accompaniment that matches a vocal-only source.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `vocal` | string | **required** | Path or URL of the vocal-only audio to generate accompaniment for |
+| `prompt` | string/array | `null` | Text description of the desired accompaniment style |
+
+```yaml
+action:
+  method: accompany
+  vocal: ${input.vocal}
+  prompt: "sparse piano ballad, matches the vocal phrasing"
+```
+
+**Full Example:**
 
 ```yaml
 component:
@@ -1284,6 +1394,7 @@ component:
   model: /path/to/ace-step-checkpoints
   device: cuda:0
   action:
+    method: generate
     prompt: ${input.prompt as text}
     lyrics: ${input.lyrics | ""}
     params:
@@ -1305,7 +1416,7 @@ component:
 
 **Result Shape:**
 
-Returns a single PCM audio stream (or a list of streams for batched prompts). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes.
+Returns a single PCM audio stream (or a list of streams for batched inputs). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes.
 
 ## Multiple Actions
 

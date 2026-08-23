@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -74,6 +74,7 @@ Model-compose supports the following component types:
 | `audio-converter` | Audio format/codec conversion | [audio-converter.md](components/audio-converter.md) |
 | `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
 | `audio-analyzer` | Measure loudness (LUFS), peak, gain, clipping, and silence via ffmpeg filters | [audio-analyzer.md](components/audio-analyzer.md) |
+| `audio-synchronizer` | Compute time offsets between multiple recordings that share the same audio via FFT cross-correlation | [audio-synchronizer.md](components/audio-synchronizer.md) |
 | `audio-clipper` | Clip one or more time ranges out of an audio file (ffmpeg stream copy) | [audio-clipper.md](components/audio-clipper.md) |
 | `audio-mixer` | Combine multiple audios into one — concat (join end-to-end) or overlay (layer with per-overlay timing, gain, pan, fade) via ffmpeg | [audio-mixer.md](components/audio-mixer.md) |
 | `media-inspector` | Read audio/video/image metadata (format, streams, EXIF) via ffprobe or exiftool | [media-inspector.md](components/media-inspector.md) |

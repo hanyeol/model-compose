@@ -839,7 +839,7 @@ component:
 
 ### 10.3.19 music-generation
 
-Generates music audio from a text description, optionally with lyrics for vocal generation. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+Generates or edits music audio. The action's `method` field selects the operation — generate from scratch, cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, or generate accompaniment for a vocal-only stem. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 
 ```yaml
 component:
@@ -851,6 +851,7 @@ component:
   model: /path/to/ace-step-checkpoints
   device: cuda:0
   action:
+    method: generate
     prompt: ${input.prompt as text}
     lyrics: ${input.lyrics | ""}
     params:
@@ -862,13 +863,24 @@ component:
       guidance_scale: 5.0
 ```
 
+**Supported methods:**
+
+| Method | Purpose | Required fields (beyond common) |
+|--------|---------|---------------------------------|
+| `generate` | Generate music from scratch | `prompt` (optional `lyrics`, `reference_audio`) |
+| `cover` | Cover an existing track in a new style | `source`, `prompt` (optional `lyrics`) |
+| `rewrite` | Regenerate a specific `[start_time, end_time]` region | `source`, `start_time`, `end_time`, `prompt` (optional `lyrics`) |
+| `extend` | Continue the source past its natural end | `source`, `prompt` (optional `lyrics`) |
+| `layer` | Add a new instrument or part on top of the source | `source`, `prompt` |
+| `accompany` | Generate accompaniment for a vocal-only source | `vocal` (optional `prompt`) |
+
 **Supported families and presets:**
 - `ace-step`
   - `acestep-v15-turbo` — fast turbo variant (default `inference_steps: 8`).
   - `acestep-v15-base` — base variant (recommended `inference_steps: 32`).
   - `acestep-v15-sft` — SFT variant (recommended `inference_steps: 50`).
 
-The ACE-Step family does not support HuggingFace Hub identifiers — `model` must be a local checkpoint directory. The result is a PCM audio stream per prompt (or a list of streams for batched prompts).
+The ACE-Step family does not support HuggingFace Hub identifiers — `model` must be a local checkpoint directory. The result is a PCM audio stream per input (or a list of streams for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.
 
 ---
 

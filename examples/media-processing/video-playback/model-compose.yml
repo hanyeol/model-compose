@@ -1,0 +1,43 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # Play a single video file or URL in an OS window. The window opens for the
+  # duration of playback and closes on its own when the input ends (or when the
+  # user closes the window).
+  - id: play-video
+    title: Play a video
+    description: |
+      Open a native window and play a single video source. Audio track is
+      played through the OS default output alongside the video unless
+      `mute: true` is set.
+    jobs:
+      - id: play
+        component: player
+        input:
+          video: ${input.source as video}
+          window_title: ${input.title | Video Playback}
+          fullscreen: ${input.fullscreen as boolean | false}
+          mute: ${input.mute as boolean | false}
+          duration: ${input.duration}
+
+components:
+  # System video playback via ffplay (bundled with ffmpeg). ffplay opens a
+  # native window sized to the video's natural resolution unless overridden
+  # via `window_size` / `fullscreen`.
+  - id: player
+    type: video-playback
+    driver: ffplay
+    action:
+      video: ${input.video}
+      window_title: ${input.window_title}
+      fullscreen: ${input.fullscreen}
+      mute: ${input.mute}
+      duration: ${input.duration}
+      wait_for_finish: true

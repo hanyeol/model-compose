@@ -636,12 +636,18 @@ class GradioWebUIBuilder:
             return gr.Image(label=label, type="filepath")
 
         if variable.type == WorkflowVariableType.AUDIO:
+            if variable.is_list:
+                return gr.File(label=label, file_count="multiple", file_types=["audio"])
             return gr.Audio(label=label, sources=[ "upload", "microphone" ], type="filepath")
 
         if variable.type == WorkflowVariableType.VIDEO:
+            if variable.is_list:
+                return gr.File(label=label, file_count="multiple", file_types=["video"])
             return gr.Video(label=label)
 
         if variable.type == WorkflowVariableType.FILE:
+            if variable.is_list:
+                return gr.File(label=label, file_count="multiple")
             return gr.File(label=label)
 
         if variable.type == WorkflowVariableType.SELECT:
@@ -661,6 +667,8 @@ class GradioWebUIBuilder:
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
         if self._is_media_variable(variable) and variable.format is None:
+            if variable.is_list:
+                return [ create_upload_file(v, variable.type.value, variable.subtype) for v in value ] if value else None
             return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
 
         if variable.type == WorkflowVariableType.INTEGER:

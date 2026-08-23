@@ -128,7 +128,7 @@ class AudioValueRenderer:
             return AudioArrayValue(_iterate())
 
         if isinstance(value, (list, tuple)):
-            return AudioArrayValue([ await self._render_element(item) for item in value if item is not None ])
+            return AudioArrayValue([ await self._render_element(item) for item in value ])
 
         if single_as_array:
             audio = await self._render_element(value)

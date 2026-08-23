@@ -89,7 +89,7 @@ class MediaValueRenderer:
             return MediaArrayValue(_iterate())
 
         if isinstance(value, (list, tuple)):
-            return MediaArrayValue([ await self._render_element(item) for item in value if item is not None ])
+            return MediaArrayValue([ await self._render_element(item) for item in value ])
 
         if single_as_array:
             media = await self._render_element(value)

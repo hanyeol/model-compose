@@ -90,7 +90,7 @@ class VideoValueRenderer:
             return VideoArrayValue(_iterate())
 
         if isinstance(value, (list, tuple)):
-            return VideoArrayValue([ await self._render_element(item) for item in value if item is not None ])
+            return VideoArrayValue([ await self._render_element(item) for item in value ])
 
         if single_as_array:
             video = await self._render_element(value)

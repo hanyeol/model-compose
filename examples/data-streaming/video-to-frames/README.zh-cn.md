@@ -39,6 +39,13 @@
      -d '{"input": {"video": "/absolute/path/to/video.mp4", "frame_interval": 30}}'
    ```
 
+   若要仅提取关键帧（I 帧）而非按固定间隔跳采原始帧，请设置 `keyframe_only`：
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"video": "/absolute/path/to/video.mp4", "keyframe_only": true, "frame_interval": 1}}'
+   ```
+
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 提供视频和（可选的）帧间隔，然后点击"运行工作流"
@@ -58,7 +65,8 @@
 - **用途**：从输入视频中逐帧流式输出
 - **关键选项**：
   - `video`：源视频媒体
-  - `frame_interval`：每 N 帧发出一帧
+  - `frame_interval`：每 N 帧发出一帧（当 `keyframe_only` 为 true 时按关键帧计数）
+  - `keyframe_only`：仅提取 I 帧 — 适合按场景采样；opencv 驱动不支持
   - `streaming: true`：以异步迭代器（而非列表）方式产出帧
 
 ### File Store 组件 (storage)
@@ -108,7 +116,8 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |-----------|------|----------|---------|-------------|
 | `video` | video | 是 | - | 用于抽帧的源视频 |
-| `frame_interval` | integer | 否 | `30` | 每 N 帧发出一帧 |
+| `frame_interval` | integer | 否 | `30` | 每 N 帧发出一帧（`keyframe_only` 为 true 时按关键帧计数） |
+| `keyframe_only` | boolean | 否 | `false` | 仅提取 I 帧；需要 ffmpeg 驱动 |
 
 #### 输出格式
 
@@ -134,6 +143,7 @@ output/frames/frame-2.033.png
 ## 自定义
 
 - 修改 `frame_interval` 以采样更多或更少的帧
+- 设置 `keyframe_only: true` 以按场景采样，而非固定间隔
 - 将 `storage.base_path` 指向其他目录，或切换到远程存储驱动
 - 在 `for-each` 主体中添加逐帧处理（如图像模型）
 - 启用 `runtime: docker` 块，在通过 `setup.sh` 构建的容器中运行 ffmpeg

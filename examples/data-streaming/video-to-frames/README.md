@@ -39,6 +39,13 @@ No environment variables are required. If you plan to run the frame extractor in
      -d '{"input": {"video": "/absolute/path/to/video.mp4", "frame_interval": 30}}'
    ```
 
+   To extract only keyframes (I-frames) instead of striding over every Nth raw frame, set `keyframe_only`:
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"video": "/absolute/path/to/video.mp4", "keyframe_only": true, "frame_interval": 1}}'
+   ```
+
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Provide a video and (optionally) a frame interval, then click "Run Workflow"
@@ -58,7 +65,8 @@ Extracted frames are written to `./output/frames/frame-<timestamp>.png`.
 - **Purpose**: Streams frames out of the input video one at a time
 - **Key options**:
   - `video`: source video media
-  - `frame_interval`: emit every Nth frame
+  - `frame_interval`: emit every Nth frame (or every Nth keyframe when `keyframe_only` is true)
+  - `keyframe_only`: extract only I-frames — useful for scene-level sampling; not supported by the opencv driver
   - `streaming: true`: yields frames as an async iterator instead of returning a list
 
 ### File Store Component (storage)
@@ -108,7 +116,8 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `video` | video | Yes | - | Source video to extract frames from |
-| `frame_interval` | integer | No | `30` | Emit one frame every N frames |
+| `frame_interval` | integer | No | `30` | Emit one frame every N frames (counts keyframes when `keyframe_only` is true) |
+| `keyframe_only` | boolean | No | `false` | Extract only I-frames; requires the ffmpeg driver |
 
 #### Output Format
 
@@ -134,6 +143,7 @@ Each file is written as soon as ffmpeg emits the corresponding frame, so downstr
 ## Customization
 
 - Change `frame_interval` to sample more or fewer frames
+- Set `keyframe_only: true` to sample scene-level frames instead of a fixed stride
 - Point `storage.base_path` at a different directory or swap the driver for a remote store
 - Wrap `save-frames` with additional per-frame processing (e.g., an image model) inside the `for-each` body
 - Enable the `runtime: docker` block to run ffmpeg inside a container built via `setup.sh`

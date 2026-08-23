@@ -19,6 +19,10 @@ workflow:
       input:
         video: ${input.video as video}
         frame_interval: ${input.frame_interval as integer | 30}
+        # When true, only I-frames are emitted and `frame_interval` counts
+        # keyframes (e.g., 2 = every other keyframe). Requires the ffmpeg
+        # driver — the opencv driver rejects this option.
+        keyframe_only: ${input.keyframe_only as boolean | false}
 
     - id: save-frames
       type: for-each
@@ -43,6 +47,7 @@ components:
     action:
       video: ${input.video}
       frame_interval: ${input.frame_interval}
+      keyframe_only: ${input.keyframe_only}
       filename_format: frame-%04d.png
       streaming: true
 

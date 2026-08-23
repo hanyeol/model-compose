@@ -39,6 +39,13 @@
      -d '{"input": {"video": "/absolute/path/to/video.mp4", "frame_interval": 30}}'
    ```
 
+   원본 프레임을 N개마다 뽑는 대신 키프레임(I-frame)만 추출하려면 `keyframe_only`를 설정하세요:
+   ```bash
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"video": "/absolute/path/to/video.mp4", "keyframe_only": true, "frame_interval": 1}}'
+   ```
+
    **웹 UI 사용:**
    - Web UI 열기: http://localhost:8081
    - 비디오와 (선택적으로) 프레임 간격을 제공한 뒤 "Run Workflow" 클릭
@@ -58,7 +65,8 @@
 - **목적**: 입력 비디오로부터 프레임을 한 번에 하나씩 스트리밍
 - **주요 옵션**:
   - `video`: 소스 비디오 미디어
-  - `frame_interval`: N 프레임마다 한 장씩 방출
+  - `frame_interval`: N 프레임마다 한 장씩 방출 (`keyframe_only`가 true이면 키프레임 기준으로 계산)
+  - `keyframe_only`: I-프레임만 추출 — 장면 단위 샘플링에 유용, opencv 드라이버에서는 지원되지 않음
   - `streaming: true`: 리스트가 아닌 비동기 이터레이터로 프레임을 제공
 
 ### File Store 컴포넌트 (storage)
@@ -108,7 +116,8 @@ graph TD
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `video` | video | 예 | - | 프레임을 추출할 소스 비디오 |
-| `frame_interval` | integer | 아니오 | `30` | N 프레임마다 한 장씩 방출 |
+| `frame_interval` | integer | 아니오 | `30` | N 프레임마다 한 장씩 방출 (`keyframe_only`가 true이면 키프레임 기준) |
+| `keyframe_only` | boolean | 아니오 | `false` | I-프레임만 추출 — ffmpeg 드라이버 필요 |
 
 #### 출력 형식
 
@@ -134,6 +143,7 @@ output/frames/frame-2.033.png
 ## 사용자 정의
 
 - `frame_interval`을 변경해 더 많거나 더 적은 프레임을 샘플링
+- `keyframe_only: true`로 고정 간격 대신 장면 단위 프레임을 샘플링
 - `storage.base_path`를 다른 디렉토리로 지정하거나 원격 스토어 드라이버로 교체
 - `for-each` 본문에 이미지 모델과 같은 프레임별 처리를 추가
 - `runtime: docker` 블록을 활성화해 `setup.sh`로 빌드된 컨테이너 안에서 ffmpeg 실행

@@ -483,8 +483,14 @@ class AudioDecodingStreamer:
             if stream is None:
                 return None
 
-        source_sample_rate = int(stream.attrs.get("sample_rate", 16000))
-        source_channels = int(stream.attrs.get("channels", 1))
+        source_sample_rate = stream.attrs.get("sample_rate")
+        source_channels    = stream.attrs.get("channels")
+
+        # Without a known layout we can't safely claim passthrough — a wrong
+        # default here would silently mis-play the stream (e.g. 48k treated as
+        # 16k). Fall back to the decode path so it can resolve the layout.
+        if source_sample_rate is None or source_channels is None:
+            return None
 
         if self._sample_rate is not None and self._sample_rate != source_sample_rate:
             return None

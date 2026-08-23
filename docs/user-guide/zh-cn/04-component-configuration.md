@@ -54,6 +54,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `audio-capture` | 本地音频采集 | 将麦克风或系统回环作为连续编码流实时输出 |
 | `video-capture` | 本地摄像头采集 | 将网络摄像头、采集卡或虚拟摄像头作为连续编码流实时输出 |
 | `rtmp-publisher` | 发布到 RTMP 端点 | 将视频、帧或音频实时推流到 YouTube Live、Twitch、Facebook Live 等（ffmpeg） |
+| `video-playback` | 本地视频播放 | 通过 ffplay 打开原生窗口播放视频源，音频路由到系统默认输出 |
 
 ### 组件选择指南
 
@@ -98,6 +99,9 @@ model-compose 提供了多种组件类型来执行不同的任务。
 
 **实时直播**
 - 将视频、帧或音频推送到 RTMP 端点（YouTube Live、Twitch、Facebook Live 等）→ `rtmp-publisher`
+
+**本地播放**
+- 在主机上的原生窗口中播放视频文件 / URL / 流 → `video-playback`
 
 **AI 代理**
 - 使用工具的自主代理 → `agent`

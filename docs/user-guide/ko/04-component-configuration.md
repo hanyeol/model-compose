@@ -54,6 +54,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `audio-capture` | 로컬 오디오 캡처 | 마이크 또는 시스템 루프백을 연속 인코딩 스트림으로 방출 |
 | `video-capture` | 로컬 카메라 캡처 | 웹캠, 캡처 카드, 가상 카메라를 연속 인코딩 스트림으로 방출 |
 | `rtmp-publisher` | RTMP 엔드포인트 발행 | YouTube Live, Twitch, Facebook Live 등으로 비디오·프레임·오디오 라이브 스트리밍 (ffmpeg) |
+| `video-playback` | 로컬 비디오 재생 | ffplay로 네이티브 창을 열어 비디오 소스를 재생하며, 오디오는 시스템 기본 출력으로 라우팅 |
 
 ### 컴포넌트 선택 가이드
 
@@ -98,6 +99,9 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 
 **라이브 방송**
 - RTMP 엔드포인트(YouTube Live, Twitch, Facebook Live 등)로 비디오·프레임·오디오 발행 → `rtmp-publisher`
+
+**로컬 재생**
+- 호스트 머신의 네이티브 창에서 비디오 파일 / URL / 스트림 재생 → `video-playback`
 
 **AI 에이전트**
 - 도구를 활용하는 자율 에이전트 → `agent`

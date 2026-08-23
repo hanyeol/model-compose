@@ -57,6 +57,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-capture` | Capture local audio | Live microphone or system loopback as a continuous encoded stream |
 | `video-capture` | Capture local camera | Live webcam, capture card, or virtual camera as a continuous encoded stream |
 | `rtmp-publisher` | Publish to RTMP endpoints | Live-stream video, frames, or audio to YouTube Live, Twitch, Facebook Live, etc. (ffmpeg) |
+| `video-playback` | Play video locally | Open a native window and play a video source via ffplay, with audio routed to the system default output |
 
 ### Component Selection Guide
 
@@ -105,6 +106,9 @@ model-compose provides various component types for performing different tasks.
 
 **Live Broadcasting**
 - Publish video / frames / audio to RTMP endpoints (YouTube Live, Twitch, Facebook Live, etc.) → `rtmp-publisher`
+
+**Local Playback**
+- Play a video file / URL / stream in a native window on the host machine → `video-playback`
 
 **AI Agents**
 - Autonomous tool-using agents → `agent`

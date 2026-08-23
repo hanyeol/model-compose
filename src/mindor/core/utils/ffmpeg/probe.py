@@ -57,7 +57,7 @@ def _parse_field_value(field: str, value: Any, hint: Optional[str] = None) -> An
     return value
 
 async def _probe(
-    input_path: str,
+    path: str,
     fields: Sequence[str],
     stream_selector: str,
     field_map: Dict[str, Tuple[str, str]],
@@ -75,7 +75,7 @@ async def _probe(
     if "format" in sections:
         command.append("-show_format")
 
-    command.append(input_path)
+    command.append(path)
 
     stdout, _, returncode = await run_command(command)
 
@@ -87,7 +87,7 @@ async def _probe(
     streams = result.get("streams") or []
     stream = streams[0] if streams else {}
 
-    hint = (get_file_extension(input_path) or "").lower() or None
+    hint = (get_file_extension(path) or "").lower() or None
 
     values = []
     for field in fields:
@@ -97,18 +97,18 @@ async def _probe(
 
     return tuple(values)
 
-async def probe_video(input_path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
+async def probe_video(path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
     """Probe a video file with a single ffprobe call and return the requested fields in order.
 
     Supported fields: 'format', 'duration', 'size', 'bit_rate' (from container),
     'codec', 'width', 'height', 'frame_rate', 'pix_fmt' (from the first video stream).
     """
-    return await _probe(input_path, fields, "v:0", _VIDEO_FIELDS)
+    return await _probe(path, fields, "v:0", _VIDEO_FIELDS)
 
-async def probe_audio(input_path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
+async def probe_audio(path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
     """Probe an audio file with a single ffprobe call and return the requested fields in order.
 
     Supported fields: 'format', 'duration', 'size', 'bit_rate' (from container),
     'codec', 'sample_rate', 'channels', 'channel_layout' (from the first audio stream).
     """
-    return await _probe(input_path, fields, "a:0", _AUDIO_FIELDS)
+    return await _probe(path, fields, "a:0", _AUDIO_FIELDS)

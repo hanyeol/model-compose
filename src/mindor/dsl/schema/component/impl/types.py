@@ -48,6 +48,7 @@ class ComponentType(str, Enum):
     AUDIO_PROCESSOR         = "audio-processor"
     AUDIO_FEATURE_EXTRACTOR = "audio-feature-extractor"
     AUDIO_ANALYZER          = "audio-analyzer"
+    AUDIO_SYNCHRONIZER      = "audio-synchronizer"
     AUDIO_PLAYBACK          = "audio-playback"
     AUDIO_MIXER             = "audio-mixer"
     KEY_VALUE_STORE         = "key-value-store"

@@ -139,10 +139,12 @@ class AudioFeatureExtractorAction(ComponentAction):
 
     async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
+
         return self._compute_spectrum(samples, params)
 
     async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
         samples = await self._decode_pcm(source, params["sample_rate"])
+
         return self._compute_waveform(samples, params)
 
     def _compute_spectrum(self, samples: np.ndarray, params: Dict[str, Any]) -> dict:

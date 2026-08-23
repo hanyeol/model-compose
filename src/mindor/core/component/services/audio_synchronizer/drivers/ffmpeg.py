@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig
-from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
+from mindor.dsl.schema.component import AudioSynchronizerComponentConfig
+from mindor.dsl.schema.action import AudioSynchronizerActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.ffmpeg.audio import decode_pcm_from_file, decode_pcm_from_stream
 from mindor.core.logger import logging
-from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
+from ..base import AudioSynchronizerService, AudioSynchronizerDriver, register_audio_synchronizer_service
 from ..base import ComponentActionContext
-from .common import AudioFeatureExtractorAction
+from .common import AudioSynchronizerAction
 import os
 
 if TYPE_CHECKING:
     import numpy as np
 
-class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
+class FFmpegAudioSynchronizerAction(AudioSynchronizerAction):
     async def _decode_pcm(self, source: MediaSource, sample_rate: int) -> np.ndarray:
         input_path, spooled = await self._resolve_input_path(source)
 
@@ -55,9 +55,9 @@ class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
 
         return spooled_path, True
 
-@register_audio_feature_extractor_service(AudioFeatureExtractorDriver.FFMPEG)
-class FFmpegAudioFeatureExtractorService(AudioFeatureExtractorService):
-    def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
+@register_audio_synchronizer_service(AudioSynchronizerDriver.FFMPEG)
+class FFmpegAudioSynchronizerService(AudioSynchronizerService):
+    def __init__(self, id: str, config: AudioSynchronizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
     def get_setup_requirements(self) -> Optional[List[str]]:
@@ -65,7 +65,7 @@ class FFmpegAudioFeatureExtractorService(AudioFeatureExtractorService):
 
     async def _run(
         self,
-        action: AudioFeatureExtractorActionConfig,
+        action: AudioSynchronizerActionConfig,
         context: ComponentActionContext,
     ) -> Any:
-        return await FFmpegAudioFeatureExtractorAction(action).run(context)
+        return await FFmpegAudioSynchronizerAction(action).run(context)

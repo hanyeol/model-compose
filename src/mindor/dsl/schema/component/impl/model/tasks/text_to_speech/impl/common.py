@@ -8,7 +8,11 @@ class CommonTextToSpeechModelComponentConfig(CommonModelComponentConfig):
 
     @model_validator(mode="before")
     def inject_default_action_method(cls, values: Dict[str, Any]):
-        for action in values.get("actions") or []:
+        actions = values.get("actions")
+        if actions is None:
+            action = values.get("action")
+            actions = [ action ] if action else []
+        for action in actions:
             if isinstance(action, dict) and "method" not in action:
                 action["method"] = TextToSpeechActionMethod.GENERATE
         return values

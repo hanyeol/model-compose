@@ -1,13 +1,24 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
-from mindor.dsl.schema.action import ModelActionConfig, AceStepMusicGenerationModelActionConfig
+from mindor.dsl.schema.action import (
+    ModelActionConfig,
+    MusicGenerationActionMethod,
+    AceStepMusicGenerationModelGenerateActionConfig,
+    AceStepMusicGenerationModelCoverActionConfig,
+    AceStepMusicGenerationModelRewriteActionConfig,
+    AceStepMusicGenerationModelExtendActionConfig,
+    AceStepMusicGenerationModelLayerActionConfig,
+    AceStepMusicGenerationModelAccompanyActionConfig,
+)
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
+from mindor.core.logger import logging
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import MusicGenerationTaskAction
 
@@ -15,9 +26,7 @@ if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
 
 class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
-    config: AceStepMusicGenerationModelActionConfig
-
-    def __init__(self, config: AceStepMusicGenerationModelActionConfig, handler: AceStepHandler):
+    def __init__(self, config: Any, handler: AceStepHandler):
         super().__init__(config)
 
         self.handler: AceStepHandler = handler
@@ -28,21 +37,33 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         time_signature  = await context.render_variable(self.config.params.time_signature)
         inference_steps = await context.render_variable(self.config.params.inference_steps)
         guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
-        seed            = await context.render_variable(self.config.seed)
 
         params.update({
             "time_signature":  time_signature,
             "inference_steps": inference_steps,
             "guidance_scale":  guidance_scale,
-            "seed":            seed,
         })
 
         return params
 
+class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelGenerateActionConfig
+
+    def __init__(self, config: AceStepMusicGenerationModelGenerateActionConfig, handler: AceStepHandler):
+        super().__init__(config, handler)
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt = await context.render_text(self.config.prompt)
+        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator)) or isinstance(lyrics, (StreamIterator, AsyncIterator))
+
+        return (prompt, lyrics), is_single_input, is_streaming_input
+
     async def _generate_batch(
         self,
-        prompts: List[str],
-        lyrics: Optional[List[Optional[str]]],
+        batch_input: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
@@ -55,9 +76,8 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             )
 
             results: List[Any] = []
-            lyrics_batch = lyrics if lyrics is not None else [ None ] * len(prompts)
 
-            for prompt, song_lyrics in zip(prompts, lyrics_batch):
+            for prompt, song_lyrics in batch_input:
                 generation_params = GenerationParams(
                     caption=prompt,
                     lyrics=song_lyrics or "",
@@ -92,6 +112,91 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             return results
 
         return await self._run_in_executor(_generate)
+
+class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelCoverActionConfig
+
+    def __init__(self, config: AceStepMusicGenerationModelCoverActionConfig, handler: AceStepHandler):
+        super().__init__(config, handler)
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        raise NotImplementedError("ACE-Step cover generation is not implemented yet.")
+
+    async def _generate_batch(
+        self,
+        batch_input: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Any]:
+        raise NotImplementedError("ACE-Step cover generation is not implemented yet.")
+
+class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelRewriteActionConfig
+
+    def __init__(self, config: AceStepMusicGenerationModelRewriteActionConfig, handler: AceStepHandler):
+        super().__init__(config, handler)
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        raise NotImplementedError("ACE-Step rewrite is not implemented yet.")
+
+    async def _generate_batch(
+        self,
+        batch_input: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Any]:
+        raise NotImplementedError("ACE-Step rewrite is not implemented yet.")
+
+class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelExtendActionConfig
+
+    def __init__(self, config: AceStepMusicGenerationModelExtendActionConfig, handler: AceStepHandler):
+        super().__init__(config, handler)
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        raise NotImplementedError("ACE-Step extend is not implemented yet.")
+
+    async def _generate_batch(
+        self,
+        batch_input: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Any]:
+        raise NotImplementedError("ACE-Step extend is not implemented yet.")
+
+class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelLayerActionConfig
+
+    def __init__(self, config: AceStepMusicGenerationModelLayerActionConfig, handler: AceStepHandler):
+        super().__init__(config, handler)
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        raise NotImplementedError("ACE-Step layer generation is not implemented yet.")
+
+    async def _generate_batch(
+        self,
+        batch_input: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Any]:
+        raise NotImplementedError("ACE-Step layer generation is not implemented yet.")
+
+class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskAction):
+    config: AceStepMusicGenerationModelAccompanyActionConfig
+
+    def __init__(self, config: AceStepMusicGenerationModelAccompanyActionConfig, handler: AceStepHandler):
+        super().__init__(config, handler)
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        raise NotImplementedError("ACE-Step accompany (vocal-to-BGM) is not implemented yet.")
+
+    async def _generate_batch(
+        self,
+        batch_input: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Any]:
+        raise NotImplementedError("ACE-Step accompany (vocal-to-BGM) is not implemented yet.")
 
 class AceStepMusicGenerationTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -137,4 +242,22 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         return handler
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await AceStepMusicGenerationTaskAction(action, self.handler).run(context)
+        if action.method == MusicGenerationActionMethod.GENERATE:
+            return await AceStepMusicGenerationModelGenerateAction(action, self.handler).run(context)
+
+        if action.method == MusicGenerationActionMethod.COVER:
+            return await AceStepMusicGenerationModelCoverAction(action, self.handler).run(context)
+
+        if action.method == MusicGenerationActionMethod.REWRITE:
+            return await AceStepMusicGenerationModelRewriteAction(action, self.handler).run(context)
+
+        if action.method == MusicGenerationActionMethod.EXTEND:
+            return await AceStepMusicGenerationModelExtendAction(action, self.handler).run(context)
+
+        if action.method == MusicGenerationActionMethod.LAYER:
+            return await AceStepMusicGenerationModelLayerAction(action, self.handler).run(context)
+
+        if action.method == MusicGenerationActionMethod.ACCOMPANY:
+            return await AceStepMusicGenerationModelAccompanyAction(action, self.handler).run(context)
+
+        raise ValueError(f"Unknown method: {action.method}")

@@ -54,8 +54,8 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         }
 
         if params["true_peak"]:
-            ebur_text = await self._run_ffmpeg_filter(source, "ebur128=peak=true")
-            summary = self._parse_ebur128_summary(ebur_text)
+            stderr_text = await self._run_ffmpeg_filter(source, "ebur128=peak=true")
+            summary = self._parse_ebur128_summary(stderr_text)
             result["true_peak_dbtp"] = summary.get("true_peak")
 
         return AudioPeak(result)

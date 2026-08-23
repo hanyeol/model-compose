@@ -11,6 +11,7 @@ _VIDEO_FORMAT_CODEC_MAP: Dict[str, Tuple[str, str]] = {
     "webm": ("libvpx-vp9", "libopus"),
     "avi":  ("mpeg4",      "libmp3lame"),
     "ogv":  ("libtheora",  "libvorbis"),
+    "gif":  ("gif",        None),
 }
 
 # Fallback audio codec per container when the encoding config leaves it unset.

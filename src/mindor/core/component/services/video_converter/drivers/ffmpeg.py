@@ -60,19 +60,24 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         video_codec = self._resolve_video_codec(encoding)
         audio_codec = self._resolve_audio_codec(encoding)
+        is_gif_format = (format == "gif")
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
-        if video and video.bitrate:
+        if video and video.bitrate and not is_gif_format:
             command.extend([ "-b:v", str(video.bitrate) ])
-        if audio_codec:
-            command.extend([ "-c:a", audio_codec ])
-        if audio and audio.bitrate:
-            command.extend([ "-b:a", str(audio.bitrate) ])
-        if video and video.resolution:
-            command.extend([ "-s", video.resolution ])
-        if video and video.fps is not None:
-            command.extend([ "-r", str(video.fps) ])
+        if is_gif_format:
+            # GIF has no audio track; palette filtering handles fps/resolution.
+            command.extend([ "-an", "-filter_complex", self._build_gif_filter(video) ])
+        else:
+            if audio_codec:
+                command.extend([ "-c:a", audio_codec ])
+            if audio and audio.bitrate:
+                command.extend([ "-b:a", str(audio.bitrate) ])
+            if video and video.resolution:
+                command.extend([ "-s", video.resolution ])
+            if video and video.fps is not None:
+                command.extend([ "-r", str(video.fps) ])
 
         def _cleanup() -> None:
             if spooled and input_path is not None:
@@ -104,8 +109,12 @@ class FFmpegVideoConverterAction(VideoConverterAction):
     ) -> VideoStreamResource:
         """Run ffmpeg to a temporary file, then return a VideoStreamResource over that file."""
         output_path = get_temporary_path(format)
+        is_gif_format = (format == "gif")
 
-        command = command + [ "-movflags", "+faststart", "-y", output_path ]
+        if is_gif_format:
+            command = command + [ "-y", output_path ]
+        else:
+            command = command + [ "-movflags", "+faststart", "-y", output_path ]
 
         # run_subprocess only reacts to asyncio cancellation, but our
         # CancellationToken is a threading.Event that has to be polled.
@@ -219,6 +228,24 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
+
+    @staticmethod
+    def _build_gif_filter(video: Optional[Any]) -> str:
+        # palettegen/paletteuse produces a much higher-quality GIF than the default
+        # 256-color web palette. fps and scale go in the filter graph so they compose
+        # with the palette pass, instead of being applied by ffmpeg's global -r/-s.
+        steps: List[str] = []
+
+        if video and video.fps is not None:
+            steps.append(f"fps={video.fps}")
+        if video and video.resolution:
+            width, _, height = video.resolution.partition("x")
+            if width and height:
+                steps.append(f"scale={width}:{height}:flags=lanczos")
+
+        prefix = ",".join(steps) + "," if steps else ""
+
+        return f"[0:v]{prefix}split[a][b];[a]palettegen[p];[b][p]paletteuse"
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
         """

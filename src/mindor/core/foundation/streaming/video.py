@@ -20,6 +20,7 @@ _VIDEO_CONTENT_TYPE_MAP: Dict[str, str] = {
     "ts":   "video/mp2t",
     "3gp":  "video/3gpp",
     "ogv":  "video/ogg",
+    "gif":  "image/gif",
 }
 
 class VideoStreamResource(StreamResource):

@@ -60,6 +60,32 @@ workflows:
         output:
           file: ${output.path}
 
+  - id: capture-window-clip
+    title: Capture a Specific Window
+    description: |
+      Capture a single window matched by title and/or owning application. On
+      Windows, gdigrab tracks the window as it moves. On macOS and Linux the
+      current window rect is looked up once and captured as a region — the
+      window must stay in place for the duration of the capture.
+    jobs:
+      - id: capture
+        component: screen
+        action: window
+        input:
+          duration: ${input.duration}
+          framerate: ${input.framerate}
+          title: ${input.title}
+          app: ${input.app}
+
+      - id: save
+        component: storage
+        input:
+          path: window-${input.filename | now}.ts
+          source: ${jobs.capture.output.video}
+        depends_on: [ capture ]
+        output:
+          file: ${output.path}
+
   - id: capture-microphone-clip
     title: Capture Microphone Audio
     description: |
@@ -109,6 +135,20 @@ components:
           y: ${input.y as integer | 0}
           width: ${input.width as integer | 640}
           height: ${input.height as integer | 480}
+        framerate: ${input.framerate as number | 15}
+        include_video: true
+        include_audio: false
+        duration: ${input.duration as string | 5s}
+
+      # Window capture. `title` and `app` are case-insensitive substrings —
+      # provide either or both. On Windows, ffmpeg's gdigrab keeps following
+      # the window as it moves. On macOS and Linux the driver looks up the
+      # window's on-screen rect and captures that region for the duration.
+      - id: window
+        video_source: window
+        window:
+          title: ${input.title as string | null}
+          app: ${input.app as string | null}
         framerate: ${input.framerate as number | 15}
         include_video: true
         include_audio: false

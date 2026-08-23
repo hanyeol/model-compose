@@ -31,15 +31,15 @@ import asyncio, os
 _DEFAULT_FORMAT = "mp4"
 
 _ANCHOR_OFFSETS: Dict[VideoOverlayAnchor, Tuple[str, str]] = {
-    VideoOverlayAnchor.TOP_LEFT:      ("0",       "0"),
-    VideoOverlayAnchor.TOP_CENTER:    ("-w/2",    "0"),
-    VideoOverlayAnchor.TOP_RIGHT:     ("-w",      "0"),
-    VideoOverlayAnchor.CENTER_LEFT:   ("0",       "-h/2"),
-    VideoOverlayAnchor.CENTER:        ("-w/2",    "-h/2"),
-    VideoOverlayAnchor.CENTER_RIGHT:  ("-w",      "-h/2"),
-    VideoOverlayAnchor.BOTTOM_LEFT:   ("0",       "-h"),
-    VideoOverlayAnchor.BOTTOM_CENTER: ("-w/2",    "-h"),
-    VideoOverlayAnchor.BOTTOM_RIGHT:  ("-w",      "-h"),
+    VideoOverlayAnchor.TOP_LEFT:      ("0",    "0"),
+    VideoOverlayAnchor.TOP_CENTER:    ("-w/2", "0"),
+    VideoOverlayAnchor.TOP_RIGHT:     ("-w",   "0"),
+    VideoOverlayAnchor.CENTER_LEFT:   ("0",    "-h/2"),
+    VideoOverlayAnchor.CENTER:        ("-w/2", "-h/2"),
+    VideoOverlayAnchor.CENTER_RIGHT:  ("-w",   "-h/2"),
+    VideoOverlayAnchor.BOTTOM_LEFT:   ("0",    "-h"),
+    VideoOverlayAnchor.BOTTOM_CENTER: ("-w/2", "-h"),
+    VideoOverlayAnchor.BOTTOM_RIGHT:  ("-w",   "-h"),
 }
 
 class FFmpegVideoMixerAction(VideoMixerAction):
@@ -134,12 +134,12 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         output_duration: Optional[float] = None
 
         if params["duration_mode"] == VideoMixerOverlayDurationMode.LONGEST:
-            (base_duration,) = await probe_video(base_path, ["duration"])
-            overlay_durations = [ (await probe_video(path, ["duration"]))[0] for path in overlay_paths ]
+            (base_duration,) = await probe_video(base_path, [ "duration" ])
+            overlay_durations = [ (await probe_video(path, [ "duration" ]))[0] for path in overlay_paths ]
             longest_duration = max([ base_duration ] + overlay_durations)
             base_pad_duration = max(0.0, longest_duration - base_duration)
         elif params["duration_mode"] == VideoMixerOverlayDurationMode.BASE:
-            (output_duration,) = await probe_video(base_path, ["duration"])
+            (output_duration,) = await probe_video(base_path, [ "duration" ])
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
         command.extend([ "-i", base_path ])

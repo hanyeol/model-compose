@@ -36,6 +36,7 @@ ComponentConfig = Annotated[
         VideoMixerComponentConfig,
         VideoProcessorComponentConfig,
         VideoAnalyzerComponentConfig,
+        VideoPlaybackComponentConfig,
         ScreenCaptureComponentConfig,
         AudioCaptureComponentConfig,
         VideoCaptureComponentConfig,

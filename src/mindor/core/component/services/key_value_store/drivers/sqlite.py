@@ -9,7 +9,7 @@ from mindor.core.utils.sql import validate_identifier
 from ..base import KeyValueStoreService, KeyValueStoreDriver, register_kv_store_service
 from ..base import ComponentActionContext
 from .common import KeyValueStoreAction
-import json, time
+import json, os, time
 
 if TYPE_CHECKING:
     from aiosqlite import Connection as AsyncConnection
@@ -168,6 +168,11 @@ class SqliteKeyValueStoreService(KeyValueStoreService):
 
     async def _start(self) -> None:
         import aiosqlite
+
+        if self.config.path != ":memory:":
+            parent = os.path.dirname(self.config.path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
 
         self.connection = await aiosqlite.connect(self.config.path)
 

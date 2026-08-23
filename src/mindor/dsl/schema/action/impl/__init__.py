@@ -31,6 +31,7 @@ from .video_frame_extractor import *
 from .video_mixer import *
 from .video_processor import *
 from .video_analyzer import *
+from .video_playback import *
 from .screen_capture import *
 from .audio_capture import *
 from .video_capture import *

@@ -32,6 +32,11 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         # threads. In streaming mode each result is an AsyncIterator; the pump
         # thread starts once the caller iterates, so the batch-level speedup
         # depends on how the consumer drives the iterators.
+        if params["keyframe_only"]:
+            raise NotImplementedError(
+                "'keyframe_only' is not supported by the opencv driver; use the ffmpeg driver instead."
+            )
+
         return await asyncio.gather(*[
             self._extract(
                 video,

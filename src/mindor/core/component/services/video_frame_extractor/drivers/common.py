@@ -63,6 +63,7 @@ class VideoFrameExtractorAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_interval  = await context.render_scalar(self.config.frame_interval, int)
+        keyframe_only   = await context.render_scalar(self.config.keyframe_only, bool)
         start_time      = await context.render_scalar(self.config.start_time, "time")
         end_time        = await context.render_scalar(self.config.end_time, "time")
         max_frame_count = await context.render_scalar(self.config.max_frame_count, int)
@@ -76,6 +77,7 @@ class VideoFrameExtractorAction(ComponentAction):
 
         return {
             "frame_interval":  frame_interval,
+            "keyframe_only":   keyframe_only,
             "start_time":      start_time,
             "end_time":        end_time,
             "max_frame_count": max_frame_count,

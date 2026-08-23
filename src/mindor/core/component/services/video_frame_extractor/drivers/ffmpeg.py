@@ -35,6 +35,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             self._extract(
                 video,
                 params["frame_interval"],
+                params["keyframe_only"],
                 params["start_time"],
                 params["end_time"],
                 params["max_frame_count"],
@@ -49,6 +50,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         self,
         video: MediaSource,
         frame_interval: int,
+        keyframe_only: bool,
         start_time: Optional[float],
         end_time: Optional[float],
         max_frame_count: Optional[int],
@@ -78,7 +80,16 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         filters: List[str] = []
 
-        if frame_interval > 1:
+        # Chain two `select` filters when combining keyframe_only with a stride:
+        # the first keeps only I-frames, and the second uses `n` (now numbering
+        # the surviving keyframes 0,1,2,...) to keep every Nth. Fusing both into
+        # a single `select` doesn't work because `selected_n` inside one select
+        # only advances when the whole expression matches.
+        if keyframe_only:
+            filters.append("select='eq(pict_type\\,I)'")
+            if frame_interval > 1:
+                filters.append(f"select='not(mod(n\\,{frame_interval}))'")
+        elif frame_interval > 1:
             filters.append(f"select='not(mod(n\\,{frame_interval}))'")
 
         filters.append("showinfo")

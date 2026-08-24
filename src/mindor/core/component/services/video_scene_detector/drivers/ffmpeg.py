@@ -10,11 +10,11 @@ from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
 import asyncio, os, re
-from mindor.core.component.action.media import MediaInputPathResolver
 
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
 

@@ -15,11 +15,11 @@ from mindor.core.utils.ffmpeg.codecs import get_audio_codec_for_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import AudioConverterService, AudioConverterDriver, register_audio_converter_service
 from ..base import ComponentActionContext
 from .common import AudioConverterAction
 import asyncio, os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegAudioConverterAction(AudioConverterAction):
     async def _convert_batch(

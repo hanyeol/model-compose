@@ -7,11 +7,11 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
+from ....action.media import MediaInputPathResolver
 from ..base import AudioAnalyzerService, register_audio_analyzer_service
 from ..base import ComponentActionContext
 from .common import AudioAnalyzerAction
 import re
-from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
     async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:

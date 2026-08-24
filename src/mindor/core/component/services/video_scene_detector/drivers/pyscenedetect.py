@@ -7,11 +7,11 @@ from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneD
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
 import os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
     async def _detect_batch(

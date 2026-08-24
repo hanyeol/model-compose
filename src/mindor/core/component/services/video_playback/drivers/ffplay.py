@@ -8,11 +8,11 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import VideoPlaybackService, register_video_playback_service
 from ..base import ComponentActionContext
 from .common import VideoPlaybackAction
 import asyncio, os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFplayVideoPlaybackAction(VideoPlaybackAction):
     async def _play_batch(

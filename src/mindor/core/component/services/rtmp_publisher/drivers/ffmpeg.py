@@ -12,11 +12,11 @@ from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import RtmpPublisherService, register_rtmp_publisher_service
 from ..base import ComponentActionContext
 from .common import RtmpPublisherAction
 import asyncio, os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 # RTMP is virtually always flv-wrapped h264/aac.
 _DEFAULT_FORMAT: str = "flv"

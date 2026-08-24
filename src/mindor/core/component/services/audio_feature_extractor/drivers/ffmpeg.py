@@ -6,11 +6,11 @@ from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.audio import AudioStream, decode_pcm_to_waveform
 from mindor.core.utils.ffmpeg.audio import load_pcm_from_file, load_pcm_from_stream
+from ....action.media import MediaInputPathResolver
 from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
 from ..base import ComponentActionContext
 from .common import AudioFeatureExtractorAction
 import os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 if TYPE_CHECKING:
     import numpy as np

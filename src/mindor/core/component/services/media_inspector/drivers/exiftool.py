@@ -8,11 +8,11 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.shell import run_command, run_subprocess
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import MediaInspectorService, register_media_inspector_service
 from ..base import ComponentActionContext
 from .common import MediaInspectorAction
 import asyncio, json
-from mindor.core.component.action.media import MediaInputPathResolver
 
 # ExifTool groups tags under family-1 group names (File, EXIF, XMP, ...). We
 # keep these buckets in the normalized output so callers can address

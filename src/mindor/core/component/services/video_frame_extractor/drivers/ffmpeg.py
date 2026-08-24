@@ -10,12 +10,12 @@ from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from PIL import Image as PILImage
 import asyncio, os, re
-from mindor.core.component.action.media import MediaInputPathResolver
 
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
 _PNG_SIGNATURE    = b"\x89PNG\r\n\x1a\n"

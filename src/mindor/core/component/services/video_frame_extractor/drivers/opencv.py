@@ -8,12 +8,12 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.streamer import SyncGeneratorStreamer
+from ....action.media import MediaInputPathResolver
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from PIL import Image as PILImage
 import asyncio, os, threading
-from mindor.core.component.action.media import MediaInputPathResolver
 
 _FRAME_QUEUE_MAXSIZE = 16
 

@@ -6,11 +6,11 @@ from mindor.dsl.schema.action import AudioSegmentDetectorActionConfig
 from mindor.dsl.schema.action.impl.audio_segment_detector.impl.common import AudioSegmentDetectorStrategy
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.soundfile.audio import load_pcm_samples
+from ....action.media import MediaInputPathResolver
 from ..base import AudioSegmentDetectorService, AudioSegmentDetectorDriver, register_audio_segment_detector_service
 from ..base import ComponentActionContext
 from .common import AudioSegmentDetectorAction
 import os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 if TYPE_CHECKING:
     import numpy as np

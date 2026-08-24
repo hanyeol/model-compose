@@ -8,7 +8,6 @@ from mindor.dsl.schema.action import (
     VideoScaleMode,
     VideoFlipDirection,
 )
-from mindor.core.component.action.media import MediaInputPathResolver
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -20,6 +19,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import VideoProcessorService, VideoProcessorDriver, register_video_processor_service
 from ..base import ComponentActionContext
 from .common import VideoProcessorAction

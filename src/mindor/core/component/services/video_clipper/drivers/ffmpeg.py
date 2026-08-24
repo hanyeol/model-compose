@@ -16,11 +16,11 @@ from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
+from ....action.media import MediaInputPathResolver
 from ..base import VideoClipperService, VideoClipperDriver, register_video_clipper_service
 from ..base import ComponentActionContext
 from .common import VideoClipperAction
 import asyncio, os
-from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegVideoClipperAction(VideoClipperAction):
     async def _clip_batch(

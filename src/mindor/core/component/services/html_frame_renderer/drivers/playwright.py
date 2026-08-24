@@ -13,13 +13,14 @@ from ..base import HtmlFrameRendererService, register_html_frame_renderer_servic
 from ..base import ComponentActionContext
 from .common import HtmlFrameRendererAction, HtmlFrameRendererSession
 from PIL import Image as PILImage
-import json
+import asyncio, json
 
 class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
     """Playwright-backed session. Owns a single page for the lifetime of one
     render call. The parent service owns the shared browser process."""
     def __init__(self, page: Any):
         self._page = page
+        self._frame_ready: asyncio.Queue = asyncio.Queue()
 
     async def render_frames(
         self,
@@ -33,6 +34,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         ready_timeout = params["ready_timeout"]
 
         await self._page.set_viewport_size({"width": width, "height": height})
+        await self._page.expose_binding("__renderer_ready", lambda source, t: self._frame_ready.put_nowait(t))
         await self._inject_bootstrap(props)
         await self._page.goto(html.url)
 
@@ -46,9 +48,31 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
 
+        use_push = True
+
         for frame in range(frame_count):
             timestamp = frame / fps
-            await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
+
+            if use_push:
+                self._clear_ready_signal()  # discard any stray ready() calls from the previous frame
+                seek_task = asyncio.create_task(
+                    self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
+                )
+                try:
+                    if frame == 0:
+                        # First frame decides whether the page implements the ready() push
+                        # contract. If no signal arrives in ready_timeout, fall back to the
+                        # legacy sequential path for the rest of the session.
+                        await asyncio.wait_for(self._frame_ready.get(), timeout=ready_timeout)
+                    else:
+                        await self._frame_ready.get()
+                except asyncio.TimeoutError:
+                    logging.info("Page did not call window.__renderer.ready(); falling back to sequential seek/screenshot.")
+                    use_push = False
+                    await seek_task  # ensure seek finished before capturing
+            else:
+                await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
+
             image = await load_image_from_bytes(await self._page.screenshot(type="png"))
             yield image, timestamp
 
@@ -63,8 +87,14 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         - `props` (if given) becomes ``window.__renderer.props``,
           giving the page read-only access to workflow-provided data.
+        - `ready(t)` bridges to the server binding so pages can push a
+          "frame is painted" signal instead of forcing the server to await
+          seek()'s RPC response before requesting the screenshot.
         """
-        scripts = [ "window.__renderer = window.__renderer || {};" ]
+        scripts = [
+            "window.__renderer = window.__renderer || {};",
+            "window.__renderer.ready = (t) => window.__renderer_ready(t);",
+        ]
 
         if props is not None:
             scripts.append(f"window.__renderer.props = {json.dumps(props)};")
@@ -78,6 +108,13 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             raise ValueError("duration is required. Set window.__renderer.duration in the page.")
 
         return duration
+
+    def _clear_ready_signal(self) -> None:
+        while not self._frame_ready.empty():
+            try:
+                self._frame_ready.get_nowait()
+            except asyncio.QueueEmpty:
+                break
 
 class PlaywrightHtmlFrameRendererAction(HtmlFrameRendererAction):
     def __init__(

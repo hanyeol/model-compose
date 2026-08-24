@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Dict, List, Any
 from mindor.dsl.schema.component import AudioSegmentDetectorComponentConfig
 from mindor.dsl.schema.action import AudioSegmentDetectorActionConfig
-from mindor.dsl.schema.action.impl.audio_segment_detector.impl.native import AudioSegmentDetectorStrategy
+from mindor.dsl.schema.action.impl.audio_segment_detector.impl.native import NativeAudioSegmentDetectorStrategy
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.soundfile.audio import load_pcm_samples
@@ -21,6 +21,11 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
         params = await super()._resolve_params(context)
 
         strategy = await context.render_variable(self.config.strategy)
+
+        try:
+            strategy = NativeAudioSegmentDetectorStrategy(strategy)
+        except ValueError:
+            raise ValueError(f"Invalid strategy: {strategy}")
 
         params.update({
             "strategy": strategy,
@@ -138,7 +143,7 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
         import numpy as np
         import librosa
 
-        if strategy == AudioSegmentDetectorStrategy.AGGLOMERATIVE:
+        if strategy == NativeAudioSegmentDetectorStrategy.AGGLOMERATIVE:
             # Fixed cluster count fallback (~8) — librosa's agglomerative segmenter needs k up-front.
             k = max(2, min(8, chroma.shape[1] // 8 or 2))
             return librosa.segment.agglomerative(chroma, k=k)

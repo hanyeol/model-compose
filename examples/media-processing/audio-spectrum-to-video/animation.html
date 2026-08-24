@@ -79,6 +79,7 @@
       duration: totalDuration,
       seek(t) {
         drawFrame(t);
+        window.__renderer.ready(t);
       },
     });
   </script>

@@ -14,6 +14,11 @@
     // html_frame_renderer component. The page exposes `duration` and `seek(t)`
     // on window.__renderer; the engine reads duration to count frames, then
     // calls seek(t) once per frame and takes a screenshot after each call.
+    //
+    // For faster capture, the page should call window.__renderer.ready(t) once
+    // the frame is fully painted. This lets the engine pipeline seek/screenshot
+    // instead of waiting for seek()'s RPC response. If ready() is never called,
+    // the engine falls back to the sequential path.
 
     const canvas = document.getElementById("viz");
     const ctx = canvas.getContext("2d");
@@ -59,6 +64,7 @@
       duration: totalDuration,
       seek(t) {
         drawFrame(t);
+        window.__renderer.ready(t);
       },
     });
   </script>

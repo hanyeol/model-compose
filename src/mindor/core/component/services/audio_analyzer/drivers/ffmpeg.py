@@ -49,9 +49,9 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         stats = self._parse_astats(stderr_text)
 
         result: Dict[str, Any] = {
-            "sample_peak_dbfs":     stats.get("peak_level"),
-            "max_sample":           stats.get("max_level"),
-            "min_sample":           stats.get("min_level"),
+            "sample_peak_dbfs": stats.get("peak_level"),
+            "max_sample":       stats.get("max_level"),
+            "min_sample":       stats.get("min_level"),
         }
 
         if params["true_peak"]:
@@ -118,12 +118,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         silent_ratio = (total_silent / duration) if duration else 0.0
 
         return {
-            "threshold_dbfs":     threshold,
-            "min_duration":       min_duration,
-            "duration":           duration,
-            "total_silent":       total_silent,
-            "silent_ratio":       silent_ratio,
-            "regions":            regions,
+            "threshold_dbfs": threshold,
+            "min_duration":   min_duration,
+            "duration":       duration,
+            "total_silent":   total_silent,
+            "silent_ratio":   silent_ratio,
+            "regions":        regions,
         }
 
     async def _run_ffmpeg_filter(
@@ -262,26 +262,18 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         # values from Overall so the numbers span the whole track.
         overall_text = text.rsplit("Overall", 1)[-1] if "Overall" in text else text
 
-        def _match_float(label: str) -> Optional[float]:
-            m = re.search(rf"{re.escape(label)}:\s*(-?\d+(?:\.\d+)?|inf|-inf|nan)", overall_text)
-            return ffmpeg_values.parse_float(m.group(1)) if m else None
-
-        def _match_int(label: str) -> Optional[int]:
-            m = re.search(rf"{re.escape(label)}:\s*(\d+)", overall_text)
-            return int(m.group(1)) if m else None
-
         return {
-            "dc_offset":            _match_float("DC offset"),
-            "min_level":            _match_float("Min level"),
-            "max_level":            _match_float("Max level"),
-            "peak_level":           _match_float("Peak level dB"),
-            "rms_level":            _match_float("RMS level dB"),
-            "rms_peak":             _match_float("RMS peak dB"),
-            "rms_trough":           _match_float("RMS trough dB"),
-            "crest_factor":         _match_float("Crest factor"),
-            "flat_factor":          _match_float("Flat factor"),
-            "number_of_samples":    _match_int("Number of samples"),
-            "number_of_clippings":  _match_int("Number of clippings"),
+            "dc_offset":           ffmpeg_values.read_float(overall_text, "DC offset"),
+            "min_level":           ffmpeg_values.read_float(overall_text, "Min level"),
+            "max_level":           ffmpeg_values.read_float(overall_text, "Max level"),
+            "peak_level":          ffmpeg_values.read_float(overall_text, "Peak level dB"),
+            "rms_level":           ffmpeg_values.read_float(overall_text, "RMS level dB"),
+            "rms_peak":            ffmpeg_values.read_float(overall_text, "RMS peak dB"),
+            "rms_trough":          ffmpeg_values.read_float(overall_text, "RMS trough dB"),
+            "crest_factor":        ffmpeg_values.read_float(overall_text, "Crest factor"),
+            "flat_factor":         ffmpeg_values.read_float(overall_text, "Flat factor"),
+            "number_of_samples":   ffmpeg_values.read_int(overall_text, "Number of samples"),
+            "number_of_clippings": ffmpeg_values.read_int(overall_text, "Number of clippings"),
         }
 
     @staticmethod

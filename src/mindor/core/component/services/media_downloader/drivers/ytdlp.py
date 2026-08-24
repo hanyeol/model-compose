@@ -150,6 +150,39 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         return VideoStreamResource(stream, format=format_hint)
 
     @staticmethod
+    def _build_ytdlp_options(
+        output_dir: str,
+        output_name: str,
+        format_options: Dict[str, Any],
+        cookiefile: Optional[str],
+        extractor_args: Optional[Dict[str, Dict[str, Any]]] = None,
+        js_runtimes: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        options: Dict[str, Any] = {
+            "outtmpl":     output_name,
+            # `home` receives the final file; `temp` catches .part fragments
+            # and pre-merge streams so nothing lands in the process cwd.
+            "paths":       { "home": output_dir, "temp": output_dir },
+            "quiet":       True,
+            "no_warnings": True,
+            "noplaylist":  True,
+            "remote_components": [ "ejs:github" ],
+        }
+
+        options.update(format_options)
+
+        if cookiefile:
+            options["cookiefile"] = cookiefile
+
+        if extractor_args:
+            options["extractor_args"] = extractor_args
+
+        if js_runtimes:
+            options["js_runtimes"] = js_runtimes
+
+        return options
+
+    @staticmethod
     def _build_format_options(format: Union[str, Dict[str, Any], None]) -> Tuple[Dict[str, Any], bool]:
         """Turn the DSL `format` value into yt-dlp options plus an audio/video flag.
 
@@ -310,39 +343,6 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             f.write("\n".join(lines) + "\n")
 
         return path
-
-    @staticmethod
-    def _build_ytdlp_options(
-        output_dir: str,
-        output_name: str,
-        format_options: Dict[str, Any],
-        cookiefile: Optional[str],
-        extractor_args: Optional[Dict[str, Dict[str, Any]]] = None,
-        js_runtimes: Optional[Dict[str, Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
-        options: Dict[str, Any] = {
-            "outtmpl":     output_name,
-            # `home` receives the final file; `temp` catches .part fragments
-            # and pre-merge streams so nothing lands in the process cwd.
-            "paths":       { "home": output_dir, "temp": output_dir },
-            "quiet":       True,
-            "no_warnings": True,
-            "noplaylist":  True,
-            "remote_components": [ "ejs:github" ],
-        }
-
-        options.update(format_options)
-
-        if cookiefile:
-            options["cookiefile"] = cookiefile
-
-        if extractor_args:
-            options["extractor_args"] = extractor_args
-
-        if js_runtimes:
-            options["js_runtimes"] = js_runtimes
-
-        return options
 
     @staticmethod
     def _run_ytdlp(

@@ -114,8 +114,8 @@ class AudioFeatureExtractorAction(ComponentAction):
         feature: AudioFeature,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[dict]:
-        results: List[dict] = []
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
 
         for audio in audios:
             results.append(await self._extract(feature, audio, params, cancellation_token))
@@ -128,7 +128,7 @@ class AudioFeatureExtractorAction(ComponentAction):
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         if feature == AudioFeature.SPECTRUM:
             return await self._extract_spectrum(source, params, cancellation_token)
 
@@ -137,17 +137,17 @@ class AudioFeatureExtractorAction(ComponentAction):
 
         raise ValueError(f"Unsupported audio feature: {feature}")
 
-    async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         samples = await self._decode_pcm(source, params["sample_rate"])
 
         return self._compute_spectrum(samples, params)
 
-    async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         samples = await self._decode_pcm(source, params["sample_rate"])
 
         return self._compute_waveform(samples, params)
 
-    def _compute_spectrum(self, samples: np.ndarray, params: Dict[str, Any]) -> dict:
+    def _compute_spectrum(self, samples: np.ndarray, params: Dict[str, Any]) -> Dict[str, Any]:
         import numpy as np
 
         sample_rate = params["sample_rate"]
@@ -189,7 +189,7 @@ class AudioFeatureExtractorAction(ComponentAction):
             "sample_rate": sample_rate,
         })
 
-    def _compute_waveform(self, samples: np.ndarray, params: Dict[str, Any]) -> dict:
+    def _compute_waveform(self, samples: np.ndarray, params: Dict[str, Any]) -> Dict[str, Any]:
         import numpy as np
 
         sample_rate  = params["sample_rate"]

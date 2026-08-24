@@ -6,33 +6,33 @@ from mindor.dsl.schema.action import ImageAnalyzerActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ..base import ImageAnalyzerService, register_image_analyzer_service
 from ..base import ComponentActionContext
-from .common import ImageAnalyzerAction, ImageBrightness, ImageContrast, ImageSharpness, ImageExposure
+from .common import ImageAnalyzerAction
 
 if TYPE_CHECKING:
     from PIL import Image as PILImage
 
 class NativeImageAnalyzerAction(ImageAnalyzerAction):
-    async def _analyze_brightness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
-        def _analyze_brightness() -> dict:
+    async def _analyze_brightness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+        def _analyze_brightness() -> Dict[str, Any]:
             import numpy as np
 
             # Pillow's `convert("L")` applies ITU-R BT.601 luma coefficients
             # (0.299 R + 0.587 G + 0.114 B), which every metric below assumes.
             luma = np.asarray(image.convert("L"), dtype=np.float32)
 
-            return ImageBrightness({
+            return {
                 "mean_brightness": float(luma.mean()),
                 "min_brightness":  float(luma.min()),
                 "max_brightness":  float(luma.max()),
                 "std_brightness":  float(luma.std()),
                 "width":           image.width,
                 "height":          image.height,
-            })
+            }
 
         return await self._run_in_executor(_analyze_brightness)
 
-    async def _analyze_contrast(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
-        def _analyze_contrast() -> dict:
+    async def _analyze_contrast(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+        def _analyze_contrast() -> Dict[str, Any]:
             import numpy as np
 
             luma = np.asarray(image.convert("L"), dtype=np.float32)
@@ -49,19 +49,19 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
             denominator = high + low
             michelson_contrast = (high - low) / denominator if denominator else 0.0
 
-            return ImageContrast({
+            return {
                 "rms_contrast":       rms_contrast,
                 "michelson_contrast": michelson_contrast,
                 "luma_percentile_1":  low,
                 "luma_percentile_99": high,
                 "width":              image.width,
                 "height":             image.height,
-            })
+            }
 
         return await self._run_in_executor(_analyze_contrast)
 
-    async def _analyze_sharpness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
-        def _analyze_sharpness() -> dict:
+    async def _analyze_sharpness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+        def _analyze_sharpness() -> Dict[str, Any]:
             import numpy as np
 
             luma = np.asarray(image.convert("L"), dtype=np.float32)
@@ -81,18 +81,18 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
             )
             variance = float(laplacian.var())
 
-            return ImageSharpness({
+            return {
                 "laplacian_variance": variance,
                 "blur_threshold":     params["blur_threshold"],
                 "is_blurry":          variance < params["blur_threshold"],
                 "width":              image.width,
                 "height":             image.height,
-            })
+            }
 
         return await self._run_in_executor(_analyze_sharpness)
 
-    async def _analyze_exposure(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
-        def _analyze_exposure() -> dict:
+    async def _analyze_exposure(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+        def _analyze_exposure() -> Dict[str, Any]:
             import numpy as np
 
             shadow_threshold    = params["shadow_threshold"]
@@ -104,7 +104,7 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
             shadow_clipped = int((luma <= shadow_threshold).sum())
             highlight_clipped = int((luma >= highlight_threshold).sum())
 
-            return ImageExposure({
+            return {
                 "shadow_threshold":         shadow_threshold,
                 "highlight_threshold":      highlight_threshold,
                 "shadow_clipped_pixels":    shadow_clipped,
@@ -114,7 +114,7 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
                 "mean_brightness":          float(luma.mean()),
                 "width":                    image.width,
                 "height":                   image.height,
-            })
+            }
 
         return await self._run_in_executor(_analyze_exposure)
 

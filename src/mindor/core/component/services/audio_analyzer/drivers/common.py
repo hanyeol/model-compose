@@ -10,48 +10,12 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 import asyncio, os
-
-class AudioLoudness(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<AudioLoudness integrated={self.get('integrated_loudness')}LUFS "
-            f"range={self.get('loudness_range')}LU>"
-        )
-
-class AudioPeak(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<AudioPeak sample_peak={self.get('sample_peak_dbfs')}dBFS "
-            f"true_peak={self.get('true_peak_dbtp')}dBTP>"
-        )
-
-class AudioGain(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<AudioGain rms={self.get('rms_dbfs')}dBFS "
-            f"dc_offset={self.get('dc_offset')}>"
-        )
-
-class AudioClipping(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<AudioClipping regions={len(self.get('regions', []))} "
-            f"clipped_ratio={self.get('clipped_ratio', 0.0):.4f}>"
-        )
-
-class AudioSilence(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<AudioSilence regions={len(self.get('regions', []))} "
-            f"silent_ratio={self.get('silent_ratio', 0.0):.4f}>"
-        )
 
 class AudioAnalyzerAction(ComponentAction):
     def __init__(self, config: AudioAnalyzerActionConfig):
@@ -131,7 +95,7 @@ class AudioAnalyzerAction(ComponentAction):
         metric: AudioAnalyzerMetric,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[dict]:
+    ) -> List[Dict[str, Any]]:
         return await asyncio.gather(*[
             self._analyze(metric, audio, params, cancellation_token) for audio in audios
         ])
@@ -142,7 +106,7 @@ class AudioAnalyzerAction(ComponentAction):
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         if metric == AudioAnalyzerMetric.LOUDNESS:
             return await self._analyze_loudness(source, params, cancellation_token)
 
@@ -188,21 +152,21 @@ class AudioAnalyzerAction(ComponentAction):
             pass
 
     @abstractmethod
-    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass

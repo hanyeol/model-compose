@@ -7,7 +7,6 @@ from mindor.dsl.schema.action import ImageAnalyzerActionConfig
 from mindor.dsl.schema.action.impl.image_analyzer.impl.common import ImageAnalyzerMetric
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
@@ -15,28 +14,6 @@ import asyncio
 
 if TYPE_CHECKING:
     from PIL import Image as PILImage
-
-class ImageBrightness(AtomicDict):
-    def __log__(self) -> str:
-        return f"<ImageBrightness mean={self.get('mean_brightness')}>"
-
-class ImageContrast(AtomicDict):
-    def __log__(self) -> str:
-        return f"<ImageContrast rms={self.get('rms_contrast')}>"
-
-class ImageSharpness(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<ImageSharpness variance={self.get('laplacian_variance')} "
-            f"blurry={self.get('is_blurry')}>"
-        )
-
-class ImageExposure(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<ImageExposure shadow_ratio={self.get('shadow_clipped_ratio', 0.0):.4f} "
-            f"highlight_ratio={self.get('highlight_clipped_ratio', 0.0):.4f}>"
-        )
 
 class ImageAnalyzerAction(ComponentAction):
     def __init__(self, config: ImageAnalyzerActionConfig):
@@ -101,7 +78,7 @@ class ImageAnalyzerAction(ComponentAction):
         metric: ImageAnalyzerMetric,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[dict]:
+    ) -> List[Dict[str, Any]]:
         return await asyncio.gather(*[
             self._analyze(metric, image, params, cancellation_token) for image in images
         ])
@@ -112,7 +89,7 @@ class ImageAnalyzerAction(ComponentAction):
         image: PILImage.Image,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         if metric == ImageAnalyzerMetric.BRIGHTNESS:
             return await self._analyze_brightness(image, params, cancellation_token)
 
@@ -128,17 +105,17 @@ class ImageAnalyzerAction(ComponentAction):
         raise ValueError(f"Unsupported image metric: {metric}")
 
     @abstractmethod
-    async def _analyze_brightness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_brightness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_contrast(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_contrast(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_sharpness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_sharpness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_exposure(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_exposure(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass

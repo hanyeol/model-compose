@@ -10,41 +10,12 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 import asyncio, os
-
-class VideoBlack(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<VideoBlack regions={len(self.get('regions', []))} "
-            f"black_ratio={self.get('black_ratio', 0.0):.4f}>"
-        )
-
-class VideoFreeze(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<VideoFreeze regions={len(self.get('regions', []))} "
-            f"freeze_ratio={self.get('freeze_ratio', 0.0):.4f}>"
-        )
-
-class VideoBrightness(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<VideoBrightness mean={self.get('mean_brightness')} "
-            f"min={self.get('min_brightness')} max={self.get('max_brightness')}>"
-        )
-
-class VideoMotion(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<VideoMotion mean={self.get('mean_motion')} "
-            f"max={self.get('max_motion')}>"
-        )
 
 class VideoAnalyzerAction(ComponentAction):
     def __init__(self, config: VideoAnalyzerActionConfig):
@@ -125,7 +96,7 @@ class VideoAnalyzerAction(ComponentAction):
         metric: VideoAnalyzerMetric,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[dict]:
+    ) -> List[Dict[str, Any]]:
         return await asyncio.gather(*[
             self._analyze(metric, video, params, cancellation_token) for video in videos
         ])
@@ -136,7 +107,7 @@ class VideoAnalyzerAction(ComponentAction):
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         if metric == VideoAnalyzerMetric.BLACK:
             return await self._analyze_black(source, params, cancellation_token)
 
@@ -180,17 +151,17 @@ class VideoAnalyzerAction(ComponentAction):
             pass
 
     @abstractmethod
-    async def _analyze_black(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_black(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_freeze(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_freeze(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_brightness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_brightness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_motion(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_motion(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass

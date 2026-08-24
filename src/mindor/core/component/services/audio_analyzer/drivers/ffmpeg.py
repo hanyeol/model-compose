@@ -9,11 +9,11 @@ from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
 from ..base import AudioAnalyzerService, register_audio_analyzer_service
 from ..base import ComponentActionContext
-from .common import AudioAnalyzerAction, AudioLoudness, AudioPeak, AudioGain, AudioClipping, AudioSilence
+from .common import AudioAnalyzerAction
 import re
 
 class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
-    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         # ebur128 emits an EBU R128 summary block on stderr; enabling `peak=true`
         # also yields sample and true-peak numbers per pass.
         target           = params["target_loudness"]
@@ -39,9 +39,9 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         if include_timeline:
             result["timeline"] = self._parse_ebur128_timeline(stderr_text)
 
-        return AudioLoudness(result)
+        return result
 
-    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         # astats produces per-channel and overall peak/RMS stats on stderr.
         # ebur128 (with peak=true) is the standard source for true-peak (dBTP).
         stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
@@ -58,16 +58,16 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             summary = self._parse_ebur128_summary(stderr_text)
             result["true_peak_dbtp"] = summary.get("true_peak")
 
-        return AudioPeak(result)
+        return result
 
-    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
         stats = self._parse_astats(stderr_text)
 
         peak = stats.get("peak_level")
         headroom = -peak if peak is not None else None
 
-        return AudioGain({
+        return {
             "rms_dbfs":        stats.get("rms_level"),
             "rms_peak_dbfs":   stats.get("rms_peak"),
             "rms_trough_dbfs": stats.get("rms_trough"),
@@ -76,9 +76,9 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "dc_offset":       stats.get("dc_offset"),
             "crest_factor":    stats.get("crest_factor"),
             "flat_factor":     stats.get("flat_factor"),
-        })
+        }
 
-    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         # astats reports the number of samples at or above digital full-scale.
         # For threshold-based detection at anything other than 0 dBFS we still
         # need to walk the PCM, so we surface astats' clipping counts and
@@ -90,7 +90,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         clipped = stats.get("number_of_clippings") or 0
         clipped_ratio = (clipped / number_of_samples) if number_of_samples else 0.0
 
-        return AudioClipping({
+        return {
             "threshold_dbfs":         params["threshold"],
             "min_consecutive_length": params["min_consecutive_length"],
             "sample_count":           number_of_samples,
@@ -98,9 +98,9 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "clipped_ratio":          clipped_ratio,
             "peak_dbfs":              stats.get("peak_level"),
             "regions":                [],
-        })
+        }
 
-    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> dict:
+    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         threshold    = params["threshold"]
         min_duration = params["min_duration"]
 
@@ -116,14 +116,14 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         duration = self._parse_duration(stderr_text)
         silent_ratio = (total_silent / duration) if duration else 0.0
 
-        return AudioSilence({
+        return {
             "threshold_dbfs":     threshold,
             "min_duration":       min_duration,
             "duration":           duration,
             "total_silent":       total_silent,
             "silent_ratio":       silent_ratio,
             "regions":            regions,
-        })
+        }
 
     async def _run_ffmpeg_filter(
         self,

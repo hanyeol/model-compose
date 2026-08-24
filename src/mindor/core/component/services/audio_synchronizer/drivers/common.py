@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, List, Tuple, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioSynchronizerActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.media import MediaArrayValue
-from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
@@ -22,13 +21,6 @@ if TYPE_CHECKING:
 # versus 44.1 kHz. Sub-sample precision comes from parabolic interpolation
 # around the peak, so lag resolution is not limited by 1/8000 s.
 _ANALYSIS_SAMPLE_RATE = 8000
-
-class AudioSyncOffset(AtomicDict):
-    def __log__(self) -> str:
-        return (
-            f"<AudioSyncOffset offset={self.get('offset', 0.0):.4f}s "
-            f"confidence={self.get('confidence', 0.0):.3f}>"
-        )
 
 class AudioSynchronizerAction(ComponentAction):
     def __init__(self, config: AudioSynchronizerActionConfig):
@@ -50,7 +42,7 @@ class AudioSynchronizerAction(ComponentAction):
 
             return _stream_output_generator()
         else:
-            results: List[List[AudioSyncOffset]] = []
+            results: List[List[Dict[str, Any]]] = []
             async for batch_sources in BatchSourceIterator(sources, batch_size=batch_size or 1):
                 batch_results = await self._synchronize_batch(batch_sources, context.cancellation_token)
                 results.extend(batch_results)
@@ -64,7 +56,7 @@ class AudioSynchronizerAction(ComponentAction):
         self,
         sources: List[MediaArrayValue],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[AudioSyncOffset]]:
+    ) -> List[List[Dict[str, Any]]]:
         return await asyncio.gather(*[
             self._synchronize(source, cancellation_token) for source in sources
         ])
@@ -73,7 +65,7 @@ class AudioSynchronizerAction(ComponentAction):
         self,
         sources: MediaArrayValue,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[AudioSyncOffset]:
+    ) -> List[Dict[str, Any]]:
         sources: List[MediaSource] = await sources.collect()
 
         if len(sources) == 0:
@@ -81,7 +73,7 @@ class AudioSynchronizerAction(ComponentAction):
 
         # A single source is trivially aligned to itself.
         if len(sources) < 2:
-            return [ AudioSyncOffset({ "offset": 0.0, "confidence": 1.0 }) ]
+            return [ { "offset": 0.0, "confidence": 1.0 } ]
 
         samples = await asyncio.gather(*[ self._decode_pcm(source, _ANALYSIS_SAMPLE_RATE) for source in sources ])
         reference = samples[0]
@@ -102,7 +94,7 @@ class AudioSynchronizerAction(ComponentAction):
         latest_start = max(offset for offset, _ in offsets)
 
         return [
-            AudioSyncOffset({ "offset": latest_start - offset, "confidence": confidence })
+            { "offset": latest_start - offset, "confidence": confidence }
             for offset, confidence in offsets
         ]
 

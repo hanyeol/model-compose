@@ -27,10 +27,8 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]]:
-        results: List[Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]] = []
-
-        for video in videos:
-            results.append(await self._detect(
+        return await asyncio.gather(*[
+            self._detect(
                 video,
                 params["detector"],
                 params["threshold"],
@@ -38,9 +36,9 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
                 params["end_time"],
                 streaming,
                 cancellation_token,
-            ))
-
-        return results
+            )
+            for video in videos
+        ])
 
     async def _detect(
         self,

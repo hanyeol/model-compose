@@ -39,6 +39,7 @@ ActionConfig = Union[
     AudioClipperActionConfig,
     AudioProcessorActionConfig,
     AudioAnalyzerActionConfig,
+    AudioSegmentDetectorActionConfig,
     AudioSynchronizerActionConfig,
     AudioPlaybackActionConfig,
     AudioMixerActionConfig,

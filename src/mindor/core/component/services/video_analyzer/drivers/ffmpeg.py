@@ -9,7 +9,7 @@ from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
 from ..base import VideoAnalyzerService, register_video_analyzer_service
 from ..base import ComponentActionContext
-from .common import VideoAnalyzerAction, VideoBlack, VideoFreeze, VideoBrightness, VideoMotion
+from .common import VideoAnalyzerAction
 import re
 
 class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
@@ -18,7 +18,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         # blackdetect emits `black_start`/`black_end`/`black_duration` on stderr.
         video_filter = (
             f"blackdetect=d={params['min_duration']}"
@@ -32,7 +32,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         duration = self._parse_duration(stderr_text)
         black_ratio = (total_black / duration) if duration else 0.0
 
-        return VideoBlack({
+        return {
             "min_duration":       params["min_duration"],
             "pixel_threshold":    params["pixel_threshold"],
             "picture_threshold":  params["picture_threshold"],
@@ -40,14 +40,14 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             "total_black":        total_black,
             "black_ratio":        black_ratio,
             "regions":            regions,
-        })
+        }
 
     async def _analyze_freeze(
         self,
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         # freezedetect emits `freeze_start`/`freeze_end`/`freeze_duration`. The
         # `n` parameter is a normalized noise threshold (0.0-1.0); ffmpeg also
         # accepts dB values with a `dB` suffix but we standardize on the ratio.
@@ -62,21 +62,21 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         duration = self._parse_duration(stderr_text)
         freeze_ratio = (total_freeze / duration) if duration else 0.0
 
-        return VideoFreeze({
+        return {
             "min_duration":    params["min_duration"],
             "noise_threshold": params["noise_threshold"],
             "duration":        duration,
             "total_freeze":    total_freeze,
             "freeze_ratio":    freeze_ratio,
             "regions":         regions,
-        })
+        }
 
     async def _analyze_brightness(
         self,
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         # signalstats.YAVG is the mean luma per frame (0-255 for 8-bit).
         # metadata=print pushes it to stderr; fps=... limits how many frames
         # we sample so long videos don't burn CPU.
@@ -106,14 +106,14 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         if params["include_timeline"]:
             result["timeline"] = samples
 
-        return VideoBrightness(result)
+        return result
 
     async def _analyze_motion(
         self,
         source: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None
-    ) -> dict:
+    ) -> Dict[str, Any]:
         # scdet reports a scene-change score per frame; higher = more different
         # from the previous frame. It's a coarse but cheap motion proxy that
         # doesn't need actual motion vectors. `t=0` disables the built-in
@@ -144,7 +144,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         if params["include_timeline"]:
             result["timeline"] = samples
 
-        return VideoMotion(result)
+        return result
 
     async def _run_ffmpeg_filter(
         self,
@@ -190,9 +190,9 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
 
         return [
             {
-                "start":    float(m.group("start")),
-                "end":      float(m.group("end")),
-                "duration": float(m.group("duration")),
+                "start_time": float(m.group("start")),
+                "end_time":   float(m.group("end")),
+                "duration":   float(m.group("duration")),
             }
             for m in pattern.finditer(text)
         ]
@@ -217,9 +217,9 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         for index, start in enumerate(starts):
             if index < len(end_pairs):
                 duration, end = end_pairs[index]
-                regions.append({ "start": start, "end": end, "duration": duration })
+                regions.append({ "start_time": start, "end_time": end, "duration": duration })
             else:
-                regions.append({ "start": start, "end": None, "duration": None })
+                regions.append({ "start_time": start, "end_time": None, "duration": None })
 
         return regions
 

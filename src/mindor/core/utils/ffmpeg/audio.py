@@ -1,33 +1,38 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
-from collections.abc import AsyncIterable
-from mindor.core.utils.shell import run_subprocess
+from typing import Optional
+from ..audio import AudioStream, is_pcm_format
+from ..shell import run_subprocess
 
-if TYPE_CHECKING:
-    import numpy as np
-
-async def _decode_pcm(
+async def _load_pcm(
     sample_rate: int,
+    channels: Optional[int],
+    format: str,
     path: Optional[str] = None,
-    stream: Optional[AsyncIterable[bytes]] = None,
-    format: Optional[str] = None,
-) -> np.ndarray:
-    import numpy as np
+    stream: Optional[AudioStream] = None,
+) -> bytes:
+    if not is_pcm_format(format):
+        raise ValueError(f"Not a raw PCM format: {format!r}")
 
     command = [ "ffmpeg", "-hide_banner", "-loglevel", "error" ]
 
-    if stream is not None and format:
-        command.extend([ "-f", format ])
+    if stream is not None and stream.format:
+        command.extend([ "-f", stream.format ])
 
     command.extend([ "-i", path if path is not None else "pipe:0" ])
+
     # `-vn` drops any video track so containers like mp4/mkv decode cleanly
     # to a raw audio stream without ffmpeg trying to also process video.
-    command.extend([ "-vn", "-f", "s16le", "-ac", "1", "-ar", str(sample_rate), "pipe:1" ])
+    command.extend([ "-vn", "-f", format ])
+
+    if channels is not None:
+        command.extend([ "-ac", str(channels) ])
+
+    command.extend([ "-ar", str(sample_rate), "pipe:1" ])
 
     process, stdout, stderr = await run_subprocess(
         command,
-        stream,
+        stream.stream if stream is not None else None,
         stdout_handler=lambda r: r.read(),
         stderr_handler=lambda r: r.read(),
     )
@@ -36,19 +41,22 @@ async def _decode_pcm(
         error_message = stderr.decode("utf-8", errors="replace") if stderr else ""
         raise RuntimeError(f"ffmpeg PCM decode failed (exit code {process.returncode}): {error_message}")
 
-    return np.frombuffer(stdout, dtype=np.int16).astype(np.float32) / 32768.0
+    return stdout
 
-async def decode_pcm_from_file(
+async def load_pcm_from_file(
     path: str,
-    sample_rate: int
-) -> np.ndarray:
-    """Decode an audio/video file into mono float32 PCM in [-1, 1] via ffmpeg."""
-    return await _decode_pcm(sample_rate, path=path)
-
-async def decode_pcm_from_stream(
-    stream: AsyncIterable[bytes],
     sample_rate: int,
-    format: Optional[str] = None,
-) -> np.ndarray:
-    """Decode an audio/video byte stream into mono float32 PCM in [-1, 1] via ffmpeg."""
-    return await _decode_pcm(sample_rate, stream=stream, format=format)
+    channels: Optional[int] = None,
+    format: str = "s16le",
+) -> bytes:
+    """Load an audio/video file as raw PCM bytes via ffmpeg."""
+    return await _load_pcm(sample_rate, channels, format, path=path)
+
+async def load_pcm_from_stream(
+    stream: AudioStream,
+    sample_rate: int,
+    channels: Optional[int] = None,
+    format: str = "s16le",
+) -> bytes:
+    """Load an audio/video byte stream as raw PCM bytes via ffmpeg."""
+    return await _load_pcm(sample_rate, channels, format, stream=stream)

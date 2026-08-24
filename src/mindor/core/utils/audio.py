@@ -2,6 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Literal, Tuple, Optional, Dict, Set, Any
+from collections.abc import AsyncIterable
+from dataclasses import dataclass
 import struct
 
 if TYPE_CHECKING:
@@ -41,6 +43,16 @@ _STREAMABLE_AUDIO_FORMATS: Set[str] = {
 _AUDIO_ONLY_FORMATS: Set[str] = {
     "mp3", "wav", "flac", "ogg", "opus", "aac", "m4a",
 }
+
+@dataclass
+class AudioStream:
+    """A stream of audio bytes together with its container/codec format.
+
+    Lightweight value object for passing (bytes, format) as one unit into
+    utils that need both — decoding, demuxing, spooling, etc.
+    """
+    stream: AsyncIterable[bytes]
+    format: Optional[str] = None
 
 class AudioBuffer:
     def __init__(self, waveform: np.ndarray, sample_rate: int):

@@ -75,7 +75,7 @@ class AudioSynchronizerAction(ComponentAction):
         if len(sources) < 2:
             return [ { "offset": 0.0, "confidence": 1.0 } ]
 
-        samples = await asyncio.gather(*[ self._decode_pcm(source, _ANALYSIS_SAMPLE_RATE) for source in sources ])
+        samples = await asyncio.gather(*[ self._load_pcm_samples(source, _ANALYSIS_SAMPLE_RATE) for source in sources ])
         reference = samples[0]
 
         # Offsets against the first source: each entry is how much later the
@@ -149,6 +149,6 @@ class AudioSynchronizerAction(ComponentAction):
         return float(offset), confidence
 
     @abstractmethod
-    async def _decode_pcm(self, source: MediaSource, sample_rate: int) -> np.ndarray:
-        """Decode any audio/video source into mono float32 PCM in [-1, 1]."""
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+        """Load a media source as mono float32 samples in [-1, 1]."""
         pass

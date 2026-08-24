@@ -6,8 +6,8 @@ from mindor.dsl.schema.action import AudioSynchronizerActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.utils.audio import is_streamable_audio_format
-from mindor.core.utils.ffmpeg.audio import decode_pcm_from_file, decode_pcm_from_stream
+from mindor.core.utils.audio import AudioStream, decode_pcm_to_waveform, is_streamable_audio_format
+from mindor.core.utils.ffmpeg.audio import load_pcm_from_file, load_pcm_from_stream
 from mindor.core.logger import logging
 from ..base import AudioSynchronizerService, AudioSynchronizerDriver, register_audio_synchronizer_service
 from ..base import ComponentActionContext
@@ -18,14 +18,18 @@ if TYPE_CHECKING:
     import numpy as np
 
 class FFmpegAudioSynchronizerAction(AudioSynchronizerAction):
-    async def _decode_pcm(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
         input_path, spooled = await self._resolve_input_path(source)
 
         try:
             if input_path is not None:
-                return await decode_pcm_from_file(input_path, sample_rate)
+                pcm = await load_pcm_from_file(input_path, sample_rate, channels=1)
+            else:
+                pcm = await load_pcm_from_stream(
+                    AudioStream(source.stream, source.format), sample_rate, channels=1,
+                )
 
-            return await decode_pcm_from_stream(source.stream, sample_rate, format=source.format)
+            return decode_pcm_to_waveform(pcm, "s16le", dtype="float32")
         finally:
             if spooled and input_path is not None:
                 try:

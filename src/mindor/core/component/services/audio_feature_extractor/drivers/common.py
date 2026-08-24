@@ -138,12 +138,12 @@ class AudioFeatureExtractorAction(ComponentAction):
         raise ValueError(f"Unsupported audio feature: {feature}")
 
     async def _extract_spectrum(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
-        samples = await self._decode_pcm(source, params["sample_rate"])
+        samples = await self._load_pcm_samples(source, params["sample_rate"])
 
         return self._compute_spectrum(samples, params)
 
     async def _extract_waveform(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
-        samples = await self._decode_pcm(source, params["sample_rate"])
+        samples = await self._load_pcm_samples(source, params["sample_rate"])
 
         return self._compute_waveform(samples, params)
 
@@ -271,6 +271,6 @@ class AudioFeatureExtractorAction(ComponentAction):
         return bands
 
     @abstractmethod
-    async def _decode_pcm(self, source: MediaSource, sample_rate: int) -> np.ndarray:
-        """Decode any audio source into mono float32 PCM in [-1, 1]."""
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+        """Load a media source as mono float32 samples in [-1, 1]."""
         pass

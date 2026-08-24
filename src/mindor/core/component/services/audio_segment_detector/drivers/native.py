@@ -7,6 +7,7 @@ from mindor.dsl.schema.action.impl.audio_segment_detector.impl.common import Aud
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.utils.soundfile.audio import load_pcm_samples
 from mindor.core.logger import logging
 from ..base import AudioSegmentDetectorService, AudioSegmentDetectorDriver, register_audio_segment_detector_service
 from ..base import ComponentActionContext
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     import numpy as np
 
 class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
-    def _detect_segments(self, samples: "np.ndarray", params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect_segments(self, samples: np.ndarray, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         import numpy as np
         import librosa
 
@@ -67,7 +68,7 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
 
         return segments
 
-    def _compute_boundaries(self, chroma: "np.ndarray", strategy: str) -> "np.ndarray":
+    def _compute_boundaries(self, chroma: np.ndarray, strategy: str) -> np.ndarray:
         import numpy as np
         import librosa
 
@@ -95,7 +96,7 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
         boundaries = np.concatenate(([ 0 ], sign_changes, [ chroma.shape[1] ])).astype(int)
         return np.unique(boundaries)
 
-    def _compute_labels(self, chroma: "np.ndarray", boundary_frames: "np.ndarray") -> Optional["np.ndarray"]:
+    def _compute_labels(self, chroma: np.ndarray, boundary_frames: np.ndarray) -> Optional[np.ndarray]:
         import numpy as np
 
         boundaries = np.asarray(boundary_frames, dtype=int)
@@ -117,7 +118,7 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
         return self._kmeans(features, k)
 
     @staticmethod
-    def _kmeans(features: "np.ndarray", k: int, iterations: int = 20) -> "np.ndarray":
+    def _kmeans(features: np.ndarray, k: int, iterations: int = 20) -> np.ndarray:
         import numpy as np
 
         if k <= 1 or len(features) <= 1:
@@ -167,34 +168,17 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
                 break
         return letters
 
-    async def _decode_pcm(self, source: MediaSource, sample_rate: int) -> "np.ndarray":
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
         input_path, spooled = await self._resolve_input_path(source)
 
         try:
-            return await self._run_in_executor(self._load_pcm, input_path, sample_rate)
+            return await self._run_in_executor(load_pcm_samples, input_path, sample_rate)
         finally:
             if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:
                     pass
-
-    @staticmethod
-    def _load_pcm(path: str, sample_rate: int) -> "np.ndarray":
-        import numpy as np
-        import soundfile as sf
-
-        data, source_sample_rate = sf.read(path, dtype="float32", always_2d=False)
-
-        if data.ndim > 1:
-            data = data.mean(axis=1)
-
-        if source_sample_rate != sample_rate:
-            import librosa
-
-            data = librosa.resample(data, orig_sr=source_sample_rate, target_sr=sample_rate)
-
-        return np.ascontiguousarray(data, dtype=np.float32)
 
     async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
         if isinstance(source.stream, FileStreamResource):

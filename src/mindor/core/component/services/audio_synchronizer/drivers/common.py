@@ -87,11 +87,14 @@ class AudioSynchronizerAction(ComponentAction):
         reference = samples[0]
 
         # Offsets against the first source: each entry is how much later the
-        # source starts relative to sources[0] (positive => later).
+        # source starts relative to sources[0] (positive => later). Each pair
+        # is computed in a thread so the FFT does not block the event loop.
         offsets: List[Tuple[float, float]] = [ (0.0, 1.0) ]
 
         for target in samples[1:]:
-            offsets.append(self._compute_offset(reference, target, _ANALYSIS_SAMPLE_RATE))
+            if cancellation_token is not None and cancellation_token.is_cancelled():
+                raise asyncio.CancelledError()
+            offsets.append(await asyncio.to_thread(self._compute_offset, reference, target, _ANALYSIS_SAMPLE_RATE))
 
         # Re-anchor on the latest-starting source so every reported offset is
         # the amount to trim from the head of that source to reach the common

@@ -76,7 +76,7 @@ class AudioSynchronizerAction(ComponentAction):
     ) -> List[AudioSyncOffset]:
         sources: List[MediaSource] = await sources.collect()
 
-        if not sources:
+        if len(sources) == 0:
             return []
 
         # A single source is trivially aligned to itself.

@@ -32,7 +32,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         system = platform.system()
-        audio_path, audio_spooled = await MediaInputPathResolver.resolve(audio, streamable_media=[ "video", "audio" ])
+        audio_path, audio_spooled = await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
 

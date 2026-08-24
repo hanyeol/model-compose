@@ -26,15 +26,15 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         summary = self._parse_ebur128_summary(stderr_text)
 
         result: Dict[str, Any] = {
-            "integrated_loudness": summary.get("integrated"),
-            "loudness_range":      summary.get("range"),
-            "loudness_range_low":  summary.get("range_low"),
-            "loudness_range_high": summary.get("range_high"),
+            "integrated_loudness":  summary.get("integrated"),
+            "loudness_range":       summary.get("range"),
+            "loudness_range_low":   summary.get("range_low"),
+            "loudness_range_high":  summary.get("range_high"),
             "threshold_integrated": summary.get("threshold_integrated"),
             "threshold_range":      summary.get("threshold_range"),
-            "sample_peak_dbfs":    summary.get("sample_peak"),
-            "true_peak_dbtp":      summary.get("true_peak"),
-            "target_loudness":     target,
+            "sample_peak_dbfs":     summary.get("sample_peak"),
+            "true_peak_dbtp":       summary.get("true_peak"),
+            "target_loudness":      target,
         }
 
         if include_timeline:

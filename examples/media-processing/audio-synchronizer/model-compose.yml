@@ -1,0 +1,28 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Align Recordings
+  description: Compute per-recording time offsets against the first recording
+  job:
+    component: sync
+    output:
+      offsets: ${output as json}
+
+components:
+  - id: sync
+    type: audio-synchronizer
+    action:
+      # Any number of sources can be passed at once. The action returns a list
+      # of {offset, confidence} entries in the same order as the input. Offsets
+      # are anchored on the latest-starting source (offset=0); every other
+      # source reports how many seconds to trim from its head to reach the
+      # common start, so all offsets are >= 0 and can be fed directly into a
+      # downstream clipper.
+      sources: ${input.sources as file[]}

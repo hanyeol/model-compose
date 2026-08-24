@@ -86,13 +86,22 @@ class AudioSynchronizerAction(ComponentAction):
         samples = await asyncio.gather(*[ self._decode_pcm(source, _ANALYSIS_SAMPLE_RATE) for source in sources ])
         reference = samples[0]
 
-        results: List[AudioSyncOffset] = [ AudioSyncOffset({ "offset": 0.0, "confidence": 1.0 }) ]
+        # Offsets against the first source: each entry is how much later the
+        # source starts relative to sources[0] (positive => later).
+        offsets: List[Tuple[float, float]] = [ (0.0, 1.0) ]
 
         for target in samples[1:]:
-            offset, confidence = self._compute_offset(reference, target, _ANALYSIS_SAMPLE_RATE)
-            results.append(AudioSyncOffset({ "offset": offset, "confidence": confidence }))
+            offsets.append(self._compute_offset(reference, target, _ANALYSIS_SAMPLE_RATE))
 
-        return results
+        # Re-anchor on the latest-starting source so every reported offset is
+        # the amount to trim from the head of that source to reach the common
+        # start. The anchor itself lands at 0; all others are non-negative.
+        latest_start = max(offset for offset, _ in offsets)
+
+        return [
+            AudioSyncOffset({ "offset": latest_start - offset, "confidence": confidence })
+            for offset, confidence in offsets
+        ]
 
     @staticmethod
     def _compute_offset(reference: np.ndarray, target: np.ndarray, sample_rate: int) -> Tuple[float, float]:

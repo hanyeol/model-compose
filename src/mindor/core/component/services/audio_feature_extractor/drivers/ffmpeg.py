@@ -9,13 +9,13 @@ from mindor.core.utils.ffmpeg.audio import load_pcm_from_file, load_pcm_from_str
 from ....action.media import MediaInputPathResolver
 from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
 from ..base import ComponentActionContext
-from .common import AudioFeatureExtractorAction
+from .native import NativeAudioFeatureExtractorAction
 import os
 
 if TYPE_CHECKING:
     import numpy as np
 
-class FFmpegAudioFeatureExtractorAction(AudioFeatureExtractorAction):
+class FFmpegAudioFeatureExtractorAction(NativeAudioFeatureExtractorAction):
     async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 

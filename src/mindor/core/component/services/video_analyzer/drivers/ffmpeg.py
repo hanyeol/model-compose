@@ -11,7 +11,7 @@ from ....action.media import MediaInputPathResolver
 from ..base import VideoAnalyzerService, register_video_analyzer_service
 from ..base import ComponentActionContext
 from .common import VideoAnalyzerAction
-import re
+import os, re
 
 class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
     async def _analyze_black(
@@ -175,7 +175,10 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
                 raise RuntimeError(f"ffmpeg filter '{video_filter}' failed (exit code {process.returncode}): {error_message}")
         finally:
             if spooled and input_path is not None:
-                self._remove_file(input_path)
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
         return stderr.decode("utf-8", errors="replace") if stderr else ""
 

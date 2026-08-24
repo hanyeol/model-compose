@@ -12,7 +12,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import asyncio, os
+import asyncio
 
 class VideoAnalyzerAction(ComponentAction):
     def __init__(self, config: VideoAnalyzerActionConfig):
@@ -118,13 +118,6 @@ class VideoAnalyzerAction(ComponentAction):
             return await self._analyze_motion(source, params, cancellation_token)
 
         raise ValueError(f"Unsupported video metric: {metric}")
-
-    @staticmethod
-    def _remove_file(path: str) -> None:
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            pass
 
     @abstractmethod
     async def _analyze_black(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:

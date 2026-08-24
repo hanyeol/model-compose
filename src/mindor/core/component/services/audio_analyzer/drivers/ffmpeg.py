@@ -11,7 +11,7 @@ from ....action.media import MediaInputPathResolver
 from ..base import AudioAnalyzerService, register_audio_analyzer_service
 from ..base import ComponentActionContext
 from .common import AudioAnalyzerAction
-import re
+import os, re
 
 class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
     async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
@@ -154,7 +154,10 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
                 raise RuntimeError(f"ffmpeg filter '{audio_filter}' failed (exit code {process.returncode}): {error_message}")
         finally:
             if spooled and input_path is not None:
-                self._remove_file(input_path)
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
         return stderr.decode("utf-8", errors="replace") if stderr else ""
 

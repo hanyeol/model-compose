@@ -5,6 +5,7 @@ from .impl import *
 
 AudioSynchronizerComponentConfig = Annotated[
     Union[
+        NativeAudioSynchronizerComponentConfig,
         FFmpegAudioSynchronizerComponentConfig,
     ],
     Field(discriminator="driver")
@@ -13,4 +14,4 @@ AudioSynchronizerComponentConfig = Annotated[
 @component_validator(ComponentType.AUDIO_SYNCHRONIZER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = AudioSynchronizerDriver.FFMPEG
+        values["driver"] = AudioSynchronizerDriver.NATIVE

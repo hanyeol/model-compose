@@ -12,7 +12,7 @@ from ....action.media import MediaInputPathResolver
 from ..base import MediaInspectorService, register_media_inspector_service
 from ..base import ComponentActionContext
 from .common import MediaInspectorAction
-import asyncio, json
+import asyncio, json, os
 
 class FFmpegMediaInspectorAction(MediaInspectorAction):
     async def _inspect_batch(
@@ -59,7 +59,10 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
             return result
         finally:
             if spooled and input_path is not None:
-                self._remove_file(input_path)
+                try:
+                    os.remove(input_path)
+                except FileNotFoundError:
+                    pass
 
     @staticmethod
     async def _probe(input_path: Optional[str], source: MediaSource) -> Dict[str, Any]:

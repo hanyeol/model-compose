@@ -9,13 +9,13 @@ from mindor.core.utils.ffmpeg.audio import load_pcm_from_file, load_pcm_from_str
 from ....action.media import MediaInputPathResolver
 from ..base import AudioSynchronizerService, AudioSynchronizerDriver, register_audio_synchronizer_service
 from ..base import ComponentActionContext
-from .common import AudioSynchronizerAction
+from .native import NativeAudioSynchronizerAction
 import os
 
 if TYPE_CHECKING:
     import numpy as np
 
-class FFmpegAudioSynchronizerAction(AudioSynchronizerAction):
+class FFmpegAudioSynchronizerAction(NativeAudioSynchronizerAction):
     async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 

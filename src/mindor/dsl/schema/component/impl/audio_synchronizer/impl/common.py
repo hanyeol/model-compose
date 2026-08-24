@@ -4,6 +4,7 @@ from pydantic import Field
 from ...common import CommonComponentConfig, ComponentType
 
 class AudioSynchronizerDriver(str, Enum):
+    NATIVE = "native"
     FFMPEG = "ffmpeg"
 
 class CommonAudioSynchronizerComponentConfig(CommonComponentConfig):

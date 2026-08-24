@@ -11,7 +11,6 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import os
 
 class MediaInspectorAction(ComponentAction):
     def __init__(self, config: MediaInspectorActionConfig):
@@ -43,13 +42,6 @@ class MediaInspectorAction(ComponentAction):
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-    @staticmethod
-    def _remove_file(path: str) -> None:
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            pass
 
     @abstractmethod
     async def _inspect_batch(

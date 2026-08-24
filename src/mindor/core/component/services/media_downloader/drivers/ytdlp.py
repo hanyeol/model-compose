@@ -159,13 +159,13 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         js_runtimes: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         options: Dict[str, Any] = {
-            "outtmpl":     output_name,
+            "outtmpl": output_name,
             # `home` receives the final file; `temp` catches .part fragments
             # and pre-merge streams so nothing lands in the process cwd.
-            "paths":       { "home": output_dir, "temp": output_dir },
-            "quiet":       True,
+            "paths": { "home": output_dir, "temp": output_dir },
+            "quiet": True,
             "no_warnings": True,
-            "noplaylist":  True,
+            "noplaylist": True,
             "remote_components": [ "ejs:github" ],
         }
 

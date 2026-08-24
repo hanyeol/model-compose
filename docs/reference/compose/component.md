@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -67,6 +67,7 @@ Model-compose supports the following component types:
 | `video-converter` | Video format/codec conversion | [video-converter.md](components/video-converter.md) |
 | `video-encoder` | Encode PIL frames into video, or re-encode existing video, with optional audio track (ffmpeg) | [video-encoder.md](components/video-encoder.md) |
 | `video-frame-extractor` | Decode video and extract frames as images | [video-frame-extractor.md](components/video-frame-extractor.md) |
+| `html-frame-renderer` | Drive an HTML animation via `window.__renderer.seek(t)` and capture each frame as a PIL image (Playwright) | [html-frame-renderer.md](components/html-frame-renderer.md) |
 | `video-clipper` | Clip one or more time ranges out of a video (ffmpeg stream copy) | [video-clipper.md](components/video-clipper.md) |
 | `video-mixer` | Composite multiple videos into one — concat (join end-to-end) or overlay (watermark, picture-in-picture) via ffmpeg | [video-mixer.md](components/video-mixer.md) |
 | `video-analyzer` | Measure black frames, freezes, brightness, and motion via ffmpeg filters | [video-analyzer.md](components/video-analyzer.md) |

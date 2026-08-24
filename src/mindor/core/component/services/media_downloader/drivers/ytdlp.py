@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Union, Tuple, Dict, List, Any
 from mindor.dsl.schema.component import MediaDownloaderComponentConfig, MediaDownloaderDriver
 from mindor.dsl.schema.action import MediaDownloaderActionConfig
 from mindor.core.foundation.streaming.audio import AudioStreamResource
@@ -14,28 +14,79 @@ from ..base import ComponentActionContext
 from .common import MediaDownloaderAction, DownloadResult
 import asyncio, os
 
+_FORMAT_PRESETS: Dict[str, Tuple[Dict[str, Any], bool]] = {
+    "mp3": ({
+        "format": "ba[acodec^=mp3]/ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "mp3" }],
+    }, True),
+
+    "aac": ({
+        "format": "ba[acodec^=aac]/ba[acodec^=mp4a.40.]/ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "aac" }],
+    }, True),
+
+    "m4a": ({
+        "format": "ba[ext=m4a]/ba[acodec^=mp4a.40.]/ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "m4a" }],
+    }, True),
+
+    "opus": ({
+        "format": "ba[acodec=opus]/ba[ext=webm]/ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "opus" }],
+    }, True),
+
+    "vorbis": ({
+        "format": "ba[acodec=vorbis]/ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "vorbis" }],
+    }, True),
+
+    "flac": ({
+        "format": "ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "flac" }],
+    }, True),
+
+    "alac": ({
+        "format": "ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "alac" }],
+    }, True),
+
+    "wav": ({
+        "format": "ba/b",
+        "postprocessors": [{ "key": "FFmpegExtractAudio", "preferredcodec": "wav" }],
+    }, True),
+
+    "mp4": ({
+        "merge_output_format": "mp4",
+        "postprocessors": [{ "key": "FFmpegVideoRemuxer", "preferedformat": "mp4" }],
+        "format_sort": [ "vcodec:h264", "lang", "quality", "res", "fps", "hdr:12", "acodec:aac" ],
+    }, False),
+
+    "mkv": ({
+        "merge_output_format": "mkv",
+        "postprocessors": [{ "key": "FFmpegVideoRemuxer", "preferedformat": "mkv" }],
+    }, False),
+
+    "webm": ({
+        "merge_output_format": "webm",
+        "postprocessors": [{ "key": "FFmpegVideoRemuxer", "preferedformat": "webm" }],
+        "format_sort": [ "vcodec:vp9", "lang", "quality", "res", "fps", "acodec:opus" ],
+    }, False),
+}
+
 class YtdlpMediaDownloaderAction(MediaDownloaderAction):
     async def _resolve_params(self) -> Dict[str, Any]:
         params = await super()._resolve_params()
 
-        format_selector = await self.context.render_scalar(self.config.format_selector, str)
-        extract_audio   = await self.context.render_scalar(self.config.extract_audio, bool, False)
-        video_format    = await self.context.render_scalar(self.config.video_format, str)
-        audio_format    = await self.context.render_scalar(self.config.audio_format, str)
-        cookies         = (await self.context.render_variable(self.config.cookies)) or []
-        extractor_args  = (await self.context.render_variable(self.config.extractor_args)) or {}
-        js_runtimes     = (await self.context.render_variable(self.config.js_runtimes)) or []
-
-        js_runtimes = self._normalize_js_runtimes(js_runtimes)
+        format         = await self.context.render_variable(self.config.format)
+        cookies        = (await self.context.render_variable(self.config.cookies)) or []
+        extractor_args = (await self.context.render_variable(self.config.extractor_args)) or {}
+        js_runtimes    = (await self.context.render_variable(self.config.js_runtimes)) or []
 
         params.update({
-            "format_selector": format_selector,
-            "extract_audio":   extract_audio,
-            "video_format":    video_format,
-            "audio_format":    audio_format,
-            "cookies":         cookies,
-            "extractor_args":  extractor_args,
-            "js_runtimes":     js_runtimes,
+            "format":         format,
+            "cookies":        cookies,
+            "extractor_args": extractor_args,
+            "js_runtimes":    js_runtimes,
         })
 
         return params
@@ -66,24 +117,20 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         output_dir = os.path.dirname(output_template)
         output_name = os.path.basename(output_template)
 
-        # yt-dlp only accepts a Netscape-format cookies file, not a list of
-        # cookie objects. Materialize the rendered list into a temp file when
-        # non-empty and clean it up after the download completes.
+        format_options, is_audio = self._build_format_options(params["format"])
+        js_runtimes_option = self._build_js_runtimes_option(params["js_runtimes"])
         cookiefile = self._create_cookies_file(params["cookies"]) if params["cookies"] else None
 
-        options = self._build_options(
+        options = self._build_ytdlp_options(
             output_dir=output_dir,
             output_name=output_name,
-            format_selector=params["format_selector"],
-            extract_audio=params["extract_audio"],
-            audio_format=params["audio_format"],
-            video_format=params["video_format"],
+            format_options=format_options,
             cookiefile=cookiefile,
             extractor_args=params["extractor_args"],
-            js_runtimes=params["js_runtimes"],
+            js_runtimes=js_runtimes_option,
         )
 
-        logging.debug("Downloading '%s' via yt-dlp (extract_audio=%s)", url, params["extract_audio"])
+        logging.debug("Downloading '%s' via yt-dlp (format=%s)", url, params["format"])
 
         try:
             path = await asyncio.to_thread(self._run_ytdlp, url, options, cancellation_token)
@@ -97,13 +144,106 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         format_hint = get_file_extension(path)
         stream = FileStreamResource(path, auto_delete=True)
 
-        if params["extract_audio"]:
+        if is_audio:
             return AudioStreamResource(stream, format=format_hint)
 
         return VideoStreamResource(stream, format=format_hint)
 
     @staticmethod
-    def _normalize_js_runtimes(runtimes: Any) -> Dict[str, Dict[str, Any]]:
+    def _build_format_options(format: Union[str, Dict[str, Any], None]) -> Tuple[Dict[str, Any], bool]:
+        """Turn the DSL `format` value into yt-dlp options plus an audio/video flag.
+
+        Accepts three shapes:
+        - None: default best video+audio merge.
+        - str: preset name (e.g. `mp3`, `mp4`) if in the preset whitelist, otherwise
+          a raw yt-dlp `-f` expression passed through verbatim.
+        - dict: structured `YtdlpFormatSpec` (already rendered to a plain dict);
+          compiled to a `-f` selector plus optional postprocessors.
+
+        Returns (options_fragment, is_audio) where `is_audio` decides whether the
+        result should be wrapped as an AudioStreamResource.
+        """
+        if isinstance(format, dict):
+            media = format.get("media")
+
+            if media not in ("audio", "video"):
+                raise ValueError(f"YtdlpFormatSpec.media must be 'audio' or 'video', got {media!r}")
+
+            is_audio     = bool(media == "audio")
+            container    = format.get("container")
+            codec        = format.get("codec")
+            max_bitrate  = format.get("max_bitrate")
+            max_filesize = format.get("max_filesize")
+            prefer_free  = format.get("prefer_free_formats")
+
+            filters: List[str] = []
+
+            if container:
+                filters.append(f"ext={container}")
+
+            if codec:
+                filters.append(f"{'acodec' if is_audio else 'vcodec'}^={codec}")
+
+            if max_bitrate is not None:
+                filters.append(f"{'abr' if is_audio else 'vbr'}<={max_bitrate}")
+
+            if max_filesize is not None:
+                filters.append(f"filesize<={max_filesize}")
+
+            if is_audio:
+                selector = "bestaudio" + "".join(f"[{f}]" for f in filters) + "/bestaudio/best"
+            else:
+                max_height = format.get("max_height")
+                max_fps    = format.get("max_fps")
+                hdr        = format.get("hdr")
+
+                video_filters = list(filters)
+
+                if max_height is not None:
+                    video_filters.append(f"height<={max_height}")
+
+                if max_fps is not None:
+                    video_filters.append(f"fps<={max_fps}")
+
+                if hdr:
+                    video_filters.append("dynamic_range=hdr")
+
+                # Match yt-dlp's default merge shape (bestvideo+bestaudio/best) so
+                # separate streams get combined when available.
+                video_filter_str = "".join(f"[{f}]" for f in video_filters)
+                audio_filter_str = "".join(f"[{f}]" for f in filters) if filters else ""
+                selector = f"bestvideo{video_filter_str}+bestaudio{audio_filter_str}/best{video_filter_str}/best"
+
+            options: Dict[str, Any] = { "format": selector }
+
+            if prefer_free:
+                options["prefer_free_formats"] = True
+
+            if is_audio:
+                options["postprocessors"] = [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": (container or "m4a"),
+                }]
+            elif container:
+                options["merge_output_format"] = container
+
+            return options, is_audio
+
+        if isinstance(format, str):
+            preset = _FORMAT_PRESETS.get(format)
+
+            if preset is not None:
+                return preset
+
+            # Raw yt-dlp format expression — audio/video intent is opaque, so
+            # default to video wrapping. Callers who want audio semantics should
+            # use a preset or structured spec instead.
+            return { "format": format }, False
+
+        return { "format": "best" }, False
+
+    @staticmethod
+    def _build_js_runtimes_option(runtimes: Any) -> Dict[str, Dict[str, Any]]:
         """Accept the YAML-friendly shapes and return yt-dlp's {runtime: {config}} form.
 
         A bare string or a list of `RUNTIME[:PATH]` entries mirrors the
@@ -114,18 +254,18 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             return {}
 
         if isinstance(runtimes, dict):
-            return { str(name).lower(): (config or {}) for name, config in runtimes.items() }
+            return { str(name): (config or {}) for name, config in runtimes.items() }
 
         if isinstance(runtimes, str):
             runtimes = [ runtimes ]
 
-        normalized: Dict[str, Dict[str, Any]] = {}
+        option: Dict[str, Dict[str, Any]] = {}
 
-        for entry in runtimes:
-            name, _, runtime_path = str(entry).partition(":")
-            normalized[name.strip().lower()] = { "path": runtime_path or None }
+        for runtime in runtimes:
+            name, _, path = str(runtime).partition(":")
+            option[name] = { "path": path or None }
 
-        return normalized
+        return option
 
     @staticmethod
     def _create_cookies_file(cookies: List[Dict[str, Any]]) -> str:
@@ -172,13 +312,10 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         return path
 
     @staticmethod
-    def _build_options(
+    def _build_ytdlp_options(
         output_dir: str,
         output_name: str,
-        format_selector: Optional[str],
-        extract_audio: bool,
-        audio_format: Optional[str],
-        video_format: Optional[str],
+        format_options: Dict[str, Any],
         cookiefile: Optional[str],
         extractor_args: Optional[Dict[str, Dict[str, Any]]] = None,
         js_runtimes: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -194,22 +331,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             "remote_components": [ "ejs:github" ],
         }
 
-        if format_selector:
-            options["format"] = format_selector
-        elif extract_audio:
-            options["format"] = "bestaudio/best"
-        elif video_format:
-            # Prefer a merged stream in the requested container; fall back to best.
-            options["format"] = f"bestvideo[ext={video_format}]+bestaudio/best[ext={video_format}]/best"
-            options["merge_output_format"] = video_format
-        else:
-            options["format"] = "best"
-
-        if extract_audio:
-            options["postprocessors"] = [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": (audio_format or "m4a"),
-            }]
+        options.update(format_options)
 
         if cookiefile:
             options["cookiefile"] = cookiefile

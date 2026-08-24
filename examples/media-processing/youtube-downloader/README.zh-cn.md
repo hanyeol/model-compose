@@ -85,7 +85,7 @@ google-chrome \
 
    **通过 Web UI：**
    - 打开 http://localhost:8081
-   - 输入视频 URL（可选：`video_format`）
+   - 输入视频 URL（可选：`format`）
    - 点击 Run
 
    **通过 CLI：**
@@ -152,7 +152,7 @@ graph TD
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |-----------|------|----------|---------|-------------|
 | `url` | string | 是 | — | YouTube 视频 URL |
-| `video_format` | string | 否 | `mp4` | 合并输出的容器（`mp4`、`webm`、`mkv`） |
+| `format` | string \| object | 否 | `mp4` | media-downloader 的 `format`：preset（`mp4`、`webm`、`mkv`、`mp3` 等）、原生 yt-dlp 表达式，或结构化 spec。 |
 
 #### 输出格式
 
@@ -214,5 +214,5 @@ downloader。
   请确认 Chrome 用户目录中登录的 Google 账户已完成年龄验证。
 - **下载完成后 Web UI 播放器很久才出现**：当源视频为 AV1 或 VP9 时，
   Gradio 会将其转码为浏览器兼容的编码。长的 4K 视频在 CPU 编码下可能
-  耗时数分钟。若无法接受等待时间，可覆写 download 动作的
-  `format_selector`，优先选择 H.264（`vcodec^=avc1`）。
+  耗时数分钟。若无法接受等待时间，可将 download 动作的 `format` 覆写
+  为结构化 spec 以优先选择 H.264（例如 `{ media: video, container: mp4, codec: avc1 }`）。

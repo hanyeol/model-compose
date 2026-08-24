@@ -80,7 +80,7 @@ workflows:
         action: download
         input:
           url: ${input.url @(description YouTube video URL)}
-          video_format: ${input.video_format | mp4 @(description mp4 | webm | mkv)}
+          format: ${input.format | mp4 @(description mp4 | webm | mkv)}
           cookies: ${jobs.collect-cookies.output}
         output:
           # `as video` picks the video stream wrapper so the WebUI renders
@@ -142,7 +142,7 @@ components:
     actions:
       - id: download
         url: ${input.url}
-        video_format: ${input.video_format}
+        format: ${input.format}
         # CDP/Playwright-shaped cookie list. yt-dlp writes these into a
         # Netscape cookie file internally, preserving domain, path,
         # secure, and expiry from each cookie object.

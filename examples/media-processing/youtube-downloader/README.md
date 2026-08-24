@@ -93,7 +93,7 @@ expires the cookies).
 
    **Using Web UI:**
    - Open http://localhost:8081
-   - Enter the video URL and (optionally) `video_format`
+   - Enter the video URL and (optionally) `format`
    - Click Run
 
    **Using CLI:**
@@ -165,7 +165,7 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `url` | string | Yes | — | YouTube video URL |
-| `video_format` | string | No | `mp4` | Container for merged output (`mp4`, `webm`, `mkv`) |
+| `format` | string \| object | No | `mp4` | Media downloader `format`: preset (`mp4`, `webm`, `mkv`, `mp3`, ...), raw yt-dlp expression, or structured spec. |
 
 #### Output Format
 
@@ -233,5 +233,5 @@ example.
 - **Web UI player takes a long time to appear after download**: Gradio
   transcodes the file to a browser-compatible codec when the source
   is AV1 or VP9. A long 4K clip can take many minutes on CPU. If the
-  wait is unacceptable, override `format_selector` on the download
-  action to prefer H.264 (`vcodec^=avc1`).
+  wait is unacceptable, pass a structured `format` on the download
+  action to prefer H.264 (e.g. `{ media: video, container: mp4, codec: avc1 }`).

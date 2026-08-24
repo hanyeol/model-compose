@@ -90,7 +90,7 @@ google-chrome \
 
    **Web UI 사용:**
    - http://localhost:8081 열기
-   - 영상 URL 입력 (선택: `video_format`)
+   - 영상 URL 입력 (선택: `format`)
    - Run 클릭
 
    **CLI 사용:**
@@ -160,7 +160,7 @@ graph TD
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |-----------|------|----------|---------|-------------|
 | `url` | string | 예 | — | YouTube 영상 URL |
-| `video_format` | string | 아니오 | `mp4` | 병합 결과 컨테이너 (`mp4`, `webm`, `mkv`) |
+| `format` | string \| object | 아니오 | `mp4` | media-downloader의 `format`: preset(`mp4`, `webm`, `mkv`, `mp3`, ...), raw yt-dlp 표현식, 또는 구조화된 spec. |
 
 #### 출력 형식
 
@@ -226,5 +226,5 @@ Playwright가 사용하는 형식이 동일하므로, 다른 쿠키 소스(저�
 - **다운로드 이후 Web UI 플레이어가 오래 걸림**: 원본이 AV1 또는 VP9
   일 때 Gradio가 브라우저 호환 코덱으로 재인코딩합니다. 긴 4K 영상은
   CPU 인코딩으로 수 분 걸릴 수 있습니다. 대기 시간이 부담되면 download
-  액션의 `format_selector`를 재정의해 H.264(`vcodec^=avc1`)를 우선
-  선택하도록 조정하세요.
+  액션의 `format`을 구조화된 spec으로 지정해 H.264를 우선 선택하도록
+  조정하세요 (예: `{ media: video, container: mp4, codec: avc1 }`).

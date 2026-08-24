@@ -8,11 +8,12 @@ from mindor.dsl.schema.action import (
     AudioMixerOverlayDurationMode,
     AudioOverlayPlacement,
 )
+from mindor.core.component.action.media import MediaInputPathResolver
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.probe import probe_audio
@@ -46,7 +47,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         spooled_paths: List[str] = []
 
         for audio in audios:
-            path, spooled = await self._resolve_input_path(audio)
+            path, spooled = await MediaInputPathResolver.resolve(audio)
             input_paths.append(path)
             if spooled:
                 spooled_paths.append(path)
@@ -91,7 +92,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        base_path, base_spooled = await self._resolve_input_path(audio)
+        base_path, base_spooled = await MediaInputPathResolver.resolve(audio)
 
         overlay_paths: List[str] = []
         spooled_paths: List[str] = []
@@ -100,7 +101,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
             spooled_paths.append(base_path)
 
         for overlay in overlays:
-            path, spooled = await self._resolve_input_path(overlay)
+            path, spooled = await MediaInputPathResolver.resolve(overlay)
             overlay_paths.append(path)
             if spooled:
                 spooled_paths.append(path)
@@ -246,22 +247,6 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         )
 
         return ";".join(filter_parts), "[aout]"
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
-        """Ensure the input is available at a filesystem path ffmpeg can seek.
-
-        Concat and overlay both need seekable, indexed inputs, so live streams
-        must be spooled rather than piped. Returns (path, spooled): spooled=True
-        means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        logging.debug("Spooling mixer input (format=%s) to a temp file for seekable access.", source.format)
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     async def _encode_to_file(
         self,

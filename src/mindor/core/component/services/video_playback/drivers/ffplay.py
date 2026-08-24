@@ -6,16 +6,13 @@ from mindor.dsl.schema.component import VideoPlaybackComponentConfig, VideoPlayb
 from mindor.dsl.schema.action import VideoPlaybackActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.audio import is_streamable_audio_format
-from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import VideoPlaybackService, register_video_playback_service
 from ..base import ComponentActionContext
 from .common import VideoPlaybackAction
 import asyncio, os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFplayVideoPlaybackAction(VideoPlaybackAction):
     async def _play_batch(
@@ -33,7 +30,7 @@ class FFplayVideoPlaybackAction(VideoPlaybackAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        video_path, video_spooled = await self._resolve_input_path(video)
+        video_path, video_spooled = await MediaInputPathResolver.resolve(video, streamable_media=[ "video", "audio" ])
 
         # -autoexit closes the window when playback ends so the process actually
         # terminates on its own; without it ffplay would sit on the last frame
@@ -151,28 +148,6 @@ class FFplayVideoPlaybackAction(VideoPlaybackAction):
                 cleanup()
 
         asyncio.create_task(_wait_and_cleanup())
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffplay should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffplay can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
-            return None, False
-
-        logging.debug("ffplay input is not streamable; spooling to a temp file before playback")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     def _parse_window_size(self, size: str) -> Tuple[int, int]:
         try:

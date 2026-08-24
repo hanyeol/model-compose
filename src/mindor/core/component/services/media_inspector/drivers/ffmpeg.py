@@ -12,6 +12,7 @@ from ..base import MediaInspectorService, register_media_inspector_service
 from ..base import ComponentActionContext
 from .common import MediaInspectorAction
 import asyncio, json
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegMediaInspectorAction(MediaInspectorAction):
     async def _inspect_batch(
@@ -25,7 +26,7 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
         ])
 
     async def _inspect(self, source: MediaSource, return_raw: bool) -> Dict[str, Any]:
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "video", "audio" ])
 
         try:
             raw = await self._probe(input_path, source)

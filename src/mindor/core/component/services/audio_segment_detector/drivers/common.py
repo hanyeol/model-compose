@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Any
+
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioSegmentDetectorActionConfig

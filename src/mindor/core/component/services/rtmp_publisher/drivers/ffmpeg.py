@@ -8,9 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.audio import is_streamable_audio_format, is_pcm_format
-from mindor.core.utils.video import is_streamable_video_format
+from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
@@ -18,6 +16,7 @@ from ..base import RtmpPublisherService, register_rtmp_publisher_service
 from ..base import ComponentActionContext
 from .common import RtmpPublisherAction
 import asyncio, os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 # RTMP is virtually always flv-wrapped h264/aac.
 _DEFAULT_FORMAT: str = "flv"
@@ -280,8 +279,8 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        video_path, video_spooled = (await self._resolve_input_path(video)) if video is not None else (None, False)
-        audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
+        video_path, video_spooled = (await MediaInputPathResolver.resolve(video, streamable_media=[ "video" ])) if video is not None else (None, False)
+        audio_path, audio_spooled = (await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
         # POSIX can hand a second live stream to ffmpeg over an inherited
         # descriptor, so both sides may stay as streams. On Windows only
@@ -313,28 +312,6 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
                     os.remove(audio_path)
                 except FileNotFoundError:
                     pass
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before publishing")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
 @register_rtmp_publisher_service(RtmpPublisherDriver.FFMPEG)
 class FFmpegRtmpPublisherService(RtmpPublisherService):

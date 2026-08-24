@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
+
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoPlaybackActionConfig
 from mindor.core.foundation.streaming.media import MediaSource

@@ -12,7 +12,6 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
-from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -22,6 +21,7 @@ from ..base import VideoEncoderService, register_video_encoder_service
 from ..base import ComponentActionContext
 from .common import VideoEncoderAction
 import asyncio, io, os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 _DEFAULT_FORMAT = "mp4"
 
@@ -45,8 +45,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        video_path, video_spooled = await self._resolve_input_path(video)
-        audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
+        video_path, video_spooled = await MediaInputPathResolver.resolve(video, streamable_media=[ "video" ])
+        audio_path, audio_spooled = (await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
         # On Windows only `pipe:0` is available. If both sides would end up as
         # live streams, force-spool the audio side so the video keeps its pipe path.
@@ -120,7 +120,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        audio_path, audio_spooled = (await self._resolve_input_path(audio)) if audio is not None else (None, False)
+        audio_path, audio_spooled = (await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
         # `image2pipe` already claims stdin. If audio remains a live stream, it
         # needs an inherited descriptor — POSIX-only. Force-spool on Windows.
@@ -322,28 +322,6 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before encoding")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     @staticmethod
     def _resolve_input_source(

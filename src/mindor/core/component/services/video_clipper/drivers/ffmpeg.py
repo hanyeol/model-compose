@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Union, Dict, List, Tuple, Callable, Any
+from typing import Optional, Union, Dict, List, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoClipperComponentConfig
 from mindor.dsl.schema.action import VideoClipperActionConfig
@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.video import is_streamable_video_format
@@ -20,6 +20,7 @@ from ..base import VideoClipperService, VideoClipperDriver, register_video_clipp
 from ..base import ComponentActionContext
 from .common import VideoClipperAction
 import asyncio, os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegVideoClipperAction(VideoClipperAction):
     async def _clip_batch(
@@ -32,7 +33,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         results: List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]] = []
 
         for video, spans in zip(videos, spans):
-            input_path, spooled = await self._resolve_input_path(video)
+            input_path, spooled = await MediaInputPathResolver.resolve(video)
             format = await self._resolve_format(video, input_path)
 
             clips = self._clip(
@@ -321,28 +322,6 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
-        """
-        Return a filesystem path ffmpeg can seek into for span cuts.
-
-        Clipping runs one ffmpeg invocation per span with -ss/-to, so the input
-        must support random access. pipe:0 is single-consumption and unusable
-        here — any non-file source is spooled to a temp file first.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool the stream to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        logging.debug("ffmpeg input is not a file; spooling to a temp file before clipping")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     async def _resolve_format(self, video: MediaSource, input_path: str) -> str:
         """Preserve the source format so `-c copy` produces a valid container.

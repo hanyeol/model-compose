@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Callable, Any
+from typing import Optional, Dict, List, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioExtractorComponentConfig
 from mindor.dsl.schema.action import AudioExtractorActionConfig
@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.ffmpeg.codecs import get_audio_codec_for_format
@@ -19,6 +19,7 @@ from ..base import AudioExtractorService, AudioExtractorDriver, register_audio_e
 from ..base import ComponentActionContext
 from .common import AudioExtractorAction
 import asyncio, os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegAudioExtractorAction(AudioExtractorAction):
     async def _extract_batch(
@@ -46,7 +47,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         track: Optional[int],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "audio" ])
 
         command = [ "ffmpeg", "-hide_banner" ]
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
@@ -204,28 +205,6 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
                 cleanup()
 
         return AudioStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_audio_format(source.format):
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     @staticmethod
     def _resolve_audio_codec(encoding: AudioEncoderParams, format: str) -> Optional[str]:

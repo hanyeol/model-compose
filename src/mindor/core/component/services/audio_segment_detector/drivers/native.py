@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Any
 from mindor.dsl.schema.component import AudioSegmentDetectorComponentConfig
 from mindor.dsl.schema.action import AudioSegmentDetectorActionConfig
 from mindor.dsl.schema.action.impl.audio_segment_detector.impl.common import AudioSegmentDetectorStrategy
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.soundfile.audio import load_pcm_samples
-from mindor.core.logger import logging
 from ..base import AudioSegmentDetectorService, AudioSegmentDetectorDriver, register_audio_segment_detector_service
 from ..base import ComponentActionContext
 from .common import AudioSegmentDetectorAction
 import os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 if TYPE_CHECKING:
     import numpy as np
@@ -169,7 +167,7 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
         return letters
 
     async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source)
 
         try:
             return await self._run_in_executor(load_pcm_samples, input_path, sample_rate)
@@ -179,16 +177,6 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
                     os.remove(input_path)
                 except FileNotFoundError:
                     pass
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[str, bool]:
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        logging.debug("Spooling audio stream to a temp file before native decoding")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
 @register_audio_segment_detector_service(AudioSegmentDetectorDriver.NATIVE)
 class NativeAudioSegmentDetectorService(AudioSegmentDetectorService):

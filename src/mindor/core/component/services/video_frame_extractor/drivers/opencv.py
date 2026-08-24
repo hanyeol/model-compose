@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Union, Callable, Any
+from typing import Optional, Dict, List, Union, Callable, Any
 from collections.abc import AsyncIterator, Iterator
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.streamer import SyncGeneratorStreamer
-from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from PIL import Image as PILImage
 import asyncio, os, threading
+from mindor.core.component.action.media import MediaInputPathResolver
 
 _FRAME_QUEUE_MAXSIZE = 16
 
@@ -62,7 +60,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await self._resolve_input_path(video)
+        input_path, spooled = await MediaInputPathResolver.resolve(video, default_format="mp4")
 
         def _cleanup() -> None:
             if not spooled:
@@ -215,24 +213,6 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
                 current_frame += 1
         finally:
             capture.release()
-
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
-        """
-        OpenCV's VideoCapture only accepts a file path (no stdin pipe).
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool to a temp file so VideoCapture can open it.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        logging.debug("opencv input is not a local file; spooling to a temp file before extraction")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format or "mp4")
-
-        return spooled_path, True
 
 @register_video_frame_extractor_service(VideoFrameExtractorDriver.OPENCV)
 class OpenCVVideoFrameExtractorService(VideoFrameExtractorService):

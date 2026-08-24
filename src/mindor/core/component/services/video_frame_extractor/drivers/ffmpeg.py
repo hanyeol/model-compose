@@ -6,18 +6,16 @@ from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
-from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from PIL import Image as PILImage
 import asyncio, os, re
+from mindor.core.component.action.media import MediaInputPathResolver
 
 _PTS_TIME_PATTERN = re.compile(rb"pts_time:\s*(\d+(?:\.\d+)?)")
 _PNG_SIGNATURE    = b"\x89PNG\r\n\x1a\n"
@@ -58,7 +56,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await self._resolve_input_path(video)
+        input_path, spooled = await MediaInputPathResolver.resolve(video, streamable_media=[ "video" ])
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info" ]
 
@@ -367,28 +365,6 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         end += len(_PNG_IEND_MARKER)
 
         return await load_image_from_bytes(buffer[start:end]), buffer[end:]
-
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        if is_streamable_video_format(video.format):
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before extraction")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
-
-        return spooled_path, True
 
 @register_video_frame_extractor_service(VideoFrameExtractorDriver.FFMPEG)
 class FFmpegVideoFrameExtractorService(VideoFrameExtractorService):

@@ -6,8 +6,6 @@ from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.shell import run_command
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
@@ -15,6 +13,7 @@ from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
 import json, os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
     async def _detect_batch(
@@ -49,7 +48,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await self._resolve_input_path(video)
+        input_path, spooled = await MediaInputPathResolver.resolve(video)
         resolved_threshold = threshold if threshold is not None else 0.5
 
         def _cleanup() -> None:
@@ -159,24 +158,6 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         _, predictions, _ = model.predict_video(video)
 
         return predictions
-
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
-        """
-        TransNetV2 requires an on-disk path.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool the stream to a temp file.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        logging.debug("Spooling video stream to a temp file before scene detection")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
-
-        return spooled_path, True
 
     async def _get_frame_rate(self, input_path: str) -> float:
         command = [

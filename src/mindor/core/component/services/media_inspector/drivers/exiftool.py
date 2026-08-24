@@ -12,6 +12,7 @@ from ..base import MediaInspectorService, register_media_inspector_service
 from ..base import ComponentActionContext
 from .common import MediaInspectorAction
 import asyncio, json
+from mindor.core.component.action.media import MediaInputPathResolver
 
 # ExifTool groups tags under family-1 group names (File, EXIF, XMP, ...). We
 # keep these buckets in the normalized output so callers can address
@@ -33,7 +34,7 @@ class ExiftoolMediaInspectorAction(MediaInspectorAction):
         ])
 
     async def _inspect(self, source: MediaSource, return_raw: bool) -> Dict[str, Any]:
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source)
 
         try:
             raw, tags, groups = await self._probe(input_path, source)

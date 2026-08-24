@@ -18,11 +18,12 @@ from mindor.core.foundation.variable.video import VideoArrayValue
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 import asyncio
 
-class VideoMixerAction(MediaComponentAction):
+class VideoMixerAction(ComponentAction):
     def __init__(self, config: VideoMixerActionConfig):
         self.config: VideoMixerActionConfig = config
 
@@ -85,7 +86,7 @@ class VideoMixerAction(MediaComponentAction):
         context: ComponentActionContext,
     ) -> Dict[str, Any]:
         if method == VideoMixerActionMethod.CONCAT:
-            encoding  = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+            encoding  = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
             crossfade = await context.render_scalar(self.config.crossfade, "time")
 
             return {
@@ -94,7 +95,7 @@ class VideoMixerAction(MediaComponentAction):
             }
 
         if method == VideoMixerActionMethod.OVERLAY:
-            encoding      = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+            encoding      = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
             audio_mode    = await context.render_variable(self.config.audio_mode)
             duration_mode = await context.render_variable(self.config.duration_mode)
 

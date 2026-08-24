@@ -11,6 +11,7 @@ from ..base import AudioAnalyzerService, register_audio_analyzer_service
 from ..base import ComponentActionContext
 from .common import AudioAnalyzerAction
 import re
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
     async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
@@ -131,7 +132,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         audio_filter: str,
         cancellation_token: Optional[CancellationToken]
     ) -> str:
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "audio" ])
 
         command = [ "ffmpeg", "-hide_banner", "-nostats" ]
 

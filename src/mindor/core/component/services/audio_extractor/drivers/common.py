@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
+
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioExtractorActionConfig
@@ -10,10 +11,11 @@ from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
-class AudioExtractorAction(MediaComponentAction):
+class AudioExtractorAction(ComponentAction):
     def __init__(self, config: AudioExtractorActionConfig):
         self.config: AudioExtractorActionConfig = config
 
@@ -47,7 +49,7 @@ class AudioExtractorAction(MediaComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         format   = await context.render_scalar(self.config.format, str, "mp3")
-        encoding = await self._resolve_audio_encoder(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
+        encoding = await VideoAudioEncodingResolver.resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
         track    = await context.render_scalar(self.config.track, int)
 
         return {

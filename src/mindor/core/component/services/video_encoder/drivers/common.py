@@ -12,10 +12,11 @@ from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from PIL import Image as PILImage
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
-class VideoEncoderAction(MediaComponentAction):
+class VideoEncoderAction(ComponentAction):
     def __init__(self, config: VideoEncoderActionConfig):
         self.config: VideoEncoderActionConfig = config
 
@@ -61,7 +62,7 @@ class VideoEncoderAction(MediaComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_rate = await context.render_variable(self.config.frame_rate)
-        encoding   = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding   = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         return {
             "frame_rate": frame_rate,

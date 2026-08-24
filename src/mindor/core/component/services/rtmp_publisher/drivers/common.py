@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from typing import Optional, List, Any
+
 from abc import abstractmethod
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
-class RtmpPublisherAction(MediaComponentAction):
+class RtmpPublisherAction(ComponentAction):
     def __init__(self, config: RtmpPublisherActionConfig):
         self.config: RtmpPublisherActionConfig = config
 
@@ -19,7 +21,7 @@ class RtmpPublisherAction(MediaComponentAction):
         audio = await context.render_audio(self.config.audio) if self.config.audio is not None else None
         url   = await context.render_variable(self.config.url)
 
-        encoding = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         # Each item runs as its own publish so a peer-side disconnect
         # (e.g. YouTube ending the stream) doesn't bleed into the next one.

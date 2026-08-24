@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Optional, List, Dict, Any
 from collections.abc import AsyncIterable
 from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlaybackDriver
 from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSink
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.audio import is_streamable_audio_format, is_pcm_format
-from mindor.core.utils.video import is_streamable_video_format
+from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ..base import AudioPlaybackService, register_audio_playback_service
 from ..base import ComponentActionContext
 from .common import AudioPlaybackAction
 import asyncio, os, platform
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegAudioPlaybackAction(AudioPlaybackAction):
     async def _play_batch(
@@ -34,7 +32,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
         system = platform.system()
-        audio_path, audio_spooled = await self._resolve_input_path(audio)
+        audio_path, audio_spooled = await MediaInputPathResolver.resolve(audio, streamable_media=[ "video", "audio" ])
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
 
@@ -148,28 +146,6 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
                 cleanup()
 
         asyncio.create_task(_wait_and_cleanup())
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (flv, mpegts, mp3, wav, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_video_format(source.format) or is_streamable_audio_format(source.format):
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before playback")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     def _build_audio_output_options(
         self,

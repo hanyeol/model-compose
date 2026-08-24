@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Any
+
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoAnalyzerActionConfig
 from mindor.dsl.schema.action.impl.video_analyzer.impl.common import VideoAnalyzerMetric
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.video import is_streamable_video_format
-from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 import asyncio, os
@@ -121,27 +118,6 @@ class VideoAnalyzerAction(ComponentAction):
             return await self._analyze_motion(source, params, cancellation_token)
 
         raise ValueError(f"Unsupported video metric: {metric}")
-
-    @staticmethod
-    async def _resolve_input_path(source: MediaSource) -> Tuple[Optional[str], bool]:
-        """Decide how the analyzer CLI should read the input.
-
-        Container-heavy formats (mp4/mov/mkv) need seekable input and are
-        spooled to a temp file; streamable containers (mpegts, flv, ...) can
-        be piped via stdin. Returns (input_path, spooled) where
-        `input_path is None` means stdin.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_video_format(source.format):
-            return None, False
-
-        logging.debug("video analyzer input is not streamable; spooling to a temp file before probing")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     @staticmethod
     def _remove_file(path: str) -> None:

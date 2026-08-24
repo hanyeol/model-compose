@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Union, Callable, Any
+from typing import Optional, Dict, List, Union, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig, VideoSceneDetectorType
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
-from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.logger import logging
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
 import os
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
     async def _detect_batch(
@@ -47,7 +46,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await self._resolve_input_path(video)
+        input_path, spooled = await MediaInputPathResolver.resolve(video)
 
         def _cleanup() -> None:
             if spooled:
@@ -165,24 +164,6 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
             return HashDetector(threshold=threshold) if threshold is not None else HashDetector()
 
         raise ValueError(f"Unsupported detector type: {detector}")
-
-    async def _resolve_input_path(self, video: MediaSource) -> Tuple[str, bool]:
-        """
-        PySceneDetect requires an on-disk path.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Otherwise: spool the stream to a temp file.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(video.stream, FileStreamResource):
-            return video.stream.path, False
-
-        logging.debug("Spooling video stream to a temp file before scene detection")
-
-        spooled_path = await save_stream_to_temporary_file(video.stream, video.format)
-
-        return spooled_path, True
 
 @register_video_scene_detector_service(VideoSceneDetectorDriver.PYSCENEDETECT)
 class PySceneVideoSceneDetectorService(VideoSceneDetectorService):

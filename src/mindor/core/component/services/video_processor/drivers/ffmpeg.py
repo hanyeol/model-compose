@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Tuple, Callable, Any
+from typing import List, Optional, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoProcessorComponentConfig
 from mindor.dsl.schema.action import (
@@ -8,11 +8,12 @@ from mindor.dsl.schema.action import (
     VideoScaleMode,
     VideoFlipDirection,
 )
+from mindor.core.component.action.media import MediaInputPathResolver
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
+from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.files import get_temporary_path
@@ -140,7 +141,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         video_encoder = encoding.video
         audio_encoder = encoding.audio
 
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "video" ])
         is_streamable_output = is_streamable_video_format(format.lower())
 
         command: List[str] = [ "ffmpeg", "-hide_banner" ]
@@ -314,28 +315,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
                 cleanup()
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
-
-    async def _resolve_input_path(self, source: MediaSource) -> Tuple[Optional[str], bool]:
-        """
-        Decide how ffmpeg should read the input.
-
-        - FileStreamResource: use its path directly (no spooling).
-        - Streamable format (mpegts, webm, ...): feed via pipe:0 (returns None path).
-        - Otherwise (mp4/mov/mkv/unknown/...): spool to a temp file so ffmpeg can seek.
-
-        Returns (input_path, spooled) — spooled=True means the caller owns the temp file cleanup.
-        """
-        if isinstance(source.stream, FileStreamResource):
-            return source.stream.path, False
-
-        if is_streamable_video_format(source.format):
-            return None, False
-
-        logging.debug("ffmpeg input is not streamable; spooling to a temp file before processing")
-
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format)
-
-        return spooled_path, True
 
     @staticmethod
     def _resolve_container_format(encoding: VideoAudioEncodingParams, source: MediaSource) -> str:

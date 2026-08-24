@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
+
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import (
@@ -15,11 +16,12 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 import asyncio
 
-class VideoProcessorAction(MediaComponentAction):
+class VideoProcessorAction(ComponentAction):
     def __init__(self, config: VideoProcessorActionConfig):
         self.config: VideoProcessorActionConfig = config
 
@@ -52,7 +54,7 @@ class VideoProcessorAction(MediaComponentAction):
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, method: VideoProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
-        encoding = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         if method == VideoProcessorActionMethod.RESIZE:
             width      = await context.render_scalar(self.config.width, int)

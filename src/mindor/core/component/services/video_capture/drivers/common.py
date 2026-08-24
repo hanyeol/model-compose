@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Optional, Dict, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoCaptureActionConfig, VideoCaptureSource
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
-class VideoCaptureAction(MediaComponentAction):
+class VideoCaptureAction(ComponentAction):
     def __init__(self, config: VideoCaptureActionConfig):
         self.config: VideoCaptureActionConfig = config
 
@@ -26,7 +27,7 @@ class VideoCaptureAction(MediaComponentAction):
         resolution   = await self._resolve_resolution(context) if self.config.resolution is not None else None
         framerate    = await context.render_scalar(self.config.framerate, float)
         pixel_format = await context.render_variable(self.config.pixel_format) if self.config.pixel_format is not None else None
-        encoding     = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
+        encoding     = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else None
         duration     = await context.render_scalar(self.config.duration, "time", None)
 
         try:

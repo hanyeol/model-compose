@@ -8,7 +8,8 @@ from mindor.core.foundation.streaming.iterators import StreamChunkIterator, Stre
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from PIL import Image as PILImage
-from ....action.media import MediaComponentAction
+from ....action.base import ComponentAction
+from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
 class WebBrowserSession(ABC):
@@ -108,7 +109,7 @@ class WebBrowserSession(ABC):
     async def close(self) -> None:
         pass
 
-class WebBrowserAction(MediaComponentAction):
+class WebBrowserAction(ComponentAction):
     def __init__(self, config: WebBrowserActionConfig, timeout: Optional[str]):
         self.config: WebBrowserActionConfig = config
         self.timeout = timeout
@@ -194,7 +195,7 @@ class WebBrowserAction(MediaComponentAction):
             selector            = await context.render_variable(self.config.selector) if self.config.selector else None
             include_video_track = await context.render_scalar(self.config.include_video_track, bool)
             include_audio_track = await context.render_scalar(self.config.include_audio_track, bool)
-            encoding            = await self._resolve_encoding_params(context, self.config.encoding) if self.config.encoding else None
+            encoding            = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else None
             duration            = await context.render_scalar(self.config.duration, "time") if self.config.duration else None
 
             return await session.capture_video(url, selector, include_video_track, include_audio_track, encoding, duration)

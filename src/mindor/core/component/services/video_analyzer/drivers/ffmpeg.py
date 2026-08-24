@@ -11,6 +11,7 @@ from ..base import VideoAnalyzerService, register_video_analyzer_service
 from ..base import ComponentActionContext
 from .common import VideoAnalyzerAction
 import re
+from mindor.core.component.action.media import MediaInputPathResolver
 
 class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
     async def _analyze_black(
@@ -152,7 +153,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         video_filter: str,
         cancellation_token: Optional[CancellationToken]
     ) -> str:
-        input_path, spooled = await self._resolve_input_path(source)
+        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "video" ])
 
         command = [ "ffmpeg", "-hide_banner", "-nostats" ]
 

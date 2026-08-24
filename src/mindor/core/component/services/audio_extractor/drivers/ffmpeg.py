@@ -47,7 +47,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
         track: Optional[int],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "audio" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         command = [ "ffmpeg", "-hide_banner" ]
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])

@@ -26,7 +26,7 @@ class AudioCaptureAction(ComponentAction):
         device      = await context.render_variable(self.config.device) if self.config.device is not None else None
         sample_rate = await context.render_scalar(self.config.sample_rate, int, None) if self.config.sample_rate is not None else None
         channels    = await context.render_scalar(self.config.channels, int, None) if self.config.channels is not None else None
-        encoding    = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else None
+        encoding    = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else None
         duration    = await context.render_scalar(self.config.duration, "time", None)
 
         try:

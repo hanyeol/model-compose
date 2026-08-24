@@ -19,8 +19,8 @@ class MediaInputPathResolver:
     format via stdin, or spool the stream to a temp file so the tool can seek.
     """
 
-    @staticmethod
     async def resolve(
+        self,
         source: MediaSource,
         streamable_media: Optional[List[Literal[ "video", "audio" ]]] = None,
         default_format: Optional[str] = None,
@@ -54,21 +54,23 @@ class MediaInputPathResolver:
 class VideoAudioEncodingResolver:
     """Turn DSL VideoAudioEncodingConfig into normalized VideoAudioEncodingParams."""
 
-    @staticmethod
     async def resolve(
-        context: ComponentActionContext, encoding: VideoAudioEncodingConfig,
+        self,
+        context: ComponentActionContext,
+        encoding: VideoAudioEncodingConfig,
     ) -> VideoAudioEncodingParams:
         format = await context.render_scalar(encoding.format, str)
 
         return VideoAudioEncodingParams(
             format=format,
-            video= await VideoAudioEncodingResolver.resolve_video(context, encoding.video) if encoding.video else None,
-            audio= await VideoAudioEncodingResolver.resolve_audio(context, encoding.audio) if encoding.audio else None,
+            video= await self.resolve_video(context, encoding.video) if encoding.video else None,
+            audio= await self.resolve_audio(context, encoding.audio) if encoding.audio else None,
         )
 
-    @staticmethod
     async def resolve_video(
-        context: ComponentActionContext, video: VideoEncoderConfig,
+        self,
+        context: ComponentActionContext,
+        video: VideoEncoderConfig,
     ) -> VideoEncoderParams:
         codec      = await context.render_scalar(video.codec, str)
         bitrate    = await context.render_scalar(video.bitrate, "decimal")
@@ -82,9 +84,10 @@ class VideoAudioEncodingResolver:
             fps=fps,
         )
 
-    @staticmethod
     async def resolve_audio(
-        context: ComponentActionContext, audio: AudioEncoderConfig,
+        self,
+        context: ComponentActionContext,
+        audio: AudioEncoderConfig,
     ) -> AudioEncoderParams:
         codec       = await context.render_scalar(audio.codec, str)
         bitrate     = await context.render_scalar(audio.bitrate, "decimal")

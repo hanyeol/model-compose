@@ -27,7 +27,7 @@ class VideoCaptureAction(ComponentAction):
         resolution   = await self._resolve_resolution(context) if self.config.resolution is not None else None
         framerate    = await context.render_scalar(self.config.framerate, float)
         pixel_format = await context.render_variable(self.config.pixel_format) if self.config.pixel_format is not None else None
-        encoding     = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else None
+        encoding     = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else None
         duration     = await context.render_scalar(self.config.duration, "time", None)
 
         try:

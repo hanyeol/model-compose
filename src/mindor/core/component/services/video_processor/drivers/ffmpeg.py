@@ -141,7 +141,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         video_encoder = encoding.video
         audio_encoder = encoding.audio
 
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "video" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "video" ])
         is_streamable_output = is_streamable_video_format(format.lower())
 
         command: List[str] = [ "ffmpeg", "-hide_banner" ]

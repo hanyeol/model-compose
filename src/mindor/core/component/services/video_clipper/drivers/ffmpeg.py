@@ -33,7 +33,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         results: List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]] = []
 
         for video, spans in zip(videos, spans):
-            input_path, spooled = await MediaInputPathResolver.resolve(video)
+            input_path, spooled = await MediaInputPathResolver().resolve(video)
             format = await self._resolve_format(video, input_path)
 
             clips = self._clip(

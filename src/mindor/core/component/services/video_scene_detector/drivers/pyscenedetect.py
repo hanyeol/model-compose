@@ -46,7 +46,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await MediaInputPathResolver.resolve(video)
+        input_path, spooled = await MediaInputPathResolver().resolve(video)
 
         def _cleanup() -> None:
             if spooled:

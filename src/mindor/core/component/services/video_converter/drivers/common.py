@@ -48,7 +48,7 @@ class VideoConverterAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        encoding = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         return {
             "encoding": encoding,

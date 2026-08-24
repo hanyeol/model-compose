@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class FFmpegAudioSynchronizerAction(AudioSynchronizerAction):
     async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "audio" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         try:
             if input_path is not None:

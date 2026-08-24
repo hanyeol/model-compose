@@ -167,7 +167,7 @@ class NativeAudioSegmentDetectorAction(AudioSegmentDetectorAction):
         return letters
 
     async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
-        input_path, spooled = await MediaInputPathResolver.resolve(source)
+        input_path, spooled = await MediaInputPathResolver().resolve(source)
 
         try:
             return await self._run_in_executor(load_pcm_samples, input_path, sample_rate)

@@ -153,7 +153,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         video_filter: str,
         cancellation_token: Optional[CancellationToken]
     ) -> str:
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "video" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "video" ])
 
         command = [ "ffmpeg", "-hide_banner", "-nostats" ]
 

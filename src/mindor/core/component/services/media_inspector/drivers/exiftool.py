@@ -34,7 +34,7 @@ class ExiftoolMediaInspectorAction(MediaInspectorAction):
         ])
 
     async def _inspect(self, source: MediaSource, return_raw: bool) -> Dict[str, Any]:
-        input_path, spooled = await MediaInputPathResolver.resolve(source)
+        input_path, spooled = await MediaInputPathResolver().resolve(source)
 
         try:
             raw, tags, groups = await self._probe(input_path, source)

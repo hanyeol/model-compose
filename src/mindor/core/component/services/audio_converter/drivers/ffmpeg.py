@@ -40,7 +40,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
         encoding: AudioEncoderParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "audio" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         command = [ "ffmpeg", "-hide_banner" ]
 

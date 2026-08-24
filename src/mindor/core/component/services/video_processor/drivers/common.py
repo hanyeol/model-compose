@@ -54,7 +54,7 @@ class VideoProcessorAction(ComponentAction):
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, method: VideoProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
-        encoding = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         if method == VideoProcessorActionMethod.RESIZE:
             width      = await context.render_scalar(self.config.width, int)

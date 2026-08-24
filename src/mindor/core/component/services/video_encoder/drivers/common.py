@@ -62,7 +62,7 @@ class VideoEncoderAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_rate = await context.render_variable(self.config.frame_rate)
-        encoding   = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding   = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         return {
             "frame_rate": frame_rate,

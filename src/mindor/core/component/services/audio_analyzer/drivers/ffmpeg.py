@@ -132,7 +132,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         audio_filter: str,
         cancellation_token: Optional[CancellationToken]
     ) -> str:
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "audio" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         command = [ "ffmpeg", "-hide_banner", "-nostats" ]
 

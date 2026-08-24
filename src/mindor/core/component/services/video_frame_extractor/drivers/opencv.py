@@ -60,7 +60,7 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await MediaInputPathResolver.resolve(video, default_format="mp4")
+        input_path, spooled = await MediaInputPathResolver().resolve(video, default_format="mp4")
 
         def _cleanup() -> None:
             if not spooled:

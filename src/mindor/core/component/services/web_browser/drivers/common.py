@@ -195,7 +195,7 @@ class WebBrowserAction(ComponentAction):
             selector            = await context.render_variable(self.config.selector) if self.config.selector else None
             include_video_track = await context.render_scalar(self.config.include_video_track, bool)
             include_audio_track = await context.render_scalar(self.config.include_audio_track, bool)
-            encoding            = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else None
+            encoding            = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else None
             duration            = await context.render_scalar(self.config.duration, "time") if self.config.duration else None
 
             return await session.capture_video(url, selector, include_video_track, include_audio_track, encoding, duration)

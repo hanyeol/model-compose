@@ -48,7 +48,7 @@ class TransNetV2VideoSceneDetectorAction(VideoSceneDetectorAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        input_path, spooled = await MediaInputPathResolver.resolve(video)
+        input_path, spooled = await MediaInputPathResolver().resolve(video)
         resolved_threshold = threshold if threshold is not None else 0.5
 
         def _cleanup() -> None:

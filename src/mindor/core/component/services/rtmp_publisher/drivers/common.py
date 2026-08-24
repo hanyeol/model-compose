@@ -21,7 +21,7 @@ class RtmpPublisherAction(ComponentAction):
         audio = await context.render_audio(self.config.audio) if self.config.audio is not None else None
         url   = await context.render_variable(self.config.url)
 
-        encoding = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        encoding = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
 
         # Each item runs as its own publish so a peer-side disconnect
         # (e.g. YouTube ending the stream) doesn't bleed into the next one.

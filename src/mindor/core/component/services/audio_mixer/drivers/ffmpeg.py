@@ -47,7 +47,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         spooled_paths: List[str] = []
 
         for audio in audios:
-            path, spooled = await MediaInputPathResolver.resolve(audio)
+            path, spooled = await MediaInputPathResolver().resolve(audio)
             input_paths.append(path)
             if spooled:
                 spooled_paths.append(path)
@@ -92,7 +92,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        base_path, base_spooled = await MediaInputPathResolver.resolve(audio)
+        base_path, base_spooled = await MediaInputPathResolver().resolve(audio)
 
         overlay_paths: List[str] = []
         spooled_paths: List[str] = []
@@ -101,7 +101,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
             spooled_paths.append(base_path)
 
         for overlay in overlays:
-            path, spooled = await MediaInputPathResolver.resolve(overlay)
+            path, spooled = await MediaInputPathResolver().resolve(overlay)
             overlay_paths.append(path)
             if spooled:
                 spooled_paths.append(path)

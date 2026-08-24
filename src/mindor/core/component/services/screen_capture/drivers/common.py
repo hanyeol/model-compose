@@ -34,7 +34,7 @@ class ScreenCaptureAction(ComponentAction):
         region        = await self._resolve_region(context) if self.config.region is not None else None
         window        = await self._resolve_window(context) if self.config.window is not None else None
         framerate     = await context.render_scalar(self.config.framerate, float)
-        encoding      = await VideoAudioEncodingResolver.resolve(context, self.config.encoding) if self.config.encoding else None
+        encoding      = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else None
         duration      = await context.render_scalar(self.config.duration, "time", None)
 
         try:

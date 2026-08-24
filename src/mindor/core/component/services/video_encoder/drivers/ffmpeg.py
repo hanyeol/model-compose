@@ -45,8 +45,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        video_path, video_spooled = await MediaInputPathResolver.resolve(video, streamable_media=[ "video" ])
-        audio_path, audio_spooled = (await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
+        video_path, video_spooled = await MediaInputPathResolver().resolve(video, streamable_media=[ "video" ])
+        audio_path, audio_spooled = (await MediaInputPathResolver().resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
         # On Windows only `pipe:0` is available. If both sides would end up as
         # live streams, force-spool the audio side so the video keeps its pipe path.
@@ -120,7 +120,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        audio_path, audio_spooled = (await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
+        audio_path, audio_spooled = (await MediaInputPathResolver().resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
         # `image2pipe` already claims stdin. If audio remains a live stream, it
         # needs an inherited descriptor — POSIX-only. Force-spool on Windows.

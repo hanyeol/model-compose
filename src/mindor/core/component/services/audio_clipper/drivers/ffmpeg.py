@@ -33,7 +33,7 @@ class FFmpegAudioClipperAction(AudioClipperAction):
         results: List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]] = []
 
         for audio, spans in zip(audios, spans):
-            input_path, spooled = await MediaInputPathResolver.resolve(audio)
+            input_path, spooled = await MediaInputPathResolver().resolve(audio)
             format = await self._resolve_format(audio, input_path)
 
             clips = self._clip(

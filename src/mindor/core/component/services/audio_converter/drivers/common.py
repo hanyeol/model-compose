@@ -49,7 +49,7 @@ class AudioConverterAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         format   = await context.render_scalar(self.config.format, str, "wav")
-        encoding = await VideoAudioEncodingResolver.resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
+        encoding = await VideoAudioEncodingResolver().resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
 
         return {
             "format":   format,

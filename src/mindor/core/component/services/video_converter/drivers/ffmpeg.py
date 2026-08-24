@@ -43,7 +43,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         format = self._resolve_container_format(encoding)
         video, audio = encoding.video, encoding.audio
 
-        input_path, spooled = await MediaInputPathResolver.resolve(source, streamable_media=[ "video" ])
+        input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "video" ])
         is_streamable_output = is_streamable_video_format(format.lower())
 
         command = [ "ffmpeg", "-hide_banner" ]

@@ -279,8 +279,8 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        video_path, video_spooled = (await MediaInputPathResolver.resolve(video, streamable_media=[ "video" ])) if video is not None else (None, False)
-        audio_path, audio_spooled = (await MediaInputPathResolver.resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
+        video_path, video_spooled = (await MediaInputPathResolver().resolve(video, streamable_media=[ "video" ])) if video is not None else (None, False)
+        audio_path, audio_spooled = (await MediaInputPathResolver().resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
         # POSIX can hand a second live stream to ffmpeg over an inherited
         # descriptor, so both sides may stay as streams. On Windows only

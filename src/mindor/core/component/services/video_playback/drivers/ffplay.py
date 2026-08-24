@@ -30,7 +30,7 @@ class FFplayVideoPlaybackAction(VideoPlaybackAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> None:
-        video_path, video_spooled = await MediaInputPathResolver.resolve(video, streamable_media=[ "video", "audio" ])
+        video_path, video_spooled = await MediaInputPathResolver().resolve(video, streamable_media=[ "video", "audio" ])
 
         # -autoexit closes the window when playback ends so the process actually
         # terminates on its own; without it ffplay would sit on the last frame

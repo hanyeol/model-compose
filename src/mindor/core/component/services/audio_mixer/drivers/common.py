@@ -86,7 +86,7 @@ class AudioMixerAction(ComponentAction):
     ) -> Dict[str, Any]:
         if method == AudioMixerActionMethod.CONCAT:
             format    = await context.render_scalar(self.config.format, str)
-            encoding  = await VideoAudioEncodingResolver.resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
+            encoding  = await VideoAudioEncodingResolver().resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
             crossfade = await context.render_scalar(self.config.crossfade, "time")
 
             return {
@@ -97,7 +97,7 @@ class AudioMixerAction(ComponentAction):
 
         if method == AudioMixerActionMethod.OVERLAY:
             format        = await context.render_scalar(self.config.format, str)
-            encoding      = await VideoAudioEncodingResolver.resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
+            encoding      = await VideoAudioEncodingResolver().resolve_audio(context, self.config.encoding) if self.config.encoding else AudioEncoderParams()
             duration_mode = await context.render_variable(self.config.duration_mode)
 
             try:

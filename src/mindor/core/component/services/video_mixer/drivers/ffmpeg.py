@@ -64,7 +64,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         spooled_paths: List[str] = []
 
         for video in videos:
-            path, spooled = await MediaInputPathResolver.resolve(video)
+            path, spooled = await MediaInputPathResolver().resolve(video)
             input_paths.append(path)
             if spooled:
                 spooled_paths.append(path)
@@ -111,7 +111,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
 
-        base_path, base_spooled = await MediaInputPathResolver.resolve(video)
+        base_path, base_spooled = await MediaInputPathResolver().resolve(video)
 
         overlay_paths: List[str] = []
         spooled_paths: List[str] = []
@@ -120,7 +120,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             spooled_paths.append(base_path)
 
         for overlay in overlays:
-            path, spooled = await MediaInputPathResolver.resolve(overlay)
+            path, spooled = await MediaInputPathResolver().resolve(overlay)
             overlay_paths.append(path)
             if spooled:
                 spooled_paths.append(path)

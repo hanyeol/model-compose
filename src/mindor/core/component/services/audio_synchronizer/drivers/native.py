@@ -83,6 +83,7 @@ class NativeAudioSynchronizerAction(AudioSynchronizerAction):
                     os.remove(input_path)
                 except FileNotFoundError:
                     pass
+
     @staticmethod
     def _compute_offset(reference: np.ndarray, target: np.ndarray, sample_rate: int) -> Tuple[float, float]:
         """Return (offset_seconds, confidence) so that shifting ``target`` by

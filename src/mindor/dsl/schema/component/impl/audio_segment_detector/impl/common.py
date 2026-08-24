@@ -5,6 +5,7 @@ from ...common import CommonComponentConfig, ComponentType
 
 class AudioSegmentDetectorDriver(str, Enum):
     NATIVE = "native"
+    FFMPEG = "ffmpeg"
 
 class CommonAudioSegmentDetectorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AUDIO_SEGMENT_DETECTOR]

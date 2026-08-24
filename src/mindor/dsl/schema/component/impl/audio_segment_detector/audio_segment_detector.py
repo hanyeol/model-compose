@@ -6,6 +6,7 @@ from .impl import *
 AudioSegmentDetectorComponentConfig = Annotated[
     Union[
         NativeAudioSegmentDetectorComponentConfig,
+        FFmpegAudioSegmentDetectorComponentConfig,
     ],
     Field(discriminator="driver")
 ]

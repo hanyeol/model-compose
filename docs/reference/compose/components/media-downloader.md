@@ -10,8 +10,7 @@ component:
   driver: ytdlp
   action:
     url: ${input.url}
-    extract_audio: true
-    audio_format: mp3
+    format: mp3
 ```
 
 ## Configuration Options
@@ -37,17 +36,92 @@ Additional fields for the `ytdlp` driver:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `extract_audio` | boolean \| string | `false` | When `true`, runs yt-dlp with the `FFmpegExtractAudio` postprocessor and returns the result as an audio stream. When `false`, returns the raw download as a video stream. |
-| `audio_format` | string | `m4a` | Target audio container when `extract_audio` is `true` (e.g., `mp3`, `m4a`, `opus`, `flac`). |
-| `video_format` | string | `mp4` | Target video container preferred when merging separate streams (e.g., `mp4`, `webm`). |
-| `format_selector` | string | (auto) | yt-dlp format selector expression that overrides the default selection (e.g., `bestaudio[abr<=128]`, `bestvideo[height<=720]+bestaudio`). See [yt-dlp format selection](https://github.com/yt-dlp/yt-dlp#format-selection). |
+| `format` | preset \| string \| object | (best) | Download format. See [Format field](#format-field) below. |
 | `cookies` | dict | `{}` | Cookies sent with the download request as name/value pairs. Required for age-gated / member-only content. |
+
+## Format field
+
+`format` is the single entry point for controlling what yt-dlp downloads. It accepts three shapes:
+
+### 1. Preset (string)
+
+A container-name shortcut that expands to a preconfigured selector plus postprocessor. Presets that overlap with yt-dlp's `-t / --preset-alias` (`mp3`, `aac`, `mp4`, `mkv`) mirror those definitions verbatim; the rest follow the same pattern for other common containers. Any string not in this table is treated as a raw yt-dlp expression (see below).
+
+**Audio presets** — return an `AudioStreamResource`:
+
+| Preset | Selector | Notes |
+|--------|----------|-------|
+| `mp3` | `ba[acodec^=mp3]/ba/b` | mirrors yt-dlp `-t mp3` |
+| `aac` | `ba[acodec^=aac]/ba[acodec^=mp4a.40.]/ba/b` | mirrors yt-dlp `-t aac` |
+| `m4a` | `ba[ext=m4a]/ba[acodec^=mp4a.40.]/ba/b` | AAC in mp4 container |
+| `opus` | `ba[acodec=opus]/ba[ext=webm]/ba/b` | prefers webm/opus source |
+| `vorbis` | `ba[acodec=vorbis]/ba/b` | |
+| `flac` | `ba/b` + `FFmpegExtractAudio(flac)` | lossless re-encode |
+| `alac` | `ba/b` + `FFmpegExtractAudio(alac)` | lossless re-encode |
+| `wav` | `ba/b` + `FFmpegExtractAudio(wav)` | uncompressed PCM |
+
+**Video presets** — return a `VideoStreamResource`:
+
+| Preset | Behavior | Notes |
+|--------|----------|-------|
+| `mp4` | remux to mp4, prefer h264/aac | mirrors yt-dlp `-t mp4` |
+| `mkv` | remux to mkv | mirrors yt-dlp `-t mkv` |
+| `webm` | remux to webm, prefer vp9/opus | |
+
+```yaml
+format: mp3      # audio-only, extracted to mp3
+format: opus     # audio-only, opus (webm-preferred)
+format: mp4      # merged video remuxed to mp4
+format: webm     # merged video remuxed to webm (vp9/opus)
+```
+
+### 2. Raw yt-dlp expression (string)
+
+Any string not in the preset table is passed through to yt-dlp's `-f` flag unchanged. Use this for advanced selectors that the structured spec cannot express. See [yt-dlp format selection](https://github.com/yt-dlp/yt-dlp#format-selection) for the full syntax.
+
+```yaml
+format: "bestvideo[height<=720]+bestaudio/best"
+format: "bestvideo[ext=${input.container}]+bestaudio/best[ext=${input.container}]/best"
+```
+
+Raw expressions are always treated as video downloads (the resulting stream is wrapped as `VideoStreamResource`). Use a preset or structured spec if you need audio semantics.
+
+### 3. Structured spec (object)
+
+Declarative fields that compile into a yt-dlp `-f` selector plus any needed postprocessors.
+
+| Field | Type | Applies to | Description |
+|-------|------|------------|-------------|
+| `media` | `audio` \| `video` | **required** | Whether to download an audio-only stream or a merged video stream. |
+| `container` | string | both | Target container/extension (e.g., `mp3`, `m4a`, `opus`, `mp4`, `webm`). For `audio` also sets the `FFmpegExtractAudio` codec; for `video` sets the merge container. |
+| `codec` | string | both | Preferred codec prefix (e.g., `avc1` for video, `opus` for audio); routed to yt-dlp's `vcodec^=` / `acodec^=` filter. |
+| `max_height` | integer \| string | video | Maximum video height in pixels. |
+| `max_fps` | integer \| string | video | Maximum frame rate. |
+| `max_bitrate` | integer \| string | both | Maximum bitrate in kbps (`abr<=` for audio, `vbr<=` for video). |
+| `max_filesize` | integer \| string | both | Maximum filesize; accepts yt-dlp size expressions (e.g., `50M`, `1G`). |
+| `hdr` | boolean | video | Prefer HDR streams when `true`. |
+| `prefer_free_formats` | boolean | both | Prefer patent-free formats (webm/opus/vp9) when `true`. |
+
+```yaml
+# audio-only, mp3 at ≤128 kbps
+format:
+  media: audio
+  container: mp3
+  max_bitrate: 128
+
+# 720p mp4 with avc1 video codec
+format:
+  media: video
+  container: mp4
+  codec: avc1
+  max_height: 720
+```
 
 ## Supported Drivers
 
 ### yt-dlp
 
-Uses the `yt_dlp.YoutubeDL` Python API directly (no CLI shell-out). Supports every site listed in the yt-dlp extractor list. When `extract_audio: true` is set, yt-dlp invokes `ffmpeg` internally to perform audio extraction.
+Uses the `yt_dlp.YoutubeDL` Python API directly (no CLI shell-out). Supports every site listed in the yt-dlp extractor list. When `format` selects an audio-only download (preset or `media: audio`), yt-dlp invokes `ffmpeg` internally to perform audio extraction.
 
 ```yaml
 component:
@@ -59,14 +133,14 @@ component:
 
 **Requires:**
 - `yt-dlp` Python package — installed automatically on first run.
-- `ffmpeg` binary on `PATH` — required by yt-dlp for audio extraction (`extract_audio: true`) and for merging separate video+audio streams.
+- `ffmpeg` binary on `PATH` — required by yt-dlp for audio extraction and for merging separate video+audio streams.
 
 ## Output Format
 
-Depends on `extract_audio`:
+The output stream type depends on the selected `format`:
 
-- **`extract_audio: true`** → `AudioStreamResource` with the resulting container as its format hint (e.g. `mp3`, `m4a`).
-- **`extract_audio: false`** → `VideoStreamResource` with the resulting container as its format hint (e.g. `mp4`, `webm`).
+- **Audio preset (`mp3`, `m4a`, ...) or `media: audio`** → `AudioStreamResource` with the resulting container as its format hint.
+- **Video preset (`mp4`, `mkv`), `media: video`, raw expression, or omitted** → `VideoStreamResource` with the resulting container as its format hint.
 
 When `url` is a list, the action returns a list of stream resources in the same order.
 
@@ -83,12 +157,11 @@ component:
   actions:
     - id: download-audio
       url: ${input.url}
-      extract_audio: true
-      audio_format: mp3
+      format: mp3
 
     - id: download-video
       url: ${input.url}
-      video_format: mp4
+      format: mp4
 ```
 
 ## Integration with Workflows
@@ -121,8 +194,9 @@ components:
     driver: ytdlp
     action:
       url: ${input.url}
-      extract_audio: true
-      audio_format: wav
+      format:
+        media: audio
+        container: wav
 
   - id: normalizer
     type: audio-processor
@@ -159,8 +233,9 @@ components:
     driver: ytdlp
     action:
       url: ${input.url}
-      extract_audio: true
-      audio_format: wav
+      format:
+        media: audio
+        container: wav
 ```
 
 ### Batch Download from a List
@@ -182,8 +257,7 @@ components:
     action:
       url: ${input.urls}
       batch_size: 4
-      extract_audio: true
-      audio_format: mp3
+      format: mp3
 ```
 
 ### Authenticated Download
@@ -198,14 +272,15 @@ components:
     action:
       url: ${input.url}
       cookies: ${input.cookies}
-      extract_audio: true
-      audio_format: m4a
+      format:
+        media: audio
+        container: m4a
 ```
 
 ## Best Practices
 
-1. **Pick a lossless format for downstream processing.** If the next step re-encodes (normalize, transcribe, splice), use `wav` or `flac` for `audio_format` to avoid double-lossy compression. Reserve `mp3` / `m4a` for terminal delivery.
-2. **Use `format_selector` sparingly.** Default selection (`bestaudio/best` when extracting audio; container-preferred merge when not) covers most cases. Reach for `format_selector` only when you need a specific quality cap or codec — for example `bestaudio[abr<=128]` to cap bitrate before download.
+1. **Pick a lossless format for downstream processing.** If the next step re-encodes (normalize, transcribe, splice), use `wav` or `flac` for the audio container to avoid double-lossy compression. Reserve `mp3` / `m4a` for terminal delivery.
+2. **Start with presets, escalate to structured, escape to raw only when needed.** The preset covers the common "give me mp3" case in one word. Move to `format: { media, container, max_height, ... }` when you need caps or filters. Reach for a raw yt-dlp expression only when the structured spec genuinely can't express it.
 3. **Cap concurrency for a single site.** `batch_size` runs URLs concurrently, but hitting one site (e.g., YouTube) with too many parallel requests can trigger rate limiting. Keep `batch_size` at 2–4 for same-site batches.
 4. **Cookies are per-request.** The driver writes the `cookies` dict to a temporary Netscape cookie jar for the duration of one download and deletes it after. Nothing is persisted between actions.
 5. **`ffmpeg` is required for audio extraction.** yt-dlp shells out to `ffmpeg` for the `FFmpegExtractAudio` postprocessor and for merging separate video+audio streams. Install it via your OS package manager (`brew install ffmpeg`, `apt install ffmpeg`).

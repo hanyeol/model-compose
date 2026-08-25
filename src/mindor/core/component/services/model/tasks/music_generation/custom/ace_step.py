@@ -7,6 +7,7 @@ from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelCo
 from mindor.dsl.schema.action import (
     ModelActionConfig,
     MusicGenerationActionMethod,
+    CommonAceStepMusicGenerationModelActionConfig,
     AceStepMusicGenerationModelGenerateActionConfig,
     AceStepMusicGenerationModelCoverActionConfig,
     AceStepMusicGenerationModelRewriteActionConfig,
@@ -15,19 +16,29 @@ from mindor.dsl.schema.action import (
     AceStepMusicGenerationModelAccompanyActionConfig,
 )
 from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
-from mindor.core.logger import logging
+from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import MusicGenerationTaskAction
+import os
 
 if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
     from acestep.llm_inference import LLMHandler
 
 class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
-    def __init__(self, config: Any, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    config: CommonAceStepMusicGenerationModelActionConfig
+
+    def __init__(
+        self,
+        config: CommonAceStepMusicGenerationModelActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config)
 
         self.handler: AceStepHandler = handler
@@ -49,10 +60,90 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 
         return params
 
+    async def _resolve_source_paths(self, sources: List[MediaSource]) -> List[Tuple[str, bool]]:
+        paths: List[Tuple[str, bool]] = []
+
+        for source in sources:
+            path, spooled = await MediaInputPathResolver().resolve(source)
+            paths.append((path, spooled))
+
+        return paths
+
+    def _build_generation_params(
+        self,
+        prompt: Optional[str],
+        lyrics: Optional[str],
+        params: Dict[str, Any],
+        task_type: str,
+        src_audio: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        from acestep.inference import GenerationParams
+
+        generation_params = GenerationParams(
+            task_type=task_type,
+            caption=prompt or "",
+            lyrics=lyrics or "",
+            duration=int(params["duration"]),
+            bpm=int(params["bpm"]),
+            keyscale=params["key_scale"] or "",
+            timesignature=params["time_signature"] or "",
+            inference_steps=int(params["inference_steps"]),
+            guidance_scale=float(params["guidance_scale"]),
+            seed=int(params["seed"]) if params["seed"] is not None else -1,
+            src_audio=src_audio or None,
+            thinking="codes" in self.thinking_scope,
+            use_cot_metas="metas" in self.thinking_scope,
+            use_cot_caption="caption" in self.thinking_scope,
+            use_cot_language="language" in self.thinking_scope,
+        )
+
+        for name, value in (extra or {}).items():
+            setattr(generation_params, name, value)
+
+        return generation_params
+
+    def _generate_music(self, generation_params: Any) -> "PcmStreamResource":
+        from acestep.inference import generate_music, GenerationConfig
+
+        result = generate_music(
+            dit_handler=self.handler,
+            llm_handler=self.llm_handler,
+            params=generation_params,
+            config=GenerationConfig(batch_size=1, audio_format="wav"),
+        )
+
+        if not result.success:
+            raise RuntimeError(f"Music generation failed: {result.error}")
+
+        frames, channels = encode_waveform_to_pcm(result.audios[0]["tensor"])
+        sample_rate = result.audios[0].get("sample_rate", 48000)
+
+        return PcmStreamResource(frames, {
+            "sample_rate": str(sample_rate),
+            "channels":    str(channels),
+            "bit_depth":   "16",
+        })
+
+    @staticmethod
+    def _cleanup_source_paths(source_paths: List[Tuple[str, bool]]) -> None:
+        for path, spooled in source_paths:
+            if spooled:
+                try:
+                    os.remove(path)
+                except FileNotFoundError:
+                    pass
+
 class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelGenerateActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelGenerateActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    def __init__(
+        self,
+        config: AceStepMusicGenerationModelGenerateActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
@@ -60,7 +151,7 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
         lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator)) or isinstance(lyrics, (StreamIterator, AsyncIterator))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (prompt, lyrics))
 
         return (prompt, lyrics), is_single_input, is_streaming_input
 
@@ -71,50 +162,13 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         def _generate() -> List[Any]:
-            from acestep.inference import generate_music, GenerationParams, GenerationConfig
+            results: List[PcmStreamResource] = []
 
-            generation_config = GenerationConfig(
-                batch_size=1,
-                audio_format="wav",
-            )
-
-            results: List[Any] = []
-
-            for prompt, song_lyrics in batch_input:
-                generation_params = GenerationParams(
-                    caption=prompt,
-                    lyrics=song_lyrics or "",
-                    duration=int(params["duration"]),
-                    bpm=int(params["bpm"]),
-                    keyscale=params["key_scale"] or "",
-                    timesignature=params["time_signature"] or "",
-                    inference_steps=int(params["inference_steps"]),
-                    guidance_scale=float(params["guidance_scale"]),
-                    seed=int(params["seed"]) if params["seed"] is not None else -1,
-                    thinking="codes" in self.thinking_scope,
-                    use_cot_metas="metas" in self.thinking_scope,
-                    use_cot_caption="caption" in self.thinking_scope,
-                    use_cot_language="language" in self.thinking_scope,
-                )
-
-                result = generate_music(
-                    dit_handler=self.handler,
-                    llm_handler=self.llm_handler,
-                    params=generation_params,
-                    config=generation_config,
-                )
-
-                if not result.success:
-                    raise RuntimeError(f"Music generation failed: {result.error}")
-
-                frames, channels = encode_waveform_to_pcm(result.audios[0]["tensor"])
-                sample_rate = result.audios[0].get("sample_rate", 48000)
-
-                results.append(PcmStreamResource(frames, {
-                    "sample_rate": str(sample_rate),
-                    "channels":    str(channels),
-                    "bit_depth":   "16",
-                }))
+            for prompt, lyrics in batch_input:
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    break
+                generation_params = self._build_generation_params(prompt, lyrics, params, task_type="text2music")
+                results.append(self._generate_music(generation_params))
 
             return results
 
@@ -123,11 +177,24 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
 class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelCoverActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelCoverActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    def __init__(
+        self,
+        config: AceStepMusicGenerationModelCoverActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        raise NotImplementedError("ACE-Step cover generation is not implemented yet.")
+        source = await context.render_audio(self.config.source)
+        prompt = await context.render_text(self.config.prompt)
+        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+
+        return (source, prompt, lyrics), is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -135,16 +202,58 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        raise NotImplementedError("ACE-Step cover generation is not implemented yet.")
+        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        source_paths = await self._resolve_source_paths(sources)
+
+        def _generate() -> List[PcmStreamResource]:
+            results: List[PcmStreamResource] = []
+
+            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    break
+                generation_params = self._build_generation_params(
+                    prompt, lyrics, params,
+                    task_type="cover",
+                    src_audio=src_path,
+                )
+                results.append(self._generate_music(generation_params))
+
+            return results
+
+        try:
+            return await self._run_in_executor(_generate)
+        finally:
+            self._cleanup_source_paths(source_paths)
 
 class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelRewriteActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelRewriteActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    def __init__(
+        self,
+        config: AceStepMusicGenerationModelRewriteActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        raise NotImplementedError("ACE-Step rewrite is not implemented yet.")
+        source = await context.render_audio(self.config.source)
+        prompt = await context.render_text(self.config.prompt)
+        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+
+        return (source, prompt, lyrics), is_single_input, is_streaming_input
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        params["start_time"] = await context.render_scalar(self.config.start_time, "time")
+        params["end_time"]   = await context.render_scalar(self.config.end_time,   "time")
+
+        return params
 
     async def _generate_batch(
         self,
@@ -152,16 +261,54 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        raise NotImplementedError("ACE-Step rewrite is not implemented yet.")
+        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        source_paths = await self._resolve_source_paths(sources)
+
+        def _generate() -> List[PcmStreamResource]:
+            results: List[PcmStreamResource] = []
+
+            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    break
+                generation_params = self._build_generation_params(
+                    prompt, lyrics, params,
+                    task_type="repaint",
+                    src_audio=src_path,
+                    extra={
+                        "repainting_start": float(params["start_time"]),
+                        "repainting_end":   float(params["end_time"]),
+                    },
+                )
+                results.append(self._generate_music(generation_params))
+
+            return results
+
+        try:
+            return await self._run_in_executor(_generate)
+        finally:
+            self._cleanup_source_paths(source_paths)
 
 class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelExtendActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelExtendActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    def __init__(
+        self,
+        config: AceStepMusicGenerationModelExtendActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        raise NotImplementedError("ACE-Step extend is not implemented yet.")
+        source = await context.render_audio(self.config.source)
+        prompt = await context.render_text(self.config.prompt)
+        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+
+        return (source, prompt, lyrics), is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -169,12 +316,39 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        raise NotImplementedError("ACE-Step extend is not implemented yet.")
+        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        source_paths = await self._resolve_source_paths(sources)
+
+        def _generate() -> List[PcmStreamResource]:
+            results: List[PcmStreamResource] = []
+
+            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    break
+                generation_params = self._build_generation_params(
+                    prompt, lyrics, params,
+                    task_type="complete",
+                    src_audio=src_path,
+                )
+                results.append(self._generate_music(generation_params))
+
+            return results
+
+        try:
+            return await self._run_in_executor(_generate)
+        finally:
+            self._cleanup_source_paths(source_paths)
 
 class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelLayerActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelLayerActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    def __init__(
+        self,
+        config: AceStepMusicGenerationModelLayerActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
@@ -191,7 +365,13 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
 class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelAccompanyActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelAccompanyActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+    def __init__(
+        self,
+        config: AceStepMusicGenerationModelAccompanyActionConfig,
+        handler: AceStepHandler,
+        llm_handler: Optional[LLMHandler],
+        thinking_scope: List[str],
+    ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
@@ -213,16 +393,22 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         self.llm_handler: Optional[LLMHandler] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [
+        requirements = [
             "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
-            "flash-attn==2.8.1@https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.1/flash_attn-2.8.1+cu12torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl",
-            "nano-vllm@git+https://github.com/GeeeekExplorer/nano-vllm.git",
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
             "numpy",
-            "soundfile"
+            "soundfile",
         ]
+
+        if self.config.thinking_model:
+            # nano-vllm powers the 5Hz thinking LM. flash-attn is intentionally omitted:
+            # its wheel is pinned to cu128/torch2.10/cp312/linux_x86_64, and nano-vllm
+            # falls back to SDPA when it isn't installed.
+            requirements.append("nano-vllm@git+https://github.com/GeeeekExplorer/nano-vllm.git")
+
+        return requirements
 
     async def _load_model(self) -> None:
         if isinstance(self.config.model, HuggingfaceModelConfig):
@@ -259,13 +445,15 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
 
     async def _load_llm_handler(self, model_path: str) -> LLMHandler:
         from acestep.llm_inference import LLMHandler
-        import os, torch
+        import torch
 
         dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else None
 
         handler = LLMHandler()
         status, success = handler.initialize(
-            checkpoint_dir=os.path.dirname(model_path),
+            # Mirror the DiT handler's convention: project_root=<model_path>, so the LM
+            # checkpoint lives under <model_path>/checkpoints/<thinking_model>.
+            checkpoint_dir=os.path.join(model_path, "checkpoints"),
             lm_model_path=self.config.thinking_model,
             device=self._resolve_device(self.config.device).type,
             dtype=dtype,

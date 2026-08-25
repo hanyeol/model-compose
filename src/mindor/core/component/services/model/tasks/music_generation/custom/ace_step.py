@@ -24,12 +24,15 @@ from ..common import MusicGenerationTaskAction
 
 if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
+    from acestep.llm_inference import LLMHandler
 
 class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
-    def __init__(self, config: Any, handler: AceStepHandler):
+    def __init__(self, config: Any, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
         super().__init__(config)
 
         self.handler: AceStepHandler = handler
+        self.llm_handler: Optional[LLMHandler] = llm_handler
+        self.thinking_scope: List[str] = thinking_scope
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -49,8 +52,8 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelGenerateActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelGenerateActionConfig, handler: AceStepHandler):
-        super().__init__(config, handler)
+    def __init__(self, config: AceStepMusicGenerationModelGenerateActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+        super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         prompt = await context.render_text(self.config.prompt)
@@ -88,11 +91,15 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
                     inference_steps=int(params["inference_steps"]),
                     guidance_scale=float(params["guidance_scale"]),
                     seed=int(params["seed"]) if params["seed"] is not None else -1,
+                    thinking="codes" in self.thinking_scope,
+                    use_cot_metas="metas" in self.thinking_scope,
+                    use_cot_caption="caption" in self.thinking_scope,
+                    use_cot_language="language" in self.thinking_scope,
                 )
 
                 result = generate_music(
                     dit_handler=self.handler,
-                    llm_handler=None,
+                    llm_handler=self.llm_handler,
                     params=generation_params,
                     config=generation_config,
                 )
@@ -116,8 +123,8 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
 class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelCoverActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelCoverActionConfig, handler: AceStepHandler):
-        super().__init__(config, handler)
+    def __init__(self, config: AceStepMusicGenerationModelCoverActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+        super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         raise NotImplementedError("ACE-Step cover generation is not implemented yet.")
@@ -133,8 +140,8 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
 class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelRewriteActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelRewriteActionConfig, handler: AceStepHandler):
-        super().__init__(config, handler)
+    def __init__(self, config: AceStepMusicGenerationModelRewriteActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+        super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         raise NotImplementedError("ACE-Step rewrite is not implemented yet.")
@@ -150,8 +157,8 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
 class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelExtendActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelExtendActionConfig, handler: AceStepHandler):
-        super().__init__(config, handler)
+    def __init__(self, config: AceStepMusicGenerationModelExtendActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+        super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         raise NotImplementedError("ACE-Step extend is not implemented yet.")
@@ -167,8 +174,8 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
 class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelLayerActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelLayerActionConfig, handler: AceStepHandler):
-        super().__init__(config, handler)
+    def __init__(self, config: AceStepMusicGenerationModelLayerActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+        super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         raise NotImplementedError("ACE-Step layer generation is not implemented yet.")
@@ -184,8 +191,8 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
 class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelAccompanyActionConfig
 
-    def __init__(self, config: AceStepMusicGenerationModelAccompanyActionConfig, handler: AceStepHandler):
-        super().__init__(config, handler)
+    def __init__(self, config: AceStepMusicGenerationModelAccompanyActionConfig, handler: AceStepHandler, llm_handler: Optional[LLMHandler], thinking_scope: List[str]):
+        super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         raise NotImplementedError("ACE-Step accompany (vocal-to-BGM) is not implemented yet.")
@@ -203,6 +210,7 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         super().__init__(id, config, daemon)
 
         self.handler: Optional[AceStepHandler] = None
+        self.llm_handler: Optional[LLMHandler] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [
@@ -220,18 +228,26 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         if isinstance(self.config.model, HuggingfaceModelConfig):
             raise ValueError("ACE-Step does not support HuggingFace Hub models. Use a local model path instead.")
 
-        self.handler = await self._load_generation_handler()
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+        self.handler = await self._load_generation_handler(model_path)
+
+        if self.config.thinking_model:
+            self.llm_handler = await self._load_llm_handler(model_path)
 
     async def _unload_model(self) -> None:
+        if self.llm_handler is not None:
+            self.llm_handler.unload()
+            self.llm_handler = None
+
         self.handler = None
 
-    async def _load_generation_handler(self) -> AceStepHandler:
+    async def _load_generation_handler(self, model_path: str) -> AceStepHandler:
         from acestep.handler import AceStepHandler
         import torch
 
         handler = AceStepHandler()
         handler.initialize_service(
-            project_root= await self._provision_model(self.config.model, prefetch=True),
+            project_root=model_path,
             config_path=self.config.preset,
             device=self._resolve_device(self.config.device).type,
         )
@@ -241,23 +257,44 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
 
         return handler
 
+    async def _load_llm_handler(self, model_path: str) -> LLMHandler:
+        from acestep.llm_inference import LLMHandler
+        import os, torch
+
+        dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else None
+
+        handler = LLMHandler()
+        status, success = handler.initialize(
+            checkpoint_dir=os.path.dirname(model_path),
+            lm_model_path=self.config.thinking_model,
+            device=self._resolve_device(self.config.device).type,
+            dtype=dtype,
+        )
+
+        if not success:
+            raise RuntimeError(f"Failed to initialize 5Hz LM: {status}")
+
+        return handler
+
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        thinking_scope = list(self.config.thinking_scope) if self.llm_handler is not None else []
+
         if action.method == MusicGenerationActionMethod.GENERATE:
-            return await AceStepMusicGenerationModelGenerateAction(action, self.handler).run(context)
+            return await AceStepMusicGenerationModelGenerateAction(action, self.handler, self.llm_handler, thinking_scope).run(context)
 
         if action.method == MusicGenerationActionMethod.COVER:
-            return await AceStepMusicGenerationModelCoverAction(action, self.handler).run(context)
+            return await AceStepMusicGenerationModelCoverAction(action, self.handler, self.llm_handler, thinking_scope).run(context)
 
         if action.method == MusicGenerationActionMethod.REWRITE:
-            return await AceStepMusicGenerationModelRewriteAction(action, self.handler).run(context)
+            return await AceStepMusicGenerationModelRewriteAction(action, self.handler, self.llm_handler, thinking_scope).run(context)
 
         if action.method == MusicGenerationActionMethod.EXTEND:
-            return await AceStepMusicGenerationModelExtendAction(action, self.handler).run(context)
+            return await AceStepMusicGenerationModelExtendAction(action, self.handler, self.llm_handler, thinking_scope).run(context)
 
         if action.method == MusicGenerationActionMethod.LAYER:
-            return await AceStepMusicGenerationModelLayerAction(action, self.handler).run(context)
+            return await AceStepMusicGenerationModelLayerAction(action, self.handler, self.llm_handler, thinking_scope).run(context)
 
         if action.method == MusicGenerationActionMethod.ACCOMPANY:
-            return await AceStepMusicGenerationModelAccompanyAction(action, self.handler).run(context)
+            return await AceStepMusicGenerationModelAccompanyAction(action, self.handler, self.llm_handler, thinking_scope).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

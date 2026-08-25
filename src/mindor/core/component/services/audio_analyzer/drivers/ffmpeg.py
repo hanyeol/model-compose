@@ -295,15 +295,15 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             r"S:\s*(?P<s>-?\d+(?:\.\d+)?|inf|-inf)\s+"
             r"I:\s*(?P<i>-?\d+(?:\.\d+)?|inf|-inf)"
         )
-        entries: List[Dict[str, float]] = []
+        timeline: List[Dict[str, float]] = []
         for m in pattern.finditer(text):
-            entries.append({
+            timeline.append({
                 "time":       float(m.group("t")),
                 "momentary":  ffmpeg_values.parse_float(m.group("m")),
                 "short_term": ffmpeg_values.parse_float(m.group("s")),
                 "integrated": ffmpeg_values.parse_float(m.group("i")),
             })
-        return entries
+        return timeline
 
     @staticmethod
     def _parse_astats(text: str) -> Dict[str, Optional[float]]:

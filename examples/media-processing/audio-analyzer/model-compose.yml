@@ -1,0 +1,105 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: measure-loudness
+    default: true
+    title: Measure Loudness (EBU R128)
+    description: Integrated loudness, loudness range, and true peak for the whole track.
+    job:
+      component: analyzer
+      action: loudness
+      output: ${output as json}
+
+  - id: measure-peak
+    title: Measure Peak Levels
+    description: Sample peak and inter-sample true peak (dBTP).
+    job:
+      component: analyzer
+      action: peak
+      output: ${output as json}
+
+  - id: measure-gain
+    title: Measure Gain / Headroom
+    description: RMS, peak, headroom, crest/flat factors — inputs for normalization decisions.
+    job:
+      component: analyzer
+      action: gain
+      output: ${output as json}
+
+  - id: detect-clipping
+    title: Detect Clipping
+    description: Digital clipping counts and ratio using astats.
+    job:
+      component: analyzer
+      action: clipping
+      output: ${output as json}
+
+  - id: detect-silence
+    title: Detect Silence
+    description: Silent regions and total silence ratio via silencedetect.
+    job:
+      component: analyzer
+      action: silence
+      output: ${output as json}
+
+  - id: measure-energy
+    title: Measure Energy Profile
+    description: Full energy analysis — activity ratio, peak, average loudness, and per-bucket profile derived from momentary loudness.
+    job:
+      component: analyzer
+      action: energy
+      output: ${output as json}
+
+  - id: find-best-bgm-segment
+    title: Find Best BGM Segment
+    description: Scan the track's energy profile and return the loudest segment of a requested length — useful for picking the strongest slice of a music track for a fixed-length video.
+    job:
+      component: analyzer
+      action: energy
+      output: ${output.best_segment as json}
+
+components:
+  - id: analyzer
+    type: audio-analyzer
+    driver: ffmpeg
+    actions:
+      - id: loudness
+        metric: loudness
+        audio: ${input.audio as file}
+        target_loudness: ${input.target_loudness as number | -23.0}
+        include_timeline: ${input.include_timeline as boolean | false}
+
+      - id: peak
+        metric: peak
+        audio: ${input.audio as file}
+        true_peak: ${input.true_peak as boolean | true}
+
+      - id: gain
+        metric: gain
+        audio: ${input.audio as file}
+
+      - id: clipping
+        metric: clipping
+        audio: ${input.audio as file}
+        threshold: ${input.threshold as number | -0.1}
+        min_consecutive_length: ${input.min_consecutive_length as integer | 3}
+
+      - id: silence
+        metric: silence
+        audio: ${input.audio as file}
+        threshold: ${input.threshold as number | -60.0}
+        min_duration: ${input.min_duration as string | 500ms}
+
+      - id: energy
+        metric: energy
+        audio: ${input.audio as file}
+        threshold: ${input.threshold as number | -40.0}
+        segment_duration: ${input.segment_duration as number | 30.0}
+        resolution: ${input.resolution as string | 1s}

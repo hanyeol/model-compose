@@ -30,7 +30,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
 
         regions = self._parse_blackdetect(stderr_text)
         total_black = sum((region.get("duration") or 0.0) for region in regions)
-        duration = self._parse_duration(stderr_text)
+        duration = ffmpeg_values.read_duration(stderr_text, "Duration")
         black_ratio = (total_black / duration) if duration else 0.0
 
         return {
@@ -60,7 +60,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
 
         regions = self._parse_freezedetect(stderr_text)
         total_freeze = sum((region.get("duration") or 0.0) for region in regions)
-        duration = self._parse_duration(stderr_text)
+        duration = ffmpeg_values.read_duration(stderr_text, "Duration")
         freeze_ratio = (total_freeze / duration) if duration else 0.0
 
         return {
@@ -92,7 +92,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         values = [ sample["value"] for sample in samples ]
 
         stats = self._summarize(values)
-        duration = self._parse_duration(stderr_text)
+        duration = ffmpeg_values.read_duration(stderr_text, "Duration")
 
         result: Dict[str, Any] = {
             "sample_rate":     sample_rate,
@@ -130,7 +130,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         values = [ sample["value"] for sample in samples ]
 
         stats = self._summarize(values)
-        duration = self._parse_duration(stderr_text)
+        duration = ffmpeg_values.read_duration(stderr_text, "Duration")
 
         result: Dict[str, Any] = {
             "sample_rate":  sample_rate,
@@ -274,17 +274,6 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             "max":  max(values),
             "std":  variance ** 0.5,
         }
-
-    @staticmethod
-    def _parse_duration(text: str) -> Optional[float]:
-        # ffmpeg prints `Duration: HH:MM:SS.ms` in its stderr header. This is
-        # the source's declared duration, not the amount actually decoded.
-        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", text)
-
-        if m:
-            return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
-
-        return None
 
 @register_video_analyzer_service(VideoAnalyzerDriver.FFMPEG)
 class FFmpegVideoAnalyzerService(VideoAnalyzerService):

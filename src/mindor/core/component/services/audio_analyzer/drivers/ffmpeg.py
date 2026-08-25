@@ -114,7 +114,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         # Overall duration falls out of astats' `samples` and rate — but the
         # cheaper answer is to grab it from ffmpeg's own progress line if we
         # can, else leave silent_ratio null when we don't know the duration.
-        duration = self._parse_duration(stderr_text)
+        duration = ffmpeg_values.read_duration(stderr_text, "Duration")
         silent_ratio = (total_silent / duration) if duration else 0.0
 
         return {
@@ -295,18 +295,6 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
                 regions.append({ "start": start, "end": None, "duration": None })
 
         return regions
-
-    @staticmethod
-    def _parse_duration(text: str) -> Optional[float]:
-        # ffmpeg prints `Duration: HH:MM:SS.ms` in its stderr header. This is
-        # the source's declared duration, not the amount actually decoded.
-        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", text)
-
-        if not m:
-            return None
-
-        hours, minutes, seconds = m.groups()
-        return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 @register_audio_analyzer_service(AudioAnalyzerDriver.FFMPEG)
 class FFmpegAudioAnalyzerService(AudioAnalyzerService):

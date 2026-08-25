@@ -15,24 +15,24 @@ class CommonAudioAnalyzerActionConfig(CommonActionConfig):
     audio: Union[str, List[str]] = Field(..., description="Audio source or list of sources to analyze.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input audios processed per batch.")
 
-class LoudnessAudioAnalyzerActionConfig(CommonAudioAnalyzerActionConfig):
+class AudioAnalyzerLoudnessActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.LOUDNESS]
     target_loudness: Union[float, int, str] = Field(default=-23.0, description="Target integrated loudness in LUFS used as the reference by EBU R128.")
     include_timeline: Union[bool, str] = Field(default=False, description="Whether momentary and short-term loudness timelines are included in the result.")
 
-class PeakAudioAnalyzerActionConfig(CommonAudioAnalyzerActionConfig):
+class AudioAnalyzerPeakActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.PEAK]
     true_peak: Union[bool, str] = Field(default=True, description="Whether inter-sample true-peak (dBTP) is computed alongside sample peak.")
 
-class GainAudioAnalyzerActionConfig(CommonAudioAnalyzerActionConfig):
+class AudioAnalyzerGainActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.GAIN]
 
-class ClippingAudioAnalyzerActionConfig(CommonAudioAnalyzerActionConfig):
+class AudioAnalyzerClippingActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.CLIPPING]
     threshold: Union[float, int, str] = Field(default=-0.1, description="Amplitude threshold in dBFS above which samples are treated as clipped.")
     min_consecutive_length: Union[int, str] = Field(default=3, description="Minimum number of consecutive over-threshold samples required to count as a clipping region.")
 
-class SilenceAudioAnalyzerActionConfig(CommonAudioAnalyzerActionConfig):
+class AudioAnalyzerSilenceActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.SILENCE]
     threshold: Union[float, int, str] = Field(default=-60.0, description="Amplitude threshold in dBFS below which audio is considered silent.")
     min_duration: Union[float, int, str] = Field(default="0.5s", description="Minimum duration of below-threshold audio required to count as a silence region.")

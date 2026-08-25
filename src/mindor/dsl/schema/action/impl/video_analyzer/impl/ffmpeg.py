@@ -1,18 +1,18 @@
 from typing import Union, Annotated
 from pydantic import Field
 from .common import (
-    BlackVideoAnalyzerActionConfig,
-    FreezeVideoAnalyzerActionConfig,
-    BrightnessVideoAnalyzerActionConfig,
-    MotionVideoAnalyzerActionConfig,
+    VideoAnalyzerBlackActionConfig,
+    VideoAnalyzerFreezeActionConfig,
+    VideoAnalyzerBrightnessActionConfig,
+    VideoAnalyzerMotionActionConfig,
 )
 
 FFmpegVideoAnalyzerActionConfig = Annotated[
     Union[
-        BlackVideoAnalyzerActionConfig,
-        FreezeVideoAnalyzerActionConfig,
-        BrightnessVideoAnalyzerActionConfig,
-        MotionVideoAnalyzerActionConfig,
+        VideoAnalyzerBlackActionConfig,
+        VideoAnalyzerFreezeActionConfig,
+        VideoAnalyzerBrightnessActionConfig,
+        VideoAnalyzerMotionActionConfig,
     ],
     Field(discriminator="metric")
 ]

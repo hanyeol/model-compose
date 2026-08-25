@@ -9,6 +9,7 @@ class AudioAnalyzerMetric(str, Enum):
     GAIN     = "gain"
     CLIPPING = "clipping"
     SILENCE  = "silence"
+    ENERGY   = "energy"
 
 class CommonAudioAnalyzerActionConfig(CommonActionConfig):
     metric: AudioAnalyzerMetric = Field(..., description="Kind of measurement performed on the audio.")
@@ -36,3 +37,9 @@ class AudioAnalyzerSilenceActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.SILENCE]
     threshold: Union[float, int, str] = Field(default=-60.0, description="Amplitude threshold in dBFS below which audio is considered silent.")
     min_duration: Union[float, int, str] = Field(default="0.5s", description="Minimum duration of below-threshold audio required to count as a silence region.")
+
+class AudioAnalyzerEnergyActionConfig(CommonAudioAnalyzerActionConfig):
+    metric: Literal[AudioAnalyzerMetric.ENERGY]
+    threshold: Union[float, int, str] = Field(default=-40.0, description="Momentary loudness threshold in LUFS above which audio is considered active.")
+    segment_duration: Optional[Union[float, int, str]] = Field(default=None, description="Length of the segment scanned for the loudest section; omit to skip segment search.")
+    resolution: Union[float, int, str] = Field(default="1s", description="Downsampling interval used to aggregate momentary loudness into the returned profile.")

@@ -6,6 +6,7 @@ from .common import (
     AudioAnalyzerGainActionConfig,
     AudioAnalyzerClippingActionConfig,
     AudioAnalyzerSilenceActionConfig,
+    AudioAnalyzerEnergyActionConfig,
 )
 
 FFmpegAudioAnalyzerActionConfig = Annotated[
@@ -15,6 +16,7 @@ FFmpegAudioAnalyzerActionConfig = Annotated[
         AudioAnalyzerGainActionConfig,
         AudioAnalyzerClippingActionConfig,
         AudioAnalyzerSilenceActionConfig,
+        AudioAnalyzerEnergyActionConfig,
     ],
     Field(discriminator="metric")
 ]

@@ -84,6 +84,23 @@ class AudioAnalyzerAction(ComponentAction):
                 "min_duration": min_duration,
             }
 
+        if metric == AudioAnalyzerMetric.ENERGY:
+            threshold        = await context.render_scalar(self.config.threshold, float)
+            segment_duration = await context.render_scalar(self.config.segment_duration, "time")
+            resolution       = await context.render_scalar(self.config.resolution, "time")
+
+            if resolution is None or resolution <= 0.0:
+                raise ValueError(f"'resolution' must be > 0, got {resolution}")
+
+            if segment_duration is not None and segment_duration <= 0.0:
+                raise ValueError(f"'segment_duration' must be > 0 when provided, got {segment_duration}")
+
+            return {
+                "threshold":        threshold,
+                "segment_duration": segment_duration,
+                "resolution":       resolution,
+            }
+
         raise ValueError(f"Unsupported audio metric: {metric}")
 
     async def _analyze_batch(
@@ -119,6 +136,9 @@ class AudioAnalyzerAction(ComponentAction):
         if metric == AudioAnalyzerMetric.SILENCE:
             return await self._analyze_silence(source, params, cancellation_token)
 
+        if metric == AudioAnalyzerMetric.ENERGY:
+            return await self._analyze_energy(source, params, cancellation_token)
+
         raise ValueError(f"Unsupported audio metric: {metric}")
 
     @abstractmethod
@@ -139,4 +159,8 @@ class AudioAnalyzerAction(ComponentAction):
 
     @abstractmethod
     async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def _analyze_energy(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         pass

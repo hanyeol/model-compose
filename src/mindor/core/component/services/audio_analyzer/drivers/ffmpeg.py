@@ -101,6 +101,53 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "regions":                [],
         }
 
+    async def _analyze_energy(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+        # ebur128's per-window momentary loudness (100ms) is aggregated into a
+        # coarser profile at `resolution` intervals so downstream steps get a
+        # compact energy curve rather than raw analysis windows.
+        threshold        = params["threshold"]
+        segment_duration = params["segment_duration"]
+        resolution       = params["resolution"]
+
+        stderr_text = await self._run_ffmpeg_filter(source, "ebur128", cancellation_token)
+        timeline    = self._parse_ebur128_timeline(stderr_text)
+        duration    = ffmpeg_values.read_duration(stderr_text, "Duration")
+
+        profile = self._downsample_energy_profile(timeline, resolution, threshold)
+
+        active_points     = [ point for point in profile if point["loudness"] is not None and point["active"] ]
+        finite_points     = [ point for point in profile if point["loudness"] is not None ]
+        active_duration   = len(active_points) * resolution
+        active_ratio      = (active_duration / duration) if duration else 0.0
+        first_active_time = active_points[0]["time"] if active_points else None
+        average_loudness  = (sum(point["loudness"] for point in active_points) / len(active_points)) if active_points else None
+
+        if finite_points:
+            peak_point    = max(finite_points, key=lambda point: point["loudness"])
+            peak_time     = peak_point["time"]
+            peak_loudness = peak_point["loudness"]
+        else:
+            peak_time     = None
+            peak_loudness = None
+
+        result: Dict[str, Any] = {
+            "threshold":         threshold,
+            "duration":          duration,
+            "resolution":        resolution,
+            "active_duration":   active_duration,
+            "active_ratio":      active_ratio,
+            "first_active_time": first_active_time,
+            "peak_time":         peak_time,
+            "peak_loudness":     peak_loudness,
+            "average_loudness":  average_loudness,
+            "profile":           profile,
+        }
+
+        if segment_duration is not None:
+            result["best_segment"] = self._find_best_segment(profile, segment_duration, resolution)
+
+        return result
+
     async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
         threshold    = params["threshold"]
         min_duration = params["min_duration"]
@@ -239,9 +286,11 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
     @staticmethod
     def _parse_ebur128_timeline(text: str) -> List[Dict[str, float]]:
         # Per-window lines look like:
-        #   [Parsed_ebur128_0 @ 0x...] t: 0.4     M:-70.0  S:-70.0  I:-70.0 LUFS  ...
+        #   [Parsed_ebur128_0 @ 0x...] t: 0.4  TARGET:-23 LUFS    M:-70.0 S:-70.0     I:-70.0 LUFS  ...
+        # The TARGET:<n> LUFS block sits between t: and M:, so a plain \s+ gap
+        # does not match — use a non-greedy .*? bridge.
         pattern = re.compile(
-            r"t:\s*(?P<t>-?\d+(?:\.\d+)?)\s+"
+            r"t:\s*(?P<t>-?\d+(?:\.\d+)?).*?"
             r"M:\s*(?P<m>-?\d+(?:\.\d+)?|inf|-inf)\s+"
             r"S:\s*(?P<s>-?\d+(?:\.\d+)?|inf|-inf)\s+"
             r"I:\s*(?P<i>-?\d+(?:\.\d+)?|inf|-inf)"
@@ -295,6 +344,79 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
                 regions.append({ "start": start, "end": None, "duration": None })
 
         return regions
+
+    @staticmethod
+    def _downsample_energy_profile(
+        timeline: List[Dict[str, float]],
+        resolution: float,
+        threshold: float,
+    ) -> List[Dict[str, Any]]:
+        # Group the raw momentary values into fixed-width buckets so callers can
+        # scan the profile at a stable resolution regardless of ffmpeg's window
+        # cadence. Buckets with no finite samples surface as `null` loudness so
+        # gaps stay visible instead of being smoothed away.
+        if not timeline:
+            return []
+
+        bucket_sums:   Dict[int, float] = {}
+        bucket_counts: Dict[int, int]   = {}
+        max_bucket = 0
+
+        for point in timeline:
+            momentary = point.get("momentary")
+            if momentary is None:
+                continue
+
+            bucket = int(point["time"] // resolution)
+            bucket_sums[bucket]   = bucket_sums.get(bucket, 0.0) + momentary
+            bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
+            if bucket > max_bucket:
+                max_bucket = bucket
+
+        profile: List[Dict[str, Any]] = []
+        for bucket in range(max_bucket + 1):
+            count = bucket_counts.get(bucket, 0)
+            loudness = (bucket_sums[bucket] / count) if count else None
+            profile.append({
+                "time":     bucket * resolution,
+                "loudness": loudness,
+                "active":   loudness is not None and loudness > threshold,
+            })
+
+        return profile
+
+    @staticmethod
+    def _find_best_segment(
+        profile: List[Dict[str, Any]],
+        segment_duration: float,
+        resolution: float,
+    ) -> Optional[Dict[str, float]]:
+        # Slide a window of `segment_duration` seconds across the profile and
+        # pick the position with the highest average loudness. Buckets with no
+        # samples contribute a very low value so silent tails cannot win.
+        window_size = max(1, int(round(segment_duration / resolution)))
+        if len(profile) < window_size:
+            return None
+
+        loudness_values = [ (point["loudness"] if point["loudness"] is not None else -120.0) for point in profile ]
+
+        best_start = 0
+        best_average = float("-inf")
+        window_sum = sum(loudness_values[:window_size])
+        best_average = window_sum / window_size
+
+        for index in range(1, len(loudness_values) - window_size + 1):
+            window_sum += loudness_values[index + window_size - 1] - loudness_values[index - 1]
+            average = window_sum / window_size
+            if average > best_average:
+                best_average = average
+                best_start = index
+
+        return {
+            "start":            best_start * resolution,
+            "duration":         segment_duration,
+            "average_loudness": best_average,
+        }
 
 @register_audio_analyzer_service(AudioAnalyzerDriver.FFMPEG)
 class FFmpegAudioAnalyzerService(AudioAnalyzerService):

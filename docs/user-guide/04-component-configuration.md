@@ -48,6 +48,8 @@ model-compose provides various component types for performing different tasks.
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
 | `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
 | `audio-analyzer` | Measure audio levels | Loudness (LUFS/LRA), peak, RMS/gain, clipping, and silence via ffmpeg filters |
+| `music-segment-detector` | Detect music segment boundaries | Structural segmentation of music (intro/verse/chorus) via chroma-CQT and Laplacian or agglomerative clustering |
+| `audio-silence-detector` | Detect silence regions | Locate silent runs in audio using ffmpeg's `silencedetect` filter; useful for trimming dead air or splitting on quiet gaps |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
@@ -94,6 +96,8 @@ model-compose provides various component types for performing different tasks.
 - Audio mixing (concat / overlay for narration over background, layered SFX) → `audio-mixer`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Audio analysis (loudness, peak, gain, clipping, silence detection) → `audio-analyzer`
+- Music segment detection (structural boundaries: intro/verse/chorus) → `music-segment-detector`
+- Silence detection (locate silent regions for trimming or splitting) → `audio-silence-detector`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`
 - Web scraping → `web-scraper`

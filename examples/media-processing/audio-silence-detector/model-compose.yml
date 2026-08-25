@@ -1,0 +1,44 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: detect-silences
+    default: true
+    title: Detect Silences
+    description: Detect silent regions in an audio file using ffmpeg's silencedetect filter.
+    job:
+      component: silence-detector
+      action: default
+      output:
+        segments: ${output as json}
+
+  - id: detect-silences-strict
+    title: Detect Silences (Strict)
+    description: Detect only longer, quieter silences suitable for trimming leading/trailing dead air.
+    job:
+      component: silence-detector
+      action: strict
+      output:
+        segments: ${output as json}
+
+components:
+  - id: silence-detector
+    type: audio-silence-detector
+    actions:
+      - id: default
+        audio: ${input.audio as file}
+        silence_threshold: ${input.silence_threshold as float | -30.0}
+        min_silence_duration: ${input.min_silence_duration as string | 500ms}
+        output: ${result as json}
+
+      - id: strict
+        audio: ${input.audio as file}
+        silence_threshold: -40.0
+        min_silence_duration: 2s
+        output: ${result as json}

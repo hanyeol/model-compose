@@ -1,0 +1,44 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: detect-segments
+    default: true
+    title: Detect Music Segments (Laplacian)
+    description: Detect structural segment boundaries in music via beat-synchronized chroma + MFCC spectral clustering. Repeating sections (verse, chorus) receive the same structural label.
+    job:
+      component: segment-detector
+      action: laplacian
+      output:
+        segments: ${output as json}
+
+  - id: detect-segments-agglomerative
+    title: Detect Music Segments (Agglomerative)
+    description: Detect segment boundaries using agglomerative clustering with a data-driven segment count. Use when the laplacian output looks unstable on short clips.
+    job:
+      component: segment-detector
+      action: agglomerative
+      output:
+        segments: ${output as json}
+
+components:
+  - id: segment-detector
+    type: music-segment-detector
+    actions:
+      - id: laplacian
+        audio: ${input.audio as file}
+        strategy: laplacian
+        sample_rate: ${input.sample_rate as integer | 22050}
+        output: ${result as json}
+
+      - id: agglomerative
+        audio: ${input.audio as file}
+        strategy: agglomerative
+        sample_rate: ${input.sample_rate as integer | 22050}
+        output: ${result as json}

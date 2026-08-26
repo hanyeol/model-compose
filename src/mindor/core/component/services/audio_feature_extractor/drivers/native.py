@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Any
-
+from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.dsl.schema.action.impl.audio_feature_extractor.impl.common import AudioFeature
@@ -76,7 +75,7 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         frame_count = max(0, (len(samples) - window_size) // hop)
 
         frequencies = np.fft.rfftfreq(window_size, 1.0 / sample_rate)
-        band_indices = self._compute_band_indices(
+        band_indices, band_centers = self._compute_band_indices(
             frequencies,
             band_count,
             params["min_frequency"],
@@ -94,6 +93,12 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
             for band, band_index in enumerate(band_indices):
                 if band_index.size:
                     bands[frame, band] = magnitude[band_index].mean()
+                else:
+                    # Band is narrower than the FFT bin spacing (typical in the
+                    # low-frequency end when band_count is high relative to
+                    # window_size). Sample the magnitude at the band center via
+                    # linear interpolation so the bar isn't stuck at zero.
+                    bands[frame, band] = np.interp(band_centers[band], frequencies, magnitude)
 
         frames = self._normalize_spectrum(bands, params["normalize_mode"], params["percentile"])
 
@@ -153,16 +158,20 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         min_frequency: float,
         max_frequency: float,
         frequency_scale: str
-    ) -> List[np.ndarray]:
+    ) -> Tuple[List[np.ndarray], np.ndarray]:
         import numpy as np
 
         if frequency_scale == "log":
             min_frequency_safe = max(min_frequency, 1e-3)
             edges = np.logspace(np.log10(min_frequency_safe), np.log10(max_frequency), band_count + 1)
+            centers = np.sqrt(edges[:-1] * edges[1:])
         else:
             edges = np.linspace(min_frequency, max_frequency, band_count + 1)
+            centers = (edges[:-1] + edges[1:]) * 0.5
 
-        return [ np.where((frequencies >= edges[band]) & (frequencies < edges[band + 1]))[0] for band in range(band_count) ]
+        indices = [ np.where((frequencies >= edges[band]) & (frequencies < edges[band + 1]))[0] for band in range(band_count) ]
+
+        return indices, centers
 
     @staticmethod
     def _get_fft_window(name: str, size: int) -> np.ndarray:

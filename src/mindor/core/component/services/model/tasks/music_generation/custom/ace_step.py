@@ -51,11 +51,15 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         time_signature  = await context.render_variable(self.config.params.time_signature)
         inference_steps = await context.render_variable(self.config.params.inference_steps)
         guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
+        shift           = await context.render_variable(self.config.params.shift)
+        use_adg         = await context.render_variable(self.config.params.use_adg)
 
         params.update({
             "time_signature":  time_signature,
             "inference_steps": inference_steps,
             "guidance_scale":  guidance_scale,
+            "shift":           shift,
+            "use_adg":         use_adg,
         })
 
         return params
@@ -90,6 +94,8 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             timesignature=params["time_signature"] or "",
             inference_steps=int(params["inference_steps"]),
             guidance_scale=float(params["guidance_scale"]),
+            shift=float(params["shift"]),
+            use_adg=bool(params["use_adg"]),
             src_audio=src_audio or None,
             thinking="codes" in self.thinking_scope,
             use_cot_metas="metas" in self.thinking_scope,

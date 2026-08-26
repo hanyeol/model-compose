@@ -110,10 +110,10 @@ class _RenderStub:
         async def render_video(value):
             return self.video
 
-        async def render_video_array(value):
+        async def render_video_array(value, single_as_array=False):
             return self.overlay
 
-        async def render_array(value):
+        async def render_array(value, single_as_array=False):
             return self.placement
 
         context.render_variable = AsyncMock(side_effect=render_variable)
@@ -483,46 +483,45 @@ class TestBuildOverlayFilterDuration:
         assert "tpad" not in filter_complex, "no padding needed when base is already longest"
 
 
-class TestDslNormalization:
-    """These tests belong right next to the shape tests because normalization is
-    what lets `_prepare_input` treat every combination uniformly. If DSL
-    normalization regresses, the shape assumptions above collapse."""
+class TestDslShapes:
+    """The schema now accepts single values and lists without inflating them.
+    Downstream (`_render_overlay_placement` / `render_video_array`) handles the
+    single→array widening at render time, so these tests pin down the raw
+    shapes the DSL preserves."""
 
-    def test_overlay_str_is_wrapped_in_list(self):
+    def test_overlay_str_is_preserved(self):
         config = _adapter.validate_python({
             "method": "overlay",
             "video": "base.mp4",
             "overlay": "pip.mp4",
         })
-        assert config.overlay == ["pip.mp4"]
-        assert isinstance(config.placement, list) and len(config.placement) == 1
+        assert config.overlay == "pip.mp4"
+        assert isinstance(config.placement, VideoOverlayPlacement)
 
-    def test_placement_dict_is_wrapped_in_list(self):
+    def test_placement_dict_is_preserved_as_object(self):
         config = _adapter.validate_python({
             "method": "overlay",
             "video": "base.mp4",
             "overlay": ["a.mp4", "b.mp4"],
             "placement": {"x": 30, "y": 40},
         })
-        assert isinstance(config.placement, list)
-        assert len(config.placement) == 1
-        assert config.placement[0].x == 30
+        assert isinstance(config.placement, VideoOverlayPlacement)
+        assert config.placement.x == 30
 
-    def test_placement_str_is_wrapped_in_list(self):
-        """Template references stay `str` at the schema layer — but still normalized to a list."""
+    def test_placement_str_is_preserved(self):
+        """Template references stay `str` at the schema layer."""
         config = _adapter.validate_python({
             "method": "overlay",
             "video": "base.mp4",
             "overlay": ["a.mp4"],
             "placement": "${input.p}",
         })
-        assert config.placement == ["${input.p}"]
+        assert config.placement == "${input.p}"
 
-    def test_default_placement_is_one_element_list(self):
+    def test_default_placement_is_single_object(self):
         config = _adapter.validate_python({
             "method": "overlay",
             "video": "base.mp4",
             "overlay": ["a.mp4"],
         })
-        assert isinstance(config.placement, list) and len(config.placement) == 1
-        assert isinstance(config.placement[0], VideoOverlayPlacement)
+        assert isinstance(config.placement, VideoOverlayPlacement)

@@ -283,6 +283,15 @@ class TestOpenCVCollectMode:
             await action.run(ctx)
 
     @pytest.mark.anyio
+    async def test_keyframe_only_not_supported(self, sample_video):
+        config = make_config(sample_video, keyframe_only=True)
+        action = OpenCVVideoFrameExtractorAction(config)
+        ctx = make_context()
+
+        with pytest.raises(NotImplementedError, match="keyframe_only"):
+            await action.run(ctx)
+
+    @pytest.mark.anyio
     async def test_registers_result_source(self, sample_video):
         config = make_config(sample_video, max_frame_count=2)
         action = OpenCVVideoFrameExtractorAction(config)

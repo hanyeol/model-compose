@@ -428,15 +428,15 @@ class TestInputPathResolution:
 
         # Track which paths are spooled.
         spooled_paths: list[str] = []
-        from mindor.core.component.services.audio_extractor.drivers import ffmpeg as ffmpeg_mod
-        original_save = ffmpeg_mod.save_stream_to_temporary_file
+        from mindor.core.component.action import media as media_mod
+        original_save = media_mod.save_stream_to_temporary_file
 
         async def tracking_save(stream, ext):
             path = await original_save(stream, ext)
             spooled_paths.append(path)
             return path
 
-        monkeypatch.setattr(ffmpeg_mod, "save_stream_to_temporary_file", tracking_save)
+        monkeypatch.setattr(media_mod, "save_stream_to_temporary_file", tracking_save)
 
         result = await FFmpegAudioExtractorAction(config).run(ctx)
         # With stream-backed output, cleanup runs in the generator's finally; trigger

@@ -222,6 +222,10 @@ def mock_context():
         return await ArrayValueRenderer().render(value, single_as_array)
     context.render_array = AsyncMock(side_effect=render_array)
 
+    async def render_scalar(value, *args, **kwargs):
+        return value
+    context.render_scalar = AsyncMock(side_effect=render_scalar)
+
     context.register_source = MagicMock()
     return context
 

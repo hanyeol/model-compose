@@ -13,6 +13,8 @@ from typing import List, Optional
 
 import pytest
 
+from mindor.core.component.action import media as action_media
+from mindor.core.component.action.media import MediaInputPathResolver
 from mindor.core.component.services.video_encoder.drivers import ffmpeg as encoder_ffmpeg
 from mindor.core.component.services.video_encoder.drivers.ffmpeg import FFmpegVideoEncoderAction
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -31,14 +33,8 @@ def _file_media(path: str, format: Optional[str] = None) -> MediaSource:
     return MediaSource(stream=FileStreamResource(path), format=format)
 
 
-def _new_action() -> FFmpegVideoEncoderAction:
-    """`_resolve_input_path` doesn't touch `self`, so bypass __init__ with __new__
-    to avoid pulling in the full VideoEncoderActionConfig."""
-    return FFmpegVideoEncoderAction.__new__(FFmpegVideoEncoderAction)
-
-
-class TestResolveInputPath:
-    """`_resolve_input_path` picks between three input strategies."""
+class TestMediaInputPathResolver:
+    """``MediaInputPathResolver.resolve`` picks between three input strategies."""
 
     def test_file_stream_resource_returns_path(self, tmp_path):
         # FileStreamResource stat()s the file at construction so we need a
@@ -47,21 +43,21 @@ class TestResolveInputPath:
         real_path.write_bytes(b"")
 
         media = _file_media(str(real_path), format="mp4")
-        path, spooled = asyncio.run(_new_action()._resolve_input_path(media))
+        path, spooled = asyncio.run(MediaInputPathResolver().resolve(media, streamable_media=[ "video", "audio" ]))
         assert path == str(real_path)
         assert spooled is False
 
     def test_streamable_format_uses_pipe(self):
         # mpegts is streamable — ffmpeg can consume it from pipe:0 without seek.
         media = _bytes_media(b"\x47\x40\x00\x10", format="mpegts")
-        path, spooled = asyncio.run(_new_action()._resolve_input_path(media))
+        path, spooled = asyncio.run(MediaInputPathResolver().resolve(media, streamable_media=[ "video", "audio" ]))
         assert path is None
         assert spooled is False
 
     def test_streamable_format_is_case_sensitive(self):
         """Format matching is case-sensitive; upper-case variants fall through to spooling."""
         media = _bytes_media(b"", format="MPEGTS")
-        path, spooled = asyncio.run(_new_action()._resolve_input_path(media))
+        path, spooled = asyncio.run(MediaInputPathResolver().resolve(media, streamable_media=[ "video", "audio" ]))
         assert path is not None
         assert spooled is True
 
@@ -74,10 +70,10 @@ class TestResolveInputPath:
             recorded.append((stream, format))
             return "/tmp/spooled.mp4"
 
-        monkeypatch.setattr(encoder_ffmpeg, "save_stream_to_temporary_file", fake_spool)
+        monkeypatch.setattr(action_media, "save_stream_to_temporary_file", fake_spool)
 
         media = _bytes_media(b"", format="mp4")
-        path, spooled = asyncio.run(_new_action()._resolve_input_path(media))
+        path, spooled = asyncio.run(MediaInputPathResolver().resolve(media, streamable_media=[ "video", "audio" ]))
 
         assert path == "/tmp/spooled.mp4"
         assert spooled is True
@@ -90,10 +86,10 @@ class TestResolveInputPath:
         async def fake_spool(stream, format):
             return "/tmp/spooled.bin"
 
-        monkeypatch.setattr(encoder_ffmpeg, "save_stream_to_temporary_file", fake_spool)
+        monkeypatch.setattr(action_media, "save_stream_to_temporary_file", fake_spool)
 
         media = _bytes_media(b"", format=None)
-        path, spooled = asyncio.run(_new_action()._resolve_input_path(media))
+        path, spooled = asyncio.run(MediaInputPathResolver().resolve(media, streamable_media=[ "video", "audio" ]))
 
         assert path == "/tmp/spooled.bin"
         assert spooled is True

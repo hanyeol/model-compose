@@ -341,6 +341,74 @@ class TestExtractionOptions:
             await action.run(make_context())
 
 
+@pytest.fixture(scope="module")
+def keyframed_video():
+    """Generate a 3s / fps=10 video with a forced GOP of 5 so we get 6 keyframes
+    at frames 0, 5, 10, 15, 20, 25 — enough to exercise `keyframe_only` and
+    `keyframe_only + frame_interval`."""
+    path = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False).name
+
+    command = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "lavfi", "-i", "testsrc=duration=3:size=64x48:rate=10",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-g", "5", "-keyint_min", "5", "-sc_threshold", "0",
+        path,
+    ]
+
+    try:
+        subprocess.run(command, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        pytest.skip(f"ffmpeg failed to generate keyframed test video: {e.stderr.decode('utf-8', errors='replace')}")
+
+    yield path
+
+    if os.path.exists(path):
+        os.unlink(path)
+
+
+class TestKeyframeOnly:
+    @pytest.mark.anyio
+    async def test_extracts_only_keyframes(self, keyframed_video):
+        """With GOP=5 in a 30-frame video, expect 6 I-frames."""
+        action = FFmpegVideoFrameExtractorAction(make_config(keyframed_video, keyframe_only=True))
+        result = await action.run(make_context())
+
+        assert len(result) == 6
+        for frame in result:
+            _assert_frame(frame)
+
+    @pytest.mark.anyio
+    async def test_keyframe_only_with_stride(self, keyframed_video):
+        """`frame_interval=2` under `keyframe_only=True` keeps every 2nd keyframe."""
+        action = FFmpegVideoFrameExtractorAction(
+            make_config(keyframed_video, keyframe_only=True, frame_interval=2)
+        )
+        result = await action.run(make_context())
+
+        assert len(result) == 3
+        for frame in result:
+            _assert_frame(frame)
+
+    @pytest.mark.anyio
+    async def test_keyframe_only_timestamps(self, keyframed_video):
+        """Keyframes at frames 0,5,10,15,20,25 land at 0.0s, 0.5s, ... at fps=10."""
+        action = FFmpegVideoFrameExtractorAction(make_config(keyframed_video, keyframe_only=True))
+        result = await action.run(make_context())
+
+        timestamps = [f["timestamp"] for f in result]
+        expected = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5]
+        assert timestamps == [pytest.approx(t, abs=0.05) for t in expected]
+
+    @pytest.mark.anyio
+    async def test_keyframe_only_default_off(self, keyframed_video):
+        """Sanity: default (keyframe_only omitted) extracts every frame."""
+        action = FFmpegVideoFrameExtractorAction(make_config(keyframed_video))
+        result = await action.run(make_context())
+
+        assert len(result) == 30
+
+
 class TestOutputExpressionRendering:
     """${result[]} should be evaluated per chunk when the unit result is streaming."""
 

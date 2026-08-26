@@ -448,14 +448,16 @@ class TestStreamAudioArrayResample:
         assert 15500 <= total <= 16500
 
     @pytest.mark.anyio
-    async def test_missing_sample_rate_defaults_to_16000(self):
-        # No sample_rate in attrs but target is also 16000 => no resample
+    async def test_missing_sample_rate_raises(self):
+        # Raw PCM without sample_rate in attrs is rejected — a silent default
+        # would produce wrong-pitch audio, so the streamer requires callers
+        # to specify the physical rate.
         samples = np.arange(2048, dtype=np.int16)
         attrs = {"channels": 1, "bit_depth": 16}
         pcm = PcmStreamResource(ChunkedStreamResource(samples.tobytes(), 500), attrs=attrs)
         src = MediaSource(pcm, format=pcm.format, attrs=attrs)
-        frames = await collect_frames(AudioBufferStreamer(src, 512, sample_rate=16000))
-        assert len(frames) == 4  # No resample path taken
+        with pytest.raises(ValueError, match="requires 'sample_rate'"):
+            await collect_frames(AudioBufferStreamer(src, 512, sample_rate=16000))
 
 
 class TestStreamAudioArrayContainerDecode:

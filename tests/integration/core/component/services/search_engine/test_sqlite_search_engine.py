@@ -40,7 +40,7 @@ async def _connect(path: str) -> aiosqlite.Connection:
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    database = await aiosqlite.connect(path)
+    database = await aiosqlite.connect(path, isolation_level=None)
     database.row_factory = sqlite3.Row
     return database
 
@@ -55,7 +55,7 @@ async def _run_action(action_config, path: str, context):
         raise FileNotFoundError(f"Search engine database does not exist: {path}. Run an 'index' action first to create the database.")
     database = await _connect(path)
     try:
-        return await SQLiteSearchEngineAction(action_config, database).run(context)
+        return await SQLiteSearchEngineAction(action_config, database, {}, asyncio.Lock()).run(context)
     finally:
         await database.close()
 
@@ -235,9 +235,12 @@ class TestSQLiteSearchEngineIntegration:
         assert total_affected == 2
 
         # Only document_id=2 should remain searchable.
-        search_result = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="docs", query="alpha OR beta OR gamma"), database_path, context)
-        contents = [hit["document"]["content"] for hit in search_result[0]]
-        assert contents == ["beta"]
+        alpha_hits = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="docs", query="alpha"), database_path, context)
+        beta_hits = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="docs", query="beta"), database_path, context)
+        gamma_hits = await _run_action(SQLiteSearchSearchActionConfig(method="search", index="docs", query="gamma"), database_path, context)
+        assert alpha_hits[0] == []
+        assert [hit["document"]["content"] for hit in beta_hits[0]] == ["beta"]
+        assert gamma_hits[0] == []
 
     @pytest.mark.anyio
     async def test_search_raises_when_database_missing(self, tmp_path, context):

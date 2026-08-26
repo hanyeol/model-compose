@@ -180,15 +180,15 @@ class TestInputPathResolution:
         ctx = _make_context(source)
 
         spooled_paths: list[str] = []
-        from mindor.core.component.services.video_scene_detector.drivers import transnetv2 as tn_mod
-        original_save = tn_mod.save_stream_to_temporary_file
+        from mindor.core.component.action import media as media_mod
+        original_save = media_mod.save_stream_to_temporary_file
 
         async def tracking_save(stream, ext):
             path = await original_save(stream, ext)
             spooled_paths.append(path)
             return path
 
-        monkeypatch.setattr(tn_mod, "save_stream_to_temporary_file", tracking_save)
+        monkeypatch.setattr(media_mod, "save_stream_to_temporary_file", tracking_save)
 
         with patch.object(TransNetV2VideoSceneDetectorAction, "_predict", staticmethod(fake_predict)):
             await TransNetV2VideoSceneDetectorAction(config).run(ctx)

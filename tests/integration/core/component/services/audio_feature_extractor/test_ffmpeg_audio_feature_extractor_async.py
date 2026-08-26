@@ -6,7 +6,7 @@ there). These tests target the refactored ``.run(context)`` signature and
 confirm:
 
 - ``AudioFeatureExtractorAction.run`` accepts only ``(self, context)``
-- The ffmpeg subprocess call in ``_decode_pcm`` does NOT block the event loop
+- The ffmpeg subprocess call in ``_load_pcm_samples`` does NOT block the event loop
 - Batch/list inputs are all processed
 - CancellationToken firing while ffmpeg is decoding does not deadlock the run
 """

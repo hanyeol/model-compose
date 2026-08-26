@@ -24,10 +24,27 @@ class TestVideoFrameExtractorActionConfig:
         )
         assert config.video == "/tmp/video.mp4"
         assert config.frame_interval == 1
+        assert config.keyframe_only is False
         assert config.start_time is None
         assert config.end_time is None
         assert config.max_frame_count is None
         assert config.filename_format is None
+
+    def test_keyframe_only_true(self):
+        """Test that keyframe_only can be enabled."""
+        config = VideoFrameExtractorActionConfig(
+            video="/tmp/video.mp4",
+            keyframe_only=True,
+        )
+        assert config.keyframe_only is True
+
+    def test_keyframe_only_as_string(self):
+        """Test that keyframe_only accepts a variable reference string."""
+        config = VideoFrameExtractorActionConfig(
+            video="/tmp/video.mp4",
+            keyframe_only="${input.keyframes}",
+        )
+        assert config.keyframe_only == "${input.keyframes}"
 
     def test_filename_format(self):
         """Test that filename_format is accepted as a literal string."""

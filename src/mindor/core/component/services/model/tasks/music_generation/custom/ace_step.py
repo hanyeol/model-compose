@@ -407,19 +407,11 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
             "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
-            # nano-vllm powers the 5Hz thinking LM, and ace-step depends on it unconditionally
-            # on every non-macOS platform. Its pyproject resolves that dependency through
-            # [tool.uv.sources] to a vendored copy, which pip ignores — pip looks for `nano-vllm`
-            # on PyPI, where it does not exist, and the ace-step install fails outright. So the
-            # vendored fork must be installed *before* ace-step: once it is present, pip treats
-            # ace-step's unpinned `nano-vllm` requirement as already satisfied.
-            # The fork is also required rather than merely convenient: the 5Hz LM checkpoint
-            # stores flat Qwen3Model weight names (embed_tokens.weight, layers.*, norm.weight)
-            # and only the fork's loader maps them onto Qwen3ForCausalLM — upstream fails with
-            # "Qwen3ForCausalLM has no attribute `embed_tokens`".
-            # flash-attn is intentionally omitted: its wheel is pinned to
-            # cu128/torch2.10/cp312/linux_x86_64, and nano-vllm falls back to SDPA when it
-            # isn't installed.
+            # Install the vendored nano-vllm fork before ace-step: pip ignores ace-step's
+            # [tool.uv.sources] override and would otherwise fail to find `nano-vllm` on PyPI.
+            # The fork (not upstream) is required — it maps the 5Hz LM checkpoint's flat
+            # Qwen3Model weight names onto Qwen3ForCausalLM. flash-attn is omitted; its wheel
+            # is pinned to cu128/torch2.10/cp312/linux_x86_64 and nano-vllm falls back to SDPA.
             "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
             "numpy",

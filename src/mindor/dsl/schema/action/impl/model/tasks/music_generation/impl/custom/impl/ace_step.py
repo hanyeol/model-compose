@@ -1,10 +1,25 @@
 from typing import Union, Literal, Optional, List
+from enum import Enum
 from pydantic import Field
 from ...common import (
     CommonMusicGenerationParamsConfig,
     CommonMusicGenerationModelActionConfig,
     MusicGenerationActionMethod,
 )
+
+class AceStepTrackClass(str, Enum):
+    WOODWINDS       = "woodwinds"
+    BRASS           = "brass"
+    FX              = "fx"
+    SYNTH           = "synth"
+    STRINGS         = "strings"
+    PERCUSSION      = "percussion"
+    KEYBOARD        = "keyboard"
+    GUITAR          = "guitar"
+    BASS            = "bass"
+    DRUMS           = "drums"
+    BACKING_VOCALS  = "backing-vocals"
+    VOCALS          = "vocals"
 
 class AceStepMusicGenerationParamsConfig(CommonMusicGenerationParamsConfig):
     time_signature: Optional[str] = Field(default="4/4", description="Musical time signature of the generated music (e.g., 4/4, 3/4).")
@@ -45,9 +60,12 @@ class AceStepMusicGenerationModelExtendActionConfig(CommonAceStepMusicGeneration
 class AceStepMusicGenerationModelLayerActionConfig(CommonAceStepMusicGenerationModelActionConfig):
     method: Literal[MusicGenerationActionMethod.LAYER]
     source: str = Field(..., description="Path or URL of the source audio to layer a new track on top of.")
-    prompt: Union[str, List[str]] = Field(..., description="Text description of the layer to add (e.g., instrument, part).")
+    track_class: AceStepTrackClass = Field(..., description="Stem to generate on top of the source (e.g., drums, bass, vocals).")
+    prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text description guiding the added layer.")
+    lyrics: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Optional lyrics when the added layer is vocals.")
 
 class AceStepMusicGenerationModelAccompanyActionConfig(CommonAceStepMusicGenerationModelActionConfig):
     method: Literal[MusicGenerationActionMethod.ACCOMPANY]
     vocal: str = Field(..., description="Path or URL of the vocal-only audio to generate accompaniment for.")
+    track_classes: List[AceStepTrackClass] = Field(..., min_length=1, description="Stem classes to fill in as accompaniment (e.g., drums, bass, keyboard).")
     prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text description of the desired accompaniment style.")

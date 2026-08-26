@@ -29,11 +29,11 @@ class IpcMessageType(str, Enum):
     STATUS       = "status"
     EVENT        = "event"
     # Stream multiplexing
-    STREAM_PULL  = "stream_pull"
-    STREAM_CHUNK = "stream_chunk"
-    STREAM_END   = "stream_end"
-    STREAM_ABORT = "stream_abort"
-    STREAM_CLOSE = "stream_close"
+    STREAM_PULL  = "stream-pull"
+    STREAM_CHUNK = "stream-chunk"
+    STREAM_END   = "stream-end"
+    STREAM_ABORT = "stream-abort"
+    STREAM_CLOSE = "stream-close"
 
 @dataclass
 class IpcMessage:

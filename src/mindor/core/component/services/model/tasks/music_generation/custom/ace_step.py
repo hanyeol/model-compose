@@ -362,7 +362,28 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        raise NotImplementedError("ACE-Step layer generation is not implemented yet.")
+        source = await context.render_audio(self.config.source)
+        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+
+        is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+
+        return (source, prompt, lyrics), is_single_input, is_streaming_input
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        track_class = await context.render_variable(self.config.track_class)
+
+        if track_class:
+            track_class = track_class.replace("-", "_")
+
+        params.update({
+            "track_class": track_class,
+        })
+
+        return params
 
     async def _generate_batch(
         self,
@@ -370,7 +391,33 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        raise NotImplementedError("ACE-Step layer generation is not implemented yet.")
+        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        source_paths = await self._resolve_source_paths(sources)
+
+        def _generate() -> List[PcmStreamResource]:
+            results: List[PcmStreamResource] = []
+
+            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    break
+                generation_params = self._build_generation_params(
+                    prompt, lyrics, params,
+                    task_type="lego",
+                    src_audio=src_path,
+                    extra={
+                        "instruction": self.handler.generate_instruction(
+                            task_type="lego", track_name=params["track_class"],
+                        ),
+                    },
+                )
+                results.append(self._generate_music(generation_params, seed=params["seed"]))
+
+            return results
+
+        try:
+            return await self._run_in_executor(_generate)
+        finally:
+            self._cleanup_source_paths(source_paths)
 
 class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskAction):
     config: AceStepMusicGenerationModelAccompanyActionConfig
@@ -385,7 +432,27 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        raise NotImplementedError("ACE-Step accompany (vocal-to-BGM) is not implemented yet.")
+        vocal  = await context.render_audio(self.config.vocal)
+        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+
+        is_single_input    = not isinstance(vocal, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vocal, prompt))
+
+        return (vocal, prompt), is_single_input, is_streaming_input
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        track_classes = await context.render_variable(self.config.track_classes)
+
+        if track_classes:
+            track_classes = [ track.replace("-", "_") for track in track_classes if track ]
+
+        params.update({
+            "track_classes": track_classes,
+        })
+
+        return params
 
     async def _generate_batch(
         self,
@@ -393,7 +460,33 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        raise NotImplementedError("ACE-Step accompany (vocal-to-BGM) is not implemented yet.")
+        vocals: List[MediaSource] = [ vocal for vocal, _ in batch_input ]
+        source_paths = await self._resolve_source_paths(vocals)
+
+        def _generate() -> List[PcmStreamResource]:
+            results: List[PcmStreamResource] = []
+
+            for (_, prompt), (src_path, _) in zip(batch_input, source_paths):
+                if cancellation_token is not None and cancellation_token.is_cancelled():
+                    break
+                generation_params = self._build_generation_params(
+                    prompt, None, params,
+                    task_type="complete",
+                    src_audio=src_path,
+                    extra={
+                        "instruction": self.handler.generate_instruction(
+                            task_type="complete", complete_track_classes=params["track_classes"],
+                        ),
+                    },
+                )
+                results.append(self._generate_music(generation_params, seed=params["seed"]))
+
+            return results
+
+        try:
+            return await self._run_in_executor(_generate)
+        finally:
+            self._cleanup_source_paths(source_paths)
 
 class AceStepMusicGenerationTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

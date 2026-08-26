@@ -10,7 +10,8 @@ from mindor.core.component.runtime.common import (
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
 )
-from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
+from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
+from mindor.core.component.runtime.base.ipc_stdio_channel import stdio_worker_factory
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.core.foundation.containers.apple_container import AppleContainerOptions
@@ -224,9 +225,9 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
 
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.apple_container`."""
-    channel = IpcStdioChannel()
+    channel = IpcStdioChannel(stdio_worker_factory(ComponentAppleContainerRuntimeWorker))
     channel.setup()
-    channel.run(ComponentAppleContainerRuntimeWorker)
+    channel.run()
 
 
 if __name__ == "__main__":

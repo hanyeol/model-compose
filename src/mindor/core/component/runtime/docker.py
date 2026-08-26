@@ -10,7 +10,8 @@ from mindor.core.component.runtime.common import (
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
 )
-from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
+from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
+from mindor.core.component.runtime.base.ipc_stdio_channel import stdio_worker_factory
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.common import ContainerImageKind
 from mindor.core.foundation.containers.docker import DockerContainerOptions
@@ -228,9 +229,9 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
 
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.docker`."""
-    channel = IpcStdioChannel()
+    channel = IpcStdioChannel(stdio_worker_factory(ComponentDockerRuntimeWorker))
     channel.setup()
-    channel.run(ComponentDockerRuntimeWorker)
+    channel.run()
 
 if __name__ == "__main__":
     main()

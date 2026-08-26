@@ -5,7 +5,8 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import ComponentRuntimeManager, ComponentRuntimeProxy, ComponentRuntimeWorker
-from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType, IpcStartPayload
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.component.runtime.base.ipc_message import IpcStartPayload
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.virtualenv import VirtualEnvRuntime
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel

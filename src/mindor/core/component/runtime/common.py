@@ -7,8 +7,8 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
-from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
-from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
+from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
+from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.runtime.common import ContainerRuntimeBackend, ContainerRuntimeConfig
 from mindor.core.logger import logging
 from mindor.version import __version__

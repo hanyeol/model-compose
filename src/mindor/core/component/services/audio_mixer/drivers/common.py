@@ -69,7 +69,7 @@ class AudioMixerAction(ComponentAction):
 
         if method == AudioMixerActionMethod.OVERLAY:
             audio     = await context.render_audio(self.config.audio)
-            overlay   = await context.render_audio_array(self.config.overlay)
+            overlay   = await context.render_audio_array(self.config.overlay, single_as_array=True)
             placement = await self._render_overlay_placement(context)
 
             is_single_input    = not isinstance(audio, (list, StreamIterator, AsyncIterator))
@@ -171,15 +171,16 @@ class AudioMixerAction(ComponentAction):
     async def _render_overlay_placement(self, context: ComponentActionContext) -> ArrayValue:
         """Resolve the overlay `placement` field into an `ArrayValue` of placements paired with overlays.
 
-        The DSL validator already inflates single-value `placement` into a
-        one-element list, so `self.config.placement` here is always a list
-        whose entries are `AudioOverlayPlacement` instances or template
-        strings. `context.render_array` renders any template refs and wraps
-        the result in an `ArrayValue`; `ArrayValue` isn't seen as iterable by
-        `BatchSourceIterator`, so the placements travel as a single unit
-        alongside the base audio instead of being consumed element-by-element.
+        `self.config.placement` may be a single `AudioOverlayPlacement`, a
+        list of placements, a template string, or a list of template strings.
+        `render_array` with `single_as_array=True` renders any template refs
+        and normalizes single values into a one-element `ArrayValue`, so
+        downstream always sees an iterable of placement entries. `ArrayValue`
+        isn't seen as iterable by `BatchSourceIterator`, so the placements
+        travel as a single unit alongside the base audio instead of being
+        consumed element-by-element.
         """
-        placement = await context.render_array(self.config.placement)
+        placement = await context.render_array(self.config.placement, single_as_array=True)
 
         if placement is None:
             return ArrayValue([ AudioOverlayPlacement() ])

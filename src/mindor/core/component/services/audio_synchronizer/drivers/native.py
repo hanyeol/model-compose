@@ -26,6 +26,7 @@ class NativeAudioSynchronizerAction(AudioSynchronizerAction):
     async def _synchronize_batch(
         self,
         sources: List[MediaArrayValue],
+        params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[Dict[str, Any]]]:
         return await asyncio.gather(*[

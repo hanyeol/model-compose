@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig
 from mindor.dsl.schema.action import MusicSegmentDetectorActionConfig
 from mindor.dsl.schema.action.impl.music_segment_detector.impl.native import NativeMusicSegmentDetectorStrategy
@@ -211,7 +211,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         chroma: np.ndarray,
         sample_rate: int,
         strategy: str,
-    ) -> "tuple[np.ndarray, Optional[np.ndarray]]":
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """Return (boundary_frames_in_chroma_frames, optional_segment_labels).
 
         Both entries are aligned so the i-th segment (between boundary[i] and
@@ -290,7 +290,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         samples: np.ndarray,
         sample_rate: int,
         chroma: np.ndarray,
-    ) -> "tuple[np.ndarray, np.ndarray, np.ndarray]":
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Detect beats and aggregate chroma/MFCC by beat. Returns (beat_frames,
         beat_synced_chroma, beat_synced_mfcc). Beat frames are indexed in the
         same hop grid as `chroma` so callers can map back to time.
@@ -393,11 +393,13 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         # magnitude. Zero-length rows fall back to zeros (won't attract points).
         norms = np.linalg.norm(embedding, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
+
         return embedding / norms
 
     def _cluster_embedding(self, embedding: np.ndarray) -> np.ndarray:
         k = embedding.shape[1]
         raw_labels = self._cluster_kmeans(embedding, k)
+
         return self._majority_smooth(raw_labels, _LABEL_SMOOTHING_WINDOW)
 
     @staticmethod
@@ -411,6 +413,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         import numpy as np
 
         n = len(labels)
+
         if n <= 1 or window <= 1:
             return labels
 

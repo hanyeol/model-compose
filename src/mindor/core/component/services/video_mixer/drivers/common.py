@@ -70,7 +70,7 @@ class VideoMixerAction(ComponentAction):
 
         if method == VideoMixerActionMethod.OVERLAY:
             video     = await context.render_video(self.config.video)
-            overlay   = await context.render_video_array(self.config.overlay)
+            overlay   = await context.render_video_array(self.config.overlay, single_as_array=True)
             placement = await self._render_overlay_placement(context)
 
             is_single_input    = not isinstance(video, (list, StreamIterator, AsyncIterator))
@@ -176,15 +176,16 @@ class VideoMixerAction(ComponentAction):
     async def _render_overlay_placement(self, context: ComponentActionContext) -> ArrayValue:
         """Resolve the overlay `placement` field into an `ArrayValue` of placements paired with overlays.
 
-        The DSL validator already inflates single-value `placement` into a
-        one-element list, so `self.config.placement` here is always a list
-        whose entries are `VideoOverlayPlacement` instances or template
-        strings. `context.render_array` renders any template refs and wraps
-        the result in an `ArrayValue`; `ArrayValue` isn't seen as iterable by
-        `BatchSourceIterator`, so the placements travel as a single unit
-        alongside the base video instead of being consumed element-by-element.
+        `self.config.placement` may be a single `VideoOverlayPlacement`, a
+        list of placements, a template string, or a list of template strings.
+        `render_array` with `single_as_array=True` renders any template refs
+        and normalizes single values into a one-element `ArrayValue`, so
+        downstream always sees an iterable of placement entries. `ArrayValue`
+        isn't seen as iterable by `BatchSourceIterator`, so the placements
+        travel as a single unit alongside the base video instead of being
+        consumed element-by-element.
         """
-        placement = await context.render_array(self.config.placement)
+        placement = await context.render_array(self.config.placement, single_as_array=True)
 
         if placement is None:
             return ArrayValue([ VideoOverlayPlacement() ])

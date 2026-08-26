@@ -43,6 +43,7 @@ ComponentConfig = Annotated[
         RtmpPublisherComponentConfig,
         MediaInspectorComponentConfig,
         MediaDownloaderComponentConfig,
+        SubtitleLoaderComponentConfig,
         AudioExtractorComponentConfig,
         AudioClipperComponentConfig,
         AudioConverterComponentConfig,

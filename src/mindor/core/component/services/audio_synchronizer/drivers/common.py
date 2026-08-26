@@ -19,13 +19,15 @@ class AudioSynchronizerAction(ComponentAction):
         sources    = await context.render_media_array(self.config.sources, single_as_array=True)
         batch_size = await context.render_variable(self.config.batch_size)
 
+        params = await self._resolve_params(context)
+
         is_single_input  = isinstance(sources, MediaArrayValue) and sources.is_single
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(sources, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_sources in BatchSourceIterator(sources, batch_size=batch_size or 1):
-                    batch_results = await self._synchronize_batch(batch_sources, context.cancellation_token)
+                    batch_results = await self._synchronize_batch(batch_sources, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
@@ -33,7 +35,7 @@ class AudioSynchronizerAction(ComponentAction):
         else:
             results: List[List[Dict[str, Any]]] = []
             async for batch_sources in BatchSourceIterator(sources, batch_size=batch_size or 1):
-                batch_results = await self._synchronize_batch(batch_sources, context.cancellation_token)
+                batch_results = await self._synchronize_batch(batch_sources, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -41,10 +43,14 @@ class AudioSynchronizerAction(ComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
+
     @abstractmethod
     async def _synchronize_batch(
         self,
         sources: List[MediaArrayValue],
+        params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[Dict[str, Any]]]:
         pass

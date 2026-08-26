@@ -14,15 +14,6 @@ from .common import AudioSilenceDetectorAction
 import asyncio, os, re
 
 class FFmpegAudioSilenceDetectorAction(AudioSilenceDetectorAction):
-    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        silence_threshold    = await context.render_scalar(self.config.silence_threshold, float)
-        min_silence_duration = await context.render_scalar(self.config.min_silence_duration, "time")
-
-        return {
-            "silence_threshold":    silence_threshold,
-            "min_silence_duration": min_silence_duration,
-        }
-
     async def _detect_batch(
         self,
         audios: List[MediaSource],

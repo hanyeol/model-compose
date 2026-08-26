@@ -45,7 +45,13 @@ class AudioSilenceDetectorAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        return {}
+        silence_threshold    = await context.render_scalar(self.config.silence_threshold, float)
+        min_silence_duration = await context.render_scalar(self.config.min_silence_duration, "time")
+
+        return {
+            "silence_threshold":    silence_threshold,
+            "min_silence_duration": min_silence_duration,
+        }
 
     @abstractmethod
     async def _detect_batch(

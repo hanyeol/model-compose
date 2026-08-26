@@ -39,6 +39,7 @@ from .video_capture import *
 from .rtmp_publisher import *
 from .media_inspector import *
 from .media_downloader import *
+from .subtitle_loader import *
 from .audio_extractor import *
 from .audio_clipper import *
 from .audio_converter import *

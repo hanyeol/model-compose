@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Literal, Optional, List, Any
+from typing import Union, Literal, Optional, List
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from ...common import CommonActionConfig
@@ -61,29 +61,8 @@ class VideoMixerConcatActionConfig(CommonVideoMixerActionConfig):
 
 class VideoMixerOverlayActionConfig(CommonVideoMixerActionConfig):
     method: Literal[VideoMixerActionMethod.OVERLAY]
-    video: Union[str, List[str]] = Field(..., description="Base video the overlays are composited on. A list runs one output per base.")
-    overlay: List[str] = Field(..., description="Overlay videos composited on top of the base, stacked in list order.")
-    placement: Union[List[VideoOverlayPlacement], VideoOverlayPlacement, List[str]] = Field(default_factory=lambda: [ VideoOverlayPlacement() ], description="Placement per overlay. A single object broadcasts to every overlay; a list matches overlays by position.")
+    video: Union[List[str], str] = Field(..., description="Base video the overlays are composited on. A list runs one output per base.")
+    overlay: Union[List[str], str] = Field(..., description="Overlay videos composited on top of the base, stacked in list order.")
+    placement: Union[VideoOverlayPlacement, List[VideoOverlayPlacement], List[str], str] = Field(default_factory=VideoOverlayPlacement, description="Placement per overlay. A single object broadcasts to every overlay; a list matches overlays by position.")
     audio_mode: Union[VideoMixerOverlayAudioMode, str] = Field(default=VideoMixerOverlayAudioMode.BASE, description="Audio track policy for the mixed output.")
     duration_mode: Union[VideoMixerOverlayDurationMode, str] = Field(default=VideoMixerOverlayDurationMode.BASE, description="Output duration policy relative to the base and overlays.")
-
-    @model_validator(mode="before")
-    @classmethod
-    def inflate_single_overlay(cls, values: Any) -> Any:
-        # Normalize `overlay` and `placement` into lists so downstream always sees
-        # paired lists. A single str `overlay` becomes `[overlay]`; a single
-        # placement dict/object becomes `[placement]`. Template refs (str for
-        # placement) are handled at render time.
-        if not isinstance(values, dict):
-            return values
-
-        overlay   = values.get("overlay")
-        placement = values.get("placement")
-
-        if isinstance(overlay, str):
-            values["overlay"] = [ overlay ]
-
-        if isinstance(placement, (dict, str)):
-            values["placement"] = [ placement ]
-
-        return values

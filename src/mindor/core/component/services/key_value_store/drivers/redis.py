@@ -41,9 +41,10 @@ class RedisKeyValueStoreAction(KeyValueStoreAction):
         values = [ self._encode_value(value) for value in values ]
 
         if params["ttl"] is not None:
+            ttl_seconds = max(1, int(params["ttl"]))
             async with self.client.pipeline(transaction=False) as p:
                 for key, value in zip(keys, values):
-                    p.setex(key, params["ttl"], value)
+                    p.setex(key, ttl_seconds, value)
                 results = await p.execute()
         else:
             result = await self.client.mset(dict(zip(keys, values)))

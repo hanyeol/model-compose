@@ -274,7 +274,7 @@ class SQLiteSearchEngineService(SearchEngineService):
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
 
-        self.database = await aiosqlite.connect(database_path)
+        self.database = await aiosqlite.connect(database_path, isolation_level=None)
         self.database.row_factory = sqlite3.Row
 
         # WAL improves read/write concurrency for the single shared connection.

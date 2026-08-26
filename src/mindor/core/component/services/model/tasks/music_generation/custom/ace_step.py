@@ -403,10 +403,18 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         ]
 
         if self.config.thinking_model:
-            # nano-vllm powers the 5Hz thinking LM. flash-attn is intentionally omitted:
-            # its wheel is pinned to cu128/torch2.10/cp312/linux_x86_64, and nano-vllm
-            # falls back to SDPA when it isn't installed.
-            requirements.append("nano-vllm@git+https://github.com/GeeeekExplorer/nano-vllm.git")
+            # nano-vllm powers the 5Hz thinking LM. Install ACE-Step's vendored fork, not
+            # upstream nano-vllm: the 5Hz LM checkpoint stores flat Qwen3Model weight names
+            # (embed_tokens.weight, layers.*, norm.weight) and only the fork's loader maps
+            # them onto Qwen3ForCausalLM — upstream fails with
+            # "Qwen3ForCausalLM has no attribute `embed_tokens`". It must be installed after
+            # ace-step, whose own `nano-vllm` dependency would otherwise pull in upstream.
+            # flash-attn is intentionally omitted: its wheel is pinned to
+            # cu128/torch2.10/cp312/linux_x86_64, and nano-vllm falls back to SDPA when it
+            # isn't installed.
+            requirements.append(
+                "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm"
+            )
 
         return requirements
 

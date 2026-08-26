@@ -23,7 +23,7 @@ from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import MusicGenerationTaskAction
-import os
+import os, sys, platform
 
 if TYPE_CHECKING:
     from acestep.handler import AceStepHandler
@@ -403,20 +403,39 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         self.llm_handler: Optional[LLMHandler] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [
-            "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
-            "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
-            "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
-            # Install the vendored nano-vllm fork before ace-step: pip ignores ace-step's
-            # [tool.uv.sources] override and would otherwise fail to find `nano-vllm` on PyPI.
-            # The fork (not upstream) is required — it maps the 5Hz LM checkpoint's flat
-            # Qwen3Model weight names onto Qwen3ForCausalLM. flash-attn is omitted; its wheel
-            # is pinned to cu128/torch2.10/cp312/linux_x86_64 and nano-vllm falls back to SDPA.
-            "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
+        requirements: List[str] = []
+
+        # Pre-install packages that ace-step pulls from custom sources: pip ignores its
+        # [tool.uv.sources] overrides, so any source-routed dependency must be resolved
+        # here before ace-step itself is processed. On macOS these come from plain PyPI
+        # (torch MPS build) or are excluded by marker (nano-vllm), so no pre-install needed.
+        if sys.platform == "linux" and platform.machine() == "x86_64":
+            requirements += [
+                "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+                "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+                "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
+                # The vendored fork (not upstream nano-vllm) is required — it maps the 5Hz
+                # LM checkpoint's flat Qwen3Model weight names onto Qwen3ForCausalLM.
+                # flash-attn is omitted; its wheel is pinned to cu128/torch2.10/cp312/
+                # linux_x86_64 and nano-vllm falls back to SDPA.
+                "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
+            ]
+
+        # ace-step ships an mlx backend for the 5Hz LM on Apple Silicon; without mlx-lm
+        # it silently falls back to PyTorch/MPS, which is much slower for LM inference.
+        if sys.platform == "darwin" and platform.machine() == "arm64":
+            requirements += [
+                "mlx>=0.25.2",
+                "mlx-lm>=0.20.0",
+            ]
+
+        requirements += [
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
             "numpy",
             "soundfile",
         ]
+
+        return requirements
 
     async def _load_model(self) -> None:
         if isinstance(self.config.model, HuggingfaceModelConfig):

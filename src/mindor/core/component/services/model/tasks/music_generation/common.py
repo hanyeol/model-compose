@@ -47,7 +47,7 @@ class MusicGenerationTaskAction(ComponentAction):
         duration  = await context.render_variable(self.config.params.duration)
         bpm       = await context.render_variable(self.config.params.bpm)
         key_scale = await context.render_variable(self.config.params.key_scale)
-        seed      = await context.render_variable(self.config.seed)
+        seed      = await context.render_scalar(self.config.seed, int)
 
         return {
             "duration":  duration,

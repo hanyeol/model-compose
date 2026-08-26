@@ -90,7 +90,6 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             timesignature=params["time_signature"] or "",
             inference_steps=int(params["inference_steps"]),
             guidance_scale=float(params["guidance_scale"]),
-            seed=int(params["seed"]) if params["seed"] is not None else -1,
             src_audio=src_audio or None,
             thinking="codes" in self.thinking_scope,
             use_cot_metas="metas" in self.thinking_scope,
@@ -103,14 +102,19 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
 
         return generation_params
 
-    def _generate_music(self, generation_params: Any) -> "PcmStreamResource":
+    def _generate_music(self, generation_params: Any, seed: Optional[int] = None) -> "PcmStreamResource":
         from acestep.inference import generate_music, GenerationConfig
 
         result = generate_music(
             dit_handler=self.handler,
             llm_handler=self.llm_handler,
             params=generation_params,
-            config=GenerationConfig(batch_size=1, audio_format="wav"),
+            config=GenerationConfig(
+                batch_size=1,
+                audio_format="wav",
+                seeds=[ seed ] if seed is not None else None,
+                use_random_seed=bool(seed is None),
+            ),
         )
 
         if not result.success:
@@ -168,7 +172,7 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(prompt, lyrics, params, task_type="text2music")
-                results.append(self._generate_music(generation_params))
+                results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
 
@@ -216,7 +220,7 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
                     task_type="cover",
                     src_audio=src_path,
                 )
-                results.append(self._generate_music(generation_params))
+                results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
 
@@ -279,7 +283,7 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
                         "repainting_end":   float(params["end_time"]),
                     },
                 )
-                results.append(self._generate_music(generation_params))
+                results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
 
@@ -330,7 +334,7 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
                     task_type="complete",
                     src_audio=src_path,
                 )
-                results.append(self._generate_music(generation_params))
+                results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
 
@@ -412,9 +416,7 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
             # flash-attn is intentionally omitted: its wheel is pinned to
             # cu128/torch2.10/cp312/linux_x86_64, and nano-vllm falls back to SDPA when it
             # isn't installed.
-            requirements.append(
-                "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm"
-            )
+            requirements.append("nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm")
 
         return requirements
 

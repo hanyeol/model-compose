@@ -407,22 +407,24 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
             "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
+            # nano-vllm powers the 5Hz thinking LM, and ace-step depends on it unconditionally
+            # on every non-macOS platform. Its pyproject resolves that dependency through
+            # [tool.uv.sources] to a vendored copy, which pip ignores — pip looks for `nano-vllm`
+            # on PyPI, where it does not exist, and the ace-step install fails outright. So the
+            # vendored fork must be installed *before* ace-step: once it is present, pip treats
+            # ace-step's unpinned `nano-vllm` requirement as already satisfied.
+            # The fork is also required rather than merely convenient: the 5Hz LM checkpoint
+            # stores flat Qwen3Model weight names (embed_tokens.weight, layers.*, norm.weight)
+            # and only the fork's loader maps them onto Qwen3ForCausalLM — upstream fails with
+            # "Qwen3ForCausalLM has no attribute `embed_tokens`".
+            # flash-attn is intentionally omitted: its wheel is pinned to
+            # cu128/torch2.10/cp312/linux_x86_64, and nano-vllm falls back to SDPA when it
+            # isn't installed.
+            "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
             "numpy",
             "soundfile",
         ]
-
-        if self.config.thinking_model:
-            # nano-vllm powers the 5Hz thinking LM. Install ACE-Step's vendored fork, not
-            # upstream nano-vllm: the 5Hz LM checkpoint stores flat Qwen3Model weight names
-            # (embed_tokens.weight, layers.*, norm.weight) and only the fork's loader maps
-            # them onto Qwen3ForCausalLM — upstream fails with
-            # "Qwen3ForCausalLM has no attribute `embed_tokens`". It must be installed after
-            # ace-step, whose own `nano-vllm` dependency would otherwise pull in upstream.
-            # flash-attn is intentionally omitted: its wheel is pinned to
-            # cu128/torch2.10/cp312/linux_x86_64, and nano-vllm falls back to SDPA when it
-            # isn't installed.
-            requirements.append("nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm")
 
         return requirements
 

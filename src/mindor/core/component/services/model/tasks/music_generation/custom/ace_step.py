@@ -403,7 +403,7 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         self.llm_handler: Optional[LLMHandler] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        requirements = [
+        return [
             "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
             "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
@@ -417,8 +417,6 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
             "numpy",
             "soundfile",
         ]
-
-        return requirements
 
     async def _load_model(self) -> None:
         if isinstance(self.config.model, HuggingfaceModelConfig):

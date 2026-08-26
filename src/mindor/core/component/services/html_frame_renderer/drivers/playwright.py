@@ -31,7 +31,14 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         fps           = params["fps"]
         width         = params["width"]
         height        = params["height"]
+        format        = params["format"]
+        quality       = params["quality"]
         ready_timeout = params["ready_timeout"]
+
+        screenshot_params: Dict[str, Any] = { "type": format }
+
+        if format == "jpeg" and quality is not None:
+            screenshot_params["quality"] = quality
 
         await self._page.set_viewport_size({"width": width, "height": height})
         await self._page.expose_binding("__renderer_ready", lambda source, t: self._frame_ready.put_nowait(t))
@@ -73,7 +80,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             else:
                 await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
 
-            image = await load_image_from_bytes(await self._page.screenshot(type="png"))
+            image = await load_image_from_bytes(await self._page.screenshot(**screenshot_params))
             yield image, timestamp
 
     async def close(self) -> None:

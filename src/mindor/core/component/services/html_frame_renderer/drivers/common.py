@@ -98,6 +98,8 @@ class HtmlFrameRendererAction(ComponentAction):
         fps             = await context.render_scalar(self.config.fps, float)
         width           = await context.render_scalar(self.config.width, int)
         height          = await context.render_scalar(self.config.height, int)
+        format          = await context.render_scalar(self.config.format, str)
+        quality         = await context.render_scalar(self.config.quality, int) if self.config.quality is not None else None
         ready_timeout   = await context.render_scalar(self.config.ready_timeout, "time")
         filename_format = await context.render_variable(self.config.filename_format)
 
@@ -107,10 +109,15 @@ class HtmlFrameRendererAction(ComponentAction):
         if width <= 0 or height <= 0:
             raise ValueError(f"'width' and 'height' must be > 0, got {width}x{height}")
 
+        if format not in ("jpeg", "png"):
+            raise ValueError(f"'format' must be 'jpeg' or 'png', got {format!r}")
+
         return {
             "fps":             fps,
             "width":           width,
             "height":          height,
+            "format":          format,
+            "quality":         quality,
             "ready_timeout":   ready_timeout,
             "filename_format": filename_format,
         }

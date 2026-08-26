@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -82,6 +82,7 @@ Model-compose supports the following component types:
 | `audio-mixer` | Combine multiple audios into one — concat (join end-to-end) or overlay (layer with per-overlay timing, gain, pan, fade) via ffmpeg | [audio-mixer.md](components/audio-mixer.md) |
 | `media-inspector` | Read audio/video/image metadata (format, streams, EXIF) via ffprobe or exiftool | [media-inspector.md](components/media-inspector.md) |
 | `media-downloader` | Download audio or video from a URL (YouTube, Vimeo, etc.) via yt-dlp | [media-downloader.md](components/media-downloader.md) |
+| `subtitle-loader` | Load subtitles from a URL (yt-dlp) or parse a local file / upload / raw text into segments | [subtitle-loader.md](components/subtitle-loader.md) |
 | `web-scraper` | Web page scraping with CSS/XPath | [web-scraper.md](components/web-scraper.md) |
 | `web-browser` | Browser automation via Chrome DevTools Protocol | [web-browser.md](components/web-browser.md) |
 | `screen-capture` | Live screen, region, or window capture with system/microphone audio as continuous streams | [screen-capture.md](components/screen-capture.md) |

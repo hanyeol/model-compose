@@ -54,6 +54,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
 | `media-downloader` | Download media from URL | Fetch audio or video from YouTube, Vimeo, etc. via yt-dlp; returns a stream ready for downstream processing |
+| `subtitle-loader` | Load subtitles | Fetch subtitles from a URL (yt-dlp) or parse a local file / upload / raw text into segments with start/end/duration/text |
 | `web-scraper` | Scrape web pages | Extract data from websites using CSS/XPath |
 | `web-browser` | Browser automation | Full browser control via Chrome DevTools Protocol |
 | `screen-capture` | Capture local screen and audio | Live desktop, region, window, or microphone/system audio as continuous encoded streams |
@@ -100,6 +101,7 @@ model-compose provides various component types for performing different tasks.
 - Silence detection (locate silent regions for trimming or splitting) → `audio-silence-detector`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`
+- Subtitle loading (fetch from URL via yt-dlp, or parse local file / upload / raw text) → `subtitle-loader`
 - Web scraping → `web-scraper`
 
 **Browser Automation**

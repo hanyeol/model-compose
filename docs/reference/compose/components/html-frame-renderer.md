@@ -40,6 +40,8 @@ component:
 | `fps` | integer \| float | `30` | Output frame rate in frames per second |
 | `width` | integer | `1920` | Rendering viewport width in CSS pixels |
 | `height` | integer | `1080` | Rendering viewport height in CSS pixels |
+| `format` | string | `jpeg` | Image format of the captured frames (`jpeg` or `png`) |
+| `quality` | integer | `null` | JPEG quality from 0 to 100; applies only when `format` is `jpeg` |
 | `ready_timeout` | string | `30s` | Maximum time to wait for `window.__renderer.seek` to appear on the page |
 | `filename_format` | string | `null` | Per-frame filename pattern (e.g. `frame-%04d.png`); when set, each frame includes a `filename` key |
 | `batch_size` | integer | `null` | Number of input HTMLs processed per batch when `html` is a list or stream |

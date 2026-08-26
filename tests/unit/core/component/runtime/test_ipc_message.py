@@ -21,17 +21,17 @@ class TestIpcMessageType:
         assert IpcMessageType.EVENT.value == "event"
 
     def test_stream_members(self):
-        assert IpcMessageType.STREAM_PULL.value == "stream_pull"
-        assert IpcMessageType.STREAM_CHUNK.value == "stream_chunk"
-        assert IpcMessageType.STREAM_END.value == "stream_end"
-        assert IpcMessageType.STREAM_ABORT.value == "stream_abort"
-        assert IpcMessageType.STREAM_CLOSE.value == "stream_close"
+        assert IpcMessageType.STREAM_PULL.value == "stream-pull"
+        assert IpcMessageType.STREAM_CHUNK.value == "stream-chunk"
+        assert IpcMessageType.STREAM_END.value == "stream-end"
+        assert IpcMessageType.STREAM_ABORT.value == "stream-abort"
+        assert IpcMessageType.STREAM_CLOSE.value == "stream-close"
 
     def test_string_enum_roundtrip(self):
         # str-Enum: equality with raw value and from-value reconstruction.
         assert IpcMessageType.RUN == "run"
         assert IpcMessageType("run") is IpcMessageType.RUN
-        assert IpcMessageType("stream_pull") is IpcMessageType.STREAM_PULL
+        assert IpcMessageType("stream-pull") is IpcMessageType.STREAM_PULL
 
 
 class TestIpcMessage:

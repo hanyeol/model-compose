@@ -26,6 +26,8 @@ class ChatCompletionModelActionConfig(CommonModelActionConfig):
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens accepted per input message.")
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens generated; unset uses the model or backend's configured limit.")
     min_output_length: Union[int, str] = Field(default=1, description="Minimum number of tokens generated before generation may stop.")
+    num_return_sequences: Union[int, str] = Field(default=1, description="Number of generated sequences returned per input.")
+    stop_sequences: Optional[Union[str, List[str]]] = Field(default=None, description="Sequences that terminate generation when produced.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input messages processed per batch.")
     streaming: Union[bool, str] = Field(default=False, description="Whether generated tokens are emitted incrementally as they are produced.")
     params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Sampling and decoding parameters used for chat completion.")

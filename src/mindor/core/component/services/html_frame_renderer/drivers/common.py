@@ -34,7 +34,7 @@ class HtmlFrameRendererSession(ABC):
         close it here. `params` carries the shared render options resolved by
         `HtmlFrameRendererAction` (`fps`, `width`, `height`, `ready_timeout`).
         """
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     async def close(self) -> None:

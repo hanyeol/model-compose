@@ -445,7 +445,7 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         handler.initialize_service(
             project_root=model_path,
             config_path=self.config.preset,
-            device=self._resolve_device(self.config.device).type,
+            device=str(self._resolve_device(self.config.device)),
         )
 
         if self.config.precision is not None:

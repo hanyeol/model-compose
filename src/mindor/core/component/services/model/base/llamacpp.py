@@ -42,8 +42,11 @@ class LlamaCppModelTaskService(ModelTaskService):
     def _get_model_options(self, config: BaseModel) -> Dict[str, Any]:
         options: Dict[str, Any] = {}
 
-        if self._resolve_device(self.config.device).type != "cpu":
+        device = self._resolve_device(self.config.device)
+        if device.type != "cpu":
             options["n_gpu_layers"] = -1
+            if device.index is not None:
+                options["main_gpu"] = device.index
 
         engine_options = getattr(config, "options", None)
 

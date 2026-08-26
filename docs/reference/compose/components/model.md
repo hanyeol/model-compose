@@ -1352,35 +1352,44 @@ action:
 
 #### `method: layer`
 
-Add a new instrument or part on top of the source, keeping the existing mix underneath.
+Add a new instrument or part on top of the source, keeping the existing mix underneath. `track_class` selects which stem to generate.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `source` | string | **required** | Path or URL of the source audio to layer a new track on top of |
-| `prompt` | string/array | **required** | Text description of the layer to add (e.g., instrument, part) |
+| `track_class` | string | **required** | Stem to generate on top of the source (see stem values below) |
+| `prompt` | string/array | `null` | Text description guiding the added layer |
+| `lyrics` | string/array | `null` | Optional lyrics when the added layer is vocals |
 
 ```yaml
 action:
   method: layer
   source: ${input.source}
+  track_class: drums
   prompt: "punchy 808 kick and hi-hat pattern"
 ```
 
 #### `method: accompany`
 
-Generate an instrumental accompaniment that matches a vocal-only source.
+Generate an instrumental accompaniment that matches a vocal-only source. `track_classes` lists which stems to fill in.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `vocal` | string | **required** | Path or URL of the vocal-only audio to generate accompaniment for |
+| `track_classes` | string[] | **required** | Stem classes to fill in as accompaniment (min length 1; see stem values below) |
 | `prompt` | string/array | `null` | Text description of the desired accompaniment style |
 
 ```yaml
 action:
   method: accompany
   vocal: ${input.vocal}
+  track_classes: [ keyboard, bass, drums ]
   prompt: "sparse piano ballad, matches the vocal phrasing"
 ```
+
+**Stem values (`track_class` / `track_classes`):**
+
+`woodwinds`, `brass`, `fx`, `synth`, `strings`, `percussion`, `keyboard`, `guitar`, `bass`, `drums`, `backing-vocals`, `vocals`.
 
 **Full Example:**
 

@@ -871,8 +871,8 @@ component:
 | `cover` | Cover an existing track in a new style | `source`, `prompt` (optional `lyrics`) |
 | `rewrite` | Regenerate a specific `[start_time, end_time]` region | `source`, `start_time`, `end_time`, `prompt` (optional `lyrics`) |
 | `extend` | Continue the source past its natural end | `source`, `prompt` (optional `lyrics`) |
-| `layer` | Add a new instrument or part on top of the source | `source`, `prompt` |
-| `accompany` | Generate accompaniment for a vocal-only source | `vocal` (optional `prompt`) |
+| `layer` | Add a new instrument or part on top of the source | `source`, `track_class` (optional `prompt`, `lyrics`) |
+| `accompany` | Generate accompaniment for a vocal-only source | `vocal`, `track_classes` (optional `prompt`) |
 
 **Supported families and presets:**
 - `ace-step`

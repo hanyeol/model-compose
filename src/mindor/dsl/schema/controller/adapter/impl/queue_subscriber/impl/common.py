@@ -14,6 +14,10 @@ class CommonQueueSubscriberControllerAdapterConfig(BaseModel):
     max_concurrent_count: int = Field(default=1, ge=1, description="Maximum concurrent tasks this worker processes.")
     worker_id: Optional[str] = Field(default=None, description="Unique identifier of the worker instance; auto-generated when unset.")
     workflows: Optional[List[str]] = Field(default=None, description="IDs of workflows this worker is allowed to run.")
+    max_blob_size: Optional[Union[str, int]] = Field(default="50M", description="Maximum size of a single binary payload transferred through the queue.")
+    blob_ttl: Optional[Union[str, int, float]] = Field(default=None, description="Time-to-live applied to queue blob entries.")
+    inline_bytes_threshold: Union[str, int] = Field(default="64KB", description="Bytes payloads up to this size are inlined as base64; larger payloads are offloaded to blob keys.")
+    max_stream_length: Optional[int] = Field(default=None, ge=1, description="Optional Redis stream MAXLEN cap; older chunks are trimmed when set.")
 
     @model_validator(mode="before")
     def inflate_single_workflow(cls, values: Dict[str, Any]):

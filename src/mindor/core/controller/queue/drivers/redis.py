@@ -1,72 +1,23 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriver
-from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
-from ..serialize import serialize_input
-from mindor.core.utils.compat.asyncio import async_timeout
+from mindor.core.foundation.variable.codec import VariableCodec
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.variable.size import parse_size
+from mindor.core.utils.compat.asyncio import async_timeout
 from mindor.core.logger import logging
+from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
+from ..codec import QueueCodec, RedisStreamMeta
+from ..stream import RedisInboundStream, RedisOutboundStream
 import asyncio, json, ulid
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
     from redis.asyncio.client import PubSub
 
-class RedisStreamIterator:
-    def __init__(self, client, stream_key: str, timeout: Optional[float]):
-        self.client = client
-        self.stream_key = stream_key
-        self.timeout = timeout
-
-        self._last_id = "0-0"
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        async with async_timeout(self.timeout):
-            while True:
-                entry = await self._read_entry()
-
-                if entry is None:
-                    continue
-
-                return self._handle_entry(entry)
-
-    async def _read_entry(self):
-        entries = await self.client.xread({ self.stream_key: self._last_id }, count=1, block=5000)
-
-        if entries:
-            entry_id, fields = entries[0][1][0]
-            self._last_id = entry_id
-
-            return self._decode_fields(fields)
-
-        return None
-
-    def _handle_entry(self, fields: dict):
-        event = fields.get("event")
-
-        if event == "chunk":
-            data = fields.get("data", "")
-            try:
-                return json.loads(data)
-            except (json.JSONDecodeError, TypeError):
-                return data
-
-        if event == "done":
-            raise StopAsyncIteration
-
-        if event == "error":
-            raise RuntimeError(fields.get("data", "Unknown streaming error"))
-
-    def _decode_fields(self, fields: dict) -> dict:
-        def _decode(value):
-            return value.decode("utf-8") if isinstance(value, bytes) else value
-        return { _decode(key): _decode(value) for key, value in fields.items() }
+_PROTOCOL_VERSION = "queue.v2"
 
 @register_controller_queue_service(ControllerQueueDriver.REDIS)
 class RedisControllerQueueService(CommonControllerQueueService):
@@ -78,9 +29,11 @@ class RedisControllerQueueService(CommonControllerQueueService):
         self._timeout: Optional[float] = None
         self._blob_ttl: int = 0
         self._max_blob_size: Optional[int] = None
+        self._inline_bytes_threshold: int = 0
+        self._max_stream_length: Optional[int] = None
 
     def _get_setup_requirements(self):
-        return [ "redis>=5.0.0" ]
+        return ["redis>=5.0.0"]
 
     async def _start(self) -> None:
         import redis.asyncio as aioredis
@@ -95,6 +48,8 @@ class RedisControllerQueueService(CommonControllerQueueService):
         self._timeout = self._resolve_timeout()
         self._blob_ttl = self._resolve_blob_ttl()
         self._max_blob_size = self._resolve_max_blob_size()
+        self._inline_bytes_threshold = int(parse_size(self.config.inline_bytes_threshold))
+        self._max_stream_length = self.config.max_stream_length
 
         await super()._start()
 
@@ -110,40 +65,82 @@ class RedisControllerQueueService(CommonControllerQueueService):
         task_id: str,
         workflow_id: str,
         input: Dict[str, Any],
-        on_interrupt: InterruptCallback
+        on_interrupt: InterruptCallback,
     ) -> Any:
         run_id = ulid.ulid()
-        queue_key  = f"{self.config.name}:{workflow_id}"
-        result_key = f"{queue_key}:{run_id}"
-        resume_key = f"{result_key}:resume"
+        queue_key   = f"{self.config.name}:{workflow_id}"
+        result_key  = f"{queue_key}:{run_id}"
+        resume_key  = f"{result_key}:resume"
         blob_prefix = f"{queue_key}:{run_id}:blob:"
+        in_stream_prefix = f"{queue_key}:{run_id}:instream:"
+        out_stream_prefix = f"{queue_key}:{run_id}:outstream:"
+
+        # Codec for encoding input; stream markers get instream:* keys.
+        input_codec = QueueCodec(
+            client=self.client,
+            blob_prefix=blob_prefix,
+            stream_prefix=in_stream_prefix,
+            blob_ttl=self._blob_ttl,
+            result_ttl=self._blob_ttl,
+            inline_bytes_threshold=self._inline_bytes_threshold,
+            max_blob_size=self._max_blob_size,
+        )
+
+        # Codec for decoding output; stream markers materialize as RedisInboundStream-backed resources.
+        output_codec = QueueCodec(
+            client=self.client,
+            blob_prefix=blob_prefix,
+            stream_prefix=out_stream_prefix,
+            blob_ttl=self._blob_ttl,
+            result_ttl=self._blob_ttl,
+            inline_bytes_threshold=self._inline_bytes_threshold,
+            max_blob_size=self._max_blob_size,
+            stream_factory=self._create_stream_factory(),
+        )
 
         blob_keys: List[str] = []
+        producer_tasks: List[asyncio.Task] = []
         pubsub = None
 
         try:
-            serialized_input, blob_keys = await serialize_input(
-                input,
-                self.client,
-                blob_prefix,
-                ttl_seconds=self._blob_ttl,
-                max_blob_size=self._max_blob_size,
-            )
+            input, blob_keys, streams_meta = await input_codec.encode_input(input)
+
+            # Spawn XADD producers for any streams that flow into the worker.
+            for stream_id, meta_dict in streams_meta.items():
+                meta = RedisStreamMeta(
+                    stream_id=stream_id,
+                    kind=meta_dict["kind"],
+                    content_type=meta_dict.get("content_type"),
+                    filename=meta_dict.get("filename"),
+                    size=meta_dict.get("size"),
+                    attrs=meta_dict.get("attrs"),
+                    stream_key=meta_dict["stream_key"],
+                )
+                producer_tasks.append(
+                    asyncio.create_task(self._publish_stream(meta, meta_dict["source"]))
+                )
+
             message = json.dumps({
+                "protocol": _PROTOCOL_VERSION,
                 "task_id": task_id,
                 "run_id": run_id,
-                "input": serialized_input,
+                "input": input,
+                "streams": { stream_id: self._serialize_meta(meta_dict) for stream_id, meta_dict in streams_meta.items() },
             })
 
             pubsub = self.client.pubsub()
             await pubsub.subscribe(result_key)
             await self.client.lpush(queue_key, message)
         except BaseException:
+            for task in producer_tasks:
+                task.cancel()
+
             if blob_keys:
                 try:
                     await self.client.delete(*blob_keys)
                 except BaseException as e:
-                    logging.warning("Failed to cleanup blob keys (%d keys): %s", len(blob_keys), e)
+                    logging.warning("Failed to cleanup blob keys (%d): %s", len(blob_keys), e)
+
             if pubsub is not None:
                 try:
                     await pubsub.unsubscribe(result_key)
@@ -159,19 +156,20 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
                 if status == "interrupted" and on_interrupt:
                     answer = await on_interrupt(result.get("interrupt", {}))
-                    await self.client.publish(resume_key, json.dumps({ "answer": answer }, default=str))
+                    await self.client.publish(resume_key, json.dumps({"answer": answer}, default=str))
                     continue
-
-                if status == "streaming":
-                    stream_key = result.get("stream_key")
-                    return RedisStreamIterator(self.client, stream_key, self._timeout)
 
                 if status == "failed":
                     raise RuntimeError(result.get("error", "Unknown error from queue worker"))
 
-                return result.get("output")
+                # `completed` or `streaming` — both carry an encoded `output` tree.
+                output = await output_codec.decode_output(result.get("output"), result.get("streams") or {})
+
+                return output
         except TimeoutError:
-            raise TimeoutError(f"Queue dispatch timed out after {self.config.timeout} waiting for result") from None
+            raise TimeoutError(
+                f"Queue dispatch timed out after {self.config.timeout} waiting for result"
+            ) from None
         finally:
             try:
                 await pubsub.unsubscribe(result_key)
@@ -179,9 +177,45 @@ class RedisControllerQueueService(CommonControllerQueueService):
             except asyncio.CancelledError:
                 pass
 
+            for task in producer_tasks:
+                if not task.done():
+                    task.cancel()
+
     async def _cancel(self, task_id: str) -> None:
         cancel_key = f"{self.config.name}:cancel"
-        await self.client.publish(cancel_key, json.dumps({ "task_id": task_id }))
+        await self.client.publish(cancel_key, json.dumps({"task_id": task_id}))
+
+    async def _publish_stream(self, meta: RedisStreamMeta, source: Any) -> None:
+        """Publish chunks from `source` to the Redis stream identified by `meta`."""
+        stream = RedisOutboundStream(
+            client=self.client,
+            meta=meta,
+            codec=VariableCodec(),
+            inline_bytes_threshold=self._inline_bytes_threshold,
+            blob_ttl=self._blob_ttl,
+            max_stream_length=self._max_stream_length,
+        )
+
+        try:
+            async for chunk in source:
+                await stream.push_chunk(chunk)
+            await stream.push_end()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            try:
+                await stream.push_abort(str(e))
+            except Exception:  # pragma: no cover - best effort
+                pass
+
+    def _create_stream_factory(self):
+        codec = VariableCodec()
+
+        def factory(meta: RedisStreamMeta):
+            stream = RedisInboundStream(client=self.client, meta=meta, codec=codec)
+            return stream.build_resource()
+
+        return factory
 
     def _build_redis_url(self) -> str:
         if not self.config.url:
@@ -192,10 +226,10 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
     def _resolve_timeout(self) -> Optional[float]:
         timeout = parse_time(self.config.timeout)
-        
+
         if timeout > 0:
             return timeout
-        
+
         return None
 
     def _resolve_blob_ttl(self) -> int:
@@ -210,10 +244,15 @@ class RedisControllerQueueService(CommonControllerQueueService):
 
         return None
 
-    async def _wait_for_message(self, pubsub: PubSub) -> Dict[str, Any]:
+    async def _wait_for_message(self, pubsub: "PubSub") -> Dict[str, Any]:
         async with async_timeout(self._timeout):
             async for message in pubsub.listen():
                 if message["type"] != "message":
                     continue
 
                 return json.loads(message["data"])
+
+    @staticmethod
+    def _serialize_meta(meta_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Strip local-only fields (source) before shipping meta in the queue message."""
+        return { key: value for key, value in meta_dict.items() if key != "source" }

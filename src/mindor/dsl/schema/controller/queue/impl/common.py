@@ -11,3 +11,5 @@ class CommonControllerQueueConfig(BaseModel):
     timeout: Union[str, int, float] = Field(default="0s", description="Maximum seconds to wait for a queue result before failing; '0s' waits indefinitely.")
     max_blob_size: Optional[Union[str, int]] = Field(default="50M", description="Maximum size of a single binary payload transferred through the queue.")
     blob_ttl: Optional[Union[str, int, float]] = Field(default=None, description="Time-to-live applied to queue blob entries.")
+    inline_bytes_threshold: Union[str, int] = Field(default="64KB", description="Bytes payloads up to this size are inlined as base64; larger payloads are offloaded to blob keys.")
+    max_stream_length: Optional[int] = Field(default=None, ge=1, description="Optional Redis stream MAXLEN cap; older chunks are trimmed when set.")

@@ -7,4 +7,5 @@ class InsightfaceFaceDetectionParamsConfig(CommonFaceDetectionParamsConfig):
     max_num_faces: Union[int, str] = Field(default=0, description="Maximum number of faces detected per image; 0 means unbounded.")
 
 class InsightfaceFaceDetectionModelActionConfig(CommonFaceDetectionModelActionConfig):
+    return_gender_age: Union[bool, str] = Field(default=False, description="Whether gender and age predictions are included in the result.")
     params: InsightfaceFaceDetectionParamsConfig = Field(default_factory=InsightfaceFaceDetectionParamsConfig, description="Insightface-specific face detection parameters.")

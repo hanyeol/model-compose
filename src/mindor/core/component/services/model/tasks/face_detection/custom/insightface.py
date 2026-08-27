@@ -28,14 +28,18 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        detection_size = await context.render_variable(self.config.params.detection_size)
-        max_num_faces  = await context.render_scalar(self.config.params.max_num_faces, int)
+        return_gender_age = await context.render_scalar(self.config.return_gender_age, bool)
+        detection_size    = await context.render_variable(self.config.params.detection_size)
+        max_num_faces     = await context.render_scalar(self.config.params.max_num_faces, int)
 
         if not isinstance(detection_size, (list, tuple)) or len(detection_size) != 2:
             raise ValueError(f"'detection_size' must be a (width, height) pair, got {detection_size!r}")
 
-        params["detection_size"] = (int(detection_size[0]), int(detection_size[1]))
-        params["max_num_faces"]  = max_num_faces
+        params.update({
+            "return_gender_age": return_gender_age,
+            "detection_size":    (int(detection_size[0]), int(detection_size[1])),
+            "max_num_faces":     max_num_faces,
+        })
 
         return params
 
@@ -85,6 +89,14 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
                 if landmarks:
                     face["landmarks"] = landmarks
 
+            if params["return_gender_age"]:
+                gender = getattr(detection, "gender", None)
+                age    = getattr(detection, "age", None)
+                if gender is not None:
+                    face["gender"] = self._gender_to_label(int(gender))
+                if age is not None:
+                    face["age"] = int(age)
+
             faces.append(face)
 
         return {
@@ -111,6 +123,10 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
         cy2 = min(height, y1 + h)
 
         return { "x": cx1, "y": cy1, "width": cx2 - cx1, "height": cy2 - cy1 }
+
+    @staticmethod
+    def _gender_to_label(gender: int) -> str:
+        return "male" if gender == 1 else "female"
 
     def _serialize_landmarks(self, detection: Face) -> List[Dict[str, int]]:
         # Prefer the densest landmark set the loaded model exposes.

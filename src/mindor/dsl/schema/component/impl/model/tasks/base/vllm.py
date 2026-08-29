@@ -207,7 +207,5 @@ class VllmEngineOptionsConfig(BaseModel):
     # Misc
     additional_config: Optional[Dict[str, Any]] = Field(default=None, description="Additional platform-specific configuration.")
     kernel_config: Optional[Dict[str, Any]] = Field(default=None, description="Kernel selection parameters.")
-    reasoning_config: Optional[Dict[str, Any]] = Field(default=None, description="Reasoning model settings.")
-    reasoning_parser: Optional[str] = Field(default=None, description="Parser for reasoning model outputs.")
     optimization_level: Optional[str] = Field(default=None, description="Startup vs performance tradeoff level.")
     performance_mode: Optional[str] = Field(default=None, description="Runtime optimization strategy.")

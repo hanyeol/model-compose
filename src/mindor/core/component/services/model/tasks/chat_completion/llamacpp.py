@@ -21,10 +21,12 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
         config: ChatCompletionModelActionConfig,
         model: Llama,
         tools: Optional[List[ModelTool]] = None,
+        chat_template: Optional[str] = None,
     ):
         super().__init__(config, model)
 
         self.tools: Optional[List[ModelTool]] = tools
+        self.chat_template: Optional[str] = chat_template
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
@@ -45,7 +47,7 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
     def _resolve_chat_formatter(self):
         from llama_cpp import llama_chat_format
 
-        template  = self.model.metadata.get("tokenizer.chat_template")
+        template  = self.chat_template or self.model.metadata.get("tokenizer.chat_template")
         eos_token = self.model.detokenize([self.model.token_eos()]).decode("utf-8", errors="ignore")
         bos_token = self.model.detokenize([self.model.token_bos()]).decode("utf-8", errors="ignore")
 
@@ -67,4 +69,9 @@ class LlamaCppChatCompletionTaskService(LlamaCppModelTaskService):
         action: ModelActionConfig,
         context: ComponentActionContext
     ) -> Any:
-        return await LlamaCppChatCompletionTaskAction(action, self.model, self.config.tools).run(context)
+        return await LlamaCppChatCompletionTaskAction(
+            action,
+            self.model,
+            self.config.tools,
+            self.config.chat_template,
+        ).run(context)

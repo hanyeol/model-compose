@@ -5,4 +5,5 @@ from ...common import LanguageModelComponentConfig, ModelTaskType
 
 class CommonChatCompletionModelComponentConfig(LanguageModelComponentConfig):
     task: Literal[ModelTaskType.CHAT_COMPLETION]
+    chat_template: Optional[str] = Field(default=None, description="Inline Jinja chat template string, overriding the tokenizer default.")
     tools: Optional[List[ModelTool]] = Field(default=None, description="Catalog of tools this component exposes for tool calling.")

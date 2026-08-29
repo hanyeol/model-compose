@@ -32,10 +32,12 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
         tokenizer: PreTrainedTokenizer,
         device: torch.device,
         tools: Optional[List[ModelTool]] = None,
+        chat_template: Optional[str] = None,
     ):
         super().__init__(config, model, tokenizer, device)
 
         self.tools: Optional[List[ModelTool]] = tools
+        self.chat_template: Optional[str] = chat_template
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
@@ -47,7 +49,8 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            **({ "tools": tools } if tools else {})
+            **({ "tools": tools } if tools else {}),
+            **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)
@@ -59,7 +62,14 @@ class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):
         action: ModelActionConfig,
         context: ComponentActionContext
     ) -> Any:
-        return await HuggingfaceChatCompletionTaskAction(action, self.model, self.tokenizer, self.device, self.config.tools).run(context)
+        return await HuggingfaceChatCompletionTaskAction(
+            action,
+            self.model,
+            self.tokenizer,
+            self.device,
+            self.config.tools,
+            self.config.chat_template,
+        ).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForCausalLM

@@ -23,11 +23,13 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
         engine: AsyncLLMEngine,
         tokenizer: PreTrainedTokenizerBase,
         tools: Optional[List[ModelTool]] = None,
+        chat_template: Optional[str] = None,
     ):
         super().__init__(config, engine)
 
         self.tokenizer: PreTrainedTokenizerBase = tokenizer
         self.tools: Optional[List[ModelTool]] = tools
+        self.chat_template: Optional[str] = chat_template
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
@@ -39,16 +41,34 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            **({ "tools": tools } if tools else {})
+            **({ "tools": tools } if tools else {}),
+            **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.VLLM)
 class VllmChatCompletionTaskService(VllmModelTaskService):
     config: VllmChatCompletionModelComponentConfig
 
+    def _get_model_options(self, config: VllmChatCompletionModelComponentConfig) -> Dict[str, Any]:
+        options = super()._get_model_options(config)
+
+        for field in ("reasoning_parser", "reasoning_config", "tool_parser_plugin"):
+            value = getattr(config, field, None)
+
+            if value is not None:
+                options[field] = value
+
+        return options
+
     async def _run(
         self,
         action: ModelActionConfig,
         context: ComponentActionContext
     ) -> Any:
-        return await VllmChatCompletionTaskAction(action, self.engine, self.tokenizer, self.config.tools).run(context)
+        return await VllmChatCompletionTaskAction(
+            action,
+            self.engine,
+            self.tokenizer,
+            self.config.tools,
+            self.config.chat_template,
+        ).run(context)

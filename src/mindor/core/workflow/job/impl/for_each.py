@@ -83,7 +83,7 @@ class ForEachJob(Job):
 
             logging.debug("[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, component.id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
 
-            return output if is_direct_output else (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal))
+            return (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal)) if not is_direct_output else output
         finally:
             context._sources.pop(run_id, None)
 

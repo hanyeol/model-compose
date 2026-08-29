@@ -8,3 +8,4 @@ class JobType(str, Enum):
     RANDOM_ROUTER = "random-router"
     FILTER        = "filter"
     FOR_EACH      = "for-each"
+    PIPELINE      = "pipeline"

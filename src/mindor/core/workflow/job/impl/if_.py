@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from mindor.dsl.schema.job import IfJobConfig
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.evaluator.condition import evaluate_condition
+from mindor.core.foundation.condition import evaluate_condition
 from mindor.core.logger import logging
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
 import asyncio

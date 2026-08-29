@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import FilterJobConfig
 from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.evaluator.condition import evaluate_condition, evaluate_where
+from mindor.core.foundation.condition import evaluate_condition, evaluate_where
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job

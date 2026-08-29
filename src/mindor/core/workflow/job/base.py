@@ -5,7 +5,7 @@ from mindor.dsl.schema.job import JobConfig, JobType, JobInterruptConfig, JobHoo
 from mindor.dsl.schema.job.impl.common import JobRetryConfig, JobRetryBackoff, JobOnErrorConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.evaluator.condition import evaluate_condition
+from mindor.core.foundation.condition import evaluate_condition
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.hook import HookPoint

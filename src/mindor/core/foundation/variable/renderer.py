@@ -13,7 +13,7 @@ from ..streaming.video import VideoStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
-from mindor.core.evaluator.condition import evaluate_condition, evaluate_where
+from mindor.core.foundation.condition import evaluate_condition, evaluate_where
 from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage

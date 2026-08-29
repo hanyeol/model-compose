@@ -27,6 +27,12 @@ def evaluate_condition(operator: ConditionOperator, input: Any, value: Any) -> b
     if operator == ConditionOperator.NOT_IN:
         return input not in value
 
+    if operator == ConditionOperator.STARTS_WITH:
+        return input.startswith(value)
+
+    if operator == ConditionOperator.ENDS_WITH:
+        return input.endswith(value)
+
     if operator == ConditionOperator.MATCH:
         return bool(re.match(value, input))
 

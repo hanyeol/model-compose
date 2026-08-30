@@ -47,7 +47,7 @@ class HttpTriggerContext:
         self.query: Optional[Dict[str, str]] = query
         self.bulk: bool = bulk
         self.item: Optional[str] = item
-        self.renderer: VariableRenderer = VariableRenderer(self.resolve_source)
+        self.renderer: VariableRenderer = VariableRenderer(self._resolve_source)
 
     async def items(self) -> AsyncIterator["HttpTriggerContext"]:
         for item in await self._items():
@@ -66,7 +66,7 @@ class HttpTriggerContext:
 
         return [ item ]
 
-    async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
+    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         if key == "body" or key == "item":
             return self.body
 

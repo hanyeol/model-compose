@@ -1,16 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Awaitable, Any
-from collections.abc import AsyncIterator
+from typing import Optional, Dict, List, Callable, Awaitable, Any
 from mindor.core.foundation.variable.renderer import VariableRenderer
-from mindor.core.foundation.variable.image import ImageValueRenderer
-from mindor.core.foundation.variable.audio import AudioValueRenderer
-from mindor.core.foundation.variable.video import VideoValueRenderer
-from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from .interrupt import InterruptHandler
-from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     from .notifiers import JobEventNotifier, ComponentEventNotifier
@@ -40,7 +34,7 @@ class WorkflowContext:
             **({"metadata": metadata} if metadata else {})
         }
         self.sources: Dict[str, Any] = { "jobs": {} }
-        self.renderer = VariableRenderer(self.resolve_source)
+        self.renderer = VariableRenderer(self._resolve_source)
         self.interrupt_handler: InterruptHandler = interrupt_handler
         self.workflow_delegate: WorkflowDelegate = workflow_delegate
         self.job_event_notifier: JobEventNotifier = job_event_notifier
@@ -67,25 +61,10 @@ class WorkflowContext:
 
         return None
 
-    async def render_image(
-        self,
-        value: Any
-    ) -> Optional[Union[PILImage.Image, List[Optional[PILImage.Image]], AsyncIterator[Optional[PILImage.Image]]]]:
-        return await ImageValueRenderer().render(await self.render_variable(value))
-
-    async def render_audio(
-        self,
-        value: Any
-    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
-        return await AudioValueRenderer().render(await self.render_variable(value))
-
-    async def render_video(
-        self,
-        value: Any
-    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
-        return await VideoValueRenderer().render(await self.render_variable(value))
-
     async def resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
+        return await self._resolve_source(key, index, scope)
+
+    async def _resolve_source(self, key: str, index: Optional[int], scope: Optional[str]) -> Any:
         if key in self.sources:
             return self.sources[key][index] if index is not None else self.sources[key]
 

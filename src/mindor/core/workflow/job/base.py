@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict
 from mindor.dsl.schema.job import JobConfig, JobType, JobInterruptConfig, JobHookConfig
 from mindor.dsl.schema.job.impl.common import JobRetryConfig, JobRetryBackoff, JobOnErrorConfig
-from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.foundation.condition import evaluate_condition
 from mindor.core.foundation.variable.time import parse_time

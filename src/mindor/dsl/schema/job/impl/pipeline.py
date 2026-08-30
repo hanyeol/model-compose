@@ -1,22 +1,31 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from pydantic import BaseModel, Field, field_validator
-from mindor.dsl.schema.component import ComponentConfig
-from .common import JobType, OutputJobConfig
+from __future__ import annotations
 
-class PipelineStepConfig(BaseModel):
-    component: Union[str, ComponentConfig] = Field(default="__default__", description="Component to run for this step, given as a component ID or an inline component config.")
-    action: str = Field(default="__default__", description="ID of the action to invoke on the component.")
-    input: Optional[Any] = Field(default=None, description="Input passed to the component action. Reference `${input}` for the pipeline input or `${output}` for the previous step's output.")
-    output: Optional[Any] = Field(default=None, description="Output mapping applied to this step's result before it flows into the next step.")
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from pydantic import Field, field_validator, model_validator
+from .common import JobType, OutputJobConfig
 
 class PipelineJobConfig(OutputJobConfig):
     type: Literal[JobType.PIPELINE]
-    input: Optional[Any] = Field(default=None, description="Value exposed to the first step as `${input}`.")
-    steps: List[PipelineStepConfig] = Field(..., min_length=1, description="Steps executed sequentially; each step's output becomes `${output}` for the next.")
+    input: Optional[Any] = Field(default=None, description="Initial input passed to the first step.")
+    steps: List["InlineJobConfig"] = Field(..., min_length=1, description="Jobs executed sequentially; each step's output feeds the next.")
+
+    @field_validator("steps", mode="before")
+    def inflate_default_step_type(cls, value):
+        if isinstance(value, list):
+            for step in value:
+                if isinstance(step, dict) and "type" not in step:
+                    step["type"] = JobType.COMPONENT.value
+        return value
 
     @field_validator("steps")
     def validate_steps_non_empty(cls, value):
         if not value:
             raise ValueError("'steps' must contain at least one step")
-
         return value
+
+    @model_validator(mode="after")
+    def validate_inline_jobs(self):
+        for index, step in enumerate(self.steps):
+            if getattr(step, "depends_on", None):
+                raise ValueError(f"Inline pipeline step[{index}] cannot declare 'depends_on'.")
+        return self

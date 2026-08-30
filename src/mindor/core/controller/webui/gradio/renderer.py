@@ -40,7 +40,7 @@ class WorkflowFlowRenderer:
         diagram_lines: List[str] = [ "graph TD" ]
         referenced_workflows: Dict[str, Tuple[str, str]] = {}
 
-        self._render_workflow_jobs(workflow_config, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix="")
+        self._render_workflow_graph(workflow_config, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix="")
 
         for workflow_id, (source_node, link_label) in referenced_workflows.items():
             sub_workflow = workflow_configs[workflow_id]
@@ -52,7 +52,7 @@ class WorkflowFlowRenderer:
             title = sub_workflow.title or workflow_id
             diagram_lines.append(f'    subgraph {prefix}["{title}<br/>(workflow)"]')
             diagram_lines.append("    direction TB")
-            self._render_workflow_jobs(sub_workflow, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix=f"{prefix}_")
+            self._render_workflow_graph(sub_workflow, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix=f"{prefix}_")
             diagram_lines.append("    end")
             diagram_lines.append(f"    {source_node} -. {link_label} .- {prefix}")
 
@@ -67,7 +67,7 @@ class WorkflowFlowRenderer:
             f'<a href="{viewer_url}" target="_blank" style="text-decoration: none;">🔍</a> <a href="{viewer_url}" target="_blank">Open in Mermaid Live Viewer</a>',
         ])
 
-    def _render_workflow_jobs(
+    def _render_workflow_graph(
         self,
         workflow_config: WorkflowConfig,
         component_configs: Dict[str, ComponentConfig],
@@ -88,22 +88,7 @@ class WorkflowFlowRenderer:
             lines.append(f'    {prefix}{job.id}(("{label}"))')
 
         for job in workflow_config.jobs:
-            for suffix, label_prefix, component in self._resolve_job_components(job):
-                component_node = f"{prefix}__c_{job.id}{suffix}__"
-                component_label = self._resolve_component_label(component, component_configs)
-                if label_prefix:
-                    component_label = f"{label_prefix}<br/>{component_label}"
-                lines.append(f'    {component_node}["{component_label}"]')
-                lines.append(f"    {prefix}{job.id} -.-> {component_node}")
-                lines.append(f"    {component_node} -.-> {prefix}{job.id}")
-
-                for tool_workflow_id in self._resolve_agent_tool_workflows(component, component_configs, workflow_configs):
-                    if tool_workflow_id not in referenced_workflows:
-                        referenced_workflows[tool_workflow_id] = (component_node, "tool")
-
-                for target_workflow_id in self._resolve_workflow_component_workflows(component, component_configs, workflow_configs):
-                    if target_workflow_id not in referenced_workflows:
-                        referenced_workflows[target_workflow_id] = (component_node, "invokes")
+            self._render_job_graph(job, f"{prefix}{job.id}", prefix, component_configs, workflow_configs, referenced_workflows, lines)
 
         for job in workflow_config.jobs:
             for target in job.get_routing_jobs():
@@ -128,18 +113,80 @@ class WorkflowFlowRenderer:
         lines.append(f"    {input_node}((Input))")
         lines.append(f"    {output_node}((Output))")
 
-    def _resolve_job_components(self, job: Any) -> List[Tuple[str, str, Union[str, ComponentConfig]]]:
+    def _render_job_graph(
+        self,
+        job: JobConfig,
+        parent_node: str,
+        prefix: str,
+        component_configs: Dict[str, ComponentConfig],
+        workflow_configs: Dict[str, WorkflowConfig],
+        referenced_workflows: Dict[str, Tuple[str, str]],
+        lines: List[str],
+    ) -> None:
         if isinstance(job, ComponentJobConfig):
-            return [ ("", "", job.component) ]
+            self._render_component(parent_node, "", "", job.component, component_configs, workflow_configs, referenced_workflows, lines)
+            return
 
-        if isinstance(job, ForEachJobConfig):
-            return [ ("", "", job.do.component) ]
+        for inline_id, inline_label, inline_job in self._resolve_inline_jobs(job, parent_node):
+            if isinstance(inline_job, ComponentJobConfig):
+                self._render_component(parent_node, inline_id, inline_label, inline_job.component, component_configs, workflow_configs, referenced_workflows, lines)
+            else:
+                self._render_inline_job(inline_job, parent_node, inline_id, inline_label, component_configs, workflow_configs, referenced_workflows, lines)
 
-        if isinstance(job, AccumulateJobConfig):
-            return [ ("", "", job.do.component) ]
+    def _render_inline_job(
+        self,
+        job: JobConfig,
+        parent_node: str,
+        inline_id: str,
+        inline_label: str,
+        component_configs: Dict[str, ComponentConfig],
+        workflow_configs: Dict[str, WorkflowConfig],
+        referenced_workflows: Dict[str, Tuple[str, str]],
+        lines: List[str],
+    ) -> None:
+        subgraph_label = f"{inline_label}<br/>(inline)" if inline_label else "inline"
+        job_node = f"{inline_id}_job"
+        lines.append(f'    subgraph {inline_id}["{subgraph_label}"]')
+        lines.append("    direction TB")
+        lines.append(f'    {job_node}(("{job.type.value}"))')
+        self._render_job_graph(job, job_node, inline_id, component_configs, workflow_configs, referenced_workflows, lines)
+        lines.append("    end")
+        lines.append(f"    {parent_node} -.-> {inline_id}")
+        lines.append(f"    {inline_id} -.-> {parent_node}")
+
+    def _render_component(
+        self,
+        parent_node: str,
+        inline_id: str,
+        inline_label: str,
+        component: Union[str, ComponentConfig],
+        component_configs: Dict[str, ComponentConfig],
+        workflow_configs: Dict[str, WorkflowConfig],
+        referenced_workflows: Dict[str, Tuple[str, str]],
+        lines: List[str],
+    ) -> None:
+        component_node = f"{parent_node}__c_{inline_id}__" if inline_id else f"{parent_node}__c__"
+        component_label = self._resolve_component_label(component, component_configs)
+        if inline_label:
+            component_label = f"{inline_label}<br/>{component_label}"
+        lines.append(f'    {component_node}["{component_label}"]')
+        lines.append(f"    {parent_node} -.-> {component_node}")
+        lines.append(f"    {component_node} -.-> {parent_node}")
+
+        for tool_workflow_id in self._resolve_agent_tool_workflows(component, component_configs, workflow_configs):
+            if tool_workflow_id not in referenced_workflows:
+                referenced_workflows[tool_workflow_id] = (component_node, "tool")
+
+        for target_workflow_id in self._resolve_workflow_component_workflows(component, component_configs, workflow_configs):
+            if target_workflow_id not in referenced_workflows:
+                referenced_workflows[target_workflow_id] = (component_node, "invokes")
+
+    def _resolve_inline_jobs(self, job: JobConfig, parent_node: str) -> List[Tuple[str, str, JobConfig]]:
+        if isinstance(job, (ForEachJobConfig, AccumulateJobConfig)):
+            return [ (f"{parent_node}_do", "", job.do) ]
 
         if isinstance(job, PipelineJobConfig):
-            return [ (f"_step_{index}", f"step {index}", step.component) for index, step in enumerate(job.steps) ]
+            return [ (f"{parent_node}_step_{index}", f"step {index}", step) for index, step in enumerate(job.steps) ]
 
         return []
 

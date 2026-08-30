@@ -14,6 +14,7 @@ class CommonSshAuthConfig(BaseModel):
 class SshKeyfileAuthConfig(CommonSshAuthConfig):
     type: Literal[SshAuthType.KEYFILE]
     keyfile: str = Field(..., description="Filesystem path to the SSH private key file.")
+    passphrase: Optional[str] = Field(default=None, description="Passphrase for decrypting the private key, if encrypted.")
 
 class SshPasswordAuthConfig(CommonSshAuthConfig):
     type: Literal[SshAuthType.PASSWORD]

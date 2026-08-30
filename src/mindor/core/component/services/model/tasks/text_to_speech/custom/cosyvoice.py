@@ -76,11 +76,13 @@ class CosyvoiceTextToSpeechTaskAction(TextToSpeechTaskAction):
         breaks on tensor inputs), so we hand it a plain on-disk WAV path."""
         buffer = await context.render_audio_buffer(value, sample_rate=16000)
         pcm_bytes, channels = encode_waveform_to_pcm(buffer.waveform)
+
         stream = WavStreamResource(PcmStreamResource(pcm_bytes, {
             "sample_rate": str(buffer.sample_rate),
             "channels":    str(channels),
             "bit_depth":   "16",
         }))
+
         return await save_stream_to_temporary_file(stream, "wav")
 
 class CosyvoiceTextToSpeechGenerateTaskAction(CosyvoiceTextToSpeechTaskAction):
@@ -110,6 +112,7 @@ class CosyvoiceTextToSpeechGenerateTaskAction(CosyvoiceTextToSpeechTaskAction):
             raise RuntimeError("The loaded CosyVoice model does not support the 'generate' method.")
 
         available = getattr(self.model, "list_available_spks", lambda: [])()
+
         if available and params["voice"] not in available:
             raise ValueError(f"Unknown voice '{params['voice']}'. Available speakers: {available}")
 

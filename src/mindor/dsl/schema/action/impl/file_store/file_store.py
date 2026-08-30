@@ -7,4 +7,5 @@ FileStoreActionConfig = Union[
     AwsS3FileStoreActionConfig,
     GcpStorageFileStoreActionConfig,
     AzureBlobFileStoreActionConfig,
+    SftpFileStoreActionConfig,
 ]

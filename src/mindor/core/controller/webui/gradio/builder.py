@@ -1083,18 +1083,19 @@ class GradioWebUIBuilder:
 
     def _log_format_task_title(self, event: TaskEvent) -> Optional[str]:
         workflow_id = self._escape_markdown(event.workflow_id)
+        elapsed_suffix = f" · {event.elapsed:.2f}s" if event.elapsed is not None else ""
         if event.event == "started":
             return f"▶ Workflow '**{workflow_id}**' started"
         if event.event == "resumed":
             return f"▶ Workflow '**{workflow_id}**' resumed"
         if event.event == "interrupted":
-            return f"⏸ Workflow '**{workflow_id}**' interrupted"
+            return f"⏸ Workflow '**{workflow_id}**' interrupted{elapsed_suffix}"
         if event.event == "completed":
-            return f"✓ Workflow '**{workflow_id}**' completed"
+            return f"✓ Workflow '**{workflow_id}**' completed{elapsed_suffix}"
         if event.event == "failed":
-            return f"✗ Workflow '**{workflow_id}**' failed"
+            return f"✗ Workflow '**{workflow_id}**' failed{elapsed_suffix}"
         if event.event == "cancelled":
-            return f"✕ Workflow '**{workflow_id}**' cancelled"
+            return f"✕ Workflow '**{workflow_id}**' cancelled{elapsed_suffix}"
         return None
 
     def _log_format_job_title(self, event: JobEvent) -> str:
@@ -1115,14 +1116,15 @@ class GradioWebUIBuilder:
 
     def _log_format_component_title(self, event: ComponentEvent) -> str:
         component_id = self._escape_markdown(event.component_id)
+        elapsed_suffix = f" · {event.elapsed:.2f}s" if event.elapsed is not None else ""
         if event.event == "started":
             return f"▶ Component '**{component_id}**' started"
         if event.event == "completed":
-            return f"✓ Component '**{component_id}**' completed"
+            return f"✓ Component '**{component_id}**' completed{elapsed_suffix}"
         if event.event == "failed":
-            return f"✗ Component '**{component_id}**' failed"
+            return f"✗ Component '**{component_id}**' failed{elapsed_suffix}"
         if event.event == "cancelled":
-            return f"✕ Component '**{component_id}**' cancelled"
+            return f"✕ Component '**{component_id}**' cancelled{elapsed_suffix}"
         if event.event == "internal":
             return f"└ Component '**{component_id}**' reported" + (f" · [**{event.kind}**]" if event.kind else "")
         return f"• Component '**{component_id}**' {event.event}"

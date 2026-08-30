@@ -3,7 +3,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, W
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.component.impl.agent import AgentComponentConfig
 from mindor.dsl.schema.component.impl.workflow import WorkflowComponentConfig
-from mindor.dsl.schema.job import JobConfig, ComponentJobConfig, ForEachJobConfig
+from mindor.dsl.schema.job import JobConfig, ComponentJobConfig, ForEachJobConfig, PipelineJobConfig, AccumulateJobConfig
 from mindor.core.workflow.schema import WorkflowSchema
 import json, zlib, base64
 
@@ -88,23 +88,22 @@ class WorkflowFlowRenderer:
             lines.append(f'    {prefix}{job.id}(("{label}"))')
 
         for job in workflow_config.jobs:
-            component = self._resolve_job_component(job)
+            for suffix, label_prefix, component in self._resolve_job_components(job):
+                component_node = f"{prefix}__c_{job.id}{suffix}__"
+                component_label = self._resolve_component_label(component, component_configs)
+                if label_prefix:
+                    component_label = f"{label_prefix}<br/>{component_label}"
+                lines.append(f'    {component_node}["{component_label}"]')
+                lines.append(f"    {prefix}{job.id} -.-> {component_node}")
+                lines.append(f"    {component_node} -.-> {prefix}{job.id}")
 
-            if component is None:
-                continue
+                for tool_workflow_id in self._resolve_agent_tool_workflows(component, component_configs, workflow_configs):
+                    if tool_workflow_id not in referenced_workflows:
+                        referenced_workflows[tool_workflow_id] = (component_node, "tool")
 
-            component_node = f"{prefix}__c_{job.id}__"
-            lines.append(f'    {component_node}["{self._resolve_component_label(component, component_configs)}"]')
-            lines.append(f"    {prefix}{job.id} -.-> {component_node}")
-            lines.append(f"    {component_node} -.-> {prefix}{job.id}")
-
-            for tool_workflow_id in self._resolve_agent_tool_workflows(component, component_configs, workflow_configs):
-                if tool_workflow_id not in referenced_workflows:
-                    referenced_workflows[tool_workflow_id] = (component_node, "tool")
-
-            for target_workflow_id in self._resolve_workflow_component_workflows(component, component_configs, workflow_configs):
-                if target_workflow_id not in referenced_workflows:
-                    referenced_workflows[target_workflow_id] = (component_node, "invokes")
+                for target_workflow_id in self._resolve_workflow_component_workflows(component, component_configs, workflow_configs):
+                    if target_workflow_id not in referenced_workflows:
+                        referenced_workflows[target_workflow_id] = (component_node, "invokes")
 
         for job in workflow_config.jobs:
             for target in job.get_routing_jobs():
@@ -129,14 +128,20 @@ class WorkflowFlowRenderer:
         lines.append(f"    {input_node}((Input))")
         lines.append(f"    {output_node}((Output))")
 
-    def _resolve_job_component(self, job: Any) -> Optional[Union[str, ComponentConfig]]:
+    def _resolve_job_components(self, job: Any) -> List[Tuple[str, str, Union[str, ComponentConfig]]]:
         if isinstance(job, ComponentJobConfig):
-            return job.component
+            return [ ("", "", job.component) ]
 
         if isinstance(job, ForEachJobConfig):
-            return job.do.component
+            return [ ("", "", job.do.component) ]
 
-        return None
+        if isinstance(job, AccumulateJobConfig):
+            return [ ("", "", job.do.component) ]
+
+        if isinstance(job, PipelineJobConfig):
+            return [ (f"_step_{index}", f"step {index}", step.component) for index, step in enumerate(job.steps) ]
+
+        return []
 
     def _resolve_component_config(self, component: Union[str, ComponentConfig], component_configs: Dict[str, ComponentConfig]) -> Optional[ComponentConfig]:
         if not isinstance(component, str):

@@ -60,6 +60,7 @@ class ComponentActionEventNotifier:
         self,
         event: Literal[ "started", "completed", "cancelled", "failed", "internal" ],
         kind: Optional[str] = None,
+        elapsed: Optional[float] = None,
         input: Optional[Any] = None,
         output: Optional[Any] = None,
         error: Optional[str] = None,
@@ -72,6 +73,7 @@ class ComponentActionEventNotifier:
                 component_type=self.component_type,
                 run_id=self.run_id,
                 kind=kind,
+                elapsed=elapsed,
                 input=input,
                 output=output,
                 error=error,
@@ -80,6 +82,7 @@ class ComponentActionEventNotifier:
             await self.on_event({
                 "event": event,
                 "kind": kind,
+                "elapsed": elapsed,
                 "input": input,
                 "output": output,
                 "error": error,

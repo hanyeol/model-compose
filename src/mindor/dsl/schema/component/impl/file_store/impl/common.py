@@ -8,8 +8,9 @@ class FileStoreDriver(str, Enum):
     AWS_S3      = "aws-s3"
     GCP_STORAGE = "gcp-storage"
     AZURE_BLOB  = "azure-blob"
+    SFTP        = "sftp"
 
 class CommonFileStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.FILE_STORE]
-    driver: FileStoreDriver = Field(..., description="Backend implementation used for the file store.")
+    driver: FileStoreDriver = Field(default=FileStoreDriver.LOCAL, description="Backend implementation used for the file store.")
     base_path: Optional[str] = Field(default=None, description="Path or key prefix prepended to every action's target path.")

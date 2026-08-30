@@ -112,6 +112,19 @@ def is_path_within(base: str, path: str) -> bool:
 
     return absolute_path == absolute_base or absolute_path.startswith(absolute_base + os.sep)
 
+def is_posix_path_within(base: str, path: str) -> bool:
+    """Posix-only variant of `is_path_within` that skips `abspath` normalization.
+
+    Callers must pass already-normalized posix paths (e.g. from `posixpath.normpath`).
+    """
+    root = base.rstrip("/") or "/"
+
+    if path == root:
+        return True
+
+    prefix = root if root.endswith("/") else root + "/"
+    return path.startswith(prefix)
+
 def get_file_extension(path: str) -> Optional[str]:
     _, extension = os.path.splitext(path)
 

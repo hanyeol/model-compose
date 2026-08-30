@@ -70,12 +70,13 @@ class ComponentEventNotifier:
         component_type: str,
         run_id: str,
         kind: Optional[str] = None,
+        elapsed: Optional[float] = None,
         input: Optional[Any] = None,
         output: Optional[Any] = None,
         error: Optional[str] = None,
     ) -> None:
         if self.callback:
-            payload = self._build_payload(event, job_id, component_id, component_type, run_id, kind, input, output, error)
+            payload = self._build_payload(event, job_id, component_id, component_type, run_id, kind, elapsed, input, output, error)
             try:
                 await self.callback(payload)
             except Exception:
@@ -89,6 +90,7 @@ class ComponentEventNotifier:
         component_type: str,
         run_id: str,
         kind: Optional[str],
+        elapsed: Optional[float],
         input: Optional[Any],
         output: Optional[Any],
         error: Optional[str],
@@ -103,6 +105,8 @@ class ComponentEventNotifier:
         }
         if kind is not None:
             payload["kind"] = kind
+        if elapsed is not None:
+            payload["elapsed"] = elapsed
         if input is not None:
             payload["input"] = input
         if output is not None:

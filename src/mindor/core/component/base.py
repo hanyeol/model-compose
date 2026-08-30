@@ -12,6 +12,7 @@ from mindor.core.foundation import AsyncService
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.active_counter import ActiveCounter
+from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from collections.abc import AsyncIterator
 from .context import ComponentActionContext
@@ -138,6 +139,7 @@ class ComponentService(AsyncService):
             on_event=on_event,
         )
 
+        time_tracker = TimeTracker()
         await context.event_notifier.notify("started", input=input)
 
         try:
@@ -150,24 +152,24 @@ class ComponentService(AsyncService):
                 finally:
                     self._active_counter.release()
         except asyncio.CancelledError:
-            await context.event_notifier.notify("cancelled")
+            await context.event_notifier.notify("cancelled", elapsed=time_tracker.elapsed())
             raise
         except Exception as e:
-            await context.event_notifier.notify("failed", error=str(e))
+            await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=str(e))
             raise
 
         if isinstance(output, (StreamIterator, AsyncIterator)):
             async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str]) -> None:
                 if event == "completed":
-                    await context.event_notifier.notify("completed", output=None)
+                    await context.event_notifier.notify("completed", elapsed=time_tracker.elapsed(), output=None)
                 elif event == "cancelled":
-                    await context.event_notifier.notify("cancelled")
+                    await context.event_notifier.notify("cancelled", elapsed=time_tracker.elapsed())
                 else:
-                    await context.event_notifier.notify("failed", error=error)
+                    await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=error)
 
             return ComponentOutputStreamIterator(output, _on_terminated)
 
-        await context.event_notifier.notify("completed", output=output)
+        await context.event_notifier.notify("completed", elapsed=time_tracker.elapsed(), output=output)
 
         return output
 
@@ -244,6 +246,7 @@ class ComponentService(AsyncService):
                 component_type=self.config.type.value,
                 run_id=run_id,
                 kind=payload.get("kind"),
+                elapsed=payload.get("elapsed"),
                 input=payload.get("input"),
                 output=payload.get("output"),
                 error=payload.get("error"),

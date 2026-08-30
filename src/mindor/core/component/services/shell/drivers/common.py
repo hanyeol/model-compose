@@ -1,23 +1,23 @@
+from __future__ import annotations
+
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ShellComponentConfig
-from mindor.dsl.schema.action import ActionConfig, ShellActionConfig
+from abc import abstractmethod
+from mindor.dsl.schema.action import ShellActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from mindor.core.utils.shell import run_command_foreground, run_command, stream_subprocess
-from mindor.core.logger import logging
-from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
-from ..context import ComponentActionContext
+from ..base import ComponentActionContext
+from ....action.base import ComponentAction
 import asyncio, os
 
-class ShellAction:
+class ShellAction(ComponentAction):
     def __init__(
         self,
         config: ShellActionConfig,
         base_dir: Optional[str],
-        env: Optional[Dict[str, str]]
+        env: Optional[Dict[str, str]],
     ):
         self.config: ShellActionConfig = config
         self.base_dir: Optional[str] = base_dir
@@ -80,6 +80,20 @@ class ShellAction:
             "timeout":     timeout,
         }
 
+    async def _resolve_working_directory(self) -> str:
+        working_dir = self.config.working_dir
+
+        if working_dir:
+            working_dir = os.path.expanduser(working_dir)
+            if self.base_dir:
+                working_dir = os.path.abspath(os.path.join(self.base_dir, working_dir))
+            else:
+                working_dir = os.path.abspath(working_dir)
+        else:
+            working_dir = self.base_dir or os.getcwd()
+
+        return working_dir
+
     async def _process_batch(
         self,
         commands: List[ArrayValue],
@@ -96,115 +110,31 @@ class ShellAction:
         command: ArrayValue,
         params: Dict[str, Any],
         streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken] = None,
     ) -> Any:
-        argv = await command.collect()
+        command = await command.collect()
 
         if streaming:
-            return self._stream_command(argv, params["working_dir"], params["env"], params["timeout"], cancellation_token)
+            return self._stream_command(command, params=params, cancellation_token=cancellation_token)
 
-        return await self._run_command(argv, params["working_dir"], params["env"], params["timeout"], cancellation_token)
+        return await self._run_command(command, params=params, cancellation_token=cancellation_token)
 
+    @abstractmethod
     async def _run_command(
         self,
         command: List[str],
-        working_dir: str,
-        env: Dict[str, str],
-        timeout: Optional[float],
-        cancellation_token: Optional[CancellationToken] = None,
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        logging.debug("[shell] Running command: %s (cwd: %s)", " ".join(command), working_dir)
+        pass
 
-        stdout, stderr, exit_code = await run_command(
-            command,
-            working_dir=working_dir,
-            env=env,
-            timeout=timeout
-        )
-
-        logging.debug("[shell] Command exited with code %d", exit_code)
-
-        return {
-            "stdout": stdout.decode().strip(),
-            "stderr": stderr.decode().strip(),
-            "exit_code": exit_code
-        }
-
-    async def _stream_command(
+    @abstractmethod
+    def _stream_command(
         self,
         command: List[str],
-        working_dir: str,
-        env: Dict[str, str],
-        timeout: Optional[float],
-        cancellation_token: Optional[CancellationToken] = None,
-    ):
-        """Yield stdout lines as they are produced by the process."""
-        logging.debug("[shell] Streaming command: %s (cwd: %s)", " ".join(command), working_dir)
-
-        async def _handle_stdout(stdout: asyncio.StreamReader) -> AsyncIterator[str]:
-            while True:
-                line = await stdout.readline()
-                if not line:
-                    return
-                yield line.decode(errors="replace")
-
-        async with stream_subprocess(
-            command,
-            stdout_handler=_handle_stdout,
-            working_dir=working_dir,
-            env=env,
-        ) as (process, stdout_iterator, _):
-            if timeout is not None:
-                while True:
-                    try:
-                        line = await asyncio.wait_for(stdout_iterator.__anext__(), timeout=timeout)
-                    except StopAsyncIteration:
-                        break
-                    except asyncio.TimeoutError:
-                        raise TimeoutError(f"Command timed out: {' '.join(command)}")
-                    yield line
-            else:
-                async for line in stdout_iterator:
-                    yield line
-
-            await process.wait()
-
-            logging.debug("[shell] Streaming command exited with code %d", process.returncode)
-
-    async def _resolve_working_directory(self) -> str:
-        working_dir = self.config.working_dir
-
-        if working_dir:
-            working_dir = os.path.expanduser(working_dir)
-            if self.base_dir:
-                working_dir = os.path.abspath(os.path.join(self.base_dir, working_dir))
-            else:
-                working_dir = os.path.abspath(working_dir)
-        else:
-            working_dir = self.base_dir or os.getcwd()
-
-        return working_dir
-
-@register_component(ComponentType.SHELL)
-class ShellComponent(ComponentService):
-    def __init__(
-        self,
-        id: str,
-        config: ShellComponentConfig,
-        global_configs: ComponentGlobalConfigs,
-        daemon: bool
-    ):
-        super().__init__(id, config, global_configs, daemon)
-
-    async def _setup(self) -> None:
-        if self.config.manage.scripts.install:
-            for command in self.config.manage.scripts.install:
-                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
-
-    async def _teardown(self):
-        if self.config.manage.scripts.clean:
-            for command in self.config.manage.scripts.clean:
-                await run_command_foreground(command, self.config.manage.working_dir, self.config.manage.env)
-
-    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ShellAction(action, self.config.base_dir, self.config.env).run(context)
+        *,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> AsyncIterator[str]:
+        pass

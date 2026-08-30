@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 import sys
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, MosaicMode, ImageRegion
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageProcessorActionMethod, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, MosaicMode
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -213,7 +213,10 @@ class ImageProcessorAction(ComponentAction):
 
         if method == ImageProcessorActionMethod.MOSAIC:
             mode           = await context.render_variable(self.config.mode)
-            regions        = await self._render_image_region(context)
+            x              = await context.render_scalar(self.config.x, int)
+            y              = await context.render_scalar(self.config.y, int)
+            width          = await context.render_scalar(self.config.width, int)
+            height         = await context.render_scalar(self.config.height, int)
             block_size     = await context.render_scalar(self.config.block_size, int)
             block_scale    = await context.render_scalar(self.config.block_scale, float)
             min_block_size = await context.render_scalar(self.config.min_block_size, int)
@@ -226,6 +229,11 @@ class ImageProcessorAction(ComponentAction):
                 mode = MosaicMode(mode)
             except ValueError:
                 raise ValueError(f"Invalid mosaic mode: {mode}")
+
+            region_fields = (x, y, width, height)
+
+            if any(v is not None for v in region_fields) and any(v is None for v in region_fields):
+                raise ValueError("'x', 'y', 'width', and 'height' must all be specified together, or all omitted to apply to the whole image.")
 
             if block_size is not None and block_scale is not None:
                 raise ValueError("'block_size' and 'block_scale' are mutually exclusive; specify only one.")
@@ -262,7 +270,10 @@ class ImageProcessorAction(ComponentAction):
 
             return {
                 "mode":           mode,
-                "regions":        regions,
+                "x":              x,
+                "y":              y,
+                "width":          width,
+                "height":         height,
                 "block_size":     block_size,
                 "block_scale":    block_scale,
                 "min_block_size": min_block_size,
@@ -389,30 +400,3 @@ class ImageProcessorAction(ComponentAction):
     @abstractmethod
     async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
-
-    async def _render_image_region(self, context: ComponentActionContext) -> Optional[List[ImageRegion]]:
-        if isinstance(self.config.region, ImageRegion):
-            return [ self.config.region ]
-
-        if isinstance(self.config.region, list):
-            return [ self._as_image_region(item) for item in self.config.region ]
-
-        region = await context.render_variable(self.config.region)
-
-        if region is None:
-            return None
-
-        if isinstance(region, list):
-            return [ self._as_image_region(item) for item in region ]
-
-        return [ self._as_image_region(region) ]
-
-    @staticmethod
-    def _as_image_region(value: Any) -> ImageRegion:
-        if isinstance(value, ImageRegion):
-            return value
-
-        if isinstance(value, dict):
-            return ImageRegion.model_validate(value)
-
-        raise ValueError(f"'region' entry must be an image region object or dict, got {type(value).__name__}")

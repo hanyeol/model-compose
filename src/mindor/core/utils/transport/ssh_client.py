@@ -2,10 +2,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Tuple, Union, Any
+from collections.abc import AsyncIterator
 from enum import Enum
 from dataclasses import dataclass
 from mindor.core.logger import logging
-import asyncio, os, threading
+import asyncio, os, shlex, threading
 
 if TYPE_CHECKING:
     import paramiko
@@ -28,17 +29,24 @@ class SshKeyfileAuthParams(SshAuthParams):
     """SSH keyfile authentication parameters"""
     username: str
     keyfile: str
+    passphrase: Optional[str] = None
 
-    def __init__(self, username: str, keyfile: str):
+    def __init__(self, username: str, keyfile: str, passphrase: Optional[str] = None):
         self.type = SshAuthType.KEYFILE
         self.username = username
         self.keyfile = keyfile
+        self.passphrase = passphrase
 
     def to_params(self) -> Dict[str, Any]:
-        return {
+        params: Dict[str, Any] = {
             "username": self.username,
             "key_filename": os.path.expanduser(self.keyfile)
         }
+
+        if self.passphrase is not None:
+            params["passphrase"] = self.passphrase
+
+        return params
 
 @dataclass
 class SshPasswordAuthParams(SshAuthParams):
@@ -112,7 +120,63 @@ class SshClient:
 
         self.client = await asyncio.to_thread(_connect)
         self.transport = self.client.get_transport()
+
         self._shutdown_event = threading.Event()
+
+    async def run_command(
+        self,
+        command: List[str],
+        working_dir: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> Tuple[bytes, bytes, int]:
+        """Execute a command on the remote host and return (stdout, stderr, exit_code).
+
+        argv is joined with shlex.quote; working_dir and env are applied by
+        prefixing `cd ... && VAR=... exec ...` since paramiko's exec_command
+        runs a single shell command string.
+        """
+        shell_command = self._build_shell_command(command, working_dir, env)
+
+        def _exec() -> Tuple[bytes, bytes, int]:
+            _, stdout, stderr = self.client.exec_command(shell_command, timeout=timeout)
+            return stdout.read(), stderr.read(), stdout.channel.recv_exit_status()
+
+        return await asyncio.to_thread(_exec)
+
+    async def stream_command(
+        self,
+        command: List[str],
+        working_dir: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> AsyncIterator[str]:
+        """Yield stdout lines from a remote command as they are produced.
+
+        `timeout` acts as a per-line idle timeout, matching the local shell
+        driver's semantics.
+        """
+        shell_command = self._build_shell_command(command, working_dir, env)
+
+        def _exec():
+            _, stdout, _ = self.client.exec_command(shell_command)
+
+            logging.debug(f"Streaming remote command on {self.params.host}:{self.params.port}: {shell_command}")
+
+            return stdout
+
+        stdout = await asyncio.to_thread(_exec)
+        channel = stdout.channel
+
+        try:
+            while True:
+                line = await asyncio.wait_for(asyncio.to_thread(stdout.readline), timeout=timeout) \
+                    if timeout is not None else await asyncio.to_thread(stdout.readline)
+                if not line:
+                    break
+                yield line
+        finally:
+            await asyncio.to_thread(channel.recv_exit_status)
 
     async def start_remote_port_forwarding(
         self,
@@ -165,6 +229,58 @@ class SshClient:
 
         return await asyncio.to_thread(_start_forwarding)
 
+    async def close(self) -> None:
+        """Close SSH connection and stop all port forwarding"""
+        if self._shutdown_event:
+            self._shutdown_event.set()
+
+        def _close():
+            # Cancel all remote port forwards
+            for remote_port in self.port_forwards.keys():
+                try:
+                    self.transport.cancel_port_forward("0.0.0.0", remote_port)
+                    logging.debug(f"Cancelled remote port forward on port {remote_port}")
+                except Exception as e:
+                    logging.warning(f"Error cancelling port forward {remote_port}: {e}")
+
+            if self.client:
+                self.client.close()
+                logging.debug(f"SSH connection closed to {self.params.host}:{self.params.port}")
+
+        if self.client:
+            await asyncio.to_thread(_close)
+
+        self.client = None
+        self.transport = None
+        self.port_forwards = {}
+
+        self._forward_threads = []
+        self._shutdown_event = None
+
+    def is_connected(self) -> bool:
+        """Check if SSH connection is active"""
+        return self.client is not None and self.transport is not None and self.transport.is_active()
+
+    def _build_shell_command(
+        self,
+        command: List[str],
+        working_dir: Optional[str],
+        env: Optional[Dict[str, str]],
+    ) -> str:
+        parts: List[str] = []
+
+        if working_dir:
+            parts.append(f"cd {shlex.quote(working_dir)} &&")
+
+        if env:
+            for name, value in env.items():
+                parts.append(f"{name}={shlex.quote(str(value))}")
+
+        parts.append("exec")
+        parts.extend(shlex.quote(arg) for arg in command)
+
+        return " ".join(parts)
+
     def _handle_forward(
         self,
         remote_channel: paramiko.Channel,
@@ -215,33 +331,3 @@ class SshClient:
             except Exception:
                 pass
 
-    async def close(self) -> None:
-        """Close SSH connection and stop all port forwarding"""
-        if self._shutdown_event:
-            self._shutdown_event.set()
-
-        def _close():
-            # Cancel all remote port forwards
-            for remote_port in self.port_forwards.keys():
-                try:
-                    self.transport.cancel_port_forward("0.0.0.0", remote_port)
-                    logging.debug(f"Cancelled remote port forward on port {remote_port}")
-                except Exception as e:
-                    logging.warning(f"Error cancelling port forward {remote_port}: {e}")
-
-            if self.client:
-                self.client.close()
-                logging.debug(f"SSH connection closed to {self.params.host}:{self.params.port}")
-
-        if self.client:
-            await asyncio.to_thread(_close)
-
-        self.client = None
-        self.transport = None
-        self.port_forwards = {}
-        self._forward_threads = []
-        self._shutdown_event = None
-
-    def is_connected(self) -> bool:
-        """Check if SSH connection is active"""
-        return self.client is not None and self.transport is not None and self.transport.is_active()

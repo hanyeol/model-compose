@@ -37,6 +37,7 @@ from mindor.core.controller.errors import (
 from mindor.core.errors import ShutdownError
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.caching import ExpiringDict
+from mindor.core.utils.time import TimeTracker
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
@@ -83,6 +84,7 @@ class TaskState:
     output: Optional[Any] = None
     error: Optional[str] = None
     interrupt: Optional[InterruptState] = None
+    elapsed: Optional[float] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
 
@@ -124,6 +126,7 @@ class ComponentEvent:
     run_id: str
     event: Literal[ "started", "cancelled", "completed", "failed", "internal" ]
     kind: Optional[str] = None
+    elapsed: Optional[float] = None
     input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
@@ -748,6 +751,8 @@ class ControllerService(AsyncService):
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
 
+        time_tracker = TimeTracker()
+
         async def _on_job_event(payload: Dict[str, Any]) -> None:
             event = JobEvent(
                 task_id=task_id,
@@ -774,6 +779,7 @@ class ControllerService(AsyncService):
                 run_id=payload["run_id"],
                 event=payload["event"],
                 kind=payload.get("kind"),
+                elapsed=payload.get("elapsed"),
                 input=payload.get("input"),
                 output=payload.get("output"),
                 error=payload.get("error"),
@@ -836,6 +842,7 @@ class ControllerService(AsyncService):
                     status=status,
                     workflow_id=workflow_id,
                     error=error,
+                    elapsed=time_tracker.elapsed(),
                     session_id=session_id,
                     metadata=metadata
                 )
@@ -845,6 +852,7 @@ class ControllerService(AsyncService):
                     status=TaskStatus.COMPLETED,
                     workflow_id=workflow_id,
                     output=output,
+                    elapsed=time_tracker.elapsed(),
                     session_id=session_id,
                     metadata=metadata
                 )
@@ -853,6 +861,7 @@ class ControllerService(AsyncService):
                 task_id=task_id,
                 status=TaskStatus.CANCELLED,
                 workflow_id=workflow_id,
+                elapsed=time_tracker.elapsed(),
                 session_id=session_id,
                 metadata=metadata
             )
@@ -863,6 +872,7 @@ class ControllerService(AsyncService):
                 status=TaskStatus.FAILED,
                 workflow_id=workflow_id,
                 error=error,
+                elapsed=time_tracker.elapsed(),
                 session_id=session_id,
                 metadata=metadata
             )
@@ -1043,6 +1053,7 @@ class ControllerService(AsyncService):
             output=state.output,
             error=state.error,
             interrupt=state.interrupt,
+            elapsed=state.elapsed,
             session_id=state.session_id,
             metadata=state.metadata,
         )

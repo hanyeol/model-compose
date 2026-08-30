@@ -1,8 +1,8 @@
 from typing import Union, Optional, Dict, List
 from pydantic import Field
-from .common import CommonActionConfig
+from ...common import CommonActionConfig
 
-class ShellActionConfig(CommonActionConfig):
+class CommonShellActionConfig(CommonActionConfig):
     command: Union[List[str], List[List[str]]] = Field(..., description="Shell command or list of commands to execute.")
     working_dir: Optional[str] = Field(default=None, description="Working directory the command runs from.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables set for the command process.")

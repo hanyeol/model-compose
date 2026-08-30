@@ -21,6 +21,7 @@ class ComponentType(str, Enum):
     TRANSCRIPT_CORRECTOR    = "transcript-corrector"
     MORPHEME_ANALYZER       = "morpheme-analyzer"
     IMAGE_PROCESSOR         = "image-processor"
+    IMAGE_DRAWING           = "image-drawing"
     IMAGE_COMPRESSOR        = "image-compressor"
     IMAGE_ANALYZER          = "image-analyzer"
     VECTOR_PROCESSOR        = "vector-processor"

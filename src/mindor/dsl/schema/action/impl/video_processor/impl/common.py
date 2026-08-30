@@ -24,7 +24,7 @@ class VideoFlipDirection(str, Enum):
 
 class CommonVideoProcessorActionConfig(CommonActionConfig):
     method: VideoProcessorActionMethod = Field(..., description="Video processing operation this action performs.")
-    video: Union[str, List[str]] = Field(..., description="Input video or list of videos (file path, base64 string, or variable reference).")
+    video: Union[str, List[str]] = Field(..., description="Input video or list of videos.")
     encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Encoding settings applied to the output; when unset, streams are copied without re-encoding.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input videos processed per batch.")
 

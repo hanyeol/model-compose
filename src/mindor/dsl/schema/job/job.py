@@ -11,7 +11,8 @@ JobConfig = Annotated[
         RandomRouterJobConfig,
         FilterJobConfig,
         ForEachJobConfig,
-        PipelineJobConfig
+        PipelineJobConfig,
+        AccumulateJobConfig
     ],
     Field(discriminator="type")
 ]

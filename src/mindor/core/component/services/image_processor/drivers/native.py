@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
-from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, MosaicMode, ImageRegion
+from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, MosaicMode
 from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
@@ -168,52 +168,52 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
     async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         def _mosaic() -> PILImage.Image:
-            mode    = params["mode"]
-            regions = params["regions"]
+            mode = params["mode"]
 
-            if regions is None:
-                regions = [ ImageRegion(x=0, y=0, width=image.width, height=image.height) ]
+            if params["x"] is None:
+                rx, ry, rw, rh = 0, 0, image.width, image.height
+            else:
+                rx, ry, rw, rh = params["x"], params["y"], params["width"], params["height"]
+
+            cx1 = max(0, int(rx))
+            cy1 = max(0, int(ry))
+            cx2 = min(image.width,  int(rx) + int(rw))
+            cy2 = min(image.height, int(ry) + int(rh))
 
             canvas = image.copy()
 
-            for region in regions:
-                cx1 = max(0, int(region.x))
-                cy1 = max(0, int(region.y))
-                cx2 = min(image.width,  int(region.x) + int(region.width))
-                cy2 = min(image.height, int(region.y) + int(region.height))
+            if cx2 <= cx1 or cy2 <= cy1:
+                return canvas
 
-                if cx2 <= cx1 or cy2 <= cy1:
-                    continue
+            target     = canvas.crop((cx1, cy1, cx2, cy2))
+            block_size = None
 
-                target     = canvas.crop((cx1, cy1, cx2, cy2))
-                block_size = None
+            if mode == MosaicMode.PIXELATE:
+                block_size = params["block_size"]
 
+                if block_size is None:
+                    block_size = round(min(target.size) * params["block_scale"])
+                    block_size = min(params["max_block_size"], max(params["min_block_size"], block_size))
+
+                mosaic = self._mosaic_pixelate(target, block_size)
+            elif mode == MosaicMode.BLUR:
+                mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["blur_radius"]))
+            else:
+                raise ValueError(f"Unsupported mosaic mode: {mode}")
+
+            corner_radius = params["corner_radius"]
+
+            if corner_radius is None:
+                corner_radius = round(min(target.size) * params["corner_scale"])
+
+            if corner_radius > 0:
                 if mode == MosaicMode.PIXELATE:
-                    block_size = params["block_size"]
-
-                    if block_size is None:
-                        block_size = round(min(target.size) * params["block_scale"])
-                        block_size = min(params["max_block_size"], max(params["min_block_size"], block_size))
-
-                    mosaic = self._mosaic_pixelate(target, block_size)
-                elif mode == MosaicMode.BLUR:
-                    mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["blur_radius"]))
+                    mask = self._blocky_rounded_rectangle_mask(mosaic.size, corner_radius, block_size)
                 else:
-                    raise ValueError(f"Unsupported mosaic mode: {mode}")
-
-                corner_radius = params["corner_radius"]
-
-                if corner_radius is None:
-                    corner_radius = round(min(target.size) * params["corner_scale"])
-
-                if corner_radius > 0:
-                    if mode == MosaicMode.PIXELATE:
-                        mask = self._blocky_rounded_rectangle_mask(mosaic.size, corner_radius, block_size)
-                    else:
-                        mask = self._rounded_rectangle_mask(mosaic.size, corner_radius)
-                    canvas.paste(mosaic, (cx1, cy1), mask)
-                else:
-                    canvas.paste(mosaic, (cx1, cy1))
+                    mask = self._rounded_rectangle_mask(mosaic.size, corner_radius)
+                canvas.paste(mosaic, (cx1, cy1), mask)
+            else:
+                canvas.paste(mosaic, (cx1, cy1))
 
             return canvas
 

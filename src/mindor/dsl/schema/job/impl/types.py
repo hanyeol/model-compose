@@ -9,3 +9,4 @@ class JobType(str, Enum):
     FILTER        = "filter"
     FOR_EACH      = "for-each"
     PIPELINE      = "pipeline"
+    ACCUMULATE    = "accumulate"

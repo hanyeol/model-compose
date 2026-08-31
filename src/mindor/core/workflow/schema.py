@@ -2,7 +2,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Set, Annotated, A
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.dsl.schema.job import JobConfig, ComponentJobConfig, ForEachJobConfig, OutputJobConfig
+from mindor.dsl.schema.job import JobConfig, InlineJobConfig, ComponentJobConfig, ForEachJobConfig, AccumulateJobConfig, PipelineJobConfig, OutputJobConfig, CompositeJobConfig
 from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.component import ComponentResolver, ActionResolver
@@ -94,8 +94,15 @@ class WorkflowVariableResolver:
 
             return variables
 
+        if isinstance(value, CompositeJobConfig):
+            # Skip scope-isolated subtrees (e.g. pipeline `steps`) whose `${input}` refers to
+            # the composite's own scope, not the enclosing workflow's `${input}`.
+            excluded_fields = value.get_scope_isolated_fields()
+            walkable_fields = [ name for name in value.__class__.model_fields if name not in excluded_fields ]
+            return sum([ self._enumerate_input_variables(getattr(value, name), wanted_key) for name in walkable_fields ], [])
+
         if isinstance(value, BaseModel):
-            return self._enumerate_input_variables(value.model_dump(exclude_none=True), wanted_key)
+            return sum([ self._enumerate_input_variables(getattr(value, name), wanted_key) for name in value.__class__.model_fields ], [])
 
         if isinstance(value, dict):
             return sum([ self._enumerate_input_variables(v, wanted_key) for v in value.values() ], [])
@@ -374,14 +381,8 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
 
                 if isinstance(job, ComponentJobConfig) and (not job.output or job.output == "${output}"):
                     job_variables.extend(self._resolve_job_component(job.component, job.action, workflows, components))
-                elif isinstance(job, ForEachJobConfig) and (not job.output or job.output == "${output}"):
-                    if not job.do.output or job.do.output == "${output}":
-                        do_variables = self._resolve_job_component(job.do.component, job.do.action, workflows, components)
-                    else:
-                        do_variables = self._enumerate_output_variables(None, job.do.output)
-                    if not do_variables:
-                        do_variables = [ self._any_variable() ]
-                    job_variables.append(WorkflowVariableGroup(name=job.name or job.id, variables=do_variables, repeat_count=0))
+                elif isinstance(job, CompositeJobConfig) and (not job.output or job.output == "${output}"):
+                    job_variables.extend(self._resolve_composite_job_output(job, workflows, components))
                 else:
                     if isinstance(job, OutputJobConfig):
                         job_variables.extend(self._enumerate_output_variables(None, job.output))
@@ -392,6 +393,44 @@ class WorkflowOutputVariableResolver(WorkflowVariableResolver):
             variables.append(self._any_variable())
 
         return variables
+
+    def _resolve_composite_job_output(
+        self,
+        job: CompositeJobConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
+        if isinstance(job, ForEachJobConfig):
+            inline_variables = self._resolve_inline_job_output(job.do, workflows, components) or [ self._any_variable() ]
+            return [ WorkflowVariableGroup(name=job.name or job.id, variables=inline_variables, repeat_count=0) ]
+
+        if isinstance(job, AccumulateJobConfig):
+            return self._resolve_inline_job_output(job.do, workflows, components) or [ self._any_variable() ]
+
+        if isinstance(job, PipelineJobConfig):
+            return self._resolve_inline_job_output(job.steps[-1], workflows, components) or [ self._any_variable() ]
+
+        return []
+
+    def _resolve_inline_job_output(
+        self,
+        job: InlineJobConfig,
+        workflows: List[WorkflowConfig],
+        components: List[ComponentConfig]
+    ) -> List[Union[WorkflowVariable, WorkflowVariableGroup]]:
+        if job.output and job.output != "${output}":
+            return list(self._enumerate_output_variables(None, job.output))
+
+        if isinstance(job, ComponentJobConfig):
+            return self._resolve_job_component(job.component, job.action, workflows, components)
+
+        if isinstance(job, (ForEachJobConfig, AccumulateJobConfig)):
+            return self._resolve_inline_job_output(job.do, workflows, components)
+
+        if isinstance(job, PipelineJobConfig):
+            return self._resolve_inline_job_output(job.steps[-1], workflows, components)
+
+        return []
 
     def _resolve_job_component(
         self,

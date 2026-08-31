@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import Field, field_validator, model_validator
-from .common import JobType, OutputJobConfig
+from .common import JobType, CompositeJobConfig
 
-class PipelineJobConfig(OutputJobConfig):
+class PipelineJobConfig(CompositeJobConfig):
     type: Literal[JobType.PIPELINE]
     input: Optional[Any] = Field(default=None, description="Initial input passed to the first step.")
     steps: List["InlineJobConfig"] = Field(..., min_length=1, description="Jobs executed sequentially; each step's output feeds the next.")
@@ -29,3 +29,8 @@ class PipelineJobConfig(OutputJobConfig):
             if getattr(step, "depends_on", None):
                 raise ValueError(f"Inline pipeline step[{index}] cannot declare 'depends_on'.")
         return self
+
+    def get_scope_isolated_fields(self) -> Set[str]:
+        # Each step runs under the pipeline's own `${input}`/`${output}` scope, so step
+        # subtrees must be excluded when collecting outer-scope references.
+        return { "steps" }

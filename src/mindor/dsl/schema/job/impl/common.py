@@ -107,3 +107,12 @@ class CommonJobConfig(BaseModel):
 
 class OutputJobConfig(CommonJobConfig):
     output: Optional[Any] = Field(default=None, description="Output mapping that transforms and extracts values from the job's result.")
+
+class CompositeJobConfig(OutputJobConfig):
+    """Base for jobs whose body is one or more inline sub-jobs (for-each, accumulate, pipeline)."""
+
+    def get_scope_isolated_fields(self) -> Set[str]:
+        # Names of fields holding inline sub-jobs whose `${input}`/`${output}` refer to the
+        # composite's own scope, not the surrounding workflow scope. Consumers walking the
+        # workflow for outer-scope references must skip these fields.
+        return set()

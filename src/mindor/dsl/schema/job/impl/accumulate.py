@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import Field, field_validator, model_validator
-from .common import JobType, OutputJobConfig
+from .common import JobType, CompositeJobConfig
 
-class AccumulateJobConfig(OutputJobConfig):
+class AccumulateJobConfig(CompositeJobConfig):
     type: Literal[JobType.ACCUMULATE]
     input: Any = Field(..., description="Source of items to iterate over; accepts a list or iterable.")
     accumulator: Optional[Any] = Field(default=None, description="Initial value folded across iterations.")

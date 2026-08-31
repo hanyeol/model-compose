@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import Field, field_validator, model_validator
-from .common import JobType, OutputJobConfig
+from .common import JobType, CompositeJobConfig
 
-class ForEachJobConfig(OutputJobConfig):
+class ForEachJobConfig(CompositeJobConfig):
     type: Literal[JobType.FOR_EACH]
     input: Any = Field(..., description="Source of items to iterate over; accepts a list, async stream, or iterable.")
     batch_size: Optional[int] = Field(default=None, description="Number of items processed concurrently per batch.")

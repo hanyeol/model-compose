@@ -448,7 +448,9 @@ model-compose는 다양한 작업 유형을 지원하기 위해 여러 Job 타�
 | `delay` | 대기 | 지정된 시간 동안 대기 |
 | `filter` | 데이터 재구성 | 데이터의 일부를 추출하여 새로운 데이터로 구성 |
 | `random-router` | 랜덤 라우팅 | 무작위로 Job 선택 |
-| `for-each` | 반복 실행 | 컬렉션의 각 항목마다 컴포넌트를 한 번씩 실행 |
+| `for-each` | 반복 실행 | 컬렉션의 각 항목마다 작업을 한 번씩 실행 |
+| `accumulate` | 폴드/리듀스 | 반복마다 누적된 값을 다음 반복으로 전달하여 컬렉션을 단일 값으로 축약 |
+| `pipeline` | 순차 체이닝 | 여러 작업을 순서대로 실행하며 각 스텝의 출력을 다음 스텝 입력으로 전달 |
 
 > **참고**: `type`을 명시하지 않으면 기본적으로 `component` 타입으로 처리됩니다.
 
@@ -467,7 +469,7 @@ model-compose는 다양한 작업 유형을 지원하기 위해 여러 Job 타�
 | `retry` | int/object | `null` | 실패 시 적용되는 재시도 정책. 아래 [재시도](#재시도) 참조. |
 | `on_error` | string/object | `null` | 재시도가 모두 소진된 후 적용되는 대체 동작. 아래 [에러 처리](#에러-처리) 참조. |
 
-인터럽트, 훅, 재시도, 에러 처리는 component, if, switch, delay, filter, for-each, random-router 등 모든 Job 타입에서 동작합니다.
+인터럽트, 훅, 재시도, 에러 처리는 component, if, switch, delay, filter, for-each, accumulate, pipeline, random-router 등 모든 작업 타입에서 동작합니다.
 
 #### 인터럽트 (Human-in-the-Loop)
 
@@ -973,6 +975,163 @@ jobs:
 ```
 
 > **참고**: weight 값의 합이 100일 필요는 없습니다. 상대적 비율로 동작합니다.
+
+### For-Each 작업
+
+컬렉션의 각 항목마다 인라인 작업을 한 번씩 실행합니다. 항목은 리스트, 비동기 스트림, 또는 반복 가능한 객체에서 가져오며, 각 반복은 `batch_size`만큼 병렬로 수행됩니다.
+
+#### 필드
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `input` | any | - | 반복할 항목의 소스. 리스트, 비동기 스트림, 반복 가능한 객체를 지원. 변수 바인딩을 지원합니다. |
+| `batch_size` | `integer` | `null` (=1) | 배치당 동시 처리 항목 수. |
+| `streaming` | `boolean` | `false` | 결과를 리스트로 모으지 않고 완료되는 대로 스트리밍합니다. |
+| `do` | 인라인 작업 | - | 각 항목마다 실행할 작업. component(기본), for-each, accumulate, pipeline 중 어떤 인라인 작업 타입이든 가능. [복합 작업 안의 인라인 작업](#복합-작업-안의-인라인-작업) 참조. |
+| `output` | any | `null` | 집계된 결과에 적용되는 작업 수준 출력 매핑. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 작업 실행 전에 완료되어야 하는 작업 목록. |
+
+`do` 안에서 `${item}`은 현재 원소를 가리킵니다. for-each 작업의 최종 출력은 각 반복 결과의 리스트입니다.
+
+```yaml
+jobs:
+  - id: process-each
+    type: for-each
+    input: ${input.items}
+    batch_size: 4
+    do:
+      component: item-processor
+      action: transform
+      input:
+        item: ${item}
+```
+
+### Accumulate 작업
+
+인라인 작업을 각 항목마다 실행하되, 이전 반복의 결과를 다음 반복으로 전달하여 컬렉션을 단일 값으로 축약합니다. 이전 반복이 끝나야 다음 반복이 시작되므로 항상 순차 실행됩니다.
+
+#### 필드
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `input` | any | - | 반복할 항목의 소스. 변수 바인딩을 지원합니다. |
+| `accumulator` | any | `null` | 반복을 통해 누적되는 초기값. `do` 안에서 `${accumulator}`로 접근합니다. |
+| `do` | 인라인 작업 | - | 각 항목마다 실행할 작업. 그 출력이 다음 반복의 `${accumulator}`가 됩니다. [복합 작업 안의 인라인 작업](#복합-작업-안의-인라인-작업) 참조. |
+| `output` | any | `null` | 최종 누적값에 적용되는 작업 수준 출력 매핑. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 작업 실행 전에 완료되어야 하는 작업 목록. |
+
+`do` 안에서 `${item}`은 현재 원소이고, `${accumulator}`는 이전 반복이 만든 값 — 첫 반복에서는 초기 `accumulator`입니다. accumulate 작업의 최종 출력은 마지막 반복의 결과(리스트가 아닌 단일 값)입니다.
+
+```yaml
+jobs:
+  - id: annotate-faces
+    type: accumulate
+    input: ${jobs.detect.output.faces}
+    accumulator: ${jobs.store.output.url as image;url}
+    do:
+      component: box-drawer
+      input:
+        image: ${accumulator}
+        x: ${item.bounding_box.x}
+        y: ${item.bounding_box.y}
+        width: ${item.bounding_box.width}
+        height: ${item.bounding_box.height}
+```
+
+각 반복이 현재까지 그려진 이미지 위에 바운딩 박스 하나를 더 그리므로, 최종 출력은 모든 얼굴이 표시된 원본 이미지입니다.
+
+### Pipeline 작업
+
+여러 작업을 순서대로 실행하며 각 스텝의 출력을 다음 스텝 입력으로 전달합니다. 여러 개의 `depends_on` 작업을 만들어 `${jobs.prev.output}`을 손으로 이어붙일 필요 없이, 이미지/오디오/데이터 처리 체인을 인라인으로 표현할 때 유용합니다.
+
+#### 필드
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `input` | any | `null` | 각 스텝에서 `${input}`으로 접근되는 값. |
+| `steps` | list | - | 순차 실행되는 스텝들(최소 1개). 각 스텝은 인라인 작업입니다. [복합 작업 안의 인라인 작업](#복합-작업-안의-인라인-작업) 참조. |
+| `output` | any | `null` | 마지막 스텝의 결과에 적용되는 작업 수준 출력 매핑. |
+| `depends_on` | `(string \| string[])[]` | `[]` | 이 작업 실행 전에 완료되어야 하는 작업 목록. |
+
+각 스텝 안에서는 네 개의 예약된 소스를 사용할 수 있습니다:
+
+- `${input}` — 파이프라인 자체의 최상위 `input` 값. 모든 스텝에서 사용 가능.
+- `${output}` — `steps[].input` 안에서는 이전 스텝의 최종 출력(그 스텝의 `output` 매핑이 적용된 값), `steps[].output` 안에서는 컴포넌트가 방금 반환한 raw 값(이 스텝의 `output` 매핑 적용 전). 첫 스텝의 `input`에서는 사용 불가.
+- `${step.input}` — `steps[].output` 안에서, 이 스텝이 실제로 받은 입력 dict. 컴포넌트 raw 출력만으로는 넘길 수 없는 값을 스텝 결과에 실어보낼 때 사용합니다.
+- `${step.index}` — 이 스텝의 0-based 위치.
+
+스텝의 `input`을 생략하면 첫 스텝은 파이프라인 입력, 이후 스텝은 이전 스텝의 출력을 기본값으로 받습니다.
+
+```yaml
+jobs:
+  - id: enhance-and-annotate
+    type: pipeline
+    input: ${input.image}
+    steps:
+      - component: image-processor
+        action: resize
+        input:
+          image: ${input}
+          width: 1024
+      - component: image-processor
+        action: sharpen
+        input:
+          image: ${output}
+          factor: 1.3
+      - component: image-drawing
+        action: rectangle
+        input:
+          image: ${output}
+          x: 10
+          y: 10
+          width: 200
+          height: 100
+          outline: red
+```
+
+파이프라인의 최종 출력은 마지막 스텝의 출력입니다 — 다운스트림 작업에서 `${jobs.<pipeline-id>.output}`으로 참조할 수 있습니다.
+
+### 복합 작업 안의 인라인 작업
+
+`for-each`와 `accumulate`는 `do`로 인라인 작업 하나를, `pipeline`은 `steps`로 인라인 작업 리스트를 받습니다. 인라인 작업은 다음 중 하나입니다:
+
+- `component` (`type` 생략 시 기본값) — 컴포넌트 액션을 호출
+- `for-each` — 중첩된 반복
+- `accumulate` — 중첩된 폴드
+- `pipeline` — 중첩된 순차 파이프라인
+
+인라인 작업은 `depends_on`을 선언할 수 없습니다 — 부모 안에서의 위치가 이미 실행 순서를 결정합니다.
+
+#### 스코프
+
+인라인 작업이 어떤 예약된 변수를 볼 수 있는지는 부모에 따라 달라집니다:
+
+| 부모 | 자식 내부에서 보이는 것 |
+|------|-------------------------|
+| `for-each` `do` | 부모의 바깥 스코프 + `${item}` |
+| `accumulate` `do` | 부모의 바깥 스코프 + `${item}`, `${accumulator}` |
+| `pipeline` `steps[i]` | `${input}`, `${output}`, `${step.input}`, `${step.index}`만 (파이프라인 자체 스코프) |
+
+파이프라인 케이스가 중요합니다: 각 스텝은 자체 스코프에서 실행되므로, 바깥 워크플로우의 `${input}`이나 감싸는 for-each의 `${item}` 같은 바깥 참조는 스텝 안에서 **접근 불가**합니다. 스텝이 필요로 하는 모든 값을 파이프라인의 최상위 `input:`에 한 번에 담고, 각 스텝은 `${input.xxx}`로 읽으면 됩니다:
+
+```yaml
+- type: for-each
+  input: [ 50, 90, 130, 170, 210 ]
+  do:
+    type: pipeline
+    input:
+      target_luma: ${item}                                  # 바깥 for-each의 item, 여기서 캡처
+      image_url: ${jobs.store.output.url}                   # 바깥 워크플로우 스코프, 여기서 캡처
+      original_luma: ${jobs.measure.output.mean_brightness}
+    steps:
+      - component: factor-calc
+        input:
+          original: ${input.original_luma}                  # 파이프라인 자체 입력에서 읽음
+          target: ${input.target_luma}
+      # ... 이후 스텝들 모두 ${input.xxx}로 접근
+```
+
+최상위 `input:`으로 캡처하지 않으면 스텝 안에서는 바깥 for-each의 `${item}`을 참조할 방법이 아예 없습니다 — 그 변수는 파이프라인 스텝 스코프에 존재하지 않기 때문입니다.
 
 ---
 

@@ -1,6 +1,6 @@
 # File Store Component
 
-The file store component provides a unified interface for storing, retrieving, and managing files across local filesystems and major cloud object storage services (AWS S3, Google Cloud Storage, Azure Blob Storage). It supports operations like put, get, delete, exists, and list, with streaming I/O for handling large files without memory overhead.
+The file store component provides a unified interface for storing, retrieving, and managing files across local filesystems, major cloud object storage services (AWS S3, Google Cloud Storage, Azure Blob Storage), and remote hosts over SFTP. It supports operations like put, get, delete, exists, and list, with streaming I/O for handling large files without memory overhead.
 
 ## Basic Configuration
 
@@ -24,7 +24,7 @@ All file-store drivers share these common settings:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `file-store` |
-| `driver` | string | **required** | Backend driver: `local`, `aws-s3`, `gcp-storage`, `azure-blob` |
+| `driver` | string | **required** | Backend driver: `local`, `aws-s3`, `gcp-storage`, `azure-blob`, `sftp` |
 | `base_path` | string | local: cwd / cloud: bucket root | Base prefix for all action `path` inputs. Not included in the logical `path` users see |
 | `actions` | array | `[]` | List of file store actions |
 
@@ -134,6 +134,59 @@ component:
 | `account_key` | string | `null` | Account key (when not using `connection_string`) |
 
 > **Note**: `connection_string` and `(account_name, account_key)` are mutually exclusive. If neither is provided, `DefaultAzureCredential` (environment-based) is attempted.
+
+### SFTP
+
+Store files on a remote host over SFTP (SSH File Transfer Protocol). The driver holds an SSH connection for the lifetime of the component and opens the SFTP subsystem automatically on start.
+
+```yaml
+component:
+  type: file-store
+  driver: sftp
+  base_path: /srv/uploads
+  connection:
+    host: sftp.example.com
+    port: 22
+    auth:
+      type: keyfile
+      username: ${env.SFTP_USER}
+      keyfile: ~/.ssh/id_ed25519
+```
+
+**SFTP Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `connection.host` | string | **required** | SFTP server hostname or IP |
+| `connection.port` | integer | `22` | SSH port on the server |
+| `connection.auth.type` | string | **required** | `keyfile` or `password` |
+| `connection.auth.username` | string | **required** | SSH username |
+| `connection.auth.keyfile` | string | required for `keyfile` | Path to the private key file. `~` is expanded |
+| `connection.auth.passphrase` | string | `null` | Passphrase for an encrypted private key (keyfile auth only) |
+| `connection.auth.password` | string | required for `password` | Password for password auth |
+| `connection.keepalive_interval` | duration | `10s` | Interval between SSH keepalive messages; `0s` disables |
+
+**Password authentication:**
+
+```yaml
+component:
+  type: file-store
+  driver: sftp
+  connection:
+    host: sftp.example.com
+    auth:
+      type: password
+      username: ${env.SFTP_USER}
+      password: ${env.SFTP_PASSWORD}
+```
+
+**Notes:**
+
+- **`base_path` is an absolute POSIX path** on the remote server. Defaults to `/`. Relative paths and `~`-expansion are not resolved by the driver.
+- **Requires the `paramiko` package.** Install with `pip install paramiko`.
+- **`put` is atomic per file** — data is uploaded to a `.tmp` sibling and then renamed over the destination. Failed uploads clean up the temporary file.
+- **Missing parent directories are created automatically** on `put` (analogous to `os.makedirs(exist_ok=True)`).
+- **Host key verification** currently uses paramiko's `AutoAddPolicy` (unknown host keys are accepted on first connect). Restrict network reachability accordingly for production use.
 
 ## Path Semantics
 
@@ -593,12 +646,13 @@ The `url` field returned by `put`/`get`/`list` follows driver-specific conventio
 | `aws-s3` | `https://<bucket>.s3.<region>.amazonaws.com/<base_path><path>` (or `endpoint`-based) |
 | `gcp-storage` | `https://storage.googleapis.com/<bucket>/<base_path><path>` |
 | `azure-blob` | `https://<account>.blob.core.windows.net/<container>/<base_path><path>` |
+| `sftp` | `sftp://<user>@<host>[:<port>]/<absolute-path>` |
 
 > **Access not guaranteed**: The `url` is a standard URL pointer to the object. Whether anonymous access succeeds depends on IAM policies and bucket/object ACLs. The component does not provide presigned URLs — use external tooling if signed URLs are required.
 
 ## Driver Scope
 
-File-store drivers only target systems with **native protocol support that does not require OS-level mounting**. Mount-dependent systems (NFS, SMB/CIFS, SSHFS) should be mounted at the OS level and accessed through the `local` driver:
+File-store drivers only target systems with **native protocol support that does not require OS-level mounting**. Mount-dependent systems (NFS, SMB/CIFS) should be mounted at the OS level and accessed through the `local` driver:
 
 ```yaml
 - id: nfs-storage
@@ -607,7 +661,7 @@ File-store drivers only target systems with **native protocol support that does 
   base_path: /mnt/nfs-share/workflows   # OS-mounted path
 ```
 
-S3-compatible storage (MinIO, Cloudflare R2, Wasabi, Backblaze B2, etc.) is supported via the `aws-s3` driver's `endpoint`.
+S3-compatible storage (MinIO, Cloudflare R2, Wasabi, Backblaze B2, etc.) is supported via the `aws-s3` driver's `endpoint`. Remote hosts reachable over SSH are supported natively via the `sftp` driver (no OS-level mount required).
 
 ## Error Handling
 

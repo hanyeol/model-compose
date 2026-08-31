@@ -29,11 +29,12 @@ model-compose provides various component types for performing different tasks.
 | `graph-store` | Graph DB integration | Knowledge graphs, social networks with Neo4j, ArangoDB |
 | `search-engine` | Full-text search | BM25-ranked keyword search with SQLite FTS5 |
 | `key-value-store` | Key-value storage | Caching, session management with in-memory, Redis, or SQLite backends |
-| `file-store` | File/object storage | Local filesystem, AWS S3, GCP Storage, Azure Blob with streaming I/O |
+| `file-store` | File/object storage | Local filesystem, AWS S3, GCP Storage, Azure Blob, SFTP with streaming I/O |
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
 | `image-processor` | Process images | Image transformation, resizing, filters, etc. |
+| `image-drawing` | Draw on images | Shapes, text, and bitmaps via Pillow ImageDraw — bounding boxes, labels, keypoints, masks |
 | `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
 | `image-analyzer` | Measure image properties | Brightness, contrast, sharpness (blur), and exposure clipping via Pillow + numpy |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
@@ -85,6 +86,7 @@ model-compose provides various component types for performing different tasks.
 - File/object storage → `file-store`
 - Text splitting → `text-splitter`
 - Image processing → `image-processor`
+- Image drawing (bounding boxes, labels, keypoints, mask overlays) → `image-drawing`
 - Image compression (PNG) → `image-compressor`
 - Image analysis (brightness, contrast, sharpness/blur, exposure clipping) → `image-analyzer`
 - Video scene detection → `video-scene-detector`

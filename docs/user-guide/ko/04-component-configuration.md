@@ -29,11 +29,12 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `graph-store` | 그래프 DB 연동 | Neo4j, ArangoDB를 사용한 지식 그래프, 소셜 네트워크 |
 | `search-engine` | 풀텍스트 검색 | SQLite FTS5 기반 BM25 키워드 검색 |
 | `key-value-store` | 키-값 저장소 | Redis를 사용한 캐싱, 세션 관리 |
-| `file-store` | 파일/객체 저장소 | 로컬 파일시스템, AWS S3, GCP Storage, Azure Blob 스트리밍 I/O |
+| `file-store` | 파일/객체 저장소 | 로컬 파일시스템, AWS S3, GCP Storage, Azure Blob, SFTP 스트리밍 I/O |
 | `workflow` | 워크플로우 호출 | 다른 워크플로우를 서브루틴으로 실행 |
 | `shell` | 셸 명령 실행 | 스크립트 실행, 시스템 명령 |
 | `text-splitter` | 텍스트 분할 | 문서를 청크로 분할 |
 | `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, 필터 등 |
+| `image-drawing` | 이미지에 그리기 | Pillow ImageDraw로 도형·텍스트·비트맵 그리기 — 바운딩 박스, 라벨, 키포인트, 마스크 오버레이 |
 | `image-compressor` | 이미지 압축 | Pillow, oxipng, pngquant를 통한 PNG 압축 |
 | `image-analyzer` | 이미지 속성 측정 | Pillow + numpy로 밝기, 대비, 선명도(블러), 노출 클리핑 측정 |
 | `video-scene-detector` | 비디오 장면 감지 | PySceneDetect, FFmpeg, TransNetV2를 사용한 장면 전환 감지 |
@@ -77,6 +78,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 키-값 저장 → `key-value-store`
 - 텍스트 분할 → `text-splitter`
 - 이미지 처리 → `image-processor`
+- 이미지 그리기 (바운딩 박스, 라벨, 키포인트, 마스크 오버레이) → `image-drawing`
 - 이미지 압축 (PNG) → `image-compressor`
 - 이미지 분석 (밝기, 대비, 선명도/블러, 노출 클리핑) → `image-analyzer`
 - 비디오 장면 감지 → `video-scene-detector`

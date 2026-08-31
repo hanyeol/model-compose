@@ -259,10 +259,10 @@ components:
 components:
   - id: file-store-id
     type: file-store
-    driver: local | aws-s3 | gcp-storage | azure-blob
+    driver: local | aws-s3 | gcp-storage | azure-blob | sftp
 
     # Common
-    base_path: workflows/        # logical prefix (optional)
+    base_path: workflows/        # logical prefix (optional; sftp treats as absolute POSIX path)
 
     # Driver-specific
     bucket: my-bucket            # aws-s3, gcp-storage
@@ -272,6 +272,16 @@ components:
     secret_access_key: ${env.AWS_SECRET_ACCESS_KEY}
     # endpoint_url: http://minio.local:9000   # S3-compatible
     # connection_string: ${env.AZURE_STORAGE_CONNECTION_STRING}  # azure-blob
+    # sftp
+    # connection:
+    #   host: sftp.example.com
+    #   port: 22
+    #   auth:
+    #     type: keyfile              # or `password`
+    #     username: ${env.SFTP_USER}
+    #     keyfile: ~/.ssh/id_ed25519
+    #     # passphrase: ${env.SFTP_KEY_PASSPHRASE}
+    #     # password: ${env.SFTP_PASSWORD}   # for type: password
 
     # Actions
     actions:

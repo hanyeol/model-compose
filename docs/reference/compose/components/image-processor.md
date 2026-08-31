@@ -32,7 +32,7 @@ All image processor actions share these common settings:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `overlay`, `mosaic` |
-| `image` | string / array | **required** | Input image(s) — a single image (file path, base64 string, or variable reference) or a list of images |
+| `image` | string / array | **required** | Input image(s) — a single image or a list of images |
 | `batch_size` | integer / string | `null` | Number of input images to process in a single batch |
 | `output` | any | `null` | Output variable mapping |
 
@@ -329,7 +329,7 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `overlay` | string | **required** | Overlay image (file path, base64 string, or variable reference). Must resolve to a single image. |
+| `overlay` | string | **required** | Overlay image. Must resolve to a single image. |
 | `x` | integer | **required** | X coordinate of the anchor point on the base image. |
 | `y` | integer | **required** | Y coordinate of the anchor point on the base image. |
 | `width` | integer | `null` | Resize overlay width in pixels before pasting. If only one of `width`/`height` is set, the other is derived from the overlay's native aspect ratio. When both are set, the overlay is resized to exactly `(width, height)` and may be distorted. |
@@ -341,7 +341,7 @@ Overlays whose bounding box extends past the base image are clipped naturally (n
 
 ### Mosaic
 
-Obscure one or more rectangular regions of an image (or the whole image) with a mosaic effect. Typical use is redacting faces or license plates — pipe `face-detection` / `face-tracking` bounding boxes straight in.
+Obscure a rectangular region of an image (or the whole image) with a mosaic effect. Typical use is redacting a face or license plate — pipe a detection component's `bounding_box` fields straight in.
 
 ```yaml
 component:
@@ -350,9 +350,12 @@ component:
     method: mosaic
     image: ${input.image}
     mode: pixelate
-    # Pipe a detection component's bounding boxes directly. Each box is
-    # `{x, y, width, height}` matching the mosaic region shape.
-    region: ${jobs.detect.output.faces[*].bounding_box}
+    # A detection component's bounding_box is `{x, y, width, height}` and
+    # maps directly onto these four fields.
+    x: ${jobs.detect.output.face.bounding_box.x}
+    y: ${jobs.detect.output.face.bounding_box.y}
+    width: ${jobs.detect.output.face.bounding_box.width}
+    height: ${jobs.detect.output.face.bounding_box.height}
     block_size: 16
     output: ${output}
 ```
@@ -362,20 +365,25 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mode` | string | `pixelate` | Algorithm: `pixelate` (block-based downsample) or `blur` (Gaussian blur) |
-| `region` | object or list | `null` | Region(s) to mosaic as `{x, y, width, height}` (single) or `[{...}, ...]` (multiple). Omit to apply the mosaic to the whole image. |
+| `x` | integer | `null` | X coordinate of the region's top-left corner. Omit `x`/`y`/`width`/`height` together to apply the mosaic to the whole image. |
+| `y` | integer | `null` | Y coordinate of the region's top-left corner. |
+| `width` | integer | `null` | Region width in pixels. |
+| `height` | integer | `null` | Region height in pixels. |
 | `block_size` | integer | `16` | Absolute pixelate block size in pixels (larger = more pixelated). Used when `mode` is `pixelate`. Mutually exclusive with `block_scale`. Applied when neither is specified. |
-| `block_scale` | number | `null` | Pixelate block size relative to each region's shorter side, in `(0.0, 1.0]`. Adapts automatically to region size — small faces get a proportionally finer block than large ones. Prefer this over `block_size` when regions vary widely in size (e.g. face bounding boxes at different distances). Used when `mode` is `pixelate`. Mutually exclusive with `block_size`. |
+| `block_scale` | number | `null` | Pixelate block size relative to the region's shorter side, in `(0.0, 1.0]`. Adapts to region size — a small face gets a proportionally finer block than a large one. Prefer this over `block_size` when region sizes vary across runs. Used when `mode` is `pixelate`. Mutually exclusive with `block_size`. |
 | `min_block_size` | integer | `8` | Minimum pixelate block size in pixels. Only takes effect with `block_scale` — clamps the computed block size so tiny regions still get a visible mosaic instead of a 1–2 pixel block that looks nearly untouched. |
 | `max_block_size` | integer | `32` | Maximum pixelate block size in pixels. Only takes effect with `block_scale` — clamps the computed block size so large regions do not turn into a handful of oversized blocks that look like pixel art. |
 | `blur_radius` | number | `8.0` | Blur radius in pixels. Used when `mode` is `blur`. |
-| `corner_radius` | integer | `0` | Absolute corner radius in pixels for rounded-rectangle mosaic regions. `0` keeps square corners; larger values round each region's corners and leave the original pixels outside the rounded shape untouched. Mutually exclusive with `corner_scale`. Applied when neither is specified. |
-| `corner_scale` | number | `null` | Corner radius relative to each region's shorter side, in `[0.0, 0.5]`. Adapts automatically to region size — small faces get a proportionally smaller corner than large ones. Prefer this over `corner_radius` when regions vary widely in size. Mutually exclusive with `corner_radius`. |
+| `corner_radius` | integer | `0` | Absolute corner radius in pixels for a rounded-rectangle mosaic region. `0` keeps square corners; larger values round the region's corners and leave the original pixels outside the rounded shape untouched. Mutually exclusive with `corner_scale`. Applied when neither is specified. |
+| `corner_scale` | number | `null` | Corner radius relative to the region's shorter side, in `[0.0, 0.5]`. Adapts to region size. Prefer this over `corner_radius` when region sizes vary across runs. Mutually exclusive with `corner_radius`. |
 
-`block_size` and `block_scale` are mutually exclusive; setting both raises a validation error. When neither is set, `block_size: 16` is applied — a sensible fixed default matching FFmpeg's `pixelize` filter. For workflows where regions vary widely in size (e.g. face bounding boxes at different distances), set `block_scale` instead so the mosaic strength stays visually consistent across regions. `min_block_size` and `max_block_size` clamp `block_scale`'s output — the effective block size is `min(max_block_size, max(min_block_size, round(shorter_side * block_scale)))`.
+`x`, `y`, `width`, `height` must all be specified together or all omitted. When omitted, the mosaic is applied to the whole image.
 
-`corner_radius` and `corner_scale` are mutually exclusive; setting both raises a validation error. When neither is set, corners stay square. Radius (absolute or computed from `corner_scale`) is automatically clamped to half of each region's shorter side so it never exceeds the region. Under `mode: pixelate` the corner mask snaps to the block grid — each block is either fully kept or fully dropped, so no block is cut in half at the rounded edge and the pixel-art look stays intact. Under `mode: blur` the corner is a smooth anti-aliased curve.
+`block_size` and `block_scale` are mutually exclusive; setting both raises a validation error. When neither is set, `block_size: 16` is applied — a sensible fixed default matching FFmpeg's `pixelize` filter. Use `block_scale` when region sizes vary across runs so the mosaic strength stays visually consistent. `min_block_size` and `max_block_size` clamp `block_scale`'s output — the effective block size is `min(max_block_size, max(min_block_size, round(shorter_side * block_scale)))`.
 
-Each region shares the same `{x, y, width, height}` shape used by detection components' `bounding_box` outputs. Regions that extend past the image are clipped naturally. When multiple regions overlap, later regions mosaic the already-mosaicked pixels of earlier ones (so overlapping faces stay redacted).
+`corner_radius` and `corner_scale` are mutually exclusive; setting both raises a validation error. When neither is set, corners stay square. Radius (absolute or computed from `corner_scale`) is automatically clamped to half of the region's shorter side so it never exceeds the region. Under `mode: pixelate` the corner mask snaps to the block grid — each block is either fully kept or fully dropped, so no block is cut in half at the rounded edge and the pixel-art look stays intact. Under `mode: blur` the corner is a smooth anti-aliased curve.
+
+Regions that extend past the image are clipped naturally. To mosaic multiple regions in the same image (e.g. several faces per frame), invoke `mosaic` once per region — each call operates on the previous result, so overlapping regions stay redacted.
 
 > For PNG compression, see the [`image-compressor`](image-compressor.md) component.
 

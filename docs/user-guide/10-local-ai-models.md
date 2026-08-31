@@ -315,6 +315,22 @@ component:
 - `role`: `system`, `user`, `assistant`
 - `content`: Message content
 
+**Overriding the chat template:**
+
+Set `chat_template` on the component to override the tokenizer's default Jinja template (applies to `huggingface`, `vllm`, and `llamacpp` drivers):
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  chat_template: |
+    {%- for message in messages %}
+    <|{{ message.role }}|>
+    {{ message.content }}</s>
+    {%- endfor %}
+```
+
 ### 10.3.3 text-to-text
 
 Runs seq2seq (encoder-decoder) transforms such as translation, summarization, and paraphrasing.

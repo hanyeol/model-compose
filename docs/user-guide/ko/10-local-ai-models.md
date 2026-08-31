@@ -312,6 +312,22 @@ component:
 - `role`: `system`, `user`, `assistant`
 - `content`: 메시지 내용
 
+**채팅 템플릿 재정의:**
+
+컴포넌트에 `chat_template`을 지정하면 토크나이저 기본 Jinja 템플릿을 재정의합니다 (`huggingface`, `vllm`, `llamacpp` 드라이버에 적용됩니다):
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  chat_template: |
+    {%- for message in messages %}
+    <|{{ message.role }}|>
+    {{ message.content }}</s>
+    {%- endfor %}
+```
+
 ### 10.3.3 text-classification
 
 텍스트를 카테고리로 분류합니다.

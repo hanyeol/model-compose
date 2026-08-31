@@ -29,11 +29,12 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `graph-store` | 图数据库集成 | 使用 Neo4j、ArangoDB 的知识图谱、社交网络 |
 | `search-engine` | 全文搜索 | 基于 SQLite FTS5 的 BM25 关键词搜索 |
 | `key-value-store` | 键值存储 | 使用 Redis 进行缓存、会话管理 |
-| `file-store` | 文件/对象存储 | 本地文件系统、AWS S3、GCP Storage、Azure Blob 流式 I/O |
+| `file-store` | 文件/对象存储 | 本地文件系统、AWS S3、GCP Storage、Azure Blob、SFTP 流式 I/O |
 | `workflow` | 调用工作流 | 将其他工作流作为子程序执行 |
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
 | `text-splitter` | 分割文本 | 将文档分割成块 |
 | `image-processor` | 处理图像 | 图像转换、调整大小、滤镜等 |
+| `image-drawing` | 在图像上绘制 | 通过 Pillow ImageDraw 绘制图形、文本和位图 — 边界框、标签、关键点、掩膜叠加 |
 | `image-compressor` | 压缩图像 | 通过 Pillow、oxipng 或 pngquant 进行 PNG 压缩 |
 | `image-analyzer` | 图像属性测量 | 通过 Pillow + numpy 测量亮度、对比度、清晰度（模糊）、曝光削波 |
 | `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
@@ -77,6 +78,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 键值存储 → `key-value-store`
 - 文本分割 → `text-splitter`
 - 图像处理 → `image-processor`
+- 图像绘制（边界框、标签、关键点、掩膜叠加）→ `image-drawing`
 - 图像压缩 (PNG) → `image-compressor`
 - 图像分析（亮度、对比度、清晰度/模糊、曝光削波）→ `image-analyzer`
 - 视频场景检测 → `video-scene-detector`

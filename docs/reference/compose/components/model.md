@@ -157,6 +157,45 @@ messages:
     content: Search results...
 ```
 
+**Chat Completion Component Options:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `chat_template` | string | `null` | Inline Jinja chat template string, overriding the tokenizer default. Applies to `huggingface`, `vllm`, and `llamacpp` drivers. |
+| `tools` | array | `null` | Catalog of tools this component exposes for tool calling. |
+
+**vLLM Driver Options:**
+
+The `vllm` driver accepts additional top-level fields for reasoning and tool-call handling:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tool_call_parser` | string | `null` | Parser for tool call outputs (e.g., `hermes`, `mistral`, `llama3_json`, `pythonic`). |
+| `tool_parser_plugin` | string | `null` | Path to a custom tool parser plugin module registered at engine startup. |
+| `reasoning_parser` | string | `null` | Parser for reasoning model outputs. |
+| `reasoning_config` | object | `null` | Reasoning model settings. |
+| `options` | object | `null` | Engine options forwarded to vLLM when loading the model (see `AsyncEngineArgs`). |
+
+Example:
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  driver: vllm
+  model: mistralai/Mistral-7B-Instruct-v0.3
+  chat_template: |
+    {%- for message in messages %}
+    <|{{ message.role }}|>
+    {{ message.content }}</s>
+    {%- endfor %}
+  tool_call_parser: mistral
+  reasoning_parser: deepseek_r1
+  options:
+    dtype: bfloat16
+    gpu_memory_utilization: 0.9
+```
+
 ### Text Embedding
 
 Generate vector embeddings for text:

@@ -312,6 +312,22 @@ component:
 - `role`：`system`、`user`、`assistant`
 - `content`：消息内容
 
+**覆盖 chat 模板：**
+
+在组件上设置 `chat_template` 可覆盖分词器默认的 Jinja 模板（适用于 `huggingface`、`vllm` 和 `llamacpp` 驱动）：
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  chat_template: |
+    {%- for message in messages %}
+    <|{{ message.role }}|>
+    {{ message.content }}</s>
+    {%- endfor %}
+```
+
 ### 10.3.3 text-to-text
 
 基于 seq2seq（encoder-decoder）模型的文本变换任务，覆盖翻译、摘要、改写等使用场景。

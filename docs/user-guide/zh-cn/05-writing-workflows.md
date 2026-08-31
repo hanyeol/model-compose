@@ -448,6 +448,9 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 | `delay` | 等待 | 等待指定的持续时间 |
 | `filter` | 数据重组 | 提取和重组数据为新形状 |
 | `random-router` | 随机路由 | 随机选择一个作业 |
+| `for-each` | 迭代 | 对集合中的每一项各运行一次作业 |
+| `accumulate` | 折叠/归约 | 将累积值传递到下一次迭代，把集合折叠成单个值 |
+| `pipeline` | 顺序链式执行 | 按顺序运行一系列作业，将每个步骤的输出作为下一步骤的输入 |
 
 > **注意**: 如果未指定 `type`，则默认为 `component`。
 
@@ -466,7 +469,7 @@ model-compose 提供各种作业类型来支持不同的任务模式。
 | `retry` | int/object | `null` | 作业失败时的重试策略。参见下方 [重试](#重试)。 |
 | `on_error` | string/object | `null` | 重试耗尽后的回退行为。参见下方 [错误处理](#错误处理)。 |
 
-中断、钩子、重试和错误处理适用于每种作业类型 —— component、if、switch、delay、filter、for-each、random-router。
+中断、钩子、重试和错误处理适用于每种作业类型 —— component、if、switch、delay、filter、for-each、accumulate、pipeline、random-router。
 
 #### 中断（人机协作）
 
@@ -972,6 +975,163 @@ jobs:
 ```
 
 > **注意**: 权重值不需要总和为 100。它们作为相对比例工作。
+
+### For-Each 作业
+
+对输入集合中的每一项各运行一次内联作业。项来自列表、异步流或任何可迭代对象，各次迭代最多按 `batch_size` 并行执行。
+
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `input` | any | - | 要迭代的项的来源。支持列表、异步流和可迭代对象。支持变量绑定。 |
+| `batch_size` | `integer` | `null` (=1) | 每批并行处理的项数。 |
+| `streaming` | `boolean` | `false` | 结果完成即流式产出，而不是累积到列表。 |
+| `do` | 内联作业 | - | 每一项要执行的作业。component（默认）、for-each、accumulate、pipeline 等任意内联作业类型。参见 [复合作业中的内联作业](#复合作业中的内联作业)。 |
+| `output` | any | `null` | 应用于聚合结果的作业级输出映射。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业列表。 |
+
+在 `do` 内，`${item}` 表示当前元素。for-each 作业的最终输出是每次迭代结果的列表。
+
+```yaml
+jobs:
+  - id: process-each
+    type: for-each
+    input: ${input.items}
+    batch_size: 4
+    do:
+      component: item-processor
+      action: transform
+      input:
+        item: ${item}
+```
+
+### Accumulate 作业
+
+对每一项运行一次内联作业，并将累积值传递给下一次迭代，把集合折叠为单个值。各次迭代顺序执行 —— 下一次迭代必须等待上一次完成。
+
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `input` | any | - | 要迭代的项的来源。支持变量绑定。 |
+| `accumulator` | any | `null` | 跨迭代折叠的初始值。在 `do` 内通过 `${accumulator}` 访问。 |
+| `do` | 内联作业 | - | 每一项要执行的作业；其输出将成为下一次迭代的 `${accumulator}`。参见 [复合作业中的内联作业](#复合作业中的内联作业)。 |
+| `output` | any | `null` | 应用于最终累积值的作业级输出映射。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业列表。 |
+
+在 `do` 内，`${item}` 是当前元素，`${accumulator}` 是运行中的结果 —— 即上一次迭代产生的值，或第一次迭代时的初始 `accumulator`。accumulate 作业的最终输出是最后一次迭代的结果（单个值，不是列表）。
+
+```yaml
+jobs:
+  - id: annotate-faces
+    type: accumulate
+    input: ${jobs.detect.output.faces}
+    accumulator: ${jobs.store.output.url as image;url}
+    do:
+      component: box-drawer
+      input:
+        image: ${accumulator}
+        x: ${item.bounding_box.x}
+        y: ${item.bounding_box.y}
+        width: ${item.bounding_box.width}
+        height: ${item.bounding_box.height}
+```
+
+每次迭代在正在处理的图像上再画一个边界框，最终输出即为已标注所有人脸的源图像。
+
+### Pipeline 作业
+
+按顺序运行一系列作业，将每个步骤的输出作为下一步骤的输入。适用于图像/音频/数据处理链 —— 否则你需要多个 `depends_on` 作业，只为把 `${jobs.prev.output}` 穿过它们。
+
+#### 字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `input` | any | `null` | 在每个步骤中作为 `${input}` 暴露的值。 |
+| `steps` | list | - | 顺序执行的步骤（至少 1 个）。每个步骤是一个内联作业。参见 [复合作业中的内联作业](#复合作业中的内联作业)。 |
+| `output` | any | `null` | 应用于最后一步结果的作业级输出映射。 |
+| `depends_on` | `(string \| string[])[]` | `[]` | 此作业运行前必须完成的作业列表。 |
+
+步骤内可用四个保留源：
+
+- `${input}` — 管道自身的顶层 `input` 值。在每个步骤中都可用。
+- `${output}` — 在 `steps[].input` 内，表示上一步的最终输出（应用该步 `output` 映射之后的值）；在 `steps[].output` 内，表示组件刚刚返回的原始值（应用此步 `output` 映射之前）。第一步的 `input` 中不可用。
+- `${step.input}` — 在 `steps[].output` 内，表示此步实际接收到的输入 dict。用于把仅靠组件原始输出无法传递的值一并写入此步结果。
+- `${step.index}` — 此步在管道中的从 0 开始的位置。
+
+若步骤省略 `input`，第一步默认使用管道输入，后续步骤默认使用上一步的输出。
+
+```yaml
+jobs:
+  - id: enhance-and-annotate
+    type: pipeline
+    input: ${input.image}
+    steps:
+      - component: image-processor
+        action: resize
+        input:
+          image: ${input}
+          width: 1024
+      - component: image-processor
+        action: sharpen
+        input:
+          image: ${output}
+          factor: 1.3
+      - component: image-drawing
+        action: rectangle
+        input:
+          image: ${output}
+          x: 10
+          y: 10
+          width: 200
+          height: 100
+          outline: red
+```
+
+管道的最终输出即为最后一步的输出 —— 下游作业可用 `${jobs.<pipeline-id>.output}` 引用。
+
+### 复合作业中的内联作业
+
+`for-each` 与 `accumulate` 以 `do` 接受一个内联作业；`pipeline` 以 `steps` 接受一组内联作业。内联作业可为以下任一类型：
+
+- `component`（省略 `type` 时的默认值）—— 调用组件动作
+- `for-each` —— 嵌套迭代
+- `accumulate` —— 嵌套折叠
+- `pipeline` —— 嵌套顺序管道
+
+内联作业不能声明 `depends_on` —— 其在父级中的位置已经决定了执行顺序。
+
+#### 作用域
+
+内联作业能看到哪些保留变量取决于父级：
+
+| 父级 | 子级内可见变量 |
+|------|----------------|
+| `for-each` `do` | 父级的外层作用域，外加 `${item}` |
+| `accumulate` `do` | 父级的外层作用域，外加 `${item}` 与 `${accumulator}` |
+| `pipeline` `steps[i]` | 仅 `${input}`、`${output}`、`${step.input}`、`${step.index}` —— 管道自身的作用域 |
+
+管道情形最需要注意：每个步骤在自身的作用域中执行，因此外层工作流的 `${input}` 或包围的 for-each 的 `${item}` 等外部引用在步骤内**不可访问**。请把所有步骤需要的值一次性打包到管道的顶层 `input:`，各步骤通过 `${input.xxx}` 读取：
+
+```yaml
+- type: for-each
+  input: [ 50, 90, 130, 170, 210 ]
+  do:
+    type: pipeline
+    input:
+      target_luma: ${item}                                  # 外层 for-each 的 item，在此捕获
+      image_url: ${jobs.store.output.url}                   # 外层工作流作用域，在此捕获
+      original_luma: ${jobs.measure.output.mean_brightness}
+    steps:
+      - component: factor-calc
+        input:
+          original: ${input.original_luma}                  # 从管道自身的 input 读取
+          target: ${input.target_luma}
+      # ... 后续步骤都通过 ${input.xxx} 访问
+```
+
+若不在顶层 `input:` 中捕获，步骤内根本没有办法引用外层 for-each 的 `${item}` —— 该变量不在管道步骤的作用域中。
 
 ---
 

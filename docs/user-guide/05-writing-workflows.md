@@ -448,7 +448,9 @@ model-compose provides various job types to support different task patterns.
 | `delay` | Wait | Wait for a duration or until a specific time |
 | `filter` | Data restructuring | Extract and restructure data into a new shape |
 | `random-router` | Random routing | Randomly select one job |
-| `for-each` | Iteration | Run a component once per item in a collection |
+| `for-each` | Iteration | Run a job once per item in a collection |
+| `accumulate` | Fold / reduce | Fold a collection into a single value by threading the running result through each iteration |
+| `pipeline` | Sequential chaining | Run a sequence of jobs, feeding each step's output into the next |
 
 > **Note**: If `type` is not specified, it defaults to `component`.
 
@@ -467,7 +469,7 @@ Regardless of type, every job supports the following fields:
 | `retry` | int/object | `null` | Retry policy applied on failure. See [Retry](#retry) below. |
 | `on_error` | string/object | `null` | Fallback behavior after retries are exhausted. See [On-Error](#on-error) below. |
 
-Interrupts, hooks, retries, and on-error handlers work on every job type — component, if, switch, delay, filter, for-each, random-router.
+Interrupts, hooks, retries, and on-error handlers work on every job type — component, if, switch, delay, filter, for-each, accumulate, pipeline, random-router.
 
 #### Interrupts (Human-in-the-Loop)
 
@@ -976,7 +978,7 @@ jobs:
 
 ### For-Each Job
 
-Run a component once per item in an input collection. Items are drawn from a list, an async stream, or any iterable, and processed in batches.
+Run an inline job once per item in an input collection. Items are drawn from a list, an async stream, or any iterable, and iterations run in parallel up to `batch_size`.
 
 #### Fields
 
@@ -985,12 +987,11 @@ Run a component once per item in an input collection. Items are drawn from a lis
 | `input` | any | - | Source of items to iterate over. Supports lists, async streams, and iterables. Supports variable binding. |
 | `batch_size` | `integer` | `null` (=1) | Number of items processed concurrently per batch. |
 | `streaming` | `boolean` | `false` | Yield results as they complete instead of accumulating into a list. |
-| `do.component` | `string` or object | `"__default__"` | Component to invoke for each item. |
-| `do.action` | `string` | `"__default__"` | Action to invoke on the component. |
-| `do.input` | any | `null` | Input for each iteration; `${item}` refers to the current element. |
-| `do.output` | any | `null` | Output mapping applied to each iteration's result. |
+| `do` | inline job | - | Job executed for each item. Any inline job type — component (default), for-each, accumulate, or pipeline. See [Inline Jobs in Composite Jobs](#inline-jobs-in-composite-jobs). |
 | `output` | any | `null` | Job-level output mapping applied to the aggregated result. |
 | `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
+
+Inside `do`, `${item}` refers to the current element. The for-each's final output is the list of per-iteration outputs.
 
 ```yaml
 jobs:
@@ -1004,6 +1005,133 @@ jobs:
       input:
         item: ${item}
 ```
+
+### Accumulate Job
+
+Fold a collection into a single value by running an inline job once per item and threading the running result to the next iteration. Iterations run sequentially — the next iteration cannot start until the previous one finishes.
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `input` | any | - | Source of items to iterate over. Supports variable binding. |
+| `accumulator` | any | `null` | Initial value folded across iterations. Available inside `do` as `${accumulator}`. |
+| `do` | inline job | - | Job executed for each item; its output becomes the next iteration's `${accumulator}`. See [Inline Jobs in Composite Jobs](#inline-jobs-in-composite-jobs). |
+| `output` | any | `null` | Job-level output mapping applied to the final accumulator. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. |
+
+Inside `do`, `${item}` is the current element and `${accumulator}` is the running result — the value produced by the previous iteration, or the initial `accumulator` on the first iteration. The accumulate job's final output is the last iteration's result (a single value, not a list).
+
+```yaml
+jobs:
+  - id: annotate-faces
+    type: accumulate
+    input: ${jobs.detect.output.faces}
+    accumulator: ${jobs.store.output.url as image;url}
+    do:
+      component: box-drawer
+      input:
+        image: ${accumulator}
+        x: ${item.bounding_box.x}
+        y: ${item.bounding_box.y}
+        width: ${item.bounding_box.width}
+        height: ${item.bounding_box.height}
+```
+
+Each iteration draws one bounding box on top of the running image, so the final output is the source image with every face annotated.
+
+### Pipeline Job
+
+Run a sequence of jobs in order, feeding each step's output into the next step's input. Useful for inline image / audio / data processing chains where you would otherwise create several `depends_on` jobs just to thread `${jobs.prev.output}` through them.
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `input` | any | `null` | Value exposed to every step as `${input}`. |
+| `steps` | list | - | Steps executed sequentially (must contain at least one). Each step is an inline job. See [Inline Jobs in Composite Jobs](#inline-jobs-in-composite-jobs). |
+| `output` | any | `null` | Job-level output mapping applied to the last step's result. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. |
+
+Four reserved sources are available inside a step:
+
+- `${input}` — the pipeline's top-level `input` value. Available in every step.
+- `${output}` — inside `steps[].input`, the previous step's final output (after that step's own `output` mapping); inside `steps[].output`, the raw value the component just returned (before this step's own `output` mapping). Not available in the first step's `input`.
+- `${step.input}` — inside `steps[].output`, the input dict this step actually received. Use this to carry values from the input side into the step's result — the raw component output alone can't do that.
+- `${step.index}` — the zero-based position of this step in the pipeline.
+
+When a step omits `input`, it defaults to the pipeline input for the first step and to the previous step's output for later steps.
+
+```yaml
+jobs:
+  - id: enhance-and-annotate
+    type: pipeline
+    input: ${input.image}
+    steps:
+      - component: image-processor
+        action: resize
+        input:
+          image: ${input}
+          width: 1024
+      - component: image-processor
+        action: sharpen
+        input:
+          image: ${output}
+          factor: 1.3
+      - component: image-drawing
+        action: rectangle
+        input:
+          image: ${output}
+          x: 10
+          y: 10
+          width: 200
+          height: 100
+          outline: red
+```
+
+The pipeline's final output is the last step's output — reference it as `${jobs.<pipeline-id>.output}` from downstream jobs.
+
+### Inline Jobs in Composite Jobs
+
+`for-each` and `accumulate` take an inline job as `do`; `pipeline` takes a list of inline jobs as `steps`. An inline job is any of these types:
+
+- `component` (default when `type` is omitted) — invoke a component action
+- `for-each` — nested iteration
+- `accumulate` — nested fold
+- `pipeline` — nested sequential pipeline
+
+Inline jobs cannot declare `depends_on` — their position inside the parent already fixes the execution order.
+
+#### Scoping
+
+Which reserved variables an inline job can see depends on the parent:
+
+| Parent | Visible inside the child |
+|--------|--------------------------|
+| `for-each` `do` | Parent's outer scope, plus `${item}` |
+| `accumulate` `do` | Parent's outer scope, plus `${item}` and `${accumulator}` |
+| `pipeline` `steps[i]` | Only `${input}`, `${output}`, `${step.input}`, `${step.index}` — the pipeline's own scope |
+
+The pipeline case is the important one to remember: each step runs in its own scope, so outer references like the enclosing workflow's `${input}` or a surrounding for-each's `${item}` are **not** reachable from inside a step. Pack everything the steps need into the pipeline's top-level `input:` once, and each step reads it via `${input.xxx}`:
+
+```yaml
+- type: for-each
+  input: [ 50, 90, 130, 170, 210 ]
+  do:
+    type: pipeline
+    input:
+      target_luma: ${item}                                  # outer for-each item, captured here
+      image_url: ${jobs.store.output.url}                   # outer workflow scope, captured here
+      original_luma: ${jobs.measure.output.mean_brightness}
+    steps:
+      - component: factor-calc
+        input:
+          original: ${input.original_luma}                  # read from the pipeline's own input
+          target: ${input.target_luma}
+      # ... more steps, all reading via ${input.xxx}
+```
+
+Without the top-level `input:` capture, the steps would have no way to reference `${item}` from the enclosing for-each — that variable simply is not in scope inside a pipeline step.
 
 ---
 

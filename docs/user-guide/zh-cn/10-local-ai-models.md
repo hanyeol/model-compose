@@ -262,6 +262,8 @@ model-compose 支持以下任务类型：
 | `image-segmentation` | 图像分割 | 生成分区二值掩码（自动模式或框提示模式） |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
 | `face-tracking` | 人脸追踪 | 在视频帧中追踪身份并归纳为时间码片段 |
+| `pose-tracking` | 姿态追踪 | 在视频帧中按轨迹追踪人物（姿态），并归纳为时间码片段 |
+| `object-tracking` | 目标追踪 | 在视频帧中按轨迹追踪目标，并归纳为时间码片段 |
 | `music-generation` | 音乐生成 | 音乐创作、配乐 |
 
 ### 10.3.1 text-generation
@@ -693,7 +695,54 @@ component:
 
 接受单个帧序列、序列列表或帧批次的 async 流；对流式输入延迟运行，不缓存整个视频。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#face-tracking)。
 
-### 10.3.14 object-detection
+### 10.3.14 pose-tracking
+
+在视频帧序列中追踪人物（姿态）。逐帧姿态检测按底层追踪器的持久 `track_id` 分组，同一轨迹的连续命中合并为时间码片段。使用 Ultralytics YOLO-pose。
+
+```yaml
+component:
+  type: model
+  task: pose-tracking
+  driver: custom
+  family: yolo
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    skeleton_format: openpose
+    return_track_image: true
+    params:
+      min_confidence: 0.5
+      min_frame_count: 3
+      merge_gap: 0.5
+```
+
+接受与 face-tracking 相同的输入形态。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#pose-tracking)。
+
+### 10.3.15 object-tracking
+
+在视频帧序列中追踪目标。逐帧检测按追踪器的持久 `track_id` 分组，同一轨迹的连续命中合并为时间码片段，可选对小间隔进行插值。使用 Ultralytics YOLO。
+
+```yaml
+component:
+  type: model
+  task: object-tracking
+  driver: custom
+  family: yolo
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    labels: [ person, car ]
+    return_track_image: true
+    params:
+      min_confidence: 0.3
+      min_frame_count: 3
+      merge_gap: 0.5
+      tracker: bytetrack
+```
+
+接受与 face-tracking 相同的输入形态。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#object-tracking)。
+
+### 10.3.16 object-detection
 
 在图像中检测目标，返回每个目标的边界框、类别标签和置信度分数。使用 Ultralytics YOLO。
 
@@ -713,7 +762,7 @@ component:
 
 支持任意 Ultralytics YOLO 检测（或分割）`.pt` 检查点。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#object-detection)。
 
-### 10.3.15 image-segmentation
+### 10.3.17 image-segmentation
 
 从图像中生成分区二值分割掩码。支持**自动模式**（对每个不同区域生成掩码）和**框提示模式**（在用户提供的边界框周围优化掩码，例如来自 `object-detection` 的输出）。通过 Ultralytics 使用 Meta 的 Segment Anything Model (SAM)。
 

@@ -631,15 +631,23 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `frames` | image/array | **required** | Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches. |
 | `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
 | `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
+| `return_tracks` | bool | `true` | Include the per-identity track list (`tracks[]`) in the result. |
 | `return_embedding` | bool | `false` | Include the track's L2-normalized identity centroid embedding in the result. |
 | `return_track_image` | bool | `false` | Include one representative face crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each face with its `track_id`. |
+| `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
+| `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
 | `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned face image. Grows the box by this fraction of its width/height on each side (e.g. `0.2` = +20% on each side). Only affects `segment.image`; embeddings and clustering still use the un-padded box. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
+| `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream instead of a single result dict. See [Streaming chunks](#streaming-chunks-face-tracking) below. |
 | `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
 | `params.min_face_size` | int | `0` | Minimum face bounding box size in pixels. `0` disables the filter. |
 | `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
 | `params.max_face_count_per_frame` | int | `0` | Maximum number of faces to keep per frame. `0` disables the limit. |
-| `params.merge_gap` | float | `0.0` | Merge adjacent segments separated by less than this many seconds. |
+| `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
+| `params.max_track_distance` | float | `1.5` | Maximum distance a track may move between consecutive detections, as a multiple of the face size. `0` disables the check. |
+
+At least one of `return_tracks` or `return_detections` must be `true`. `return_frame_image` requires `return_detections: true`.
 
 **Family-Specific Fields (`insightface`):**
 
@@ -681,6 +689,7 @@ component:
 {
   "tracks": [
     {
+      "track_id": 1,
       "segments": [
         { "start_time": "0:00:02.000", "end_time": "0:00:08.500", "duration": "0:00:06.500", "score": 0.94 },
         { "start_time": "0:00:14.000", "end_time": "0:00:17.000", "duration": "0:00:03.000", "score": 0.88 }
@@ -692,18 +701,45 @@ component:
       "embedding": [0.012, -0.045, ...]
     }
   ],
+  "detections": [
+    {
+      "number": 60,
+      "timestamp": "0:00:02.000",
+      "faces": [
+        { "track_id": 1, "bounding_box": { "x": 812, "y": 240, "width": 168, "height": 210 }, "score": 0.94 }
+      ]
+    }
+  ],
   "frame_count": 40
 }
 ```
 
+- `tracks[i].track_id` is stable across the whole video for one identity; the same id can span multiple segments if the person leaves and re-enters the frame.
 - `tracks[i].score` is the highest detection confidence across all frames in the track. Useful for ranking or filtering tracks.
 - `tracks[i].segments[j].score` is the detection confidence of the representative frame for that segment (the highest-scoring frame within the segment; the same frame `image` is cropped from when `return_track_image` is enabled).
 - `tracks[i].embedding` is present only when `return_embedding` is enabled — a 512-d L2-normalized centroid (for antelopev2) suitable for cosine matching against an identity DB or for merging tracks that turn out to be the same person.
 - `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's native resolution.
 - `tracks[i].gender` (`"male"` / `"female"`) and `tracks[i].age` (integer) are present only when `return_gender_age` is enabled — taken from the track's highest-scoring frame. Absent if the model pack doesn't ship gender/age submodels.
-- `frame_count` at the top level is the total number of sampled frames analyzed.
+- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with `number`, `timestamp`, and a `faces[]` list of per-frame detections tagged by `track_id`. When `return_frame_image` is enabled, each entry also carries the source frame `image`.
+- `detections[i].faces[j].interpolated: true` appears when the face was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_track_image`.
+- `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
 
 When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
+
+<a id="streaming-chunks-face-tracking"></a>
+
+**Streaming chunks (`streaming: true`):**
+
+Instead of a single result dict, the action returns an async iterator of chunks. Each chunk has a `type` field discriminating four kinds:
+
+| `type` | When emitted | Payload shape |
+|--------|--------------|---------------|
+| `"detection"` | Once per analyzed frame, after `merge_gap` has passed since the frame. Suppressed when `return_detections: false`. | `{ type, number, timestamp, faces: [...], image? }` |
+| `"segment"` | Whenever a track's ongoing segment is sealed (either the track went idle past `merge_gap` or the stream ended). Suppressed when `return_tracks: false`. | `{ type, track_id, segment: { start_time, end_time, duration, frame_count, score, bounding_box, image? } }` |
+| `"track"` | Whenever a track goes idle past `merge_gap` (may re-emit if the same `track_id` becomes active again). Suppressed when `return_tracks: false`. | `{ type, track_id, segment_count, frame_count, score, embedding?, gender?, age? }` |
+| `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
+
+Downstream consumers should treat the latest `track` chunk for a given `track_id` as canonical — if the same id emits multiple `track` chunks (identity re-entered the frame), each supersedes the previous.
 
 #### Supported families
 
@@ -825,6 +861,137 @@ YOLOv8-pose returns **17 COCO keypoints** per detected pose (nose, eyes, ears, s
 
 List and async-stream inputs behave the same way as face detection.
 
+### Pose Tracking
+
+Track people (as poses) across a sequence of video frames. Per-frame pose detections are grouped into tracks by the underlying tracker's persistent `track_id`, and consecutive hits for the same track are merged into timecoded segments with optional interpolation across small gaps. Accepts a single frame sequence, a list of sequences, or an async stream of frame batches; runs lazily on streamed input without buffering the whole video. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `pose-tracking` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `yolo`) |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads the family default (YOLOv8n-pose `.pt` for `yolo`). |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image/array | **required** | Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches. |
+| `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
+| `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
+| `skeleton_format` | string | `"natural"` | Layout used when rendering the skeleton image. One of `"natural"` or `"openpose"`. |
+| `skeleton_background` | color/null | `null` | Skeleton canvas background: `null` yields a transparent RGBA PNG; a color (e.g. `"#000000"`) flattens to that solid RGB fill. |
+| `return_tracks` | bool | `true` | Include the per-person track list (`tracks[]`) in the result. |
+| `return_keypoints` | bool | `true` | Include natural-layout 2D keypoints on each pose. Also emitted per-frame when `return_detections` is enabled. |
+| `return_openpose_keypoints` | bool | `false` | Include OpenPose BODY_18 keypoints on each pose. Also emitted per-frame when `return_detections` is enabled. |
+| `return_skeleton_image` | bool | `false` | Include a rendered skeleton image on each pose (see `skeleton_format` / `skeleton_background`). Also emitted per-frame when `return_detections` is enabled. |
+| `return_track_image` | bool | `false` | Include one representative body crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each pose with its `track_id`. |
+| `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
+| `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
+| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned body image. Grows the box by this fraction of its width/height on each side. |
+| `batch_size` | int | `1` | Number of frame batches per iteration. |
+| `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream. See [Streaming chunks](#streaming-chunks-pose-tracking) below. |
+| `params.min_confidence` | float | `0.5` | Minimum detection confidence a pose must reach. |
+| `params.min_presence_confidence` | float | `0.5` | Minimum presence confidence a keypoint must reach to be kept. |
+| `params.min_pose_size` | int | `0` | Minimum pose bounding box size in pixels. `0` disables the filter. |
+| `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
+| `params.max_pose_count_per_frame` | int | `0` | Maximum number of poses to keep per frame. `0` disables the limit. |
+| `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
+
+At least one of `return_tracks` or `return_detections` must be `true`. `return_frame_image` requires `return_detections: true`.
+
+**Family-Specific Fields (`yolo`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.tracker` | string | `"bytetrack"` | Underlying Ultralytics tracker used for association. One of `"bytetrack"` or `"botsort"`. |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: pose-tracking
+  driver: custom
+  family: yolo
+  model: __default__
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    time_offset: 0.0
+    skeleton_format: openpose
+    return_track_image: true
+    return_skeleton_image: true
+    params:
+      min_confidence: 0.5
+      min_frame_count: 3
+      merge_gap: 0.5
+      tracker: bytetrack
+    output:
+      tracks: ${result.tracks}
+```
+
+**Result Shape:**
+
+```json
+{
+  "tracks": [
+    {
+      "track_id": 3,
+      "segments": [
+        { "start_time": "0:00:01.500", "end_time": "0:00:07.200", "duration": "0:00:05.700", "frame_count": 172, "score": 0.91, "bounding_box": { "x": 440, "y": 120, "width": 260, "height": 640 } }
+      ],
+      "frame_count": 172,
+      "score": 0.91
+    }
+  ],
+  "detections": [
+    {
+      "number": 45,
+      "timestamp": "0:00:01.500",
+      "poses": [
+        { "track_id": 3, "bounding_box": { "x": 440, "y": 120, "width": 260, "height": 640 }, "score": 0.91 }
+      ]
+    }
+  ],
+  "frame_count": 210
+}
+```
+
+- `tracks[i].track_id` is the tracker's persistent id — stable across a segment; the same id can span multiple segments if the person leaves and re-enters the frame.
+- `tracks[i].score` is the highest detection confidence across all frames in the track.
+- `tracks[i].segments[j].keypoints` / `openpose_keypoints` / `skeleton_image` are present only when the corresponding `return_*` flag is enabled — taken from the highest-scoring frame in the segment.
+- `tracks[i].segments[j].image` is present only when `return_track_image` is enabled.
+- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with a `poses[]` list tagged by `track_id`. Each pose carries the same optional fields (`keypoints`, `openpose_keypoints`, `skeleton_image`, `image`) as track segments.
+- `detections[i].poses[j].interpolated: true` appears when the pose was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_track_image`.
+- `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
+
+When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
+
+<a id="streaming-chunks-pose-tracking"></a>
+
+**Streaming chunks (`streaming: true`):**
+
+Instead of a single result dict, the action returns an async iterator of chunks. Each chunk has a `type` field discriminating four kinds:
+
+| `type` | When emitted | Payload shape |
+|--------|--------------|---------------|
+| `"detection"` | Once per analyzed frame, after `merge_gap` has passed. Suppressed when `return_detections: false`. | `{ type, number, timestamp, poses: [...], image? }` |
+| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, segment: { start_time, end_time, duration, frame_count, score, bounding_box, keypoints?, openpose_keypoints?, skeleton_image?, image? } }` |
+| `"track"` | When a track goes idle past `merge_gap` (may re-emit for the same `track_id` if it reactivates). Suppressed when `return_tracks: false`. | `{ type, track_id, segment_count, frame_count, score }` |
+| `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
+
+Downstream consumers should treat the latest `track` chunk for a given `track_id` as canonical.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `yolo` | [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) (pip: `ultralytics`, `lap`) | YOLOv8-pose weights. Uses Ultralytics' built-in tracker (ByteTrack or BoT-SORT) for id association. 17 COCO keypoints natively; converted to OpenPose BODY_18 when requested. |
+
 ### Object Detection
 
 Detect objects in an image and return per-object bounding boxes with class labels and confidence scores. This task uses `driver: custom` with a `family` field to select the model family.
@@ -887,6 +1054,136 @@ component:
 ```
 
 `bounding_box` uses top-left origin as `{x, y, width, height}` in pixel coordinates. When `bounding_box_padding > 0`, boxes are expanded before clamping to image bounds. List and async-stream inputs behave the same way as face detection.
+
+### Object Tracking
+
+Track objects across a sequence of video frames. Per-frame detections are grouped into tracks by the underlying tracker's persistent `track_id`, and consecutive hits for the same track are merged into timecoded segments with optional interpolation across small gaps. Accepts a single frame sequence, a list of sequences, or an async stream of frame batches; runs lazily on streamed input without buffering the whole video. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `object-tracking` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `yolo`) |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads the family default (YOLOv8n `.pt` for `yolo`). |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image/array | **required** | Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches. |
+| `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
+| `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
+| `labels` | string[]/null | `null` | Class labels detections are restricted to. Unset returns all classes. |
+| `return_tracks` | bool | `true` | Include the per-object track list (`tracks[]`) in the result. |
+| `return_track_image` | bool | `false` | Include one representative object crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each object with its `track_id`. |
+| `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
+| `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
+| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned object image. Grows the box by this fraction of its width/height on each side. |
+| `batch_size` | int | `1` | Number of frame batches per iteration. |
+| `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream. See [Streaming chunks](#streaming-chunks-object-tracking) below. |
+| `params.min_confidence` | float | `0.25` | Minimum detection confidence an object must reach. |
+| `params.iou_threshold` | float | `0.7` | IoU threshold used by non-maximum suppression. |
+| `params.agnostic_nms` | bool | `false` | Whether NMS is applied across classes rather than per class. |
+| `params.min_object_size` | int | `0` | Minimum object bounding box size in pixels. `0` disables the filter. |
+| `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
+| `params.max_object_count_per_frame` | int | `0` | Maximum number of objects to keep per frame. `0` disables the limit. |
+| `params.merge_gap` | float | `0.5` | Extra seconds an object may be undetected before its segment is split; consecutive frames always merge. |
+
+At least one of `return_tracks` or `return_detections` must be `true`. `return_frame_image` requires `return_detections: true`.
+
+**Family-Specific Fields (`yolo`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.tracker` | string | `"bytetrack"` | Underlying Ultralytics tracker used for association. One of `"bytetrack"` or `"botsort"`. |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: object-tracking
+  driver: custom
+  family: yolo
+  model: __default__
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    time_offset: 0.0
+    labels: [person, car]
+    return_track_image: true
+    params:
+      min_confidence: 0.3
+      min_object_size: 40
+      min_frame_count: 3
+      merge_gap: 0.5
+      tracker: bytetrack
+    output:
+      tracks: ${result.tracks}
+```
+
+**Result Shape:**
+
+```json
+{
+  "tracks": [
+    {
+      "track_id": 7,
+      "label": "car",
+      "label_id": 2,
+      "segments": [
+        { "start_time": "0:00:04.100", "end_time": "0:00:09.800", "duration": "0:00:05.700", "frame_count": 172, "label": "car", "label_id": 2, "score": 0.89, "bounding_box": { "x": 220, "y": 380, "width": 340, "height": 180 } }
+      ],
+      "frame_count": 172,
+      "score": 0.89
+    }
+  ],
+  "detections": [
+    {
+      "number": 123,
+      "timestamp": "0:00:04.100",
+      "objects": [
+        { "track_id": 7, "label": "car", "label_id": 2, "bounding_box": { "x": 220, "y": 380, "width": 340, "height": 180 }, "score": 0.89 }
+      ]
+    }
+  ],
+  "frame_count": 300
+}
+```
+
+- `tracks[i].track_id` is the tracker's persistent id — stable across a segment; the same id can span multiple segments if the object leaves and re-enters the frame.
+- `tracks[i].label` / `label_id` are taken from the highest-scoring frame in the track.
+- `tracks[i].score` is the highest detection confidence across all frames in the track.
+- `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box (with `bounding_box_padding` applied).
+- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with an `objects[]` list tagged by `track_id`.
+- `detections[i].objects[j].interpolated: true` appears when the object was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_track_image`.
+- `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
+
+When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
+
+<a id="streaming-chunks-object-tracking"></a>
+
+**Streaming chunks (`streaming: true`):**
+
+Instead of a single result dict, the action returns an async iterator of chunks. Each chunk has a `type` field discriminating four kinds:
+
+| `type` | When emitted | Payload shape |
+|--------|--------------|---------------|
+| `"detection"` | Once per analyzed frame, after `merge_gap` has passed. Suppressed when `return_detections: false`. | `{ type, number, timestamp, objects: [...], image? }` |
+| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, segment: { start_time, end_time, duration, frame_count, label, label_id, score, bounding_box, image? } }` |
+| `"track"` | When a track goes idle past `merge_gap` (may re-emit for the same `track_id` if it reactivates). Suppressed when `return_tracks: false`. | `{ type, track_id, label, label_id, segment_count, frame_count, score }` |
+| `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
+
+Downstream consumers should treat the latest `track` chunk for a given `track_id` as canonical.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `yolo` | [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) (pip: `ultralytics`, `lap`) | YOLOv8 detection weights. Uses Ultralytics' built-in tracker (ByteTrack or BoT-SORT) for id association. |
 
 ### Image Segmentation
 

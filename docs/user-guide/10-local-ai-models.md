@@ -265,6 +265,8 @@ model-compose supports the following task types:
 | `image-to-video` | Video generation from an image | Animate a still image, optionally guided by a prompt |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 | `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
+| `pose-tracking` | Pose tracking | Track people (as poses) across video frames with per-track timecoded segments |
+| `object-tracking` | Object tracking | Track objects across video frames with per-track timecoded segments |
 | `music-generation` | Music generation | Audio/music synthesis |
 
 ### 10.3.1 text-generation
@@ -751,7 +753,54 @@ component:
 
 Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
 
-### 10.3.15 object-detection
+### 10.3.15 pose-tracking
+
+Tracks people (as poses) across a sequence of video frames. Per-frame pose detections are grouped by the underlying tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments. Uses Ultralytics YOLO-pose.
+
+```yaml
+component:
+  type: model
+  task: pose-tracking
+  driver: custom
+  family: yolo
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    skeleton_format: openpose
+    return_track_image: true
+    params:
+      min_confidence: 0.5
+      min_frame_count: 3
+      merge_gap: 0.5
+```
+
+Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#pose-tracking) for the full option list, streaming chunk schema, and result shape.
+
+### 10.3.16 object-tracking
+
+Tracks objects across a sequence of video frames. Per-frame detections are grouped by the tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments with optional interpolation across small gaps. Uses Ultralytics YOLO.
+
+```yaml
+component:
+  type: model
+  task: object-tracking
+  driver: custom
+  family: yolo
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    labels: [ person, car ]
+    return_track_image: true
+    params:
+      min_confidence: 0.3
+      min_frame_count: 3
+      merge_gap: 0.5
+      tracker: bytetrack
+```
+
+Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#object-tracking) for the full option list, streaming chunk schema, and result shape.
+
+### 10.3.17 object-detection
 
 Detects objects in an image and returns per-object bounding boxes with class labels and confidence scores. Uses Ultralytics YOLO.
 
@@ -771,7 +820,7 @@ component:
 
 Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
 
-### 10.3.16 image-segmentation
+### 10.3.18 image-segmentation
 
 Generates per-region binary segmentation masks from an image. Runs in **automatic mode** (masks every distinct region) or **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from `object-detection`). Uses Meta's Segment Anything Model (SAM) via Ultralytics.
 
@@ -791,7 +840,7 @@ component:
 
 Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.
 
-### 10.3.17 text-to-video
+### 10.3.19 text-to-video
 
 Generates a short video clip from a text prompt. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 
@@ -823,7 +872,7 @@ component:
 
 The result is a single mp4 stream (or a list of mp4 streams for batched prompts). See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
 
-### 10.3.18 image-to-video
+### 10.3.20 image-to-video
 
 Generates a short video clip that animates an input image, optionally guided by a text prompt.
 
@@ -853,7 +902,7 @@ component:
 
 `width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
 
-### 10.3.19 music-generation
+### 10.3.21 music-generation
 
 Generates or edits music audio. The action's `method` field selects the operation — generate from scratch, cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, or generate accompaniment for a vocal-only stem. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 

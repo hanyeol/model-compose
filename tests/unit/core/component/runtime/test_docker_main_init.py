@@ -22,8 +22,9 @@ import textwrap
 
 import pytest
 
-from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
-from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.component.runtime.base.ipc_stdio_channel import stdio_worker_factory
 from mindor.core.component.runtime.docker import ComponentDockerRuntimeWorker
 
 
@@ -33,7 +34,7 @@ from mindor.core.component.runtime.docker import ComponentDockerRuntimeWorker
 
 class TestIpcStdioChannelHandshake:
     def _make_channel(self, ipc_in, ipc_out) -> IpcStdioChannel:
-        channel = IpcStdioChannel()
+        channel = IpcStdioChannel(stdio_worker_factory(ComponentDockerRuntimeWorker))
         channel.ipc_in = ipc_in
         channel.ipc_out = ipc_out
         return channel
@@ -48,7 +49,7 @@ class TestIpcStdioChannelHandshake:
         try:
             channel = self._make_channel(ipc_in, ipc_out)
             with pytest.raises(RuntimeError, match="Expected IPC message, got EOF"):
-                channel.run(ComponentDockerRuntimeWorker)
+                channel.run()
         finally:
             ipc_in.close(); ipc_out.close(); os.close(out_r)
 
@@ -63,14 +64,14 @@ class TestIpcStdioChannelHandshake:
         try:
             channel = self._make_channel(ipc_in, ipc_out)
             with pytest.raises(RuntimeError, match="Expected first IPC message of type 'start'"):
-                channel.run(ComponentDockerRuntimeWorker)
+                channel.run()
         finally:
             ipc_in.close(); ipc_out.close(); os.close(out_r)
 
     def test_run_without_setup_raises(self):
-        channel = IpcStdioChannel()
+        channel = IpcStdioChannel(stdio_worker_factory(ComponentDockerRuntimeWorker))
         with pytest.raises(RuntimeError, match="setup"):
-            channel.run(ComponentDockerRuntimeWorker)
+            channel.run()
 
 
 # ---------------------------------------------------------------------------
@@ -82,8 +83,8 @@ _FD_PROBE_SCRIPT = textwrap.dedent("""
     import os, sys, struct
     # Make this script importable from the source tree the parent uses.
     sys.path.insert(0, %(src)r)
-    from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
-    channel = IpcStdioChannel()
+    from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
+    channel = IpcStdioChannel(lambda *a, **k: None)
     channel.setup()
     ipc_in, ipc_out = channel.ipc_in, channel.ipc_out
     # Write a known marker to the original stdout via the IPC handle.

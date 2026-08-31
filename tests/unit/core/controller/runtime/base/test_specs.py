@@ -68,8 +68,8 @@ class TestComponentRuntimeOverride:
     def test_components_get_native_runtime_string(self):
         specs = _make_specs(
             component_payloads=[
-                {"id": "a", "type": "shell", "command": "echo a"},
-                {"id": "b", "type": "shell", "command": "echo b"},
+                {"id": "a", "type": "shell", "driver": "local", "command": "echo a"},
+                {"id": "b", "type": "shell", "driver": "local", "command": "echo b"},
             ],
         )
 
@@ -129,7 +129,7 @@ class TestEnumCoercion:
                 },
             },
             component_payloads=[
-                {"id": "a", "type": "shell", "command": "echo a"},
+                {"id": "a", "type": "shell", "driver": "local", "command": "echo a"},
             ],
         )
 

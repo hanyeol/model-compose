@@ -22,7 +22,7 @@ from mindor.core.component.runtime.process import (
     ComponentProcessRuntimeManager,
     ComponentProcessRuntimeWorker,
 )
-from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
+from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
 
 
@@ -82,9 +82,10 @@ class TestEmbeddedRuntimeConfig:
 
 class TestComponentProcessRuntimeManager:
     def _make_config(self, **runtime_overrides):
-        return ShellComponentConfig(
+        return LocalShellComponentConfig(
             id="test-shell",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process", **runtime_overrides),
             command=["echo", "test"],
         )
@@ -134,9 +135,10 @@ class TestComponentProcessRuntimeManager:
 
 class TestComponentProcessRuntimeWorker:
     def test_initialization(self, global_configs):
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="w",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=["echo", "x"],
         )

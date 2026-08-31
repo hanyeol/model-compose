@@ -241,18 +241,23 @@ async def test_json_input_round_trip(redis_available, queue_name):
 
 @pytest.mark.anyio
 async def test_upload_file_round_trip(redis_available, queue_name):
-    """UploadFile input is serialized into a blob and restored as UploadFile."""
+    """UploadFile input is auto-lifted to a stream marker; subscriber sees it as
+    an AsyncIterableStreamResource whose content_type/filename are preserved."""
     if not redis_available:
         pytest.skip("Redis not available on localhost:6379")
+
+    from mindor.core.foundation.streaming.resources import StreamResource
 
     payload = b"\x89PNG\r\n\x1a\n" + b"binary-image-bytes" * 100
     captured: Dict[str, Any] = {}
 
     async def handler(workflow_id: str, input: Dict[str, Any], on_interrupt: Any) -> Dict[str, Any]:
         image = input["image"]
-        assert isinstance(image, UploadFile)
-        data = await image.read()
-        captured["bytes"] = data
+        assert isinstance(image, StreamResource)
+        data = bytearray()
+        async for chunk in image:
+            data.extend(chunk)
+        captured["bytes"] = bytes(data)
         captured["filename"] = image.filename
         captured["content_type"] = image.content_type
         return { "size": len(data) }
@@ -286,7 +291,7 @@ async def test_upload_file_round_trip(redis_available, queue_name):
 
 @pytest.mark.anyio
 async def test_bytes_input_round_trip(redis_available, queue_name):
-    """Raw bytes input is restored as UploadFile (normalized at queue boundary)."""
+    """Raw bytes input is restored as bytes (queue.v2 preserves the Python type)."""
     if not redis_available:
         pytest.skip("Redis not available on localhost:6379")
 
@@ -295,9 +300,8 @@ async def test_bytes_input_round_trip(redis_available, queue_name):
 
     async def handler(workflow_id: str, input: Dict[str, Any], on_interrupt: Any) -> Dict[str, Any]:
         blob = input["blob"]
-        assert isinstance(blob, UploadFile)
-        data = await blob.read()
-        captured["bytes"] = data
+        assert isinstance(blob, bytes)
+        captured["bytes"] = blob
         return { "ok": True }
 
     controller = DummyController(workflows=[WORKFLOW_ID], handler=handler)
@@ -353,7 +357,11 @@ async def test_dispatcher_cleanup_on_serialize_failure(redis_available, queue_na
         pytest.skip("Redis not available on localhost:6379")
 
     # No subscriber needed — failure happens before lpush.
-    dispatcher = await _start_dispatcher(queue_name, max_blob_size="100B")
+    # inline_bytes_threshold=50B forces the small payload onto the blob path;
+    # max_blob_size=100B rejects it there so cleanup logic runs.
+    dispatcher = await _start_dispatcher(
+        queue_name, max_blob_size="100B", inline_bytes_threshold="50B",
+    )
 
     try:
         big_payload = b"x" * 500  # Exceeds 100B limit

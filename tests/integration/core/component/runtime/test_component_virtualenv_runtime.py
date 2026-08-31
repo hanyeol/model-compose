@@ -24,8 +24,8 @@ from mindor.core.component.component import create_component
 from mindor.core.component.runtime.virtualenv import (
     ComponentVirtualEnvRuntimeManager,
 )
-from mindor.dsl.schema.action import ShellActionConfig
-from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
+from mindor.dsl.schema.action import LocalShellActionConfig
+from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 
 
@@ -66,16 +66,17 @@ def venv_dir(tmp_path: Path) -> Path:
 @pytest.mark.anyio
 async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     """End-to-end: create venv, inject mindor, run a shell echo action, stop."""
-    config = ShellComponentConfig(
+    config = LocalShellComponentConfig(
         id="venv-shell",
         type="shell",
+        driver="local",
         runtime=VirtualEnvRuntimeConfig(
             type="virtualenv",
             start_timeout="300s",
             stop_timeout="30s",
         ),
         actions=[
-            ShellActionConfig(
+            LocalShellActionConfig(
                 id="default",
                 command=["echo", "hello from venv"],
                 default=True,
@@ -137,16 +138,17 @@ async def test_component_virtualenv_skips_injection_when_version_unchanged(
 ):
     """When the host mindor version hasn't changed, the second start should reuse the
     existing venv & site-packages without rewriting mindor/."""
-    config = ShellComponentConfig(
+    config = LocalShellComponentConfig(
         id="venv-skip-injection",
         type="shell",
+        driver="local",
         runtime=VirtualEnvRuntimeConfig(
             type="virtualenv",
             start_timeout="300s",
             stop_timeout="30s",
         ),
         actions=[
-            ShellActionConfig(
+            LocalShellActionConfig(
                 id="default",
                 command=["echo", "ok"],
                 default=True,

@@ -1,4 +1,4 @@
-"""Tests for the ShellAction, covering non-streaming and streaming modes."""
+"""Tests for the LocalShellAction, covering non-streaming and streaming modes."""
 
 import sys
 from collections.abc import AsyncIterator
@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.shell import ShellAction
-from mindor.dsl.schema.action import ShellActionConfig
+from mindor.core.component.services.shell.drivers.local import LocalShellAction
+from mindor.dsl.schema.action import LocalShellActionConfig
 
 
 @pytest.fixture
@@ -51,12 +51,12 @@ def _make_context() -> ComponentActionContext:
     return ctx
 
 
-def _make_action(output: Any = None, **kwargs) -> ShellAction:
+def _make_action(output: Any = None, **kwargs) -> LocalShellAction:
     payload = {"command": ["echo", "hello"], **kwargs}
     if output is not None:
         payload["output"] = output
-    config = ShellActionConfig(**payload)
-    return ShellAction(config, base_dir=None, env=None)
+    config = LocalShellActionConfig(**payload)
+    return LocalShellAction(config, base_dir=None, env=None)
 
 
 class TestNonStreamingMode:

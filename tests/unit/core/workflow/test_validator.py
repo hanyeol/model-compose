@@ -32,6 +32,7 @@ def _shell_component(id: str, action_ids: List[str] = None, default_action: str 
     return {
         "id": id,
         "type": "shell",
+        "driver": "local",
         "default": default,
         "actions": [
             {
@@ -200,6 +201,7 @@ class TestWorkflowValidatorInlineComponent:
                     "component": {
                         "id": "inline",
                         "type": "shell",
+                        "driver": "local",
                         "actions": [{"id": "__action__", "command": ["echo"]}],
                     },
                 }],
@@ -220,6 +222,7 @@ class TestWorkflowValidatorInlineComponent:
                     "component": {
                         "id": "inline",
                         "type": "shell",
+                        "driver": "local",
                         "actions": [
                             {"id": "a1", "command": ["echo"]},
                             {"id": "a2", "command": ["echo"]},

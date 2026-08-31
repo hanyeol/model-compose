@@ -1,4 +1,4 @@
-"""Unit tests for `component/runtime/base/ipc_message.py`."""
+"""Unit tests for `foundation/runtime/ipc_message.py`."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
 
 
 class TestIpcMessageType:

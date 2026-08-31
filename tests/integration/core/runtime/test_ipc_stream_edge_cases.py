@@ -29,8 +29,8 @@ from typing import Any, AsyncIterator, Optional
 
 import pytest
 
-from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
-from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
+from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
+from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.iterators import (
     StreamEncodingFormat,

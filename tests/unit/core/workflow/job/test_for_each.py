@@ -90,7 +90,9 @@ def _make_job(cfg, component: FakeComponent) -> ForEachJob:
     job.config = cfg
     job.global_configs = None
     # Stub component construction so no real ComponentService is created.
-    job._create_component = lambda _id, _component: component  # type: ignore[assignment]
+    async def _create_component(_id, _component):
+        return component
+    job._create_component = _create_component  # type: ignore[assignment]
     return job
 
 

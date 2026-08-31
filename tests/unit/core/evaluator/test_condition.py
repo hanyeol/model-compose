@@ -2,7 +2,7 @@
 
 import pytest
 
-from mindor.core.evaluator.condition import evaluate_condition
+from mindor.core.foundation.condition import evaluate_condition
 from mindor.dsl.schema.common.operator.condition import ConditionOperator
 
 
@@ -67,13 +67,15 @@ class TestMatch:
         assert evaluate_condition(ConditionOperator.MATCH, "hello", r"\d+") is False
 
 
-class TestUnsupportedOperator:
-    def test_starts_with_not_implemented_raises(self):
-        # STARTS_WITH / ENDS_WITH are declared in the enum but evaluate_condition
-        # doesn't handle them — guarding the dispatch as the spec.
-        with pytest.raises(ValueError, match="Unsupported operator"):
-            evaluate_condition(ConditionOperator.STARTS_WITH, "hello", "he")
+class TestStartsEndsWith:
+    def test_starts_with_true(self):
+        assert evaluate_condition(ConditionOperator.STARTS_WITH, "hello", "he") is True
 
-    def test_ends_with_not_implemented_raises(self):
-        with pytest.raises(ValueError, match="Unsupported operator"):
-            evaluate_condition(ConditionOperator.ENDS_WITH, "hello", "lo")
+    def test_starts_with_false(self):
+        assert evaluate_condition(ConditionOperator.STARTS_WITH, "hello", "lo") is False
+
+    def test_ends_with_true(self):
+        assert evaluate_condition(ConditionOperator.ENDS_WITH, "hello", "lo") is True
+
+    def test_ends_with_false(self):
+        assert evaluate_condition(ConditionOperator.ENDS_WITH, "hello", "he") is False

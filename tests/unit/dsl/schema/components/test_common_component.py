@@ -19,6 +19,7 @@ def _minimal_shell(**overrides) -> dict:
     raw: dict = {
         "id": "c1",
         "type": "shell",
+        "driver": "local",
         "action": {"command": ["echo", "hi"]},
     }
     raw.update(overrides)
@@ -50,6 +51,7 @@ class TestInflateSingleAction:
         raw = {
             "id": "c1",
             "type": "shell",
+            "driver": "local",
             "actions": [
                 {"command": ["echo", "a"]},
                 {"command": ["echo", "b"]},
@@ -64,6 +66,7 @@ class TestInflateSingleAction:
         raw = {
             "id": "c1",
             "type": "shell",
+            "driver": "local",
             "action": {"command": ["echo", "single"]},
             "actions": [{"command": ["echo", "list"]}],
         }

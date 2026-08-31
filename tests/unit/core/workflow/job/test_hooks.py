@@ -411,7 +411,9 @@ async def test_component_after_hook_runs_before_output_render():
     job.id = "cj"
     job.config = cfg
     job.global_configs = None
-    job._create_component = lambda _id, _c: component  # type: ignore[assignment]
+    async def _create_component(_id, _c):
+        return component
+    job._create_component = _create_component  # type: ignore[assignment]
 
     result = await job.run(_FakeCtx(workflow_input={"q": "hi"}))
 
@@ -460,7 +462,9 @@ async def test_for_each_after_hook_runs_before_output_render():
     job.id = "fej"
     job.config = cfg
     job.global_configs = None
-    job._create_component = lambda _id, _c: component  # type: ignore[assignment]
+    async def _create_component(_id, _c):
+        return component
+    job._create_component = _create_component  # type: ignore[assignment]
 
     result = await job.run(_FakeCtx())
 

@@ -21,8 +21,8 @@ from mindor.core.component.runtime.virtualenv import (
     ComponentVirtualEnvRuntimeManager,
     ComponentVirtualEnvRuntimeWorker,
 )
-from mindor.dsl.schema.action import ShellActionConfig
-from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
+from mindor.dsl.schema.action import LocalShellActionConfig
+from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 
@@ -86,12 +86,13 @@ class TestVirtualEnvRuntimeConfig:
 
 class TestComponentVirtualEnvRuntimeManager:
     def _make_config(self, **runtime_overrides):
-        return ShellComponentConfig(
+        return LocalShellComponentConfig(
             id="venv-shell",
             type="shell",
+            driver="local",
             runtime=VirtualEnvRuntimeConfig(type="virtualenv", **runtime_overrides),
             actions=[
-                ShellActionConfig(id="default", command=["echo", "hi"], default=True)
+                LocalShellActionConfig(id="default", command=["echo", "hi"], default=True)
             ],
         )
 
@@ -143,9 +144,10 @@ class TestComponentVirtualEnvRuntimeManager:
 
 class TestComponentVirtualEnvRuntimeWorker:
     def test_initialization(self, global_configs):
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="w",
             type="shell",
+            driver="local",
             runtime=VirtualEnvRuntimeConfig(type="virtualenv"),
             command=["echo", "x"],
         )

@@ -14,7 +14,7 @@ from typing import Any, List
 
 import pytest
 
-from mindor.core.component.runtime.base.ipc_stream import (
+from mindor.core.foundation.runtime.ipc_stream import (
     IpcInboundStream,
     IpcOutboundStream,
     IpcStreamReader,

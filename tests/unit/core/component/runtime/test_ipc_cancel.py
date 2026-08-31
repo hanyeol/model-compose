@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
-from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
-from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
-from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
+from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 
 
 @pytest.fixture

@@ -17,8 +17,8 @@ from typing import Any, Dict, Optional
 
 import pytest
 
-from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
-from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
+from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
+from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.variable.time import parse_time

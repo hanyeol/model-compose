@@ -135,9 +135,9 @@ def _sha256(data: bytes) -> str:
 ECHO_WORKER_SRC = textwrap.dedent("""
     from __future__ import annotations
     import asyncio, struct
-    from mindor.core.component.runtime.base.ipc_stdio_channel import IpcStdioChannel
-    from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
-    from mindor.core.component.runtime.base.ipc_worker import IpcRuntimeWorker
+    from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
+    from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+    from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
     from mindor.core.foundation.streaming.bytes import BytesStreamResource
 
     # Mirror IpcMessage's wire prefix: header_len (BE u32) + binary_len (BE u32).
@@ -231,7 +231,9 @@ ECHO_WORKER_SRC = textwrap.dedent("""
 
 
     def main():
-        channel = IpcStdioChannel()
+        # The channel only needs setup() here; the worker loop below drives
+        # the handshake manually, so the worker_factory is unused.
+        channel = IpcStdioChannel(lambda *a, **k: None)
         channel.setup()
         ipc_in, ipc_out = channel.ipc_in, channel.ipc_out
         init_frame = _read_frame(ipc_in)
@@ -267,7 +269,7 @@ class _AttachEchoManager:
     """Test scaffold equivalent to ComponentDockerRuntimeManager but minimal."""
 
     def __init__(self, image: str, worker_src_dir: str):
-        from mindor.core.component.runtime.base.ipc_proxy import IpcRuntimeProxy
+        from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
         from mindor.core.runtime.docker import DockerRuntime
         from mindor.core.utils.channels.docker_attach import DockerAttachChannel
         from mindor.dsl.schema.runtime import DockerRuntimeConfig
@@ -306,7 +308,7 @@ class _AttachEchoManager:
 
     async def start(self):
         import asyncio
-        from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
+        from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
         m = self.manager
         m._loop = asyncio.get_event_loop()
 

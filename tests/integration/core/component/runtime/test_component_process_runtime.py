@@ -8,9 +8,9 @@ from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
 from mindor.core.component.runtime.process import ComponentProcessRuntimeWorker
-from mindor.core.component.runtime.base.ipc_message import IpcMessage, IpcMessageType
-from mindor.dsl.schema.action import ShellActionConfig
-from mindor.dsl.schema.component.impl.shell import ShellComponentConfig
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
+from mindor.dsl.schema.action import LocalShellActionConfig
+from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 
 
@@ -36,9 +36,10 @@ class TestComponentProcessRuntimeWorker:
 
     def test_worker_initialization(self, global_configs):
         """Test ComponentProcessRuntimeWorker initialization."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="test-shell",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=[ "echo", "test" ]
         )
@@ -65,9 +66,10 @@ class TestComponentProcessRuntimeManager:
 
     def test_manager_initialization_with_process_runtime(self, global_configs):
         """Test manager initialization with process runtime config."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="test-shell",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 start_timeout="30s",
@@ -90,9 +92,10 @@ class TestComponentProcessRuntimeManager:
 
     def test_manager_initialization_with_custom_config(self, global_configs):
         """Test manager with custom process runtime configuration."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="custom-shell",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 env={"TEST_VAR": "test_value"},
@@ -117,9 +120,10 @@ class TestComponentIntegration:
 
     def test_create_component_with_process_runtime(self, global_configs):
         """Test creating component with process runtime."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="test-component",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=[ "echo", "test" ]
         )
@@ -139,16 +143,17 @@ class TestComponentIntegration:
     @pytest.mark.anyio
     async def test_component_lifecycle(self, global_configs):
         """Test component lifecycle with process runtime."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="process-shell",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 start_timeout="10s",
                 stop_timeout="5s"
             ),
             actions=[
-                ShellActionConfig(
+                LocalShellActionConfig(
                     id="default",
                     command=[ "echo", "Hello from process" ],
                     default=True
@@ -193,13 +198,14 @@ class TestComponentIntegration:
 
     def test_component_config_with_actions(self, global_configs):
         """Test component with custom actions."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="action-shell",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=[ "echo", "default" ],
             actions=[
-                ShellActionConfig(
+                LocalShellActionConfig(
                     id="custom",
                     command=[ "echo", "custom action" ]
                 )
@@ -218,9 +224,10 @@ class TestComponentIntegration:
 
     def test_multiple_components_with_different_configs(self, global_configs):
         """Test multiple components with different process runtime configurations."""
-        config1 = ShellComponentConfig(
+        config1 = LocalShellComponentConfig(
             id="component-1",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 env={"WORKER": "1"}
@@ -228,9 +235,10 @@ class TestComponentIntegration:
             command=["echo", "worker-1"]
         )
 
-        config2 = ShellComponentConfig(
+        config2 = LocalShellComponentConfig(
             id="component-2",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 env={"WORKER": "2"}
@@ -253,9 +261,10 @@ class TestComponentProcessRuntimeScenarios:
 
     def test_process_runtime_with_environment_variables(self, global_configs):
         """Test process runtime with environment variables."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="env-test",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 env={
@@ -279,9 +288,10 @@ class TestComponentProcessRuntimeScenarios:
 
     def test_process_runtime_with_timeouts(self, global_configs):
         """Test process runtime with custom timeouts."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="timeout-test",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 start_timeout="5m",
@@ -301,9 +311,10 @@ class TestComponentProcessRuntimeScenarios:
 
     def test_process_runtime_with_resource_limits(self, global_configs):
         """Test process runtime with resource limits."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="resource-test",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(
                 type="process",
                 max_memory="2g",
@@ -323,9 +334,10 @@ class TestComponentProcessRuntimeScenarios:
 
     def test_component_manager_attributes(self, global_configs):
         """Test ComponentProcessRuntimeManager has correct attributes."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="attr-test",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=[ "echo", "test" ]
         )
@@ -360,9 +372,10 @@ class TestComponentProcessRuntimeValidation:
 
     def test_component_id_mismatch(self, global_configs):
         """Test component creation with different IDs."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="original-id",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=[ "echo", "test" ]
         )
@@ -378,9 +391,10 @@ class TestComponentProcessRuntimeValidation:
 
     def test_manager_run_method_signature(self, global_configs):
         """Test ComponentProcessRuntimeManager.run method signature."""
-        config = ShellComponentConfig(
+        config = LocalShellComponentConfig(
             id="run-test",
             type="shell",
+            driver="local",
             runtime=ProcessRuntimeConfig(type="process"),
             command=[ "echo", "test" ]
         )

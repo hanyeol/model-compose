@@ -21,6 +21,7 @@ ModelComponentConfig = Annotated[
         TextToVideoModelComponentConfig,
         ImageToVideoModelComponentConfig,
         ObjectDetectionModelComponentConfig,
+        ObjectTrackingModelComponentConfig,
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,
         PoseTrackingModelComponentConfig,

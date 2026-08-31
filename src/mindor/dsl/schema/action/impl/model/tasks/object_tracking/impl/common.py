@@ -17,9 +17,9 @@ class CommonObjectTrackingModelActionConfig(CommonModelActionConfig):
     time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch; scalar values broadcast, lists pair per batch.")
     labels: Optional[Union[List[str], str]] = Field(default=None, description="Class labels detections are restricted to; unset returns all classes.")
     return_tracks: Union[bool, str] = Field(default=True, description="Whether the per-object track list is included in the result.")
-    return_track_image: Union[bool, str] = Field(default=False, description="Whether the source frame cropped to the object bounding box is included on each object; also emitted per-frame when 'return_frames' is enabled.")
-    return_frames: Union[bool, str] = Field(default=False, description="Whether a frame-centric view is included alongside tracks, tagging each object by its track ID.")
-    return_frame_image: Union[bool, str] = Field(default=False, description="Whether the source frame image is included in each per-frame view; requires 'return_frames' to be enabled.")
+    return_track_image: Union[bool, str] = Field(default=False, description="Whether the source frame cropped to the object bounding box is included on each object; also emitted per-frame when 'return_detections' is enabled.")
+    return_detections: Union[bool, str] = Field(default=False, description="Whether a frame-centric view is included alongside tracks, tagging each object by its track ID.")
+    return_frame_image: Union[bool, str] = Field(default=False, description="Whether the source frame image is included in each per-frame view; requires 'return_detections' to be enabled.")
     return_metadata: Union[bool, str] = Field(default=False, description="Whether processing metadata (frame_count, ...) is included; a 'metadata' chunk is appended in streaming mode.")
     bounding_box_padding: Union[float, str] = Field(default=0.0, description="Ratio by which each object bounding box is expanded before cropping.")
     batch_size: Union[int, str] = Field(default=1, description="Number of frame batches processed per iteration.")
@@ -27,9 +27,9 @@ class CommonObjectTrackingModelActionConfig(CommonModelActionConfig):
     params: CommonObjectTrackingParamsConfig = Field(default_factory=CommonObjectTrackingParamsConfig, description="Filtering and merging parameters applied to detected objects.")
 
     @model_validator(mode="after")
-    def validate_return_tracks_or_frames(self):
-        if self.return_tracks is False and self.return_frames is False:
-            raise ValueError("Either 'return_tracks' or 'return_frames' must be true.")
-        if self.return_frame_image is True and self.return_frames is False:
-            raise ValueError("'return_frame_image' requires 'return_frames' to be true.")
+    def validate_return_tracks_or_detections(self):
+        if self.return_tracks is False and self.return_detections is False:
+            raise ValueError("Either 'return_tracks' or 'return_detections' must be true.")
+        if self.return_frame_image is True and self.return_detections is False:
+            raise ValueError("'return_frame_image' requires 'return_detections' to be true.")
         return self

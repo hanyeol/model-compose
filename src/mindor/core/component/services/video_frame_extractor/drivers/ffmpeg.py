@@ -100,8 +100,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         command.extend([ "-f", "image2pipe", "-vcodec", "png", "pipe:1" ])
 
         logging.debug(
-            "Extracting frames with ffmpeg (%s input, streaming=%s)",
-            "path" if input_path else "pipe", streaming,
+            "Extracting frames with ffmpeg (%s input, streaming=%s)", "path" if input_path else "pipe", streaming,
         )
 
         def _cleanup() -> None:

@@ -81,7 +81,7 @@ class FaceTrackingTaskAction(ComponentAction):
         return_tracks            = await context.render_scalar(self.config.return_tracks, bool)
         return_track_image       = await context.render_scalar(self.config.return_track_image, bool)
         return_embedding         = await context.render_scalar(self.config.return_embedding, bool)
-        return_frames            = await context.render_scalar(self.config.return_frames, bool)
+        return_detections        = await context.render_scalar(self.config.return_detections, bool)
         return_frame_image       = await context.render_scalar(self.config.return_frame_image, bool)
         return_metadata          = await context.render_scalar(self.config.return_metadata, bool)
         bounding_box_padding     = await context.render_scalar(self.config.bounding_box_padding, float)
@@ -98,11 +98,11 @@ class FaceTrackingTaskAction(ComponentAction):
         if bounding_box_padding < 0.0:
             raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
 
-        if not return_tracks and not return_frames:
-            raise ValueError("Either 'return_tracks' or 'return_frames' must be true.")
+        if not return_tracks and not return_detections:
+            raise ValueError("Either 'return_tracks' or 'return_detections' must be true.")
 
-        if return_frame_image and not return_frames:
-            raise ValueError("'return_frame_image' requires 'return_frames' to be true.")
+        if return_frame_image and not return_detections:
+            raise ValueError("'return_frame_image' requires 'return_detections' to be true.")
 
         return {
             "similarity_threshold":     similarity_threshold,
@@ -114,7 +114,7 @@ class FaceTrackingTaskAction(ComponentAction):
             "return_tracks":            return_tracks,
             "return_track_image":       return_track_image,
             "return_embedding":         return_embedding,
-            "return_frames":            return_frames,
+            "return_detections":        return_detections,
             "return_frame_image":       return_frame_image,
             "return_metadata":          return_metadata,
             "bounding_box_padding":     bounding_box_padding,

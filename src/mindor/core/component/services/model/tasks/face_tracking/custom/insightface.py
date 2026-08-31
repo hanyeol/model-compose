@@ -131,10 +131,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
             frame_count += 1
 
-            if params["return_frames"]:
+            if params["return_detections"]:
                 tracked_frames.append(tracked_frame)
 
-        if params["return_frames"]:
+        if params["return_detections"]:
             self._interpolate_missing_faces(tracked_frames, frame_rate, params["merge_gap"] or 0.0, params["max_track_distance"] or 0.0)
 
         # Flush any still-open `current` segment so every segment is
@@ -230,7 +230,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             # and had a prior detection within `merge_gap`. The prior/current
             # pair anchors the linear interpolation across the pending frames
             # in between.
-            if params["return_frames"]:
+            if params["return_detections"]:
                 for face, cluster_id in tracked_frame["tracked_faces"]:
                     last_face = last_face_by_cluster.get(cluster_id)
                     if last_face is not None:
@@ -253,7 +253,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 pending_frames.append(tracked_frame)
 
                 for ready_frame in _flush_ready_frames(force=False):
-                    yield self._build_frame_chunk(ready_frame, params)
+                    yield self._build_detection_chunk(ready_frame, params)
 
             if params["return_tracks"]:
                 for cluster_id, segment in tracked_frame["tracked_segments"]:
@@ -270,9 +270,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                         yield segment_chunk
                     yield track_chunk
 
-        if params["return_frames"]:
+        if params["return_detections"]:
             for ready_frame in _flush_ready_frames(force=True):
-                yield self._build_frame_chunk(ready_frame, params)
+                yield self._build_detection_chunk(ready_frame, params)
 
         # Final flush: seal every still-open segment and emit any track that
         # hasn't been announced yet (including clusters that never went idle).
@@ -813,9 +813,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
 
-        if params["return_metadata"]:
-            result["frame_count"] = frame_count
-
         if params["return_tracks"]:
             min_frame_count = params["min_frame_count"] or 1
             centroids: List[np.ndarray] = centroids_state["centroids"]
@@ -868,8 +865,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             result["tracks"] = tracks
 
-        if params["return_frames"]:
-            result["frames"] = [ self._serialize_tracked_frame(tracked_frame, params) for tracked_frame in tracked_frames ]
+        if params["return_detections"]:
+            result["detections"] = [ self._serialize_tracked_frame(tracked_frame, params) for tracked_frame in tracked_frames ]
+
+        if params["return_metadata"]:
+            result["frame_count"] = frame_count
 
         return result
 
@@ -932,9 +932,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "segment":  segment,
         }
 
-    def _build_frame_chunk(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_detection_chunk(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         chunk: Dict[str, Any] = {
-            "type":      "frame",
+            "type":      "detection",
             "number":    tracked_frame["number"],
             "timestamp": format_timecode(tracked_frame["timestamp"]),
             "faces":     [ self._serialize_tracked_face(tracked_face, cluster_id, params) for tracked_face, cluster_id in tracked_frame["tracked_faces"] ],

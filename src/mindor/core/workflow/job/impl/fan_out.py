@@ -21,9 +21,11 @@ class FanOutPump:
     chunk to a per-branch bounded queue. When the slowest branch's queue fills,
     the pump blocks so all branches advance at that pace (memory stays bounded).
 
-    Pump task is lazy: it starts when the first branch begins iterating. If a
-    branch closes without consuming, its queue is drained so the pump unblocks.
-    When all branches close, the pump task is cancelled.
+    The pump task is started eagerly in the constructor (so a running event
+    loop is required). It fills each branch's queue up to `buffer_size` and
+    then blocks on `put` until a consumer drains one item. If a branch closes
+    without consuming, its queue is drained so the pump unblocks. When every
+    branch has closed, the pump task is cancelled.
     """
     def __init__(self, source: AsyncIterable[Any], count: int, buffer_size: int = 32):
         self._source = source
@@ -96,6 +98,10 @@ class FanOutJob(ComponentRunnerJob):
         output      = await context.render_variable(None, self.config.output)
         buffer_size = await context.render_variable(None, self.config.buffer_size)
 
+        await self._started(input)
+
+        input = await self._before_run(context, None, input)
+
         if isinstance(input, StreamResource):
             if input.copyable():
                 branches = input.copy(len(output))
@@ -114,4 +120,7 @@ class FanOutJob(ComponentRunnerJob):
             else:
                 branches = sources
 
-        return { name: branch for name, branch in zip(output, branches) }
+        output = { name: branch for name, branch in zip(output, branches) }
+        output = await self._after_run(context, None, input, output)
+
+        return output

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional, List, Protocol, Union, Awaitable, runtime_checkable
 from collections.abc import AsyncIterator, AsyncIterable
 from abc import ABC, abstractmethod
@@ -31,6 +33,18 @@ class StreamResource(ABC):
     def __aiter__(self):
         return self._iterate_stream()
 
+    def copyable(self) -> bool:
+        return False
+
+    def copy(self, count: int) -> List[StreamResource]:
+        raise NotImplementedError(f"{type(self).__name__} is not copyable; use tee(sources) instead.")
+
+    def tee(self, sources: List[AsyncIterator[bytes]]) -> List[StreamResource]:
+        return [
+            TeeStreamResource(source, self.content_type, self.filename, self.size)
+            for source in sources
+        ]
+
     @abstractmethod
     async def close(self) -> None:
         pass
@@ -38,6 +52,31 @@ class StreamResource(ABC):
     @abstractmethod
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         pass
+
+class TeeStreamResource(StreamResource):
+    def __init__(
+        self,
+        source: AsyncIterator[bytes],
+        content_type: Optional[str] = None,
+        filename: Optional[str] = None,
+        size: Optional[int] = None,
+    ):
+        super().__init__(content_type, filename, size=size)
+
+        self._source: AsyncIterator[bytes] = source
+
+    def copyable(self) -> bool:
+        return False
+
+    async def close(self) -> None:
+        try:
+            await self._source.aclose()
+        except Exception:
+            pass
+
+    async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        async for chunk in self._source:
+            yield chunk
 
 class ReaderStreamResource(StreamResource):
     def __init__(
@@ -105,6 +144,15 @@ class ChunkedStreamResource(StreamResource):
 
         self.stream: StreamResource = stream
         self.chunk_size: int = chunk_size
+
+    def copyable(self) -> bool:
+        return self.stream.copyable()
+
+    def copy(self, count: int) -> List[ChunkedStreamResource]:
+        return [
+            ChunkedStreamResource(source, self.chunk_size)
+            for source in self.stream.copy(count)
+        ]
 
     async def close(self) -> None:
         await self.stream.close()

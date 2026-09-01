@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Optional, List
 from collections.abc import AsyncIterator
 from .resources import StreamResource
 from PIL import Image as PILImage
@@ -33,6 +35,15 @@ class ImageStreamResource(StreamResource):
         self.image: PILImage.Image = image
         self.format: str = format
         self._buffer: Optional[io.BytesIO] = None
+
+    def copyable(self) -> bool:
+        return True
+
+    def copy(self, count: int) -> List[ImageStreamResource]:
+        return [
+            ImageStreamResource(self.image, self.format, self.filename)
+            for _ in range(count)
+        ]
 
     async def close(self) -> None:
         if self._buffer:

@@ -1,6 +1,8 @@
-from typing import Union, Optional, Dict, Any
+from __future__ import annotations
+
+from typing import Union, Optional, Dict, Any, List
 from collections.abc import AsyncIterator
-from .resources import StreamResource
+from .resources import StreamResource, TeeStreamResource
 from .bytes import BytesStreamResource
 from .file import UploadFileStreamResource
 from .media import MediaSource
@@ -36,6 +38,26 @@ class VideoStreamResource(StreamResource):
         self.source: StreamResource = source if isinstance(source, StreamResource) else BytesStreamResource(source)
         self.format: Optional[str] = format
         self.attrs: Dict[str, Any] = attrs or {}
+
+    def copyable(self) -> bool:
+        return self.source.copyable()
+
+    def copy(self, count: int) -> List[VideoStreamResource]:
+        return [
+            VideoStreamResource(source, self.format, self.attrs, self.filename)
+            for source in self.source.copy(count)
+        ]
+
+    def tee(self, sources: List[AsyncIterator[bytes]]) -> List[VideoStreamResource]:
+        return [
+            VideoStreamResource(
+                source=TeeStreamResource(source),
+                format=self.format,
+                attrs=self.attrs,
+                filename=self.filename,
+            )
+            for source in sources
+        ]
 
     async def close(self) -> None:
         await self.source.close()

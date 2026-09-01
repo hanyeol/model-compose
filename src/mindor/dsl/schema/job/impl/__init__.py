@@ -8,4 +8,5 @@ from .filter import *
 from .for_each import *
 from .pipeline import *
 from .accumulate import *
+from .fan_out import *
 from .inline import *

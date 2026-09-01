@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Optional, List
 from collections.abc import AsyncIterable, AsyncIterator
 from .resources import StreamResource, read_stream_to_bytes
 import asyncio, io
@@ -14,6 +16,15 @@ class TextStreamResource(StreamResource):
         self.text: str = text
         self.encoding: str = encoding
         self.buffer: Optional[io.BytesIO] = None
+
+    def copyable(self) -> bool:
+        return True
+
+    def copy(self, count: int) -> List[TextStreamResource]:
+        return [
+            TextStreamResource(self.text, self.encoding, self.filename)
+            for _ in range(count)
+        ]
 
     async def close(self) -> None:
         if self.buffer:

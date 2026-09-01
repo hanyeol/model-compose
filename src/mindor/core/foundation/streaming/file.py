@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Optional, List
 from collections.abc import AsyncIterator
 from .resources import StreamResource
 from starlette.datastructures import UploadFile
@@ -19,6 +21,21 @@ class FileStreamResource(StreamResource):
         self.chunk_size: int = chunk_size
         self.auto_delete: bool = auto_delete
         self._stream: Optional[aiofiles.threadpool.text.AsyncTextIOWrapper] = None
+
+    def copyable(self) -> bool:
+        return True
+
+    def copy(self, count: int) -> List[FileStreamResource]:
+        return [
+            FileStreamResource(
+                self.path,
+                self.content_type,
+                self.filename,
+                self.chunk_size,
+                auto_delete=False,
+            )
+            for _ in range(count)
+        ]
 
     async def close(self) -> None:
         if self._stream:

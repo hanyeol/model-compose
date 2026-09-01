@@ -12,7 +12,8 @@ JobConfig = Annotated[
         FilterJobConfig,
         ForEachJobConfig,
         PipelineJobConfig,
-        AccumulateJobConfig
+        AccumulateJobConfig,
+        FanOutJobConfig
     ],
     Field(discriminator="type")
 ]

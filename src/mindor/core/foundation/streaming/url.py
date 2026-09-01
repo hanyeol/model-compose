@@ -1,4 +1,6 @@
-from typing import Any, Optional, Dict
+from __future__ import annotations
+
+from typing import Any, Optional, Dict, List
 from collections.abc import AsyncIterator
 from pathlib import Path
 from urllib.parse import unquote_to_bytes
@@ -62,6 +64,15 @@ class DataUriStreamResource(StreamResource):
 
         self.uri: str = uri
         self._stream: Optional[StreamResource] = None
+
+    def copyable(self) -> bool:
+        return True
+
+    def copy(self, count: int) -> List[DataUriStreamResource]:
+        return [
+            DataUriStreamResource(self.uri, self.filename)
+            for _ in range(count)
+        ]
 
     async def close(self) -> None:
         if self._stream:

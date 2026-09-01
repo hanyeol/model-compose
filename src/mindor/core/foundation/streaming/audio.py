@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Literal, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from .resources import StreamResource, AsyncIterableStreamResource, read_stream_to_bytes
+from .resources import StreamResource, TeeStreamResource, AsyncIterableStreamResource, read_stream_to_bytes
 from .bytes import BytesStreamResource
 from .file import FileStreamResource, UploadFileStreamResource
 from .media import MediaSource
@@ -61,6 +61,31 @@ class PcmStreamResource(StreamResource):
     def format(self) -> str:
         return self.attrs.get("format") or get_pcm_format(int(self.attrs.get("bit_depth", 16)))
 
+    def copyable(self) -> bool:
+        if isinstance(self.samples, StreamResource):
+            return self.samples.copyable()
+
+        return False
+
+    def copy(self, count: int) -> List[PcmStreamResource]:
+        if isinstance(self.samples, StreamResource):
+            return [
+                PcmStreamResource(samples, self.attrs, self.filename)
+                for samples in self.samples.copy(count)
+            ]
+
+        return super().copy(count)
+
+    def tee(self, sources: List[AsyncIterator[bytes]]) -> List[PcmStreamResource]:
+        return [
+            PcmStreamResource(
+                samples=TeeStreamResource(source),
+                attrs=self.attrs,
+                filename=self.filename,
+            )
+            for source in sources
+        ]
+
     async def close(self) -> None:
         if isinstance(self.samples, StreamResource):
             await self.samples.close()
@@ -96,6 +121,8 @@ class WavStreamResource(StreamResource):
         if isinstance(source, PcmStreamResource):
             attrs = attrs if attrs is not None else source.attrs
             is_raw_samples = True
+        elif isinstance(source, TeeStreamResource):
+            is_raw_samples = False
         else:
             is_raw_samples = attrs is not None
 
@@ -109,6 +136,25 @@ class WavStreamResource(StreamResource):
             return PcmStreamResource(self.source, attrs=self.attrs)
 
         return None
+
+    def copyable(self) -> bool:
+        return self.source.copyable()
+
+    def copy(self, count: int) -> List[WavStreamResource]:
+        return [
+            WavStreamResource(source, self.attrs, self.filename)
+            for source in self.source.copy(count)
+        ]
+
+    def tee(self, sources: List[AsyncIterator[bytes]]) -> List[WavStreamResource]:
+        return [
+            WavStreamResource(
+                source=TeeStreamResource(source),
+                attrs=self.attrs,
+                filename=self.filename,
+            )
+            for source in sources
+        ]
 
     async def close(self) -> None:
         await self.source.close()
@@ -154,8 +200,28 @@ class AudioStreamResource(StreamResource):
         super().__init__(self._resolve_content_type(format), filename, size=self._resolve_size(source))
 
         self.source: StreamResource = self._resolve_source(source)
-        self.format: str = format
+        self.format: Optional[str] = format
         self.attrs: Dict[str, Any] = attrs or {}
+
+    def copyable(self) -> bool:
+        return self.source.copyable()
+
+    def copy(self, count: int) -> List[AudioStreamResource]:
+        return [
+            AudioStreamResource(source, self.format, self.attrs, self.filename)
+            for source in self.source.copy(count)
+        ]
+
+    def tee(self, sources: List[AsyncIterator[bytes]]) -> List[AudioStreamResource]:
+        return [
+            AudioStreamResource(
+                source=TeeStreamResource(source),
+                format=self.format,
+                attrs=self.attrs,
+                filename=self.filename,
+            )
+            for source in sources
+        ]
 
     async def close(self) -> None:
         await self.source.close()

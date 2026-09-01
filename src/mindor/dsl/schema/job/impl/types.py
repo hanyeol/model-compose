@@ -10,3 +10,4 @@ class JobType(str, Enum):
     FOR_EACH      = "for-each"
     PIPELINE      = "pipeline"
     ACCUMULATE    = "accumulate"
+    FAN_OUT       = "fan-out"

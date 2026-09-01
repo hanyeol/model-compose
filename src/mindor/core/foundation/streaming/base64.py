@@ -1,4 +1,6 @@
-from typing import Optional, Any
+from __future__ import annotations
+
+from typing import Optional, Any, List
 from collections.abc import AsyncIterator
 from .resources import StreamResource, read_stream_to_bytes
 from .resolver import resolve_stream_resource
@@ -22,6 +24,15 @@ class Base64StreamResource(StreamResource):
         self.data: str = data
         self.chunk_size: int = chunk_size
         self._stream: Optional[io.BytesIO] = None
+
+    def copyable(self) -> bool:
+        return True
+
+    def copy(self, count: int) -> List["Base64StreamResource"]:
+        return [
+            Base64StreamResource(self.data, self.content_type, self.filename, self.chunk_size)
+            for _ in range(count)
+        ]
 
     async def close(self) -> None:
         if self._stream:

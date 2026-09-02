@@ -68,7 +68,7 @@ Every job type supports a shared set of fields for identification, dependencies,
 | `hook` | object | `null` | Inline Python hooks; see [Job Hooks](#job-hooks) |
 | `retry` | integer/object | `null` | Retry policy applied to this job on failure; see [Job Retry](#job-retry) |
 | `on_error` | string/object | `null` | Fallback behavior after retries are exhausted; see [Job On-Error](#job-on-error) |
-| `output` | any | `null` | Output mapping expression for this job (except router-only jobs like `if`, `switch`, `random-router`) |
+| `output` | any | `null` | Output mapping expression for this job (except router-only jobs like `if`, `switch`, `random-router`, and `fan-out` — the latter uses `output` as a list of branch names) |
 
 ### Job Interrupts
 
@@ -542,6 +542,60 @@ When a step omits `input`, it defaults to the pipeline input for the first step 
 | `steps` | list | **required** | Steps executed sequentially (must contain at least one). Each step is an inline job. See [Inline Jobs in Composite Jobs](#inline-jobs-in-composite-jobs) |
 
 The pipeline job's final output is the last step's output (after any `steps[-1].output` mapping is applied). It behaves like any other job's output — reference it as `${jobs.<pipeline-id>.output}` from downstream jobs.
+
+### Fan-Out Job (`fan-out`)
+
+Split one input into named branches that downstream jobs can consume independently. Useful when the same value — especially a stream — needs to feed two or more consumers, since a single stream can otherwise only be drained by one downstream job.
+
+```yaml
+jobs:
+  - id: extract-frames
+    component: frame-extractor           # produces a frame stream
+
+  - id: fanout-frames
+    type: fan-out
+    input: ${jobs.extract-frames.output}
+    output: [ for-track, for-preview ]
+    buffer_size: 32
+    depends_on: [ extract-frames ]
+
+  - id: track-regions
+    component: region-tracker
+    input:
+      frames: ${jobs.fanout-frames.output.for-track}
+    depends_on: [ fanout-frames ]
+
+  - id: preview-grid
+    component: image-grid
+    input:
+      frames: ${jobs.fanout-frames.output.for-preview}
+      columns: 8
+    depends_on: [ fanout-frames ]
+```
+
+Each entry in `output` becomes an independently consumable branch, exposed as `${jobs.<fan-out-id>.output.<branch-name>}`. Branches advance at their own pace; per-branch bounded queues apply backpressure so the fastest branch cannot outrun the slowest by more than `buffer_size` items.
+
+**Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | **required** | Must be `fan-out` |
+| `input` | any | **required** | Value fanned out to each branch. Stream inputs (`StreamResource`, async iterators, `StreamChunkIterator`) are pumped with bounded backpressure; non-stream inputs are shared by reference |
+| `output` | list of strings | **required** | Branch names. Each is exposed as `${jobs.<id>.output.<name>}`. Names must be unique and the list must contain at least one entry |
+| `buffer_size` | integer | `32` | Per-branch bounded queue depth used when the input is a stream. Memory upper bound is roughly `buffer_size × len(output) × item_size` |
+| `spool` | boolean | `false` | For a single non-copyable `StreamResource` input, land the source on a tempfile so branches can read it at independent paces without queue backpressure. The tempfile is deleted after every branch closes. Use this when one branch consumes far more slowly than the others (or only starts after a downstream signal); otherwise the default in-memory fan-out is cheaper. Ignored (with a warning) on container inputs (async iterators, lists, chunk iterators) — those fall back to the in-memory pump path |
+
+**Type preservation across branches:**
+
+| Input type | Each branch receives |
+|------------|----------------------|
+| Single `StreamResource` (copyable) | A new `StreamResource` instance of the same subclass |
+| Single `StreamResource` (non-copyable) | A `TeeStreamResource` (or a wrapper of the original subclass, when the subclass overrides `tee`) |
+| `StreamChunkIterator` | A `StreamChunkIterator` with `is_fragmented` preserved |
+| Async iterator / list / other iterable | An async iterator of the same items (each item is shared by reference across branches) |
+| Scalar / dict / non-iterable value | An async iterator yielding the value once |
+
+Branch closure is independent: if one downstream job aborts early, the remaining branches keep advancing. When every branch closes, the internal pump is cancelled. Errors from the upstream stream are re-raised on every branch that has not yet closed.
 
 ### Inline Jobs in Composite Jobs
 

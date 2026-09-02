@@ -451,6 +451,7 @@ model-compose provides various job types to support different task patterns.
 | `for-each` | Iteration | Run a job once per item in a collection |
 | `accumulate` | Fold / reduce | Fold a collection into a single value by threading the running result through each iteration |
 | `pipeline` | Sequential chaining | Run a sequence of jobs, feeding each step's output into the next |
+| `fan-out` | Stream duplication | Split one input into named branches so multiple downstream jobs can consume it independently |
 
 > **Note**: If `type` is not specified, it defaults to `component`.
 
@@ -469,7 +470,7 @@ Regardless of type, every job supports the following fields:
 | `retry` | int/object | `null` | Retry policy applied on failure. See [Retry](#retry) below. |
 | `on_error` | string/object | `null` | Fallback behavior after retries are exhausted. See [On-Error](#on-error) below. |
 
-Interrupts, hooks, retries, and on-error handlers work on every job type — component, if, switch, delay, filter, for-each, accumulate, pipeline, random-router.
+Interrupts, hooks, retries, and on-error handlers work on every job type — component, if, switch, delay, filter, for-each, accumulate, pipeline, fan-out, random-router.
 
 #### Interrupts (Human-in-the-Loop)
 
@@ -1090,6 +1091,91 @@ jobs:
 ```
 
 The pipeline's final output is the last step's output — reference it as `${jobs.<pipeline-id>.output}` from downstream jobs.
+
+### Fan-Out Job
+
+Split one input into named branches that downstream jobs can consume independently. A single stream can normally only be drained by one downstream job — the first consumer to start iterating exhausts it and the rest see an empty stream. Fan-out solves this by declaring `output: [ <branch-name>, ... ]` and exposing each branch as `${jobs.<id>.output.<branch-name>}`.
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `input` | any | - | Value fanned out to each branch. Stream inputs are pumped with bounded backpressure; non-stream inputs are shared by reference. Supports variable binding. |
+| `output` | list of strings | - | Branch names. Each is exposed as `${jobs.<id>.output.<name>}`. Names must be unique and the list must contain at least one entry. |
+| `buffer_size` | `integer` | `32` | Per-branch bounded queue depth used when the input is a stream. Memory upper bound is roughly `buffer_size × len(output) × item_size`. |
+| `spool` | `boolean` | `false` | For a single non-copyable `StreamResource` input, land the source on a tempfile so branches can read it at independent paces without queue backpressure. See [Spool mode](#spool-mode) below. |
+| `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. |
+
+Each branch advances at its own pace, and the per-branch bounded queue applies backpressure so the fastest branch cannot outrun the slowest by more than `buffer_size` items. If one downstream job aborts early, the surviving branches keep advancing; when every branch closes, the internal pump is cancelled. Errors from the upstream stream are re-raised on every branch that has not yet closed.
+
+```yaml
+jobs:
+  - id: extract-frames
+    component: frame-extractor           # produces a frame stream
+
+  - id: fanout-frames
+    type: fan-out
+    input: ${jobs.extract-frames.output}
+    output: [ for-track, for-preview ]
+    buffer_size: 32
+    depends_on: [ extract-frames ]
+
+  - id: track-regions
+    component: region-tracker
+    input:
+      frames: ${jobs.fanout-frames.output.for-track}
+    depends_on: [ fanout-frames ]
+
+  - id: preview-grid
+    component: image-grid
+    input:
+      frames: ${jobs.fanout-frames.output.for-preview}
+      columns: 8
+    depends_on: [ fanout-frames ]
+```
+
+Both `track-regions` and `preview-grid` see the same frame sequence, drained independently.
+
+#### Branch Types
+
+Fan-out preserves the shape of its input: each branch receives a value of the same category as the input, so downstream jobs can treat the branch the same way they would treat the original.
+
+| Input | Each branch receives |
+|-------|----------------------|
+| Single stream resource (in-memory / copyable) | A new independent copy of the same resource type |
+| Single stream resource (live / non-copyable) | A tee'd view of the resource that draws from a shared bounded pump |
+| Chunk stream (`StreamChunkIterator`) | A chunk stream with the same `is_fragmented` setting |
+| Async iterator / list / other iterable | An async iterator yielding the same items (each item is shared across branches) |
+| Scalar / dict / non-iterable value | An async iterator that yields the value once |
+
+Reference a branch as `${jobs.<fan-out-id>.output.<branch-name>}`. Referencing a name that isn't declared in `output` resolves to nothing — declare every branch you intend to consume.
+
+#### Choosing a Buffer Size
+
+`buffer_size` is the per-branch queue depth used when the input is a stream. It bounds how far ahead the fastest branch can run relative to the slowest — bigger values smooth over branches whose consumption speed differs, smaller values cap memory more tightly. A useful mental model:
+
+- Peak memory ≈ `buffer_size × len(output) × item_size`.
+- If a branch stalls, the pump stops pulling from the upstream stream once every branch's queue is full — the whole fan-out advances at the slowest branch's pace.
+- Streams whose items are large (video frames, long audio buffers) usually want a smaller `buffer_size`; token streams and small chunks can tolerate the default.
+
+#### Spool Mode
+
+When one branch has to wait for a downstream signal before it can start consuming — think of a `video-clipper` branch that only opens the video after a `VAD` branch produces its first speech segment — the in-memory queue can't smooth the gap: the slow branch's queue fills, the pump blocks, and the faster branch can't finish either. `spool: true` breaks that deadlock by writing the upstream `StreamResource` to a tempfile once and handing each branch its own file handle. Branches can seek/read at completely independent paces because they no longer share a bounded queue.
+
+```yaml
+- id: fanout-video
+  type: fan-out
+  input: ${input.video as video}
+  output: [ for-audio, for-clip ]
+  spool: true                          # ← land the upload on a tempfile
+```
+
+Notes:
+
+- **Scope**: `spool: true` is only meaningful for a single non-copyable `StreamResource` input. Copyable resources ignore it (they reuse their own constructor). Container inputs (async iterators, lists, chunk iterators) log a warning and fall back to the in-memory pump path — they aren't rewindable in a way that spool can exploit.
+- **Lifecycle**: The tempfile is written to the OS temp directory returned by `tempfile.NamedTemporaryFile` (respects `TMPDIR`). It is deleted after every branch closes — the last branch's `close()` releases the shared reference count.
+- **Trade-off**: Spool trades RAM for disk. Every branch reads the same file, so peak disk usage is roughly the size of the upload; peak memory is bounded by the per-branch read chunk size, not the upload size. Use it when a branch has a large / unpredictable consumption lag; stick with the default in-memory fan-out when every branch drains at similar pace.
+- **Branch type**: Each spooled branch is a copyable file-backed `StreamResource`, so a downstream fan-out can further split it via cheap `copy(N)` without another spool.
 
 ### Inline Jobs in Composite Jobs
 

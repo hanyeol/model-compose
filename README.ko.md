@@ -242,7 +242,7 @@ controller:
 - **어떤 런타임이든** — Docker, 네이티브, virtualenv, 프로세스, 임베디드 — 한 줄로 전환
 - **분산 실행** — Redis 큐 디스패치로 수평 확장
 - **즉시 웹 UI** — Gradio UI를 YAML 2줄로
-- **모든 곳에서 스트리밍** — SSE, WebSocket, 잡 간 스트림이 1급 값
+- **모든 곳에서 스트리밍** — SSE, WebSocket, 작업 간 스트림이 1급 값
 
 ---
 

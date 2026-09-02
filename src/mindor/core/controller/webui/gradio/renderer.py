@@ -42,19 +42,22 @@ class WorkflowFlowRenderer:
 
         self._render_workflow_graph(workflow_config, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix="")
 
-        for workflow_id, (source_node, link_label) in referenced_workflows.items():
-            sub_workflow = workflow_configs[workflow_id]
+        rendered_workflows: Set[str] = set()
+        while pending_workflows := [ (workflow_id, workflow_link) for workflow_id, workflow_link in referenced_workflows.items() if workflow_id not in rendered_workflows ]:
+            for workflow_id, (source_node, link_label) in pending_workflows:
+                rendered_workflows.add(workflow_id)
+                sub_workflow = workflow_configs[workflow_id]
 
-            if not sub_workflow.jobs:
-                continue
+                if not sub_workflow.jobs:
+                    continue
 
-            prefix = f"__w_{workflow_id}__"
-            title = sub_workflow.title or workflow_id
-            diagram_lines.append(f'    subgraph {prefix}["{title}<br/>(workflow)"]')
-            diagram_lines.append("    direction TB")
-            self._render_workflow_graph(sub_workflow, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix=f"{prefix}_")
-            diagram_lines.append("    end")
-            diagram_lines.append(f"    {source_node} -. {link_label} .- {prefix}")
+                prefix = f"__w_{workflow_id}__"
+                title = sub_workflow.title or workflow_id
+                diagram_lines.append(f'    subgraph {prefix}["{title}<br/>(workflow)"]')
+                diagram_lines.append("    direction TB")
+                self._render_workflow_graph(sub_workflow, component_configs, workflow_configs, referenced_workflows, diagram_lines, prefix=f"{prefix}_")
+                diagram_lines.append("    end")
+                diagram_lines.append(f"    {source_node} -. {link_label} .- {prefix}")
 
         diagram = "\n".join(diagram_lines)
         viewer_url = self._build_mermaid_viewer_url(diagram)

@@ -10,7 +10,7 @@ This workflow provides local face tracking that:
 2. **Frame Sampling**: Extracts frames from the input video at a user-controlled interval with ffmpeg
 3. **Identity Clustering**: Clusters per-frame face embeddings by cosine similarity so each unique face becomes a single track
 4. **Segments**: Aggregates per-frame timestamps into merged `start_time / end_time / duration` segments per person
-5. **Automatic Model Management**: Fetches the `antelopev2` pack from the InsightFace GitHub release on first run, extracts it into `./.models/antelopev2`, and reuses it thereafter
+5. **Automatic Model Management**: Fetches the `antelopev2` pack from the InsightFace GitHub release on first run, extracts it into `./models/antelopev2`, and reuses it thereafter
 
 ## Preparation
 
@@ -20,21 +20,21 @@ This workflow provides local face tracking that:
 - ffmpeg installed and available in your PATH (for frame extraction)
 - Sufficient system resources to run onnxruntime (recommended: 4GB+ RAM)
 - Python environment with `insightface`, `opencv-python`, and `onnxruntime` (installed automatically on first run)
-- The `antelopev2` model pack placed at `./.models/antelopev2`
+- The `antelopev2` model pack placed at `./models/antelopev2`
 
 ### Downloading the antelopev2 Model Pack
 
-Download the model pack from InsightFace and place it under `./.models/antelopev2`:
+Download the model pack from InsightFace and place it under `./models/antelopev2`:
 
 ```bash
-mkdir -p .models
-# Download antelopev2.zip from the InsightFace model zoo and extract it into ./.models/antelopev2
+mkdir -p models
+# Download antelopev2.zip from the InsightFace model zoo and extract it into ./models/antelopev2
 ```
 
 The expected layout is:
 
 ```
-.models/
+models/
 └── antelopev2/
     ├── 1k3d68.onnx
     ├── 2d106det.onnx
@@ -50,7 +50,7 @@ The expected layout is:
    cd examples/model-tasks/face-tracking
    ```
 
-2. No additional environment configuration required beyond placing the model pack under `./.models/antelopev2`.
+2. No additional environment configuration required beyond placing the model pack under `./models/antelopev2`.
 
 ## How to Run
 
@@ -91,7 +91,7 @@ The expected layout is:
 ### Face Tracking Model Component
 - **Type**: Model component with `face-tracking` task
 - **Family**: `insightface`
-- **Model**: local `./.models/antelopev2` pack
+- **Model**: local `./models/antelopev2` pack
 - **Features**:
   - Detects faces per frame and extracts a 512-d identity embedding
   - Clusters embeddings online by cosine similarity so each identity becomes a single track
@@ -270,7 +270,7 @@ This example runs the extractor in streaming mode. If you'd rather materialize t
 2. **No tracks returned**: Raise the sampling rate (lower `frame_interval`) or lower `min_frame_count` — the person may only appear in a single sampled frame.
 3. **Same person split into multiple tracks**: Lower `similarity_threshold` (e.g. 0.35) or raise `merge_gap` if the splits are just adjacent gaps.
 4. **Different people merged into one track**: Raise `similarity_threshold` (e.g. 0.5) — the default is tuned for recall over precision.
-5. **Model files not found**: Verify the `./.models/antelopev2` directory contains all `.onnx` files listed above.
+5. **Model files not found**: Verify the `./models/antelopev2` directory contains all `.onnx` files listed above.
 
 ### Performance Optimization
 

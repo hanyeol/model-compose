@@ -1,0 +1,284 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # -------------- Main workflow: sweep an image through 5 target ----------------
+  # -------------- brightness levels and pose-detect each variant ----------------
+  - id: pose-brightness-sweep
+    default: true
+    title: Pose Detection × Brightness Sweep
+    description: |
+      Take one input image and produce 5 variants normalised to
+      absolute brightness targets on the 0–255 ITU-R BT.601 luma scale
+      (50, 90, 130, 170, 210 by default — very dark → very bright), then
+      run YOLOv8-pose on each variant so you can see how detection
+      quality shifts with exposure.
+
+      Unlike a naive multiplier sweep (0.5×, 1.0×, 2.0×, …), targeting
+      absolute luma means every input converges to the same 5 brightness
+      bands regardless of its original exposure — so comparing runs
+      across different photos is meaningful. The trade-off is that
+      brightness adjustment uses PIL's `ImageEnhance.Brightness` (a
+      linear multiplier), so shifting a very dark input up to luma 210
+      may clip highlights and land slightly below target.
+
+      Change the sweep range by editing the `target_luma` values on the
+      `sweep` job below.
+    jobs:
+      # 1. First stage: spool the uploaded image into two branches — one
+      #    for the brightness analyser (`for-measure`), one for the
+      #    second-stage fan-out that hands one image copy to each sweep
+      #    iteration (`for-sweep`). `spool: true` lands the upload on a
+      #    tempfile once, so the sweep branch — which only starts iterating
+      #    after `measure` finishes — can open the file at its own pace
+      #    without stalling the analyser's queue. Every branch becomes a
+      #    file-backed copyable resource, so the second-stage fan-out
+      #    below can split it further via cheap `copy(N)` (no second
+      #    tempfile).
+      - id: fanout-image
+        type: fan-out
+        input: ${input.image as image}
+        output: [ for-measure, for-sweep ]
+        spool: true
+
+      # 2. Measure the source image's mean luma once, upfront. The sweep
+      #    iterations all divide by this to derive their per-target
+      #    factor — computing it here (rather than inside each sub-
+      #    workflow run) avoids re-analysing the same pixels 5 times.
+      - id: measure
+        component: image-analyzer
+        action: analyze-brightness
+        input:
+          image: ${jobs.fanout-image.output.for-measure}
+        depends_on: [ fanout-image ]
+
+      # 3. Second stage: fan the sweep-side branch out one more time,
+      #    once per target luma. Because the upstream branch is a
+      #    copyable SpooledStreamResource, this fan-out takes the cheap
+      #    copy(N) path — no pump task, no second tempfile; each output
+      #    branch just opens its own handle onto the same spooled file.
+      #    If you change the sweep target list, update the branch names
+      #    here, the `sweep.input` items below, and the `output:`
+      #    projection at the bottom of the workflow to match.
+      - id: fanout-sweep
+        type: fan-out
+        input: ${jobs.fanout-image.output.for-sweep}
+        output: [ for-050, for-090, for-130, for-170, for-210 ]
+        depends_on: [ fanout-image ]
+
+      # 4. Fan out one pipeline run per target luma. Each iteration
+      #    gets its own image branch from `fanout-sweep` (paired with
+      #    its target luma below), so the CPU-side brighten + merge
+      #    steps can overlap under `batch_size: 5`; the pose model
+      #    itself is capped at `max_concurrent_count: 1` so GPU memory
+      #    stays bounded.
+      #
+      #    The four inner steps (factor → brighten → detect → overlay)
+      #    used to live in a private sub-workflow. Pipeline steps only
+      #    see the pipeline's own `${input}` and the previous step's
+      #    `${output}` — outer scopes like the for-each `${item}` aren't
+      #    reachable — so we pack everything the steps need (target
+      #    luma, source image branch, source luma, thresholds) into the
+      #    pipeline's `input` once, and each step's `output` mapping
+      #    repackages the running state (factor, brightened image,
+      #    poses) for the next step.
+      - id: sweep
+        type: for-each
+        # Each item pairs a target luma with the second-stage fan-out
+        # branch that will feed this iteration's brighten step. Target
+        # mean luma is on the 0–255 scale — 128 is the midpoint of
+        # 8-bit luma; anything below ~40 is essentially crushed shadows
+        # and anything above ~215 blows out highlights.
+        input:
+          - luma: 50
+            image: ${jobs.fanout-sweep.output.for-050}
+          - luma: 90
+            image: ${jobs.fanout-sweep.output.for-090}
+          - luma: 130
+            image: ${jobs.fanout-sweep.output.for-130}
+          - luma: 170
+            image: ${jobs.fanout-sweep.output.for-170}
+          - luma: 210
+            image: ${jobs.fanout-sweep.output.for-210}
+        batch_size: 5
+        depends_on: [ measure, fanout-sweep ]
+        do:
+          type: pipeline
+          input:
+            image: ${item.image}
+            target_luma: ${item.luma}
+            original_luma: ${jobs.measure.output.mean_brightness}
+            min_confidence: ${input.min_confidence as number | 0.4}
+            max_pose_count: ${input.max_pose_count as integer | 5}
+          steps:
+            # 3a. Compute the brightness factor that maps the source
+            #     image's mean luma to this iteration's `target_luma`.
+            #     Doing arithmetic in the DSL isn't supported, so we
+            #     shell out to Python for a one-line division. Stdout
+            #     is a plain float consumed downstream via `as number`.
+            - component: factor-calc
+              input:
+                original: ${input.original_luma}
+                target: ${input.target_luma}
+              output:
+                factor: ${output as number}
+
+            # 3b. Apply the computed factor. `factor < 1.0` darkens
+            #     (target below source); `> 1.0` brightens. PIL clips
+            #     at 0 and 255, so extreme shifts land slightly off
+            #     target — that's fine for a detection-quality sweep.
+            #     Carry `factor` forward so the final record can report
+            #     what was actually applied.
+            - component: image-processor
+              action: adjust-brightness
+              input:
+                image: ${input.image as image}
+                factor: ${output.factor}
+              output:
+                factor: ${output.factor}
+                brightened_image: ${output}
+
+            # 3c. Run pose detection on the brightened image.
+            #     `return_skeleton_image: true` yields a transparent-
+            #     background skeleton PNG per pose, at the source
+            #     resolution — the overlay step below is then a one-
+            #     shot alpha composite.
+            #
+            #     `${output.xxx}` in this step's output mapping refers
+            #     to what the pose-detector just returned, so `factor`
+            #     and `brightened_image` from step 3b would be lost
+            #     unless we carry them across via `${step.input}`, which
+            #     exposes the input dict this step actually received.
+            - component: pose-detector
+              input:
+                image: ${output.brightened_image as image}
+                factor: ${output.factor}
+                brightened_image: ${output.brightened_image}
+                min_confidence: ${input.min_confidence}
+                max_pose_count: ${input.max_pose_count}
+              output:
+                factor: ${step.input.factor}
+                brightened_image: ${step.input.brightened_image}
+                poses: ${output.poses}
+
+            # 3d. Stack every pose's skeleton PNG on top of the
+            #     brightened image. If zero poses were detected,
+            #     `poses[*].skeleton_image` yields an empty list and
+            #     merge falls back to just the base image.
+            - component: image-processor
+              action: merge
+              input:
+                factor: ${output.factor}
+                brightened_image: ${output.brightened_image}
+                images:
+                  - ${output.brightened_image as image}
+                  - ...${output.poses[*].skeleton_image}
+              output:
+                target_luma: ${input.target_luma}
+                applied_factor: ${step.input.factor}
+                brightened_image: ${step.input.brightened_image}
+                pose_overlay_image: ${output}
+
+    # Project each sweep result to its own top-level image field named
+    # after the target luma (e.g. `luma_050` = target 50) so callers can
+    # address a specific brightness band by name and the Web UI renders
+    # one image card per band side-by-side. If you change the target
+    # list on `sweep` above, rename these fields to match.
+    output:
+      luma_050: ${jobs.sweep.output[0].pose_overlay_image as image}
+      luma_090: ${jobs.sweep.output[1].pose_overlay_image as image}
+      luma_130: ${jobs.sweep.output[2].pose_overlay_image as image}
+      luma_170: ${jobs.sweep.output[3].pose_overlay_image as image}
+      luma_210: ${jobs.sweep.output[4].pose_overlay_image as image}
+
+components:
+  # ---- Image analyser (mean luma / clipping / RMS contrast) ----
+  # Only the `analyze-brightness` action is used here; it returns
+  # `mean_brightness` on the 0–255 BT.601 luma scale, which the sweep
+  # sub-workflow uses as the divisor for its per-target factor.
+  - id: image-analyzer
+    type: image-analyzer
+    driver: native
+    actions:
+      - id: analyze-brightness
+        metric: brightness
+        image: ${input.image as image}
+
+  # ---- Brightness-factor calculator ----
+  # DSL variable binding can't do arithmetic, so we shell out to Python
+  # for `target / original`. Stdout is the raw float, consumed by the
+  # brighten step via `as number`. Guard against a zero-luma source
+  # image (all-black input) by falling back to 1.0 — a factor of any
+  # size against 0 would just yield 0 anyway.
+  - id: factor-calc
+    type: shell
+    action:
+      command:
+        - python3
+        - -c
+        - |
+          import sys
+          original = float(sys.argv[1])
+          target = float(sys.argv[2])
+          print(target / original if original > 0 else 1.0)
+        - ${input.original as string}
+        - ${input.target as string}
+      output: ${result.stdout}
+
+  # ---- Image editor used for both brightness adjustment and the final merge ----
+  # `image-processor` bundles many pixel-space ops behind one component;
+  # we expose the two we need (`adjust-brightness`, `merge`) as named
+  # actions so each job can pick the right one.
+  - id: image-processor
+    type: image-processor
+    driver: native
+    actions:
+      - id: adjust-brightness
+        method: adjust-brightness
+        image: ${input.image as image}
+        factor: ${input.factor as number | 1.0}
+
+      # `merge` alpha-composites every input image onto a shared canvas
+      # sized to the largest input. Since the skeleton renders come out
+      # at the source image's own resolution with transparent
+      # backgrounds, the whole stack lines up 1:1 — no per-pose
+      # positioning math needed.
+      - id: merge
+        method: merge
+        image: ${input.images as image[]}
+        anchor: top-left
+
+  # ---- Pose detector (YOLOv8-pose) ----
+  # Single-image detection (no tracking) is enough here — each variant
+  # is independent, and there's no video timeline to preserve identity
+  # across.
+  #
+  # The YOLOv8n-pose weights are downloaded automatically on first run
+  # from the ultralytics assets release. Swap for yolov8s/m/l/x-pose.pt
+  # for higher accuracy at higher cost.
+  - id: pose-detector
+    type: model
+    task: pose-detection
+    driver: custom
+    family: yolo
+    # Serialise through a single detector instance so GPU memory stays
+    # bounded — the outer for-each still fans out CPU-side work
+    # (brighten + merge) across variants.
+    max_concurrent_count: 1
+    model:
+      provider: local
+      url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n-pose.pt
+    action:
+      image: ${input.image as image}
+      max_pose_count: ${input.max_pose_count}
+      return_keypoints: false
+      return_skeleton_image: true
+      skeleton_format: natural
+      params:
+        min_confidence: ${input.min_confidence}

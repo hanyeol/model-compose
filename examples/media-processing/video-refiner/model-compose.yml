@@ -17,28 +17,30 @@ workflow:
     clipper produces the corresponding video clip on the fly (no waiting
     for VAD to finish).
   jobs:
-    # 1. Stash the uploaded video on the local file-store so the audio
-    #    branch and each per-segment clip can independently re-read it.
-    #    The raw upload stream is single-use, so without this step it
-    #    would be consumed by whichever job read it first.
-    - id: store
-      component: storage
-      input:
-        # `context.task_id` scopes storage keys per run so parallel runs
-        # don't collide. No file extension is appended: the extractor/
-        # clipper detect the container from the stream itself.
-        path: uploads/${context.task_id}
-        source: ${input.video as video}
+    # 1. Fan the raw upload stream out to two independent consumers with
+    #    `spool: true`. The upload is single-use, and the clipper (step 4)
+    #    only starts after VAD (step 3) has produced at least one segment,
+    #    so a plain in-memory fan-out queue would have to buffer the whole
+    #    upload while VAD walks the audio. Spool mode lands the upload on
+    #    a tempfile once and hands both branches a file-backed
+    #    StreamResource that they can seek/read at independent paces
+    #    without queue backpressure. The tempfile is deleted after both
+    #    branches close.
+    - id: fanout-video
+      type: fan-out
+      input: ${input.video as video}
+      output: [ for-audio, for-clip ]
+      spool: true
 
-    # 2. Rip the audio track out of the stored video. The extractor reads
-    #    directly from the file on disk (no re-upload) and emits an audio
-    #    stream that flows straight into VAD.
+    # 2. Rip the audio track out of the video. The extractor consumes the
+    #    audio branch of the spool and emits an audio stream that flows
+    #    straight into VAD.
     - id: extract
       component: extractor
       input:
-        source: ${jobs.store.output.url as video;url}
+        source: ${jobs.fanout-video.output.for-audio}
       output: ${output as audio}
-      depends_on: [ store ]
+      depends_on: [ fanout-video ]
 
     # 3. Run Silero VAD in streaming mode: each speech segment is emitted
     #    as `{start_time, end_time, confidence}` the moment it is confirmed,
@@ -62,24 +64,13 @@ workflow:
     - id: refine
       component: clipper
       input:
-        video: ${jobs.store.output.url as video;url}
+        video: ${jobs.fanout-video.output.for-clip}
         span: ${jobs.detect.output}
       output:
         video: ${output as video}
-      depends_on: [ detect ]
+      depends_on: [ fanout-video, detect ]
 
 components:
-  # Local file-store used as a scratch area for the uploaded video. On S3
-  # or GCS you would swap the driver — see the tips section in README.md.
-  - id: storage
-    type: file-store
-    driver: local
-    base_path: ./storage
-    action:
-      method: put
-      path: ${input.path}
-      source: ${input.source}
-
   - id: extractor
     type: audio-extractor
     driver: ffmpeg

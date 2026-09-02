@@ -1,0 +1,89 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Object Tracking
+  description: |
+    Sample frames from an uploaded video at a fixed interval, run YOLO
+    object tracking (ByteTrack / BoT-SORT under the hood) across the sampled
+    sequence, and return a per-object segment report — one entry per
+    tracker-assigned identity with the timecoded segments in which that
+    object is on screen, plus the label and best-frame bounding box for
+    each segment.
+
+    Pipeline:
+      1. Extract frames from the video with ffmpeg at a fixed interval and
+         stream them out as bare images (the extractor's per-chunk dict is
+         projected down to the `image` field before leaving the component).
+      2. Feed the frame stream into object-tracking as a single input. Each
+         frame is detected by YOLO and passed through the built-in tracker
+         so the same object keeps a stable `track_id` across frames. The
+         tracker consumes the stream lazily — no full-video buffering.
+      3. Emit `{tracks, frame_count}` — each track carrying its segments
+         in H:MM:SS.mmm timecode form.
+  jobs:
+    - id: frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: ${input.frame_interval | 5}
+
+    - id: track
+      component: object-tracker
+      depends_on: [ frames ]
+      input:
+        frames: ${jobs.frames.output}
+        frame_rate: ${input.sampled_frame_rate | 6.0}
+        labels: ${input.labels as list}
+        min_confidence: ${input.min_confidence | 0.25}
+        min_frame_count: ${input.min_frame_count | 3}
+        merge_gap: ${input.merge_gap | 0.5}
+        tracker: ${input.tracker | bytetrack}
+        return_detections: ${input.return_detections as boolean | true}
+        return_frame_image: ${input.return_frame_image as boolean | false}
+      output:
+        tracks: ${output.tracks}
+        detections: ${output.detections}
+  output:
+    tracks: ${jobs.track.output.tracks as json}
+    detections: ${jobs.track.output.detections as json}
+
+components:
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: true
+      output: ${result[].image}
+
+  - id: object-tracker
+    type: model
+    task: object-tracking
+    driver: custom
+    family: yolo
+    max_concurrent_count: 1
+    model:
+      provider: local
+      path: ./models/yolov8n.pt
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      time_offset: 0.0
+      labels: ${input.labels}
+      return_detections: ${input.return_detections}
+      return_frame_image: ${input.return_frame_image}
+      params:
+        tracker: ${input.tracker}
+        min_confidence: ${input.min_confidence}
+        min_object_size: 40
+        min_frame_count: ${input.min_frame_count}
+        merge_gap: ${input.merge_gap}
+        max_object_count_per_frame: 0

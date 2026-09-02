@@ -1,20 +1,19 @@
 # 音频频谱视频示例
 
 将音频文件（mp3、wav 等）转换为均衡器风格的 MP4 视频，并将**原始音频重新混入**，
-通过串联四个组件实现：
+通过串联四个作业实现：
 
-1. `file-store`（local）将上传的音频写入
-   `./output/audio/${context.task_id}/audio`，使下游作业能够各自独立地重新读取。
-   上传作为一次性流到达，无法 tee 复制；一次持久化并通过 URL 扇出可避免此问题。
-2. `audio-feature-extractor` 读取该文件并产出每帧的频率频谱
+1. `fan-out`（`spool: true`）将一次性音频上传 tee 为两个独立分支 — 一个供
+   频谱提取器使用，另一个供最终编码器使用。上传一次性落到 tempfile，两个
+   分支各自按自己的节奏打开文件：编码器分支要等频谱 → 帧渲染管道结束
+   才开始消费，普通内存 fan-out 队列无法在这段时间里保留它。两个分支都
+   关闭后 tempfile 被删除。
+2. `audio-feature-extractor` 读取 `for-spectrum` 分支并产出每帧的频率频谱
    （`frames[frame_count][band_count]`，值在 `[0, 1]`）。
 3. `html-frame-renderer` 打开一个小 HTML 页面，从
    `window.__renderer.props.spectrum` 读取频谱，并在画布上为每帧绘制柱形。
-4. `video-encoder` 将 PNG 帧通过 ffmpeg 管道进行 H.264 编码，
-   并将原始音频文件作为音频轨混入。
-
-提取器与编码器输入中的 `${jobs.save-audio.output.url as audio;url}` 引用告知
-model-compose 将文件存储的 `file://` URL 视为音频资源，并在每个消费者内部懒加载。
+4. `video-encoder` 将渲染后的帧通过 ffmpeg 管道进行 H.264 编码，
+   并将 `for-encode` 音频分支作为音频轨混入。
 
 ## `window.__renderer` 契约
 

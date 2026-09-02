@@ -1,0 +1,131 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # -------------- Main workflow: annotate faces with gender-colored boxes ---------
+  - id: face-gender-annotate
+    default: true
+    title: Face Gender Annotate
+    description: |
+      Detect every face in an image with InsightFace's antelopev2 pack,
+      classify each face as male or female using the same detector's
+      genderage head, and draw a bounding box around each face colored
+      by predicted gender: blue for male, red for female, gray if the
+      detector was unsure.
+
+      The pipeline is three jobs: `fanout-image` spools the upload into
+      two independent branches, `detect` runs face-detection with
+      `return_gender_age: true` on the first branch, and `annotate` folds
+      one rectangle per detected face onto the second branch's copy of
+      the image with an inline `accumulate` job.
+    jobs:
+      # 1. Spool the uploaded image into two branches. The upload is
+      #    single-use, and the two readers consume it at very different
+      #    times: `detect` drains its branch immediately, while
+      #    `annotate` only opens its branch after `detect` finishes (to
+      #    seed the accumulator with the source image). `spool: true`
+      #    lands the upload on a tempfile once so both branches can open
+      #    the file at their own pace without stalling each other; the
+      #    tempfile is deleted after every branch closes.
+      - id: fanout-image
+        type: fan-out
+        input: ${input.image as image}
+        output: [ for-detect, for-annotate ]
+        spool: true
+
+      # 2. Run face-detection with the gender/age head turned on.
+      #    `return_gender_age: true` requires an InsightFace pack that
+      #    ships the genderage model — antelopev2 (the default here) does.
+      - id: detect
+        component: face-detector
+        input:
+          image: ${jobs.fanout-image.output.for-detect}
+          min_confidence: ${input.min_confidence as number | 0.5}
+        depends_on: [ fanout-image ]
+
+      # 3. Fold one rectangle per detected face onto the source image with
+      #    an inline `accumulate` job. Each iteration takes the running
+      #    image (`${accumulator}`) and returns the same image with one
+      #    more box drawn on it. Rectangle color is picked per face by a
+      #    conditional expression: male → blue, female → red, else gray.
+      - id: annotate
+        type: accumulate
+        input: ${jobs.detect.output.faces}
+        accumulator: ${jobs.fanout-image.output.for-annotate}
+        depends_on: [ fanout-image, detect ]
+        do:
+          component: box-drawer
+          input:
+            image: ${accumulator}
+            x: ${item.bounding_box.x}
+            y: ${item.bounding_box.y}
+            width: ${item.bounding_box.width}
+            height: ${item.bounding_box.height}
+            line_width: ${input.line_width as number | 3}
+            outline:
+              "?":
+                - input: ${item.gender}
+                  value: male
+                  if_true: "#1E90FF"     # dodger blue
+                - input: ${item.gender}
+                  value: female
+                  if_true: "#DC143C"     # crimson
+                  if_false: "#808080"    # gray fallback
+
+    output:
+      # `annotate` returns the fully-drawn accumulator (a PIL image), so
+      # tag it `as image` for the Web UI / API response encoding.
+      annotated_image: ${jobs.annotate.output as image}
+      # Also surface the raw detection records so callers can inspect
+      # scores, ages, or coordinates without re-running detection.
+      faces: ${jobs.detect.output.faces as json}
+
+components:
+  # ---- Face detector (InsightFace antelopev2) ----
+  # antelopev2 is downloaded automatically on first run (no `path` or `url`
+  # needed — the LocalModelConfig applies its default). This pack ships
+  # both the SCRFD detector and the genderage classifier, so
+  # `return_gender_age: true` populates `face.gender` ("male" | "female")
+  # and `face.age` on every result.
+  #
+  # For batch throughput bump `detection_size` to (960, 960) or (1280,
+  # 1280) — it recovers smaller / more distant faces at proportional cost
+  # per image. `max_num_faces: 0` means no cap on faces per image.
+  - id: face-detector
+    type: model
+    task: face-detection
+    driver: custom
+    family: insightface
+    max_concurrent_count: 1
+    model:
+      provider: local
+    action:
+      image: ${input.image as image}
+      return_gender_age: true
+      params:
+        min_confidence: ${input.min_confidence}
+        detection_size: [ 640, 640 ]
+        max_num_faces:  0
+
+  # ---- Draw a single bounding box in one call ----
+  # Called once per face by the inline `accumulate` job above.
+  # `${input.image}` is the running accumulator — the image with all
+  # previously-drawn boxes already on it.
+  - id: box-drawer
+    type: image-drawing
+    driver: native
+    action:
+      method: rectangle
+      image: ${input.image as image}
+      x: ${input.x}
+      y: ${input.y}
+      width: ${input.width}
+      height: ${input.height}
+      outline: ${input.outline}
+      line_width: ${input.line_width}

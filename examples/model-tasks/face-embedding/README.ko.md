@@ -19,21 +19,21 @@
 - model-compose가 설치되어 PATH에서 사용 가능
 - onnxruntime 실행을 위한 충분한 시스템 리소스 (권장: 4GB+ RAM)
 - `insightface`, `opencv-python`, `onnxruntime`이 있는 Python 환경 (첫 실행 시 자동 설치)
-- `./.models/antelopev2` 경로에 배치된 `antelopev2` 모델 팩
+- `./models/antelopev2` 경로에 배치된 `antelopev2` 모델 팩
 
 ### antelopev2 모델 팩 다운로드
 
-InsightFace에서 모델 팩을 다운로드하여 `./.models/antelopev2` 아래에 배치합니다:
+InsightFace에서 모델 팩을 다운로드하여 `./models/antelopev2` 아래에 배치합니다:
 
 ```bash
 mkdir -p models
-# InsightFace 모델 저장소에서 antelopev2.zip을 다운로드하여 ./.models/antelopev2에 압축 해제
+# InsightFace 모델 저장소에서 antelopev2.zip을 다운로드하여 ./models/antelopev2에 압축 해제
 ```
 
 예상 구조:
 
 ```
-.models/
+models/
 └── antelopev2/
     ├── 1k3d68.onnx
     ├── 2d106det.onnx
@@ -49,7 +49,7 @@ mkdir -p models
    cd examples/model-tasks/face-embedding
    ```
 
-2. `./.models/antelopev2` 아래에 모델 팩을 배치하는 것 외에 추가 환경 구성 불필요.
+2. `./models/antelopev2` 아래에 모델 팩을 배치하는 것 외에 추가 환경 구성 불필요.
 
 ## 실행 방법
 
@@ -82,7 +82,7 @@ mkdir -p models
 ### Face Embedding Model 컴포넌트 (기본)
 - **유형**: `face-embedding` 작업을 사용하는 Model 컴포넌트
 - **패밀리**: `insightface`
-- **모델**: 로컬 `./.models/antelopev2` 팩
+- **모델**: 로컬 `./models/antelopev2` 팩
 - **기능**:
   - 임베딩 이전에 얼굴 감지 및 정렬 수행
   - 얼굴당 고정 차원의 아이덴티티 벡터 생성
@@ -160,7 +160,7 @@ component:
   type: model
   task: face-embedding
   family: insightface
-  model: ./.models/buffalo_l
+  model: ./models/buffalo_l
   action:
     image: ${input.face_image as image}
 ```
@@ -203,7 +203,7 @@ workflow:
 ### 일반적인 문제
 
 1. **얼굴이 감지되지 않음**: 입력 이미지에 정면을 향한 명확한 얼굴이 있는지 확인; 필요 시 모델 팩의 감지기 신뢰도 임계값을 낮추기
-2. **모델 파일 없음**: `./.models/antelopev2` 디렉토리에 위에 나열된 모든 `.onnx` 파일이 있는지 확인
+2. **모델 파일 없음**: `./models/antelopev2` 디렉토리에 위에 나열된 모든 `.onnx` 파일이 있는지 확인
 3. **onnxruntime 설치 실패**: 일부 플랫폼에서는 `onnxruntime-gpu` 또는 `onnxruntime-silicon`을 명시적으로 설치해야 할 수 있음
 4. **첫 실행이 느림**: 모델 로딩에 수 초가 걸림 — 지연이 중요한 경우 `preload: true` 스타일의 장기 실행 서비스 유지
 

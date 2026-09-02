@@ -1,0 +1,289 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # ---------------- Main workflow: annotate NSFW detections on an image ----------
+  - id: nsfw-annotate
+    default: true
+    title: NSFW Annotate
+    description: |
+      Detect NSFW regions in an image with an Ultralytics YOLO model
+      (defaults to NudeNet v3.4 640m), then draw a labelled bounding box
+      around each detection: red for `*_EXPOSED` classes, yellow for
+      `*_COVERED` classes, gray for anything else (FACE_*, etc.).
+
+      Before detection, the image is normalised to an absolute target
+      luma on the 0–255 ITU-R BT.601 scale (default 130 = mid-tone) so
+      that under- or over-exposed inputs converge to a consistent
+      brightness band the detector was trained on. `analyze-brightness`
+      measures the source's mean luma, a one-line Python `shell` step
+      computes `target / original`, and `adjust-brightness` applies
+      that factor — the same pattern used by the
+      `pose-brightness-sweep` example. The brightening is applied only
+      to the detector's input; annotations are drawn on the untouched
+      original image so the returned artifact matches the caller's
+      upload.
+
+      Jobs: `fanout-image` → `measure` → `factor` → `brighten` →
+      `detect` → `annotate`.
+    jobs:
+      # 1. Spool the uploaded image into three independent branches. The
+      #    upload is single-use and three jobs need to read it: `measure`
+      #    (immediately), `brighten` (after `factor` finishes), and
+      #    `annotate` (only after `detect` finishes — a significant lag).
+      #    `spool: true` lands the upload on a tempfile once so each
+      #    branch can open the file at its own pace without stalling the
+      #    others; the tempfile is deleted after every branch closes.
+      #    Every branch is a copyable file-backed resource, so downstream
+      #    consumers that expect an image resource can treat them the
+      #    same way they would treat the original upload.
+      - id: fanout-image
+        type: fan-out
+        input: ${input.image as image}
+        output: [ for-measure, for-brighten, for-annotate ]
+        spool: true
+
+      # 2. Measure the source image's mean luma on the 0–255 BT.601
+      #    scale. The `brighten` step divides the requested target luma
+      #    by this to derive its factor. Running it once here avoids
+      #    re-analysing the same pixels if downstream ever fans out.
+      - id: measure
+        component: image-analyzer
+        action: analyze-brightness
+        input:
+          image: ${jobs.fanout-image.output.for-measure}
+        depends_on: [ fanout-image ]
+
+      # 3. Compute the brightness factor that maps the source's mean
+      #    luma to the requested target. DSL variable binding can't do
+      #    arithmetic, so we shell out to Python for a one-line
+      #    division. Guards against a zero-luma input (all-black) by
+      #    falling back to 1.0.
+      - id: factor
+        component: factor-calc
+        input:
+          original: ${jobs.measure.output.mean_brightness}
+          target: ${input.target_luma as number | 130}
+        depends_on: [ measure ]
+
+      # 4. Apply the computed factor. `factor < 1.0` darkens (target
+      #    below source); `> 1.0` brightens. PIL clips at 0 and 255, so
+      #    extreme shifts land slightly off target — fine for feeding a
+      #    detector. The output is a fresh PIL image, consumed by
+      #    `detect` below.
+      - id: brighten
+        component: image-processor
+        action: adjust-brightness
+        input:
+          image: ${jobs.fanout-image.output.for-brighten}
+          factor: ${jobs.factor.output}
+        depends_on: [ fanout-image, factor ]
+
+      # 5. Run NSFW object-detection on the brightened image. The
+      #    returned bounding-box coordinates share the source's
+      #    coordinate system (brightness adjustment does not resize),
+      #    so `annotate` below can draw them straight onto the
+      #    untouched original.
+      - id: detect
+        component: nsfw-detector
+        input:
+          image: ${jobs.brighten.output as image}
+          min_confidence: ${input.min_confidence as number | 0.35}
+          bounding_box_padding: ${input.bounding_box_padding as number | 0.0}
+        depends_on: [ brighten ]
+
+      # 6. Fold one labelled box per detection onto the source image.
+      #    Each iteration runs a two-step inline pipeline: draw the
+      #    rectangle, then draw the label text on top. The pipeline's
+      #    `${input}` carries the running image and this iteration's
+      #    detection record; each step's `output` mapping repackages
+      #    the running image + the current detection for the next step.
+      - id: annotate
+        type: accumulate
+        input: ${jobs.detect.output.objects}
+        accumulator: ${jobs.fanout-image.output.for-annotate}
+        depends_on: [ fanout-image, detect ]
+        do:
+          type: pipeline
+          input:
+            image: ${accumulator}
+            object: ${item}
+          steps:
+            # 3a. Draw the outlined rectangle. `outline` is picked by a
+            #     conditional on the label suffix: `*_EXPOSED` → red,
+            #     `*_COVERED` → yellow, anything else → gray.
+            - component: box-drawer
+              input:
+                image: ${input.image}
+                x: ${input.object.bounding_box.x}
+                y: ${input.object.bounding_box.y}
+                width: ${input.object.bounding_box.width}
+                height: ${input.object.bounding_box.height}
+                line_width: ${input.line_width as number | 3}
+                outline:
+                  "?":
+                    - input: ${input.object.label}
+                      operator: ends-with
+                      value: _EXPOSED
+                      if_true: "#DC143C"     # crimson
+                    - input: ${input.object.label}
+                      operator: ends-with
+                      value: _COVERED
+                      if_true: "#FFB300"     # amber
+                      if_false: "#808080"    # gray fallback
+              output:
+                image: ${output}
+                object: ${input.object}
+
+            # 3b. Draw the label text just above the box's top-left
+            #     corner. `${output.*}` refers to what the box-drawer
+            #     step returned, so `image` is the freshly-boxed image
+            #     and `object` was forwarded through the output mapping.
+            - component: text-drawer
+              input:
+                image: ${output.image}
+                x: ${output.object.bounding_box.x}
+                # Anchor the text just above the box; PIL clips
+                # negatives so labels near the top edge stay visible.
+                y: ${output.object.bounding_box.y}
+                text: ${output.object.label}
+                fill:
+                  "?":
+                    - input: ${output.object.label}
+                      operator: ends-with
+                      value: _EXPOSED
+                      if_true: "#DC143C"
+                    - input: ${output.object.label}
+                      operator: ends-with
+                      value: _COVERED
+                      if_true: "#FFB300"
+                      if_false: "#808080"
+                stroke_width: ${input.text_stroke_width as number | 2}
+                stroke_fill: "#000000"
+
+    output:
+      # The final `annotate` accumulator value is a PIL image. Tag it
+      # `as image` for the Web UI / API response encoding.
+      annotated_image: ${jobs.annotate.output as image}
+      # Also surface the raw detections so callers can inspect scores
+      # or coordinates without re-running detection.
+      objects: ${jobs.detect.output.objects as json}
+
+components:
+  # ---- Image analyser (mean luma / clipping / RMS contrast) ----
+  # Only the `analyze-brightness` action is used here; it returns
+  # `mean_brightness` on the 0–255 BT.601 luma scale, which the
+  # `factor-calc` step below uses as the divisor for its per-target
+  # factor.
+  - id: image-analyzer
+    type: image-analyzer
+    driver: native
+    actions:
+      - id: analyze-brightness
+        metric: brightness
+        image: ${input.image as image}
+
+  # ---- Brightness-factor calculator ----
+  # DSL variable binding can't do arithmetic, so we shell out to Python
+  # for `target / original`. Stdout is the raw float, consumed by the
+  # brighten step via `as number`. Guard against a zero-luma source
+  # image (all-black input) by falling back to 1.0 — a factor of any
+  # size against 0 would just yield 0 anyway. A `target` of 0 (the
+  # caller's opt-out for normalisation) also returns 1.0 so the
+  # brighten step becomes a no-op.
+  - id: factor-calc
+    type: shell
+    action:
+      command:
+        - python3
+        - -c
+        - |
+          import sys
+          original = float(sys.argv[1])
+          target = float(sys.argv[2])
+          print(target / original if original > 0 and target > 0 else 1.0)
+        - ${input.original as string}
+        - ${input.target as string}
+      output: ${result.stdout as number}
+
+  # ---- Image editor: brightness normalisation ----
+  # `image-processor` bundles many pixel-space ops behind one
+  # component; only the `adjust-brightness` action is exposed here.
+  # A factor of 1.0 leaves the image unchanged, so the workflow can
+  # short-circuit brightness normalisation by passing `target_luma: 0`
+  # (which makes `factor-calc` return 1.0).
+  - id: image-processor
+    type: image-processor
+    driver: native
+    actions:
+      - id: adjust-brightness
+        method: adjust-brightness
+        image: ${input.image as image}
+        factor: ${input.factor as number | 1.0}
+
+  # ---- NSFW detector (Ultralytics YOLO) ----
+  # Point `model.path` at your NSFW-trained YOLO weights. The default
+  # here matches the `nsfw-mosaic` example — NudeNet v3.4 640m
+  # (YOLOv8m, 18 classes). See ../nsfw-mosaic/README.md for the
+  # download instructions.
+  #
+  # Output shape: `{objects: [{label, label_id, confidence,
+  # bounding_box: {x, y, width, height}}], width, height}` — the
+  # `label` is the string this workflow's suffix-matching conditional
+  # keys off, and the `bounding_box` is what both drawing steps consume.
+  - id: nsfw-detector
+    type: model
+    task: object-detection
+    driver: custom
+    family: yolo
+    max_concurrent_count: 1
+    model:
+      provider: local
+      path: ./models/nsfw_detector.pt
+    action:
+      image: ${input.image as image}
+      max_object_count: 100
+      bounding_box_padding: ${input.bounding_box_padding}
+      params:
+        min_confidence: ${input.min_confidence}
+        iou_threshold: 0.5
+        agnostic_nms: true
+
+  # ---- Draw a single bounding box in one call ----
+  # `${input.image}` is the running accumulator — the image with all
+  # previously-drawn boxes and labels already on it.
+  - id: box-drawer
+    type: image-drawing
+    driver: native
+    action:
+      method: rectangle
+      image: ${input.image as image}
+      x: ${input.x}
+      y: ${input.y}
+      width: ${input.width}
+      height: ${input.height}
+      outline: ${input.outline}
+      line_width: ${input.line_width}
+
+  # ---- Draw the label text in one call ----
+  # Anchor `ld` = left / descender (baseline sits at `y`, which is
+  # the box top edge), so text lands just above the rectangle.
+  - id: text-drawer
+    type: image-drawing
+    driver: native
+    action:
+      method: text
+      image: ${input.image as image}
+      x: ${input.x}
+      y: ${input.y}
+      text: ${input.text}
+      fill: ${input.fill}
+      anchor: ld
+      stroke_width: ${input.stroke_width}
+      stroke_fill: ${input.stroke_fill}

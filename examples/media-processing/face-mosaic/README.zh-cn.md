@@ -10,8 +10,8 @@
 
 策略：
 
-1. **暂存上传视频** — 使用本地 `file-store` 保存视频，让音频分支和帧提取器能各自独立地重新读取（原始上传流是一次性的）。
-2. **分离音轨** — 使用 `audio-extractor` 从暂存的视频中抽取音频（保持不变）。
+1. **将上传流 fan-out** — 使用 `fan-out` 作业将上传流分成两个独立的分支，音频提取器和帧提取器各自并行消费，无需将视频落到磁盘即可共享一次性的上传流。
+2. **分离音轨** — 使用 `audio-extractor` 从视频中抽取音频（保持不变）。
 3. **流式提取所有帧** — 使用 `video-frame-extractor` 生成帧流（`streaming: true`，不缓存整段视频）。
 4. **逐帧检测 + 马赛克** — 使用 `face-detection`（InsightFace `antelopev2`）获取每张脸的 bbox，然后将该列表一次性传入 `image-processor mosaic`，一趟遮蔽一帧内所有人脸。extractor 输出流，因此 `for-each` 的输出也是流 — 遮蔽后的帧惰性流向 encoder。
 5. **将遮蔽后的帧流重新编码** — 使用 `video-encoder` 编码为 mp4，并 mux 前面抽取的音频。ffmpeg 需要时才从上游流拉取帧，因此此阶段同样无需缓存整段视频。
@@ -89,15 +89,10 @@ end-to-end 流式则最多让 `batch_size` 帧同时通过检测流水线，enco
 
 ## 组件详情
 
-### Storage (`storage`)
-- **类型**：`file-store`
-- **驱动**：`local`
-- **作用**：将上传的视频保存到 `./storage/uploads/<task_id>`，使音频分支和帧提取器可以独立打开该文件。原始上传流是一次性的，如果没有这一步，先读的 job 会消耗掉整个流。
-
 ### Audio Extractor (`audio-extractor`)
 - **类型**：`audio-extractor`
 - **驱动**：`ffmpeg`
-- **作用**：读取暂存的视频，将音轨分离为 mp3。供后续 encoder 将音频 mux 回遮蔽后的视频。
+- **作用**：从视频流中分离音轨为 mp3。由上游 `fan-out` 作业的一个分支喂入，与帧提取器并行消费上传流。供后续 encoder 将音频 mux 回遮蔽后的视频。
 
 ### Frame Extractor (`frame-extractor`)
 - **类型**：`video-frame-extractor`

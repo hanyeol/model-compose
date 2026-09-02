@@ -24,7 +24,7 @@ component:
   # in-place; subsequent runs reuse the extracted directory.
   model:
     provider: local
-    path: ./.models/antelopev2
+    path: ./models/antelopev2
     url: https://github.com/deepinsight/insightface/releases/download/v0.7/antelopev2.zip
     bundled: true
   action:

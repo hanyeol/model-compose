@@ -66,7 +66,7 @@ components:
     max_concurrent_count: 1
     model:
       provider: local
-      path: ./.models/antelopev2
+      path: ./models/antelopev2
     action:
       frames: ${input.frames}
       frame_rate: ${input.frame_rate}
@@ -74,7 +74,7 @@ components:
       return_track_image: ${input.return_track_image}
       return_embedding: ${input.return_embedding}
       return_gender_age: ${input.return_gender_age}
-      return_frames: true
+      return_detections: true
       bounding_box_padding: ${input.bounding_box_padding}
       params:
         similarity_threshold: ${input.similarity_threshold}

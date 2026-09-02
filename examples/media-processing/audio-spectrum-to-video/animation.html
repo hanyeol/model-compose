@@ -50,13 +50,19 @@
       const padBottom = 60;
       const usableW = w - padX * 2;
       const usableH = h - padTop - padBottom;
-      const barGap = Math.max(2, Math.floor(usableW / bandCount * 0.2));
-      const barWidth = (usableW - barGap * (bandCount - 1)) / bandCount;
+      const slotWidth = usableW / bandCount;
+      const barGap = Math.max(2, Math.floor(slotWidth * 0.2));
 
       for (let i = 0; i < bandCount; i++) {
         const amplitude = Math.min(1, Math.max(0, bands[i] ?? 0));
-        const barHeight = amplitude * usableH;
-        const x = padX + i * (barWidth + barGap);
+        const barHeight = Math.round(amplitude * usableH);
+        // Snap slot boundaries to integer pixels so every bar gets a stable,
+        // non-empty width — otherwise fractional x/width values get anti-aliased
+        // and thin bars can visually disappear ("missing teeth").
+        const slotStart = padX + Math.round(i * slotWidth);
+        const slotEnd = padX + Math.round((i + 1) * slotWidth);
+        const barWidth = Math.max(1, slotEnd - slotStart - barGap);
+        const x = slotStart;
         const y = padTop + (usableH - barHeight);
 
         // gradient from cool (low bands) to warm (high bands) with amplitude-driven brightness

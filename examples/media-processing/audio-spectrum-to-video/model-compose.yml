@@ -13,27 +13,33 @@ workflows:
     description: |
       Extract a per-frame frequency spectrum from an audio file and render
       it as an equalizer MP4 with the original audio muxed back in. The
-      uploaded audio stream is fanned out via a file-store: the spectrum
-      extractor and the video encoder each read it as a URL, avoiding the
-      need to tee the upload stream.
+      uploaded audio stream is spooled through a fan-out job so the
+      spectrum extractor and the video encoder can each read it
+      independently — the encoder branch only opens the audio after the
+      spectrum → frame render pipeline lands, which would stall a plain
+      in-memory fan-out.
     jobs:
-      - id: save-audio
-        # Persist the uploaded stream once so downstream jobs can each
-        # re-read it independently.
-        component: audio-store
-        input:
-          path: ${context.task_id}/audio
-          source: ${input.audio as audio}
-        output: ${output}
+      # 1. Fan the raw audio upload out to two independent consumers with
+      #    `spool: true`. The upload is single-use, and the encoder only
+      #    starts consuming its branch after the spectrum extractor and
+      #    the HTML frame renderer have finished — a plain in-memory
+      #    fan-out queue would have to buffer the whole audio to hold the
+      #    encoder's branch open. Spool lands the upload on a tempfile
+      #    once and hands both branches a file-backed StreamResource.
+      - id: fanout-audio
+        type: fan-out
+        input: ${input.audio as audio}
+        output: [ for-spectrum, for-encode ]
+        spool: true
 
       - id: spectrum
         component: extractor
         input:
-          audio: ${jobs.save-audio.output.url as audio;url}
+          audio: ${jobs.fanout-audio.output.for-spectrum}
           fps: ${input.fps as select/24,30,60 | 30}
           band_count: ${input.band_count as integer | 48}
         output: ${output as json}
-        depends_on: [ save-audio ]
+        depends_on: [ fanout-audio ]
 
       - id: frames
         component: renderer
@@ -48,20 +54,11 @@ workflows:
         input:
           frames: ${jobs.frames.output}
           frame_rate: ${input.fps as select/24,30,60 | 30}
-          audio: ${jobs.save-audio.output.url as audio;url}
+          audio: ${jobs.fanout-audio.output.for-encode}
         output: ${output as video}
-        depends_on: [ frames ]
+        depends_on: [ fanout-audio, frames ]
 
 components:
-  - id: audio-store
-    type: file-store
-    driver: local
-    base_path: ./output
-    action:
-      method: put
-      path: ${input.path}
-      source: ${input.source}
-
   - id: extractor
     type: audio-feature-extractor
     action:

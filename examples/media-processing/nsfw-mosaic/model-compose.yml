@@ -8,20 +8,25 @@ controller:
     port: 8081
 
 workflows:
-  # ---------------- Main workflow: redact faces in a video ----------------
-  - id: face-mosaic
+  # ---------------- Main workflow: mosaic NSFW regions in a video ----------------
+  - id: nsfw-mosaic
     default: true
-    title: Face Mosaic
+    title: NSFW Mosaic
     description: |
-      Redact every face in a video by pixelating (or blurring) each detected
-      face bounding box, then reassemble the redacted frames back into an mp4
-      with the original audio track preserved.
+      Redact NSFW regions in a video by pixelating (or blurring) each
+      detected bounding box, then reassemble the redacted frames back
+      into an mp4 with the original audio track preserved.
 
-      The pipeline runs end-to-end in streaming mode so memory stays bounded
-      regardless of clip length: frames flow one-by-one from the extractor
-      through face-tracking, and each per-frame chunk (carrying the source
-      image plus its face bounding boxes) is mosaicked and handed directly
-      to ffmpeg's encoder without materialising the full frame set.
+      Detection is done with an Ultralytics YOLO model trained on NSFW
+      classes. Point `nsfw-tracker.model.path` at your own weights
+      (see `README.md` for one common source).
+
+      The pipeline runs end-to-end in streaming mode so memory stays
+      bounded regardless of clip length: frames flow one-by-one from the
+      extractor through object-tracking, and each per-frame detection
+      chunk (carrying the source image plus its NSFW bounding boxes) is
+      mosaicked and handed directly to ffmpeg's encoder without
+      materialising the full frame set.
     jobs:
       # 1. Fan the raw upload stream out to two independent consumers.
       #    The upload is a single-use stream, so it can only be drained
@@ -49,37 +54,43 @@ workflows:
           frame_interval: 1
         depends_on: [ fanout-video ]
 
-      # 4. Face-tracking runs on the frame stream and re-emits a chunk stream.
-      #    We disable tracks/metadata and enable detection chunks (with the
-      #    source image) so the downstream stream contains only
-      #    `{type: "detection", number, timestamp, faces: [{track_id,
-      #    bounding_box}], image}` — exactly the shape the mosaic step needs.
-      - id: track-faces
-        component: face-tracker
+      # 4. Object-tracking runs on the frame stream and re-emits a chunk
+      #    stream. We disable tracks/metadata and enable detection chunks
+      #    (with the source image) so the downstream stream contains only
+      #    `{type: "detection", number, timestamp, objects: [{track_id,
+      #    label, bounding_box}], image}` — exactly the shape the mosaic
+      #    step needs.
+      #
+      #    Detection chunk emission is delayed by `merge_gap` seconds so
+      #    the tracker can interpolate short gaps: if the detector misses
+      #    the box on a frame between two hits, the interpolated box is
+      #    added to the missing frame's `objects` list, so redaction
+      #    covers those otherwise-uncovered frames too.
+      - id: track-regions
+        component: nsfw-tracker
         input:
           frames: ${jobs.extract-frames.output}
           frame_rate: ${input.frame_rate as number | 30}
-          detection_threshold: ${input.min_confidence as number | 0.5}
-          # Raise this if small / distant faces are being missed. The InsightFace
-          # SCRFD detector runs on a square input at this resolution, so bigger
-          # values recover smaller faces at proportional cost per frame.
-          detection_size: ${input.detection_size as number | 640}
+          min_confidence: ${input.min_confidence as number | 0.35}
+          bounding_box_padding: ${input.bounding_box_padding as number | 0.1}
+          merge_gap: ${input.merge_gap as number | 0.5}
         depends_on: [ extract-frames ]
 
-      # 5. For each per-frame chunk, fold every detected face onto the source
-      #    image with an inline `accumulate` job — each iteration takes the
-      #    running image (`${accumulator}`) and returns the same image with
-      #    one more face redacted. Because the outer for-each input is a
-      #    stream the output is also a stream, so mosaicked frames flow
-      #    lazily into the encoder below.
+      # 5. For each per-frame detection chunk, fold every detected region
+      #    onto the source image with an inline `accumulate` job — each
+      #    iteration takes the running image (`${accumulator}`) and returns
+      #    the same image with one more region redacted. If a frame has no
+      #    detections the accumulator falls through unchanged. Because the
+      #    outer for-each input is a stream the output is also a stream, so
+      #    mosaicked frames flow lazily into the encoder below.
       - id: mosaic-frames
         type: for-each
-        input: ${jobs.track-faces.output}
+        input: ${jobs.track-regions.output}
         batch_size: 16
-        depends_on: [ track-faces ]
+        depends_on: [ track-regions ]
         do:
           type: accumulate
-          input: ${item.faces}
+          input: ${item.objects}
           accumulator: ${item.image}
           do:
             component: mosaic
@@ -127,7 +138,7 @@ components:
   # ---- Stream every frame at native fps ----
   # `output: ${result[].image}` projects the extractor's default
   # `{image, timestamp}` chunk stream down to just the PIL images —
-  # face-tracking's `frames` input expects an image stream, not a dict
+  # object-tracking's `frames` input expects an image stream, not a dict
   # stream.
   - id: frame-extractor
     type: video-frame-extractor
@@ -138,23 +149,43 @@ components:
       streaming: true
       output: ${result[].image}
 
-  # ---- Face tracker (InsightFace antelopev2) ----
-  # antelopev2 is downloaded automatically on first run (no `path` or `url`
-  # needed — the LocalModelConfig applies its default).
+  # ---- NSFW tracker (Ultralytics YOLO + built-in tracker) ----
+  # Point `model.path` at your NSFW-trained YOLO weights. One commonly
+  # used set is the NudeNet-derived YOLO model; see README.md for a
+  # link. Each detection chunk carries the standard object-tracking
+  # payload: `{number, timestamp, image, objects: [{track_id, label,
+  # label_id, bounding_box: {x, y, width, height}, score}]}` — the
+  # `bounding_box` shape `mosaic` consumes below.
   #
-  # We use the tracker (not a bare detector) so re-identification is
-  # available if a later stage wants it, and we run it in streaming mode
-  # with per-frame chunks that carry the source image and detected face
-  # boxes — everything the mosaic step below needs, without the tracker's
-  # segment/track/metadata chunks (which the mosaic pipeline ignores).
-  - id: face-tracker
+  # Why tracking (and not a bare detector):
+  #   - Streaming detection chunks already bundle the source image with
+  #     each frame's boxes, so the mosaic step needs one for-each, not
+  #     a detect+accumulate pipeline per frame.
+  #   - The tracker interpolates short detection gaps (see `merge_gap`
+  #     above): a region briefly lost between two hits still gets a
+  #     bounding box on the missed frames, so redaction doesn't flicker.
+  #   - `min_frame_count` is *not* applied to detection chunks (only to
+  #     confirmed tracks in the non-streaming result), so 1-frame
+  #     detections still reach the mosaic step — the correct trade-off
+  #     for redaction, where false positives are safer than misses.
+  #
+  # `labels` restricts detection to the named NSFW classes so covered
+  # or non-anatomical classes are dropped before they reach the mosaic
+  # step. Class names depend on the model — check the weights' labels
+  # list; unknown names raise a clear error at load time.
+  #
+  # Serialise through a single tracker instance so GPU memory stays
+  # bounded — the outer for-each still fans out CPU-side work (mosaic)
+  # across frames.
+  - id: nsfw-tracker
     type: model
-    task: face-tracking
+    task: object-tracking
     driver: custom
-    family: insightface
+    family: yolo
     max_concurrent_count: 1
     model:
       provider: local
+      path: ./models/nsfw_detector.pt
     action:
       frames: ${input.frames as image}
       frame_rate: ${input.frame_rate}
@@ -163,18 +194,22 @@ components:
       return_detections: true
       return_frame_image: true
       return_metadata: false
+      labels:
+        - FEMALE_GENITALIA_EXPOSED
+        - MALE_GENITALIA_EXPOSED
+        - ANUS_EXPOSED
+      bounding_box_padding: ${input.bounding_box_padding}
       params:
-        detection_threshold: ${input.detection_threshold}
-        # Expand the user-supplied square size (e.g. 640, 960, 1280) into the
-        # (width, height) tuple that the InsightFace detector expects.
-        detection_size:
-          - ${input.detection_size as number | 640}
-          - ${input.detection_size as number | 640}
+        min_confidence: ${input.min_confidence}
+        iou_threshold: 0.5
+        agnostic_nms: true
+        merge_gap: ${input.merge_gap}
+        tracker: bytetrack
 
-  # ---- Mosaic a single face bounding box in one call ----
-  # Called once per face by the inline `accumulate` job above.
+  # ---- Mosaic a single bounding box in one call ----
+  # Called once per detected region by the inline `accumulate` job.
   # `${input.image}` is the running accumulator — the frame with all
-  # previously-processed faces already redacted.
+  # previously-processed regions already redacted.
   - id: mosaic
     type: image-processor
     driver: native

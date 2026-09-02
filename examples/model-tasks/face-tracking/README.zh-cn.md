@@ -10,7 +10,7 @@
 2. **帧采样**：使用 ffmpeg 按用户指定的间隔从输入视频中抽取帧
 3. **身份聚类**：按余弦相似度对每帧人脸嵌入进行在线聚类，使每个独立身份被归为一条轨迹
 4. **片段聚合**：将每帧时间戳聚合为按人物划分的 `start_time / end_time / duration` 区间
-5. **自动模型管理**：首次运行时从 InsightFace GitHub Release 拉取 `antelopev2` 包，解压到 `./.models/antelopev2` 并在后续运行中复用
+5. **自动模型管理**：首次运行时从 InsightFace GitHub Release 拉取 `antelopev2` 包，解压到 `./models/antelopev2` 并在后续运行中复用
 
 ## 准备工作
 
@@ -24,12 +24,12 @@
 
 ### antelopev2 模型包
 
-无需手动准备。首次运行会根据 [model-compose.yml](model-compose.yml) 中的 `url` + `bundled: true` 配置自动下载归档，并解压到 `./.models/antelopev2`。后续运行直接复用该目录。
+无需手动准备。首次运行会根据 [model-compose.yml](model-compose.yml) 中的 `url` + `bundled: true` 配置自动下载归档，并解压到 `./models/antelopev2`。后续运行直接复用该目录。
 
 解压后的结构：
 
 ```
-.models/
+models/
 └── antelopev2/
     ├── 1k3d68.onnx
     ├── 2d106det.onnx
@@ -86,7 +86,7 @@
 ### Face Tracking Model 组件
 - **Type**：`face-tracking` 任务的 Model 组件
 - **Family**：`insightface`
-- **Model**：本地 `./.models/antelopev2` 包
+- **Model**：本地 `./models/antelopev2` 包
 - **功能**：
   - 逐帧检测人脸并提取 512 维身份嵌入
   - 按余弦相似度在线聚类嵌入，使每个身份被归为一条轨迹
@@ -265,7 +265,7 @@ model-compose run --input '{"video": "clip.mp4", "frame_interval": 5, "sampled_f
 2. **未返回任何轨迹**：提高采样速率（降低 `frame_interval`）或降低 `min_frame_count`——该人可能只出现在单个采样帧中。
 3. **同一人被拆分为多个轨迹**：降低 `similarity_threshold`（例如 0.35），或者如果拆分仅由相邻缺口引起，则提高 `merge_gap`。
 4. **不同的人被合并到同一轨迹**：提高 `similarity_threshold`（例如 0.5）——默认值偏向召回率。
-5. **找不到模型文件**：确认 `./.models/antelopev2` 目录包含上方列出的所有 `.onnx` 文件。
+5. **找不到模型文件**：确认 `./models/antelopev2` 目录包含上方列出的所有 `.onnx` 文件。
 
 ### 性能优化
 

@@ -17,7 +17,7 @@
 
 - 已安装 model-compose 并在 PATH 中可用
 - 已安装 `llama-cpp-python`（请参阅下方安装说明）
-- 在 `./.models/llama-3.2-1b-instruct-q4_k_m.gguf` 路径下放置 GGUF instruct 模型文件
+- 在 `./models/llama-3.2-1b-instruct-q4_k_m.gguf` 路径下放置 GGUF instruct 模型文件
 
 ### 安装 llama-cpp-python
 
@@ -38,7 +38,7 @@ CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python
 mkdir -p models
 
 # 从 HuggingFace 下载 Llama-3.2-1B-Instruct Q4_K_M
-curl -L -o .models/llama-3.2-1b-instruct-q4_k_m.gguf \
+curl -L -o models/llama-3.2-1b-instruct-q4_k_m.gguf \
   https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf
 ```
 
@@ -49,7 +49,7 @@ curl -L -o .models/llama-3.2-1b-instruct-q4_k_m.gguf \
    cd examples/model-tasks/chat-completion-llamacpp
    ```
 
-2. 将 GGUF instruct 模型文件放置在 `./.models/` 目录下。
+2. 将 GGUF instruct 模型文件放置在 `./models/` 目录下。
 
 ## 如何运行
 
@@ -124,7 +124,7 @@ component:
   driver: llamacpp
   model:
     provider: local
-    path: ./.models/llama-3.2-1b-instruct-q4_k_m.gguf
+    path: ./models/llama-3.2-1b-instruct-q4_k_m.gguf
     format: gguf
   device: cuda        # macOS 上使用 "metal"
   n_gpu_layers: -1    # -1 = 卸载全部层

@@ -1,24 +1,24 @@
 # Audio Spectrum Video Example
 
 Turn an audio file (mp3, wav, ...) into an equalizer-style MP4 video with
-the **original audio muxed back in**, by chaining four components:
+the **original audio muxed back in**, by chaining four jobs:
 
-1. `file-store` (local) writes the uploaded audio to
-   `./output/audio/${context.task_id}/audio` so downstream jobs can each
-   re-read it independently. The upload arrives as a one-shot stream and
-   can't be tee'd; persisting it once and fanning out via URL avoids the
-   problem.
-2. `audio-feature-extractor` reads that file and produces a per-frame
-   frequency spectrum (`frames[frame_count][band_count]`, values in `[0, 1]`).
+1. `fan-out` (`spool: true`) tees the one-shot audio upload into two
+   independent branches — one for the spectrum extractor, one for the
+   final encoder. The upload is landed on a tempfile once so both
+   branches can open the file at their own pace: the encoder branch
+   sits idle until the spectrum → frame render pipeline finishes, which
+   an ordinary in-memory fan-out queue couldn't hold. The tempfile is
+   deleted after both branches close.
+2. `audio-feature-extractor` reads the `for-spectrum` branch and produces
+   a per-frame frequency spectrum
+   (`frames[frame_count][band_count]`, values in `[0, 1]`).
 3. `html-frame-renderer` opens a small HTML page that reads the spectrum
    from `window.__renderer.props.spectrum` and draws the bars for each
    frame on a canvas.
-4. `video-encoder` pipes the PNG frames through ffmpeg for H.264 encoding
-   and muxes the original audio file as the audio track.
-
-The `${jobs.save-audio.output.url as audio;url}` reference in the extractor
-and encoder inputs tells model-compose to treat the file-store's `file://`
-URL as an audio resource and load it lazily inside each consumer.
+4. `video-encoder` pipes the rendered frames through ffmpeg for H.264
+   encoding and muxes the `for-encode` audio branch back in as the audio
+   track.
 
 ## The `window.__renderer` contract
 

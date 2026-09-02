@@ -19,21 +19,21 @@ This workflow provides local face embedding extraction that:
 - model-compose installed and available in your PATH
 - Sufficient system resources to run onnxruntime (recommended: 4GB+ RAM)
 - Python environment with `insightface`, `opencv-python`, and `onnxruntime` (installed automatically on first run)
-- The `antelopev2` model pack placed at `./.models/antelopev2`
+- The `antelopev2` model pack placed at `./models/antelopev2`
 
 ### Downloading the antelopev2 Model Pack
 
-Download the model pack from InsightFace and place it under `./.models/antelopev2`:
+Download the model pack from InsightFace and place it under `./models/antelopev2`:
 
 ```bash
 mkdir -p models
-# Download antelopev2.zip from the InsightFace model zoo and extract it into ./.models/antelopev2
+# Download antelopev2.zip from the InsightFace model zoo and extract it into ./models/antelopev2
 ```
 
 The expected layout is:
 
 ```
-.models/
+models/
 └── antelopev2/
     ├── 1k3d68.onnx
     ├── 2d106det.onnx
@@ -49,7 +49,7 @@ The expected layout is:
    cd examples/model-tasks/face-embedding
    ```
 
-2. No additional environment configuration required beyond placing the model pack under `./.models/antelopev2`.
+2. No additional environment configuration required beyond placing the model pack under `./models/antelopev2`.
 
 ## How to Run
 
@@ -82,7 +82,7 @@ The expected layout is:
 ### Face Embedding Model Component (Default)
 - **Type**: Model component with `face-embedding` task
 - **Family**: `insightface`
-- **Model**: local `./.models/antelopev2` pack
+- **Model**: local `./models/antelopev2` pack
 - **Features**:
   - Face detection and alignment before embedding
   - Produces a fixed-dimension identity vector per face
@@ -160,7 +160,7 @@ component:
   type: model
   task: face-embedding
   family: insightface
-  model: ./.models/buffalo_l
+  model: ./models/buffalo_l
   action:
     image: ${input.face_image as image}
 ```
@@ -203,7 +203,7 @@ workflow:
 ### Common Issues
 
 1. **No face detected**: Ensure the input image contains a clear, front-facing face; lower the detector's confidence threshold in the model pack if needed
-2. **Model files not found**: Verify the `./.models/antelopev2` directory contains all `.onnx` files listed above
+2. **Model files not found**: Verify the `./models/antelopev2` directory contains all `.onnx` files listed above
 3. **onnxruntime install fails**: On some platforms you may need `onnxruntime-gpu` or `onnxruntime-silicon` explicitly
 4. **Slow first run**: Model loading takes several seconds — keep `preload: true`-style long-lived services if latency matters
 

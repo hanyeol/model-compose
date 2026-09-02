@@ -25,37 +25,38 @@ workflows:
       into a single composited frame and handed directly to ffmpeg's encoder
       without materialising the full frame set.
     jobs:
-      # 1. Stash the uploaded video on the local file-store so the audio
-      #    branch and the frame extractor can independently re-read it
-      #    (the raw upload stream is single-use).
-      - id: store
-        component: storage
-        input:
-          path: uploads/${context.task_id}
-          source: ${input.video as video}
+      # 1. Fan the raw upload stream out to two independent consumers.
+      #    The upload is a single-use stream, so it can only be drained
+      #    by one downstream job — fan-out tees it into two branches
+      #    that the audio extractor and the frame extractor consume in
+      #    parallel, without landing the video on disk.
+      - id: fanout-video
+        type: fan-out
+        input: ${input.video as video}
+        output: [ for-audio, for-frames ]
 
-      # 2. Split the audio track out of the stored video (preserved unchanged).
+      # 2. Split the audio track out of the video (preserved unchanged).
       - id: extract-audio
         component: audio-extractor
         input:
-          source: ${jobs.store.output.url as video;url}
-        depends_on: [ store ]
+          source: ${jobs.fanout-video.output.for-audio}
+        depends_on: [ fanout-video ]
 
-      # 3. Stream frames out of the stored video. `streaming: true` emits
-      #    frames as ffmpeg decodes them, without buffering the whole video.
+      # 3. Stream frames out of the video. `streaming: true` emits frames
+      #    as ffmpeg decodes them, without buffering the whole video.
       - id: extract-frames
         component: frame-extractor
         input:
-          video: ${jobs.store.output.url as video;url}
+          video: ${jobs.fanout-video.output.for-frames}
           frame_interval: 1
-        depends_on: [ store ]
+        depends_on: [ fanout-video ]
 
       # 4. Pose-tracking runs on the frame stream and re-emits a chunk stream.
-      #    We disable tracks/metadata and enable frame chunks (with the source
-      #    image + per-pose skeleton renders) so the downstream stream contains
-      #    only `{type: "frame", number, timestamp, poses: [{track_id,
-      #    bounding_box, skeleton_image}], image}` — exactly the shape the
-      #    merge step needs.
+      #    We disable tracks/metadata and enable detection chunks (with the
+      #    source image + per-pose skeleton renders) so the downstream stream
+      #    contains only `{type: "detection", number, timestamp, poses:
+      #    [{track_id, bounding_box, skeleton_image}], image}` — exactly the
+      #    shape the merge step needs.
       - id: track-poses
         component: pose-tracker
         input:
@@ -108,17 +109,6 @@ workflows:
       video: ${jobs.encode-video.output as video}
 
 components:
-  # Local file-store used as a scratch area for the uploaded video. On S3
-  # or GCS you would swap the driver.
-  - id: storage
-    type: file-store
-    driver: local
-    base_path: ./storage
-    action:
-      method: put
-      path: ${input.path}
-      source: ${input.source}
-
   # ---- Split audio track out (mp3 by default) ----
   - id: audio-extractor
     type: audio-extractor
@@ -166,7 +156,7 @@ components:
       frame_rate: ${input.frame_rate}
       streaming: true
       return_tracks: false
-      return_frames: true
+      return_detections: true
       return_frame_image: true
       return_skeleton_image: true
       return_metadata: false

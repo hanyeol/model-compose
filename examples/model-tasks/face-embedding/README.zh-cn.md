@@ -19,21 +19,21 @@
 - 已安装 model-compose 并在 PATH 中可用
 - 运行 onnxruntime 所需的充足系统资源（推荐：4GB+ RAM）
 - 带有 `insightface`、`opencv-python` 和 `onnxruntime` 的 Python 环境（首次运行时自动安装）
-- 将 `antelopev2` 模型包放置在 `./.models/antelopev2`
+- 将 `antelopev2` 模型包放置在 `./models/antelopev2`
 
 ### 下载 antelopev2 模型包
 
-从 InsightFace 下载模型包并放置在 `./.models/antelopev2` 下：
+从 InsightFace 下载模型包并放置在 `./models/antelopev2` 下：
 
 ```bash
 mkdir -p models
-# 从 InsightFace 模型库下载 antelopev2.zip 并解压到 ./.models/antelopev2
+# 从 InsightFace 模型库下载 antelopev2.zip 并解压到 ./models/antelopev2
 ```
 
 预期结构：
 
 ```
-.models/
+models/
 └── antelopev2/
     ├── 1k3d68.onnx
     ├── 2d106det.onnx
@@ -49,7 +49,7 @@ mkdir -p models
    cd examples/model-tasks/face-embedding
    ```
 
-2. 除了将模型包放置在 `./.models/antelopev2` 下之外，无需额外的环境配置。
+2. 除了将模型包放置在 `./models/antelopev2` 下之外，无需额外的环境配置。
 
 ## 如何运行
 
@@ -82,7 +82,7 @@ mkdir -p models
 ### 人脸嵌入模型组件（默认）
 - **类型**：带 `face-embedding` 任务的模型组件
 - **系列**：`insightface`
-- **模型**：本地 `./.models/antelopev2` 包
+- **模型**：本地 `./models/antelopev2` 包
 - **功能**：
   - 嵌入前进行人脸检测和对齐
   - 每张人脸生成固定维度的身份向量
@@ -160,7 +160,7 @@ component:
   type: model
   task: face-embedding
   family: insightface
-  model: ./.models/buffalo_l
+  model: ./models/buffalo_l
   action:
     image: ${input.face_image as image}
 ```
@@ -203,7 +203,7 @@ workflow:
 ### 常见问题
 
 1. **未检测到人脸**：确保输入图像包含清晰的正面人脸；如有需要可降低模型包中检测器的置信度阈值
-2. **找不到模型文件**：确认 `./.models/antelopev2` 目录包含上面列出的所有 `.onnx` 文件
+2. **找不到模型文件**：确认 `./models/antelopev2` 目录包含上面列出的所有 `.onnx` 文件
 3. **onnxruntime 安装失败**：在某些平台上您可能需要显式安装 `onnxruntime-gpu` 或 `onnxruntime-silicon`
 4. **首次运行缓慢**：模型加载需要几秒 — 如果延迟很重要，请保持 `preload: true` 风格的长时运行服务
 

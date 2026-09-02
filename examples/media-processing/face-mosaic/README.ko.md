@@ -10,8 +10,8 @@
 
 전략:
 
-1. **업로드된 비디오 저장** — 로컬 `file-store`에 저장해서 오디오 branch와 frame extractor가 각자 독립적으로 다시 읽을 수 있게 함 (raw 업로드 스트림은 1회 소비).
-2. **오디오 트랙 분리** — `audio-extractor`로 저장된 비디오에서 오디오만 뽑아둠 (그대로 유지).
+1. **업로드 스트림을 fan-out** — `fan-out` 작업으로 업로드 스트림을 두 개의 독립 브랜치로 나눔. 오디오 extractor와 frame extractor가 병렬로 각자 소비하므로, 디스크에 비디오를 저장할 필요 없이 1회성 업로드 스트림을 공유.
+2. **오디오 트랙 분리** — `audio-extractor`로 비디오에서 오디오만 뽑아둠 (그대로 유지).
 3. **모든 프레임 스트리밍** — `video-frame-extractor`로 프레임 스트림 생성 (`streaming: true` — 전체 비디오 버퍼링 없음).
 4. **프레임별 검출 + 모자이크** — `face-detection` (InsightFace `antelopev2`)으로 얼굴 bbox를 얻고, 그 리스트를 `image-processor mosaic`에 한 번에 넘겨서 한 프레임의 모든 얼굴을 한 패스로 가림. extractor가 스트림을 emit하므로 `for-each`의 output도 스트림 — 모자이크된 프레임이 encoder로 지연 흐름.
 5. **모자이크된 프레임 스트림 재인코딩** — `video-encoder`로 mp4로 인코딩하면서 앞서 추출한 오디오를 mux. ffmpeg가 필요할 때 상류 스트림에서 프레임을 당겨오므로 이 단계에서도 전체 비디오 버퍼링 없음.
@@ -89,15 +89,10 @@ end-to-end 스트리밍이면 최대 `batch_size` 개의 프레임만 검출 파
 
 ## 컴포넌트 상세
 
-### Storage (`storage`)
-- **타입**: `file-store`
-- **드라이버**: `local`
-- **역할**: 업로드된 비디오를 `./storage/uploads/<task_id>`에 저장하여 오디오 branch와 frame extractor가 각각 독립적으로 파일을 열 수 있도록 함. raw 업로드 스트림은 1회 소비되므로, 이 단계가 없으면 먼저 읽는 job이 스트림을 소진해버림.
-
 ### Audio Extractor (`audio-extractor`)
 - **타입**: `audio-extractor`
 - **드라이버**: `ffmpeg`
-- **역할**: 저장된 비디오를 읽어 오디오만 mp3로 분리. 나중에 encoder가 이 오디오를 모자이크된 비디오에 다시 mux.
+- **역할**: 비디오 스트림에서 오디오만 mp3로 분리. 상류 `fan-out` 작업의 한 브랜치에서 흘러들어와 frame extractor와 병렬로 업로드 스트림을 소비. 나중에 encoder가 이 오디오를 모자이크된 비디오에 다시 mux.
 
 ### Frame Extractor (`frame-extractor`)
 - **타입**: `video-frame-extractor`

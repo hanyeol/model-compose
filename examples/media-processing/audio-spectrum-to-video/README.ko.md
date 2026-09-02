@@ -1,22 +1,21 @@
 # 오디오 스펙트럼 비디오 예제
 
 오디오 파일(mp3, wav 등)을 이퀄라이저 스타일의 MP4 비디오로 변환하고,
-**원본 오디오를 다시 먹싱**합니다. 네 개의 컴포넌트를 연결하여 수행합니다:
+**원본 오디오를 다시 먹싱**합니다. 네 개의 잡을 연결하여 수행합니다:
 
-1. `file-store` (local)이 업로드된 오디오를
-   `./output/audio/${context.task_id}/audio`에 저장하여 다운스트림 job들이
-   각각 독립적으로 다시 읽을 수 있게 합니다. 업로드는 일회성 스트림으로 도착하므로
-   T 분기할 수 없으며; 한 번 영속화하고 URL로 팬아웃하면 이 문제를 피할 수 있습니다.
-2. `audio-feature-extractor`가 그 파일을 읽어 프레임별 주파수 스펙트럼을 생성합니다
+1. `fan-out` (`spool: true`)이 일회성 오디오 업로드를 두 개의 독립 브랜치로
+   tee — 하나는 스펙트럼 extractor로, 다른 하나는 최종 encoder로. 업로드가
+   tempfile에 한 번 랜딩되어 두 브랜치가 각자의 속도로 파일을 열 수 있음:
+   encoder 브랜치는 스펙트럼 → 프레임 렌더 파이프라인이 끝날 때까지 대기하는데,
+   일반 인메모리 fan-out 큐로는 그 시간 동안 홀드할 수 없음. 두 브랜치가
+   모두 close되면 tempfile 삭제.
+2. `audio-feature-extractor`가 `for-spectrum` 브랜치를 읽어 프레임별
+   주파수 스펙트럼을 생성합니다
    (`frames[frame_count][band_count]`, 값은 `[0, 1]`).
 3. `html-frame-renderer`가 `window.__renderer.props.spectrum`에서 스펙트럼을 읽는
    작은 HTML 페이지를 열어, 프레임마다 캔버스에 막대를 그립니다.
-4. `video-encoder`가 PNG 프레임을 ffmpeg로 파이핑하여 H.264로 인코딩하고
-   원본 오디오 파일을 오디오 트랙으로 먹싱합니다.
-
-추출기와 인코더 입력에 있는 `${jobs.save-audio.output.url as audio;url}` 참조는
-model-compose에게 파일 저장소의 `file://` URL을 오디오 리소스로 취급하고,
-각 소비자 내부에서 지연 로드하도록 지시합니다.
+4. `video-encoder`가 렌더된 프레임을 ffmpeg로 파이핑하여 H.264로 인코딩하고
+   `for-encode` 오디오 브랜치를 오디오 트랙으로 먹싱합니다.
 
 ## `window.__renderer` 계약
 

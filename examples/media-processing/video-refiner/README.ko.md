@@ -1,220 +1,126 @@
-# Video Refiner 예제
+# 비디오 리파이너 예제
 
-이 예제는 **file-store**, **`audio-extractor`**, **Silero VAD**, **`video-clipper`** 를 연결해 감지된 음성 구간만 포함하는 비디오를 생성합니다. 파이프라인 전체가 스트리밍 방식으로 동작합니다: VAD는 감지되는 즉시 speech segment를 방출하고, clipper는 도착한 segment에 맞춰 즉시 클립을 생성합니다.
+비디오의 오디오 트랙에서 Silero VAD로 음성 구간을 검출하고, 원본 비디오에서 그 구간만 잘라내 하나의 "음성만 있는" mp4로 합치는 워크플로우 예제입니다. Silero VAD는 스트리밍 모드로 동작해서, 확정된 음성 세그먼트가 나오는 즉시 clipper로 흐릅니다 — 전체 오디오 분석이 끝날 때까지 기다리지 않습니다.
 
 ## 개요
 
-네 개의 job이 하나의 스트리밍 파이프라인으로 연결됩니다:
+입력 비디오를 받아, 사람이 말하는 구간만 남긴 리파인 비디오를 반환합니다.
 
-1. **`store`** — 업로드된 비디오를 로컬 `file-store`에 저장. 오디오 추출과 각 segment별 클리핑이 원본 비디오를 독립적으로 다시 읽을 수 있도록 준비. 업로드된 원본 스트림은 single-use이므로 이 단계 없이는 처음 읽는 job이 스트림을 다 소비해버립니다.
-2. **`extract`** — 저장된 비디오에서 `audio-extractor`(ffmpeg)로 오디오 트랙을 추출. 오디오는 그대로 VAD로 흘러갑니다.
-3. **`detect`** — Silero VAD를 **스트리밍 모드**(`streaming: true`)로 실행. 각 speech segment가 확정되는 즉시 `{start_time, end_time, confidence}` 형태로 방출되어, 전체 오디오 분석이 끝날 때까지 기다리지 않습니다.
-4. **`refine`** — `"|"` split 연산자로 VAD segment 스트림을 `(video, span)` 쌍으로 fan-out해 `video-clipper`에 전달. 도착한 segment마다 clipper가 저장된 비디오를 다시 열어 `[start_time, end_time]`으로 seek하여 무손실 클립을 방출합니다. 클립은 완성되는 대로 하나씩 스트림으로 나옵니다.
+전략:
 
-VAD의 segment 스키마(`start_time`, `end_time`)가 clipper의 span 스키마와 1:1 매칭되므로 별도의 형변환이 필요 없습니다. segment의 추가 `confidence` 필드는 clipper가 무시합니다.
+1. **업로드 스트림을 fan-out** — `fan-out` 작업을 `spool: true` 모드로 실행. 업로드는 1회 소비이고, clipper는 VAD가 세그먼트를 하나 이상 emit한 후에야 소비 시작 — 평범한 인메모리 fan-out 큐라면 VAD가 오디오를 훑는 동안 업로드 전체를 버퍼링해야 함. spool 모드는 업로드를 tempfile에 한 번 랜딩하고 각 브랜치에 파일 기반 StreamResource를 넘겨서, 큐 backpressure 없이 서로 다른 속도로 seek/read 가능. 두 브랜치가 모두 close되면 tempfile 삭제.
+2. **오디오 트랙 분리** — `audio-extractor`로 비디오에서 오디오만 뽑아둠 (`format: wav` — 비압축; Silero가 내부에서 16 kHz mono로 downmix/resample).
+3. **음성 구간 검출** — Silero VAD를 `streaming: true`로 실행. 각 확정 세그먼트가 `{start_time, end_time, confidence}` 형태로 즉시 emit되므로, clipper는 전체 오디오 분석 완료를 기다리지 않고 곧바로 작업 시작.
+4. **자르기 + 이어붙이기** — `video-clipper`(`merge: true`)가 VAD 세그먼트 스트림을 소비. 각 `[start_time, end_time]` 슬라이스를 `ffmpeg -c copy`로 spool된 비디오에서 잘라내고 (재인코딩 없음), ffmpeg의 `concat` 데뮤서로 모든 클립을 하나의 mp4로 합침.
 
-일반적인 사용 사례:
-- 원본 녹화 영상의 "음성 전용" 컷을 만들어 리뷰나 캡션 작업에 활용
-- 인터뷰/팟캐스트 비디오를 트랜스크립션 서비스에 업로드하기 전 정리 — 비용 절감 + 침묵 구간 hallucination 감소
-- 화자가 말하는 부분만 필요한 scene classifier나 ASR 파이프라인에 연결
+### 왜 spool fan-out인가
 
-## 파이프라인
+업로드 스트림은 1회 소비 — `audio-extractor`와 `video-clipper` 둘 다 같은 원본 바이트를 읽어야 함. 일반 fan-out은 업로드를 두 개의 인메모리 브랜치로 tee하지만, 두 브랜치가 비슷한 속도로 소비할 때만 메모리가 유계입니다. 이 워크플로우에서는 clipper가 VAD에 의해 gate됨 (VAD가 마지막 세그먼트를 내기 전에 오디오 전체를 훑고, 이후에도 계속 진행) — 그래서 clipper 브랜치가 오디오 브랜치보다 임의로 뒤처지고, fan-out 큐가 업로드 전체를 버퍼링해야 하는 상황이 됨. `spool: true`는 인메모리 큐를 tempfile로 대체 — 업로드가 도착하는 대로 디스크에 한 번 쓰이고, 두 브랜치가 각자 파일을 열고, 마지막 브랜치 close 시 파일 삭제. 별도 `file-store` 컴포넌트 없이도 워크플로우는 end-to-end 스트리밍을 유지하며 메모리도 유계.
 
-```
-input.video ── store ─┐
-                      │
-                      ├──► extract ──► detect (streaming) ──┐
-                      │                                     │
-                      │                    "|": vad output   ← fan-out
-                      │                    video: 저장된 경로
-                      │                    span:  ${item}
-                      │                                     │
-                      └────────────────────────────────► refine ──► 클립 스트림
-```
+### 왜 스트리밍 VAD
 
-`"|"` split 연산자는(자세한 내용은 [variable-binding 레퍼런스](../../../docs/user-guide/14-variable-binding.md) 참고) VAD segment 스트림을 소스로 받아 두 개의 병렬 per-item 스트림을 만듭니다: 하나는 항상 저장된 비디오 경로로 resolve되고, 다른 하나는 현재 segment로 resolve됩니다. 각 `(video, span)` 쌍이 하나의 ffmpeg stream-copy 클립을 트리거합니다.
+Silero의 non-streaming 모드는 오디오 전체 처리 완료 후에 세그먼트 리스트를 반환하므로, VAD가 끝나기 전엔 clipper가 시작할 수 없습니다. `streaming: true`이면 clipper가 첫 세그먼트 확정 즉시 자르기 시작하고 ffmpeg concat 단계가 도착하는 클립들을 이어붙임 — 파이프라인이 순차적으로 도는 대신 VAD와 clipping이 겹쳐 실행됩니다.
 
 ## 준비
 
-### 필수 요구사항
+### 요구사항
 
-- PATH에 등록된 model-compose
-- PATH에 등록된 [ffmpeg](https://ffmpeg.org/) (`audio-extractor`와 `video-clipper` 모두 사용)
-- Python 의존성은 첫 실행 시 자동 설치됩니다:
-  - `silero-vad`, `torch`, `torchaudio`, `numpy` — VAD 모델
+- model-compose가 설치되어 PATH에서 사용 가능
+- FFmpeg(및 `ffprobe`)가 설치되어 PATH에서 사용 가능 — `audio-extractor`와 `video-clipper` 둘 다 사용
+- Silero VAD 의존성 (첫 실행 시 자동 설치):
+  - `silero-vad`, `torch`, `torchaudio`, `numpy`
 
 ### 설정
 
-예제 디렉터리로 이동:
+1. 예제 디렉터리로 이동:
+   ```bash
+   cd examples/media-processing/video-refiner
+   ```
 
-```bash
-cd examples/media-processing/video-refiner
-```
-
-ffmpeg 설치 확인:
-
-```bash
-ffmpeg -version
-```
-
-로컬 file-store는 기본으로 `./storage/`에 기록합니다 (`model-compose.yml`의 `storage` 컴포넌트 참고). 별도 설정 없이 첫 실행 시 디렉터리가 생성됩니다.
+2. 리파인할 비디오 파일 준비. spool tempfile은 OS 기본 임시 디렉터리에 쓰이고 워크플로우 종료 후 자동 정리됨 — 예제 디렉터리에 별도 스토리지 폴더가 만들어지지 않음.
 
 ## 실행 방법
 
 1. **서비스 시작:**
-
    ```bash
    model-compose up
    ```
 
-   - API 엔드포인트: http://localhost:8080/api
-   - 웹 UI: http://localhost:8081
-
 2. **워크플로우 실행:**
 
-   **웹 UI 사용:**
-   - http://localhost:8081 열기
-   - 비디오 파일 업로드
-   - 필요시 `threshold`, `min_speech_duration`, `min_silence_duration`, `speech_padding_time` 조정
-   - **Run Workflow** 클릭 후 도착하는 대로 refined 클립 다운로드
+   **Web UI:**
+   - Web UI 열기: http://localhost:8081
+   - 비디오 업로드하고 필요 시 `threshold` / `min_speech_duration` / `min_silence_duration` / `speech_padding_time` 조정
+   - "Run Workflow" 클릭 후 리파인된 비디오 다운로드
 
-   **CLI 사용:**
-
+   **API:**
    ```bash
-   # 기본 파라미터
-   model-compose run --input '{"video": "/path/to/recording.mp4"}'
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -F 'input={"threshold": 0.5, "min_speech_duration": "250ms"};type=application/json' \
+     -F 'video=@./recording.mp4'
+   ```
 
-   # 더 엄격한 VAD (경계선 음성 제거), 워드 컷 방지를 위한 패딩 추가
+   **CLI:**
+   ```bash
    model-compose run --input '{
-     "video": "/path/to/recording.mp4",
-     "threshold": 0.6,
-     "min_speech_duration": "500ms",
-     "speech_padding_time": "200ms"
+     "video": "./recording.mp4",
+     "threshold": 0.5,
+     "min_speech_duration": "250ms",
+     "min_silence_duration": "500ms",
+     "speech_padding_time": "100ms"
    }'
    ```
 
-   **API 사용:**
+## 입력 파라미터
 
-   ```bash
-   curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "video=@/path/to/recording.mp4" \
-     -F 'input={"video": "@video", "threshold": 0.6}'
-   ```
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|---------|------|------|--------|------|
+| `video` | video (file) | Yes | - | 리파인할 입력 비디오 |
+| `threshold` | number | No | `0.5` | Silero 음성 확률 임계값 (0.0 – 1.0). 높을수록 엄격 — 경계선 음성을 더 버리려면 올리고, 애매한 순간을 더 포착하려면 낮추세요 |
+| `min_speech_duration` | duration | No | `250ms` | 이보다 짧은 확정 음성 chunk는 버림 |
+| `min_silence_duration` | duration | No | `500ms` | 인접 음성 chunk 사이에 이 정도 무음이 있어야 별개 세그먼트로 취급 |
+| `speech_padding_time` | duration | No | `100ms` | 각 검출된 세그먼트의 양쪽에 추가하는 패딩. Silero의 프레임 단위 임계값 때문에 발생하는 어두 자음 잘림 방지 |
+
+duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초)로 지정.
+
+## 작업 상세
+
+### Fan-Out (`fanout-video`)
+- **타입**: `fan-out` (`spool: true`)
+- **역할**: 1회 소비인 업로드 스트림을 두 개의 독립 브랜치로 tee — `for-audio` (`extract` → VAD로 흐름)와 `for-clip` (clipper로 흐름). `spool: true`이므로 업로드가 tempfile에 한 번 쓰이고, 각 브랜치가 각자 파일을 오픈; 두 브랜치가 모두 close되면 tempfile 삭제. clipper 브랜치는 VAD가 오디오 상당 부분을 처리한 후에야 소비 시작하므로 일반 fan-out 경로였다면 큐 backpressure에 걸림 — spool이 그 문제를 회피.
 
 ## 컴포넌트 상세
 
-### `storage` — File Store
-
-- **타입**: `file-store`
-- **드라이버**: `local`
-- **목적**: 업로드된 비디오를 저장해 `extract`와 `refine`이 각각 다시 읽을 수 있게 함. 이 단계가 없으면 single-use 업로드 스트림이 먼저 읽는 job에서 소비됩니다.
-- **참고**:
-  - `base_path: ./storage`로 모든 저장물을 예제 디렉터리 하위에 유지. 공유/클라우드 저장소가 필요하면 드라이버를 `aws-s3` / `gcp-storage` / `azure-blob`로 교체.
-  - `${context.run_id}`로 run별 스토리지 키를 분리해 병렬 실행 간 충돌 방지.
-
-### `extractor` — Audio Extractor
-
+### Audio Extractor (`extractor`)
 - **타입**: `audio-extractor`
 - **드라이버**: `ffmpeg`
-- **목적**: 저장된 비디오에서 오디오 트랙을 추출해 VAD에 공급. WAV로 방출.
+- **역할**: 입력을 비압축 WAV로 읽음. 상류 spool fan-out의 `for-audio` 브랜치에서 흘러들어와 clipper와 병렬로 업로드를 소비 (공유 스토리지에 비디오를 랜딩하지 않음). Silero가 내부에서 16 kHz mono로 downmix/resample하므로 WAV가 자연스러운 선택.
 
-### `vad` — Voice Activity Detection
+### VAD (`vad`)
+- **타입**: `model` — `voice-activity-detection` 태스크
+- **드라이버**: `custom` (Silero family)
+- **역할**: 추출된 오디오에서 Silero VAD를 `streaming: true`로 실행. 각 확정 음성 세그먼트가 `{start_time, end_time, confidence}` 형태로 즉시 emit됨. 모델은 `silero-vad` pip 패키지에 번들되어 있어서 별도 다운로드 불필요. `max_concurrent_count: 1`로 모델 인스턴스 접근을 직렬화.
 
-- **타입**: `voice-activity-detection` 태스크의 모델 컴포넌트
-- **드라이버**: `custom`
-- **패밀리**: `silero`
-- **목적**: 추출된 오디오에서 음성 구간 감지
-- **참고**:
-  - `streaming: true`는 확정된 각 segment를 즉시 방출 (전체 리스트를 기다리지 않음)
-  - 모델이 `silero-vad` pip 패키지에 포함되어 HuggingFace 다운로드 불필요
-  - 입력은 내부적으로 16kHz mono로 resample됨
-
-### `clipper` — Video Clipper
-
+### Clipper (`clipper`)
 - **타입**: `video-clipper`
 - **드라이버**: `ffmpeg`
-- **목적**: 도착하는 각 `(video, span)` 쌍에 대해 저장된 비디오에서 span을 `ffmpeg -c copy`(재인코딩 없음)로 잘라냄
-- **참고**:
-  - `merge`는 기본값 `false`로 두어 클립이 도착 즉시 스트림으로 방출됨. 하나의 파일로 이어붙이려면 `merge: true` 설정 - [커스터마이징](#커스터마이징) 참고
-  - 재인코딩을 하지 않으므로 컷 지점은 컨테이너가 지원하는 가장 가까운 이전 키프레임으로 스냅. 프레임 정확도가 필요하면 clip 후 `video-encoder`로 재인코딩
+- **역할**: VAD 세그먼트 스트림을 소비해서 각 `[start_time, end_time]` 슬라이스를 spool된 비디오에서 `ffmpeg -c copy`로 잘라냄 (재인코딩 없음). `merge: true`라서 모든 클립을 ffmpeg의 `concat` 데뮤서로 하나의 mp4로 합치므로, 워크플로우 output은 개별 클립 스트림이 아니라 하나의 재생 가능한 리파인 비디오. VAD의 추가 `confidence` 필드는 그냥 통과 — clipper는 `start_time` / `end_time`만 읽음.
 
-## 워크플로우 상세
+## 참고와 튜닝
 
-### "Video Refiner" 워크플로우
-
-**설명**: Silero VAD로 음성 구간을 감지하고 refined 비디오 클립을 segment별로 스트림 방출.
-
-#### 입력 파라미터
-
-| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
-|-----------|------|----------|---------|-------------|
-| `video` | video | 예 | - | 원본 비디오 파일 (MP4, MOV, MKV 등) |
-| `threshold` | number | 아니오 | `0.5` | Silero 음성 확률 임계값 (0.0-1.0); 높을수록 엄격 |
-| `min_speech_duration` | duration | 아니오 | `250ms` | 이보다 짧은 음성 청크는 제거 |
-| `min_silence_duration` | duration | 아니오 | `500ms` | 인접 청크 분리에 필요한 침묵 길이 |
-| `speech_padding_time` | duration | 아니오 | `100ms` | 감지된 청크 양쪽에 추가할 패딩 |
-
-Duration 필드는 `"250ms"`, `"0.5s"`, 또는 초 단위 숫자를 지원합니다.
-
-#### 출력
-
-| 필드 | 타입 | 설명 |
-|-------|------|-------------|
-| `video` | video (stream) | refined 비디오 클립 스트림 - 감지된 speech segment마다 하나씩, 완성되는 대로 방출 |
-
-## 커스터마이징
-
-### 모든 클립을 하나의 refined 비디오로 이어붙이기
-
-clipper 액션에 `merge: true`를 설정하고 워크플로우 출력을 스트림에서 단일 비디오로 변경:
-
-```yaml
-components:
-  - id: clipper
-    type: video-clipper
-    action:
-      video: ${input.video}
-      span: ${input.span}
-      merge: true
-```
-
-`merge: true`인 경우 clipper는 전체 span 스트림이 도착할 때까지 대기했다가 ffmpeg의 `concat` demuxer를 실행하므로, 파이프라인이 더 이상 chunk-by-chunk 스트리밍이 아닙니다 - 대신 바로 재생 가능한 단일 파일이 출력됩니다.
-
-### 로컬 디스크 대신 클라우드 오브젝트 스토리지에 저장
-
-`storage` 컴포넌트의 드라이버를 `aws-s3` / `gcp-storage` / `azure-blob`로 교체:
-
-```yaml
-components:
-  - id: storage
-    type: file-store
-    driver: aws-s3
-    bucket: ${env.S3_BUCKET}
-    region: ${env.AWS_REGION | us-east-1}
-    access_key_id: ${env.AWS_ACCESS_KEY_ID}
-    secret_access_key: ${env.AWS_SECRET_ACCESS_KEY}
-    base_path: video-refiner/
-```
-
-나머지 워크플로우는 변경할 필요가 없습니다 - `put`이 반환하는 논리 경로를 이후 job이 그대로 소비합니다.
-
-### refined 클립을 다운스트림 ASR로 전달
-
-각 스트림 클립을 받아 `speech-to-text` 모델 컴포넌트로 처리하는 job을 추가하세요. 클립이 스트림으로 도착하므로 전체 비디오가 끝날 때까지 기다리지 않고 도착 즉시 처리됩니다.
-
-## 팁
-
-- **End-to-end 스트리밍**: 파이프라인의 어떤 단계도 완결을 기다리지 않습니다. VAD는 감지되는 즉시 segment 방출, clipper는 도착 즉시 컷, 각 클립은 ffmpeg가 끝나는 대로 전달됩니다.
-- **무손실 클리핑**: clipper는 `ffmpeg -c copy`를 사용하므로 클립 경계가 컨테이너가 지원하는 가장 가까운 키프레임에 맞춰집니다. lossy 코덱(h.264, hevc)의 경우 몇 ms 오차가 생길 수 있으며, 프레임 정확도가 필요하면 clip 후 `video-encoder`로 재인코딩하세요.
-- **패딩의 중요성**: Silero의 frame-level 임계값 때문에 단어 시작 부분이 잘리는 것을 방지하려면 `speech_padding_time`을 100-200ms로 설정하세요.
-- **스토리지 정리**: `storage` 컴포넌트는 업로드를 `./storage/uploads/` 아래에 보관합니다. 스케일링 시에는 주기적 정리 job을 추가하거나 run 단위로 스토리지를 분리하고 완료 후 삭제하세요.
+- **Threshold**: 클립이 하나도 생성 안 되면 `threshold`가 너무 엄격일 가능성. 낮추거나(예: `0.3`) `min_speech_duration`을 줄이세요. 오탐지가 많으면 `threshold`를 올리세요(예: `0.6`).
+- **패딩**: `speech_padding_time` 100–200 ms면 대개 Silero의 프레임 단위 임계값 때문에 발생하는 어두 자음 잘림을 방지합니다. 여전히 첫 자음이 잘리면 더 올리세요.
+- **무손실 클리핑**: clipper가 `-c copy`를 쓰므로 컷 포인트가 가장 가까운 이전 키프레임에 스냅됩니다. h.264 / hevc 콘텐츠에서는 개별 컷이 수십 ms 어긋날 수 있음. 프레임 정확도가 필요하면 clipper 뒤에 `video-encoder`를 연결하세요 — "재인코딩 없음" 특성은 잃지만 정확한 경계를 얻음.
+- **스트리밍 VAD, 이어붙인 output**: VAD가 스트리밍 모드라서 세그먼트 검출과 clipping이 겹쳐 실행되지만, clipper의 `merge: true`는 전체 세그먼트 스트림 완료를 기다린 후 이어붙임. 클립을 완성되는 대로 하나씩 yield하고 싶으면 `merge: false`로 바꾸고 워크플로우 output을 스트림 형태로 변경.
+- **Spool tempfile 위치**: spool은 `tempfile.NamedTemporaryFile`이 반환하는 OS 임시 디렉터리에 씀. `TMPDIR`이 작은 파티션을 가리키는 시스템에서는 override 필요 (예: `TMPDIR=/data/tmp model-compose up`) — 그렇지 않으면 업로드 크기가 파티션 용량을 초과할 수 있음.
+- **언제 spool이 맞는 선택인가**: `spool: true`는 한 fan-out 브랜치가 다른 브랜치보다 훨씬 느리게 소비하거나 (또는 하류 신호를 기다린 후에야 소비 시작할 때) 쓰기 좋은 노브. 모든 브랜치가 비슷한 속도로 흐르면 기본 인메모리 fan-out이 저렴. spool은 RAM을 디스크로 교환하고 실행당 tempfile write 한 번을 추가.
 
 ## 문제 해결
 
-### 자주 발생하는 문제
+### 흔한 이슈
 
-1. **클립이 생성되지 않음 / 스트림이 바로 종료**: threshold가 너무 엄격할 수 있습니다 - `threshold` 낮추기(예: `0.3`) 또는 `min_speech_duration` 축소.
-2. **클립 경계에서 단어가 잘림**: `speech_padding_time` 증가(예: `200ms`).
-3. **`ffmpeg` not found**: ffmpeg(및 ffprobe) 설치 후 `PATH`에 등록되어 있는지 확인.
-4. **스토리지 디렉터리 권한 오류**: `./storage/`에 프로세스가 쓸 수 있는지 확인. 다른 위치가 필요하면 `model-compose.yml`의 `storage.base_path`를 변경하세요.
-5. **"업로드 스트림이 이미 소비됨" 에러**: 이 예제는 그 문제를 피하기 위해 업로드를 먼저 file-store에 저장합니다. `store` job을 생략하도록 커스터마이징하는 경우 `${input.video}`는 한 번만 소비 가능하다는 점을 기억하세요 - 디스크에 저장(`save_to`)하거나 fan-out 전에 `file-store`로 영속화해야 합니다.
+1. **클립이 하나도 안 나옴 / output이 비어 있음**: `threshold`가 너무 엄격. 낮추거나(예: `0.3`) `min_speech_duration`을 줄이세요.
+2. **세그먼트 경계에서 단어가 잘림**: `speech_padding_time`을 올리세요(예: `200ms`).
+3. **`ffmpeg` 없음**: FFmpeg과 `ffprobe`를 설치하고 둘 다 `PATH`에 있는지 확인.
+4. **Spool tempfile write 실패 / "No space left on device"**: OS 임시 디렉터리 공간 부족. 업로드가 들어갈 파티션으로 `TMPDIR` 설정하거나, `spool: true` 대신 큰 디스크를 가진 `file-store` 사용.
+5. **"Upload stream already consumed" 에러**: 업로드 스트림은 1회 소비. 이 워크플로우는 정확히 그 이유로 fan-out에 `spool: true` 사용. `fanout-video` 작업을 건너뛰도록 커스터마이즈하면 `${input.video}`의 두 번째 리더가 실패함 — spool fan-out을 유지하거나, `file-store`(또는 재-읽기 가능한 경로를 주는 다른 메커니즘)로 저장 후 여러 소비자로 팬아웃하세요.

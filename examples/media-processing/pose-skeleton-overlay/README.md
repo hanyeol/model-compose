@@ -10,9 +10,9 @@ Given an input video, the workflow returns a version of the same video with a co
 
 The strategy is:
 
-1. **Stash the uploaded video** on a local `file-store` so the audio branch and the frame extractor can each re-read it (the raw upload stream is single-use).
-2. **Split the audio track** out of the stored video with `audio-extractor` (preserved unchanged).
-3. **Stream every frame** out of the stored video with `video-frame-extractor` (`streaming: true` — no full-video buffering).
+1. **Fan the upload stream out** with a `fan-out` job into two independent branches, one for the audio extractor and one for the frame extractor, so both can drain the single-use upload stream in parallel without landing the video on disk.
+2. **Split the audio track** out of the video with `audio-extractor` (preserved unchanged).
+3. **Stream every frame** out of the video with `video-frame-extractor` (`streaming: true` — no full-video buffering).
 4. **Run pose-tracking on the frame stream** with `streaming: true`, configured to emit a stream of per-frame chunks that each carry the source image plus one full-frame skeleton PNG per detected pose. Track segments, aggregate track metadata, and the terminal metadata chunk are all suppressed — the overlay step only needs frames.
 5. **For each per-frame chunk**, `merge` composites the source frame with every pose's skeleton image in one pass. The `for-each` job's output is also a stream, so overlaid frames flow lazily to the encoder.
 6. **Encode the overlaid frame stream** back into an mp4 with `video-encoder`, muxing the extracted audio into the output. ffmpeg pulls frames from the upstream stream as it is ready for them, so no full-video buffering happens at this stage either.
@@ -90,15 +90,10 @@ Pose-tracking is used purely as a per-frame detector-plus-renderer here — trac
 
 ## Component Details
 
-### Storage (`storage`)
-- **Type**: `file-store`
-- **Driver**: `local`
-- **Function**: Persists the uploaded video under `./storage/uploads/<task_id>` so the audio branch and the frame extractor can each open it independently. The raw upload stream is single-use, so without this step whichever job read it first would consume it.
-
 ### Audio Extractor (`audio-extractor`)
 - **Type**: `audio-extractor`
 - **Driver**: `ffmpeg`
-- **Function**: Reads the stored video and splits the audio track out into an mp3. Used later by the encoder to mux the audio back into the overlaid video.
+- **Function**: Reads a video stream and splits the audio track out into an mp3. Fed by one branch of the upstream `fan-out` job so it can consume the upload stream in parallel with the frame extractor. Used later by the encoder to mux the audio back into the overlaid video.
 
 ### Frame Extractor (`frame-extractor`)
 - **Type**: `video-frame-extractor`
@@ -108,7 +103,7 @@ Pose-tracking is used purely as a per-frame detector-plus-renderer here — trac
 ### Pose Tracker (`pose-tracker`)
 - **Type**: `model` — `pose-tracking` task
 - **Driver**: `custom` (YOLO family, `yolov8n-pose.pt` weights)
-- **Function**: Consumes the frame stream and emits a stream of per-frame chunks shaped like `{type: "frame", number, timestamp, poses: [{track_id, bounding_box, skeleton_image}], image}`. `return_frame_image: true` bundles the source image into every frame chunk, and `return_skeleton_image: true` renders one transparent-background skeleton PNG at the source resolution for every detected pose. The tracker's other chunk types are suppressed: `return_tracks: false` drops per-segment and per-track chunks, and `return_metadata: false` drops the terminal `metadata` chunk.
+- **Function**: Consumes the frame stream and emits a stream of per-frame detection chunks shaped like `{type: "detection", number, timestamp, poses: [{track_id, bounding_box, skeleton_image}], image}`. `return_frame_image: true` bundles the source image into every detection chunk, and `return_skeleton_image: true` renders one transparent-background skeleton PNG at the source resolution for every detected pose. The tracker's other chunk types are suppressed: `return_tracks: false` drops per-segment and per-track chunks, and `return_metadata: false` drops the terminal `metadata` chunk.
 
 ### Skeleton Merger (`skeleton-merger`)
 - **Type**: `image-processor` (`merge` method)

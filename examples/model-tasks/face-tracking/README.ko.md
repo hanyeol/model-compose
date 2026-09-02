@@ -10,7 +10,7 @@
 2. **프레임 샘플링**: ffmpeg으로 사용자가 지정한 간격으로 입력 비디오에서 프레임 추출
 3. **아이덴티티 클러스터링**: 프레임별 얼굴 임베딩을 코사인 유사도로 클러스터링하여 각 고유 얼굴을 하나의 트랙으로 묶음
 4. **세그먼트 집계**: 프레임별 타임스탬프를 인물별 `start_time / end_time / duration` 구간으로 병합
-5. **자동 모델 관리**: 첫 실행 시 InsightFace GitHub 릴리스에서 `antelopev2` 팩을 다운로드하여 `./.models/antelopev2`에 압축 해제, 이후 재사용
+5. **자동 모델 관리**: 첫 실행 시 InsightFace GitHub 릴리스에서 `antelopev2` 팩을 다운로드하여 `./models/antelopev2`에 압축 해제, 이후 재사용
 
 ## 준비사항
 
@@ -24,12 +24,12 @@
 
 ### antelopev2 모델 팩
 
-수동 준비가 필요 없습니다. 첫 실행 시 [model-compose.yml](model-compose.yml)의 `url` + `bundled: true` 설정에 따라 아카이브가 자동으로 다운로드되어 `./.models/antelopev2`에 압축 해제됩니다. 이후 실행은 이 경로를 재사용합니다.
+수동 준비가 필요 없습니다. 첫 실행 시 [model-compose.yml](model-compose.yml)의 `url` + `bundled: true` 설정에 따라 아카이브가 자동으로 다운로드되어 `./models/antelopev2`에 압축 해제됩니다. 이후 실행은 이 경로를 재사용합니다.
 
 추출되는 구조:
 
 ```
-.models/
+models/
 └── antelopev2/
     ├── 1k3d68.onnx
     ├── 2d106det.onnx
@@ -86,7 +86,7 @@
 ### Face Tracking Model 컴포넌트
 - **Type**: `face-tracking` 작업의 Model 컴포넌트
 - **Family**: `insightface`
-- **Model**: 로컬 `./.models/antelopev2` 팩
+- **Model**: 로컬 `./models/antelopev2` 팩
 - **기능**:
   - 프레임별로 얼굴을 검출하고 512차원 아이덴티티 임베딩을 추출
   - 임베딩을 코사인 유사도로 온라인 클러스터링하여 각 아이덴티티가 하나의 트랙으로 묶임
@@ -265,7 +265,7 @@ model-compose run --input '{"video": "clip.mp4", "frame_interval": 5, "sampled_f
 2. **트랙이 반환되지 않음**: 샘플링 속도를 높이거나(`frame_interval` 낮춤) `min_frame_count`를 낮추세요. 인물이 한 프레임에만 등장했을 수 있습니다.
 3. **같은 인물이 여러 트랙으로 분리됨**: `similarity_threshold`를 낮추거나(예: 0.35), 분리가 단순히 인접 갭 때문이라면 `merge_gap`을 높이세요.
 4. **다른 인물들이 하나의 트랙으로 병합됨**: `similarity_threshold`를 높이세요(예: 0.5). 기본값은 정밀도보다 재현율에 맞춰져 있습니다.
-5. **모델 파일을 찾을 수 없음**: `./.models/antelopev2` 디렉토리에 위에 나열된 `.onnx` 파일들이 모두 있는지 확인하세요.
+5. **모델 파일을 찾을 수 없음**: `./models/antelopev2` 디렉토리에 위에 나열된 `.onnx` 파일들이 모두 있는지 확인하세요.
 
 ### 성능 최적화
 

@@ -10,9 +10,9 @@ Given an input video, the workflow returns a version of the same video with ever
 
 The strategy is:
 
-1. **Stash the uploaded video** on a local `file-store` so the audio branch and the frame extractor can each re-read it (the raw upload stream is single-use).
-2. **Split the audio track** out of the stored video with `audio-extractor` (preserved unchanged).
-3. **Stream every frame** out of the stored video with `video-frame-extractor` (`streaming: true` — no full-video buffering).
+1. **Fan the upload stream out** with a `fan-out` job into two independent branches, one for the audio extractor and one for the frame extractor, so both can drain the single-use upload stream in parallel without landing the video on disk.
+2. **Split the audio track** out of the video with `audio-extractor` (preserved unchanged).
+3. **Stream every frame** out of the video with `video-frame-extractor` (`streaming: true` — no full-video buffering).
 4. **Run face-tracking on the frame stream** with `streaming: true`, configured to emit a stream of per-frame chunks that each carry the source image plus the detected face bounding boxes. Track segments, aggregate track metadata, and the terminal metadata chunk are all suppressed — the mosaic step only needs frames.
 5. **For each per-frame chunk**, apply the mosaic to every face's bounding box in one pass. The `for-each` job's output is also a stream, so redacted frames flow lazily to the encoder.
 6. **Encode the redacted frame stream** back into an mp4 with `video-encoder`, muxing the extracted audio into the output. ffmpeg pulls frames from the upstream stream as it is ready for them, so no full-video buffering happens at this stage either.
@@ -93,15 +93,10 @@ Face-tracking is used purely as a per-frame detector here — the tracker's iden
 
 ## Component Details
 
-### Storage (`storage`)
-- **Type**: `file-store`
-- **Driver**: `local`
-- **Function**: Persists the uploaded video under `./storage/uploads/<task_id>` so the audio branch and the frame extractor can each open it independently. The raw upload stream is single-use, so without this step whichever job read it first would consume it.
-
 ### Audio Extractor (`audio-extractor`)
 - **Type**: `audio-extractor`
 - **Driver**: `ffmpeg`
-- **Function**: Reads the stored video and splits the audio track out into an mp3. Used later by the encoder to mux the audio back into the redacted video.
+- **Function**: Reads a video stream and splits the audio track out into an mp3. Fed by one branch of the upstream `fan-out` job so it can consume the upload stream in parallel with the frame extractor. Used later by the encoder to mux the audio back into the redacted video.
 
 ### Frame Extractor (`frame-extractor`)
 - **Type**: `video-frame-extractor`
@@ -111,7 +106,7 @@ Face-tracking is used purely as a per-frame detector here — the tracker's iden
 ### Face Tracker (`face-tracker`)
 - **Type**: `model` — `face-tracking` task
 - **Driver**: `custom` (InsightFace family, `antelopev2` pack)
-- **Function**: Consumes the frame stream and emits a stream of per-frame chunks shaped like `{type: "frame", number, timestamp, faces: [{track_id, bounding_box}], image}`. The tracker's other chunk types are all suppressed here: `return_tracks: false` drops per-segment and per-track chunks, and `return_metadata: false` drops the terminal `metadata` chunk. `return_frame_image: true` bundles the source image into every frame chunk so the mosaic step needs no separate frame stream to zip against.
+- **Function**: Consumes the frame stream and emits a stream of per-frame detection chunks shaped like `{type: "detection", number, timestamp, faces: [{track_id, bounding_box}], image}`. The tracker's other chunk types are all suppressed here: `return_tracks: false` drops per-segment and per-track chunks, and `return_metadata: false` drops the terminal `metadata` chunk. `return_frame_image: true` bundles the source image into every detection chunk so the mosaic step needs no separate frame stream to zip against.
 
 ### Mosaic (`mosaic`)
 - **Type**: `image-processor` (`mosaic` method)

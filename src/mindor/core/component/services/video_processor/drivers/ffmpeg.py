@@ -56,13 +56,15 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             # Fit inside the target box, then pad to exact size so downstream sees width x height.
             video_filter = (
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0,"
+                f"setsar=1"
             )
         else:
             # FILL: cover the target box and center-crop the overflow.
             video_filter = (
                 f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height}"
+                f"crop={width}:{height},"
+                f"setsar=1"
             )
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)

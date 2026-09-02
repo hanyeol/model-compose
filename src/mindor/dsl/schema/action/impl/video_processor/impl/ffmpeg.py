@@ -3,6 +3,7 @@ from pydantic import Field
 from .common import (
     VideoProcessorResizeActionConfig,
     VideoProcessorCropActionConfig,
+    VideoProcessorZoomActionConfig,
     VideoProcessorPadActionConfig,
     VideoProcessorFlipActionConfig,
     VideoProcessorRotateActionConfig,
@@ -24,6 +25,7 @@ FFmpegVideoProcessorActionConfig = Annotated[
     Union[
         VideoProcessorResizeActionConfig,
         VideoProcessorCropActionConfig,
+        VideoProcessorZoomActionConfig,
         VideoProcessorPadActionConfig,
         VideoProcessorFlipActionConfig,
         VideoProcessorRotateActionConfig,

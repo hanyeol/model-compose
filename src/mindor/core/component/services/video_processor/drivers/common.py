@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import (
     VideoProcessorActionConfig,
     VideoProcessorActionMethod,
     VideoScaleMode,
+    VideoZoomEasing,
     VideoFlipDirection,
     VideoFreezePosition,
 )
@@ -86,6 +87,45 @@ class VideoProcessorAction(ComponentAction):
                 raise ValueError("'x', 'y', 'width', and 'height' must all be specified for 'crop' method")
 
             return { "encoding": encoding, "x": x, "y": y, "width": width, "height": height }
+
+        if method == VideoProcessorActionMethod.ZOOM:
+            width       = await context.render_scalar(self.config.width,       int)
+            height      = await context.render_scalar(self.config.height,      int)
+            from_x      = await context.render_scalar(self.config.from_x,      int)
+            from_y      = await context.render_scalar(self.config.from_y,      int)
+            from_width  = await context.render_scalar(self.config.from_width,  int)
+            from_height = await context.render_scalar(self.config.from_height, int)
+            duration    = await context.render_scalar(self.config.duration,    float)
+            easing      = await context.render_variable(self.config.easing)
+
+            if width is None or height is None:
+                raise ValueError("'width' and 'height' must both be specified for 'zoom' method")
+
+            if from_x is None or from_y is None or from_width is None or from_height is None:
+                raise ValueError("'from_x', 'from_y', 'from_width', and 'from_height' must all be specified for 'zoom' method")
+
+            if from_width <= 0 or from_height <= 0:
+                raise ValueError("'from_width' and 'from_height' must be positive for 'zoom' method")
+
+            if duration is None:
+                raise ValueError("'duration' must be specified for 'zoom' method")
+
+            try:
+                easing = VideoZoomEasing(easing)
+            except ValueError:
+                raise ValueError(f"Invalid zoom easing: {easing}")
+
+            return {
+                "encoding": encoding,
+                "width": width,
+                "height": height,
+                "from_x": from_x,
+                "from_y": from_y,
+                "from_width": from_width,
+                "from_height": from_height,
+                "duration": duration,
+                "easing": easing,
+            }
 
         if method == VideoProcessorActionMethod.PAD:
             left   = await context.render_scalar(self.config.left,   int) or 0
@@ -255,6 +295,21 @@ class VideoProcessorAction(ComponentAction):
                 cancellation_token,
             )
 
+        if method == VideoProcessorActionMethod.ZOOM:
+            return await self._zoom(
+                video,
+                params["width"],
+                params["height"],
+                params["from_x"],
+                params["from_y"],
+                params["from_width"],
+                params["from_height"],
+                params["duration"],
+                params["easing"],
+                params["encoding"],
+                cancellation_token,
+            )
+
         if method == VideoProcessorActionMethod.PAD:
             return await self._pad(
                 video,
@@ -410,6 +465,23 @@ class VideoProcessorAction(ComponentAction):
         y: int,
         width: int,
         height: int,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _zoom(
+        self,
+        video: MediaSource,
+        width: int,
+        height: int,
+        from_x: int,
+        from_y: int,
+        from_width: int,
+        from_height: int,
+        duration: float,
+        easing: VideoZoomEasing,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

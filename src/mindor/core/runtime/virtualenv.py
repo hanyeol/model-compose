@@ -114,7 +114,7 @@ class VirtualEnvRuntime:
         return self._subprocess
 
     def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
-        env = { k: v for k, v in os.environ.items() if k not in _EXCLUDED_HOST_ENV_VARS }
+        env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }
         env.update(self.config.env or {})
         env["PYTHONUNBUFFERED"] = "1"
         if overrides:

@@ -28,7 +28,7 @@ async def upload(
 
     metadata_payload: Optional[Dict[str, Any]] = None
     if metadata:
-        metadata_payload = { "metadata": { k: str(v) for k, v in metadata.items() } }
+        metadata_payload = { "metadata": { key: str(value) for key, value in metadata.items() } }
 
     await client.upload(
         bucket=bucket,
@@ -78,7 +78,7 @@ async def multipart_upload(
     }
     init_body: Dict[str, Any] = { "name": key, "contentType": resolved_content_type }
     if metadata:
-        init_body["metadata"] = { k: str(v) for k, v in metadata.items() }
+        init_body["metadata"] = { key: str(value) for key, value in metadata.items() }
 
     init_response = await session.post(upload_url, headers=init_headers, data=json.dumps(init_body))
     init_response.raise_for_status()

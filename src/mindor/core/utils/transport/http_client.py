@@ -81,9 +81,9 @@ class HttpClient:
                 session= await self._get_session(),
                 url_or_path=url_or_path,
                 method=method,
-                params={ k: v for k, v in params.items() if v is not None } if params else None,
+                params={ key: value for key, value in params.items() if value is not None } if params else None,
                 body=body,
-                headers={ k: v for k, v in merged_headers.items() if v is not None },
+                headers={ key: value for key, value in merged_headers.items() if value is not None },
                 timeout=timeout or self.timeout
             )
 

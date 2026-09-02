@@ -61,7 +61,7 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
                 pairs.extend((query, text) for text in texts)
 
             inputs: Dict[str, Tensor] = self.tokenizer(pairs, **params["tokenizer"])
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             with torch.inference_mode():
                 outputs: SequenceClassifierOutput = self.model(**inputs)

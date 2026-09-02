@@ -33,7 +33,7 @@ class Neo4jQueryBuilder:
     @staticmethod
     def build_create_relationship(rel_type: str, from_id: str, to_id: str, properties: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         rel_type = Neo4jQueryBuilder.verify_identifier(rel_type, "relationship type")
-        prop_params = { f"prop_{k}": v for k, v in properties.items() }
+        prop_params = { f"prop_{key}": value for key, value in properties.items() }
         params: Dict[str, Any] = { "from_id": from_id, "to_id": to_id, **prop_params }
 
         if properties:
@@ -51,9 +51,9 @@ class Neo4jQueryBuilder:
 
         if properties:
             set_parts = []
-            for k, v in properties.items():
-                params[f"prop_{k}"] = v
-                set_parts.append(f"n.{k} = $prop_{k}")
+            for key, value in properties.items():
+                params[f"prop_{key}"] = value
+                set_parts.append(f"n.{key} = $prop_{key}")
             clauses.append("SET " + ", ".join(set_parts))
 
         if labels:
@@ -72,9 +72,9 @@ class Neo4jQueryBuilder:
     def build_update_relationship(relationship_id: str, properties: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         params: Dict[str, Any] = { "id": relationship_id }
         set_parts = []
-        for k, v in properties.items():
-            params[f"prop_{k}"] = v
-            set_parts.append(f"r.{k} = $prop_{k}")
+        for key, value in properties.items():
+            params[f"prop_{key}"] = value
+            set_parts.append(f"r.{key} = $prop_{key}")
         cypher = f"MATCH ()-[r]->() WHERE elementId(r) = $id SET {', '.join(set_parts)} RETURN r"
         return cypher, params
 

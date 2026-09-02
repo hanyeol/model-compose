@@ -108,7 +108,7 @@ class WebSocketClient:
         if path:
             url += path if path.startswith("/") else f"/{path}"
         if params:
-            filtered = { k: v for k, v in params.items() if v is not None }
+            filtered = { key: value for key, value in params.items() if value is not None }
             if filtered:
                 url += "?" + urlencode(filtered)
 

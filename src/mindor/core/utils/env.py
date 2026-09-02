@@ -15,7 +15,7 @@ def load_env_files(work_dir: Union[ str, Path ], env_files: List[Union[ str, Pat
 
     merged_env = {}
     for env_dict in env_dicts:
-        merged_env.update({k: v for k, v in env_dict.items() if v is not None})
+        merged_env.update({key: value for key, value in env_dict.items() if value is not None})
 
     return merged_env
 

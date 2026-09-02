@@ -99,7 +99,7 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
             stopping_criteria = [ StopStringCriteria(self.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
 
             inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             if streaming:
                 streamer = BatchTextIteratorStreamer(

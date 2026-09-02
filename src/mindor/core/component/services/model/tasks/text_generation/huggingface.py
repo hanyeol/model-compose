@@ -98,7 +98,7 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
             import torch
 
             inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             stopping_criteria = self._build_stopping_criteria(params["stop_sequences"], cancellation_token)
 

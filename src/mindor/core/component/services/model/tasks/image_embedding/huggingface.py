@@ -44,7 +44,7 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
             import torch, torch.nn.functional as F
 
             inputs: Dict[str, Tensor] = self.processor(images=images, return_tensors="pt")
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             with torch.inference_mode():
                 embeddings = self._extract_image_features(inputs, params["pooling"])

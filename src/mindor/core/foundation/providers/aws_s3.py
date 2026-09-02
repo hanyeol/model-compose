@@ -30,7 +30,7 @@ async def upload(
     if content_type:
         put_params["ContentType"] = content_type
     if metadata:
-        put_params["Metadata"] = { k: str(v) for k, v in metadata.items() }
+        put_params["Metadata"] = { key: str(value) for key, value in metadata.items() }
 
     await client.put_object(**put_params)
 
@@ -60,7 +60,7 @@ async def multipart_upload(
     if content_type:
         create_params["ContentType"] = content_type
     if metadata:
-        create_params["Metadata"] = { k: str(v) for k, v in metadata.items() }
+        create_params["Metadata"] = { key: str(value) for key, value in metadata.items() }
 
     response = await client.create_multipart_upload(**create_params)
     upload_id = response["UploadId"]

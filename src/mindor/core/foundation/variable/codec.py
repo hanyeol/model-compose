@@ -93,7 +93,7 @@ class VariableCodec:
 
         # Containers (after stream checks so that stream classes don't fall through here)
         if isinstance(value, dict):
-            return { str(k): self._encode_value(v, on_stream_encode) for k, v in value.items() }
+            return { str(key): self._encode_value(item, on_stream_encode) for key, item in value.items() }
 
         if isinstance(value, (list, tuple)):
             return [ self._encode_value(v, on_stream_encode) for v in value ]
@@ -141,7 +141,7 @@ class VariableCodec:
     ) -> Dict[str, Any]:
         cls = type(value)
         if isinstance(value, AtomicDict):
-            payload = { str(k): self._encode_value(v, on_stream_encode) for k, v in value.items() }
+            payload = { str(key): self._encode_value(item, on_stream_encode) for key, item in value.items() }
             shape = "dict"
         else:
             payload = [ self._encode_value(v, on_stream_encode) for v in value ]
@@ -175,7 +175,7 @@ class VariableCodec:
             variable = value.get("__variable__")
             if len(value) == 1 and isinstance(variable, dict) and isinstance(variable.get("type"), str):
                 return self._resolve_variable(variable, on_stream_decode)
-            return { k: self._decode_value(v, on_stream_decode) for k, v in value.items() }
+            return { key: self._decode_value(item, on_stream_decode) for key, item in value.items() }
 
         if isinstance(value, list):
             return [ self._decode_value(v, on_stream_decode) for v in value ]
@@ -221,7 +221,7 @@ class VariableCodec:
         # Recursively decode inner values so nested streams/bytes/atomics resolve
         # back to their native forms before the wrapper class is reconstructed.
         if shape == "dict" and isinstance(payload, dict):
-            decoded: Any = { k: self._decode_value(v, on_stream_decode) for k, v in payload.items() }
+            decoded: Any = { key: self._decode_value(item, on_stream_decode) for key, item in payload.items() }
             expected_base = AtomicDict
         elif shape == "list" and isinstance(payload, list):
             decoded = [ self._decode_value(v, on_stream_decode) for v in payload ]

@@ -6,8 +6,9 @@ from .common import CommonVideoEmbeddingModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceVideoEmbeddingModelArchitecture(str, Enum):
-    AUTO  = "auto"
-    XCLIP = "xclip"
+    AUTO     = "auto"
+    XCLIP    = "xclip"
+    VIDEOMAE = "videomae"
 
 class HuggingfaceVideoEmbeddingModelComponentConfig(CommonVideoEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]

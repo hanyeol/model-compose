@@ -49,11 +49,36 @@ class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
         def _embed() -> List[List[float]]:
             import torch, torch.nn.functional as F
 
-            inputs: Dict[str, Tensor] = self.processor(videos=sampled_videos, return_tensors="pt")
-            inputs = { key: value.to(self.device) for key, value in inputs.items() }
+            if self.architecture == HuggingfaceVideoEmbeddingModelArchitecture.XCLIP:
+                # Work around an upstream issue in transformers 4.55+ where
+                # XCLIPModel.get_video_features() calls the internal MIT
+                # without return_dict, then fails to read pooler_output from
+                # the returned tuple. Route through forward() instead; dummy
+                # text is required but video_embeds is independent of it.
+                inputs: Dict[str, Tensor] = self.processor(
+                    images=sampled_videos,
+                    text=[ "" ] * len(sampled_videos),
+                    return_tensors="pt",
+                    padding=True,
+                )
+                inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
-            with torch.inference_mode():
-                embeddings = self._extract_video_features(inputs)
+                with torch.inference_mode():
+                    outputs = self.model(**inputs, return_dict=True)
+
+                embeddings = outputs.video_embeds
+            else:
+                inputs: Dict[str, Tensor] = self.processor(
+                    images=sampled_videos,
+                    return_tensors="pt"
+                )
+                inputs = { key: value.to(self.device) for key, value in inputs.items() }
+
+                with torch.inference_mode():
+                    if hasattr(self.model, "get_video_features"):
+                        embeddings = self.model.get_video_features(**inputs)
+                    else:
+                        embeddings = self._get_video_features(inputs)
 
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
@@ -62,26 +87,31 @@ class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
 
         return await self._run_in_executor(_embed)
 
-    def _extract_video_features(self, inputs: Dict[str, Tensor]) -> Tensor:
-        # X-CLIP and CLIP-derived video encoders expose get_video_features that
-        # runs the vision encoder + multi-frame integration and returns the
-        # joint projection used for video-text matching. Fall back to a plain
-        # forward when the model has no dedicated helper.
-        if hasattr(self.model, "get_video_features"):
-            return self.model.get_video_features(**inputs)
-
-        outputs = self.model(**inputs)
+    def _get_video_features(self, inputs: Dict[str, Tensor]) -> Tensor:
+        outputs = self.model(**inputs, return_dict=True)
 
         if hasattr(outputs, "video_embeds"):
             return outputs.video_embeds
 
+        if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
+            return outputs.pooler_output
+
+        if hasattr(outputs, "last_hidden_state"):
+            # Pure video encoders (VideoMAE, etc.) return per-token hidden
+            # states; collapse to a single vector by mean-pooling.
+            return outputs.last_hidden_state.mean(dim=1)
+
         raise ValueError(f"Model does not expose video embeddings: {type(self.model).__name__}")
 
     def _get_expected_frame_count(self) -> int:
-        # X-CLIP encodes the number of frames it was trained on in its vision
-        # config; fall back to the widely-used default of 8 when unavailable.
+        # X-CLIP nests num_frames under vision_config; pure video encoders
+        # (VideoMAE, etc.) expose it at the top level. Fall back to 8 when
+        # neither is set.
         vision_config = getattr(self.model.config, "vision_config", None)
         num_frames = getattr(vision_config, "num_frames", None) if vision_config else None
+
+        if not num_frames:
+            num_frames = getattr(self.model.config, "num_frames", None)
 
         return int(num_frames) if num_frames else 8
 
@@ -111,6 +141,10 @@ class HuggingfaceVideoEmbeddingTaskService(HuggingfaceMultimodalModelTaskService
             from transformers import XCLIPModel
             return XCLIPModel
 
+        if self.config.architecture == HuggingfaceVideoEmbeddingModelArchitecture.VIDEOMAE:
+            from transformers import VideoMAEModel
+            return VideoMAEModel
+
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
@@ -121,6 +155,10 @@ class HuggingfaceVideoEmbeddingTaskService(HuggingfaceMultimodalModelTaskService
         if self.config.architecture == HuggingfaceVideoEmbeddingModelArchitecture.XCLIP:
             from transformers import XCLIPProcessor
             return XCLIPProcessor
+
+        if self.config.architecture == HuggingfaceVideoEmbeddingModelArchitecture.VIDEOMAE:
+            from transformers import VideoMAEImageProcessor
+            return VideoMAEImageProcessor
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 

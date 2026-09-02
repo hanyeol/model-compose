@@ -153,7 +153,7 @@ class WorkflowVariableResolver:
 
                 return [ variable ]
 
-            return sum([ self._enumerate_output_variables(f"{name}.{k}" if name else f"{k}", v) for k, v in value.items() ], [])
+            return sum([ self._enumerate_output_variables(f"{name}.{key}" if name else f"{key}", item) for key, item in value.items() ], [])
 
         if isinstance(value, list):
             return sum([ self._enumerate_output_variables(f"{name}[{i}]" if name else f"[{i}]", v) for i, v in enumerate(value) ], [])

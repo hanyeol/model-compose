@@ -57,7 +57,7 @@ class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
             import torch, torch.nn.functional as F
 
             inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
-            inputs = { k: v.to(self.device) for k, v in inputs.items() }
+            inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             with torch.inference_mode():
                 outputs: SequenceClassifierOutput = self.model(**inputs)

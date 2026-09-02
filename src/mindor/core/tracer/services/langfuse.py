@@ -180,7 +180,7 @@ class LangfuseTracerService(TracerService):
     def _redact_payload(self, data: Any) -> Any:
         if isinstance(data, dict):
             redact_lower = { k.lower() for k in self.config.capture.redact_keys }
-            return { k: "[redacted]" if k.lower() in redact_lower else self._redact_payload(v) for k, v in data.items() }
+            return { key: "[redacted]" if key.lower() in redact_lower else self._redact_payload(value) for key, value in data.items() }
 
         if isinstance(data, list):
             return [ self._redact_payload(item) for item in data ]

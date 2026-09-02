@@ -30,7 +30,7 @@ async def upload(
     if content_type:
         upload_params["content_settings"] = ContentSettings(content_type=content_type)
     if metadata:
-        upload_params["metadata"] = { k: str(v) for k, v in metadata.items() }
+        upload_params["metadata"] = { key: str(value) for key, value in metadata.items() }
 
     await client.upload_blob(**upload_params)
 
@@ -86,7 +86,7 @@ async def multipart_upload(
         if content_type:
             commit_params["content_settings"] = ContentSettings(content_type=content_type)
         if metadata:
-            commit_params["metadata"] = { k: str(v) for k, v in metadata.items() }
+            commit_params["metadata"] = { key: str(value) for key, value in metadata.items() }
 
         await client.commit_block_list(**commit_params)
     except BaseException:

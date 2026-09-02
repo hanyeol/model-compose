@@ -127,15 +127,33 @@ class WorkflowFlowRenderer:
         for job in workflow_config.jobs:
             if not job.depends_on and job.id not in routing_targets:
                 workflow_lines.append(f"    {input_node} --> {prefix}{job.id}")
-            else:
-                for dependent in self._flatten_job_depends_on(job):
-                    if dependent in job_ids:
-                        workflow_lines.append(f"    {prefix}{dependent} --> {prefix}{job.id}")
+                continue
 
-        dependents: Set[str] = { dependent for job in workflow_config.jobs for dependent in self._flatten_job_depends_on(job) }
+            for or_group_index, item in enumerate(job.depends_on):
+                if isinstance(item, list):
+                    dependency_job_ids = [ job_id for job_id in item if job_id in job_ids ]
+
+                    if not dependency_job_ids:
+                        continue
+
+                    if len(dependency_job_ids) == 1:
+                        workflow_lines.append(f"    {prefix}{dependency_job_ids[0]} --> {prefix}{job.id}")
+                        continue
+
+                    merge_node = f"{prefix}__any_{job.id}_{or_group_index}__"
+                    workflow_lines.append(f'    {merge_node}{{"any"}}')
+
+                    for job_id in dependency_job_ids:
+                        workflow_lines.append(f"    {prefix}{job_id} --> {merge_node}")
+
+                    workflow_lines.append(f"    {merge_node} --> {prefix}{job.id}")
+                elif item in job_ids:
+                    workflow_lines.append(f"    {prefix}{item} --> {prefix}{job.id}")
+
+        dependency_job_ids: Set[str] = { dependency for job in workflow_config.jobs for dependency in self._flatten_job_depends_on(job) }
 
         for job in workflow_config.jobs:
-            if job.id not in dependents and job.id not in routing_targets:
+            if job.id not in dependency_job_ids and job.id not in routing_targets:
                 workflow_lines.append(f"    {prefix}{job.id} --> {output_node}")
 
         workflow_lines.append(f"    {input_node}((Input))")

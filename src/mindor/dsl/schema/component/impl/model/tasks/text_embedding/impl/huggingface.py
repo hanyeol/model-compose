@@ -6,9 +6,12 @@ from .common import CommonTextEmbeddingModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceTextEmbeddingModelArchitecture(str, Enum):
-    AUTO  = "auto"
-    BERT  = "bert"
-    SBERT = "sbert"
+    AUTO   = "auto"
+    BERT   = "bert"
+    SBERT  = "sbert"
+    CLIP   = "clip"
+    SIGLIP = "siglip"
+    XCLIP  = "xclip"
 
 class HuggingfaceTextEmbeddingModelComponentConfig(CommonTextEmbeddingModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]

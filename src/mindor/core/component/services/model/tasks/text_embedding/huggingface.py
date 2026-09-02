@@ -18,6 +18,12 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
+_PROJECTED_TEXT_ARCHITECTURES = {
+    HuggingfaceTextEmbeddingModelArchitecture.CLIP,
+    HuggingfaceTextEmbeddingModelArchitecture.SIGLIP,
+    HuggingfaceTextEmbeddingModelArchitecture.XCLIP,
+}
+
 class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
     def __init__(
         self,
@@ -64,11 +70,19 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
             inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             with torch.inference_mode():
-                outputs: BaseModelOutput = self.model(**inputs)
-                last_hidden_state = outputs.last_hidden_state
-
-            attention_mask = inputs.get("attention_mask", None)
-            embeddings = self._pool_hidden_state(last_hidden_state, attention_mask, params["pooling"])
+                if self.architecture in _PROJECTED_TEXT_ARCHITECTURES:
+                    # CLIP-family models expose paired text/vision projections
+                    # into a shared space via get_text_features; the projection
+                    # already collapses the sequence into a single vector, so
+                    # skip pooling.
+                    embeddings = self.model.get_text_features(**inputs)
+                else:
+                    outputs: BaseModelOutput = self.model(**inputs)
+                    embeddings = self._pool_hidden_state(
+                        outputs.last_hidden_state,
+                        inputs.get("attention_mask", None),
+                        params["pooling"],
+                    )
 
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
@@ -128,6 +142,18 @@ class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.BERT:
             from transformers import BertModel
             return BertModel
+
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.CLIP:
+            from transformers import CLIPModel
+            return CLIPModel
+
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SIGLIP:
+            from transformers import SiglipModel
+            return SiglipModel
+
+        if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.XCLIP:
+            from transformers import XCLIPModel
+            return XCLIPModel
 
         from transformers import AutoModel
         return AutoModel

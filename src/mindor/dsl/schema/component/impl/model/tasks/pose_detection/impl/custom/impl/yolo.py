@@ -42,3 +42,13 @@ class YoloPoseDetectionModelComponentConfig(CommonPoseDetectionModelComponentCon
     family: Literal[PoseDetectionModelFamily.YOLO]
     model: YoloPoseDetectionModelConfig = Field(..., description="YOLO pose model identifier — a HuggingFace repo ID or a local path.")
     actions: List[YoloPoseDetectionModelActionConfig] = Field(default_factory=list, description="Actions this pose detection component exposes to workflows.")
+
+    @model_validator(mode="before")
+    def inflate_local_model(cls, values: Dict[str, Any]):
+        if isinstance(values, dict):
+            model = values.get("model")
+            if isinstance(model, str):
+                url = _DEFAULT_MODEL_URLS.get(f"{model}.pt")
+                if url:
+                    values["model"] = { "provider": "local", "url": url }
+        return values

@@ -42,3 +42,13 @@ class YoloObjectDetectionModelComponentConfig(CommonObjectDetectionModelComponen
     family: Literal[ObjectDetectionModelFamily.YOLO]
     model: YoloObjectDetectionModelConfig = Field(..., description="YOLO detection model identifier — a HuggingFace repo ID or a local path.")
     actions: List[YoloObjectDetectionModelActionConfig] = Field(default_factory=list, description="Actions this object detection component exposes to workflows.")
+
+    @model_validator(mode="before")
+    def inflate_local_model(cls, values: Dict[str, Any]):
+        if isinstance(values, dict):
+            model = values.get("model")
+            if isinstance(model, str):
+                url = _DEFAULT_MODEL_URLS.get(f"{model}.pt")
+                if url:
+                    values["model"] = { "provider": "local", "url": url }
+        return values

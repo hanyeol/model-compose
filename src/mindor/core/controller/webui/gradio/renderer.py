@@ -22,7 +22,7 @@ class WorkflowSchemaRenderer:
         if isinstance(variable, WorkflowVariableGroupConfig):
             return {
                 "name": variable.name,
-                "variables": [ self._render_variable(v) for v in variable.variables ],
+                "variables": [ self._render_variable(variable) for variable in variable.variables ],
                 "repeat_count": variable.repeat_count,
             }
         return variable.model_dump(exclude_none=True, exclude_defaults=True)

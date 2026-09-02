@@ -54,6 +54,7 @@ class WorkflowFlowRenderer:
             for workflow_id, (source_node, link_label) in list(subgraph_workflows.items()):
                 if workflow_id in rendered_workflows:
                     continue
+
                 rendered_workflows.add(workflow_id)
                 workflow = workflow_configs[workflow_id]
 

@@ -93,7 +93,7 @@ def _assert_detection_result(result: Any, width: int, height: int) -> None:
 @pytest.fixture(scope="module")
 def yolo_model_path() -> str:
     """Resolve (download if needed) the default YOLO pose weights once per module."""
-    service = YoloPoseDetectionTaskService(id="pose-detection", config=_make_component_config(model={}), daemon=False)
+    service = YoloPoseDetectionTaskService(id="pose-detection", config=_make_component_config(model="yolov8n-pose"), daemon=False)
     try:
         return asyncio.run(service._provision_model(service.config.model))
     except (URLError, TimeoutError, OSError) as e:

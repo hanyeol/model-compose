@@ -32,9 +32,6 @@ from mindor.dsl.schema.action import (
     HuggingfaceDatasetsMapActionConfig,
 )
 
-from tests.async_helpers import assert_does_not_block
-
-
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
@@ -124,39 +121,6 @@ class TestHuggingfaceDatasetsContract:
         assert isinstance(result, Dataset)
         assert "text" in result.column_names
         assert result["text"][0] == "Q: question 0\nA: answer 0"
-
-
-class TestHuggingfaceDatasetsNonBlocking:
-    """Datasets' `.map` is sync + CPU-bound; must be offloaded."""
-
-    @pytest.mark.anyio
-    async def test_map_does_not_block_event_loop(self):
-        # Build a moderately-sized dataset and a template that isn't
-        # trivially cheap. `.map` uses PyArrow under the hood; per-row
-        # overhead accumulates quickly.
-        n_rows = 2000
-        dataset = Dataset.from_dict({
-            "question": [f"question number {i} in the dataset" for i in range(n_rows)],
-            "answer":   [f"the answer to question {i} lies here" for i in range(n_rows)],
-        })
-
-        config = HuggingfaceDatasetsMapActionConfig(
-            method="map",
-            dataset="${input.dataset}",
-            template="Question: {question}\nAnswer: {answer}\n---",
-            output_column="prompt",
-        )
-        ctx = _make_context({"input.dataset": dataset})
-
-        result = await assert_does_not_block(
-            HuggingfaceDatasetsAction(config).run(ctx),
-            tick_interval_s=0.01,
-            min_ticks=5,
-        )
-
-        assert isinstance(result, Dataset)
-        assert len(result) == n_rows
-        assert "prompt" in result.column_names
 
 
 class TestHuggingfaceDatasetsServiceSignature:

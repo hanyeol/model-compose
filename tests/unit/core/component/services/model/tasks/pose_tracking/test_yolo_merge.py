@@ -36,7 +36,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_track_image":        False,
         "return_frame_image":        False,
         "return_metadata":           False,
-        "return_frames":             False,
+        "return_detections":         False,
         "bounding_box_padding":      0.0,
     }
     base.update(overrides)

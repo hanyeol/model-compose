@@ -40,7 +40,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_metadata":          False,
         "return_embedding":         False,
         "return_gender_age":        False,
-        "return_frames":            False,
+        "return_detections":        False,
         "bounding_box_padding":     0.0,
     }
     base.update(overrides)

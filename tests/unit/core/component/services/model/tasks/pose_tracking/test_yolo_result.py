@@ -1,7 +1,7 @@
 """Unit tests for YoloPoseTrackingTaskAction result shape.
 
 Focuses on fields the result builder puts on each track (`track_id`, per-track
-segments) and on the frame-centric view exposed via `return_frames`. Uses
+segments) and on the frame-centric view exposed via `return_detections`. Uses
 synthetic poses so no YOLO model is loaded.
 """
 
@@ -33,7 +33,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_track_image":        False,
         "return_frame_image":        False,
         "return_metadata":           False,
-        "return_frames":             False,
+        "return_detections":             False,
         "bounding_box_padding":      0.0,
     }
     base.update(overrides)
@@ -59,7 +59,7 @@ def _run(frames: List[List[Dict[str, Any]]], params: Dict[str, Any]) -> Dict[str
     for frame_index, poses in enumerate(frames):
         timestamp = frame_index * FRAME_PERIOD
         tracked_poses, _ = action._add_poses_to_tracks(poses, timestamp, FRAME_RATE, track_segments, params)
-        if params["return_frames"]:
+        if params["return_detections"]:
             tracked_frames.append({
                 "number":        frame_index + 1,
                 "timestamp":     timestamp,
@@ -103,38 +103,38 @@ class TestTrackId:
 
 
 class TestTrackedFrames:
-    """`return_frames` opts into a frame-centric view alongside the track-
+    """`return_detections` opts into a frame-centric view alongside the track-
     centric `tracks` list. Each entry is one input frame with the poses
     detected in it, tagged by track_id so consumers can cross-reference the
     two views."""
 
-    def test_return_frames_false_omits_the_field(self):
-        result = _run([[_pose()] for _ in range(3)], _default_params(return_frames=False))
+    def test_return_detections_false_omits_the_field(self):
+        result = _run([[_pose()] for _ in range(3)], _default_params(return_detections=False))
 
-        assert "frames" not in result
+        assert "detections" not in result
 
-    def test_return_frames_true_produces_one_entry_per_input_frame(self):
-        result = _run([[_pose()] for _ in range(3)], _default_params(return_frames=True))
+    def test_return_detections_true_produces_one_entry_per_input_frame(self):
+        result = _run([[_pose()] for _ in range(3)], _default_params(return_detections=True))
 
-        assert "frames" in result
-        assert len(result["frames"]) == 3
+        assert "detections" in result
+        assert len(result["detections"]) == 3
 
     def test_frame_number_is_one_based_and_sequential(self):
-        result = _run([[_pose()] for _ in range(3)], _default_params(return_frames=True))
+        result = _run([[_pose()] for _ in range(3)], _default_params(return_detections=True))
 
-        numbers = [entry["number"] for entry in result["frames"]]
+        numbers = [entry["number"] for entry in result["detections"]]
         assert numbers == [1, 2, 3]
 
     def test_frame_timestamp_matches_frame_rate(self):
-        result = _run([[_pose()] for _ in range(3)], _default_params(return_frames=True))
+        result = _run([[_pose()] for _ in range(3)], _default_params(return_detections=True))
 
-        timestamps = [entry["timestamp"] for entry in result["frames"]]
+        timestamps = [entry["timestamp"] for entry in result["detections"]]
         assert timestamps == ["00:00:00.000", "00:00:00.500", "00:00:01.000"]
 
     def test_frame_entry_carries_poses_with_track_id_and_bounding_box(self):
-        result = _run([[_pose(track_id=2, box=(10, 20, 30, 40), score=0.9)]], _default_params(return_frames=True))
+        result = _run([[_pose(track_id=2, box=(10, 20, 30, 40), score=0.9)]], _default_params(return_detections=True))
 
-        poses = result["frames"][0]["poses"]
+        poses = result["detections"][0]["poses"]
         assert len(poses) == 1
         assert poses[0] == {
             "track_id":     2,
@@ -144,17 +144,17 @@ class TestTrackedFrames:
 
     def test_empty_frame_yields_empty_poses_list(self):
         frames = [[_pose()], [], [_pose()]]
-        result = _run(frames, _default_params(return_frames=True))
+        result = _run(frames, _default_params(return_detections=True))
 
-        assert len(result["frames"]) == 3
-        assert result["frames"][1]["poses"] == []
-        assert result["frames"][1]["number"] == 2
+        assert len(result["detections"]) == 3
+        assert result["detections"][1]["poses"] == []
+        assert result["detections"][1]["number"] == 2
 
     def test_multiple_poses_in_one_frame_reference_their_own_track_ids(self):
         frames = [[_pose(track_id=1, box=(0, 0, 30, 30)), _pose(track_id=2, box=(200, 0, 30, 30))]]
-        result = _run(frames, _default_params(return_frames=True))
+        result = _run(frames, _default_params(return_detections=True))
 
-        poses = result["frames"][0]["poses"]
+        poses = result["detections"][0]["poses"]
         track_ids = sorted(p["track_id"] for p in poses)
         assert track_ids == [1, 2]
 
@@ -168,9 +168,9 @@ class TestTrackedFrames:
             [_pose(track_id=1), _pose(track_id=5, box=(200, 0, 50, 50))],
             [_pose(track_id=1), _pose(track_id=5, box=(200, 0, 50, 50))],
         ]
-        result = _run(frames, _default_params(min_frame_count=2, return_frames=True))
+        result = _run(frames, _default_params(min_frame_count=2, return_detections=True))
 
-        first_frame_track_ids = sorted(p["track_id"] for p in result["frames"][0]["poses"])
+        first_frame_track_ids = sorted(p["track_id"] for p in result["detections"][0]["poses"])
         assert first_frame_track_ids == [1, 5, 9]
 
         surviving_track_ids = {t["track_id"] for t in result["tracks"]}
@@ -182,11 +182,11 @@ class TestReturnTracks:
     when the caller only needs the frame-centric view."""
 
     def test_return_tracks_false_omits_the_field(self):
-        params = _default_params(return_tracks=False, return_frames=True)
+        params = _default_params(return_tracks=False, return_detections=True)
         result = _run([[_pose()] for _ in range(3)], params)
 
         assert "tracks" not in result
-        assert "frames" in result
+        assert "detections" in result
 
     def test_return_tracks_true_is_the_default(self):
         result = _run([[_pose()] for _ in range(3)], _default_params())

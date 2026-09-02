@@ -37,7 +37,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_metadata":          False,
         "return_embedding":         False,
         "return_gender_age":        False,
-        "return_frames":            False,
+        "return_detections":            False,
         "bounding_box_padding":     0.0,
     }
     base.update(overrides)
@@ -62,7 +62,7 @@ def _run(frames: List[List[Dict[str, Any]]], params: Dict[str, Any]) -> Dict[str
     for frame_index, faces in enumerate(frames):
         timestamp = frame_index * FRAME_PERIOD
         tracked_faces, _ = action._cluster_faces(faces, timestamp, FRAME_RATE, centroids_state, cluster_tracks, params)
-        if params["return_frames"]:
+        if params["return_detections"]:
             tracked_frames.append({
                 "number":        frame_index + 1,
                 "timestamp":     timestamp,
@@ -111,38 +111,38 @@ class TestTrackId:
 
 
 class TestTrackedFrames:
-    """`return_frames` opts into a frame-centric view alongside the track-
+    """`return_detections` opts into a frame-centric view alongside the track-
     centric `tracks` list. Each entry is one input frame with the faces
     detected in it, tagged by track_id so consumers can cross-reference the
     two views."""
 
-    def test_return_frames_false_omits_the_field(self):
-        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_frames=False))
+    def test_return_detections_false_omits_the_field(self):
+        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_detections=False))
 
-        assert "frames" not in result
+        assert "detections" not in result
 
-    def test_return_frames_true_produces_one_entry_per_input_frame(self):
-        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_frames=True))
+    def test_return_detections_true_produces_one_entry_per_input_frame(self):
+        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_detections=True))
 
-        assert "frames" in result
-        assert len(result["frames"]) == 3
+        assert "detections" in result
+        assert len(result["detections"]) == 3
 
     def test_frame_number_is_one_based_and_sequential(self):
-        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_frames=True))
+        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_detections=True))
 
-        numbers = [entry["number"] for entry in result["frames"]]
+        numbers = [entry["number"] for entry in result["detections"]]
         assert numbers == [1, 2, 3]
 
     def test_frame_timestamp_matches_frame_rate(self):
-        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_frames=True))
+        result = _run([[_face(ALICE)] for _ in range(3)], _default_params(return_detections=True))
 
-        timestamps = [entry["timestamp"] for entry in result["frames"]]
+        timestamps = [entry["timestamp"] for entry in result["detections"]]
         assert timestamps == ["00:00:00.000", "00:00:00.500", "00:00:01.000"]
 
     def test_frame_entry_carries_faces_with_track_id_and_bounding_box(self):
-        result = _run([[_face(ALICE, box=(10, 20, 30, 40), score=0.9)]], _default_params(return_frames=True))
+        result = _run([[_face(ALICE, box=(10, 20, 30, 40), score=0.9)]], _default_params(return_detections=True))
 
-        faces = result["frames"][0]["faces"]
+        faces = result["detections"][0]["faces"]
         assert len(faces) == 1
         assert faces[0] == {
             "track_id":     1,
@@ -154,17 +154,17 @@ class TestTrackedFrames:
         # A frame with no detections still advances the clock and appears in
         # the output — just with an empty `faces` list.
         frames = [[_face(ALICE)], [], [_face(ALICE)]]
-        result = _run(frames, _default_params(return_frames=True))
+        result = _run(frames, _default_params(return_detections=True))
 
-        assert len(result["frames"]) == 3
-        assert result["frames"][1]["faces"] == []
-        assert result["frames"][1]["number"] == 2
+        assert len(result["detections"]) == 3
+        assert result["detections"][1]["faces"] == []
+        assert result["detections"][1]["number"] == 2
 
     def test_multiple_faces_in_one_frame_reference_their_own_track_ids(self):
         frames = [[_face(ALICE, box=(0, 0, 30, 30)), _face(BOB, box=(200, 0, 30, 30))]]
-        result = _run(frames, _default_params(return_frames=True))
+        result = _run(frames, _default_params(return_detections=True))
 
-        faces = result["frames"][0]["faces"]
+        faces = result["detections"][0]["faces"]
         track_ids = sorted(f["track_id"] for f in faces)
         assert track_ids == [1, 2]
 
@@ -179,9 +179,9 @@ class TestTrackedFrames:
             [_face(ALICE), _face(BOB, box=(200, 0, 50, 50))],
             [_face(ALICE), _face(BOB, box=(200, 0, 50, 50))],
         ]
-        result = _run(frames, _default_params(min_frame_count=2, return_frames=True))
+        result = _run(frames, _default_params(min_frame_count=2, return_detections=True))
 
-        first_frame_track_ids = sorted(f["track_id"] for f in result["frames"][0]["faces"])
+        first_frame_track_ids = sorted(f["track_id"] for f in result["detections"][0]["faces"])
         assert first_frame_track_ids == [1, 2, 3]
 
         surviving_track_ids = {t["track_id"] for t in result["tracks"]}
@@ -194,11 +194,11 @@ class TestReturnTracks:
     redaction pipelines)."""
 
     def test_return_tracks_false_omits_the_field(self):
-        params = _default_params(return_tracks=False, return_frames=True)
+        params = _default_params(return_tracks=False, return_detections=True)
         result = _run([[_face(ALICE)] for _ in range(3)], params)
 
         assert "tracks" not in result
-        assert "frames" in result
+        assert "detections" in result
 
     def test_return_tracks_true_is_the_default(self):
         result = _run([[_face(ALICE)] for _ in range(3)], _default_params())

@@ -16,7 +16,7 @@ class WorkflowSchemaRenderer:
             "input": [ self._render_variable(variable) for variable in workflow.input ],
             "output": [ self._render_variable(variable) for variable in workflow.output ],
         }
-        return json.dumps({ key: value for key, value in schema.items() if v is not None }, indent=2, ensure_ascii=False)
+        return json.dumps({ key: value for key, value in schema.items() if value is not None }, indent=2, ensure_ascii=False)
 
     def _render_variable(self, variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]) -> Dict[str, Any]:
         if isinstance(variable, WorkflowVariableGroupConfig):

@@ -53,8 +53,14 @@ class FileStoreAction(ComponentAction):
             path   = await context.render_variable(self.config.path)
             source = await context.render_variable(self.config.source)
 
-            is_single_input    = not any(isinstance(value, (list, StreamIterator, AsyncIterator)) for value in (path, source))
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (path, source))
+            is_single_input    = not isinstance(path, (list, StreamIterator, AsyncIterator))
+            is_streaming_input = isinstance(path, (StreamIterator, AsyncIterator))
+
+            if is_single_input:
+                # Collect mode: one path, source written to that single file. Wrap both as
+                # single-element lists so BatchSourceIterator zips them into one _put call
+                # instead of iterating a source stream chunk-by-chunk as separate files.
+                path, source = [ path ], [ source ]
 
             return (path, source), is_single_input, is_streaming_input
 

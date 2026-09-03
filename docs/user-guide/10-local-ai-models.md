@@ -850,7 +850,7 @@ component:
   task: text-to-video
   driver: custom
   family: wan
-  preset: wan2.2-t2v-a14b
+  preset: t2v-a14b
   model: Wan-AI/Wan2.2-T2V-A14B
   device: cuda:0
   action:
@@ -867,8 +867,8 @@ component:
 
 **Supported families and presets:**
 - `wan`
-  - `wan2.2-t2v-a14b` — Wan2.2 T2V 27B (14B active); requires ~80GB+ VRAM.
-  - `wan2.2-ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU (RTX 4090).
+  - `t2v-a14b` — Wan2.2 T2V 27B (14B active); requires ~80GB+ VRAM.
+  - `ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU (RTX 4090).
 
 The result is a single mp4 stream (or a list of mp4 streams for batched prompts). See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
 
@@ -882,7 +882,7 @@ component:
   task: image-to-video
   driver: custom
   family: wan
-  preset: wan2.2-i2v-a14b
+  preset: i2v-a14b
   model: Wan-AI/Wan2.2-I2V-A14B
   device: cuda:0
   action:
@@ -897,8 +897,8 @@ component:
 
 **Supported families and presets:**
 - `wan`
-  - `wan2.2-i2v-a14b` — Wan2.2 I2V 27B (14B active); requires ~80GB+ VRAM.
-  - `wan2.2-ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU.
+  - `i2v-a14b` — Wan2.2 I2V 27B (14B active); requires ~80GB+ VRAM.
+  - `ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU.
 
 `width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
 

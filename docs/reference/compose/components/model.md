@@ -1296,7 +1296,7 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 | `task` | string | **required** | Must be `text-to-video` |
 | `driver` | string | `custom` | Model driver |
 | `family` | string | **required** | Model family (currently `wan`) |
-| `preset` | string | `wan2.2-ti2v-5b` | Checkpoint preset (`wan2.2-t2v-a14b`, `wan2.2-ti2v-5b`) |
+| `preset` | string | `t2v-a14b` | Checkpoint preset (`t2v-a14b`, `ti2v-5b`) |
 | `model` | string | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
 
 **Action Fields:**
@@ -1323,7 +1323,7 @@ component:
   task: text-to-video
   driver: custom
   family: wan
-  preset: wan2.2-t2v-a14b
+  preset: t2v-a14b
   model: Wan-AI/Wan2.2-T2V-A14B
   device: cuda:0
   action:
@@ -1341,8 +1341,8 @@ component:
 
 | Family | Preset | Notes |
 |--------|--------|-------|
-| `wan` | `wan2.2-t2v-a14b` | Wan2.2 T2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
-| `wan` | `wan2.2-ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU (e.g. RTX 4090). |
+| `wan` | `t2v-a14b` | Wan2.2 T2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
+| `wan` | `ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU (e.g. RTX 4090). |
 
 **Result Shape:**
 
@@ -1359,7 +1359,7 @@ Generate a short video clip that animates an input image, optionally guided by a
 | `task` | string | **required** | Must be `image-to-video` |
 | `driver` | string | `custom` | Model driver |
 | `family` | string | **required** | Model family (currently `wan`) |
-| `preset` | string | `wan2.2-i2v-a14b` | Checkpoint preset (`wan2.2-i2v-a14b`, `wan2.2-ti2v-5b`) |
+| `preset` | string | `i2v-a14b` | Checkpoint preset (`i2v-a14b`, `ti2v-5b`) |
 | `model` | string | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
 
 **Action Fields:**
@@ -1387,7 +1387,7 @@ component:
   task: image-to-video
   driver: custom
   family: wan
-  preset: wan2.2-i2v-a14b
+  preset: i2v-a14b
   model: Wan-AI/Wan2.2-I2V-A14B
   device: cuda:0
   action:
@@ -1404,8 +1404,8 @@ component:
 
 | Family | Preset | Notes |
 |--------|--------|-------|
-| `wan` | `wan2.2-i2v-a14b` | Wan2.2 I2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
-| `wan` | `wan2.2-ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU. |
+| `wan` | `i2v-a14b` | Wan2.2 I2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
+| `wan` | `ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU. |
 
 **Result Shape:**
 

@@ -8,5 +8,5 @@ from .....common import ModelDriver
 class WanTextToVideoModelComponentConfig(CommonTextToVideoModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[TextToVideoModelFamily.WAN]
-    preset: WanTextToVideoPreset = Field(default=WanTextToVideoPreset.WAN22_TI2V_5B, description="Wan model preset selecting the checkpoint variant.")
+    preset: WanTextToVideoPreset = Field(default=WanTextToVideoPreset.T2V_A14B, description="Wan model preset selecting the checkpoint variant.")
     actions: List[TextToVideoModelActionConfig] = Field(default_factory=list, description="Actions this text-to-video component exposes to workflows.")

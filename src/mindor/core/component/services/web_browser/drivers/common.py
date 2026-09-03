@@ -7,10 +7,15 @@ from mindor.dsl.schema.action import WebBrowserActionConfig, WebBrowserActionMet
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
+from mindor.core.foundation.variable.atomic import AtomicDict
 from PIL import Image as PILImage
 from ....action.base import ComponentAction
 from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
+
+class WebBrowserCookie(AtomicDict):
+    def __log__(self) -> str:
+        return f"<WebBrowserCookie name={self.get('name')!r} domain={self.get('domain')!r}>"
 
 class WebBrowserSession(ABC):
     """Abstract browser session exposing high-level browser actions."""
@@ -240,7 +245,7 @@ class WebBrowserAction(ComponentAction):
         if method == WebBrowserActionMethod.GET_COOKIES:
             urls = await context.render_variable(self.config.urls) if self.config.urls else None
 
-            return await session.get_cookies(urls)
+            return [ WebBrowserCookie(cookie) for cookie in await session.get_cookies(urls) ]
 
         if method == WebBrowserActionMethod.SET_COOKIES:
             cookies = await context.render_variable(self.config.cookies)

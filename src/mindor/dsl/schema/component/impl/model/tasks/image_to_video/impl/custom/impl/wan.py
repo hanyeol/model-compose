@@ -8,5 +8,5 @@ from .....common import ModelDriver
 class WanImageToVideoModelComponentConfig(CommonImageToVideoModelComponentConfig):
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[ImageToVideoModelFamily.WAN]
-    preset: WanImageToVideoPreset = Field(default=WanImageToVideoPreset.WAN22_I2V_A14B, description="Wan model preset selecting the checkpoint variant.")
+    preset: WanImageToVideoPreset = Field(default=WanImageToVideoPreset.I2V_A14B, description="Wan model preset selecting the checkpoint variant.")
     actions: List[ImageToVideoModelActionConfig] = Field(default_factory=list, description="Actions this image-to-video component exposes to workflows.")

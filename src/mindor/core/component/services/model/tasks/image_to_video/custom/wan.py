@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     import torch
 
 _WAN_I2V_TASKS: Dict[WanImageToVideoPreset, str] = {
-    WanImageToVideoPreset.WAN22_I2V_A14B: "i2v-A14B",
-    WanImageToVideoPreset.WAN22_TI2V_5B:  "ti2v-5B",
+    WanImageToVideoPreset.I2V_A14B: "i2v-A14B",
+    WanImageToVideoPreset.TI2V_5B:  "ti2v-5B",
 }
 
 class WanImageToVideoTaskAction(ImageToVideoTaskAction):
@@ -143,10 +143,10 @@ class WanImageToVideoTaskService(ModelTaskService):
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device_id = self.device.index if self.device.type == "cuda" and self.device.index is not None else 0
 
-        if self.config.preset == WanImageToVideoPreset.WAN22_I2V_A14B:
+        if self.config.preset == WanImageToVideoPreset.I2V_A14B:
             return wan.WanI2V(config=WAN_CONFIGS[task], checkpoint_dir=model_path, device_id=device_id)
 
-        if self.config.preset == WanImageToVideoPreset.WAN22_TI2V_5B:
+        if self.config.preset == WanImageToVideoPreset.TI2V_5B:
             return wan.WanTI2V(config=WAN_CONFIGS[task], checkpoint_dir=model_path, device_id=device_id)
 
         raise ValueError(f"Unsupported Wan image-to-video preset: {self.config.preset}")

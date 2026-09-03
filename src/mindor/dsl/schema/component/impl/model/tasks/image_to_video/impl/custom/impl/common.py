@@ -4,5 +4,5 @@ class ImageToVideoModelFamily(str, Enum):
     WAN = "wan"
 
 class WanImageToVideoPreset(str, Enum):
-    WAN22_I2V_A14B = "wan2.2-i2v-a14b"
-    WAN22_TI2V_5B  = "wan2.2-ti2v-5b"
+    I2V_A14B = "i2v-a14b"
+    TI2V_5B  = "ti2v-5b"

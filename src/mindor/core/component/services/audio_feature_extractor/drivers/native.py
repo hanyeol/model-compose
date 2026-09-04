@@ -109,6 +109,7 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
             "frame_count": frame_count,
             "duration": frame_count / fps if fps else 0.0,
             "sample_rate": sample_rate,
+            "window_size": window_size,
         })
 
     def _compute_waveform(self, samples: np.ndarray, params: Dict[str, Any]) -> Dict[str, Any]:

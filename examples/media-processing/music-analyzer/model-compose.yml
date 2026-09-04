@@ -1,0 +1,142 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: detect-beats
+    default: true
+    title: Detect Beats and BPM
+    description: Estimate tempo (BPM) and beat times, with a confidence score derived from the tempo-band autocorrelation peak.
+    job:
+      component: analyzer
+      action: beats
+      output: ${output as json}
+
+  - id: detect-onsets
+    title: Detect Note Onsets
+    description: Locate note-attack timestamps with peak-normalized strengths in [0, 1].
+    job:
+      component: analyzer
+      action: onsets
+      output: ${output as json}
+
+  - id: compute-tempogram
+    title: Compute Local Tempo Distribution
+    description: Local tempo distribution over time — useful for tracks whose BPM drifts across sections.
+    job:
+      component: analyzer
+      action: tempogram
+      output: ${output as json}
+
+  - id: detect-activity
+    title: Detect Active Regions
+    description: Contiguous regions where the song is louder than its own quiet-to-loud threshold. Semantic inverse of silence detection based on the track's own dynamic range.
+    job:
+      component: analyzer
+      action: activity
+      output: ${output as json}
+
+  - id: detect-key
+    title: Detect Musical Key
+    description: Estimate tonic + mode (major/minor) by correlating averaged CENS chroma against Krumhansl profiles.
+    job:
+      component: analyzer
+      action: key
+      output: ${output as json}
+
+  - id: extract-chroma
+    title: Extract Chroma (Pitch-Class Energy)
+    description: 12-dimensional pitch-class energy over time — the raw material for chord and key analysis.
+    job:
+      component: analyzer
+      action: chroma
+      output: ${output as json}
+
+  - id: extract-tonnetz
+    title: Extract Tonnetz (Tonal Centroid)
+    description: Six-dimensional Harte tonal centroid features, useful for visualizing harmonic changes.
+    job:
+      component: analyzer
+      action: tonnetz
+      output: ${output as json}
+
+  - id: measure-brightness
+    title: Measure Spectral Brightness
+    description: Spectral centroid in Hz — brighter values mean thinner, higher-frequency-weighted sound.
+    job:
+      component: analyzer
+      action: brightness
+      output: ${output as json}
+
+  - id: measure-flatness
+    title: Measure Spectral Flatness
+    description: Ratio in [0, 1]. 0.0 for pure tones, 1.0 for white noise — separates tonal from noise-like passages.
+    job:
+      component: analyzer
+      action: flatness
+      output: ${output as json}
+
+  - id: measure-harmonicity
+    title: Measure Harmonic vs Percussive Ratio
+    description: Fraction of energy in the harmonic component after HPSS separation. 1.0 = fully harmonic, 0.0 = fully percussive.
+    job:
+      component: analyzer
+      action: harmonicity
+      output: ${output as json}
+
+components:
+  - id: analyzer
+    type: music-analyzer
+    driver: native
+    actions:
+      - id: beats
+        metric: beats
+        audio: ${input.audio as file}
+        min_bpm: ${input.min_bpm as number | 60.0}
+        max_bpm: ${input.max_bpm as number | 200.0}
+
+      - id: onsets
+        metric: onsets
+        audio: ${input.audio as file}
+        min_gap: ${input.min_gap as string | 30ms}
+
+      - id: tempogram
+        metric: tempogram
+        audio: ${input.audio as file}
+        min_bpm: ${input.min_bpm as number | 60.0}
+        max_bpm: ${input.max_bpm as number | 200.0}
+
+      - id: activity
+        metric: activity
+        audio: ${input.audio as file}
+        min_duration: ${input.min_duration as string | 0.3s}
+        level: ${input.level as number | 0.35}
+
+      - id: key
+        metric: key
+        audio: ${input.audio as file}
+
+      - id: chroma
+        metric: chroma
+        audio: ${input.audio as file}
+
+      - id: tonnetz
+        metric: tonnetz
+        audio: ${input.audio as file}
+
+      - id: brightness
+        metric: brightness
+        audio: ${input.audio as file}
+
+      - id: flatness
+        metric: flatness
+        audio: ${input.audio as file}
+
+      - id: harmonicity
+        metric: harmonicity
+        audio: ${input.audio as file}

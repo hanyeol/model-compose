@@ -111,40 +111,39 @@ class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction)
         start_time: Optional[float],
         end_time: Optional[float],
     ) -> List[Dict[str, Any]]:
-        predictions = await self._run_in_executor(self._predict, input_path)
         frame_rate, = await probe_video(input_path, ("frame_rate",))
 
-        offset = int(start_time * frame_rate) if start_time is not None else 0
-        end_frame = int(end_time * frame_rate) if end_time is not None else len(predictions)
-        window = predictions[offset:end_frame]
+        def _detect() -> List[Dict[str, Any]]:
+            _, predictions, _ = self.model.predict_video(input_path)
 
-        if len(window) == 0:
-            return []
+            offset = int(start_time * frame_rate) if start_time is not None else 0
+            end_frame = int(end_time * frame_rate) if end_time is not None else len(predictions)
+            window = predictions[offset:end_frame]
 
-        scenes = self._predictions_to_scenes(window, threshold)
-        results: List[Dict[str, Any]] = []
+            if len(window) == 0:
+                return []
 
-        for index, (start_frame, end_frame) in enumerate(scenes):
-            absolute_start = start_frame + offset
-            absolute_end = end_frame + offset
-            start_seconds = absolute_start / frame_rate
-            end_seconds = absolute_end / frame_rate
+            scenes = self._predictions_to_scenes(window, threshold)
+            results: List[Dict[str, Any]] = []
 
-            results.append({
-                "index": index,
-                "start_time": format_timecode(start_seconds),
-                "end_time": format_timecode(end_seconds),
-                "start_frame": int(absolute_start),
-                "end_frame": int(absolute_end),
-                "duration": format_timecode(end_seconds - start_seconds),
-            })
+            for index, (start_frame, end_frame) in enumerate(scenes):
+                absolute_start = start_frame + offset
+                absolute_end = end_frame + offset
+                start_seconds = absolute_start / frame_rate
+                end_seconds = absolute_end / frame_rate
 
-        return results
+                results.append({
+                    "index": index,
+                    "start_time": format_timecode(start_seconds),
+                    "end_time": format_timecode(end_seconds),
+                    "start_frame": int(absolute_start),
+                    "end_frame": int(absolute_end),
+                    "duration": format_timecode(end_seconds - start_seconds),
+                })
 
-    def _predict(self, video_path: str) -> np.ndarray:
-        _, single_frame_predictions, _ = self.model.predict_video(video_path)
+            return results
 
-        return single_frame_predictions
+        return await self._run_in_executor(_detect)
 
     @staticmethod
     def _predictions_to_scenes(predictions: np.ndarray, threshold: float) -> List[Tuple[int, int]]:

@@ -1,6 +1,8 @@
 # Video Scene Detector Component
 
-The video scene detector component analyzes video files to detect scene changes and transitions. It supports multiple detection backends (drivers) including PySceneDetect, FFmpeg, and TransNetV2.
+The video scene detector component analyzes video files to detect scene changes and transitions. It supports multiple detection backends (drivers) including PySceneDetect and FFmpeg.
+
+> **Looking for TransNetV2?** The deep-learning TransNetV2 detector is now provided as the `shot-boundary-detection` model task. See [model.md](model.md#shot-boundary-detection) for its configuration.
 
 ## Basic Configuration
 
@@ -22,7 +24,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `video-scene-detector` |
-| `driver` | string | `pyscenedetect` | Detection backend: `pyscenedetect`, `ffmpeg`, `transnetv2` |
+| `driver` | string | `pyscenedetect` | Detection backend: `pyscenedetect`, `ffmpeg` |
 | `actions` | array | `[]` | List of scene detection actions |
 
 ### Action Configuration
@@ -84,23 +86,9 @@ component:
 - `0.3` — Default (balanced detection)
 - `0.5` — Less sensitive (major scene changes only)
 
-### TransNetV2
+### TransNetV2 (moved)
 
-Deep learning-based shot boundary detection using the TransNetV2 model:
-
-```yaml
-component:
-  type: video-scene-detector
-  driver: transnetv2
-  action:
-    video: ${input.video as file}
-    threshold: 0.5
-    output: ${result as json}
-```
-
-**Auto-installed dependency:** `transnetv2`
-
-**Threshold range:** `0.0` to `1.0` (prediction confidence)
+The deep-learning TransNetV2 detector has moved to the `shot-boundary-detection` model task. Use `type: model` with `task: shot-boundary-detection` and `family: transnetv2` — see [model.md](model.md#shot-boundary-detection).
 
 ## Output Format
 
@@ -234,18 +222,20 @@ components:
 
 ## Driver Comparison
 
-| Feature | PySceneDetect | FFmpeg | TransNetV2 |
-|---------|--------------|--------|------------|
-| Detection method | Classical CV | Scene filter | Deep learning |
-| Detector variety | 5 types | 1 type | 1 type |
-| Time range support | Yes | Yes | No |
-| Dependencies | scenedetect[opencv] | FFmpeg binary | transnetv2 |
-| GPU acceleration | No | No | Yes |
-| Best for | General use | Lightweight/no Python deps | High accuracy |
+| Feature | PySceneDetect | FFmpeg |
+|---------|--------------|--------|
+| Detection method | Classical CV | Scene filter |
+| Detector variety | 5 types | 1 type |
+| Time range support | Yes | Yes |
+| Dependencies | scenedetect[opencv] | FFmpeg binary |
+| GPU acceleration | No | No |
+| Best for | General use | Lightweight/no Python deps |
+
+For deep-learning-based cut detection (higher accuracy on modern edited content, GPU-accelerated), use the [`shot-boundary-detection`](model.md#shot-boundary-detection) model task instead.
 
 ## Best Practices
 
-1. **Driver Selection**: Use `pyscenedetect` for most cases; `ffmpeg` when no Python deps are desired; `transnetv2` for highest accuracy
+1. **Driver Selection**: Use `pyscenedetect` for most cases; `ffmpeg` when no Python deps are desired. For deep-learning accuracy, use the `shot-boundary-detection` model task.
 2. **Threshold Tuning**: Start with defaults and adjust based on video content — lower thresholds detect more scenes
 3. **Time Ranges**: Use `start_time`/`end_time` to analyze specific segments of long videos
 4. **Detector Choice**: `adaptive` works well for most content; use `threshold` for fade transitions

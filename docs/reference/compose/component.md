@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -77,6 +77,7 @@ Model-compose supports the following component types:
 | `audio-feature-extractor` | Per-frame audio features for visualization (spectrum, waveform) | [audio-feature-extractor.md](components/audio-feature-extractor.md) |
 | `audio-analyzer` | Measure loudness (LUFS), peak, gain, clipping, and silence via ffmpeg filters | [audio-analyzer.md](components/audio-analyzer.md) |
 | `music-segment-detector` | Detect structural segment boundaries in music (intro/verse/chorus) via chroma-CQT and Laplacian or agglomerative segmentation | [music-segment-detector.md](components/music-segment-detector.md) |
+| `music-analyzer` | Analyze music properties: beats/BPM, onsets, tempogram, active regions, key/chroma/tonnetz, spectral brightness/flatness, and harmonic-vs-percussive ratio via librosa | [music-analyzer.md](components/music-analyzer.md) |
 | `audio-silence-detector` | Detect silent regions in audio via ffmpeg's `silencedetect` filter | [audio-silence-detector.md](components/audio-silence-detector.md) |
 | `audio-synchronizer` | Compute time offsets between multiple recordings that share the same audio via FFT cross-correlation | [audio-synchronizer.md](components/audio-synchronizer.md) |
 | `audio-clipper` | Clip one or more time ranges out of an audio file (ffmpeg stream copy) | [audio-clipper.md](components/audio-clipper.md) |

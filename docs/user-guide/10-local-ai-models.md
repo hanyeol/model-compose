@@ -252,10 +252,12 @@ model-compose supports the following task types:
 | `image-to-text` | Image captioning | Image description, VQA |
 | `image-text-to-text` | Multimodal image + text generation | Visual reasoning, multimodal chat |
 | `image-embedding` | Image embedding | Visual search, image dedup, clustering |
+| `video-embedding` | Video embedding | Semantic video search, dedup, clustering |
 | `image-generation` | Image generation | Text-to-image conversion |
 | `image-upscale` | Image upscaling | Resolution enhancement |
 | `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
 | `speech-to-text` | Speech recognition | Transcription, subtitles |
+| `speaker-diarization` | Who spoke when | Per-speaker turns for meetings, interviews |
 | `voice-activity-detection` | Detect speech segments in audio | Pre-ASR silence filtering, subtitle splitting |
 | `face-detection` | Face detection | Locate faces in images |
 | `pose-detection` | Pose detection | Keypoint estimation |
@@ -267,6 +269,7 @@ model-compose supports the following task types:
 | `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
 | `pose-tracking` | Pose tracking | Track people (as poses) across video frames with per-track timecoded segments |
 | `object-tracking` | Object tracking | Track objects across video frames with per-track timecoded segments |
+| `shot-boundary-detection` | Shot boundary detection | Detect hard cuts in a video with per-shot start/end timecodes |
 | `music-generation` | Music generation | Audio/music synthesis |
 
 ### 10.3.1 text-generation
@@ -526,7 +529,45 @@ CLIP and SigLIP have built-in poolers so `params.pooling` is ignored for them. F
 
 Result: single vector per image (`List[float]`); with a list input, a list of vectors; with an async stream input, an async iterator of vectors.
 
-### 10.3.9 image-generation
+### 10.3.9 video-embedding
+
+Encodes a sequence of video frames into a single fixed-size vector, suitable for semantic video search, dedup, or clustering. Pair with `video-frame-extractor` to sample frames from a source video first.
+
+```yaml
+component:
+  id: video-embed
+  type: model
+  task: video-embedding
+  driver: huggingface
+  architecture: xclip
+  model: microsoft/xclip-base-patch32
+  action:
+    frames: ${input.frames}
+    params:
+      normalize: true
+    output: ${result}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image / list | **required** | Frames for one video, a list of frames, a list of per-video frame batches, or a stream of batches |
+| `batch_size` | int | `1` | Number of videos processed per batch |
+| `params.normalize` | bool | `true` | L2-normalize the output vector |
+
+**Supported architectures:**
+- `xclip`: Microsoft X-CLIP (video-text contrastive; e.g., `microsoft/xclip-base-patch32`).
+- `videomae`: VideoMAE masked autoencoder (e.g., `MCG-NJU/videomae-base`).
+- `auto`: infers from the loaded model config.
+
+Result shape:
+
+```json
+[0.021, -0.114, 0.087, ...]
+```
+
+Typical pipeline: `video-frame-extractor` → `video-embedding` → `vector-store` for retrieval.
+
+### 10.3.10 image-generation
 
 Generates images from text prompts.
 
@@ -549,7 +590,7 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 10.3.10 image-upscale
+### 10.3.11 image-upscale
 
 Enhances image resolution.
 
@@ -571,7 +612,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 10.3.11 text-to-speech
+### 10.3.12 text-to-speech
 
 Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to choose the generation method.
 
@@ -669,7 +710,131 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
-### 10.3.12 voice-activity-detection
+### 10.3.13 speech-to-text
+
+Transcribes audio into text, optionally with per-segment or per-word timestamps. Supports the HuggingFace transformers backend (Whisper family) and several `custom` families (faster-whisper, crisper-whisper, fun-asr, vibevoice).
+
+```yaml
+component:
+  id: transcriber
+  type: model
+  task: speech-to-text
+  driver: custom
+  family: faster-whisper
+  model:
+    provider: huggingface
+    repository: Systran/faster-whisper-large-v3
+  compute_type: float16
+  action:
+    audio: ${input.audio as audio}
+    language: en
+    return_timestamps: true
+    timestamp_level: word
+    output: ${result as json}
+```
+
+**Common action fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | audio | **required** | Input audio file, list of audios, or async stream |
+| `language` | string | `null` | Language code (`en`, `ko`, ...); unset triggers auto-detection where supported |
+| `return_timestamps` | bool | `false` | Include per-segment timestamps in the result |
+| `timestamp_level` | string | `segment` | `segment` or `word`; word-level requires backend support |
+| `time_offset` | time / list | `null` | Offset added to each segment's timestamps; scalars broadcast, lists pair per audio |
+| `batch_size` | int | `1` | Number of audios processed per batch |
+| `streaming` | bool | `false` | Emit transcribed chunks incrementally |
+
+Family-specific action fields include Whisper-style decoding params (`num_beams`, `temperature`, `no_speech_threshold`, ...) for `faster-whisper` and the HuggingFace `whisper` driver, style/hotword controls (`mode`, `hotwords`, `longform_strategy`, ...) for `crisper-whisper`, and sampling / beam / context knobs (`temperature`, `top_p`, `num_beams`, `context_info`) for `vibevoice`. Fun-ASR configures VAD and punctuation on the component (`voice_activity_detection`, `punctuation`).
+
+Plain-text mode (default) returns a string per input; timestamped mode returns a list of `{ text, start_time, end_time }` segments, with an added `words` array when `timestamp_level: word`.
+
+```json
+[
+  {
+    "text": "Hello world",
+    "start_time": 0.12,
+    "end_time": 1.03,
+    "words": [
+      { "text": "Hello", "start_time": 0.12, "end_time": 0.44 },
+      { "text": "world", "start_time": 0.46, "end_time": 1.03 }
+    ]
+  }
+]
+```
+
+With `streaming: true`, Whisper-family backends stream token-level chunks as decoding proceeds; VibeVoice streaming checkpoints stream per-chunk transcript text. Non-streaming checkpoints (VibeVoice offline, pyannote-based flows) fall back to yielding the collected result as a single chunk to preserve the `AsyncIterator` contract.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `faster-whisper` | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper) | CTranslate2 Whisper runtime; beam search, VAD, chunked long-form |
+| `crisper-whisper` | [nyralabs/crisperwhisper](https://pypi.org/project/crisperwhisper/) | Word-precise Whisper variant. Picks `ct2` fork when available, else `transformers`. Size shorthands (`large`, `turbo`, `medium`, `small`, and `*_pro`) resolve to `nyralabs/CrisperWhisper2.0_<size>` |
+| `fun-asr` | [FunAudioLLM/FunASR](https://github.com/modelscope/FunASR) | Chinese-first multi-language ASR with optional VAD and punctuation stages. Default model: `FunAudioLLM/Fun-ASR-MLT-Nano-2512` |
+| `vibevoice` | [microsoft/VibeVoice](https://github.com/microsoft/VibeVoice) | Streaming and offline ASR checkpoints. Default: `microsoft/VibeVoice-ASR-Streaming-1.5B`. Language is auto-detected across 10 languages |
+
+The HuggingFace `whisper` driver runs stock Whisper checkpoints via `transformers`; use it when you need the transformers ecosystem (LoRA adapters, quantization) rather than the CT2-backed `faster-whisper` fast path.
+
+### 10.3.14 speaker-diarization
+
+Segments an audio file by speaker and returns per-speaker turns with start/end times and a speaker label. Runs the `pyannote.audio` speaker-diarization pipeline.
+
+```yaml
+component:
+  id: diarizer
+  type: model
+  task: speaker-diarization
+  driver: custom
+  family: pyannote
+  model:
+    provider: huggingface
+    repository: pyannote/speaker-diarization-3.1
+    token: ${env.HUGGINGFACE_TOKEN}
+  action:
+    audio: ${input.audio as audio}
+    min_speakers: 2
+    max_speakers: 4
+    params:
+      min_segment_duration: 250ms
+      merge_gap: 500ms
+    output: ${result as json}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | audio | **required** | Input audio file, list of audios, or async stream |
+| `num_speakers` | int | `null` | Exact speaker count when known |
+| `min_speakers` | int | `null` | Lower bound on the number of speakers considered |
+| `max_speakers` | int | `null` | Upper bound on the number of speakers considered |
+| `batch_size` | int | `1` | Number of audios processed per batch |
+| `streaming` | bool | `false` | Emit turns as an async iterator (fake stream: pipeline needs the whole audio first) |
+| `params.min_segment_duration` | duration | `"0s"` | Discard turns shorter than this |
+| `params.merge_gap` | duration | `"0s"` | Merge adjacent same-speaker turns within this gap |
+
+Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
+
+Result shape (flat list of turns sorted by `start_time`):
+
+```json
+[
+  { "speaker": "SPEAKER_00", "start_time": 0.48,  "end_time": 3.72,  "confidence": 1.0 },
+  { "speaker": "SPEAKER_01", "start_time": 3.90,  "end_time": 7.16,  "confidence": 1.0 },
+  { "speaker": "SPEAKER_00", "start_time": 7.44,  "end_time": 12.02, "confidence": 1.0 }
+]
+```
+
+`confidence` is reported as `1.0` — pyannote does not expose per-turn confidence. Pyannote diarization is not truly streamable: with `streaming: true` the same turns are re-emitted one-by-one to preserve the `AsyncIterator` contract.
+
+The default `pyannote/speaker-diarization-3.1` checkpoint is gated on HuggingFace. Accept the license and pass an access token via `model.token` (or `${env.HUGGINGFACE_TOKEN}`).
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `pyannote` | [pyannote/pyannote-audio](https://github.com/pyannote/pyannote-audio) | Runs any `pyannote.audio` diarization pipeline; requires accepting the HuggingFace license |
+
+### 10.3.15 voice-activity-detection
 
 Detects speech segments in an audio file and returns their start/end timestamps with a confidence score. Silent regions are omitted from the result. Commonly used as a pre-processing step before speech-to-text to skip silence and reduce hallucinations.
 
@@ -715,7 +880,7 @@ Result shape (flat list of speech segments, silent regions omitted):
 |--------|---------|-------|
 | `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | Lightweight CNN (~1MB); the model ships inside the pip package |
 
-### 10.3.13 face-embedding
+### 10.3.16 face-embedding
 
 Extracts feature vectors from face images.
 
@@ -728,7 +893,7 @@ component:
     image: ${input.image as image}
 ```
 
-### 10.3.14 face-tracking
+### 10.3.17 face-tracking
 
 Tracks faces across a sequence of video frames. Per-frame detections are grouped into identity tracks by cosine similarity on the face embedding, and consecutive hits for the same identity are merged into timecoded segments. Uses InsightFace.
 
@@ -753,7 +918,7 @@ component:
 
 Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
 
-### 10.3.15 pose-tracking
+### 10.3.18 pose-tracking
 
 Tracks people (as poses) across a sequence of video frames. Per-frame pose detections are grouped by the underlying tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments. Uses Ultralytics YOLO-pose.
 
@@ -776,7 +941,7 @@ component:
 
 Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#pose-tracking) for the full option list, streaming chunk schema, and result shape.
 
-### 10.3.16 object-tracking
+### 10.3.19 object-tracking
 
 Tracks objects across a sequence of video frames. Per-frame detections are grouped by the tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments with optional interpolation across small gaps. Uses Ultralytics YOLO.
 
@@ -800,7 +965,7 @@ component:
 
 Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#object-tracking) for the full option list, streaming chunk schema, and result shape.
 
-### 10.3.17 object-detection
+### 10.3.20 object-detection
 
 Detects objects in an image and returns per-object bounding boxes with class labels and confidence scores. Uses Ultralytics YOLO.
 
@@ -820,7 +985,7 @@ component:
 
 Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
 
-### 10.3.18 image-segmentation
+### 10.3.21 image-segmentation
 
 Generates per-region binary segmentation masks from an image. Runs in **automatic mode** (masks every distinct region) or **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from `object-detection`). Uses Meta's Segment Anything Model (SAM) via Ultralytics.
 
@@ -840,7 +1005,7 @@ component:
 
 Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.
 
-### 10.3.19 text-to-video
+### 10.3.22 text-to-video
 
 Generates a short video clip from a text prompt. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 
@@ -872,7 +1037,7 @@ component:
 
 The result is a single mp4 stream (or a list of mp4 streams for batched prompts). See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
 
-### 10.3.20 image-to-video
+### 10.3.23 image-to-video
 
 Generates a short video clip that animates an input image, optionally guided by a text prompt.
 
@@ -902,7 +1067,69 @@ component:
 
 `width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
 
-### 10.3.21 music-generation
+### 10.3.24 shot-boundary-detection
+
+Detects shot boundaries (hard cuts and transitions) in a video and returns per-shot start/end timecodes and frame indices. Uses a deep learning model to identify precise cut points frame-by-frame. Uses `driver: custom` with a `family` field to select the model family.
+
+```yaml
+component:
+  id: shot-detector
+  type: model
+  task: shot-boundary-detection
+  driver: custom
+  family: transnetv2
+  model:
+    provider: local
+    path: ./models/transnetv2-weights
+  max_concurrent_count: 1
+  action:
+    video: ${input.video as file}
+    params:
+      threshold: 0.5
+    output: ${result as json}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `video` | video | **required** | Input video file, list of videos, or async stream |
+| `start_time` | time | `null` | Time in the source at which detection begins (e.g., `00:01:00`, `60s`) |
+| `end_time` | time | `null` | Time in the source at which detection stops |
+| `batch_size` | int | `1` | Number of videos processed per batch |
+| `streaming` | bool | `false` | Emit each detected shot as it is confirmed (per-input stream) |
+| `params.threshold` | float | `0.5` | Confidence threshold above which a frame is treated as a shot boundary (0.0 - 1.0); higher = fewer boundaries |
+
+Result shape (flat list of shots per input):
+
+```json
+[
+  {
+    "index": 0,
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:12.345",
+    "start_frame": 0,
+    "end_frame": 370,
+    "duration": "00:00:12.345"
+  },
+  {
+    "index": 1,
+    "start_time": "00:00:12.345",
+    "end_time": "00:00:28.678",
+    "start_frame": 370,
+    "end_frame": 860,
+    "duration": "00:00:16.333"
+  }
+]
+```
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `transnetv2` | [soCzech/TransNetV2](https://github.com/soCzech/TransNetV2) | Deep learning shot detector; GPU-accelerated (TensorFlow). Point `model.path` at the SavedModel folder containing `saved_model.pb` and `variables/` |
+
+Compared with the `video-scene-detector` component (which uses classical CV heuristics via PySceneDetect/FFmpeg to group semantically similar frames), `shot-boundary-detection` runs a neural network trained specifically to localize cut points and is generally more accurate on modern edited content.
+
+### 10.3.25 music-generation
 
 Generates or edits music audio. The action's `method` field selects the operation — generate from scratch, cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, or generate accompaniment for a vocal-only stem. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 

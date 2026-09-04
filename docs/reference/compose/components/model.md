@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `text-to-speech`, `speech-to-text`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `music-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -519,6 +519,56 @@ workflows:
           vector: ${jobs.embed.output}
         depends_on: [ embed ]
 ```
+
+### Video Embedding
+
+Compute a fixed-length vector embedding for a video. The action accepts a sampled sequence of frames (as PIL images or paths); the model produces a single vector per video, suitable for semantic video search, dedup, or clustering. Use the `video-frame-extractor` component to produce the frame list, or pass frames yielded by another component.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `video-embedding` |
+| `driver` | string | `huggingface` | Inference framework (currently `huggingface`) |
+| `architecture` | string | `auto` | Model architecture: `auto`, `xclip`, `videomae`. `auto` infers from the model config |
+| `model` | string / config | **required** | Model source (HuggingFace repo ID such as `microsoft/xclip-base-patch32`, or a local path) |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image / list | **required** | Frame images for a single video, a list of frames, a list of per-video frame batches, or a stream of batches |
+| `batch_size` | int | `1` | Number of videos processed per batch |
+| `params.normalize` | bool | `true` | L2-normalize the output vector |
+
+**Example:**
+
+```yaml
+component:
+  id: video-embed
+  type: model
+  task: video-embedding
+  model: microsoft/xclip-base-patch32
+  action:
+    frames: ${input.frames}
+    params:
+      normalize: true
+    output: ${result}
+```
+
+**Result Shape:**
+
+A single vector per video (list of floats). When the input is a list of per-video frame batches, the action returns a list of vectors.
+
+```json
+[0.021, -0.114, 0.087, ...]
+```
+
+**Supported architectures:**
+- `xclip` — Microsoft X-CLIP (video-text contrastive; e.g., `microsoft/xclip-base-patch32`).
+- `videomae` — VideoMAE (masked autoencoder for video; e.g., `MCG-NJU/videomae-base`).
+
+Typical pairing: chain `video-frame-extractor` to sample frames from a source video, feed those frames into `video-embedding`, then insert the vector into a `vector-store`.
 
 ### Face Detection
 
@@ -1514,6 +1564,177 @@ component:
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
 
+### Speech to Text
+
+Transcribe audio into text, optionally with per-segment or per-word timestamps. Supports both the HuggingFace transformers backend (Whisper family) and several `custom` families (faster-whisper, crisper-whisper, fun-asr, vibevoice).
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `speech-to-text` |
+| `driver` | string | `huggingface` | Inference framework: `huggingface` or `custom` |
+| `architecture` | string | `auto` | (huggingface) Model architecture: `auto`, `whisper` |
+| `family` | string | — | (custom) Model family: `faster-whisper`, `crisper-whisper`, `fun-asr`, `vibevoice` |
+| `model` | string / config | varies | Model source; each family has its own default |
+
+**Action Fields (common):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | audio | **required** | Input audio file, list of audios, or async stream |
+| `language` | string | `null` | Language code (`en`, `ko`, etc.); unset triggers auto-detection where supported |
+| `return_timestamps` | bool | `false` | Include per-segment timestamps in the result |
+| `timestamp_level` | string | `segment` | `segment` or `word` (word-level requires backend support) |
+| `time_offset` | time / list | `null` | Offset added to every segment's start/end times; scalars broadcast, lists pair per audio |
+| `batch_size` | int | `1` | Number of audios processed per batch |
+| `streaming` | bool | `false` | Emit transcribed chunks incrementally as decoded |
+
+**Family-specific action fields:**
+
+- `faster-whisper` / `huggingface` (Whisper): `task` (`transcribe` \| `translate`), `chunk_length`, and `params` (`num_beams`, `temperature`, `compression_ratio_threshold`, `log_prob_threshold`, `no_speech_threshold`).
+- `crisper-whisper`: `mode` (`verbatim` \| `intended`), `hotwords`, `longform_strategy`, `speculative_decoding`, `hallucination_mitigation`, `temperature_fallback`, and `params.{chunk_duration,stride,context_words,drop_words,max_output_length}`.
+- `vibevoice`: `context_info`, `max_output_length`, `temperature`, `top_p`, `num_beams`.
+- `fun-asr`: uses the common fields only; VAD and punctuation are configured on the component (`voice_activity_detection`, `punctuation`).
+
+**Example (custom / faster-whisper):**
+
+```yaml
+component:
+  id: transcriber
+  type: model
+  task: speech-to-text
+  driver: custom
+  family: faster-whisper
+  model:
+    provider: huggingface
+    repository: Systran/faster-whisper-large-v3
+  compute_type: float16
+  action:
+    audio: ${input.audio as audio}
+    language: en
+    return_timestamps: true
+    timestamp_level: word
+    output: ${result as json}
+```
+
+**Result Shape:**
+
+Plain-text mode (`return_timestamps: false`) returns a string per input:
+
+```json
+"Hello world, this is a test."
+```
+
+Timestamped mode returns a list of segments:
+
+```json
+[
+  { "text": "Hello world,", "start_time": 0.12, "end_time": 1.03 },
+  { "text": "this is a test.", "start_time": 1.05, "end_time": 2.44 }
+]
+```
+
+Word-level timestamps add a `words` array to each segment:
+
+```json
+[
+  {
+    "text": "Hello world",
+    "start_time": 0.12,
+    "end_time": 1.03,
+    "words": [
+      { "text": "Hello", "start_time": 0.12, "end_time": 0.44 },
+      { "text": "world", "start_time": 0.46, "end_time": 1.03 }
+    ]
+  }
+]
+```
+
+When `streaming: true`, per-input results are async iterators. Whisper-family backends emit token-level chunks (a plain string per chunk when timestamps are off, one segment dict per chunk when on). VibeVoice ASR *streaming* checkpoints stream per-chunk transcript text; offline checkpoints fall back to yielding the collected result as a single chunk.
+
+#### Supported Families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `faster-whisper` | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper) | CTranslate2-based Whisper runtime; supports beam search, VAD, chunked long-form |
+| `crisper-whisper` | [nyralabs/crisperwhisper](https://pypi.org/project/crisperwhisper/) | Word-precise Whisper variant; picks `ct2` when available, else `transformers`. Model shorthands (`large`, `turbo`, `medium`, `small`, and `*_pro`) are resolved to `nyralabs/CrisperWhisper2.0_<size>` |
+| `fun-asr` | [FunAudioLLM/FunASR](https://github.com/modelscope/FunASR) | Chinese-first multi-language ASR; ships with optional VAD and punctuation stages. Default model: `FunAudioLLM/Fun-ASR-MLT-Nano-2512` |
+| `vibevoice` | [microsoft/VibeVoice](https://github.com/microsoft/VibeVoice) | Streaming + offline ASR checkpoints. Default: `microsoft/VibeVoice-ASR-Streaming-1.5B`. Language is auto-detected across 10 languages |
+
+The HuggingFace `whisper` driver runs stock Whisper checkpoints via `transformers`; use it when you want the transformers ecosystem (LoRA adapters, quantization) rather than the CT2-backed `faster-whisper` fast path.
+
+### Speaker Diarization
+
+Segment an audio file by speaker — return per-speaker turns with start/end times and a speaker label. Runs the pyannote.audio speaker-diarization pipeline. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `speaker-diarization` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `pyannote`) |
+| `model` | string / config | `pyannote/speaker-diarization-3.1` | Pyannote pipeline identifier (HuggingFace repo or local path). Access to the gated repo requires a HuggingFace token on the model config |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | audio | **required** | Input audio file, list of audios, or async stream |
+| `num_speakers` | int | `null` | Exact number of speakers when known; otherwise leave unset and use the min/max hints |
+| `min_speakers` | int | `null` | Minimum number of speakers considered by the pipeline |
+| `max_speakers` | int | `null` | Maximum number of speakers considered by the pipeline |
+| `batch_size` | int | `1` | Number of audios processed per batch |
+| `streaming` | bool | `false` | Emit per-speaker turns as an async iterator (fake stream: pipeline needs the whole audio, then re-emits) |
+| `params.min_segment_duration` | duration | `"0s"` | Discard turns shorter than this (e.g., `250ms`) |
+| `params.merge_gap` | duration | `"0s"` | Merge adjacent same-speaker turns separated by no more than this gap (e.g., `500ms`) |
+
+Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
+
+**Example:**
+
+```yaml
+component:
+  id: diarizer
+  type: model
+  task: speaker-diarization
+  driver: custom
+  family: pyannote
+  model:
+    provider: huggingface
+    repository: pyannote/speaker-diarization-3.1
+    token: ${env.HUGGINGFACE_TOKEN}
+  action:
+    audio: ${input.audio as audio}
+    min_speakers: 2
+    max_speakers: 4
+    params:
+      min_segment_duration: 250ms
+      merge_gap: 500ms
+    output: ${result as json}
+```
+
+**Result Shape:**
+
+```json
+[
+  { "speaker": "SPEAKER_00", "start_time": 0.48,  "end_time": 3.72,  "confidence": 1.0 },
+  { "speaker": "SPEAKER_01", "start_time": 3.90,  "end_time": 7.16,  "confidence": 1.0 },
+  { "speaker": "SPEAKER_00", "start_time": 7.44,  "end_time": 12.02, "confidence": 1.0 }
+]
+```
+
+`confidence` is reported as `1.0` for pyannote (the pipeline does not expose per-turn confidence). Segments are sorted by `start_time` after filtering and merging.
+
+Pyannote diarization is not truly streamable — the pipeline needs the full audio before producing turns. With `streaming: true` the same turns are re-emitted one-by-one to preserve the `AsyncIterator` contract expected by downstream jobs.
+
+#### Supported Families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `pyannote` | [pyannote/pyannote-audio](https://github.com/pyannote/pyannote-audio) | Runs any `pyannote.audio` speaker-diarization pipeline. Requires accepting the model license on HuggingFace and providing a token |
+
 ### Voice Activity Detection
 
 Detect speech segments in an audio file and return their start/end timestamps with a confidence score. Silent regions are omitted from the result. This task uses `driver: custom` with a `family` field to select the model family.
@@ -1578,6 +1799,81 @@ When the input is a list, the action returns a list of per-audio segment lists. 
 | Family | Backend | Notes |
 |--------|---------|-------|
 | `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | Lightweight CNN (~1MB), 16 kHz and 8 kHz supported, frame size 32 ms @ 16 kHz |
+
+### Shot Boundary Detection
+
+Detect shot boundaries (hard cuts and transitions) in a video and return per-shot start/end timecodes and frame indices. This task uses `driver: custom` with a `family` field to select the model family. Unlike `video-scene-detector` (which groups semantically similar frames into scenes using classical CV), shot boundary detection uses a deep learning model to identify precise cut points frame-by-frame.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `shot-boundary-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `transnetv2`) |
+| `model` | string / config | **required** | Model source (local path or HuggingFace repo containing the checkpoint) |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `video` | video | **required** | Input video file, list of videos, or async stream |
+| `start_time` | time | `null` | Time in the source at which detection begins (e.g., `00:01:00`, `60s`) |
+| `end_time` | time | `null` | Time in the source at which detection stops (e.g., `00:05:00`, `300s`) |
+| `batch_size` | int | `1` | Number of videos processed per batch |
+| `streaming` | bool | `false` | Emit each detected shot as it is confirmed (per-input stream) |
+| `params.threshold` | float | `0.5` | Confidence threshold above which a frame is treated as a shot boundary (0.0 - 1.0); higher = fewer boundaries |
+
+**Example:**
+
+```yaml
+component:
+  id: shot-detector
+  type: model
+  task: shot-boundary-detection
+  driver: custom
+  family: transnetv2
+  model:
+    provider: local
+    path: ./models/transnetv2-weights
+  max_concurrent_count: 1
+  action:
+    video: ${input.video as file}
+    params:
+      threshold: 0.5
+    output: ${result as json}
+```
+
+**Result Shape:**
+
+```json
+[
+  {
+    "index": 0,
+    "start_time": "00:00:00.000",
+    "end_time": "00:00:12.345",
+    "start_frame": 0,
+    "end_frame": 370,
+    "duration": "00:00:12.345"
+  },
+  {
+    "index": 1,
+    "start_time": "00:00:12.345",
+    "end_time": "00:00:28.678",
+    "start_frame": 370,
+    "end_frame": 860,
+    "duration": "00:00:16.333"
+  }
+]
+```
+
+When the input is a list, the action returns a list of per-video shot lists. When `streaming: true`, per-input results are async iterators that yield one shot dict at a time as boundaries are detected.
+
+#### Supported Families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `transnetv2` | [soCzech/TransNetV2](https://github.com/soCzech/TransNetV2) | Deep learning shot detector; GPU-accelerated (TensorFlow). Point `model.path` at the SavedModel folder containing `saved_model.pb` and `variables/` |
 
 ### Music Generation
 
@@ -1871,7 +2167,7 @@ component:
 
 ### Streaming Text Generation
 
-The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, and `voice-activity-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, and `shot-boundary-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `video-embedding`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
 
 **Output vs input streaming.** `streaming: true` controls only the *output* shape: results are emitted as an `AsyncIterator` of chunks instead of a single value. The *input* is still consumed in whatever shape the backend requires:
 

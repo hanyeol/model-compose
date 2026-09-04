@@ -37,7 +37,7 @@ model-compose provides various component types for performing different tasks.
 | `image-drawing` | Draw on images | Shapes, text, and bitmaps via Pillow ImageDraw — bounding boxes, labels, keypoints, masks |
 | `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
 | `image-analyzer` | Measure image properties | Brightness, contrast, sharpness (blur), and exposure clipping via Pillow + numpy |
-| `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect, FFmpeg, TransNetV2 |
+| `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect or FFmpeg (for deep-learning cut detection, use the `shot-boundary-detection` model task) |
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
@@ -50,6 +50,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-feature-extractor` | Extract audio features | Per-frame spectrum bands or waveform points for visualizations |
 | `audio-analyzer` | Measure audio levels | Loudness (LUFS/LRA), peak, RMS/gain, clipping, and silence via ffmpeg filters |
 | `music-segment-detector` | Detect music segment boundaries | Structural segmentation of music (intro/verse/chorus) via chroma-CQT and Laplacian or agglomerative clustering |
+| `music-analyzer` | Analyze music properties | Beats/BPM, onsets, tempogram, active regions, key/chroma/tonnetz, spectral brightness/flatness, and harmonic-vs-percussive ratio via librosa |
 | `audio-silence-detector` | Detect silence regions | Locate silent runs in audio using ffmpeg's `silencedetect` filter; useful for trimming dead air or splitting on quiet gaps |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
@@ -100,6 +101,7 @@ model-compose provides various component types for performing different tasks.
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Audio analysis (loudness, peak, gain, clipping, silence detection) → `audio-analyzer`
 - Music segment detection (structural boundaries: intro/verse/chorus) → `music-segment-detector`
+- Music analysis (beats/BPM, onsets, tempogram, key, chroma, tonnetz, brightness, flatness, harmonicity) → `music-analyzer`
 - Silence detection (locate silent regions for trimming or splitting) → `audio-silence-detector`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`

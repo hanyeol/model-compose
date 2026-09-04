@@ -1,15 +1,6 @@
-from typing import Union, Annotated
-from pydantic import Field
+from typing import Union
 from .impl import *
 
-MusicGenerationModelActionConfig = Annotated[
-    Union[
-        AceStepMusicGenerationModelGenerateActionConfig,
-        AceStepMusicGenerationModelCoverActionConfig,
-        AceStepMusicGenerationModelRewriteActionConfig,
-        AceStepMusicGenerationModelExtendActionConfig,
-        AceStepMusicGenerationModelLayerActionConfig,
-        AceStepMusicGenerationModelAccompanyActionConfig,
-    ],
-    Field(discriminator="method")
+MusicGenerationModelActionConfig = Union[
+    CustomMusicGenerationModelActionConfig,
 ]

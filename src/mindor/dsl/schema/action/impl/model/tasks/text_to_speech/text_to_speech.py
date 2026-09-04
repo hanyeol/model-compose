@@ -1,12 +1,6 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
-from pydantic import BaseModel, Field
+from typing import Union
 from .impl import *
 
-TextToSpeechModelActionConfig = Annotated[
-    Union[
-        QwenTextToSpeechModelGenerateActionConfig,
-        QwenTextToSpeechModelCloneActionConfig,
-        QwenTextToSpeechModelDesignActionConfig,
-    ],
-    Field(discriminator="method")
+TextToSpeechModelActionConfig = Union[
+    CustomTextToSpeechModelActionConfig,
 ]

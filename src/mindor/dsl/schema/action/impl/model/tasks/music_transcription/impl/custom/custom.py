@@ -1,0 +1,8 @@
+from typing import Union
+from .basic_pitch import BasicPitchMusicTranscriptionModelActionConfig
+from .piano_transcription import PianoTranscriptionMusicTranscriptionModelActionConfig
+
+CustomMusicTranscriptionModelActionConfig = Union[
+    BasicPitchMusicTranscriptionModelActionConfig,
+    PianoTranscriptionMusicTranscriptionModelActionConfig,
+]

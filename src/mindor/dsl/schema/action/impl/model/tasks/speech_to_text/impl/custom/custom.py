@@ -1,8 +1,8 @@
 from typing import Union
-from .impl.faster_whisper import FasterWhisperSpeechToTextModelActionConfig
-from .impl.fun_asr import FunAsrSpeechToTextModelActionConfig
-from .impl.crisper_whisper import CrisperWhisperSpeechToTextModelActionConfig
-from .impl.vibevoice import VibeVoiceSpeechToTextModelActionConfig
+from .faster_whisper import FasterWhisperSpeechToTextModelActionConfig
+from .fun_asr import FunAsrSpeechToTextModelActionConfig
+from .crisper_whisper import CrisperWhisperSpeechToTextModelActionConfig
+from .vibevoice import VibeVoiceSpeechToTextModelActionConfig
 
 CustomSpeechToTextModelActionConfig = Union[
     FasterWhisperSpeechToTextModelActionConfig,

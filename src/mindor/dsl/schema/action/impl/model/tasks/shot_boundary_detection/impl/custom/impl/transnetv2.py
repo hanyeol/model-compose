@@ -1,4 +1,0 @@
-from ...common import CommonShotBoundaryDetectionModelActionConfig
-
-class TransNetV2ShotBoundaryDetectionModelActionConfig(CommonShotBoundaryDetectionModelActionConfig):
-    pass

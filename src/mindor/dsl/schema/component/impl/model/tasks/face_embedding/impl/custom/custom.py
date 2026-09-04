@@ -1,8 +1,8 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.insightface import InsightfaceFaceEmbeddingModelComponentConfig
-from .impl.facenet import FacenetFaceEmbeddingModelComponentConfig
-from .impl.dlib import DlibFaceEmbeddingModelComponentConfig
+from .insightface import InsightfaceFaceEmbeddingModelComponentConfig
+from .facenet import FacenetFaceEmbeddingModelComponentConfig
+from .dlib import DlibFaceEmbeddingModelComponentConfig
 
 CustomFaceEmbeddingModelComponentConfig = Annotated[
     Union[

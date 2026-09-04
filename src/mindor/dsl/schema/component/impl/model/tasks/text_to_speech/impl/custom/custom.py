@@ -1,11 +1,11 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.qwen import QwenTextToSpeechModelComponentConfig
-from .impl.kokoro import KokoroTextToSpeechModelComponentConfig
-from .impl.chatterbox import ChatterboxTextToSpeechModelComponentConfig
-from .impl.luxtts import LuxttsTextToSpeechModelComponentConfig
-from .impl.tada import TadaTextToSpeechModelComponentConfig
-from .impl.cosyvoice import CosyvoiceTextToSpeechModelComponentConfig
+from .qwen import QwenTextToSpeechModelComponentConfig
+from .kokoro import KokoroTextToSpeechModelComponentConfig
+from .chatterbox import ChatterboxTextToSpeechModelComponentConfig
+from .luxtts import LuxttsTextToSpeechModelComponentConfig
+from .tada import TadaTextToSpeechModelComponentConfig
+from .cosyvoice import CosyvoiceTextToSpeechModelComponentConfig
 
 CustomTextToSpeechModelComponentConfig = Annotated[
     Union[

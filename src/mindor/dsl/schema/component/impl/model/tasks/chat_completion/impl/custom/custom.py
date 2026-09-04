@@ -2,7 +2,7 @@ from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import ChatCompletionModelActionConfig
 from ..common import CommonChatCompletionModelComponentConfig
-from .impl.common import ChatCompletionModelFamily
+from .common import ChatCompletionModelFamily
 from ....common import ModelDriver
 
 class CustomChatCompletionModelComponentConfig(CommonChatCompletionModelComponentConfig):

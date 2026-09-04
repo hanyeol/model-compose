@@ -1,7 +1,7 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.mediapipe import BlazeFaceFaceDetectionModelComponentConfig
-from .impl.insightface import InsightfaceFaceDetectionModelComponentConfig
+from .mediapipe import BlazeFaceFaceDetectionModelComponentConfig
+from .insightface import InsightfaceFaceDetectionModelComponentConfig
 
 CustomFaceDetectionModelComponentConfig = Annotated[
     Union[

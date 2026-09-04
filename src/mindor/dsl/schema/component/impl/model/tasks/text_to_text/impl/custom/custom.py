@@ -2,7 +2,7 @@ from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import TextToTextModelActionConfig
 from ..common import CommonTextToTextModelComponentConfig
-from .impl.common import TextToTextModelFamily
+from .common import TextToTextModelFamily
 from ....common import ModelDriver
 
 class CustomTextToTextModelComponentConfig(CommonTextToTextModelComponentConfig):

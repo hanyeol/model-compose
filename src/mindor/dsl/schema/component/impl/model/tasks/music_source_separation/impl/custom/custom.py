@@ -1,7 +1,7 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.demucs import DemucsMusicSourceSeparationModelComponentConfig
-from .impl.mdx_net import MdxNetMusicSourceSeparationModelComponentConfig
+from .demucs import DemucsMusicSourceSeparationModelComponentConfig
+from .mdx_net import MdxNetMusicSourceSeparationModelComponentConfig
 
 CustomMusicSourceSeparationModelComponentConfig = Annotated[
     Union[

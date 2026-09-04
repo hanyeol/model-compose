@@ -2,7 +2,7 @@ from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import ImageGenerationModelActionConfig
 from ..common import CommonImageGenerationModelComponentConfig
-from .impl.common import ImageGenerationModelFamily
+from .common import ImageGenerationModelFamily
 from ....common import ModelDriver
 
 class CustomImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):

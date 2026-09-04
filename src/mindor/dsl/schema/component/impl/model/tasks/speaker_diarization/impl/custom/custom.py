@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.pyannote import PyannoteSpeakerDiarizationModelComponentConfig
+from .pyannote import PyannoteSpeakerDiarizationModelComponentConfig
 
 CustomSpeakerDiarizationModelComponentConfig = Annotated[
     Union[

@@ -2,7 +2,7 @@ from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import VideoEmbeddingModelActionConfig
 from ..common import CommonVideoEmbeddingModelComponentConfig
-from .impl.common import VideoEmbeddingModelFamily
+from .common import VideoEmbeddingModelFamily
 from ....common import ModelDriver
 
 class CustomVideoEmbeddingModelComponentConfig(CommonVideoEmbeddingModelComponentConfig):

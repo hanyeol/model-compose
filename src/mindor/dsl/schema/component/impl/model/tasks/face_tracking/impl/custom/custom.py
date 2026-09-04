@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.insightface import InsightfaceFaceTrackingModelComponentConfig
+from .insightface import InsightfaceFaceTrackingModelComponentConfig
 
 CustomFaceTrackingModelComponentConfig = Annotated[
     Union[

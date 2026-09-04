@@ -1,9 +1,9 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.esrgan import EsrganImageUpscaleModelComponentConfig
-from .impl.real_esrgan import RealEsrganImageUpscaleModelComponentConfig
-from .impl.ldsr import LdsrImageUpscaleModelComponentConfig
-from .impl.swinir import SwinIRImageUpscaleModelComponentConfig
+from .esrgan import EsrganImageUpscaleModelComponentConfig
+from .real_esrgan import RealEsrganImageUpscaleModelComponentConfig
+from .ldsr import LdsrImageUpscaleModelComponentConfig
+from .swinir import SwinIRImageUpscaleModelComponentConfig
 
 CustomImageUpscaleModelComponentConfig = Annotated[
     Union[

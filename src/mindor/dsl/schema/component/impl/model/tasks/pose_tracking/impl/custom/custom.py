@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.yolo import YoloPoseTrackingModelComponentConfig
+from .yolo import YoloPoseTrackingModelComponentConfig
 
 CustomPoseTrackingModelComponentConfig = Annotated[
     Union[

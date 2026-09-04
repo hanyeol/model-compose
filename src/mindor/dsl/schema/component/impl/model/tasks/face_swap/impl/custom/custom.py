@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.insightface import InsightfaceFaceSwapModelComponentConfig
+from .insightface import InsightfaceFaceSwapModelComponentConfig
 
 CustomFaceSwapModelComponentConfig = Annotated[
     Union[

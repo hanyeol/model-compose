@@ -2,7 +2,7 @@ from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import ImageEmbeddingModelActionConfig
 from ..common import CommonImageEmbeddingModelComponentConfig
-from .impl.common import ImageEmbeddingModelFamily
+from .common import ImageEmbeddingModelFamily
 from ....common import ModelDriver
 
 class CustomImageEmbeddingModelComponentConfig(CommonImageEmbeddingModelComponentConfig):

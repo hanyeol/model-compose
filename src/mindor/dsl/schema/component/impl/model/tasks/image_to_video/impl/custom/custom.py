@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .impl.wan import WanImageToVideoModelComponentConfig
+from .wan import WanImageToVideoModelComponentConfig
 
 CustomImageToVideoModelComponentConfig = Annotated[
     Union[

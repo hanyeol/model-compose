@@ -12,7 +12,12 @@ if TYPE_CHECKING:
     from PIL import Image as PILImage
 
 class NativeImageAnalyzerAction(ImageAnalyzerAction):
-    async def _analyze_brightness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_brightness(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         def _analyze_brightness() -> Dict[str, Any]:
             import numpy as np
 
@@ -31,7 +36,12 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
 
         return await self._run_in_executor(_analyze_brightness)
 
-    async def _analyze_contrast(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_contrast(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         def _analyze_contrast() -> Dict[str, Any]:
             import numpy as np
 
@@ -60,7 +70,12 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
 
         return await self._run_in_executor(_analyze_contrast)
 
-    async def _analyze_sharpness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_sharpness(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         def _analyze_sharpness() -> Dict[str, Any]:
             import numpy as np
 
@@ -91,7 +106,12 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
 
         return await self._run_in_executor(_analyze_sharpness)
 
-    async def _analyze_exposure(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_exposure(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         def _analyze_exposure() -> Dict[str, Any]:
             import numpy as np
 

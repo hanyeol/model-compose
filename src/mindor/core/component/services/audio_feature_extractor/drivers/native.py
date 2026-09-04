@@ -38,7 +38,7 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
-        samples = await self._load_pcm_samples(source, params["sample_rate"])
+        samples, _ = await self._load_pcm_samples(source, params["sample_rate"])
 
         if feature == AudioFeature.SPECTRUM:
             return await self._run_in_executor(self._compute_spectrum, samples, params)
@@ -48,7 +48,7 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
 
         raise ValueError(f"Unsupported audio feature: {feature}")
 
-    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> Tuple[np.ndarray, int]:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         if input_path is None:

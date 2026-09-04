@@ -113,7 +113,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         sample_rate = params["sample_rate"]
         strategy    = params["strategy"]
 
-        samples = await self._load_pcm_samples(source, sample_rate)
+        samples, _ = await self._load_pcm_samples(source, sample_rate)
 
         def _detect(samples: np.ndarray) -> Dict[str, Any]:
             segments = self._detect_segments(samples, sample_rate, strategy)
@@ -128,7 +128,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
 
         return await self._run_in_executor(_detect, samples)
 
-    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> Tuple[np.ndarray, int]:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         if input_path is None:

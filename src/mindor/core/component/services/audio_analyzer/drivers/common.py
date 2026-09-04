@@ -142,25 +142,55 @@ class AudioAnalyzerAction(ComponentAction):
         raise ValueError(f"Unsupported audio metric: {metric}")
 
     @abstractmethod
-    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_loudness(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_peak(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_gain(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_clipping(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_silence(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_energy(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_energy(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, List, Any
+from typing import TYPE_CHECKING, Optional, Tuple, List, Any
 from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import numpy as np
 
 class FFmpegAudioFeatureExtractorAction(NativeAudioFeatureExtractorAction):
-    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> Tuple[np.ndarray, int]:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         try:
@@ -27,7 +27,7 @@ class FFmpegAudioFeatureExtractorAction(NativeAudioFeatureExtractorAction):
                     AudioStream(source.stream, source.format), sample_rate, channels=1,
                 )
 
-            return decode_pcm_to_waveform(pcm, "s16le", dtype="float32")
+            return decode_pcm_to_waveform(pcm, "s16le", dtype="float32"), sample_rate
         finally:
             if spooled and input_path is not None:
                 try:

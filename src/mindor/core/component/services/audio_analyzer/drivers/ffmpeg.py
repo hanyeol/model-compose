@@ -14,7 +14,12 @@ from .common import AudioAnalyzerAction
 import os, re
 
 class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
-    async def _analyze_loudness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_loudness(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         # ebur128 emits an EBU R128 summary block on stderr; enabling `peak=true`
         # also yields sample and true-peak numbers per pass.
         target           = params["target_loudness"]
@@ -42,7 +47,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
 
         return result
 
-    async def _analyze_peak(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_peak(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         # astats produces per-channel and overall peak/RMS stats on stderr.
         # ebur128 (with peak=true) is the standard source for true-peak (dBTP).
         stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
@@ -61,7 +71,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
 
         return result
 
-    async def _analyze_gain(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_gain(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
         stats = self._parse_astats(stderr_text)
 
@@ -79,7 +94,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "flat_factor":     stats.get("flat_factor"),
         }
 
-    async def _analyze_clipping(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_clipping(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         # astats reports the number of samples at or above digital full-scale.
         # For threshold-based detection at anything other than 0 dBFS we still
         # need to walk the PCM, so we surface astats' clipping counts and
@@ -101,7 +121,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "regions":                [],
         }
 
-    async def _analyze_energy(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_energy(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         # ebur128's per-window momentary loudness (100ms) is aggregated into a
         # coarser profile at `resolution` intervals so downstream steps get a
         # compact energy curve rather than raw analysis windows.
@@ -148,7 +173,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
 
         return result
 
-    async def _analyze_silence(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_silence(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
         threshold    = params["threshold"]
         min_duration = params["min_duration"]
 

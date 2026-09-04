@@ -52,6 +52,7 @@ ComponentConfig = Annotated[
         AudioFeatureExtractorComponentConfig,
         AudioAnalyzerComponentConfig,
         MusicSegmentDetectorComponentConfig,
+        MusicAnalyzerComponentConfig,
         AudioSilenceDetectorComponentConfig,
         AudioSynchronizerComponentConfig,
         AudioPlaybackComponentConfig,

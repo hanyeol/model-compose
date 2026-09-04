@@ -48,6 +48,7 @@ from .audio_processor import *
 from .audio_feature_extractor import *
 from .audio_analyzer import *
 from .music_segment_detector import *
+from .music_analyzer import *
 from .audio_silence_detector import *
 from .audio_synchronizer import *
 from .audio_playback import *

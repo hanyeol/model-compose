@@ -51,6 +51,7 @@ class ComponentType(str, Enum):
     AUDIO_FEATURE_EXTRACTOR = "audio-feature-extractor"
     AUDIO_ANALYZER          = "audio-analyzer"
     MUSIC_SEGMENT_DETECTOR  = "music-segment-detector"
+    MUSIC_ANALYZER          = "music-analyzer"
     AUDIO_SILENCE_DETECTOR  = "audio-silence-detector"
     AUDIO_SYNCHRONIZER      = "audio-synchronizer"
     AUDIO_PLAYBACK          = "audio-playback"

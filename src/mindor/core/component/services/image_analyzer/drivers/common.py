@@ -105,17 +105,37 @@ class ImageAnalyzerAction(ComponentAction):
         raise ValueError(f"Unsupported image metric: {metric}")
 
     @abstractmethod
-    async def _analyze_brightness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_brightness(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_contrast(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_contrast(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_sharpness(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_sharpness(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_exposure(self, image: PILImage.Image, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_exposure(
+        self,
+        image: PILImage.Image,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass

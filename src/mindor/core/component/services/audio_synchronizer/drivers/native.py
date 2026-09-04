@@ -47,7 +47,9 @@ class NativeAudioSynchronizerAction(AudioSynchronizerAction):
         if len(sources) < 2:
             return [ { "offset": 0.0, "confidence": 1.0 } ]
 
-        samples = await asyncio.gather(*[ self._load_pcm_samples(source, _ANALYSIS_SAMPLE_RATE) for source in sources ])
+        samples = [ samples for samples, _ in await asyncio.gather(*[
+            self._load_pcm_samples(source, _ANALYSIS_SAMPLE_RATE) for source in sources
+        ]) ]
         reference = samples[0]
 
         # Offsets against the first source: each entry is how much later the
@@ -70,7 +72,7 @@ class NativeAudioSynchronizerAction(AudioSynchronizerAction):
             for offset, confidence in offsets
         ]
 
-    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> np.ndarray:
+    async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> Tuple[np.ndarray, int]:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
         if input_path is None:

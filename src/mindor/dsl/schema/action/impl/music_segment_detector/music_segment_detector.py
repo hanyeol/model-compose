@@ -1,3 +1,6 @@
+from typing import Union
 from .impl import *
 
-MusicSegmentDetectorActionConfig = NativeMusicSegmentDetectorActionConfig
+MusicSegmentDetectorActionConfig = Union[
+    NativeMusicSegmentDetectorActionConfig
+]

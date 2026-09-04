@@ -120,17 +120,37 @@ class VideoAnalyzerAction(ComponentAction):
         raise ValueError(f"Unsupported video metric: {metric}")
 
     @abstractmethod
-    async def _analyze_black(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_black(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_freeze(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_freeze(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_brightness(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_brightness(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def _analyze_motion(self, source: MediaSource, params: Dict[str, Any], cancellation_token: Optional[CancellationToken] = None) -> Dict[str, Any]:
+    async def _analyze_motion(
+        self,
+        source: MediaSource,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken],
+    ) -> Dict[str, Any]:
         pass

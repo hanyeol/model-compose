@@ -4,6 +4,12 @@ from contextlib import asynccontextmanager
 from asyncio.subprocess import Process
 import asyncio, os, sys
 
+# StreamReader default buffer limit is 64KiB, which trips `readline()` with
+# LimitOverrunError when a subprocess (notably ffmpeg progress lines during
+# long encodes) writes a very long line without a separator. 8MiB gives us
+# plenty of headroom without materially increasing memory pressure.
+_SUBPROCESS_STREAM_LIMIT = 8 * 1024 * 1024
+
 async def run_command(
     command: List[str],
     input: Optional[bytes] = None,
@@ -79,6 +85,7 @@ async def run_subprocess(
         stdout=asyncio.subprocess.PIPE if stdout_handler is not None else None,
         stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
         pass_fds=pass_fds,
+        limit=_SUBPROCESS_STREAM_LIMIT,
     )
 
     if on_started is not None:
@@ -173,6 +180,7 @@ async def stream_subprocess(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
         pass_fds=pass_fds,
+        limit=_SUBPROCESS_STREAM_LIMIT,
     )
 
     if on_started is not None:

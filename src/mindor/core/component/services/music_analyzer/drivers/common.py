@@ -9,10 +9,73 @@ from mindor.dsl.schema.action.impl.music_analyzer.impl.common import MusicAnalyz
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 import asyncio
+
+class MusicBeats(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<MusicBeats bpm={self.get('bpm')} "
+            f"confidence={self.get('confidence')} "
+            f"count={len(self.get('beats', []))}>"
+        )
+
+class MusicOnsets(AtomicDict):
+    def __log__(self) -> str:
+        return f"<MusicOnsets count={len(self.get('onsets', []))}>"
+
+class MusicTempogram(AtomicDict):
+    def __log__(self) -> str:
+        frames = self.get("frames", [])
+        rows = len(frames[0]) if frames else 0
+
+        return (
+            f"<MusicTempogram frames={len(frames)}x{rows} "
+            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+        )
+
+class MusicActivity(AtomicDict):
+    def __log__(self) -> str:
+        return f"<MusicActivity regions={len(self.get('activity', []))}>"
+
+class MusicChroma(AtomicDict):
+    def __log__(self) -> str:
+        frames = self.get("frames", [])
+        rows = len(frames[0]) if frames else 0
+
+        return (
+            f"<MusicChroma frames={len(frames)}x{rows} "
+            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+        )
+
+class MusicTonnetz(AtomicDict):
+    def __log__(self) -> str:
+        frames = self.get("frames", [])
+        rows = len(frames[0]) if frames else 0
+
+        return (
+            f"<MusicTonnetz frames={len(frames)}x{rows} "
+            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+        )
+
+class MusicBrightness(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<MusicBrightness mean_hz={self.get('brightness_hz')} "
+            f"frames={len(self.get('frames', []))} "
+            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+        )
+
+class MusicFlatness(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<MusicFlatness mean={self.get('flatness')} "
+            f"frames={len(self.get('frames', []))} "
+            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+        )
 
 class MusicAnalyzerAction(ComponentAction):
     def __init__(self, config: MusicAnalyzerActionConfig):

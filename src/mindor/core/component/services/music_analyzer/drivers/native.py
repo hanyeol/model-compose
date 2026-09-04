@@ -9,7 +9,17 @@ from mindor.core.utils.soundfile.audio import load_pcm_samples
 from ....action.media import MediaInputPathResolver
 from ..base import MusicAnalyzerService, MusicAnalyzerDriver, register_music_analyzer_service
 from ..base import ComponentActionContext
-from .common import MusicAnalyzerAction
+from .common import (
+    MusicAnalyzerAction,
+    MusicBeats,
+    MusicOnsets,
+    MusicTempogram,
+    MusicActivity,
+    MusicChroma,
+    MusicTonnetz,
+    MusicBrightness,
+    MusicFlatness,
+)
 import os
 
 if TYPE_CHECKING:
@@ -61,11 +71,11 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
 
             beat_times = librosa.frames_to_time(beat_frames, sr=sample_rate, hop_length=hop_length)
 
-            return {
+            return MusicBeats({
                 "bpm":        round(float(np.atleast_1d(tempo_bpm)[0]), _OUTPUT_DECIMALS),
                 "confidence": self._autocorrelation_confidence(envelope, sample_rate, hop_length, params),
                 "beats":      [ { "time": round(float(t), _OUTPUT_DECIMALS) } for t in beat_times ],
-            }
+            })
 
         return await self._run_in_executor(_analyze)
 
@@ -89,7 +99,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             )
 
             if onset_frames.size == 0:
-                return { "onsets": [] }
+                return MusicOnsets({ "onsets": [] })
 
             times = librosa.frames_to_time(onset_frames, sr=sample_rate, hop_length=hop_length)
             raw = envelope[onset_frames]
@@ -101,7 +111,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             strengths = raw / ceiling if ceiling > 0.0 else np.zeros_like(raw)
             strengths = np.clip(strengths, 0.0, 1.0)
 
-            return {
+            return MusicOnsets({
                 "onsets": [
                     {
                         "time":     round(float(t), _OUTPUT_DECIMALS),
@@ -109,7 +119,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
                     }
                     for t, s in zip(times, strengths)
                 ],
-            }
+            })
 
         return await self._run_in_executor(_analyze)
 
@@ -143,12 +153,12 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             frames = tg[keep, :].T.astype(np.float32)  # (n_frames, n_bpm_bins)
             fps = sample_rate / hop_length
 
-            return {
+            return MusicTempogram({
                 "frames":      [ [ round(float(v), _OUTPUT_DECIMALS) for v in row ] for row in frames ],
                 "bpm_axis":    [ round(float(b), _OUTPUT_DECIMALS) for b in bpms[keep] ],
                 "fps":         round(float(fps), _OUTPUT_DECIMALS),
                 "sample_rate": int(sample_rate),
-            }
+            })
 
         return await self._run_in_executor(_analyze)
 
@@ -168,7 +178,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             import numpy as np
 
             if energy.size == 0:
-                return { "activity": [] }
+                return MusicActivity({ "activity": [] })
 
             quiet = float(np.percentile(energy, 5.0))
             loud = float(np.percentile(energy, 95.0))
@@ -177,7 +187,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             # basis to separate active from quiet — return nothing rather than
             # marking the whole track as one big active region.
             if loud <= quiet:
-                return { "activity": [] }
+                return MusicActivity({ "activity": [] })
 
             level = float(params["level"])
             threshold = quiet + level * (loud - quiet)
@@ -191,14 +201,14 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             # are dropped as noise.
             regions: List[Dict[str, float]] = []
             start: Optional[int] = None
-            for i, on in enumerate(active):
+            for index, on in enumerate(active):
                 if on and start is None:
-                    start = i
+                    start = index
                 elif not on and start is not None:
-                    if i - start >= min_frames:
+                    if index - start >= min_frames:
                         regions.append({
                             "start_time": round(start / frames_per_second, _OUTPUT_DECIMALS),
-                            "end_time":   round(i / frames_per_second, _OUTPUT_DECIMALS),
+                            "end_time":   round(index / frames_per_second, _OUTPUT_DECIMALS),
                         })
                     start = None
             if start is not None and len(active) - start >= min_frames:
@@ -207,7 +217,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
                     "end_time":   round(len(active) / frames_per_second, _OUTPUT_DECIMALS),
                 })
 
-            return { "activity": regions }
+            return MusicActivity({ "activity": regions })
 
         return await self._run_in_executor(_analyze)
 
@@ -266,7 +276,15 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             import librosa
 
             chroma = librosa.feature.chroma_cqt(y=samples, sr=sample_rate, hop_length=_DEFAULT_HOP_LENGTH)
-            return self._build_time_series(chroma, sample_rate, _DEFAULT_HOP_LENGTH, "chroma", expected_rows=_CHROMA_ROWS)
+            series = self._build_time_series(
+                chroma,
+                sample_rate,
+                _DEFAULT_HOP_LENGTH,
+                "chroma",
+                expected_rows=_CHROMA_ROWS,
+            )
+
+            return MusicChroma(series)
 
         return await self._run_in_executor(_analyze)
 
@@ -288,7 +306,15 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             # librosa.feature.tonnetz uses its own default hop; recompute from
             # its output shape so downstream fps is not a lie.
             hop_length = max(1, len(samples) // max(1, tonnetz.shape[1]))
-            return self._build_time_series(tonnetz, sample_rate, hop_length, "tonnetz", expected_rows=_TONNETZ_ROWS)
+            series = self._build_time_series(
+                tonnetz,
+                sample_rate,
+                hop_length,
+                "tonnetz",
+                expected_rows=_TONNETZ_ROWS,
+            )
+
+            return MusicTonnetz(series)
 
         return await self._run_in_executor(_analyze)
 
@@ -308,12 +334,12 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             )[0]
             fps = sample_rate / _DEFAULT_HOP_LENGTH
 
-            return {
+            return MusicBrightness({
                 "brightness_hz": round(float(centroid.mean()), _OUTPUT_DECIMALS),
-                "frames":        [ round(float(v), _OUTPUT_DECIMALS) for v in centroid ],
+                "frames":        [ round(float(frame), _OUTPUT_DECIMALS) for frame in centroid ],
                 "fps":           round(float(fps), _OUTPUT_DECIMALS),
                 "sample_rate":   int(sample_rate),
-            }
+            })
 
         return await self._run_in_executor(_analyze)
 
@@ -331,12 +357,12 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             flatness = librosa.feature.spectral_flatness(y=samples, hop_length=_DEFAULT_HOP_LENGTH)[0]
             fps = sample_rate / _DEFAULT_HOP_LENGTH
 
-            return {
+            return MusicFlatness({
                 "flatness":    round(float(flatness.mean()), _OUTPUT_DECIMALS),
-                "frames":      [ round(float(v), _OUTPUT_DECIMALS) for v in flatness ],
+                "frames":      [ round(float(frame), _OUTPUT_DECIMALS) for frame in flatness ],
                 "fps":         round(float(fps), _OUTPUT_DECIMALS),
                 "sample_rate": int(sample_rate),
-            }
+            })
 
         return await self._run_in_executor(_analyze)
 

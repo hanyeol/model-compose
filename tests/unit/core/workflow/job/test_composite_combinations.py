@@ -19,11 +19,21 @@ import pytest
 from pydantic import TypeAdapter
 
 from mindor.core.foundation.variable.renderer import VariableRenderer
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.workflow.job.impl import common as impl_common
 from mindor.core.workflow.job.impl.accumulate import AccumulateJob
 from mindor.core.workflow.job.impl.for_each import ForEachJob
 from mindor.core.workflow.job.impl.pipeline import PipelineJob
 from mindor.dsl.schema.job import JobConfig
+
+
+async def _async_gen(items):
+    for item in items:
+        yield item
+
+
+def _make_stream(items, is_fragmented=True):
+    return StreamChunkIterator(_async_gen(items), is_fragmented=is_fragmented)
 
 
 @pytest.fixture
@@ -730,3 +740,289 @@ class TestNestedEdgeCases:
 
         result = await job.run(FakeJobContext())
         assert result == {"items": ["X", "Y"], "first": "X"}
+
+
+# --------------------------------------------------------------------------- #
+# Regression: for-each over zip dict, whose accumulate.input peels a field
+# off `${item}` and iterates its regions. Mirrors the render-mosaic layout.
+# --------------------------------------------------------------------------- #
+
+class TestForEachOfAccumulateOverZipItem:
+    @pytest.mark.anyio
+    async def test_accumulate_input_reaches_regions_via_outer_item(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Outer for-each iterates over zip-shaped dicts:
+        #   {"frame": {"image": "img<n>"}, "entry": {"regions": [ {bbox}, ... ]}}
+        # Inner accumulate must resolve `${item.entry.regions}` against the
+        # outer `${item}`, then per-region resolve `${item.bbox.x}` against
+        # its own `${item}`.
+        applied = FakeComponent(
+            transform=lambda p: f"{p['acc']}+({p['x']},{p['y']})",
+            tag="applied",
+        )
+
+        source = [
+            {
+                "frame": {"image": "img1"},
+                "entry": {"regions": [
+                    {"bbox": {"x": 10, "y": 20}},
+                    {"bbox": {"x": 30, "y": 40}},
+                ]},
+            },
+            {
+                "frame": {"image": "img2"},
+                "entry": {"regions": [
+                    {"bbox": {"x": 50, "y": 60}},
+                ]},
+            },
+        ]
+
+        cfg = _cfg({
+            "type": "for-each",
+            "input": source,
+            "do": {
+                "type": "accumulate",
+                "input": "${item.entry.regions}",
+                "accumulator": "${item.frame.image}",
+                "do": {
+                    "component": "applied",
+                    "action": "a",
+                    "input": {
+                        "acc": "${accumulator}",
+                        "x": "${item.bbox.x}",
+                        "y": "${item.bbox.y}",
+                    },
+                },
+            },
+        })
+
+        job = _install_component_lookup(
+            ForEachJob, cfg, {"applied": applied}, monkeypatch
+        )
+
+        result = await job.run(FakeJobContext())
+        assert result == ["img1+(10,20)+(30,40)", "img2+(50,60)"]
+        assert [c["input"]["x"] for c in applied.calls] == [10, 30, 50]
+        assert [c["input"]["y"] for c in applied.calls] == [20, 40, 60]
+
+    @pytest.mark.anyio
+    async def test_accumulate_input_reaches_regions_via_streamed_zip_item(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Same layout as above, but the outer for-each input is a stream of
+        # zip-shaped dicts — mirrors render-mosaic where `&` zip of a frame
+        # stream and a mosaic-plan list is fed straight into for-each.
+        applied = FakeComponent(
+            transform=lambda p: f"{p['acc']}+({p['x']},{p['y']})",
+            tag="applied-stream",
+        )
+
+        stream_source = _make_stream([
+            {
+                "frame": {"image": "img1"},
+                "entry": {"regions": [
+                    {"bbox": {"x": 10, "y": 20}},
+                    {"bbox": {"x": 30, "y": 40}},
+                ]},
+            },
+            {
+                "frame": {"image": "img2"},
+                "entry": {"regions": [
+                    {"bbox": {"x": 50, "y": 60}},
+                ]},
+            },
+        ])
+
+        cfg = _cfg({
+            "type": "for-each",
+            "input": stream_source,
+            "do": {
+                "type": "accumulate",
+                "input": "${item.entry.regions}",
+                "accumulator": "${item.frame.image}",
+                "do": {
+                    "component": "applied-stream",
+                    "action": "a",
+                    "input": {
+                        "acc": "${accumulator}",
+                        "x": "${item.bbox.x}",
+                        "y": "${item.bbox.y}",
+                    },
+                },
+            },
+        })
+
+        job = _install_component_lookup(
+            ForEachJob, cfg, {"applied-stream": applied}, monkeypatch
+        )
+
+        result = await _collect_stream_output(await job.run(FakeJobContext()))
+        assert result == ["img1+(10,20)+(30,40)", "img2+(50,60)"]
+        assert [c["input"]["x"] for c in applied.calls] == [10, 30, 50]
+        assert [c["input"]["y"] for c in applied.calls] == [20, 40, 60]
+
+
+async def _collect_stream_output(value):
+    """for-each returns a stream when its input is a stream; unwrap to list."""
+    if hasattr(value, "__aiter__"):
+        return [item async for item in value]
+    return value
+
+
+class TestForEachBatchedAccumulateOverZipItem:
+    @pytest.mark.anyio
+    async def test_batched_for_each_isolates_item_scope_across_iterations(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Repro attempt for a suspected run-id-stack race: for-each with a
+        # large batch_size executes iterations concurrently, and each inline
+        # `do` job pushes/pops the run_id stack via `use_run_id`. If the
+        # stack is shared unprotected, one iteration's render can read a
+        # different iteration's `${item}` via `_current_run_id()`.
+        import asyncio
+
+        release = asyncio.Event()
+        started = 0
+        total_expected = 4
+
+        async def _blocking(p):
+            nonlocal started
+            started += 1
+            if started >= total_expected:
+                release.set()
+            await release.wait()
+            return f"{p['acc']}+({p['x']},{p['y']})"
+
+        applied = FakeComponent(tag="applied-batch")
+        applied._transform = None  # bypass the sync transform path
+        # Override .run so every iteration blocks until all peers have arrived,
+        # forcing genuine concurrency during the render step.
+        async def patched_run(action, run_id, input, workflow, job_id):
+            applied.calls.append(
+                {"action": action, "run_id": run_id, "input": input, "job_id": job_id}
+            )
+            return await _blocking(input)
+        applied.run = patched_run  # type: ignore[assignment]
+
+        source = [
+            {
+                "frame": {"image": f"img{i}"},
+                "entry": {"regions": [
+                    {"bbox": {"x": i * 10, "y": i * 100}},
+                ]},
+            }
+            for i in range(1, total_expected + 1)
+        ]
+
+        cfg = _cfg({
+            "type": "for-each",
+            "input": source,
+            "batch_size": total_expected,
+            "do": {
+                "type": "accumulate",
+                "input": "${item.entry.regions}",
+                "accumulator": "${item.frame.image}",
+                "do": {
+                    "component": "applied-batch",
+                    "action": "a",
+                    "input": {
+                        "acc": "${accumulator}",
+                        "x": "${item.bbox.x}",
+                        "y": "${item.bbox.y}",
+                    },
+                },
+            },
+        })
+
+        job = _install_component_lookup(
+            ForEachJob, cfg, {"applied-batch": applied}, monkeypatch
+        )
+
+        result = await job.run(FakeJobContext())
+
+        # Every iteration must have seen ITS OWN region's coordinates.
+        received_pairs = sorted(
+            (c["input"]["x"], c["input"]["y"]) for c in applied.calls
+        )
+        expected_pairs = sorted((i * 10, i * 100) for i in range(1, total_expected + 1))
+        assert received_pairs == expected_pairs, (
+            f"batched iterations leaked ${{item}} across each other: "
+            f"got {received_pairs}, expected {expected_pairs}"
+        )
+
+        # Result ordering follows source order (asyncio.gather preserves order).
+        assert result == [
+            f"img{i}+({i * 10},{i * 100})" for i in range(1, total_expected + 1)
+        ]
+
+    @pytest.mark.anyio
+    async def test_zip_of_frame_stream_and_plan_list_feeds_for_each_accumulate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # End-to-end reproduction of the render-mosaic wiring at renderer level:
+        # a `&` zip of a frame STREAM and a mosaic-plan LIST is rendered, and
+        # the resulting stream is threaded through for-each -> accumulate
+        # -> component (mimicking image-mosaic).
+        source_frames = _make_stream([
+            {"number": 1, "image": "IMG1", "timestamp": 0.0},
+            {"number": 2, "image": "IMG2", "timestamp": 0.033},
+        ])
+        plan = [
+            {"frame_number": 1, "timestamp": "00:00:00.000", "regions": [
+                {"bbox": {"x": 10, "y": 20, "width": 30, "height": 40}, "label": "L1"},
+                {"bbox": {"x": 50, "y": 60, "width": 70, "height": 80}, "label": "L1"},
+            ]},
+            {"frame_number": 2, "timestamp": "00:00:00.033", "regions": [
+                {"bbox": {"x": 90, "y": 100, "width": 110, "height": 120}, "label": "L2"},
+            ]},
+        ]
+
+        ctx = FakeJobContext()
+        ctx.register_source(None, "frames", source_frames)
+        ctx.register_source(None, "plan", plan)
+
+        zip_expr = {"&": {"frame": "${frames}", "entry": "${plan}"}}
+        zipped = await ctx.render_variable(None, zip_expr)
+
+        applied = FakeComponent(
+            transform=lambda p: f"{p['acc']}|({p['x']},{p['y']},{p['w']},{p['h']})",
+            tag="applied-zip-render",
+        )
+
+        cfg = _cfg({
+            "type": "for-each",
+            "input": zipped,
+            "do": {
+                "type": "accumulate",
+                "input": "${item.entry.regions}",
+                "accumulator": "${item.frame.image}",
+                "do": {
+                    "component": "applied-zip-render",
+                    "action": "a",
+                    "input": {
+                        "acc": "${accumulator}",
+                        "x": "${item.bbox.x}",
+                        "y": "${item.bbox.y}",
+                        "w": "${item.bbox.width}",
+                        "h": "${item.bbox.height}",
+                    },
+                },
+            },
+        })
+
+        job = _install_component_lookup(
+            ForEachJob, cfg, {"applied-zip-render": applied}, monkeypatch
+        )
+
+        result = await _collect_stream_output(await job.run(ctx))
+        assert result == [
+            "IMG1|(10,20,30,40)|(50,60,70,80)",
+            "IMG2|(90,100,110,120)",
+        ]
+        # And every region-level render must have real bbox values, never None.
+        for call in applied.calls:
+            assert call["input"]["x"] is not None
+            assert call["input"]["y"] is not None
+            assert call["input"]["w"] is not None
+            assert call["input"]["h"] is not None

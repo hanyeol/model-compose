@@ -100,6 +100,7 @@ All configuration sections support dynamic values through variable interpolation
 - **Dict / List Spread**: `"...": ${source}` in dicts, `- ...${source}` in lists — inline the contents of another value
 - **Map Expressions**: `{"*": ${source}, ...template}` with `${item}` inside the template — build a new element per source item
 - **Join Expressions**: `{"+": [${a}, ${b}, ...]}` — concatenate homogeneous parts (strings, lists, or dicts) into one value
+- **Zip Expressions**: `{"&": {key1: ${a}, key2: ${b}, ...}}` — pair aligned lists or streams element-wise into a list or stream of dicts
 - **Split Expressions**: `{"|": ${source}, field1: ..., field2: ...}` — fan a source list or stream out into one parallel collection or stream per template field
 
 See [Variable Binding](../user-guide/14-variable-binding.md) in the user guide for the full syntax.

@@ -585,11 +585,92 @@ content:
 
 ---
 
-## 14.12 Split Operator (`"|"`)
+## 14.12 Zip Operator (`"&"`)
+
+The `"&"` key takes a **dict of parallel sources** and produces a list (or stream) of dicts, one per position — each output dict carries one element from every source under the caller-supplied key. Use it when you have several already-aligned sequences and want to walk them together, without threading indices through templates or building a `"*"` map that re-looks-up each source by position.
+
+### 14.12.1 Basic Zip
+
+```yaml
+# Given a = [1, 2, 3], b = ["x", "y", "z"]
+rows:
+  "&":
+    num: ${a}
+    letter: ${b}
+# Result: [{num: 1, letter: "x"}, {num: 2, letter: "y"}, {num: 3, letter: "z"}]
+```
+
+The output keys come from the `"&"` dict; the values name the source sequences. Any number of sources is allowed — three, four, or more.
+
+### 14.12.2 Zipping Aligned Sequences
+
+Common shape: pair per-frame metadata with per-frame detections that were produced by two separate jobs against the same source.
+
+```yaml
+# frames  = [{number: 1, image: img1}, {number: 2, image: img2}]
+# regions = [[{bbox: A}], []]
+paired:
+  "&":
+    frame: ${frames}
+    regions: ${regions}
+# Result:
+# [
+#   {frame: {number: 1, image: img1}, regions: [{bbox: A}]},
+#   {frame: {number: 2, image: img2}, regions: []},
+# ]
+```
+
+Elements pass through unchanged — `"&"` never restructures the values themselves, only their positional pairing.
+
+### 14.12.3 Zipping Streams
+
+When one or more sources is a stream, `"&"` returns a stream that yields one dict per aligned position and terminates as soon as any source is exhausted. Sources may mix streams and materialized lists freely.
+
+```yaml
+# a: stream of tokens, b: stream of per-token log-probs
+tokens:
+  "&":
+    token: ${a}
+    logprob: ${b}
+# Result: <stream of {token, logprob}>
+```
+
+Streams are advanced round-robin per output row, so no source is buffered ahead of the others.
+
+### 14.12.4 Composing with `"*"` and `"+"`
+
+`"&"` pairs naturally with `"*"` (map) to reshape each aligned row, and with `"+"` (join) to fold zipped rows into a downstream list or string.
+
+```yaml
+# Zip, then reshape each row into an assistant message part
+parts:
+  "*":
+    "&":
+      text: ${chunks}
+      cite: ${citations}
+  type: text
+  text: "${item.text} [${item.cite}]"
+```
+
+### 14.12.5 Rules
+
+- **Source must resolve to a non-empty dict.** A list argument (`{ "&": [...] }`) or scalar is a `TypeError` — the dict keys are what name the output fields.
+- **Empty dict raises `ValueError`.** `{ "&": {} }` has no output keys and is meaningless.
+- **`None` short-circuits.**
+  - If the whole `"&"` value resolves to `None` (e.g. `${missing}`), the result is `None`.
+  - If any *source inside* the dict resolves to `None`, the result is `[]` — one missing lane means there are no aligned rows to produce.
+- **Shortest source wins.** Zipping stops when any source is exhausted; extra elements in longer sources are discarded. This matches Python's `zip` and streaming semantics.
+- **Element identity is preserved.** Values are placed under the output key as-is; nested dicts, lists, and streams are not unwrapped.
+- **Fragmentation is inherited.** If any source is a fragmented stream (`is_fragmented=True`), the zipped output is also marked fragmented so downstream consumers know it arrived in pieces.
+- `"&"` is a **key only** and must be the sole key in its dict. `{ "&": {...}, "other": 1 }` is treated as a regular dict literal, not a zip.
+
+---
+
+## 14.13 Split Operator (`"|"`)
 
 The `"|"` key is the inverse of `"*"`: it takes a source list (or stream) and fans each element out across multiple parallel output collections, one per template field. Use it when you need to project a single source into several independent lanes rather than one shaped-per-element list.
 
-### 14.12.1 Basic Split
+### 14.13.1 Basic Split
 
 ```yaml
 xs_ys:
@@ -602,7 +683,7 @@ xs_ys:
 
 Within the template, `${item}` and `${index}` refer to the current source element and its position — the same scope rules as `"*"`.
 
-### 14.12.2 Splitting a Stream
+### 14.13.2 Splitting a Stream
 
 When the source resolves to a stream, each output field becomes its own stream. Consumers may drain the lanes independently or concurrently; values are produced in source order as the underlying stream advances.
 
@@ -615,7 +696,7 @@ lanes:
 # Result: { levels: <stream>, messages: <stream> }
 ```
 
-### 14.12.3 Rules
+### 14.13.3 Rules
 
 - **Template required.** `{ "|": ${src} }` with no other keys raises `ValueError`. Splitting without output fields has no meaning.
 - **Source must be a list, tuple, or stream.** Anything else raises `TypeError`. `None` yields empty collections for every declared field.
@@ -625,9 +706,9 @@ lanes:
 
 ---
 
-## 14.13 Practical Examples
+## 14.14 Practical Examples
 
-### 14.13.1 OpenAI API Call
+### 14.14.1 OpenAI API Call
 
 ```yaml
 body:
@@ -641,7 +722,7 @@ output:
   message: ${response.choices[0].message.content}
 ```
 
-### 14.13.2 Image Processing Pipeline
+### 14.14.2 Image Processing Pipeline
 
 ```yaml
 jobs:
@@ -659,7 +740,7 @@ jobs:
     output: ${output as image/png;base64}
 ```
 
-### 14.13.3 Streaming Response
+### 14.14.3 Streaming Response
 
 ```yaml
 workflow:
@@ -674,7 +755,7 @@ component:
     output: ${response[].choices[0].delta.content}
 ```
 
-### 14.13.4 Vector Search Result Format
+### 14.14.4 Vector Search Result Format
 
 ```yaml
 component:
@@ -684,7 +765,7 @@ component:
 # Result: [{"id": "1", "score": 0.95, "text": "..."}, ...]
 ```
 
-### 14.13.5 Conditional Default Values
+### 14.14.5 Conditional Default Values
 
 ```yaml
 component:

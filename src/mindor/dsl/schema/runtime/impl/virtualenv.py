@@ -10,11 +10,9 @@ class VirtualEnvDriver(str, Enum):
 class VirtualEnvRuntimeConfig(CommonRuntimeConfig):
     """VirtualEnv runtime configuration for running components inside an isolated Python venv"""
     type: Literal[RuntimeType.VIRTUALENV]
-
     driver: VirtualEnvDriver = Field(default=VirtualEnvDriver.PYTHON, description="Backend implementation used to create the virtualenv.")
     path: Optional[str] = Field(default=None, description="Filesystem path to the virtualenv directory, relative to the working directory.")
     python: Optional[str] = Field(default=None, description="Python version installed into the virtualenv (pyenv driver only, e.g., '3.12.0').")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables passed to the worker subprocess.")
-
     start_timeout: Union[str, int, float] = Field(default="60s", description="Maximum time to wait for the worker to start and report ready.")
     stop_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for the worker to stop gracefully before being killed.")

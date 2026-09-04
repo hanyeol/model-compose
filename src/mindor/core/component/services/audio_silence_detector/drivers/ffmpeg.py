@@ -90,20 +90,20 @@ class FFmpegAudioSilenceDetectorAction(AudioSilenceDetectorAction):
             end   = silence.get("end")
 
             if start > cursor:
-                segments.append({ "start_time": float(cursor), "end_time": float(start), "type": "audible" })
+                segments.append({ "type": "audible", "start_time": float(cursor), "end_time": float(start) })
 
             if end is None:
                 # Silence runs to EOF: emit it up to `duration` and stop.
                 if duration > start:
-                    segments.append({ "start_time": float(start), "end_time": float(duration), "type": "silence" })
+                    segments.append({ "type": "silence", "start_time": float(start), "end_time": float(duration) })
                 cursor = duration
                 break
 
-            segments.append({ "start_time": float(start), "end_time": float(end), "type": "silence" })
+            segments.append({ "type": "silence", "start_time": float(start), "end_time": float(end) })
             cursor = end
 
         if cursor < duration:
-            segments.append({ "start_time": float(cursor), "end_time": float(duration), "type": "audible" })
+            segments.append({ "type": "audible", "start_time": float(cursor), "end_time": float(duration) })
 
         return segments
 

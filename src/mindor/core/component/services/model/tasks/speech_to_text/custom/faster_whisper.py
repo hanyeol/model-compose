@@ -37,7 +37,6 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         chunk_length = await context.render_scalar(self.config.chunk_length, int)
 
         transcribe_params: Dict[str, Any] = await self._resolve_transcribe_params(context)
-        transcribe_params["return_timestamps"] = params["return_timestamps"]
 
         if params["language"] is not None:
             transcribe_params["language"] = params["language"]
@@ -72,8 +71,10 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         if compression_ratio_threshold is not None:
             params["compression_ratio_threshold"] = compression_ratio_threshold
+
         if log_prob_threshold is not None:
             params["logprob_threshold"] = log_prob_threshold
+
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
 
@@ -88,8 +89,8 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
     ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         waveforms = await self._preprocess_audio(audios)
 
-        transcribe_params = dict(params["transcribe"])
-        return_timestamps = transcribe_params.pop("return_timestamps", False)
+        transcribe_params = params["transcribe"]
+        return_timestamps = params["return_timestamps"]
 
         if streaming:
             # faster_whisper yields segments synchronously; wrap each iterator so
@@ -120,8 +121,10 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         return_timestamps: Union[bool, str],
     ) -> Union[str, List[Dict[str, Any]]]:
         segments, _ = self.model.transcribe(waveform, **params)
+
         if return_timestamps:
-            return [ self._to_transcript_segment(segment) for segment in segments ]
+            return [ self._build_segment(segment) for segment in segments ]
+
         return "".join(segment.text for segment in segments)
 
     def _transcribe_stream(
@@ -131,11 +134,13 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         return_timestamps: Union[bool, str],
     ) -> Iterator[Union[str, Dict[str, Any]]]:
         segments, _ = self.model.transcribe(waveform, **params)
-        for segment in segments:
-            yield self._to_transcript_segment(segment) if return_timestamps else segment.text
 
-    def _to_transcript_segment(self, segment: Any) -> Dict[str, Any]:
+        for segment in segments:
+            yield self._build_segment(segment) if return_timestamps else segment.text
+
+    def _build_segment(self, segment: Any) -> Dict[str, Any]:
         words = getattr(segment, "words", None)
+
         return {
             "text":       segment.text,
             "start_time": float(segment.start),

@@ -61,23 +61,29 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         waveforms = await self._preprocess_audio(audios)
 
         def _diarize() -> List[List[Dict[str, Any]]]:
-            return [
-                self._collect_segments(waveform, sample_rate, params, cancellation_token)
-                for waveform, sample_rate in waveforms
-            ]
+            results: List[List[Dict[str, Any]]] = []
 
-        segments_list = await self._run_in_executor(_diarize)
+            for waveform, sample_rate in waveforms:
+                results.append(self._diarize(waveform, sample_rate, params, cancellation_token))
 
-        if streaming:
-            results = []
-            for segments in segments_list:
-                async def _stream_chunk_generator(segments=segments):
-                    for segment in segments:
-                        yield segment
-                results.append(_stream_chunk_generator())
             return results
 
-        return segments_list
+        results = await self._run_in_executor(_diarize)
+
+        if streaming:
+            # Diarization needs the full audio; fake streaming by re-emitting segments.
+            streams: List[AsyncIterator[Dict[str, Any]]] = []
+
+            for result in results:
+                async def _stream_chunk_generator(result=result):
+                    for segment in result:
+                        yield segment
+
+                streams.append(_stream_chunk_generator())
+
+            return streams
+
+        return results
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[Tuple[np.ndarray, int]]:
         waveforms: List[Tuple[np.ndarray, int]] = []
@@ -88,7 +94,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
 
         return waveforms
 
-    def _collect_segments(
+    def _diarize(
         self,
         waveform: np.ndarray,
         sample_rate: int,
@@ -102,17 +108,17 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         if self.device is not None:
             tensor = tensor.to(self.device)
 
-        pipeline_kwargs = params["pipeline"]
+        pipeline_params = params["pipeline"]
 
         if cancellation_token is not None:
             def _abort_if_cancelled(_step_name, _step_artifact, file=None, total=None, completed=None):
                 if cancellation_token.is_cancelled():
                     raise PipelineCancelled()
-            pipeline_kwargs = { **pipeline_kwargs, "hook": _abort_if_cancelled }
+            pipeline_params = { **pipeline_params, "hook": _abort_if_cancelled }
 
         try:
             with torch.no_grad():
-                output = self.pipeline({ "waveform": tensor, "sample_rate": sample_rate }, **pipeline_kwargs)
+                output = self.pipeline({ "waveform": tensor, "sample_rate": sample_rate }, **pipeline_params)
         except PipelineCancelled:
             raise asyncio.CancelledError()
 

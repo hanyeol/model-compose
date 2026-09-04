@@ -19,6 +19,7 @@ ModelActionConfig = Union[
     ImageToVideoModelActionConfig,
     ObjectDetectionModelActionConfig,
     ObjectTrackingModelActionConfig,
+    ShotBoundaryDetectionModelActionConfig,
     FaceDetectionModelActionConfig,
     PoseDetectionModelActionConfig,
     PoseTrackingModelActionConfig,

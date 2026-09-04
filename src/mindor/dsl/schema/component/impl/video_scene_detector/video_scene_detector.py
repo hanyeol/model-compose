@@ -7,7 +7,6 @@ VideoSceneDetectorComponentConfig = Annotated[
     Union[
         PyscenedetectVideoSceneDetectorComponentConfig,
         FFmpegVideoSceneDetectorComponentConfig,
-        Transnetv2VideoSceneDetectorComponentConfig,
     ],
     Field(discriminator="driver")
 ]

@@ -16,4 +16,8 @@ class CustomSpeechToTextTaskService:
             from .crisper_whisper import CrisperWhisperSpeechToTextTaskService
             return CrisperWhisperSpeechToTextTaskService(id, config, daemon)
 
+        if config.family == SpeechToTextModelFamily.VIBEVOICE:
+            from .vibevoice import VibeVoiceSpeechToTextTaskService
+            return VibeVoiceSpeechToTextTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

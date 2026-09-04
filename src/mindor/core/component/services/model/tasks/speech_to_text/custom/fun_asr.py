@@ -90,8 +90,6 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
     ) -> Union[List[str], List[AsyncIterator[str]], List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
         waveforms = await self._preprocess_audio(audios)
 
-        # Fun-ASR-Nano rejects batch decoding (see model.inference_prepare); feed
-        # samples one at a time and concatenate the results.
         def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]]]:
             results: List[Any] = []
 
@@ -102,11 +100,12 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
                     batch_size=1,
                     **params["generation"],
                 )[0]
+
                 if params["return_timestamps"]:
                     # Fun-ASR waveforms are resampled to 16 kHz mono in _preprocess_audio,
                     # so length / 16000 is the audio duration in seconds — used as the
                     # fallback end_time when the model does not return sentence_info.
-                    results.append(self._to_segments(result, float(waveform.shape[-1]) / 16000.0))
+                    results.append(self._build_segments(result, float(waveform.shape[-1]) / 16000.0))
                 else:
                     results.append(result.get("text", ""))
 
@@ -114,13 +113,11 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         results = await self._run_in_executor(_transcribe)
 
-        # Fun-ASR has no token-level streaming; when streaming is requested we
-        # still run the full inference per waveform and re-emit each collected
-        # result as an async iterator to preserve the interface expected by
-        # downstream jobs: segments one-by-one when timestamps are on,
-        # otherwise the full transcript as a single chunk.
         if streaming:
+            # Fun-ASR has no token-level stream; fake it by re-emitting segments,
+            # or the full transcript as one chunk.
             streams: List[AsyncIterator[Any]] = []
+
             for result in results:
                 async def _stream_chunk_generator(result=result):
                     if isinstance(result, list):
@@ -128,7 +125,9 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
                             yield segment
                     else:
                         yield result
+
                 streams.append(_stream_chunk_generator())
+
             return streams
 
         return results
@@ -150,22 +149,29 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
         # Fun-ASR expects Chinese names ("韩文" etc.); translate ISO codes.
         return _LANGUAGE_CODE_MAP.get(language.split("-")[0]) if language else None
 
-    def _to_segments(self, result: Dict[str, Any], duration: float) -> List[Dict[str, Any]]:
+    def _build_segments(self, result: Dict[str, Any], duration: float) -> List[Dict[str, Any]]:
         # sentence_info is only populated when diarization is enabled; the base
         # model falls back to a single segment covering the whole utterance —
         # in that case we stamp end_time with the input audio duration so
         # downstream consumers still get a usable time range.
         sentence_info = result.get("sentence_info")
+
         if sentence_info:
-            return [
-                {
-                    "text":       sentence.get("sentence", sentence.get("text", "")),
-                    "start_time": float(sentence["start"]) / 1000.0 if sentence.get("start") is not None else 0.0,
-                    "end_time":   float(sentence["end"]) / 1000.0 if sentence.get("end") is not None else 0.0,
+            segments: List[Dict[str, Any]] = []
+
+            for sentence in sentence_info:
+                text       = sentence.get("sentence", sentence.get("text", ""))
+                start_time = float(sentence["start"]) / 1000.0 if sentence.get("start") is not None else 0.0
+                end_time   = float(sentence["end"]) / 1000.0 if sentence.get("end") is not None else 0.0
+
+                segments.append({
+                    "text":       text,
+                    "start_time": start_time,
+                    "end_time":   end_time,
                     "words":      None,
-                }
-                for sentence in sentence_info
-            ]
+                })
+
+            return segments
 
         return [
             {

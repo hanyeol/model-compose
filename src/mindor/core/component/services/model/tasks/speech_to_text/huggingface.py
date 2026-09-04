@@ -82,8 +82,10 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         if compression_ratio_threshold is not None:
             params["compression_ratio_threshold"] = compression_ratio_threshold
+
         if log_prob_threshold is not None:
             params["logprob_threshold"] = log_prob_threshold
+
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
 
@@ -169,16 +171,17 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         if streaming and not return_timestamps:
             return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
 
-        # Timestamped generation cannot stream token-by-token, so re-emit the
-        # collected segments one by one to preserve the AsyncIterator interface
-        # expected by downstream jobs.
         if streaming and return_timestamps:
+            # Timestamped mode has no token-level stream; fake it by re-emitting segments.
             streams: List[AsyncIterator[Dict[str, Any]]] = []
-            for segments in results:
-                async def _stream_chunk_generator(segments=segments):
-                    for segment in segments:
+
+            for result in results:
+                async def _stream_chunk_generator(result=result):
+                    for segment in result:
                         yield segment
+
                 streams.append(_stream_chunk_generator())
+
             return streams
 
         return results

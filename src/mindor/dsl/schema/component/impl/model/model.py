@@ -23,6 +23,7 @@ ModelComponentConfig = Annotated[
         ImageToVideoModelComponentConfig,
         ObjectDetectionModelComponentConfig,
         ObjectTrackingModelComponentConfig,
+        ShotBoundaryDetectionModelComponentConfig,
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,
         PoseTrackingModelComponentConfig,

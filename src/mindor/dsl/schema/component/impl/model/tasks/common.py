@@ -26,6 +26,7 @@ class ModelTaskType(str, Enum):
     IMAGE_TO_VIDEO           = "image-to-video"
     OBJECT_DETECTION         = "object-detection"
     OBJECT_TRACKING          = "object-tracking"
+    SHOT_BOUNDARY_DETECTION  = "shot-boundary-detection"
     FACE_DETECTION           = "face-detection"
     FACE_EMBEDDING           = "face-embedding"
     FACE_TRACKING            = "face-tracking"

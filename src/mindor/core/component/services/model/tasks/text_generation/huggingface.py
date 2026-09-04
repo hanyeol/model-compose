@@ -135,8 +135,6 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
         results = await self._run_in_executor(_generate)
 
         if streaming:
-            # Wrap each per-prompt sync iterator so the caller can consume it
-            # with ``async for`` on the caller's loop.
             return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
 
         return results

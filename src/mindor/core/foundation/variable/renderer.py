@@ -99,6 +99,8 @@ class VariableRenderer:
                 return await self._render_conditional(value["?"], scope, skip_decode)
             if "+" in value and len(value) == 1:
                 return await self._render_join(value["+"], scope, skip_decode)
+            if "&" in value and len(value) == 1:
+                return await self._render_zip(value["&"], scope, skip_decode)
             if "*" in value:
                 return await self._render_map(value, scope, skip_decode)
             if "|" in value:
@@ -324,6 +326,59 @@ class VariableRenderer:
 
         raise TypeError(f"Join `+` source must resolve to a list or iterator, got {type(parts).__name__}")
 
+    async def _render_zip(self, entries: Any, scope: Optional[str], skip_decode: bool) -> Any:
+        sources = await self._render_element(entries, scope, skip_decode)
+
+        if sources is None:
+            return None
+
+        if isinstance(sources, dict):
+            if not sources:
+                raise ValueError("Zip `&` requires a non-empty dict mapping each output key to its source.")
+
+            if any(source is None for source in sources.values()):
+                return []
+
+            if any(isinstance(source, (StreamIterator, AsyncIterable)) for source in sources.values()):
+                async def _iterate() -> AsyncIterator[Dict[str, Any]]:
+                    iterators: Dict[str, Any] = {}
+
+                    for key, source in sources.items():
+                        if isinstance(source, (StreamIterator, AsyncIterable)):
+                            iterators[key] = source.__aiter__()
+                        else:
+                            iterators[key] = iter(source)
+
+                    while True:
+                        chunk: Dict[str, Any] = {}
+
+                        for key, iterator in iterators.items():
+                            if isinstance(iterator, AsyncIterator):
+                                try:
+                                    chunk[key] = await iterator.__anext__()
+                                except StopAsyncIteration:
+                                    return
+                            else:
+                                try:
+                                    chunk[key] = next(iterator)
+                                except StopIteration:
+                                    return
+
+                        yield chunk
+
+                is_fragmented = False
+
+                for source in sources.values():
+                    if isinstance(source, StreamChunkIterator) and source.is_fragmented:
+                        is_fragmented = True
+                        break
+
+                return StreamChunkIterator(_iterate(), is_fragmented=is_fragmented)
+
+            return [ dict(zip(sources.keys(), values)) for values in zip(*sources.values()) ]
+
+        raise TypeError(f"Zip `&` source must resolve to a dict, got {type(sources).__name__}")
+
     async def _render_split(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
         source = await self._render_element(entries["|"], scope, skip_decode)
         template = { key: value for key, value in entries.items() if key != "|" }
@@ -340,6 +395,7 @@ class VariableRenderer:
             for index, item in enumerate(source):
                 self._item_stack.append(item)
                 self._index_stack.append(index)
+
                 try:
                     for key in template:
                         value[key].append(await self._render_element(template[key], scope, skip_decode))
@@ -379,6 +435,7 @@ class VariableRenderer:
 
                     self._item_stack.append(item)
                     self._index_stack.append(index)
+
                     try:
                         for key in template:
                             buffers[key].append(await self._render_element(template[key], scope, skip_decode))
@@ -396,6 +453,7 @@ class VariableRenderer:
                             if not await _advance_for(key):
                                 return
                         yield buffers[key].pop(0)
+
                 return _iterate()
 
             is_fragmented = source.is_fragmented if isinstance(source, StreamChunkIterator) else True

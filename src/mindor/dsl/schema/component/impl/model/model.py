@@ -36,7 +36,8 @@ ModelComponentConfig = Annotated[
         VoiceActivityDetectionModelComponentConfig,
         SpeakerDiarizationModelComponentConfig,
         MusicGenerationModelComponentConfig,
-        MusicSourceSeparationModelComponentConfig
+        MusicSourceSeparationModelComponentConfig,
+        MusicTranscriptionModelComponentConfig
     ],
     Field(discriminator="task")
 ]

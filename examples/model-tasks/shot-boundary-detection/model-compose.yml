@@ -1,0 +1,52 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: detect-shots
+    title: Detect Shot Boundaries (TransNetV2)
+    description: Detect shot boundaries in a video using the TransNetV2 deep learning model
+    job:
+      component: shot-detector
+      action: default
+      output:
+        shots: ${output as json}
+
+  - id: detect-shots-range
+    title: Detect Shot Boundaries (Time Range)
+    description: Detect shot boundaries within a specific time range
+    job:
+      component: shot-detector
+      action: with-range
+      output:
+        shots: ${output as json}
+
+component:
+  id: shot-detector
+  type: model
+  task: shot-boundary-detection
+  driver: custom
+  family: transnetv2
+  model:
+    provider: local
+    path: ./models/transnetv2-weights
+  max_concurrent_count: 1
+  actions:
+    - id: default
+      video: ${input.video as video}
+      params:
+        threshold: ${input.threshold as number | 0.5}
+      output: ${result as json}
+
+    - id: with-range
+      video: ${input.video as video}
+      start_time: ${input.start_time}
+      end_time: ${input.end_time}
+      params:
+        threshold: ${input.threshold as number | 0.5}
+      output: ${result as json}

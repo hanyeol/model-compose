@@ -149,6 +149,44 @@ Connection liveness check.
 
 **Response:** `pong`.
 
+### `stream_pull`
+
+Request the next chunk of an outbound stream. Sent by the client for each chunk it wants to consume (credit-based backpressure).
+
+```json
+{ "type": "stream_pull", "data": { "id": "01HSTREAM..." } }
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Stream ID from the `__variable__` marker in a `task_state` / `task_event` output |
+
+**Response:** one `stream_chunk` (or a binary frame for `kind: "bytes"`), followed eventually by `stream_end` or `stream_abort`.
+
+### `stream_end`
+
+Signal end-of-input for an inbound stream. After this the server treats the stream as complete and the workflow's async iterator terminates normally.
+
+```json
+{ "type": "stream_end", "data": { "id": "01HSTREAM..." } }
+```
+
+### `stream_abort`
+
+Abort an inbound stream. The workflow's iterator receives an `IOError` on the next pull.
+
+```json
+{ "type": "stream_abort", "data": { "id": "01HSTREAM...", "reason": "user cancelled" } }
+```
+
+### `stream_close`
+
+Cancel consumption of an outbound stream. Instructs the server to stop producing chunks and release the underlying iterator.
+
+```json
+{ "type": "stream_close", "data": { "id": "01HSTREAM..." } }
+```
+
 ## Server → Client Messages
 
 ### `workflow_started`
@@ -315,6 +353,59 @@ Response to `ping`.
 }
 ```
 
+### `stream_pull`
+
+Sent by the server to request the next chunk of an inbound stream (credit-based backpressure). The client must respond with either a binary chunk frame or a `stream_end` / `stream_abort` message for the same stream ID.
+
+```json
+{ "type": "stream_pull", "data": { "id": "01HSTREAM..." } }
+```
+
+### `stream_chunk`
+
+Text/JSON chunk of an outbound stream. Only emitted for streams whose `kind` is `"text"` or `"object"`. For `kind: "bytes"`, chunks are delivered as binary WebSocket frames instead — see [Binary Chunk Frames](#binary-chunk-frames).
+
+```json
+{
+  "type": "stream_chunk",
+  "data": {
+    "id": "01HSTREAM...",
+    "seq": 3,
+    "value": "..."
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Stream ID |
+| `seq` | integer | Zero-based chunk sequence number |
+| `value` | string \| object | Chunk payload. `string` for `kind: "text"`, JSON value for `kind: "object"`. |
+
+### `stream_end`
+
+End-of-stream marker for an outbound stream. No further chunks will follow.
+
+```json
+{ "type": "stream_end", "data": { "id": "01HSTREAM..." } }
+```
+
+### `stream_abort`
+
+Abnormal termination of an outbound stream. The upstream iterator raised an error.
+
+```json
+{ "type": "stream_abort", "data": { "id": "01HSTREAM...", "reason": "connection reset" } }
+```
+
+### `stream_close`
+
+Acknowledgement that an inbound stream has been released after the consuming workflow called `aclose()`. Emitted at most once per stream.
+
+```json
+{ "type": "stream_close", "data": { "id": "01HSTREAM..." } }
+```
+
 ### `error`
 
 Returned when a client request can't be processed. May carry the `id` of the request it failed.
@@ -340,7 +431,88 @@ Returned when a client request can't be processed. May carry the `id` of the req
 | `TASK_NOT_FOUND` | The specified task does not exist |
 | `TASK_NOT_INTERRUPTED` | `resume_task` was called on a task that isn't interrupted |
 | `JOB_ID_MISMATCH` | `resume_task.job_id` doesn't match the current interrupt point |
+| `STREAM_NOT_FOUND` | Referenced stream ID is not registered for this connection |
 | `INTERNAL_ERROR` | Unexpected server-side error |
+
+## Streaming Values
+
+Workflow inputs and outputs may contain live byte streams (uploaded videos, generated audio, LLM token streams, etc.) that don't fit into a single JSON payload. These are represented in the JSON envelope as `__variable__` stream markers; the actual chunk data flows out-of-band over the same WebSocket connection.
+
+### Stream Marker
+
+Wherever a stream appears inside `input` (client → server) or `output` (server → client), it is encoded as:
+
+```json
+{
+  "__variable__": {
+    "type": "stream",
+    "id": "01HSTREAM...",
+    "kind": "bytes",
+    "content_type": "video/mp4",
+    "filename": "clip.mp4",
+    "size": null,
+    "attrs": {}
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"stream"` |
+| `id` | string | Stream ID scoped to this connection. Used in every subsequent `stream_pull` / `stream_chunk` / `stream_end` / `stream_abort` / `stream_close` message. |
+| `kind` | string | `"bytes"` (binary frames), `"text"` (JSON `stream_chunk.value` as string), or `"object"` (JSON `stream_chunk.value` as arbitrary JSON) |
+| `content_type` | string \| null | MIME type — determines the domain resource type on the server (video, audio, image, …) |
+| `filename` | string \| null | Original filename if applicable |
+| `size` | integer \| null | Total byte size if known upfront |
+| `attrs` | object | Domain-specific attributes (e.g. audio sample rate) |
+
+Multiple streams may appear in the same payload; each has an independent `id` and its chunks may be interleaved.
+
+### Inbound Streams (client → server)
+
+1. Client sends `run_workflow` whose `input` contains one or more stream markers.
+2. Server registers each stream and starts the workflow.
+3. When the workflow consumes a stream, the server sends `stream_pull` for that stream ID.
+4. Client responds with **one** chunk — a binary frame for `kind: "bytes"`, or (for text/object kinds, if supported) inline in a client-side message payload. In practice binary is the norm for uploads.
+5. Steps 3–4 repeat. Client sends `stream_end` (normal completion) or `stream_abort` (error) to terminate.
+
+### Outbound Streams (server → client)
+
+1. Server sends `task_state` or `task_event` whose `output` contains one or more stream markers.
+2. Client sends `stream_pull` for each chunk it wants to consume.
+3. Server responds with a `stream_chunk` (text/object) or a binary chunk frame (bytes).
+4. Steps 2–3 repeat. Server sends `stream_end` when the producer is exhausted, or `stream_abort` if the producer raised an error.
+5. Client may cancel early with `stream_close`.
+
+### Binary Chunk Frames
+
+For `kind: "bytes"` streams, chunks travel as **WebSocket binary frames** rather than JSON messages. This avoids base64 overhead on the wire.
+
+Each binary frame carries a single chunk with this layout (big-endian):
+
+```
++------------+------------------------+---------+-------------+
+| u16 id_len | stream_id UTF-8 bytes  | u32 seq | chunk bytes |
++------------+------------------------+---------+-------------+
+```
+
+| Field | Size | Description |
+|-------|------|-------------|
+| `id_len` | 2 bytes | Length of the stream_id in bytes (UTF-8 encoded) |
+| `stream_id` | `id_len` bytes | Stream ID, UTF-8 |
+| `seq` | 4 bytes | Zero-based chunk sequence number, incremented per chunk on the same stream |
+| `chunk` | remaining | Raw chunk payload |
+
+The receiver dispatches by `stream_id`, so multiple streams may interleave binary frames freely.
+
+### Backpressure
+
+Each stream uses a **credit=1** model: the consumer must send one `stream_pull` for each chunk it wants. The producer never sends a chunk unsolicited. This keeps memory bounded regardless of stream length or producer speed.
+
+### Disconnect Handling
+
+- **Client disconnect** — all inbound streams for that connection are aborted; workflow iterators raise `IOError`. All outbound stream iterators are closed.
+- **Workflow completion with no consumer** — outbound streams that were never pulled are released when the connection closes.
 
 ## Close Codes
 
@@ -355,3 +527,4 @@ Returned when a client request can't be processed. May carry the `id` of the req
 - **`job_event`** — emitted once per job lifecycle transition (`started` / `completed` / `failed` / `routed`). Subscribers connected throughout the run receive all events in emission order.
 - **Replay** — neither message type is buffered after emission. Events emitted before a client subscribes are not replayed; subscribe at workflow start (e.g. `run_workflow` with `subscribe_task: true`) for full coverage.
 - **Subscriptions** — scoped to the WebSocket connection. Closing the connection removes all subscriptions for that client. The underlying workflow is not affected.
+- **Streams** — scoped to the WebSocket connection. Stream IDs are unique per connection but not globally; the same ID from a different connection refers to a different stream. Closing the connection aborts all inbound streams and closes all outbound iterators.

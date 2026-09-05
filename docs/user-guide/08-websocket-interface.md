@@ -339,6 +339,10 @@ This is the WebSocket equivalent of `POST /tasks/{task_id}/resume`.
 
 **Response:** `pong` message.
 
+#### Stream control messages
+
+If a workflow input or output carries a live byte stream (video upload, generated audio, LLM tokens, …), both sides also exchange `stream_pull`, `stream_end`, `stream_abort`, `stream_close` messages and — for `kind: "bytes"` streams — raw binary WebSocket frames. See [8.7 Streaming Inputs and Outputs](#87-streaming-inputs-and-outputs) for the flow and the [WebSocket Reference](../reference/websocket.md#streaming-values) for the exact schemas.
+
 ### 8.4.3 Server → Client Messages
 
 #### `workflow_started` — Workflow Execution Started
@@ -863,22 +867,120 @@ ws.onmessage = (event) => {
 
 ---
 
-## 8.7 Connection Management
+## 8.7 Streaming Inputs and Outputs
 
-### 8.7.1 Session and Reconnection
+Some workflows consume or produce **byte streams** that don't fit into a single JSON payload — uploaded videos, generated audio, LLM token streams, camera frames. Model-compose carries these over the same WebSocket connection using two mechanisms:
+
+- **Stream markers** in the JSON envelope stand in for the actual data.
+- **Binary WebSocket frames** carry chunk bytes out-of-band (no base64 overhead).
+
+The full protocol is documented in the [WebSocket Reference](../reference/websocket.md#streaming-values); this section shows how to use it.
+
+### 8.7.1 When to Use Streaming
+
+Use streaming for values that are:
+
+- Large (multi-MB uploads, long audio clips) — inline base64 is wasteful.
+- Produced incrementally (LLM tokens, TTS audio, live camera feeds) — you want first-byte latency, not batched delivery.
+- Real-time (WebRTC-style push, continuous sensor data).
+
+For small values (a few KB), a plain JSON string or base64 is simpler.
+
+### 8.7.2 Sending Streams to a Workflow (Input)
+
+Reference each stream from `input` using a `__variable__` marker, then push its chunks as binary frames. The server registers each stream and hands the workflow a live async iterator.
+
+```json
+{
+  "type": "run_workflow",
+  "id": "req-1",
+  "data": {
+    "workflow_id": "video-audio-mux",
+    "input": {
+      "video": {
+        "__variable__": {
+          "type": "stream",
+          "id": "s1",
+          "kind": "bytes",
+          "content_type": "video/mp4",
+          "filename": "clip.mp4"
+        }
+      },
+      "audio": {
+        "__variable__": {
+          "type": "stream",
+          "id": "s2",
+          "kind": "bytes",
+          "content_type": "audio/wav"
+        }
+      }
+    }
+  }
+}
+```
+
+Then, whenever the server sends `{ "type": "stream_pull", "data": { "id": "s1" } }`, the client responds with one binary frame for `s1`. When the source is exhausted, send `{ "type": "stream_end", "data": { "id": "s1" } }`. Both streams are independent — their binary frames may interleave freely.
+
+**Multiple files at once** — pass any number of stream markers in the same `input`. Each gets its own `id` and is pulled/pushed independently.
+
+### 8.7.3 Receiving Streams from a Workflow (Output)
+
+When a workflow's output (or a job's intermediate output) contains a stream, the server embeds a `__variable__` marker in `task_state.output` or `task_event.output`:
+
+```json
+{
+  "type": "task_state",
+  "data": {
+    "task_id": "01HXYZ...",
+    "status": "streaming",
+    "output": {
+      "audio": {
+        "__variable__": {
+          "type": "stream",
+          "id": "s3",
+          "kind": "bytes",
+          "content_type": "audio/wav"
+        }
+      }
+    }
+  }
+}
+```
+
+To consume, send `stream_pull` for `s3` and receive one binary frame per pull. When the producer is exhausted the server sends `stream_end`. You can stop early with `stream_close`.
+
+### 8.7.4 Backpressure
+
+Streams use **credit-based backpressure**: the consumer sends one `stream_pull` for each chunk it wants. The producer never sends unsolicited chunks. This keeps memory bounded no matter how large or fast the stream is — if you stop pulling, the producer stops sending.
+
+### 8.7.5 Disconnect Behavior
+
+- If the client disconnects mid-stream, all its inbound streams are aborted; the workflow observes an `IOError` on its next pull.
+- Outbound streams that were never pulled are released when the connection closes.
+- Stream IDs are scoped to the WebSocket connection — they are not global. Reconnecting with the same session ID does **not** resume a stream from where it left off.
+
+### 8.7.6 Binary Frame Format
+
+For `kind: "bytes"` streams, chunks travel as binary WebSocket frames with a slim header (see the [reference](../reference/websocket.md#binary-chunk-frames) for the exact byte layout). Text and JSON streams use the regular `stream_chunk` JSON message instead.
+
+---
+
+## 8.8 Connection Management
+
+### 8.8.1 Session and Reconnection
 
 - Each WebSocket connection is identified by a session ID (auto-generated or specified via `?session=`).
 - If a connection drops, you can reconnect with the same session ID (after the previous connection is fully closed).
 - To create a new session, simply omit the `?session=` parameter or use a new UUID.
 
-### 8.7.2 Connection Lifecycle
+### 8.8.2 Connection Lifecycle
 
 When a WebSocket connection closes:
 - All task subscriptions for that client are automatically removed.
 - Running workflows are **not** affected — WebSocket is a monitoring/control channel, not tied to workflow execution.
 - The client can reconnect and re-subscribe to continue monitoring.
 
-### 8.7.3 Connection Limits
+### 8.8.3 Connection Limits
 
 When `max_connection_count` is configured and the limit is reached, new connections are rejected with close code `4429` (Too Many Connections).
 
@@ -890,7 +992,7 @@ controller:
       max_connection_count: 50  # Reject connections beyond 50
 ```
 
-### 8.7.4 Keep-Alive with Ping
+### 8.8.4 Keep-Alive with Ping
 
 Use the `ping` message to verify the connection is alive:
 
@@ -905,15 +1007,15 @@ setInterval(() => {
 
 ---
 
-## 8.8 Security Considerations
+## 8.9 Security Considerations
 
-### 8.8.1 Session ID Security
+### 8.9.1 Session ID Security
 
 Session IDs (`?session=` and `?session_id=`) are not authentication mechanisms:
 - Anyone who knows a session ID can link REST subscriptions to that session's WebSocket.
 - In untrusted network environments, consider adding token-based authentication at the application level.
 
-### 8.8.2 CORS and Origins
+### 8.9.2 CORS and Origins
 
 The `origins` setting in controller configuration applies to WebSocket connections from browsers:
 
@@ -926,7 +1028,7 @@ controller:
 
 Note: This only applies to browser-initiated connections. Server-to-server WebSocket connections are not restricted by CORS.
 
-### 8.8.3 Production Recommendations
+### 8.9.3 Production Recommendations
 
 - Use WSS (WebSocket over TLS) via a reverse proxy
 - Restrict origins to trusted domains
@@ -957,7 +1059,7 @@ server {
 
 ---
 
-## 8.9 Best Practices
+## 8.10 Best Practices
 
 ### 1. Use `subscribe_task: true` for Real-Time Monitoring
 

@@ -47,7 +47,7 @@ class FieldResolver:
                 if ":" in inner:
                     start, stop = inner.split(":", 1)
                     start_index = int(start) if start else None
-                    stop_index = int(stop) if stop else None
+                    stop_index  = int(stop) if stop else None
                     value = value[start_index:stop_index]
                 else:
                     index = int(inner)

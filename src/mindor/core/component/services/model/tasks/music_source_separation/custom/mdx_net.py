@@ -148,9 +148,10 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
     def _infer_chunk(self, chunk: np.ndarray) -> np.ndarray:
         import numpy as np
 
-        spec = self._stft(chunk)
-        result = self.session.run(None, { self.input_name: spec })[0]
-        return self._istft(result, chunk.shape[1])
+        spectrogram = self._stft(chunk)
+        spectrogram = self.session.run(None, { self.input_name: spectrogram })[0]
+
+        return self._istft(spectrogram, chunk.shape[1])
 
     def _stft(self, waveform: np.ndarray) -> np.ndarray:
         import numpy as np
@@ -175,21 +176,23 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         real = stacked.real
         imag = stacked.imag
-        spec = np.stack([ real[0], imag[0], real[1], imag[1] ], axis=0)  # (4, dim_f, dim_t)
-        return spec[np.newaxis, :].astype(np.float32)
+        spectrogram = np.stack([ real[0], imag[0], real[1], imag[1] ], axis=0)  # (4, dim_f, dim_t)
 
-    def _istft(self, spec: np.ndarray, target_length: int) -> np.ndarray:
+        return spectrogram[np.newaxis, :].astype(np.float32)
+
+    def _istft(self, spectrogram: np.ndarray, target_length: int) -> np.ndarray:
         import numpy as np
 
-        spec = spec[0]  # (4, dim_f, dim_t)
-        real_l, imag_l, real_r, imag_r = spec[0], spec[1], spec[2], spec[3]
+        spectrogram = spectrogram[0]  # (4, dim_f, dim_t)
+        real_l, imag_l, real_r, imag_r = spectrogram[0], spectrogram[1], spectrogram[2], spectrogram[3]
 
-        left = real_l + 1j * imag_l
+        left  = real_l + 1j * imag_l
         right = real_r + 1j * imag_r
 
         # Pad frequency axis back to n_fft // 2 + 1
         full_bins = _MDX_N_FFT // 2 + 1
         pad_f = full_bins - left.shape[0]
+
         if pad_f > 0:
             left = np.pad(left, ((0, pad_f), (0, 0)), mode="constant")
             right = np.pad(right, ((0, pad_f), (0, 0)), mode="constant")
@@ -197,15 +200,15 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         window = np.hanning(_MDX_N_FFT).astype(np.float32)
         channels: List[np.ndarray] = []
 
-        for spec_channel in (left, right):
-            n_frames = spec_channel.shape[1]
+        for spectrogram_channel in (left, right):
+            n_frames = spectrogram_channel.shape[1]
             samples = (n_frames - 1) * _MDX_HOP_LENGTH + _MDX_N_FFT
             waveform = np.zeros(samples, dtype=np.float32)
             norm = np.zeros(samples, dtype=np.float32)
 
             for frame in range(n_frames):
                 start = frame * _MDX_HOP_LENGTH
-                segment = np.fft.irfft(spec_channel[:, frame]).astype(np.float32) * window
+                segment = np.fft.irfft(spectrogram_channel[:, frame]).astype(np.float32) * window
                 waveform[start : start + _MDX_N_FFT] += segment
                 norm[start : start + _MDX_N_FFT] += window * window
 

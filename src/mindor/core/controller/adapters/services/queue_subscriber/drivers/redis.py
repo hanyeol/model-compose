@@ -22,9 +22,7 @@ import asyncio, json, ulid
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
 
-
 _PROTOCOL_VERSION = "queue.v2"
-
 
 @register_queue_subscriber_controller_adapter_service(QueueSubscriberDriver.REDIS)
 class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberControllerAdapterService):

@@ -265,6 +265,8 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `pose-tracking` | 자세 추적 | 비디오 프레임 전반에서 사람(자세)을 트랙별 타임코드 세그먼트로 추적 |
 | `object-tracking` | 객체 추적 | 비디오 프레임 전반에서 객체를 트랙별 타임코드 세그먼트로 추적 |
 | `music-generation` | 음악 생성 | 텍스트→음악 변환 |
+| `music-source-separation` | 음악 소스 분리 | 믹스를 보컬 / 드럼 / 베이스 / 기타 스템으로 분리 |
+| `music-transcription` | 음악 전사 | 오디오 녹음을 MIDI와 노트 이벤트로 변환 |
 
 ### 10.3.1 text-generation
 
@@ -742,6 +744,136 @@ component:
 ```
 
 Ultralytics SAM 체크포인트(`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt` 등) 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../../reference/compose/components/model.md#image-segmentation)를 참고하세요.
+
+### 10.3.25 music-generation
+
+음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형도 지정합니다.
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: ace-step
+  preset: acestep-v15-turbo
+  model: /path/to/ace-step-checkpoints
+  device: cuda:0
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics | ""}
+    params:
+      duration: 30
+      bpm: 120
+      key_scale: C
+      time_signature: 4/4
+      inference_steps: 8
+      guidance_scale: 5.0
+```
+
+**지원되는 method:**
+
+| Method | 목적 | 필수 필드(공통 필드 외) |
+|--------|------|-------------------------|
+| `generate` | 프롬프트로부터 새 음악 생성(또는 MIDI 합성) | `prompt` (선택: `lyrics`, `reference_audio`) 또는 `midi`, `instrument` (midi-ddsp) |
+| `cover` | 기존 트랙을 새 스타일로 커버 | `source`, `prompt` (선택: `lyrics`) |
+| `rewrite` | 특정 `[start_time, end_time]` 구간 재생성 | `source`, `start_time`, `end_time`, `prompt` (선택: `lyrics`) |
+| `extend` | 소스를 자연스러운 끝 이후로 이어붙이기 | `source`, `prompt` (선택: `lyrics`) |
+| `layer` | 소스 위에 새 악기/파트 레이어 추가 | `source`, `track_class` (선택: `prompt`, `lyrics`) |
+| `accompany` | 보컬 전용 소스에 대한 반주 생성 | `vocal`, `track_classes` (선택: `prompt`) |
+
+**지원되는 family와 preset:**
+- `ace-step`
+  - `acestep-v15-turbo` — 빠른 turbo 변형 (기본 `inference_steps: 8`).
+  - `acestep-v15-base` — base 변형 (권장 `inference_steps: 32`).
+  - `acestep-v15-sft` — SFT 변형 (권장 `inference_steps: 50`).
+- `midi-ddsp`
+  - 모노포닉 MIDI 파일을 특정 URMP 악기 음색(violin, viola, cello, double-bass, flute, oboe, clarinet, saxophone, bassoon, trumpet, horn, trombone, tuba)으로 합성합니다. `method: generate`에 `midi`와 `instrument` 필드를 사용합니다. 다성 MIDI는 거부됩니다.
+
+두 family 모두 HuggingFace Hub 식별자는 지원하지 않으며, `model`은 반드시 로컬 체크포인트 디렉토리여야 합니다.
+
+MIDI-DDSP는 TensorFlow 2.11을 고정 의존하며 호스트 mindor 스택과 함께 실행할 수 없기 때문에, 컴포넌트를 격리된 런타임(`virtualenv`, `docker`, `apple-container`)에서 실행해야 합니다. `native` / `embedded` / `process` 런타임은 로드 시점에 거부됩니다.
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: midi-ddsp
+  runtime:
+    type: virtualenv
+    driver: pyenv
+    python: "3.10.14"
+  model: /path/to/midi_ddsp_model_weights_urmp_9_10
+  action:
+    method: generate
+    midi: ${input.midi}
+    instrument: violin
+```
+
+결과는 입력당 PCM 오디오 스트림(배치 입력에는 스트림 리스트)입니다. 메서드별 전체 필드 목록은 [Model Component 레퍼런스](../../reference/compose/components/model.md#music-generation)를 참고하세요.
+
+### 10.3.26 music-source-separation
+
+믹스된 녹음을 개별 악기 스템(보컬, 드럼, 베이스, 기타)으로 분리합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: demucs
+  model: htdemucs_ft
+  device: cpu   # htdemucs_ft는 MPS를 지원하지 않으므로 cpu 또는 cuda를 사용하세요
+  action:
+    audio: ${input.audio as audio}
+    params:
+      stems: [ vocals ]   # 생략하면 모델이 제공하는 모든 스템이 반환됩니다
+      overlap: 0.25
+      shifts: 1
+```
+
+**지원되는 family:**
+
+| Family | 범위 | 비고 |
+|--------|------|------|
+| `demucs` | 4-스템(또는 6-스템) 분리 | Meta AI의 Hybrid Transformer Demucs. `htdemucs_ft`는 파인튜닝된 앙상블이며, `htdemucs_6s`는 `guitar`와 `piano` 스템을 추가로 제공합니다 |
+| `mdx-net` | 보컬 분리 | ONNX Runtime 기반 UVR MDX-Net. 인스트루멘털 스템은 믹스에서 보컬을 뺀 결과로 파생됩니다 |
+
+스템 하나만 요청하면 액션이 단일 오디오 스트림을 반환합니다. 여러 스템을 요청하거나(예: `stems: [vocals, drums, bass, other]`), `stems`를 생략해 모델이 제공하는 모든 스템이 반환되는 경우에는 `{ "<stem_name>": <stream>, ... }` 형태의 맵을 반환합니다. `shifts`와 `overlap` 값을 높이면 실행 시간이 길어지는 대신 더 깨끗한 분리 결과를 얻을 수 있습니다.
+
+`music-transcription`과 연결하면 각 스템을 개별 MIDI로 전사할 수 있고, 보컬 스템에 `speech-to-text`를 연결하면 더 깨끗한 가사 전사가 가능합니다. 전체 family별 필드 목록은 [Model Component 레퍼런스](../../reference/compose/components/model.md#music-source-separation)를 참고하세요.
+
+### 10.3.27 music-transcription
+
+녹음된 오디오를 MIDI 파일과 노트 이벤트(시작 시간, 종료 시간, 음높이, 벨로시티) JSON 리스트로 전사합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
+
+```yaml
+component:
+  type: model
+  task: music-transcription
+  driver: custom
+  family: basic-pitch
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    return_pitch_bends: false
+    params:
+      onset_threshold: 0.5
+      frame_threshold: 0.3
+      minimum_note_length: 58.0
+```
+
+**지원되는 family:**
+
+| Family | 범위 | 비고 |
+|--------|------|------|
+| `basic-pitch` | 다성음, 악기 무관 | Spotify Basic Pitch (ICASSP-2022); ONNX로 CPU에서 실행; 체크포인트가 wheel에 포함되어 있음 |
+| `piano-transcription` | 88건반 피아노 전용 | ByteDance Piano Transcription; 서스테인 페달 이벤트 검출; 최초 사용 시 약 180 MB 체크포인트 자동 다운로드 |
+
+액션은 입력마다 두 개의 필드를 가진 딕셔너리를 반환합니다: `midi` (MIDI 파일)와 `notes` (초 단위 시간과 MIDI 노트 번호로 표현된 음높이를 담은 `{start_time, end_time, pitch, velocity}` 객체의 JSON 리스트). Basic Pitch는 `return_pitch_bends`가 활성화되면 노트별 `pitch_bends` 배열을 추가합니다. Piano Transcription은 페달 이벤트를 MIDI에 직접 기록합니다.
+
+`music-source-separation`과 연결하면 믹스의 각 스템을 독립적으로 전사할 수 있습니다(예: 보컬 라인과 반주를 별도 파트로 전사). 전체 family별 필드 목록은 [Model Component 레퍼런스](../../reference/compose/components/model.md#music-transcription)를 참고하세요.
 
 ---
 

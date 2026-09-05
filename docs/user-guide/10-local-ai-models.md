@@ -271,6 +271,8 @@ model-compose supports the following task types:
 | `object-tracking` | Object tracking | Track objects across video frames with per-track timecoded segments |
 | `shot-boundary-detection` | Shot boundary detection | Detect hard cuts in a video with per-shot start/end timecodes |
 | `music-generation` | Music generation | Audio/music synthesis |
+| `music-source-separation` | Music source separation | Split a mix into vocals / drums / bass / other stems |
+| `music-transcription` | Music transcription | Convert audio recordings into MIDI + note events |
 
 ### 10.3.1 text-generation
 
@@ -1131,7 +1133,7 @@ Compared with the `video-scene-detector` component (which uses classical CV heur
 
 ### 10.3.25 music-generation
 
-Generates or edits music audio. The action's `method` field selects the operation — generate from scratch, cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, or generate accompaniment for a vocal-only stem. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, or generate accompaniment for a vocal-only stem. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant.
 
 ```yaml
 component:
@@ -1171,8 +1173,93 @@ component:
   - `acestep-v15-turbo` — fast turbo variant (default `inference_steps: 8`).
   - `acestep-v15-base` — base variant (recommended `inference_steps: 32`).
   - `acestep-v15-sft` — SFT variant (recommended `inference_steps: 50`).
+- `midi-ddsp`
+  - Synthesizes a monophonic MIDI file with a specific URMP instrument voice (violin, viola, cello, double-bass, flute, oboe, clarinet, saxophone, bassoon, trumpet, horn, trombone, tuba). Uses `method: generate` with `midi` and `instrument` fields. Polyphonic MIDI is rejected.
 
-The ACE-Step family does not support HuggingFace Hub identifiers — `model` must be a local checkpoint directory. The result is a PCM audio stream per input (or a list of streams for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.
+Neither family accepts HuggingFace Hub identifiers — `model` must be a local checkpoint directory.
+
+MIDI-DDSP pins TensorFlow 2.11 and cannot coexist with the host mindor stack, so the component must run under an isolated runtime (`virtualenv`, `docker`, or `apple-container`); native / embedded / process runtimes are rejected at load time.
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: midi-ddsp
+  runtime:
+    type: virtualenv
+    driver: pyenv
+    python: "3.10.14"
+  model: /path/to/midi_ddsp_model_weights_urmp_9_10
+  action:
+    method: generate
+    midi: ${input.midi}
+    instrument: violin
+```
+
+The result is a PCM audio stream per input (or a list of streams for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.
+
+### 10.3.26 music-source-separation
+
+Splits a mixed recording into individual instrument stems (vocals, drums, bass, other). Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: demucs
+  model: htdemucs_ft
+  device: cpu   # MPS is unsupported for htdemucs_ft; use cpu or cuda
+  action:
+    audio: ${input.audio as audio}
+    params:
+      stems: [ vocals ]   # omit to return every stem the model produces
+      overlap: 0.25
+      shifts: 1
+```
+
+**Supported families:**
+
+| Family | Scope | Notes |
+|--------|-------|-------|
+| `demucs` | Four-stem (or six-stem) separation | Meta AI's Hybrid Transformer Demucs. `htdemucs_ft` is a fine-tuned ensemble; `htdemucs_6s` adds `guitar` + `piano` stems |
+| `mdx-net` | Vocal isolation | UVR MDX-Net via ONNX Runtime. Instrumental stem is derived by subtracting vocals from the mix |
+
+When one stem is requested, the action returns a single audio stream. When multiple stems are requested (e.g. `stems: [vocals, drums, bass, other]`) — or when `stems` is omitted so every stem the model produces is returned — it returns a `{ "<stem_name>": <stream>, ... }` map. Higher `shifts` and `overlap` trade wall-clock time for cleaner separation.
+
+Chain with `music-transcription` to transcribe each stem into its own MIDI, or with `speech-to-text` on the vocal stem for cleaner lyric transcription. See the [Model Component reference](../reference/compose/components/model.md#music-source-separation) for the full per-family field list.
+
+### 10.3.27 music-transcription
+
+Transcribes recorded audio into a MIDI file and a JSON list of note events (start time, end time, pitch, velocity). Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: music-transcription
+  driver: custom
+  family: basic-pitch
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    return_pitch_bends: false
+    params:
+      onset_threshold: 0.5
+      frame_threshold: 0.3
+      minimum_note_length: 58.0
+```
+
+**Supported families:**
+
+| Family | Scope | Notes |
+|--------|-------|-------|
+| `basic-pitch` | Polyphonic, instrument-agnostic | Spotify Basic Pitch (ICASSP-2022); runs on CPU via ONNX; checkpoint ships inside the wheel |
+| `piano-transcription` | 88-key piano only | ByteDance Piano Transcription; detects sustain-pedal events; auto-downloads ~180 MB checkpoint on first use |
+
+The action returns a dict with two fields per input: `midi` (a MIDI file) and `notes` (a JSON list of `{start_time, end_time, pitch, velocity}` objects with times in seconds and pitch as MIDI note number). Basic Pitch adds a per-note `pitch_bends` array when `return_pitch_bends` is enabled. Piano Transcription bakes pedal events into the MIDI directly.
+
+Chain with `music-source-separation` to transcribe each stem of a mix independently (e.g. transcribe the vocal line and the accompaniment as separate parts). See the [Model Component reference](../reference/compose/components/model.md#music-transcription) for the full per-family field list.
 
 ---
 

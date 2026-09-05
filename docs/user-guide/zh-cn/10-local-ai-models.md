@@ -265,6 +265,8 @@ model-compose 支持以下任务类型：
 | `pose-tracking` | 姿态追踪 | 在视频帧中按轨迹追踪人物（姿态），并归纳为时间码片段 |
 | `object-tracking` | 目标追踪 | 在视频帧中按轨迹追踪目标，并归纳为时间码片段 |
 | `music-generation` | 音乐生成 | 音乐创作、配乐 |
+| `music-source-separation` | 音乐源分离 | 将混音拆分为人声 / 鼓 / 贝斯 / 其他音轨 |
+| `music-transcription` | 音乐转录 | 将音频录音转换为 MIDI 和音符事件 |
 
 ### 10.3.1 text-generation
 
@@ -781,6 +783,136 @@ component:
 ```
 
 支持任意 Ultralytics SAM 检查点（`sam_b.pt`、`sam2_b.pt`、`mobile_sam.pt` 等）。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#image-segmentation)。
+
+### 10.3.25 music-generation
+
+生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 还需要 `preset` 字段来选择检查点变体。
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: ace-step
+  preset: acestep-v15-turbo
+  model: /path/to/ace-step-checkpoints
+  device: cuda:0
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics | ""}
+    params:
+      duration: 30
+      bpm: 120
+      key_scale: C
+      time_signature: 4/4
+      inference_steps: 8
+      guidance_scale: 5.0
+```
+
+**支持的 method：**
+
+| Method | 用途 | 必填字段（除公共字段外） |
+|--------|------|--------------------------|
+| `generate` | 从提示词生成新音乐（或 MIDI 合成） | `prompt`（可选：`lyrics`、`reference_audio`）或 `midi`、`instrument`（midi-ddsp） |
+| `cover` | 以新风格翻唱现有曲目 | `source`、`prompt`（可选：`lyrics`） |
+| `rewrite` | 重新生成指定 `[start_time, end_time]` 区间 | `source`、`start_time`、`end_time`、`prompt`（可选：`lyrics`） |
+| `extend` | 将源音频延续到自然结尾之后 | `source`、`prompt`（可选：`lyrics`） |
+| `layer` | 在源音频上叠加新乐器/声部 | `source`、`track_class`（可选：`prompt`、`lyrics`） |
+| `accompany` | 为纯人声源生成伴奏 | `vocal`、`track_classes`（可选：`prompt`） |
+
+**支持的 family 和 preset：**
+- `ace-step`
+  - `acestep-v15-turbo` — 快速 turbo 变体（默认 `inference_steps: 8`）。
+  - `acestep-v15-base` — base 变体（推荐 `inference_steps: 32`）。
+  - `acestep-v15-sft` — SFT 变体（推荐 `inference_steps: 50`）。
+- `midi-ddsp`
+  - 使用特定 URMP 乐器音色（violin、viola、cello、double-bass、flute、oboe、clarinet、saxophone、bassoon、trumpet、horn、trombone、tuba）合成单声部 MIDI 文件。`method: generate` 搭配 `midi` 和 `instrument` 字段使用。多声部 MIDI 会被拒绝。
+
+两个 family 均不支持 HuggingFace Hub 标识符，`model` 必须是本地检查点目录。
+
+MIDI-DDSP 固定依赖 TensorFlow 2.11 且无法与宿主 mindor 栈共存，因此组件必须在隔离运行时（`virtualenv`、`docker` 或 `apple-container`）下运行；`native` / `embedded` / `process` 运行时会在加载时被拒绝。
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: midi-ddsp
+  runtime:
+    type: virtualenv
+    driver: pyenv
+    python: "3.10.14"
+  model: /path/to/midi_ddsp_model_weights_urmp_9_10
+  action:
+    method: generate
+    midi: ${input.midi}
+    instrument: violin
+```
+
+结果为每个输入的 PCM 音频流（批处理输入则返回流列表）。每个 method 的完整字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-generation)。
+
+### 10.3.26 music-source-separation
+
+将混合录音分离为独立的乐器音轨（人声、鼓、贝斯、其他）。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: demucs
+  model: htdemucs_ft
+  device: cpu   # htdemucs_ft 不支持 MPS，请使用 cpu 或 cuda
+  action:
+    audio: ${input.audio as audio}
+    params:
+      stems: [ vocals ]   # 省略时会返回模型可产出的所有音轨
+      overlap: 0.25
+      shifts: 1
+```
+
+**支持的 family：**
+
+| Family | 适用范围 | 说明 |
+|--------|----------|------|
+| `demucs` | 四音轨（或六音轨）分离 | Meta AI 的 Hybrid Transformer Demucs。`htdemucs_ft` 是微调后的集成模型；`htdemucs_6s` 额外提供 `guitar` 和 `piano` 音轨 |
+| `mdx-net` | 人声分离 | 基于 ONNX Runtime 的 UVR MDX-Net。伴奏音轨通过从混音中减去人声得到 |
+
+当仅请求一个音轨时，该动作返回单个音频流。当请求多个音轨时（例如 `stems: [vocals, drums, bass, other]`），或当省略 `stems` 从而返回模型可产出的所有音轨时，返回 `{ "<stem_name>": <stream>, ... }` 形式的映射。提高 `shifts` 和 `overlap` 会以更长的运行时间换取更干净的分离效果。
+
+与 `music-transcription` 组合使用可将每个音轨转录为独立的 MIDI，或对人声音轨使用 `speech-to-text` 以获得更清晰的歌词转录。完整的 family 字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-source-separation)。
+
+### 10.3.27 music-transcription
+
+将录制的音频转录为 MIDI 文件和音符事件（起始时间、结束时间、音高、力度）的 JSON 列表。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
+
+```yaml
+component:
+  type: model
+  task: music-transcription
+  driver: custom
+  family: basic-pitch
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    return_pitch_bends: false
+    params:
+      onset_threshold: 0.5
+      frame_threshold: 0.3
+      minimum_note_length: 58.0
+```
+
+**支持的 family：**
+
+| Family | 适用范围 | 说明 |
+|--------|----------|------|
+| `basic-pitch` | 复音、乐器无关 | Spotify Basic Pitch (ICASSP-2022)；通过 ONNX 在 CPU 上运行；检查点随 wheel 一同分发 |
+| `piano-transcription` | 仅限 88 键钢琴 | ByteDance Piano Transcription；可检测延音踏板事件；首次使用时自动下载约 180 MB 检查点 |
+
+该动作为每个输入返回包含两个字段的字典：`midi`（MIDI 文件）和 `notes`（`{start_time, end_time, pitch, velocity}` 对象的 JSON 列表，时间以秒为单位，音高为 MIDI 音符编号）。启用 `return_pitch_bends` 时，Basic Pitch 会为每个音符添加 `pitch_bends` 数组。Piano Transcription 会直接将踏板事件写入 MIDI。
+
+与 `music-source-separation` 组合使用，可对混音中的每个音轨独立转录（例如将人声与伴奏作为不同声部分别转录）。完整的 family 字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-transcription)。
 
 ---
 

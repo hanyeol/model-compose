@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -1877,7 +1877,7 @@ When the input is a list, the action returns a list of per-video shot lists. Whe
 
 ### Music Generation
 
-Generate or edit music audio. The action selects an operation via the `method` field — from scratch generation, cover of an existing track, in-place region rewrite, continuation past the end, adding a new instrument layer, or generating accompaniment for a vocal-only stem. This task uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+Generate or edit music audio. The action selects an operation via the `method` field — from scratch generation, cover of an existing track, in-place region rewrite, continuation past the end, adding a new instrument layer, generating accompaniment for a vocal-only stem, or synthesizing a MIDI file with a specific instrument voice. This task uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field to pick the checkpoint variant.
 
 **Component Settings:**
 
@@ -1885,9 +1885,10 @@ Generate or edit music audio. The action selects an operation via the `method` f
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `music-generation` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (currently `ace-step`) |
-| `preset` | string | `acestep-v15-turbo` | Checkpoint preset (`acestep-v15-turbo`, `acestep-v15-base`, `acestep-v15-sft`) |
-| `model` | string | **required** | Local checkpoint directory. ACE-Step does not accept HuggingFace Hub identifiers |
+| `family` | string | **required** | Model family (`ace-step`, `midi-ddsp`) |
+| `preset` | string | `acestep-v15-turbo` | Checkpoint preset (`ace-step` only: `acestep-v15-turbo`, `acestep-v15-base`, `acestep-v15-sft`) |
+| `expression_generator_weights` | string | `<model>/expression_generator/5000` | Path to the expression generator checkpoint (`midi-ddsp` only) |
+| `model` | string | **required** | Local checkpoint directory. Neither family accepts HuggingFace Hub identifiers |
 
 **Common Action Fields:**
 
@@ -1895,15 +1896,15 @@ Every method shares these fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Operation: `generate`, `cover`, `rewrite`, `extend`, `layer`, `accompany` |
+| `method` | string | **required** | Operation: `generate` (all families), `cover`, `rewrite`, `extend`, `layer`, `accompany` (`ace-step` only) |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.duration` | int | `30` | Duration of the generated music in seconds |
 | `params.bpm` | int | `120` | Target tempo in beats per minute |
 | `params.key_scale` | string | `null` | Musical key of the generated music (e.g., `C`, `D`, `Em`) |
-| `params.time_signature` | string | `4/4` | Musical time signature (e.g., `4/4`, `3/4`) |
-| `params.inference_steps` | int | `8` | Number of diffusion inference steps (turbo: `8`, base: `32`, sft: `50`) |
-| `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale applied during sampling |
+| `params.time_signature` | string | `4/4` | Musical time signature (`ace-step` only; e.g., `4/4`, `3/4`) |
+| `params.inference_steps` | int | `8` | Number of diffusion inference steps (`ace-step` only; turbo: `8`, base: `32`, sft: `50`) |
+| `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale applied during sampling (`ace-step` only) |
 
 #### `method: generate`
 
@@ -2054,10 +2055,223 @@ component:
 | `ace-step` | `acestep-v15-turbo` | Fast turbo variant; default `inference_steps: 8`. |
 | `ace-step` | `acestep-v15-base` | Base variant; recommended `inference_steps: 32`. |
 | `ace-step` | `acestep-v15-sft` | SFT variant; recommended `inference_steps: 50`. |
+| `midi-ddsp` | — | Google Magenta MIDI-DDSP. Synthesizes a monophonic MIDI file with a specific URMP instrument voice. |
+
+#### `family: midi-ddsp`
+
+Synthesize a MIDI file into 16 kHz mono audio using Google Magenta's [MIDI-DDSP](https://github.com/magenta/midi-ddsp). The model was trained on the URMP dataset and only supports monophonic tracks (a single note at any given time); polyphonic input is rejected. `method` is always `generate`.
+
+**Runtime requirement:** MIDI-DDSP pins TensorFlow 2.11 and cannot coexist with the host mindor stack. The component must run under an isolated runtime — `virtualenv`, `docker`, or `apple-container`. Native / embedded / process runtimes are rejected at load time.
+
+**Supported instruments:** `violin`, `viola`, `cello`, `double-bass`, `flute`, `oboe`, `clarinet`, `saxophone`, `bassoon`, `trumpet`, `horn`, `trombone`, `tuba`. The user-selected `instrument` always wins — MIDI program numbers embedded in the file are ignored.
+
+**Action Fields (`method: generate`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `midi` | string | **required** | Path or URL of the monophonic MIDI file to synthesize |
+| `instrument` | string | **required** | Instrument voice used to synthesize every track in the MIDI file |
+| `params.pitch_offset` | int | `0` | Semitones to transpose the input MIDI before synthesis |
+| `params.speed_rate` | float | `1.0` | Playback speed multiplier applied to the MIDI sequence |
+| `params.vibrato_extent` | float | `null` | Global override for the vibrato extent expression control (0.0-1.0) |
+| `params.vibrato_attack` | float | `null` | Global override for the vibrato attack expression control (0.0-1.0) |
+| `params.brightness` | float | `null` | Global override for the brightness expression control (0.0-1.0) |
+| `params.attack_noise` | float | `null` | Global override for the attack noise expression control (0.0-1.0) |
+| `params.volume` | float | `null` | Global override for the volume expression control (0.0-1.0) |
+| `params.volume_fluctuation` | float | `null` | Global override for the volume fluctuation expression control (0.0-1.0) |
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: midi-ddsp
+  runtime:
+    type: virtualenv
+    driver: pyenv
+    python: "3.10.14"
+  model: /path/to/midi_ddsp_model_weights_urmp_9_10
+  action:
+    method: generate
+    midi: ${input.midi}
+    instrument: violin
+    params:
+      vibrato_extent: 0.6
+      brightness: 0.7
+```
 
 **Result Shape:**
 
 Returns a single PCM audio stream (or a list of streams for batched inputs). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes.
+
+### Music Source Separation
+
+Split a mixed music recording into individual stems (vocals, drums, bass, other). This task uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `music-source-separation` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model backend (`demucs`, `mdx-net`) |
+| `model` | string/object | family-specific | Named checkpoint (Demucs) or a HuggingFace repo / local ONNX path (MDX-Net) |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | string/array | **required** | Input audio path, URL, or list of audio inputs to separate |
+| `batch_size` | int | `1` | Number of audio inputs processed per batch |
+| `params.stems` | array/string | all stems | Stems returned in the result (e.g., `vocals`, `drums`, `bass`, `other`); when omitted, every stem the model produces is returned |
+| `params.sample_rate` | int | model-native | Sample rate in Hz of the returned stems |
+| `params.overlap` | float | family-default | Overlap ratio between chunks (0.0-0.99); higher = cleaner but slower |
+| `params.shifts` | int | family-default | Number of random shifts for equivariant stabilization (Demucs only); higher = cleaner but slower |
+
+#### `family: demucs`
+
+Meta AI's Hybrid Transformer Demucs. Four-stem model (`vocals`, `drums`, `bass`, `other`) by default; six-stem variants add `guitar` and `piano`.
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: demucs
+  model: htdemucs_ft
+  device: cpu   # MPS is unsupported for htdemucs_ft; use cpu or cuda
+  action:
+    audio: ${input.audio as audio}
+    params:
+      stems: [ vocals ]   # omit to return all stems the model produces
+      overlap: 0.25
+      shifts: 1
+```
+
+`htdemucs_ft` is a bagged ensemble whose internal conv widths exceed the MPS backend limit in PyTorch — keep `device: cpu` on Apple Silicon or switch the model to `htdemucs` (single-model variant) if you want MPS.
+
+#### `family: mdx-net`
+
+UVR MDX-Net vocal separator via ONNX Runtime. Produces a `vocals` stem; the complementary `instrumental` stem is derived by subtracting the estimated vocals from the original mix.
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: mdx-net
+  model:
+    provider: huggingface
+    repository: seanghay/uvr_models
+    filename: UVR-MDX-NET-Voc_FT.onnx
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    params:
+      stems: [ vocals ]   # or [vocals, instrumental]; omit to return both
+```
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `demucs` | [Demucs v4](https://github.com/facebookresearch/demucs) | Hybrid Transformer (spectrogram + waveform). Four-stem or six-stem checkpoints. |
+| `mdx-net` | [UVR MDX-Net](https://github.com/Anjok07/ultimatevocalremovergui) | Vocal-focused; runs on ONNX Runtime. Instrumental stem derived by subtraction. |
+
+**Result Shape:**
+
+When a single stem is requested, returns a single PCM audio stream (or a list of streams for batched inputs). When multiple stems are requested — or when `stems` is omitted so every stem the model produces is returned — the result is a `{ "<stem_name>": <PcmStreamResource>, ... }` map instead. Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes.
+
+### Music Transcription
+
+Transcribe recorded audio into a MIDI file and a JSON list of note events (onset, offset, pitch, velocity). This task uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `music-transcription` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model backend (`basic-pitch`, `piano-transcription`) |
+| `model` | string | family-specific | Named checkpoint (see the per-family sections below) |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | string/array | **required** | Input audio path, URL, or list of audio inputs |
+| `batch_size` | int | `1` | Number of audio inputs processed per batch |
+| `params.onset_threshold` | float | family-default | Confidence threshold for detecting a note onset (0.0-1.0); higher = fewer, more confident notes |
+| `params.frame_threshold` | float | family-default | Confidence threshold for sustaining a note across frames (0.0-1.0) |
+
+#### `family: basic-pitch`
+
+Spotify's polyphonic, instrument-agnostic note transcriber. Runs on CPU via ONNX Runtime; the ICASSP-2022 checkpoint ships inside the `basic-pitch` package.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `return_pitch_bends` | bool | `false` | Whether per-note pitch bend events are written into the MIDI and included as a `pitch_bends` array on each note |
+| `params.minimum_note_length` | float | `58.0` | Minimum note duration in milliseconds; shorter detections are discarded |
+| `params.minimum_frequency` | float | `null` | Lower bound of detected pitch in Hz |
+| `params.maximum_frequency` | float | `null` | Upper bound of detected pitch in Hz |
+| `params.midi_tempo` | float | `120` | Tempo (BPM) written into the MIDI header; does not affect detected timings |
+
+```yaml
+component:
+  type: model
+  task: music-transcription
+  driver: custom
+  family: basic-pitch
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    return_pitch_bends: false
+    params:
+      onset_threshold: 0.5
+      frame_threshold: 0.3
+      minimum_note_length: 58.0
+```
+
+#### `family: piano-transcription`
+
+ByteDance's 88-key piano transcriber with sustain-pedal event detection. Downloads its ~180 MB checkpoint into `~/piano_transcription_inference_data/` on first use.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.offset_threshold` | float | `0.3` | Confidence threshold for detecting a note offset (0.0-1.0) |
+| `params.pedal_offset_threshold` | float | `0.2` | Confidence threshold for detecting sustain-pedal release events (0.0-1.0) |
+
+```yaml
+component:
+  type: model
+  task: music-transcription
+  driver: custom
+  family: piano-transcription
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    params:
+      onset_threshold:        0.3
+      offset_threshold:       0.3
+      frame_threshold:        0.1
+      pedal_offset_threshold: 0.2
+```
+
+`minimum_note_length`, `minimum_frequency`, `maximum_frequency`, `return_pitch_bends`, and `midi_tempo` do not apply — the model is fixed to 88-key piano and writes pedal events into the MIDI instead of pitch bends.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `basic-pitch` | [Spotify Basic Pitch](https://github.com/spotify/basic-pitch) (ICASSP-2022) | Polyphonic, instrument-agnostic. Runs on CPU via ONNX. Checkpoint ships inside the wheel. |
+| `piano-transcription` | [ByteDance Piano Transcription](https://github.com/bytedance/piano_transcription) | 88-key piano only. Detects sustain-pedal events. Auto-downloads checkpoint on first use. |
+
+**Result Shape:**
+
+Returns a dict with two fields per input (or a list of dicts for batched inputs):
+
+- `midi` — a MIDI file suitable for saving to `.mid` or feeding into a score renderer.
+- `notes` — a list of `{ "start_time", "end_time", "pitch", "velocity" }` objects (times in seconds, `pitch` as MIDI note number, `velocity` in 0.0-1.0). Basic Pitch adds a `pitch_bends` array on each note when `return_pitch_bends` is enabled.
 
 ## Multiple Actions
 

@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mindor.dsl.schema.action.impl.model.tasks.face_tracking.impl.custom.impl.insightface import (
+from mindor.dsl.schema.action.impl.model.tasks.face_tracking.impl.custom.insightface import (
     InsightfaceFaceTrackingModelActionConfig,
 )
 

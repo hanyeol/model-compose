@@ -16,7 +16,13 @@ from mindor.dsl.schema.controller.adapter.impl.http_server import (
 from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
 from mindor.core.controller.adapters.services.http_server import (
     HttpServerControllerAdapterService,
+)
+from mindor.core.controller.adapters.services.websocket_server import (
     PingPayload,
+    StreamAbortPayload,
+    StreamClosePayload,
+    StreamEndPayload,
+    StreamPullPayload,
     TaskGetPayload,
     TaskResumePayload,
     TaskSubscribePayload,
@@ -320,9 +326,13 @@ class TestAdapterHandlerRegistration:
         ("resume_task", TaskResumePayload),
         ("get_task", TaskGetPayload),
         ("ping", PingPayload),
+        ("stream_pull", StreamPullPayload),
+        ("stream_end", StreamEndPayload),
+        ("stream_abort", StreamAbortPayload),
+        ("stream_close", StreamClosePayload),
     ])
     def test_handler_registered_as_typed_wrapper(self, adapter, message_type, payload_model):
-        handler = adapter.websocket_router.resolve(message_type)
+        handler = adapter.websocket_server.router.resolve(message_type)
         assert handler is not None, f"missing handler: {message_type}"
 
         wrapped = getattr(handler, "__wrapped__", None)
@@ -334,6 +344,60 @@ class TestAdapterHandlerRegistration:
         last_param = list(inspect.signature(wrapped).parameters)[-1]
         hints = get_type_hints(wrapped)
         assert hints.get(last_param) is payload_model
+
+
+class TestWebSocketServerStreamInput:
+    """Round-trips workflow input containing __variable__ stream markers into
+    live StreamResource instances backed by inbound queues."""
+
+    @pytest.fixture
+    def adapter(self):
+        config = HttpServerControllerAdapterConfig(
+            type=ControllerAdapterType.HTTP_SERVER,
+            websocket=WebSocketConfig(),
+        )
+        controller = MagicMock()
+        return HttpServerControllerAdapterService(config, controller, daemon=False)
+
+    def test_contains_stream_detects_nested(self, adapter):
+        from mindor.core.foundation.streaming.bytes import BytesStreamResource
+
+        server = adapter.websocket_server
+        resource = BytesStreamResource(b"x")
+        assert server._contains_stream({"video": resource}) is True
+        assert server._contains_stream([1, 2, {"nested": resource}]) is True
+        assert server._contains_stream({"a": 1, "b": "text"}) is False
+        assert server._contains_stream(None) is False
+
+    def test_decode_stream_input_multi_file(self, adapter):
+        """Two stream markers -> two registered inbound streams + domain resources."""
+        from mindor.core.foundation.streaming.video import VideoStreamResource
+        from mindor.core.foundation.streaming.audio import WavStreamResource
+
+        server = adapter.websocket_server
+        payload = {
+            "video": {"__variable__": {
+                "type": "stream", "id": "s1", "kind": "bytes",
+                "content_type": "video/mp4", "filename": "clip.mp4",
+            }},
+            "audio": {"__variable__": {
+                "type": "stream", "id": "s2", "kind": "bytes",
+                "content_type": "audio/wav",
+            }},
+        }
+
+        resolved = server._decode_stream_input("client-1", payload)
+
+        assert isinstance(resolved["video"], VideoStreamResource)
+        assert isinstance(resolved["audio"], WavStreamResource)
+        assert server.streams.get_inbound("client-1", "s1") is not None
+        assert server.streams.get_inbound("client-1", "s2") is not None
+
+    def test_decode_stream_input_passthrough_when_no_streams(self, adapter):
+        server = adapter.websocket_server
+        payload = {"prompt": "hello", "count": 3}
+        resolved = server._decode_stream_input("client-1", payload)
+        assert resolved == payload
 
 
 class TestWebSocketManagerDispose:

@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mindor.dsl.schema.action.impl.model.tasks.pose_tracking.impl.custom.impl.yolo import (
+from mindor.dsl.schema.action.impl.model.tasks.pose_tracking.impl.custom.yolo import (
     YoloPoseTrackingModelActionConfig,
 )
 

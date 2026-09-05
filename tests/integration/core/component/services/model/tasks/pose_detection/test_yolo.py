@@ -39,7 +39,7 @@ from mindor.core.component.services.model.tasks.pose_detection.custom.yolo impor
     YoloPoseDetectionTaskAction,
     YoloPoseDetectionTaskService,
 )
-from mindor.dsl.schema.action.impl.model.tasks.pose_detection.impl.custom.impl.yolo import (
+from mindor.dsl.schema.action.impl.model.tasks.pose_detection.impl.custom.yolo import (
     YoloPoseDetectionModelActionConfig,
 )
 

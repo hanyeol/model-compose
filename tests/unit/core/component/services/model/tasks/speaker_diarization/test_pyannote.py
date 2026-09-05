@@ -190,7 +190,7 @@ class TestCollectSegments:
             (_Turn(3.4, 7.1), "SPEAKER_01"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments = action._collect_segments(waveform, sample_rate=16000, params=_base_params(action))
+        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         assert len(segments) == 2
         for seg in segments:
             _assert_segment(seg)
@@ -201,7 +201,7 @@ class TestCollectSegments:
             (_Turn(1.0, 3.0), "SPEAKER_01"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments = action._collect_segments(waveform, sample_rate=16000, params=_base_params(action, min_segment_duration=0.5))
+        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action, min_segment_duration=0.5))
         assert len(segments) == 1
         assert segments[0]["speaker"] == "SPEAKER_01"
 
@@ -212,20 +212,20 @@ class TestCollectSegments:
             (_Turn(3.0, 4.0), "SPEAKER_00"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments = action._collect_segments(waveform, sample_rate=16000, params=_base_params(action))
+        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         starts = [seg["start_time"] for seg in segments]
         assert starts == sorted(starts)
 
     def test_forwards_pipeline_params_to_pipeline(self, action):
         action.pipeline = _FakePyannotePipeline([(_Turn(0.0, 1.0), "SPEAKER_00")])
         waveform = np.zeros(16000, dtype=np.float32)
-        action._collect_segments(waveform, sample_rate=16000, params=_base_params(action, num_speakers=2))
+        action._diarize(waveform, sample_rate=16000, params=_base_params(action, num_speakers=2))
         assert action.pipeline.last_call_kwargs == {"num_speakers": 2}
 
     def test_passes_waveform_and_sample_rate(self, action):
         action.pipeline = _FakePyannotePipeline([(_Turn(0.0, 1.0), "SPEAKER_00")])
         waveform = np.zeros(16000, dtype=np.float32)
-        action._collect_segments(waveform, sample_rate=16000, params=_base_params(action))
+        action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         assert set(action.pipeline.last_input.keys()) == {"waveform", "sample_rate"}
         assert action.pipeline.last_input["sample_rate"] == 16000
         # waveform arrives as (1, samples) tensor

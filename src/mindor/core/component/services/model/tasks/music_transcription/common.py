@@ -56,10 +56,19 @@ class MusicTranscriptionTaskAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         onset_threshold = await context.render_scalar(self.config.params.onset_threshold, float)
         frame_threshold = await context.render_scalar(self.config.params.frame_threshold, float)
+        return_midi     = await context.render_scalar(self.config.return_midi, bool)
+        return_notes    = await context.render_scalar(self.config.return_notes, bool)
+        return_metadata = await context.render_scalar(self.config.return_metadata, bool)
+
+        if return_midi is False and return_notes is False:
+            raise ValueError("Either 'return_midi' or 'return_notes' must be true.")
 
         return {
             "onset_threshold": onset_threshold,
             "frame_threshold": frame_threshold,
+            "return_midi":     return_midi,
+            "return_notes":    return_notes,
+            "return_metadata": return_metadata,
         }
 
     @abstractmethod

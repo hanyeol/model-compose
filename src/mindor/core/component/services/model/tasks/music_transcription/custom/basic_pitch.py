@@ -88,6 +88,8 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
         if mono.ndim == 2:
             mono = mono.mean(axis=0)
 
+        duration = float(mono.shape[-1]) / _BASIC_PITCH_SAMPLE_RATE
+
         # basic_pitch.predict only accepts filesystem paths (it opens the file
         # with librosa internally). Spool the preprocessed waveform to a temp
         # wav so the library can pick it up.
@@ -129,39 +131,48 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
             except OSError:
                 pass
 
-        return self._build_transcription_result(midi, note_events, params["return_pitch_bends"])
+        return self._build_transcription_result(midi, note_events, duration, params)
 
     def _build_transcription_result(
         self,
         midi: PrettyMIDI,
         note_events: List[Tuple[Any]],
-        return_pitch_bends: bool
+        duration: float,
+        params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        midi_bytes = self._encode_midi(midi)
-        notes: List[Dict[str, Any]] = []
+        result: Dict[str, Any] = {}
 
-        for event in note_events:
-            # basic_pitch always returns 5-tuples (start, end, pitch, amplitude,
-            # pitch_bends). pitch_bends is a per-frame integer list even when the
-            # `multiple_pitch_bends` flag is off — only surface it to callers who
-            # asked for it, and cast np.int64 to native ints for JSON safety.
-            start_time, end_time, pitch, amplitude = event[0], event[1], int(event[2]), float(event[3])
-            note: Dict[str, Any] = {
-                "start_time": float(start_time),
-                "end_time":   float(end_time),
-                "pitch":      pitch,
-                "velocity":   amplitude,
-            }
+        if params["return_midi"]:
+            midi_bytes = self._encode_midi(midi)
+            result["midi"] = BytesStreamResource(midi_bytes, content_type="audio/midi", filename="transcription.mid")
 
-            if return_pitch_bends and len(event) >= 5 and event[4]:
-                note["pitch_bends"] = [ int(bend) for bend in event[4] ]
+        if params["return_notes"]:
+            notes: List[Dict[str, Any]] = []
 
-            notes.append(note)
+            for event in note_events:
+                # basic_pitch always returns 5-tuples (start, end, pitch, amplitude,
+                # pitch_bends). pitch_bends is a per-frame integer list even when the
+                # `multiple_pitch_bends` flag is off — only surface it to callers who
+                # asked for it, and cast np.int64 to native ints for JSON safety.
+                start_time, end_time, pitch, amplitude = event[0], event[1], int(event[2]), float(event[3])
+                note: Dict[str, Any] = {
+                    "start_time": float(start_time),
+                    "end_time":   float(end_time),
+                    "pitch":      pitch,
+                    "velocity":   amplitude,
+                }
 
-        return {
-            "midi": BytesStreamResource(midi_bytes, content_type="audio/midi", filename="transcription.mid"),
-            "notes": MusicTranscriptNotes(notes),
-        }
+                if params["return_pitch_bends"] and len(event) >= 5 and event[4]:
+                    note["pitch_bends"] = [ int(bend) for bend in event[4] ]
+
+                notes.append(note)
+
+            result["notes"] = MusicTranscriptNotes(notes)
+
+        if params["return_metadata"]:
+            result["duration"] = duration
+
+        return result
 
     def _encode_midi(self, midi: PrettyMIDI) -> bytes:
         buffer = io.BytesIO()

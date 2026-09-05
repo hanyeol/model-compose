@@ -78,6 +78,8 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
         if mono.ndim == 2:
             mono = mono.mean(axis=0)
 
+        duration = float(mono.shape[-1]) / _PIANO_TRANSCRIPTION_SAMPLE_RATE
+
         # PianoTranscription stashes thresholds as instance attributes and reads
         # them fresh at each transcribe() call, so pushing per-request overrides
         # here works without rebuilding the model. Restore the previous values
@@ -96,10 +98,12 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
                 saved_thresholds[name] = getattr(self.transcriptor, name)
                 setattr(self.transcriptor, name, value)
 
-        # piano_transcription_inference writes MIDI to a file path (no in-memory
-        # API). Spool to a temp file, then read the bytes back into a stream
-        # resource that matches the basic_pitch backend's output shape.
+        # piano_transcription_inference writes MIDI to a file path unconditionally
+        # (no in-memory API), so we always spool to a temp file even when the
+        # caller opted out of `return_midi`. We only read the bytes back when the
+        # caller actually wants the MIDI.
         midi_path = get_temporary_path(extension="mid", reserve_file=True)
+        midi_bytes: Optional[bytes] = None
 
         try:
             # piano_transcription_inference returns a dict of
@@ -109,8 +113,9 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
             result = self.transcriptor.transcribe(mono, midi_path)
             note_events = result.get("est_note_events") or []
 
-            with open(midi_path, "rb") as f:
-                midi_bytes = f.read()
+            if params["return_midi"]:
+                with open(midi_path, "rb") as f:
+                    midi_bytes = f.read()
         finally:
             for name, value in saved_thresholds.items():
                 setattr(self.transcriptor, name, value)
@@ -120,23 +125,37 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
             except OSError:
                 pass
 
-        return self._build_transcription_result(midi_bytes, note_events)
+        return self._build_transcription_result(midi_bytes, note_events, duration, params)
 
-    def _build_transcription_result(self, midi_bytes: bytes, note_events: List[Dict[str, Any]]) -> Dict[str, Any]:
-        notes: List[Dict[str, Any]] = []
+    def _build_transcription_result(
+        self,
+        midi_bytes: Optional[bytes],
+        note_events: List[Dict[str, Any]],
+        duration: float,
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
 
-        for event in note_events:
-            notes.append({
-                "start_time": float(event.get("onset_time", 0.0)),
-                "end_time":   float(event.get("offset_time", 0.0)),
-                "pitch":      int(event.get("midi_note", 0)),
-                "velocity":   float(event.get("velocity", 0.0)) / 128.0,
-            })
+        if params["return_midi"] and midi_bytes is not None:
+            result["midi"] = BytesStreamResource(midi_bytes, content_type="audio/midi", filename="transcription.mid")
 
-        return {
-            "midi": BytesStreamResource(midi_bytes, content_type="audio/midi", filename="transcription.mid"),
-            "notes": MusicTranscriptNotes(notes),
-        }
+        if params["return_notes"]:
+            notes: List[Dict[str, Any]] = []
+
+            for event in note_events:
+                notes.append({
+                    "start_time": float(event.get("onset_time", 0.0)),
+                    "end_time":   float(event.get("offset_time", 0.0)),
+                    "pitch":      int(event.get("midi_note", 0)),
+                    "velocity":   float(event.get("velocity", 0.0)) / 128.0,
+                })
+
+            result["notes"] = MusicTranscriptNotes(notes)
+
+        if params["return_metadata"]:
+            result["duration"] = duration
+
+        return result
 
 class PianoTranscriptionMusicTranscriptionTaskService(ModelTaskService):
     config: PianoTranscriptionMusicTranscriptionModelComponentConfig

@@ -1,5 +1,5 @@
 from typing import Union, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from ...common import CommonModelActionConfig
 
 class CommonMusicTranscriptionParamsConfig(BaseModel):
@@ -9,4 +9,13 @@ class CommonMusicTranscriptionParamsConfig(BaseModel):
 class CommonMusicTranscriptionModelActionConfig(CommonModelActionConfig):
     audio: Union[str, List[str]] = Field(..., description="Input audio path, URL, or list of audio inputs to transcribe.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs processed per batch.")
+    return_midi: Union[bool, str] = Field(default=True, description="Whether the rendered MIDI file is included in the result.")
+    return_notes: Union[bool, str] = Field(default=False, description="Whether the per-note event list is included in the result.")
+    return_metadata: Union[bool, str] = Field(default=True, description="Whether processing metadata (duration, ...) is included in the result.")
     params: CommonMusicTranscriptionParamsConfig = Field(default_factory=CommonMusicTranscriptionParamsConfig, description="Detection thresholds applied to the transcriber.")
+
+    @model_validator(mode="after")
+    def validate_return_midi_or_notes(self):
+        if self.return_midi is False and self.return_notes is False:
+            raise ValueError("Either 'return_midi' or 'return_notes' must be true.")
+        return self

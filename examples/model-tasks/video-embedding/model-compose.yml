@@ -1,0 +1,69 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Video Embedding
+  description: |
+    Sample frames from an uploaded video and produce a single video-level
+    embedding with X-CLIP. The embedding lives in the same 512-d joint
+    video-text space as X-CLIP's text encoder, so downstream code can search
+    it with a natural-language query ("a person jumping") without any
+    per-video re-encoding.
+
+    Pipeline:
+      1. Extract frames from the video with ffmpeg. The extractor samples on
+         a fixed stride; the embedder collects the full list and uniformly
+         resamples it to the 32 frames X-CLIP was trained on, so the exact
+         extractor stride only affects how much source coverage the sampled
+         set has (not the model input shape).
+      2. Feed the frame list into video-embedding as a single input. The
+         processor stacks the 32 frames into one tensor and X-CLIP's vision
+         encoder + multi-frame integration transformer collapses them into a
+         single 512-d L2-normalized vector.
+      3. Emit that vector as a JSON array — ready to insert into a vector
+         store or dot-product against text embeddings from the same X-CLIP.
+  jobs:
+    - id: frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: ${input.frame_interval | 15}
+        max_frame_count: ${input.max_frame_count | 64}
+
+    - id: embed
+      component: video-embedder
+      depends_on: [ frames ]
+      input:
+        frames: ${jobs.frames.output}
+      output: ${output}
+  output:
+    embedding: ${jobs.embed.output as json}
+
+components:
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      max_frame_count: ${input.max_frame_count}
+      streaming: true
+      output: ${result[].image}
+
+  - id: video-embedder
+    type: model
+    task: video-embedding
+    driver: huggingface
+    architecture: xclip
+    model: microsoft/xclip-base-patch16-zero-shot
+    max_concurrent_count: 1
+    action:
+      frames: ${input.frames}
+      params:
+        normalize: true

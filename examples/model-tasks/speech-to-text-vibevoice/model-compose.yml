@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speech to Text (VibeVoice ASR)
+  description: Long-form transcription with speaker attribution and timestamps using Microsoft's VibeVoice-ASR (non-streaming, up to 60-minute single-pass).
+  job:
+    input: ${input}
+    output:
+      transcription: ${output as json}
+
+component:
+  type: model
+  task: speech-to-text
+  driver: custom
+  family: vibevoice
+  model: microsoft/VibeVoice-ASR             # non-streaming 7B checkpoint; use *-Streaming-* for incremental output
+  compute_type: auto                         # 'auto' picks bfloat16 on cuda, float32 elsewhere; override with bfloat16 / float16 / float32
+  attn_implementation: sdpa                  # 'sdpa' (default, portable), 'flash_attention_2' (needs flash-attn, cuda-only), or 'eager'
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    context_info: ${input.context_info}      # optional hotwords, comma-separated (e.g., "Microsoft,VibeVoice")
+    return_timestamps: true                  # non-streaming checkpoints emit {text, start_time, end_time, speaker_id} segments
+    temperature: 0.0
+    num_beams: 1
+    streaming: false                         # non-streaming checkpoints run the whole audio in one pass; leave false

@@ -1,0 +1,32 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speech to Text (VibeVoice ASR Streaming)
+  description: Streaming speech recognition with Microsoft's VibeVoice-ASR-Streaming; text appears chunk by chunk as the audio is consumed.
+  job:
+    input: ${input}
+    output:
+      transcription: ${output as text}
+
+component:
+  type: model
+  task: speech-to-text
+  driver: custom
+  family: vibevoice
+  model: microsoft/VibeVoice-ASR-Streaming-1.5B  # or microsoft/VibeVoice-ASR-Streaming-7B
+  compute_type: auto                             # 'auto' picks bfloat16 on cuda, float32 elsewhere; override with bfloat16 / float16 / float32
+  attn_implementation: sdpa                      # 'sdpa' (default, portable), 'flash_attention_2' (needs flash-attn, cuda-only), or 'eager'
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    context_info: ${input.context_info}          # optional hotwords, comma-separated (e.g., "Microsoft,VibeVoice")
+    temperature: 0.0
+    max_output_length: 256                       # max tokens per streaming chunk
+    streaming: true                              # emit text chunk-by-chunk; set false to collect and return the full transcript

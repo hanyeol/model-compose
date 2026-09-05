@@ -45,15 +45,15 @@ class FieldResolver:
                     return default
                 inner = segment[1:-1]
                 if ":" in inner:
-                    start_str, stop_str = inner.split(":", 1)
-                    start = int(start_str) if start_str else None
-                    stop = int(stop_str) if stop_str else None
-                    value = value[start:stop]
+                    start, stop = inner.split(":", 1)
+                    start_index = int(start) if start else None
+                    stop_index = int(stop) if stop else None
+                    value = value[start_index:stop_index]
                 else:
-                    i = int(inner)
-                    if not -len(value) <= i < len(value):
+                    index = int(inner)
+                    if not -len(value) <= index < len(value):
                         return default
-                    value = value[i]
+                    value = value[index]
             else:
                 if not isinstance(value, dict):
                     return default

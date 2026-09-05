@@ -4,10 +4,10 @@ This example demonstrates how to convert an audio recording into structured note
 
 ## Overview
 
-This workflow returns a MIDI file and a JSON list of note events extracted from the input audio:
+This workflow returns a MIDI file, a JSON list of note events, and the input audio duration extracted from the input audio:
 
 1. **Local Transcription Model**: Runs Basic Pitch's ICASSP-2022 model locally; the checkpoint ships inside the `basic-pitch` package, so no downloads at runtime
-2. **Two Output Formats**: A standard MIDI file (for DAWs and score editors) and a raw note-event JSON (for programmatic use)
+2. **Selectable Outputs**: Toggle `return_midi`, `return_notes`, and `return_metadata` to include only the fields you need in the response
 3. **Tunable Thresholds**: `onset_threshold`, `frame_threshold`, and `minimum_note_length` let you trade recall for precision
 4. **No External APIs**: Fully offline once dependencies are installed
 
@@ -81,7 +81,8 @@ Note: transcription is polyphonic but not source-separated. If the input is a fu
 - **Purpose**: Convert audio into polyphonic note events + MIDI
 - **Features**:
   - Local inference via the `basic-pitch` package; checkpoint ships inside the wheel
-  - Returns MIDI bytes and a note-event list in a single call
+  - Returns MIDI bytes, a note-event list, and the input audio duration in a single call
+  - Selectable outputs via `return_midi`, `return_notes`, `return_metadata`
   - Optional per-note pitch bends when `return_pitch_bends: true`
 
 ### Model Information: Basic Pitch (ICASSP-2022)
@@ -105,7 +106,7 @@ graph TD
     C1[Music Transcription Model<br/>component]
 
     J1 -.-> C1
-    C1 -.-> |midi + notes| J1
+    C1 -.-> |midi + notes + duration| J1
 
     Input((Input)) --> J1
     J1 --> Output((Output))
@@ -118,6 +119,9 @@ Fields the `basic-pitch` family accepts on its action. Detection tuning knobs li
 | Parameter | Location | Type | Required | Default | Description |
 |-----------|----------|------|----------|---------|-------------|
 | `audio` | `action` | audio | Yes | - | Input recording (MP3, WAV, FLAC, etc.) |
+| `return_midi` | `action` | boolean | No | `true` | Whether the rendered MIDI file is included in the result |
+| `return_notes` | `action` | boolean | No | `false` | Whether the per-note event list is included in the result |
+| `return_metadata` | `action` | boolean | No | `true` | Whether processing metadata (`duration`, ...) is included in the result |
 | `return_pitch_bends` | `action` | boolean | No | `false` | Whether per-note pitch bend events are written into the MIDI and included as a `pitch_bends` array on each note |
 | `onset_threshold` | `action.params` | float | No | `0.5` | Confidence threshold for detecting a note onset (0.0-1.0); higher = fewer notes |
 | `frame_threshold` | `action.params` | float | No | `0.3` | Confidence threshold for sustaining a note across frames (0.0-1.0) |
@@ -128,10 +132,13 @@ Fields the `basic-pitch` family accepts on its action. Detection tuning knobs li
 
 #### Output Format
 
-The workflow output is a JSON object with two fields:
+The workflow output is a JSON object whose fields are selected by the `return_*` flags:
 
-- `midi` — a MIDI file suitable for saving to `.mid` or piping into a score renderer
-- `notes` — a list of `{ "start_time", "end_time", "pitch", "velocity" }` objects (times in seconds, `pitch` as MIDI note number, `velocity` in 0.0-1.0)
+- `midi` — a MIDI file suitable for saving to `.mid` or piping into a score renderer (included when `return_midi: true`)
+- `notes` — a list of `{ "start_time", "end_time", "pitch", "velocity" }` objects (times in seconds, `pitch` as MIDI note number, `velocity` in 0.0-1.0; included when `return_notes: true`)
+- `duration` — the input audio duration in seconds as a float (included when `return_metadata: true`)
+
+At least one of `return_midi` or `return_notes` must be true.
 
 ## Using Piano Transcription Instead of Basic Pitch
 

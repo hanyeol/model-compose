@@ -4,10 +4,10 @@
 
 ## 概述
 
-此工作流返回从输入音频中提取的 MIDI 文件和音符事件的 JSON 列表：
+此工作流返回从输入音频中提取的 MIDI 文件、音符事件的 JSON 列表，以及输入音频时长：
 
 1. **本地转谱模型**：在本地运行 Basic Pitch 的 ICASSP-2022 模型；检查点随 `basic-pitch` 包一起提供，运行时无需下载
-2. **两种输出格式**：标准 MIDI 文件（用于 DAW 和乐谱编辑器）和原始音符事件 JSON（用于程序化使用）
+2. **可选输出**：通过 `return_midi`、`return_notes`、`return_metadata` 切换，仅在响应中包含所需字段
 3. **可调阈值**：`onset_threshold`、`frame_threshold` 和 `minimum_note_length` 让您在召回率和精确度之间权衡
 4. **无需外部 API**：依赖项安装后完全离线
 
@@ -81,7 +81,8 @@
 - **用途**：将音频转换为多声部音符事件 + MIDI
 - **功能**：
   - 通过 `basic-pitch` 包进行本地推理；检查点包含在 wheel 内
-  - 单次调用返回 MIDI 字节和音符事件列表
+  - 单次调用返回 MIDI 字节、音符事件列表以及输入音频时长
+  - 通过 `return_midi`、`return_notes`、`return_metadata` 选择输出字段
   - 当 `return_pitch_bends: true` 时可选的每个音符音高弯曲
 
 ### 模型信息：Basic Pitch (ICASSP-2022)
@@ -95,7 +96,7 @@
 
 ### "Music Transcription" 工作流（默认）
 
-**描述**：将输入录音转谱为 MIDI 文件和音符事件 JSON。
+**描述**：将输入录音转谱为 MIDI 文件、音符事件 JSON 和音频时长。
 
 #### 作业流程
 
@@ -105,7 +106,7 @@ graph TD
     C1[音乐转谱模型<br/>组件]
 
     J1 -.-> C1
-    C1 -.-> |midi + notes| J1
+    C1 -.-> |midi + notes + duration| J1
 
     Input((输入)) --> J1
     J1 --> Output((输出))
@@ -118,6 +119,9 @@ graph TD
 | 参数 | 位置 | 类型 | 必需 | 默认值 | 描述 |
 |-----------|----------|------|----------|---------|-------------|
 | `audio` | `action` | audio | 是 | - | 输入录音（MP3、WAV、FLAC 等） |
+| `return_midi` | `action` | boolean | 否 | `true` | 是否在结果中包含渲染的 MIDI 文件 |
+| `return_notes` | `action` | boolean | 否 | `false` | 是否在结果中包含每个音符的事件列表 |
+| `return_metadata` | `action` | boolean | 否 | `true` | 是否在结果中包含处理元数据（`duration`、...） |
 | `return_pitch_bends` | `action` | boolean | 否 | `false` | 是否将每个音符的音高弯曲事件写入 MIDI 并作为 `pitch_bends` 数组包含在每个音符中 |
 | `onset_threshold` | `action.params` | float | 否 | `0.5` | 检测音符起始的置信度阈值 (0.0-1.0)；越高音符越少 |
 | `frame_threshold` | `action.params` | float | 否 | `0.3` | 跨帧维持音符的置信度阈值 (0.0-1.0) |
@@ -128,10 +132,13 @@ graph TD
 
 #### 输出格式
 
-工作流输出是一个具有两个字段的 JSON 对象：
+工作流输出是一个 JSON 对象，其字段由 `return_*` 标志选择：
 
-- `midi` — 适合保存为 `.mid` 或管道传入乐谱渲染器的 MIDI 文件
-- `notes` — `{ "start_time", "end_time", "pitch", "velocity" }` 对象的列表（时间以秒为单位，`pitch` 为 MIDI 音符编号，`velocity` 范围 0.0-1.0）
+- `midi` — 适合保存为 `.mid` 或管道传入乐谱渲染器的 MIDI 文件（当 `return_midi: true` 时包含）
+- `notes` — `{ "start_time", "end_time", "pitch", "velocity" }` 对象的列表（时间以秒为单位，`pitch` 为 MIDI 音符编号，`velocity` 范围 0.0-1.0；当 `return_notes: true` 时包含）
+- `duration` — 输入音频时长（秒，float；当 `return_metadata: true` 时包含）
+
+`return_midi` 和 `return_notes` 中至少一个必须为 true。
 
 ## 使用 Piano Transcription 替代 Basic Pitch
 

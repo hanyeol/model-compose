@@ -4,10 +4,10 @@
 
 ## 개요
 
-이 워크플로우는 입력 오디오에서 추출된 MIDI 파일과 노트 이벤트의 JSON 목록을 반환합니다:
+이 워크플로우는 입력 오디오에서 추출된 MIDI 파일, 노트 이벤트의 JSON 목록, 그리고 입력 오디오 길이를 반환합니다:
 
 1. **로컬 전사 모델**: Basic Pitch의 ICASSP-2022 모델을 로컬에서 실행; 체크포인트는 `basic-pitch` 패키지 내에 포함되어 있어 런타임에 다운로드가 필요 없음
-2. **두 가지 출력 형식**: 표준 MIDI 파일(DAW 및 악보 편집기용)과 원시 노트 이벤트 JSON(프로그래매틱 사용을 위한)
+2. **선택 가능한 출력**: `return_midi`, `return_notes`, `return_metadata`를 토글하여 응답에 필요한 필드만 포함
 3. **조정 가능한 임계값**: `onset_threshold`, `frame_threshold`, `minimum_note_length`로 재현율과 정밀도의 트레이드오프 조정 가능
 4. **외부 API 불필요**: 의존성 설치 후 완전 오프라인
 
@@ -81,7 +81,8 @@
 - **목적**: 오디오를 다성 노트 이벤트 + MIDI로 변환
 - **기능**:
   - `basic-pitch` 패키지를 통한 로컬 추론; 체크포인트는 wheel 내에 포함
-  - 단일 호출로 MIDI 바이트와 노트 이벤트 목록 반환
+  - 단일 호출로 MIDI 바이트, 노트 이벤트 목록, 입력 오디오 길이 반환
+  - `return_midi`, `return_notes`, `return_metadata`로 출력 필드 선택 가능
   - `return_pitch_bends: true` 설정 시 노트별 피치 벤드 선택 가능
 
 ### 모델 정보: Basic Pitch (ICASSP-2022)
@@ -95,7 +96,7 @@
 
 ### "Music Transcription" 워크플로우 (기본)
 
-**설명**: 입력 녹음을 MIDI 파일과 노트 이벤트 JSON으로 전사합니다.
+**설명**: 입력 녹음을 MIDI 파일, 노트 이벤트 JSON, 오디오 길이로 전사합니다.
 
 #### 작업 흐름
 
@@ -105,7 +106,7 @@ graph TD
     C1[음악 전사 모델<br/>컴포넌트]
 
     J1 -.-> C1
-    C1 -.-> |midi + notes| J1
+    C1 -.-> |midi + notes + duration| J1
 
     Input((입력)) --> J1
     J1 --> Output((출력))
@@ -118,6 +119,9 @@ graph TD
 | 매개변수 | 위치 | 유형 | 필수 | 기본값 | 설명 |
 |-----------|----------|------|----------|---------|-------------|
 | `audio` | `action` | audio | 예 | - | 입력 녹음 (MP3, WAV, FLAC 등) |
+| `return_midi` | `action` | boolean | 아니오 | `true` | 렌더링된 MIDI 파일을 결과에 포함할지 여부 |
+| `return_notes` | `action` | boolean | 아니오 | `false` | 노트별 이벤트 목록을 결과에 포함할지 여부 |
+| `return_metadata` | `action` | boolean | 아니오 | `true` | 처리 메타데이터(`duration`, ...)를 결과에 포함할지 여부 |
 | `return_pitch_bends` | `action` | boolean | 아니오 | `false` | MIDI에 노트별 피치 벤드 이벤트를 기록하고 각 노트에 `pitch_bends` 배열로 포함할지 여부 |
 | `onset_threshold` | `action.params` | float | 아니오 | `0.5` | 노트 온셋 감지를 위한 신뢰도 임계값 (0.0-1.0); 높을수록 노트 수가 적음 |
 | `frame_threshold` | `action.params` | float | 아니오 | `0.3` | 프레임 간 노트 유지를 위한 신뢰도 임계값 (0.0-1.0) |
@@ -128,10 +132,13 @@ graph TD
 
 #### 출력 형식
 
-워크플로우 출력은 두 개의 필드를 가진 JSON 객체입니다:
+워크플로우 출력은 `return_*` 플래그에 따라 필드가 선택되는 JSON 객체입니다:
 
-- `midi` — `.mid`로 저장하거나 악보 렌더러로 파이프하기에 적합한 MIDI 파일
-- `notes` — `{ "start_time", "end_time", "pitch", "velocity" }` 객체의 목록 (시간은 초 단위, `pitch`는 MIDI 노트 번호, `velocity`는 0.0-1.0)
+- `midi` — `.mid`로 저장하거나 악보 렌더러로 파이프하기에 적합한 MIDI 파일 (`return_midi: true`일 때 포함)
+- `notes` — `{ "start_time", "end_time", "pitch", "velocity" }` 객체의 목록 (시간은 초 단위, `pitch`는 MIDI 노트 번호, `velocity`는 0.0-1.0; `return_notes: true`일 때 포함)
+- `duration` — 입력 오디오 길이(초, float; `return_metadata: true`일 때 포함)
+
+`return_midi`와 `return_notes` 중 최소 하나는 true여야 합니다.
 
 ## Basic Pitch 대신 Piano Transcription 사용
 

@@ -1,0 +1,32 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Music Transcription
+  description: Transcribe an audio recording into note events and a MIDI file using a local Basic Pitch model.
+  job:
+    input: ${input}
+    output:
+      midi: ${output.midi as file}
+      notes: ${output.notes as json}
+
+component:
+  type: model
+  task: music-transcription
+  driver: custom
+  family: basic-pitch
+  device: auto   # basic-pitch runs on CPU (ONNX); "auto" keeps forward-compat with future GPU backends
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    return_pitch_bends: ${input.return_pitch_bends | false}
+    params:
+      onset_threshold:     ${input.onset_threshold | 0.5}
+      frame_threshold:     ${input.frame_threshold | 0.3}
+      minimum_note_length: ${input.minimum_note_length | 58.0}

@@ -9,7 +9,7 @@ class QwenTextToSpeechModelGenerateActionConfig(CommonTextToSpeechModelActionCon
 
 class QwenTextToSpeechModelCloneActionConfig(CommonTextToSpeechModelActionConfig):
     method: Literal[TextToSpeechActionMethod.CLONE]
-    reference_audio: str = Field(..., description="Path or URL of the reference audio used for voice cloning.")
+    reference_audio: str = Field(..., description="Reference audio used for voice cloning.")
     reference_text: str = Field(..., description="Transcription text of the reference audio.")
 
 class QwenTextToSpeechModelDesignActionConfig(CommonTextToSpeechModelActionConfig):

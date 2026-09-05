@@ -7,7 +7,7 @@ class SpeakerDiarizationParamsConfig(BaseModel):
     merge_gap: Union[str, float, int] = Field(default="0s", description="Adjacent same-speaker segments separated by no more than this gap are merged (e.g., 500ms).")
 
 class SpeakerDiarizationModelActionConfig(CommonModelActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio path, URL, or list of audio inputs to diarize.")
+    audio: Union[str, List[str]] = Field(..., description="Audio to diarize, or a list of audios.")
     num_speakers: Optional[Union[int, str]] = Field(default=None, description="Exact number of speakers when known; otherwise leave unset and use the min/max hints.")
     min_speakers: Optional[Union[int, str]] = Field(default=None, description="Minimum number of speakers considered.")
     max_speakers: Optional[Union[int, str]] = Field(default=None, description="Maximum number of speakers considered.")

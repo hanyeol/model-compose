@@ -4,7 +4,7 @@ from ..common import CommonTextToSpeechModelActionConfig, TextToSpeechActionMeth
 
 class LuxttsTextToSpeechModelCloneActionConfig(CommonTextToSpeechModelActionConfig):
     method: Literal[TextToSpeechActionMethod.CLONE]
-    reference_audio: str = Field(..., description="Path or URL of the reference audio used for zero-shot voice cloning.")
+    reference_audio: str = Field(..., description="Reference audio used for zero-shot voice cloning.")
     reference_duration: Union[int, str] = Field(default=5, description="Reference clip duration in seconds considered during prompt encoding.")
     reference_rms: Union[float, str] = Field(default=0.01, description="Target RMS the reference clip is normalized to.")
     num_steps: Union[int, str] = Field(default=4, description="Number of flow-matching solver steps; higher values improve quality at the cost of speed.")

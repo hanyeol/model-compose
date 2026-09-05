@@ -9,6 +9,6 @@ class MusicSourceSeparationParamsConfig(BaseModel):
     shifts: Optional[Union[int, str]] = Field(default=None, description="Number of random shifts for equivariant stabilization; higher values improve quality but are slower (Demucs only).")
 
 class MusicSourceSeparationModelActionConfig(CommonModelActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio path, URL, or list of audio inputs to separate.")
+    audio: Union[str, List[str]] = Field(..., description="Audio to separate, or a list of audios.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs processed per batch.")
     params: MusicSourceSeparationParamsConfig = Field(default_factory=MusicSourceSeparationParamsConfig, description="Stem selection and separation quality parameters.")

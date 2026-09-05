@@ -3,7 +3,7 @@ from pydantic import Field
 from ...common import CommonModelActionConfig
 
 class CommonSpeechToTextModelActionConfig(CommonModelActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio path, URL, or list of audio inputs to transcribe.")
+    audio: Union[str, List[str]] = Field(..., description="Audio to transcribe, or a list of audios.")
     language: Optional[str] = Field(default=None, description="Language code of the input audio (e.g., en, ko); unset triggers auto-detection.")
     return_timestamps: Union[bool, str] = Field(default=False, description="Whether per-segment timestamps are included in the output.")
     timestamp_level: Union[Literal[ "segment", "word" ], str] = Field(default="segment", description="Timestamp granularity applied when `return_timestamps` is enabled.")

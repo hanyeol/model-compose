@@ -7,7 +7,7 @@ class CommonMusicTranscriptionParamsConfig(BaseModel):
     frame_threshold: Optional[Union[float, str]] = Field(default=None, description="Confidence threshold for sustaining a note across frames, from 0.0 to 1.0.")
 
 class CommonMusicTranscriptionModelActionConfig(CommonModelActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio path, URL, or list of audio inputs to transcribe.")
+    audio: Union[str, List[str]] = Field(..., description="Audio to transcribe, or a list of audios.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs processed per batch.")
     return_midi: Union[bool, str] = Field(default=True, description="Whether the rendered MIDI file is included in the result.")
     return_notes: Union[bool, str] = Field(default=False, description="Whether the per-note event list is included in the result.")

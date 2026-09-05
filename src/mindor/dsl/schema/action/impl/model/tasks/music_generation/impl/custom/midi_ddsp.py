@@ -37,7 +37,7 @@ class CommonMidiDdspMusicGenerationModelActionConfig(CommonMusicGenerationModelA
 
 class MidiDdspMusicGenerationModelGenerateActionConfig(CommonMidiDdspMusicGenerationModelActionConfig):
     method: Literal[MusicGenerationActionMethod.GENERATE]
-    midi: str = Field(..., description="Path or URL of the monophonic MIDI file to synthesize.")
+    midi: str = Field(..., description="Monophonic MIDI to synthesize.")
     instrument: MidiDdspInstrument = Field(..., description="Instrument voice used to synthesize every track in the MIDI file.")
 
 MidiDdspMusicGenerationModelActionConfig = Annotated[

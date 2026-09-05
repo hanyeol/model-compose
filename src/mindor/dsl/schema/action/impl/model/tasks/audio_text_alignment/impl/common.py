@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from ...common import CommonModelActionConfig
 
 class AudioTextAlignmentModelActionConfig(CommonModelActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio path, URL, or list of audio inputs to align.")
+    audio: Union[str, List[str]] = Field(..., description="Audio to align, or a list of audios.")
     text: Union[str, List[str]] = Field(..., description="Reference transcripts aligned against the audio; the count must match `audio`.")
     language: Optional[str] = Field(default=None, description="Language code (e.g., en, ko) used to select the alignment model when applicable.")
     chunk_length: Union[float, str] = Field(default=30.0, description="Chunk length in seconds used to split long audio before forced alignment.")

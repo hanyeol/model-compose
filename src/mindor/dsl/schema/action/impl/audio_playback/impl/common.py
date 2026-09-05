@@ -8,7 +8,7 @@ class AudioPlaybackSink(str, Enum):
     DEVICE = "device"
 
 class CommonAudioPlaybackActionConfig(CommonActionConfig):
-    audio: Union[str, List[str]] = Field(..., description="Input audio to play — a file path, URL, bytes, stream, or variable reference.")
+    audio: Union[str, List[str]] = Field(..., description="Audio to play, or a list of audios.")
     sink: Union[AudioPlaybackSink, str] = Field(default=AudioPlaybackSink.SYSTEM, description="Playback output target: the OS default output or a specific device.")
     device: Optional[Union[int, str]] = Field(default=None, description="Output device index or name. Required when `sink` is `device`.")
     volume: Union[float, str] = Field(default=1.0, description="Linear playback gain, where 1.0 is unchanged and 0.0 is mute.")

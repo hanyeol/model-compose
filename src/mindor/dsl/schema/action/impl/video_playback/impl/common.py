@@ -3,7 +3,7 @@ from pydantic import Field
 from ...common import CommonActionConfig
 
 class CommonVideoPlaybackActionConfig(CommonActionConfig):
-    video: Union[str, List[str]] = Field(..., description="Input video to play — a file path, URL, bytes, stream, or variable reference.")
+    video: Union[str, List[str]] = Field(..., description="Video to play, or a list of videos.")
     window_title: Optional[Union[str, None]] = Field(default=None, description="Title of the playback window.")
     window_size: Optional[Union[str, None]] = Field(default=None, description="Window size as 'WIDTHxHEIGHT' (e.g. '1280x720'); when unset, uses the video's native size.")
     fullscreen: Union[bool, str] = Field(default=False, description="Whether to open the playback window in fullscreen mode.")

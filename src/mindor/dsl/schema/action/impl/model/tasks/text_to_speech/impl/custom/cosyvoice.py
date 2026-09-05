@@ -10,7 +10,7 @@ class CosyvoiceTextToSpeechModelGenerateActionConfig(CommonTextToSpeechModelActi
 
 class CosyvoiceTextToSpeechModelCloneActionConfig(CommonTextToSpeechModelActionConfig):
     method: Literal[TextToSpeechActionMethod.CLONE]
-    reference_audio: str = Field(..., description="Path or URL of the reference audio used for zero-shot voice cloning.")
+    reference_audio: str = Field(..., description="Reference audio used for zero-shot voice cloning.")
     reference_text: Optional[str] = Field(default=None, description="Transcription of the reference audio; when omitted, CosyVoice's cross-lingual inference is used instead.")
     speed: Union[float, str] = Field(default=1.0, description="Speech speed multiplier; 1.0 is natural.")
     text_frontend: Union[bool, str] = Field(default=True, description="Whether CosyVoice's text normalization frontend is run on the input.")
@@ -18,7 +18,7 @@ class CosyvoiceTextToSpeechModelCloneActionConfig(CommonTextToSpeechModelActionC
 class CosyvoiceTextToSpeechModelDesignActionConfig(CommonTextToSpeechModelActionConfig):
     method: Literal[TextToSpeechActionMethod.DESIGN]
     instructions: str = Field(..., description="Natural-language instruction controlling style, dialect, emotion, and similar attributes (passed as instruct_text on CosyVoice2/3).")
-    reference_audio: str = Field(..., description="Path or URL of the prompt wav that conditions the target voice for CosyVoice2/3 instruct2.")
+    reference_audio: str = Field(..., description="Prompt wav that conditions the target voice for CosyVoice2/3 instruct2.")
     speed: Union[float, str] = Field(default=1.0, description="Speech speed multiplier; 1.0 is natural.")
     text_frontend: Union[bool, str] = Field(default=True, description="Whether CosyVoice's text normalization frontend is run on the input.")
 

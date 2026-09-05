@@ -24,6 +24,8 @@ _MDX_HOP_LENGTH = 1024
 _MDX_DIM_F = 3072
 _MDX_DIM_T = 8      # 2**8 = 256 spectrogram frames per chunk
 _MDX_STEM_NAME = "vocals"
+_MDX_INSTRUMENTAL_STEM_NAME = "instrumental"
+_MDX_DEFAULT_STEMS = [ _MDX_STEM_NAME, _MDX_INSTRUMENTAL_STEM_NAME ]
 
 class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
     def __init__(
@@ -56,7 +58,7 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         for audio in audios:
             # channel=None keeps the original layout; mono comes back as (samples,)
-            # and _ensure_stereo below duplicates it to both channels.
+            # and _ensure_stereo_waveform below duplicates it to both channels.
             audio = await AudioBufferStreamer(audio, sample_rate=_MDX_SAMPLE_RATE).collect()
             waveforms.append(audio.waveform)
 
@@ -65,42 +67,45 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
     def _separate(self, waveform: np.ndarray, params: Dict[str, Any]) -> Any:
         import numpy as np
 
-        stereo = self._ensure_stereo(waveform)
+        stereo = self._ensure_stereo_waveform(waveform)
         vocals = self._run_mdx(stereo)
 
-        selected_stems = list(params["stems"])
-        output_rate = params["sample_rate"] or _MDX_SAMPLE_RATE
+        stems = list(params["stems"]) if params["stems"] else list(_MDX_DEFAULT_STEMS)
+        sample_rate = params["sample_rate"] or _MDX_SAMPLE_RATE
 
-        stems: Dict[str, PcmStreamResource] = {}
+        result: Dict[str, PcmStreamResource] = {}
 
-        for name in selected_stems:
+        for name in stems:
             if name == _MDX_STEM_NAME:
-                out = vocals
-            elif name in ("instrumental", "accompaniment", "other"):
-                out = stereo - vocals
+                waveform = vocals
+            elif name in (_MDX_INSTRUMENTAL_STEM_NAME, "accompaniment", "other"):
+                waveform = stereo - vocals
             else:
-                raise ValueError(f"Stem '{name}' is not supported by MDX-Net vocal models. Available: ['vocals', 'instrumental']")
+                raise ValueError(f"Stem '{name}' is not supported by MDX-Net vocal models. Available: {_MDX_DEFAULT_STEMS}")
 
-            frames, channels = encode_waveform_to_pcm(out)
-            stems[name] = PcmStreamResource(frames, {
-                "sample_rate": str(output_rate),
+            frames, channels = encode_waveform_to_pcm(waveform)
+            result[name] = PcmStreamResource(frames, {
+                "sample_rate": str(sample_rate),
                 "channels":    str(channels),
                 "bit_depth":   "16",
             })
 
-        if len(stems) == 1:
-            return next(iter(stems.values()))
+        if len(result) == 1:
+            return next(iter(result.values()))
 
-        return stems
+        return result
 
-    def _ensure_stereo(self, waveform: np.ndarray) -> np.ndarray:
+    def _ensure_stereo_waveform(self, waveform: np.ndarray) -> np.ndarray:
         import numpy as np
 
         array = np.asarray(waveform, dtype=np.float32)
+
         if array.ndim == 1:
             return np.stack([ array, array ], axis=0)
+
         if array.shape[0] == 1:
             array = np.repeat(array, 2, axis=0)
+
         return array[:2]
 
     def _run_mdx(self, mix: np.ndarray) -> np.ndarray:

@@ -87,38 +87,42 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         # estimates shape: (batch=1, sources, channels, samples)
         estimates = estimates.squeeze(0).cpu()
 
-        selected_stems = self._resolve_selected_stems(params["stems"])
-        output_rate = params["sample_rate"] or self.model_sample_rate
+        stems = self._resolve_selected_stems(params["stems"])
+        sample_rate = params["sample_rate"] or self.model_sample_rate
 
-        return self._build_separation_result(estimates, selected_stems, output_rate)
+        return self._build_separation_result(estimates, stems, sample_rate)
 
-    def _resolve_selected_stems(self, requested: List[str]) -> List[Tuple[str, int]]:
+    def _resolve_selected_stems(self, wanted_stems: Optional[List[str]]) -> List[Tuple[str, int]]:
         stem_indices: Dict[str, int] = { name: index for index, name in enumerate(self.model_sources) }
-        selected: List[Tuple[str, int]] = []
 
-        for name in requested:
+        if not wanted_stems:
+            return list(stem_indices.items())
+
+        stems: List[Tuple[str, int]] = []
+
+        for name in wanted_stems:
             if name not in stem_indices:
                 raise ValueError(f"Stem '{name}' is not produced by this Demucs model. Available: {self.model_sources}")
-            selected.append((name, stem_indices[name]))
+            stems.append((name, stem_indices[name]))
 
-        return selected
+        return stems
 
-    def _build_separation_result(self, estimates: Any, selected: List[Tuple[str, int]], sample_rate: int) -> Any:
-        stems: Dict[str, PcmStreamResource] = {}
+    def _build_separation_result(self, estimates: Any, stems: List[Tuple[str, int]], sample_rate: int) -> Any:
+        result: Dict[str, PcmStreamResource] = {}
 
-        for name, index in selected:
+        for name, index in stems:
             waveform = estimates[index].numpy()
             frames, channels = encode_waveform_to_pcm(waveform)
-            stems[name] = PcmStreamResource(frames, {
+            result[name] = PcmStreamResource(frames, {
                 "sample_rate": str(sample_rate),
                 "channels":    str(channels),
                 "bit_depth":   "16",
             })
 
-        if len(stems) == 1:
-            return next(iter(stems.values()))
+        if len(result) == 1:
+            return next(iter(result.values()))
 
-        return stems
+        return result
 
 class DemucsMusicSourceSeparationTaskService(ModelTaskService):
     config: DemucsMusicSourceSeparationModelComponentConfig

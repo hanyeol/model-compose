@@ -57,8 +57,10 @@ class MusicSourceSeparationTaskAction(ComponentAction):
         if isinstance(stems, str):
             stems = [ stem.strip() for stem in stems.split(",") if stem.strip() ]
 
+        # None (or an empty list) is a sentinel that lets each driver default to
+        # every stem its model exposes.
         return {
-            "stems":       list(stems) if stems else [ "vocals" ],
+            "stems":       list(stems) if stems else None,
             "sample_rate": sample_rate,
             "overlap":     overlap,
             "shifts":      shifts,

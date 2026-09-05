@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from ...common import CommonModelActionConfig
 
 class MusicSourceSeparationParamsConfig(BaseModel):
-    stems: Union[List[str], str] = Field(default_factory=lambda: [ "vocals" ], description="Stems returned in the result; available stems depend on the model (e.g., vocals, drums, bass, other).")
+    stems: Optional[Union[List[str], str]] = Field(default=None, description="Stems returned in the result (e.g., vocals, drums, bass, other); when omitted, every stem the model produces is returned.")
     sample_rate: Optional[Union[int, str]] = Field(default=None, description="Sample rate in Hz of the returned stems; defaults to the model's native rate.")
     overlap: Optional[Union[float, str]] = Field(default=None, description="Overlap ratio between chunks during separation, from 0.0 to 0.99; higher values improve quality at the cost of speed.")
     shifts: Optional[Union[int, str]] = Field(default=None, description="Number of random shifts for equivariant stabilization; higher values improve quality but are slower (Demucs only).")

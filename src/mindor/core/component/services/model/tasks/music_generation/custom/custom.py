@@ -8,4 +8,8 @@ class CustomMusicGenerationTaskService:
             from .ace_step import AceStepMusicGenerationTaskService
             return AceStepMusicGenerationTaskService(id, config, daemon)
 
+        if config.family == MusicGenerationModelFamily.MIDI_DDSP:
+            from .midi_ddsp import MidiDdspMusicGenerationTaskService
+            return MidiDdspMusicGenerationTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

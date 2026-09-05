@@ -26,9 +26,9 @@ component:
   max_concurrent_count: 1
   action:
     audio: ${input.audio as audio}
-    return_midi:        ${input.return_midi as boolean  | true}
-    return_notes:       ${input.return_notes as boolean  | true}
-    return_metadata:    ${input.return_metadata as boolean  | true}
+    return_midi:        ${input.return_midi as boolean | true}
+    return_notes:       ${input.return_notes as boolean | true}
+    return_metadata:    ${input.return_metadata as boolean | true}
     return_pitch_bends: ${input.return_pitch_bends as boolean | false}
     params:
       onset_threshold:     ${input.onset_threshold | 0.5}

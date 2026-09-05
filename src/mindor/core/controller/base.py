@@ -180,6 +180,7 @@ class ControllerService(AsyncService):
         self.interrupt_handlers: Dict[str, InterruptHandler] = {}
         self.cancellation_tokens: Dict[str, CancellationToken] = {}
         self.task_events: Dict[str, asyncio.Event] = {}
+
         self._queue: Optional[ControllerQueueService] = None
         self._inflight_tasks: Dict[str, asyncio.Task] = {}
         self._shutdown_pending: bool = False

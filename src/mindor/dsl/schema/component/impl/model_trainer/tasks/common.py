@@ -5,7 +5,7 @@ from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
 from ...model import ModelQuantizationConfig
 
-class TrainingTaskType(str, Enum):
+class ModelTrainerTaskType(str, Enum):
     SFT            = "sft"
     CLASSIFICATION = "classification"
 
@@ -18,7 +18,7 @@ class ModelTrainerLoraConfig(BaseModel):
 
 class CommonModelTrainerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TRAINER]
-    task: TrainingTaskType = Field(..., description="Training task the trainer performs.")
+    task: ModelTrainerTaskType = Field(..., description="Training task the trainer performs.")
     lora: Optional[ModelTrainerLoraConfig] = Field(default=None, description="LoRA adapter settings used during training.")
     quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to the base model during training.")
 

@@ -1,8 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from mindor.dsl.schema.action import SftModelTrainerActionConfig
-from .common import CommonModelTrainerComponentConfig, TrainingTaskType
+from .common import CommonModelTrainerComponentConfig, ModelTrainerTaskType
 
 class SftModelTrainerComponentConfig(CommonModelTrainerComponentConfig):
-    task: Literal[TrainingTaskType.SFT]
+    task: Literal[ModelTrainerTaskType.SFT]
     actions: List[SftModelTrainerActionConfig] = Field(default_factory=list, description="Actions this SFT trainer component exposes to workflows.")

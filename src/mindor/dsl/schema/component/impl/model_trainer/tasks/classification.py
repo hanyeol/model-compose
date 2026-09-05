@@ -1,8 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from mindor.dsl.schema.action import ClassificationModelTrainerActionConfig
-from .common import CommonModelTrainerComponentConfig, TrainingTaskType
+from .common import CommonModelTrainerComponentConfig, ModelTrainerTaskType
 
 class ClassificationModelTrainerComponentConfig(CommonModelTrainerComponentConfig):
-    task: Literal[TrainingTaskType.CLASSIFICATION]
+    task: Literal[ModelTrainerTaskType.CLASSIFICATION]
     actions: List[ClassificationModelTrainerActionConfig] = Field(default_factory=list, description="Actions this classification trainer component exposes to workflows.")

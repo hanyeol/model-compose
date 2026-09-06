@@ -29,38 +29,39 @@ class TextGenerationTaskAction(ComponentAction):
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
                     for sequences in batch_results:
-                        yield self._wrap_result(sequences, streaming, context, is_direct_output)
+                        if streaming:
+                            async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
+                                async for chunk in self._process_result(sequences):
+                                    if chunk is None:
+                                        continue
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+                            yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
+                        else:
+                            yield self._process_result(sequences)
 
             return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+                batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
+                for sequences in batch_results:
+                    if streaming:
+                        async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
+                            async for chunk in self._process_result(sequences):
+                                if chunk is None:
+                                    continue
+                                context.register_source("result[]", chunk, scope=scope)
+                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-        results: List[Any] = []
-        async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-            batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
-            for sequences in batch_results:
-                results.append(self._wrap_result(sequences, streaming, context, is_direct_output))
+                        results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
+                    else:
+                        results.append(self._process_result(sequences))
 
-        context.register_source("result", results)
+            context.register_source("result", results)
 
-        return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else results
-
-    def _wrap_result(
-        self,
-        sequences: Union[List[str], List[AsyncIterator[str]]],
-        streaming: bool,
-        context: ComponentActionContext,
-        is_direct_output: bool,
-    ) -> Any:
-        if streaming:
-            async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
-                async for chunk in self._process_result(sequences):
-                    if chunk is None:
-                        continue
-                    context.register_source("result[]", chunk, scope=scope)
-                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
-
-            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
-
-        return self._process_result(sequences)
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else results
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_text(self.config.prompt)

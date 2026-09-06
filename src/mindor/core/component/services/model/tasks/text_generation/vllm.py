@@ -13,6 +13,8 @@ import asyncio, ulid
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine, SamplingParams
 
+_STREAM_QUEUE_SIZE = 32
+
 class VllmTextGenerationTaskAction(TextGenerationTaskAction):
     def __init__(
         self,
@@ -99,9 +101,12 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
     ) -> List[AsyncIterator[str]]:
         # vLLM emits every sequence's cumulative text in one shared async
         # iterator, so fan it out into n independent per-sequence queues so
-        # each returned iterator can be consumed on its own.
+        # each returned iterator can be consumed on its own. Queues are
+        # bounded to apply backpressure on the engine when consumers are
+        # slow, and the fan-out task is aborted if any consumer stops early.
         request_id = f"request-{ulid.ulid()}"
-        queues: List[asyncio.Queue] = [ asyncio.Queue() for _ in range(num_return_sequences) ]
+        queues: List[asyncio.Queue] = [ asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE) for _ in range(num_return_sequences) ]
+        active = [ True ] * num_return_sequences
         end = object()
 
         async def _fan_out_sequences():
@@ -110,30 +115,53 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
             try:
                 async for output in self.engine.generate(prompt, sampling, request_id=request_id):
                     if cancellation_token is not None and cancellation_token.is_cancelled():
-                        await self.engine.abort(request_id)
+                        break
+
+                    if not any(active):
                         break
 
                     for sequence in output.outputs:
                         index = sequence.index
+
+                        if not active[index]:
+                            continue
+
                         delta = sequence.text[len(previous[index]):]
                         previous[index] = sequence.text
 
                         if delta:
                             await queues[index].put(delta)
+            except asyncio.CancelledError:
+                pass
             finally:
-                for queue in queues:
-                    await queue.put(end)
+                await self.engine.abort(request_id)
+                for index, queue in enumerate(queues):
+                    if active[index]:
+                        try:
+                            queue.put_nowait(end)
+                        except asyncio.QueueFull:
+                            # Drop a pending chunk to guarantee the terminator lands.
+                            try:
+                                queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                pass
+                            queue.put_nowait(end)
 
-        asyncio.create_task(_fan_out_sequences())
+        fan_out_task = asyncio.create_task(_fan_out_sequences())
 
-        async def _stream(queue: asyncio.Queue) -> AsyncIterator[str]:
-            while True:
-                chunk = await queue.get()
-                if chunk is end:
-                    return
-                yield chunk
+        async def _stream(index: int, queue: asyncio.Queue) -> AsyncIterator[str]:
+            try:
+                while True:
+                    chunk = await queue.get()
+                    if chunk is end:
+                        return
+                    yield chunk
+            finally:
+                active[index] = False
+                if not any(active) and not fan_out_task.done():
+                    fan_out_task.cancel()
 
-        return [ _stream(queue) for queue in queues ]
+        return [ _stream(index, queue) for index, queue in enumerate(queues) ]
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.VLLM)
 class VllmTextGenerationTaskService(VllmModelTaskService):

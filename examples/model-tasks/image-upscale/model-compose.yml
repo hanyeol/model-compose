@@ -17,6 +17,7 @@ workflow:
 component:
   type: model
   task: image-upscale
+  driver: custom
   family: real-esrgan
   model:
     provider: huggingface

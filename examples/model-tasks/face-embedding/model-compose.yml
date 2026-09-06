@@ -18,6 +18,7 @@ workflow:
 component:
   type: model
   task: face-embedding
+  driver: custom
   max_concurrent_count: 1
   family: insightface
   # The antelopev2 archive is fetched into `path` on first run and extracted

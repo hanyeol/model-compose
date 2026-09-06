@@ -48,9 +48,11 @@ class EventDispatcher:
     async def _run_worker(self, key: Hashable, queue: asyncio.Queue) -> None:
         while True:
             handler = await queue.get()
+
             try:
                 if handler is None:
                     return
+
                 try:
                     await handler()
                 except asyncio.CancelledError:

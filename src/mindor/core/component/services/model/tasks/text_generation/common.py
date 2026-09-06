@@ -22,6 +22,7 @@ class TextGenerationTaskAction(ComponentAction):
 
         params = await self._resolve_params(context)
 
+        is_single_input  = not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(text, (StreamIterator, AsyncIterator)):
@@ -59,9 +60,10 @@ class TextGenerationTaskAction(ComponentAction):
                     else:
                         results.append(self._process_sequences(sequences, streaming=False))
 
-            context.register_source("result", results)
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else results
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_text(self.config.prompt)

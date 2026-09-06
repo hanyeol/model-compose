@@ -6,8 +6,7 @@ from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import (
     ToolCallParserConfig,
     ToolCallBodyFormat,
-    ToolCallNameMarker,
-    ToolCallArgumentsMarker,
+    ReasoningParserConfig,
 )
 
 class ToolCallParser:
@@ -43,8 +42,10 @@ class ToolCallParser:
 
                 if start < 0:
                     tail = text[cursor:]
+
                     if tail:
                         blocks.append({ "type": "text", "text": tail })
+
                     break
 
                 if start > cursor:
@@ -392,70 +393,242 @@ class ToolCallStreamSplitter:
     """
     def __init__(self, parser: ToolCallParser):
         self.parser: ToolCallParser = parser
-        self.buffer: str = ""
-        self.cursor: int = 0
-        self.inside_call: bool = False
-        self.call_start: int = 0
+        self.config: ToolCallParserConfig = parser.config
+
+        self._buffer: str = ""
+        self._cursor: int = 0
+        self._inside_call: bool = False
+        self._call_start: int = 0
 
     def feed(self, chunk: str) -> List[Dict[str, Any]]:
-        self.buffer += chunk
-        emitted: List[Dict[str, Any]] = []
+        self._buffer += chunk
+        blocks: List[Dict[str, Any]] = []
 
         while True:
-            if not self.inside_call:
-                start = self.buffer.find(self.parser.config.start_tag, self.cursor)
+            if not self._inside_call:
+                start = self._buffer.find(self.config.start_tag, self._cursor)
 
                 if start < 0:
                     # Nothing tag-like committed yet. Flush text up to the point where a partial
                     # start_tag prefix could still form, keep the tail in the buffer.
-                    safe = len(self.buffer) - (len(self.parser.config.start_tag) - 1)
+                    stable_end = len(self._buffer) - (len(self.config.start_tag) - 1)
 
-                    if safe > self.cursor:
-                        emitted.append({ "type": "text", "text": self.buffer[self.cursor:safe] })
-                        self.cursor = safe
+                    if stable_end > self._cursor:
+                        blocks.append({ "type": "text", "text": self._buffer[self._cursor:stable_end] })
+                        self._cursor = stable_end
 
-                    return emitted
+                    return blocks
 
-                if start > self.cursor:
-                    emitted.append({ "type": "text", "text": self.buffer[self.cursor:start] })
+                if start > self._cursor:
+                    blocks.append({ "type": "text", "text": self._buffer[self._cursor:start] })
 
-                self.inside_call = True
-                self.call_start = start
-                self.cursor = start + len(self.parser.config.start_tag)
+                self._inside_call = True
+                self._call_start = start
+                self._cursor = start + len(self.config.start_tag)
 
                 continue
 
             # We're inside a tag; try to close it.
-            body_start = self.call_start + len(self.parser.config.start_tag)
-            if self.parser.config.end_tag:
-                end_at = self.buffer.find(self.parser.config.end_tag, body_start)
+            body_start = self._call_start + len(self.config.start_tag)
+            if self.config.end_tag:
+                end_at = self._buffer.find(self.config.end_tag, body_start)
 
                 if end_at < 0:
-                    return emitted
+                    return blocks
 
-                span_end = end_at + len(self.parser.config.end_tag)
+                span_end = end_at + len(self.config.end_tag)
             else:
-                _, consumed = self.parser._read_one_value(self.buffer, body_start)
+                _, consumed = self.parser._read_one_value(self._buffer, body_start)
 
                 if consumed == 0:
-                    return emitted
+                    return blocks
 
                 span_end = body_start + consumed
 
-            calls, _ = self.parser._read_body(self.buffer, body_start)
-            emitted.extend(calls)  # empty list if body was malformed -> drop the span silently
-            self.inside_call = False
-            self.cursor = span_end
+            calls, _ = self.parser._read_body(self._buffer, body_start)
+            blocks.extend(calls)  # empty list if body was malformed -> drop the span silently
+
+            self._inside_call = False
+            self._cursor = span_end
 
     def flush(self) -> List[Dict[str, Any]]:
         # End-of-stream: flush any trailing text sitting outside a call. Text held back only
         # because it could be a partial start_tag is now known to not be one, so emit it. An
         # open, unclosed call is discarded per the "silently drop malformed" policy.
-        if self.inside_call:
+        if self._inside_call:
             return []
 
-        tail = self.buffer[self.cursor:]
-        self.cursor = len(self.buffer)
+        tail = self._buffer[self._cursor:]
+        self._cursor = len(self._buffer)
+
+        return [ { "type": "text", "text": tail } ] if tail else []
+
+class ReasoningParser:
+    """Extract ``reasoning`` blocks from raw model output.
+
+    Two modes based on ``start_tag``:
+      * **tagged** (start_tag set, e.g. DeepSeek-R1 ``<think>...</think>``): scan for
+        ``start_tag``, emit a reasoning block from ``start_tag`` to ``end_tag``, everything
+        else stays as text.
+      * **prefix** (start_tag omitted, e.g. Qwen3 thinking mode): the output *begins* with
+        reasoning; everything up to the first ``end_tag`` is a reasoning block, and the
+        remainder becomes text.
+
+    Malformed spans (start_tag with no closing end_tag) are dropped silently — the opening
+    tag is discarded and everything after it up to end-of-stream vanishes. This matches the
+    "reasoning is transient, don't leak partials" policy.
+
+    Streaming lives in :class:`ReasoningStreamSplitter`; this class is stateless and only
+    handles complete-buffer parsing.
+    """
+    def __init__(self, config: ReasoningParserConfig):
+        self.config: ReasoningParserConfig = config
+
+    def parse(self, text: str) -> List[Dict[str, Any]]:
+        # Non-streaming path: no partial-tag safety zone. Split reasoning spans in one pass
+        # so downstream consumers (e.g. the tool_call parser) see complete text runs.
+        blocks: List[Dict[str, Any]] = []
+        cursor = 0
+
+        if self.config.start_tag is None:
+            # "Prefix" mode: text begins inside a reasoning span. Everything up to end_tag is
+            # reasoning; the remainder is text. An unclosed span means the whole output is
+            # reasoning and there is no trailing text.
+            close = text.find(self.config.end_tag)
+
+            if close < 0:
+                if text:
+                    blocks.append({ "type": "reasoning", "text": text })
+
+                return blocks
+
+            if close > 0:
+                blocks.append({ "type": "reasoning", "text": text[:close] })
+
+            cursor = close + len(self.config.end_tag)
+            tail = text[cursor:]
+
+            if tail:
+                blocks.append({ "type": "text", "text": tail })
+
+            return blocks
+
+        while cursor < len(text):
+            open_at = text.find(self.config.start_tag, cursor)
+
+            if open_at < 0:
+                tail = text[cursor:]
+
+                if tail:
+                    blocks.append({ "type": "text", "text": tail })
+
+                break
+
+            if open_at > cursor:
+                blocks.append({ "type": "text", "text": text[cursor:open_at] })
+
+            body_start = open_at + len(self.config.start_tag)
+            close = text.find(self.config.end_tag, body_start)
+
+            if close < 0:
+                # Unclosed span: drop the opening tag and everything after silently.
+                break
+
+            if close > body_start:
+                blocks.append({ "type": "reasoning", "text": text[body_start:close] })
+
+            cursor = close + len(self.config.end_tag)
+
+        return blocks
+
+class ReasoningStreamSplitter:
+    """Chunk-at-a-time counterpart to :class:`ReasoningParser`.
+
+    Maintains a rolling buffer and a cursor. On each ``feed``:
+      * bytes clearly outside a reasoning span are flushed as ``text`` blocks up to a safe
+        boundary (leaving room for a possible partial ``start_tag`` prefix);
+      * bytes inside a span are flushed as ``reasoning`` blocks up to a safe boundary before a
+        possible partial ``end_tag`` prefix — reasoning streams incrementally like text;
+      * on ``flush`` any trailing bytes buffered inside an unclosed reasoning span are
+        discarded silently (the "reasoning is transient, don't leak partials" policy).
+
+    Prefix mode (``config.start_tag is None``) starts already inside a reasoning span; there is
+    no way to re-enter one after ``end_tag``.
+    """
+    def __init__(self, parser: ReasoningParser):
+        self.parser: ReasoningParser = parser
+        self.config: ReasoningParserConfig = parser.config
+
+        self._buffer: str = ""
+        self._cursor: int = 0
+        # In "prefix" mode we're implicitly inside a reasoning span from the very first byte.
+        self._inside_reasoning: bool = self.config.start_tag is None
+
+    def feed(self, chunk: str) -> List[Dict[str, Any]]:
+        blocks: List[Dict[str, Any]] = []
+        self._buffer += chunk
+
+        while True:
+            if self._inside_reasoning:
+                end_at = self._buffer.find(self.config.end_tag, self._cursor)
+
+                if end_at < 0:
+                    # Emit reasoning text up to a point where a partial end_tag prefix could
+                    # still form; keep the tail buffered.
+                    stable_end = len(self._buffer) - (len(self.config.end_tag) - 1)
+
+                    if stable_end > self._cursor:
+                        blocks.append({ "type": "reasoning", "text": self._buffer[self._cursor:stable_end] })
+                        self._cursor = stable_end
+
+                    return blocks
+
+                if end_at > self._cursor:
+                    blocks.append({ "type": "reasoning", "text": self._buffer[self._cursor:end_at] })
+
+                self._cursor = end_at + len(self.config.end_tag)
+                self._inside_reasoning = False
+
+                continue
+
+            # Outside a reasoning span. In "tagged" mode we may re-enter one via start_tag;
+            # in "prefix" mode we never re-enter (only one reasoning span at the very start).
+            if self.config.start_tag is None:
+                stable_end = len(self._buffer)
+
+                if stable_end > self._cursor:
+                    blocks.append({ "type": "text", "text": self._buffer[self._cursor:stable_end] })
+                    self._cursor = stable_end
+
+                return blocks
+
+            start = self._buffer.find(self.config.start_tag, self._cursor)
+
+            if start < 0:
+                # No start_tag committed yet. Flush text up to a safe boundary where a partial
+                # start_tag prefix could still form; keep the tail buffered.
+                stable_end = len(self._buffer) - (len(self.config.start_tag) - 1)
+
+                if stable_end > self._cursor:
+                    blocks.append({ "type": "text", "text": self._buffer[self._cursor:stable_end] })
+                    self._cursor = stable_end
+
+                return blocks
+
+            if start > self._cursor:
+                blocks.append({ "type": "text", "text": self._buffer[self._cursor:start] })
+
+            self._cursor = start + len(self.config.start_tag)
+            self._inside_reasoning = True
+
+    def flush(self) -> List[Dict[str, Any]]:
+        # End-of-stream: an unclosed reasoning span is silently discarded. Any trailing text
+        # outside a span is blocks (it was only held back because it could have started a tag).
+        if self._inside_reasoning:
+            return []
+
+        tail = self._buffer[self._cursor:]
+        self._cursor = len(self._buffer)
 
         return [ { "type": "text", "text": tail } ] if tail else []
 
@@ -466,6 +639,7 @@ class ChatToolBuilder(ABC):
     def build(self, tools: Optional[Union[List[str], List[ModelTool]]]) -> List[Dict[str, Any]]:
         if tools is None or all(isinstance(tool, str) for tool in tools):
             tools = self._select_tools(tools)
+
         return [ self._build_tool(tool) for tool in tools ]
 
     def _select_tools(self, names: Optional[List[str]]) -> List[ModelTool]:
@@ -474,8 +648,10 @@ class ChatToolBuilder(ABC):
         if names is not None:
             for name in names:
                 tool = next((tool for tool in self.tools if tool.name == name), None)
+
                 if not tool:
                     raise LookupError(f"Tool '{name}' is not defined in the component's tool catalog.")
+
                 tools.append(tool)
         else:
             tools.extend(self.tools)
@@ -493,17 +669,23 @@ class ChatChoicesBuilder:
     ``{ choices: [ { index, content: [block, ...], finish_reason } ] }``.
     In ``build`` the content array holds every block for a completed sequence and
     ``finish_reason`` is ``"stop"``. In ``stream`` each event carries the blocks added since the
-    last event (typically one) with ``finish_reason: None``; when a sequence ends we emit a
-    terminator with ``content: []`` and ``finish_reason: "stop"`` so consumers can detect
-    per-sequence completion without a sentinel.
+    last event with ``finish_reason: None``; a per-sequence terminator with ``content: []`` and
+    ``finish_reason: "stop"`` marks end-of-sequence.
 
-    Blocks are ``{type:'text', text}`` or ``{type:'tool_call', id, name, arguments}``. When no
-    ``ToolCallParser`` is supplied, only text blocks are emitted. Otherwise streaming holds
-    partial output in a per-sequence buffer and only emits a ``tool_call`` block once the
-    enclosing marker closes; any buffer still open at end-of-stream is discarded.
+    Blocks are ``{type:'text', text}``, ``{type:'reasoning', text}``, or
+    ``{type:'tool_call', id, name, arguments}``. When both a reasoning and a tool-call parser
+    are supplied the pipeline runs reasoning first: reasoning spans are extracted, then any
+    surviving text runs are passed through the tool-call parser. Reasoning streams like text
+    (incremental deltas); tool_call spans buffer until their closing marker; malformed or
+    unclosed spans in either parser are discarded silently.
     """
-    def __init__(self, parser: Optional[ToolCallParser] = None):
-        self.parser: Optional[ToolCallParser] = parser
+    def __init__(
+        self,
+        tool_call_parser: Optional[ToolCallParser] = None,
+        reasoning_parser: Optional[ReasoningParser] = None,
+    ):
+        self.tool_call_parser: Optional[ToolCallParser] = tool_call_parser
+        self.reasoning_parser: Optional[ReasoningParser] = reasoning_parser
 
     def build(self, sequences: List[str]) -> Dict[str, Any]:
         return {
@@ -522,26 +704,51 @@ class ChatChoicesBuilder:
         end = object()
 
         async def _stream(index: int, source: AsyncIterator[str]) -> None:
-            # The splitter only needs the single-call scanner (start_tag/end_tag). Batch
-            # envelope tokens leak out as harmless text deltas.
-            splitter = ToolCallStreamSplitter(self.parser) if self.parser is not None else None
+            reasoning_splitter = ReasoningStreamSplitter(self.reasoning_parser) if self.reasoning_parser is not None else None
+            tool_call_splitter = ToolCallStreamSplitter(self.tool_call_parser) if self.tool_call_parser is not None else None
+
+            def _route(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                # Text blocks feed the tool-call splitter; reasoning/tool_call blocks pass
+                # through. When no tool-call parser is configured everything passes as-is.
+                if tool_call_splitter is None:
+                    return chunks
+
+                blocks: List[Dict[str, Any]] = []
+
+                for block in chunks:
+                    if block.get("type") == "text":
+                        blocks.extend(tool_call_splitter.feed(block["text"]))
+                    else:
+                        blocks.append(block)
+
+                return blocks
+
             try:
                 async for chunk in source:
                     if not chunk:
                         continue
 
-                    if splitter is None:
-                        await queue.put(self._choice_chunk(index, [ { "type": "text", "text": chunk } ]))
-                        continue
+                    if reasoning_splitter is not None:
+                        blocks = _route(reasoning_splitter.feed(chunk))
+                    elif tool_call_splitter is not None:
+                        blocks = tool_call_splitter.feed(chunk)
+                    else:
+                        blocks = [ { "type": "text", "text": chunk } ]
 
-                    blocks = splitter.feed(chunk)
                     if blocks:
                         await queue.put(self._choice_chunk(index, blocks))
 
-                if splitter is not None:
-                    blocks = splitter.flush()
-                    if blocks:
-                        await queue.put(self._choice_chunk(index, blocks))
+                # Flush order matches the pipeline: reasoning tail → tool-call tail.
+                tail: List[Dict[str, Any]] = []
+
+                if reasoning_splitter is not None:
+                    tail.extend(_route(reasoning_splitter.flush()))
+
+                if tool_call_splitter is not None:
+                    tail.extend(tool_call_splitter.flush())
+
+                if tail:
+                    await queue.put(self._choice_chunk(index, tail))
 
                 await queue.put(self._choice_chunk(index, [], finish_reason="stop"))
             finally:
@@ -553,9 +760,11 @@ class ChatChoicesBuilder:
         try:
             while active_stream_count > 0:
                 chunk = await queue.get()
+
                 if chunk is end:
                     active_stream_count -= 1
                     continue
+
                 yield chunk
         finally:
             for task in stream_tasks:
@@ -563,10 +772,23 @@ class ChatChoicesBuilder:
                     task.cancel()
 
     def _split_content(self, text: str) -> List[Dict[str, Any]]:
-        if self.parser is None:
-            return [ { "type": "text", "text": text } ]
+        # First pass: peel reasoning spans, leaving a mix of reasoning + text blocks (or a
+        # single text block when no reasoning parser is configured).
+        if self.reasoning_parser is not None:
+            blocks = self.reasoning_parser.parse(text)
+        else:
+            blocks = [ { "type": "text", "text": text } ]
 
-        blocks = self.parser.parse(text)
+        # Second pass: run the tool_call parser over each surviving text block; reasoning
+        # blocks pass through unchanged.
+        if self.tool_call_parser is not None:
+            source, blocks = blocks, []
+
+            for block in source:
+                if block.get("type") == "text":
+                    blocks.extend(self.tool_call_parser.parse(block["text"]))
+                else:
+                    blocks.append(block)
 
         return blocks or [ { "type": "text", "text": text } ]
 

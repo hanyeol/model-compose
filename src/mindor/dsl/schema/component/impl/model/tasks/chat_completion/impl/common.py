@@ -47,8 +47,13 @@ class ToolCallParserConfig(BaseModel):
             raise ValueError("batch_start_tag and batch_end_tag must be set together.")
         return self
 
+class ReasoningParserConfig(BaseModel):
+    start_tag: Optional[str] = Field(default=None, description="Literal marker that opens a reasoning span (e.g. '<think>'). Omit for models that begin reasoning at the start of the output (e.g. Qwen3 thinking mode) — everything up to end_tag is treated as reasoning.")
+    end_tag: str = Field(..., description="Literal marker that closes a reasoning span (e.g. '</think>').")
+
 class CommonChatCompletionModelComponentConfig(LanguageModelComponentConfig):
     task: Literal[ModelTaskType.CHAT_COMPLETION]
     chat_template: Optional[str] = Field(default=None, description="Inline Jinja chat template string, overriding the tokenizer default.")
     tools: Optional[List[ModelTool]] = Field(default=None, description="Catalog of tools this component exposes for tool calling.")
+    reasoning_parser: Optional[ReasoningParserConfig] = Field(default=None, description="Rules for extracting reasoning spans (e.g. '<think>...</think>') from raw model output. Applied before tool_call_parser.")
     tool_call_parser: Optional[ToolCallParserConfig] = Field(default=None, description="Rules for extracting tool calls from raw model output.")

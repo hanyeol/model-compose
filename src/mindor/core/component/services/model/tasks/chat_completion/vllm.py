@@ -57,17 +57,6 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
 class VllmChatCompletionTaskService(VllmModelTaskService):
     config: VllmChatCompletionModelComponentConfig
 
-    def _get_model_options(self, config: VllmChatCompletionModelComponentConfig) -> Dict[str, Any]:
-        options = super()._get_model_options(config)
-
-        for field in ("reasoning_parser", "reasoning_config", "tool_parser_plugin"):
-            value = getattr(config, field, None)
-
-            if value is not None:
-                options[field] = value
-
-        return options
-
     async def _run(
         self,
         action: ModelActionConfig,

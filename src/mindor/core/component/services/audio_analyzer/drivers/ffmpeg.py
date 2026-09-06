@@ -367,6 +367,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             bucket = int(point["time"] // resolution)
             bucket_sums[bucket]   = bucket_sums.get(bucket, 0.0) + momentary
             bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
+
             if bucket > max_bucket:
                 max_bucket = bucket
 
@@ -375,6 +376,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         for bucket in range(max_bucket + 1):
             count = bucket_counts.get(bucket, 0)
             loudness = (bucket_sums[bucket] / count) if count else None
+
             profile.append({
                 "time":     bucket * resolution,
                 "loudness": loudness,

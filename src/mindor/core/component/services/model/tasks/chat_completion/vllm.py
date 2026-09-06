@@ -9,7 +9,7 @@ from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from ..text_generation.vllm import VllmTextGenerationTaskAction
-from .common import build_choices_envelope, stream_choices_envelope
+from .common import ChatCompletionChoicesBuilder
 from .huggingface import HuggingfaceToolBuilder
 
 if TYPE_CHECKING:
@@ -47,11 +47,11 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
             **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
 
-    def _process_result(self, sequences: Union[List[str], List[AsyncIterator[str]]]) -> Any:
-        if sequences and isinstance(sequences[0], AsyncIterator):
-            return stream_choices_envelope(sequences)
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+        if streaming:
+            return ChatCompletionChoicesBuilder().stream(sequences)
 
-        return build_choices_envelope(sequences)
+        return ChatCompletionChoicesBuilder().build(sequences)
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.VLLM)
 class VllmChatCompletionTaskService(VllmModelTaskService):

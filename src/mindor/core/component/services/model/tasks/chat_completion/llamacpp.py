@@ -9,7 +9,7 @@ from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from ..text_generation.llamacpp import LlamaCppTextGenerationTaskAction
-from .common import build_choices_envelope, stream_choices_envelope
+from .common import ChatCompletionChoicesBuilder
 from .huggingface import HuggingfaceToolBuilder
 
 if TYPE_CHECKING:
@@ -46,11 +46,11 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
 
         return conversation.prompt
 
-    def _process_result(self, sequences: Union[List[str], List[AsyncIterator[str]]]) -> Any:
-        if sequences and isinstance(sequences[0], AsyncIterator):
-            return stream_choices_envelope(sequences)
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+        if streaming:
+            return ChatCompletionChoicesBuilder().stream(sequences)
 
-        return build_choices_envelope(sequences)
+        return ChatCompletionChoicesBuilder().build(sequences)
 
     def _resolve_chat_formatter(self):
         from llama_cpp import llama_chat_format

@@ -31,7 +31,7 @@ class TextGenerationTaskAction(ComponentAction):
                     for sequences in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
-                                async for chunk in self._process_result(sequences):
+                                async for chunk in self._process_sequences(sequences, streaming=True):
                                     if chunk is None:
                                         continue
                                     context.register_source("result[]", chunk, scope=scope)
@@ -39,7 +39,7 @@ class TextGenerationTaskAction(ComponentAction):
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield self._process_result(sequences)
+                            yield self._process_sequences(sequences, streaming=False)
 
             return _stream_output_generator()
         else:
@@ -49,7 +49,7 @@ class TextGenerationTaskAction(ComponentAction):
                 for sequences in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
-                            async for chunk in self._process_result(sequences):
+                            async for chunk in self._process_sequences(sequences, streaming=True):
                                 if chunk is None:
                                     continue
                                 context.register_source("result[]", chunk, scope=scope)
@@ -57,7 +57,7 @@ class TextGenerationTaskAction(ComponentAction):
 
                         results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
-                        results.append(self._process_result(sequences))
+                        results.append(self._process_sequences(sequences, streaming=False))
 
             context.register_source("result", results)
 
@@ -87,7 +87,7 @@ class TextGenerationTaskAction(ComponentAction):
             "stop_sequences":       stop_sequences,
         }
 
-    def _process_result(self, sequences: Union[List[str], List[AsyncIterator[str]]]) -> Any:
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
         """Convert one prompt's n sequences into the task's user-facing shape.
 
         For text-generation this passes the list through as-is (List[str] for

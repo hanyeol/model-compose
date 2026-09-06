@@ -10,13 +10,13 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ..text_generation.huggingface import HuggingfaceTextGenerationTaskAction
-from .common import ToolBuilder, build_choices_envelope, stream_choices_envelope
+from .common import ChatCompletionToolBuilder, ChatCompletionChoicesBuilder
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
     import torch
 
-class HuggingfaceToolBuilder(ToolBuilder):
+class HuggingfaceToolBuilder(ChatCompletionToolBuilder):
     def _build_tool(self, tool: ModelTool) -> Dict[str, Any]:
         return {
             "type": "function",
@@ -54,11 +54,11 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
             **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
 
-    def _process_result(self, sequences: Union[List[str], List[AsyncIterator[str]]]) -> Any:
-        if sequences and isinstance(sequences[0], AsyncIterator):
-            return stream_choices_envelope(sequences)
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+        if streaming:
+            return ChatCompletionChoicesBuilder().stream(sequences)
 
-        return build_choices_envelope(sequences)
+        return ChatCompletionChoicesBuilder().build(sequences)
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)
 class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):

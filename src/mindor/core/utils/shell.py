@@ -219,10 +219,13 @@ async def stream_subprocess(
         async def _drain_stdout() -> AsyncIterator[Any]:
             while True:
                 chunk = await process.stdout.read(65536)
+
                 if not chunk:
                     return
+
                 if False:  # pragma: no cover — never yields; drains only
                     yield chunk
+
         stdout_iterator = _drain_stdout()
 
     async def _finalize() -> None:

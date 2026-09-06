@@ -76,8 +76,10 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
     ) -> str:
         if cancellation_token is not None:
             chunks: List[str] = []
+
             for token in self._stream_text(prompt, generation_params, cancellation_token):
                 chunks.append(token)
+
             return "".join(chunks)
 
         return self.model(prompt, stream=False, **generation_params)["choices"][0]["text"]
@@ -91,7 +93,9 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
         for chunk in self.model(prompt, stream=True, **generation_params):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
+
             token = chunk["choices"][0].get("text", "")
+
             if token:
                 yield token
 

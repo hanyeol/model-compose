@@ -89,8 +89,10 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
             try:
                 while True:
                     chunk = await process.stdout.read(65536)
+
                     if not chunk:
                         break
+
                     await queue.put(chunk)
             finally:
                 await queue.put(_STREAM_END)
@@ -101,12 +103,15 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
             try:
                 while True:
                     item = await queue.get()
+
                     if item is _STREAM_END:
                         break
+
                     yield item
             finally:
                 await kill_process(process, timeout=2.0)
                 reader_task.cancel()
+
                 try:
                     await reader_task
                 except (asyncio.CancelledError, Exception):

@@ -139,8 +139,10 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
             try:
                 while True:
                     chunk = await process.stdout.read(65536)
+
                     if not chunk:
                         break
+
                     await queue.put(chunk)
             finally:
                 await queue.put(_STREAM_END)

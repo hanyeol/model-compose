@@ -45,8 +45,10 @@ class Base64StreamResource(StreamResource):
 
         while True:
             chunk = self._stream.read(self.chunk_size)
+
             if not chunk:
                 break
+
             yield chunk
 
     @staticmethod

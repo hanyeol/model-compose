@@ -2,12 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.vllm import VllmChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from ..text_generation.vllm import VllmTextGenerationTaskAction
+from .common import ChatCompletionDeltaStreamer
 from .huggingface import HuggingfaceToolBuilder
 
 if TYPE_CHECKING:
@@ -44,6 +46,12 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
             **({ "tools": tools } if tools else {}),
             **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
+
+    def _process_result(self, result: Union[str, AsyncIterator[str]]) -> Any:
+        if isinstance(result, AsyncIterator):
+            return ChatCompletionDeltaStreamer().stream(result)
+
+        return [ { "type": "text", "text": result } ]
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.VLLM)
 class VllmChatCompletionTaskService(VllmModelTaskService):

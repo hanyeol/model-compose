@@ -32,14 +32,15 @@ class TextGenerationTaskAction(ComponentAction):
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                                async for chunk in result:
-                                    if chunk:
-                                        context.register_source("result[]", chunk, scope=scope)
-                                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                                async for chunk in self._process_result(result):
+                                    if chunk is None:
+                                        continue
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            yield self._process_result(result)
 
             return _stream_output_generator()
         else:
@@ -49,14 +50,15 @@ class TextGenerationTaskAction(ComponentAction):
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                            async for chunk in result:
-                                if chunk:
-                                    context.register_source("result[]", chunk, scope=scope)
-                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                            async for chunk in self._process_result(result):
+                                if chunk is None:
+                                    continue
+                                context.register_source("result[]", chunk, scope=scope)
+                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                         results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
-                        results.append(result)
+                        results.append(self._process_result(result))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -86,6 +88,9 @@ class TextGenerationTaskAction(ComponentAction):
             "top_p":                top_p,
             "stop_sequences":       stop_sequences,
         }
+
+    def _process_result(self, result: Union[str, AsyncIterator[str]]) -> Any:
+        return result
 
     @abstractmethod
     async def _generate_batch(

@@ -96,6 +96,7 @@ class ReaderStreamResource(StreamResource):
         if isinstance(self.reader, ClosableBytesReader):
             try:
                 result = self.reader.close()
+
                 if hasattr(result, "__await__"):
                     await result
             except Exception:
@@ -104,10 +105,13 @@ class ReaderStreamResource(StreamResource):
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         while True:
             chunk = self.reader.read(self.chunk_size)
+
             if hasattr(chunk, "__await__"):
                 chunk = await chunk
+
             if not chunk:
                 break
+
             yield chunk
 
 class AsyncIterableStreamResource(StreamResource):

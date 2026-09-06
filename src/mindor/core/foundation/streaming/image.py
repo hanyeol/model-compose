@@ -56,14 +56,17 @@ class ImageStreamResource(StreamResource):
 
         while True:
             chunk = self._buffer.read(8192)  # Read in 8KB chunks
+
             if not chunk:
                 break
+
             yield chunk
 
     def _write_to_buffer(self, image: PILImage.Image, format: str) -> io.BytesIO:
         buffer = io.BytesIO()
         image.save(buffer, self._resolve_pil_format(format))
         buffer.seek(0)
+
         return buffer
 
     def _resolve_content_type(self, format: str) -> str:
@@ -74,14 +77,18 @@ class ImageStreamResource(StreamResource):
 
 async def load_image_from_stream(stream: StreamResource) -> PILImage.Image:
     data = bytearray()
+
     async with stream:
         async for chunk in stream:
             data.extend(chunk)
+
     return await asyncio.to_thread(PILImage.open, io.BytesIO(data))
 
 async def load_image_from_bytes(data: bytes) -> PILImage.Image:
     def _open():
         image = PILImage.open(io.BytesIO(data))
         image.load()
+
         return image
+
     return await asyncio.to_thread(_open)

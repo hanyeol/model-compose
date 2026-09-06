@@ -130,6 +130,8 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
                     stopping_criteria=stopping_criteria,
                 )
 
+            outputs = outputs[:, inputs["input_ids"].shape[1]:]
+
             return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
         results = await self._run_in_executor(_generate)

@@ -2,12 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.llamacpp import LlamaCppChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from ..text_generation.llamacpp import LlamaCppTextGenerationTaskAction
+from .common import ChatCompletionDeltaStreamer
 from .huggingface import HuggingfaceToolBuilder
 
 if TYPE_CHECKING:
@@ -43,6 +45,12 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
         )
 
         return conversation.prompt
+
+    def _process_result(self, result: Union[str, AsyncIterator[str]]) -> Any:
+        if isinstance(result, AsyncIterator):
+            return ChatCompletionDeltaStreamer().stream(result)
+
+        return [ { "type": "text", "text": result } ]
 
     def _resolve_chat_formatter(self):
         from llama_cpp import llama_chat_format

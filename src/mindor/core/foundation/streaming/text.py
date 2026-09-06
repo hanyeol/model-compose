@@ -37,8 +37,10 @@ class TextStreamResource(StreamResource):
 
         while True:
             chunk = self.buffer.read(8192)
+
             if not chunk:
                 break
+
             yield chunk
 
     def _resolve_content_type(self, encoding: str) -> str:

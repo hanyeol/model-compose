@@ -381,20 +381,25 @@ class AudioDecodingStreamer:
                     command.extend([ "-ar", str(source.attrs["sample_rate"]) ])
                 else:
                     raise ValueError(f"Raw PCM source {source.format!r} requires 'sample_rate' in attrs")
+
                 if source.attrs.get("channels"):
                     command.extend([ "-ac", str(source.attrs["channels"]) ])
                 else:
                     raise ValueError(f"Raw PCM source {source.format!r} requires 'channels' in attrs")
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
+
         # Use WAV container instead of raw s16le so ffmpeg emits a 44-byte RIFF
         # header carrying the actual sr/channels. Lets us populate ``attrs``
         # without a pre-scan when the caller didn't specify a layout.
         command.extend([ "-vn", "-f", "wav", "-acodec", "pcm_s16le" ])
+
         if sample_rate:
             command.extend([ "-ar", str(sample_rate) ])
+
         if channels:
             command.extend([ "-ac", str(channels) ])
+
         command.append("pipe:1")
 
         stdin_source = source.stream if input_path is None else None
@@ -414,17 +419,23 @@ class AudioDecodingStreamer:
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:
                 chunk = await reader.read(65536)
+
                 if not chunk:
                     break
+
                 yield chunk
 
         async def _handle_stderr(reader: asyncio.StreamReader) -> bytes:
             lines: list = []
+
             while True:
                 line = await reader.readline()
+
                 if not line:
                     break
+
                 lines.append(line)
+
             return b"".join(lines)
 
         async def _stream() -> AsyncIterator[bytes]:
@@ -715,6 +726,7 @@ class AudioBufferStreamer:
         async def _remaining_chunks() -> AsyncIterator[bytes]:
             for chunk in prefetched_chunks:
                 yield chunk
+
             async for chunk in source_iterator:
                 yield chunk
 

@@ -18,7 +18,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # blackdetect emits `black_start`/`black_end`/`black_duration` on stderr.
         video_filter = (
@@ -26,7 +26,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             f":pix_th={params['pixel_threshold']}"
             f":pic_th={params['picture_threshold']}"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter, cancellation_token)
 
         regions = self._parse_blackdetect(stderr_text)
         total_black = sum((region.get("duration") or 0.0) for region in regions)
@@ -47,7 +47,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # freezedetect emits `freeze_start`/`freeze_end`/`freeze_duration`. The
         # `n` parameter is a normalized noise threshold (0.0-1.0); ffmpeg also
@@ -56,7 +56,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             f"freezedetect=n={params['noise_threshold']}"
             f":d={params['min_duration']}"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter, cancellation_token)
 
         regions = self._parse_freezedetect(stderr_text)
         total_freeze = sum((region.get("duration") or 0.0) for region in regions)
@@ -76,7 +76,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # signalstats.YAVG is the mean luma per frame (0-255 for 8-bit).
         # metadata=print pushes it to stderr; fps=... limits how many frames
@@ -86,7 +86,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             f"fps={sample_rate},signalstats,"
             "metadata=print:key=lavfi.signalstats.YAVG:direct=1"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter, cancellation_token)
 
         samples = self._parse_metadata_samples(stderr_text, "lavfi.signalstats.YAVG")
         values = [ sample["value"] for sample in samples ]
@@ -113,7 +113,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # scdet reports a scene-change score per frame; higher = more different
         # from the previous frame. It's a coarse but cheap motion proxy that
@@ -124,7 +124,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             f"fps={sample_rate},scdet=t=0,"
             "metadata=print:key=lavfi.scd.score:direct=1"
         )
-        stderr_text = await self._run_ffmpeg_filter(source, video_filter)
+        stderr_text = await self._run_ffmpeg_filter(source, video_filter, cancellation_token)
 
         samples = self._parse_metadata_samples(stderr_text, "lavfi.scd.score")
         values = [ sample["value"] for sample in samples ]

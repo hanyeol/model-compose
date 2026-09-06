@@ -18,7 +18,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # ebur128 emits an EBU R128 summary block on stderr; enabling `peak=true`
         # also yields sample and true-peak numbers per pass.
@@ -26,7 +26,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         include_timeline = params["include_timeline"]
 
         audio_filter = f"ebur128=peak=true:target={int(target)}"
-        stderr_text = await self._run_ffmpeg_filter(source, audio_filter)
+        stderr_text = await self._run_ffmpeg_filter(source, audio_filter, cancellation_token)
 
         summary = self._parse_ebur128_summary(stderr_text)
 
@@ -51,11 +51,11 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # astats produces per-channel and overall peak/RMS stats on stderr.
         # ebur128 (with peak=true) is the standard source for true-peak (dBTP).
-        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
+        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0", cancellation_token)
         stats = self._parse_astats(stderr_text)
 
         result: Dict[str, Any] = {
@@ -65,7 +65,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         }
 
         if params["true_peak"]:
-            stderr_text = await self._run_ffmpeg_filter(source, "ebur128=peak=true")
+            stderr_text = await self._run_ffmpeg_filter(source, "ebur128=peak=true", cancellation_token)
             summary = self._parse_ebur128_summary(stderr_text)
             result["true_peak_dbtp"] = summary.get("true_peak")
 
@@ -75,9 +75,9 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
+        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0", cancellation_token)
         stats = self._parse_astats(stderr_text)
 
         peak = stats.get("peak_level")
@@ -98,13 +98,13 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # astats reports the number of samples at or above digital full-scale.
         # For threshold-based detection at anything other than 0 dBFS we still
         # need to walk the PCM, so we surface astats' clipping counts and
         # leave finer analysis to callers that supply their own threshold.
-        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0")
+        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0", cancellation_token)
         stats = self._parse_astats(stderr_text)
 
         number_of_samples = stats.get("number_of_samples") or 0
@@ -125,7 +125,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         # ebur128's per-window momentary loudness (100ms) is aggregated into a
         # coarser profile at `resolution` intervals so downstream steps get a
@@ -177,13 +177,13 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         self,
         source: MediaSource,
         params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
+        cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
         threshold    = params["threshold"]
         min_duration = params["min_duration"]
 
         audio_filter = f"silencedetect=noise={threshold}dB:d={min_duration}"
-        stderr_text = await self._run_ffmpeg_filter(source, audio_filter)
+        stderr_text = await self._run_ffmpeg_filter(source, audio_filter, cancellation_token)
 
         regions = self._parse_silencedetect(stderr_text)
         total_silent = sum((region.get("duration") or 0.0) for region in regions)
@@ -256,10 +256,6 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         #     Peak:      -0.8 dBTP
         summary_text = text.rsplit("Summary:", 1)[-1] if "Summary:" in text else ""
 
-        def _match(pattern: str) -> Optional[float]:
-            m = re.search(pattern, summary_text)
-            return float(m.group(1)) if m else None
-
         # `Peak:` appears in both sample-peak and true-peak blocks; pull them
         # from their sections rather than globally.
         sample_peak = None
@@ -326,6 +322,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             r"I:\s*(?P<i>-?\d+(?:\.\d+)?|inf|-inf)"
         )
         timeline: List[Dict[str, float]] = []
+
         for m in pattern.finditer(text):
             timeline.append({
                 "time":       float(m.group("t")),
@@ -333,6 +330,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
                 "short_term": ffmpeg_values.parse_float(m.group("s")),
                 "integrated": ffmpeg_values.parse_float(m.group("i")),
             })
+
         return timeline
 
     @staticmethod
@@ -367,11 +365,11 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         for index, start in enumerate(starts):
             if index < len(ends):
                 end, duration = ends[index]
-                regions.append({ "start": start, "end": float(end), "duration": float(duration) })
+                regions.append({ "start_time": start, "end_time": float(end), "duration": float(duration) })
             else:
                 # Silence that runs to EOF gets a start without an end; report
-                # what we know and leave `end`/`duration` unset.
-                regions.append({ "start": start, "end": None, "duration": None })
+                # what we know and leave `end_time`/`duration` unset.
+                regions.append({ "start_time": start, "end_time": None, "duration": None })
 
         return regions
 
@@ -388,12 +386,13 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         if not timeline:
             return []
 
-        bucket_sums:   Dict[int, float] = {}
-        bucket_counts: Dict[int, int]   = {}
+        bucket_sums: Dict[int, float] = {}
+        bucket_counts: Dict[int, int] = {}
         max_bucket = 0
 
         for point in timeline:
             momentary = point.get("momentary")
+
             if momentary is None:
                 continue
 
@@ -404,6 +403,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
                 max_bucket = bucket
 
         profile: List[Dict[str, Any]] = []
+
         for bucket in range(max_bucket + 1):
             count = bucket_counts.get(bucket, 0)
             loudness = (bucket_sums[bucket] / count) if count else None
@@ -438,12 +438,13 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         for index in range(1, len(loudness_values) - window_size + 1):
             window_sum += loudness_values[index + window_size - 1] - loudness_values[index - 1]
             average = window_sum / window_size
+
             if average > best_average:
                 best_average = average
                 best_start = index
 
         return {
-            "start":            best_start * resolution,
+            "start_time":       best_start * resolution,
             "duration":         segment_duration,
             "average_loudness": best_average,
         }

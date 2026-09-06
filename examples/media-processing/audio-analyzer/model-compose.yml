@@ -27,18 +27,10 @@ workflows:
 
   - id: measure-gain
     title: Measure Gain / Headroom
-    description: RMS, peak, headroom, crest/flat factors — inputs for normalization decisions.
+    description: RMS, peak, headroom, flat factor — inputs for normalization decisions.
     job:
       component: analyzer
       action: gain
-      output: ${output as json}
-
-  - id: detect-clipping
-    title: Detect Clipping
-    description: Digital clipping counts and ratio using astats.
-    job:
-      component: analyzer
-      action: clipping
       output: ${output as json}
 
   - id: detect-silence
@@ -85,16 +77,10 @@ components:
         metric: gain
         audio: ${input.audio as file}
 
-      - id: clipping
-        metric: clipping
-        audio: ${input.audio as file}
-        threshold: ${input.threshold as number | -0.1}
-        min_consecutive_length: ${input.min_consecutive_length as integer | 3}
-
       - id: silence
         metric: silence
         audio: ${input.audio as file}
-        threshold: ${input.threshold as number | -60.0}
+        threshold: ${input.threshold as number | -30.0}
         min_duration: ${input.min_duration as string | 500ms}
 
       - id: energy

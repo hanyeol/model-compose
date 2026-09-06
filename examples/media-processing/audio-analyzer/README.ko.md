@@ -1,18 +1,17 @@
 # 오디오 분석 예제
 
-이 예제는 model-compose의 `audio-analyzer` 컴포넌트를 사용하여 오디오 파일의 신호 수준 속성(라우드니스, 피크, 게인, 클리핑, 무음, 에너지)을 오디오 자체를 변형하지 않고 검사하는 방법을 보여줍니다.
+이 예제는 model-compose의 `audio-analyzer` 컴포넌트를 사용하여 오디오 파일의 신호 수준 속성(라우드니스, 피크, 게인, 무음, 에너지)을 오디오 자체를 변형하지 않고 검사하는 방법을 보여줍니다.
 
 ## 개요
 
-이 예제는 지원되는 모든 metric을 커버하는 7가지 분석 워크플로우를 제공합니다:
+이 예제는 지원되는 모든 metric을 커버하는 6가지 분석 워크플로우를 제공합니다:
 
 1. **라우드니스 측정**: EBU R128 통합 라우드니스, 라우드니스 범위(LRA), 트루 피크
 2. **피크 레벨 측정**: 샘플 피크와 인터샘플 트루 피크(dBTP)
-3. **게인/헤드룸 측정**: RMS, 피크, 헤드룸, 크레스트/플랫 팩터 — 정규화 판단에 필요한 입력
-4. **클리핑 감지**: 디지털 클리핑 카운트와 비율
-5. **무음 감지**: 무음 구간과 전체 무음 비율
-6. **에너지 프로파일 측정**: 활성 비율, 피크, 평균 라우드니스, 그리고 버킷 단위 에너지 프로파일 전체
-7. **최적 BGM 세그먼트 찾기**: 에너지 프로파일을 스캔하여 요청된 길이의 가장 강한 세그먼트를 반환 — 고정 길이 영상에 붙일 음악 트랙의 최적 구간 선택에 유용
+3. **게인/헤드룸 측정**: RMS, 피크, 헤드룸, 플랫 팩터 — 정규화 판단에 필요한 입력
+4. **무음 감지**: 무음 구간과 전체 무음 비율
+5. **에너지 프로파일 측정**: 활성 비율, 피크, 평균 라우드니스, 그리고 버킷 단위 에너지 프로파일 전체
+6. **최적 BGM 세그먼트 찾기**: 에너지 프로파일을 스캔하여 요청된 길이의 가장 강한 세그먼트를 반환 — 고정 길이 영상에 붙일 음악 트랙의 최적 구간 선택에 유용
 
 ## 준비사항
 
@@ -58,19 +57,13 @@ cd examples/media-processing/audio-analyzer
    # 샘플 및 트루 피크
    model-compose run measure-peak --input '{"audio": "/path/to/track.wav"}'
 
-   # RMS / 헤드룸 / 크레스트 팩터
+   # RMS / 헤드룸 / 플랫 팩터
    model-compose run measure-gain --input '{"audio": "/path/to/track.wav"}'
-
-   # 클리핑 카운트 (임계값은 dBFS)
-   model-compose run detect-clipping --input '{
-     "audio": "/path/to/track.wav",
-     "threshold": -0.1
-   }'
 
    # 무음 구간
    model-compose run detect-silence --input '{
      "audio": "/path/to/track.wav",
-     "threshold": -60.0,
+     "threshold": -30.0,
      "min_duration": "500ms"
    }'
 
@@ -154,8 +147,6 @@ cd examples/media-processing/audio-analyzer
 ```json
 {
   "sample_peak_dbfs": -0.9,
-  "max_sample": 0.902,
-  "min_sample": -0.898,
   "true_peak_dbtp": -0.4
 }
 ```
@@ -183,43 +174,13 @@ cd examples/media-processing/audio-analyzer
   "peak_dbfs": -0.9,
   "headroom_db": 0.9,
   "dc_offset": 0.00012,
-  "crest_factor": 8.4,
   "flat_factor": 0.02
 }
 ```
 
 ---
 
-### 4. 클리핑 감지
-
-**ID**: `detect-clipping`
-**설명**: `astats` 기반 디지털 클리핑 카운트와 비율. 세밀한 구간 감지는 아직 미구현 (`regions`는 빈 배열로 반환)
-
-#### 입력 매개변수
-
-| 매개변수 | 유형 | 필수 | 기본값 | 설명 |
-|---------|------|------|--------|------|
-| `audio` | file | 예 | - | 분석할 오디오 파일 |
-| `threshold` | number | 아니오 | `-0.1` | 클리핑으로 간주되는 진폭 임계값 (dBFS) |
-| `min_consecutive_length` | integer | 아니오 | `3` | 클리핑 구간으로 인정되기 위한 최소 연속 초과 샘플 수 |
-
-#### 출력 예시
-
-```json
-{
-  "threshold_dbfs": -0.1,
-  "min_consecutive_length": 3,
-  "sample_count": 8820000,
-  "clipped_sample_count": 342,
-  "clipped_ratio": 0.0000387,
-  "peak_dbfs": -0.02,
-  "regions": []
-}
-```
-
----
-
-### 5. 무음 감지
+### 4. 무음 감지
 
 **ID**: `detect-silence`
 **설명**: FFmpeg `silencedetect` 필터를 통한 무음 구간 감지
@@ -229,28 +190,28 @@ cd examples/media-processing/audio-analyzer
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `audio` | file | 예 | - | 분석할 오디오 파일 |
-| `threshold` | number | 아니오 | `-60.0` | 무음으로 간주되는 진폭 임계값 (dBFS) |
+| `threshold` | number | 아니오 | `-30.0` | 무음으로 간주되는 진폭 임계값 (dBFS) |
 | `min_duration` | string | 아니오 | `500ms` | 무음으로 인정되기 위한 최소 지속 시간 (예: `500ms`, `1s`, `2.5s`) |
 
 #### 출력 예시
 
 ```json
 {
-  "threshold_dbfs": -60.0,
+  "threshold_dbfs": -30.0,
   "min_duration": 0.5,
   "duration": 180.5,
   "total_silent": 12.3,
   "silent_ratio": 0.068,
   "regions": [
-    { "start": 0.0, "end": 3.4, "duration": 3.4 },
-    { "start": 175.6, "end": 180.5, "duration": 4.9 }
+    { "start_time": 0.0, "end_time": 3.4, "duration": 3.4 },
+    { "start_time": 175.6, "end_time": 180.5, "duration": 4.9 }
   ]
 }
 ```
 
 ---
 
-### 6. 에너지 프로파일 측정
+### 5. 에너지 프로파일 측정
 
 **ID**: `measure-energy`
 **설명**: momentary 라우드니스를 거친 에너지 프로파일로 집계한 뒤 전체 분석 결과를 반환 — 활성 비율, 최초 활성 시각, 피크, 평균 라우드니스, 버킷별 프로파일, 그리고 (`segment_duration` 지정 시) 최적 세그먼트
@@ -278,7 +239,7 @@ cd examples/media-processing/audio-analyzer
   "peak_loudness": -8.3,
   "average_loudness": -22.5,
   "best_segment": {
-    "start": 45.0,
+    "start_time": 45.0,
     "duration": 30.0,
     "average_loudness": -18.7
   },
@@ -292,7 +253,7 @@ cd examples/media-processing/audio-analyzer
 
 ---
 
-### 7. 최적 BGM 세그먼트 찾기
+### 6. 최적 BGM 세그먼트 찾기
 
 **ID**: `find-best-bgm-segment`
 **설명**: `measure-energy`와 동일한 에너지 분석을 수행하지만, 워크플로우 출력은 선택된 세그먼트만으로 축약 — 다운스트림의 오디오 클리퍼가 바로 소비할 수 있는 필드
@@ -305,7 +266,7 @@ cd examples/media-processing/audio-analyzer
 
 ```json
 {
-  "start": 45.0,
+  "start_time": 45.0,
   "duration": 30.0,
   "average_loudness": -18.7
 }
@@ -318,7 +279,6 @@ cd examples/media-processing/audio-analyzer
 - **`loudness`** — 마스터링 QA, 지각적 레벨 체크, 방송 규격 준수
 - **`peak`** — 인코딩 전 클립 안전성 체크. 특히 인터샘플 피크가 중요한 손실 압축 포맷
 - **`gain`** — 정규화 이전 검사: 트랙의 평균 라우드니스와 남은 헤드룸
-- **`clipping`** — 원본에 이미 존재하는 디지털 오버 감지
 - **`silence`** — 시작/끝 데드 에어 정리, 긴 녹음을 구조적 정지 기준으로 분할
 - **`energy`** — 긴 트랙에서 임팩트 있는 발췌 구간 선택 (BGM 선택, 썸네일, 프리뷰)
 
@@ -334,4 +294,3 @@ cd examples/media-processing/audio-analyzer
 여러 워크플로우를 조합해 상위 수준 도구를 구성할 수 있습니다:
 - 라우드니스 + 피크 → 마스터링 프리플라이트
 - 무음 + 에너지 → 조용한 인트로/아웃트로 자동 제거 후 가장 강한 세그먼트 선택
-- 게인 + 클리핑 → 추가 처리 전 정규화(다운) 필요 여부 판단

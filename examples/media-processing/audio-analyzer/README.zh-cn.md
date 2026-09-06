@@ -1,18 +1,17 @@
 # 音频分析示例
 
-此示例演示如何使用 model-compose 的 `audio-analyzer` 组件，检查音频文件的信号级属性（响度、峰值、增益、削波、静音、能量），而无需对音频本身进行任何变换。
+此示例演示如何使用 model-compose 的 `audio-analyzer` 组件，检查音频文件的信号级属性（响度、峰值、增益、静音、能量），而无需对音频本身进行任何变换。
 
 ## 概述
 
-此示例提供 7 种分析工作流，覆盖所有支持的 metric：
+此示例提供 6 种分析工作流，覆盖所有支持的 metric：
 
 1. **测量响度**：EBU R128 综合响度、响度范围（LRA）以及真峰值
 2. **测量峰值**：采样峰值和采样间真峰值（dBTP）
-3. **测量增益/余量**：RMS、峰值、余量、峰值因子/平坦因子——用于归一化决策的输入
-4. **检测削波**：数字削波计数与比例
-5. **检测静音**：静音区域与整体静音比例
-6. **测量能量曲线**：活跃比例、峰值、平均响度以及完整的分桶能量曲线
-7. **查找最佳 BGM 片段**：扫描能量曲线并返回指定长度的最响亮片段——适用于为固定长度视频挑选音乐轨道中最有冲击力的片段
+3. **测量增益/余量**：RMS、峰值、余量、平坦因子——用于归一化决策的输入
+4. **检测静音**：静音区域与整体静音比例
+5. **测量能量曲线**：活跃比例、峰值、平均响度以及完整的分桶能量曲线
+6. **查找最佳 BGM 片段**：扫描能量曲线并返回指定长度的最响亮片段——适用于为固定长度视频挑选音乐轨道中最有冲击力的片段
 
 ## 准备工作
 
@@ -58,19 +57,13 @@ cd examples/media-processing/audio-analyzer
    # 采样与真峰值
    model-compose run measure-peak --input '{"audio": "/path/to/track.wav"}'
 
-   # RMS / 余量 / 峰值因子
+   # RMS / 余量 / 平坦因子
    model-compose run measure-gain --input '{"audio": "/path/to/track.wav"}'
-
-   # 削波计数（阈值单位 dBFS）
-   model-compose run detect-clipping --input '{
-     "audio": "/path/to/track.wav",
-     "threshold": -0.1
-   }'
 
    # 静音区域
    model-compose run detect-silence --input '{
      "audio": "/path/to/track.wav",
-     "threshold": -60.0,
+     "threshold": -30.0,
      "min_duration": "500ms"
    }'
 
@@ -154,8 +147,6 @@ cd examples/media-processing/audio-analyzer
 ```json
 {
   "sample_peak_dbfs": -0.9,
-  "max_sample": 0.902,
-  "min_sample": -0.898,
   "true_peak_dbtp": -0.4
 }
 ```
@@ -183,43 +174,13 @@ cd examples/media-processing/audio-analyzer
   "peak_dbfs": -0.9,
   "headroom_db": 0.9,
   "dc_offset": 0.00012,
-  "crest_factor": 8.4,
   "flat_factor": 0.02
 }
 ```
 
 ---
 
-### 4. 检测削波
-
-**ID**：`detect-clipping`
-**描述**：基于 `astats` 的数字削波计数与比例。细粒度区域检测尚未实现（`regions` 返回空数组）
-
-#### 输入参数
-
-| 参数 | 类型 | 必需 | 默认值 | 描述 |
-|------|------|------|--------|------|
-| `audio` | file | 是 | - | 待分析的音频文件 |
-| `threshold` | number | 否 | `-0.1` | 视为削波的幅度阈值（dBFS） |
-| `min_consecutive_length` | integer | 否 | `3` | 计入削波区域所需的最小连续超阈值样本数 |
-
-#### 输出示例
-
-```json
-{
-  "threshold_dbfs": -0.1,
-  "min_consecutive_length": 3,
-  "sample_count": 8820000,
-  "clipped_sample_count": 342,
-  "clipped_ratio": 0.0000387,
-  "peak_dbfs": -0.02,
-  "regions": []
-}
-```
-
----
-
-### 5. 检测静音
+### 4. 检测静音
 
 **ID**：`detect-silence`
 **描述**：通过 FFmpeg 的 `silencedetect` 滤镜检测静音区域
@@ -229,28 +190,28 @@ cd examples/media-processing/audio-analyzer
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | `audio` | file | 是 | - | 待分析的音频文件 |
-| `threshold` | number | 否 | `-60.0` | 视为静音的幅度阈值（dBFS） |
+| `threshold` | number | 否 | `-30.0` | 视为静音的幅度阈值（dBFS） |
 | `min_duration` | string | 否 | `500ms` | 认定为静音所需的最短低于阈值时长（例如 `500ms`、`1s`、`2.5s`） |
 
 #### 输出示例
 
 ```json
 {
-  "threshold_dbfs": -60.0,
+  "threshold_dbfs": -30.0,
   "min_duration": 0.5,
   "duration": 180.5,
   "total_silent": 12.3,
   "silent_ratio": 0.068,
   "regions": [
-    { "start": 0.0, "end": 3.4, "duration": 3.4 },
-    { "start": 175.6, "end": 180.5, "duration": 4.9 }
+    { "start_time": 0.0, "end_time": 3.4, "duration": 3.4 },
+    { "start_time": 175.6, "end_time": 180.5, "duration": 4.9 }
   ]
 }
 ```
 
 ---
 
-### 6. 测量能量曲线
+### 5. 测量能量曲线
 
 **ID**：`measure-energy`
 **描述**：将 momentary 响度聚合为粗粒度能量曲线，并返回完整分析结果——活跃比例、首次活跃时间、峰值、平均响度、分桶曲线，以及（在指定 `segment_duration` 时）最佳片段
@@ -278,7 +239,7 @@ cd examples/media-processing/audio-analyzer
   "peak_loudness": -8.3,
   "average_loudness": -22.5,
   "best_segment": {
-    "start": 45.0,
+    "start_time": 45.0,
     "duration": 30.0,
     "average_loudness": -18.7
   },
@@ -292,7 +253,7 @@ cd examples/media-processing/audio-analyzer
 
 ---
 
-### 7. 查找最佳 BGM 片段
+### 6. 查找最佳 BGM 片段
 
 **ID**：`find-best-bgm-segment`
 **描述**：与 `measure-energy` 执行相同的能量分析，但工作流输出精简为仅挑选出的片段——下游音频裁剪器可以直接消费的字段
@@ -305,7 +266,7 @@ cd examples/media-processing/audio-analyzer
 
 ```json
 {
-  "start": 45.0,
+  "start_time": 45.0,
   "duration": 30.0,
   "average_loudness": -18.7
 }
@@ -318,7 +279,6 @@ cd examples/media-processing/audio-analyzer
 - **`loudness`** — 母带 QA、感知级别检查、广播交付目标
 - **`peak`** — 编码前的削波安全性检查，尤其在采样间峰值敏感的有损格式中
 - **`gain`** — 归一化前的检查：轨道平均响度以及剩余余量
-- **`clipping`** — 检测源文件中已存在的数字过载
 - **`silence`** — 修剪首尾死音，按结构性停顿分割较长录音
 - **`energy`** — 从较长轨道中挑选有冲击力的片段（BGM 选择、缩略图、预览）
 
@@ -334,4 +294,3 @@ cd examples/media-processing/audio-analyzer
 将多个工作流串联可以构建更高阶的工具：
 - 响度 + 峰值 → 母带预检
 - 静音 + 能量 → 自动修剪安静的前奏/尾奏后，挑选最强片段
-- 增益 + 削波 → 判断在进一步处理前是否需要（向下）归一化

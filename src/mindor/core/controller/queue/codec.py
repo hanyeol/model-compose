@@ -261,6 +261,7 @@ class QueueCodec:
         except Exception as e:
             # Fall back for Redis versions without GETDEL.
             from redis.exceptions import ResponseError
+
             if not isinstance(e, ResponseError):
                 raise
 

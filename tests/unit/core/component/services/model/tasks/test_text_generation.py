@@ -96,7 +96,7 @@ class TestSingleInput:
         loop = asyncio.get_running_loop()
         result = await action.run(ctx)
 
-        assert result == "hello#0"
+        assert result == [ "hello#0" ]
         assert action.batches_seen == [ [ "hello" ] ]
 
 
@@ -153,8 +153,10 @@ class TestTokenStreaming:
         loop = asyncio.get_running_loop()
         result = await action.run(ctx)
 
-        assert isinstance(result, StreamChunkIterator)
-        items = await _collect(result)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert isinstance(result[0], StreamChunkIterator)
+        items = await _collect(result[0])
         assert items == [ "tok-0", "tok-1", "tok-2" ]
 
     @pytest.mark.anyio

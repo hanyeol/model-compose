@@ -6,17 +6,18 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.huggingface import HuggingfaceChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
+from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ..text_generation.huggingface import HuggingfaceTextGenerationTaskAction
-from .common import ChatCompletionToolBuilder, ChatCompletionChoicesBuilder
+from .common import ChatToolBuilder, ChatChoicesBuilder, ToolCallParser
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
     import torch
 
-class HuggingfaceToolBuilder(ChatCompletionToolBuilder):
+class HuggingfaceToolBuilder(ChatToolBuilder):
     def _build_tool(self, tool: ModelTool) -> Dict[str, Any]:
         return {
             "type": "function",
@@ -34,11 +35,13 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
         device: torch.device,
         tools: Optional[List[ModelTool]] = None,
         chat_template: Optional[str] = None,
+        tool_call_parser: Optional[ToolCallParserConfig] = None,
     ):
         super().__init__(config, model, tokenizer, device)
 
         self.tools: Optional[List[ModelTool]] = tools
         self.chat_template: Optional[str] = chat_template
+        self.tool_call_parser: Optional[ToolCallParser] = ToolCallParser(tool_call_parser) if tool_call_parser else None
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
@@ -55,10 +58,12 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
         )
 
     def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
-        if streaming:
-            return ChatCompletionChoicesBuilder().stream(sequences)
+        builder = ChatChoicesBuilder(self.tool_call_parser)
 
-        return ChatCompletionChoicesBuilder().build(sequences)
+        if streaming:
+            return builder.stream(sequences)
+
+        return builder.build(sequences)
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)
 class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):
@@ -76,6 +81,7 @@ class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):
             self.device,
             self.config.tools,
             self.config.chat_template,
+            self.config.tool_call_parser,
         ).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

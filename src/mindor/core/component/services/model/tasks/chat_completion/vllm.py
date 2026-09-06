@@ -6,10 +6,11 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.vllm import VllmChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
+from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from ..text_generation.vllm import VllmTextGenerationTaskAction
-from .common import ChatCompletionChoicesBuilder
+from .common import ChatChoicesBuilder, ToolCallParser
 from .huggingface import HuggingfaceToolBuilder
 
 if TYPE_CHECKING:
@@ -26,12 +27,14 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
         tokenizer: PreTrainedTokenizerBase,
         tools: Optional[List[ModelTool]] = None,
         chat_template: Optional[str] = None,
+        tool_call_parser: Optional[ToolCallParserConfig] = None,
     ):
         super().__init__(config, engine)
 
         self.tokenizer: PreTrainedTokenizerBase = tokenizer
         self.tools: Optional[List[ModelTool]] = tools
         self.chat_template: Optional[str] = chat_template
+        self.tool_call_parser: Optional[ToolCallParser] = ToolCallParser(tool_call_parser) if tool_call_parser else None
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         messages = await context.render_variable(self.config.messages)
@@ -48,10 +51,12 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
         )
 
     def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
-        if streaming:
-            return ChatCompletionChoicesBuilder().stream(sequences)
+        builder = ChatChoicesBuilder(self.tool_call_parser)
 
-        return ChatCompletionChoicesBuilder().build(sequences)
+        if streaming:
+            return builder.stream(sequences)
+
+        return builder.build(sequences)
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.VLLM)
 class VllmChatCompletionTaskService(VllmModelTaskService):
@@ -68,4 +73,5 @@ class VllmChatCompletionTaskService(VllmModelTaskService):
             self.tokenizer,
             self.config.tools,
             self.config.chat_template,
+            self.config.tool_call_parser,
         ).run(context)

@@ -163,17 +163,66 @@ messages:
 |-------|------|---------|-------------|
 | `chat_template` | string | `null` | Inline Jinja chat template string, overriding the tokenizer default. Applies to `huggingface`, `vllm`, and `llamacpp` drivers. |
 | `tools` | array | `null` | Catalog of tools this component exposes for tool calling. |
+| `tool_call_parser` | object | `null` | Rules for extracting tool calls from raw model output. See below. |
 
-**vLLM Driver Options:**
+**`tool_call_parser` Fields:**
 
-The `vllm` driver accepts additional top-level fields for reasoning and tool-call handling:
+Declares where tool calls appear in the model's text and how to parse them. The parser scans left-to-right; text outside a matched call is preserved as a `text` block, and everything inside is emitted as `tool_call` blocks in the message's `content`. Malformed bodies (invalid JSON, missing keys, incomplete pythonic call) are treated as text so a single bad output cannot swallow the rest of the response.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `tool_call_parser` | string | `null` | Parser for tool call outputs (e.g., `hermes`, `mistral`, `llama3_json`, `pythonic`). |
-| `tool_parser_plugin` | string | `null` | Path to a custom tool parser plugin module registered at engine startup. |
-| `reasoning_parser` | string | `null` | Parser for reasoning model outputs. |
-| `reasoning_config` | object | `null` | Reasoning model settings. |
+| `batch_start_tag` | string | `null` | Outer marker that opens a batch of tool calls (e.g., DeepSeek's `<｜tool_calls_begin｜>`). Must be paired with `batch_end_tag`. |
+| `batch_end_tag` | string | `null` | Outer marker that closes a batch of tool calls. |
+| `start_tag` | string | (required) | Literal marker that opens a single tool call (e.g., `<tool_call>`, `<\|python_tag\|>`, `[TOOL_CALLS]`). |
+| `end_tag` | string | `null` | Literal marker that closes a single tool call. Omit to consume exactly one JSON or pythonic value after `start_tag`. |
+| `format` | string | `json` | Body syntax: `json` or `pythonic`. |
+| `name_key` | string | `name` | JSON field holding the tool name. Ignored when `name_marker` is set. |
+| `arguments_key` | string | `arguments` | JSON field holding the tool arguments. Ignored when `arguments_marker` is set. |
+| `name_marker` | object | `null` | Locate the tool name as a literal between two markers inside the body (instead of as a JSON field). Fields: `prefix`, `suffix`. |
+| `arguments_marker` | object | `null` | Locate the arguments payload inside a wrapper (e.g., a fenced code block) inside the body. Fields: `open`, `close`. The extracted region is parsed as JSON. |
+
+Examples:
+
+```yaml
+# Hermes / Qwen style: <tool_call>{...}</tool_call>
+tool_call_parser:
+  start_tag: '<tool_call>'
+  end_tag: '</tool_call>'
+
+# Llama 3.1: <|python_tag|>{...}   (no closing marker; "parameters" instead of "arguments")
+tool_call_parser:
+  start_tag: '<|python_tag|>'
+  arguments_key: parameters
+
+# Mistral: [TOOL_CALLS][{...}, {...}]   (single tag, body may hold multiple calls)
+tool_call_parser:
+  start_tag: '[TOOL_CALLS]'
+
+# Llama 3.2 pythonic: <|python_tag|>[foo(x="v"), bar(y=1)]
+tool_call_parser:
+  start_tag: '<|python_tag|>'
+  format: pythonic
+
+# DeepSeek V3 / R1: nested batch envelope, name as body literal, arguments in a fenced JSON block
+tool_call_parser:
+  batch_start_tag: '<｜tool_calls_begin｜>'
+  batch_end_tag:   '<｜tool_calls_end｜>'
+  start_tag:       '<｜tool_call_begin｜>'
+  end_tag:         '<｜tool_call_end｜>'
+  name_marker:
+    prefix: 'function<｜tool_sep｜>'
+    suffix: "\n"
+  arguments_marker:
+    open:  "```json\n"
+    close: "\n```"
+```
+
+Each emitted tool call carries a generated `id` (`call_<ulid>`) so downstream `tool` messages can reference it via `tool_call_id`.
+
+**vLLM Driver Options:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
 | `options` | object | `null` | Engine options forwarded to vLLM when loading the model (see `AsyncEngineArgs`). |
 
 Example:
@@ -189,8 +238,6 @@ component:
     <|{{ message.role }}|>
     {{ message.content }}</s>
     {%- endfor %}
-  tool_call_parser: mistral
-  reasoning_parser: deepseek_r1
   options:
     dtype: bfloat16
     gpu_memory_utilization: 0.9

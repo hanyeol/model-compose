@@ -18,6 +18,9 @@ class EventDispatcher:
     def __init__(self):
         self._queues: Dict[Hashable, asyncio.Queue] = {}
         self._workers: Dict[Hashable, asyncio.Task] = {}
+        # Retain strong refs so unregister/GC can't drop an in-flight worker
+        # before it processes its sentinel (asyncio only keeps weak refs).
+        self._detached_workers: set[asyncio.Task] = set()
         self._closed: bool = False
 
     def dispatch(self, key: Hashable, handler: EventHandler) -> None:
@@ -65,9 +68,11 @@ class EventDispatcher:
         if queue is not None:
             queue.put_nowait(None)
 
-        # worker exits on its own after processing the sentinel; no join here
-        # so producers can call this from sync paths without awaiting.
-        _ = worker
+        # Move the worker into a strong-ref set so it survives until the
+        # sentinel is processed; producers stay on sync paths (no await).
+        if worker is not None:
+            self._detached_workers.add(worker)
+            worker.add_done_callback(self._detached_workers.discard)
 
     async def close(self, timeout: Optional[float] = None) -> None:
         """Stop accepting new events; drain and stop all workers."""
@@ -76,9 +81,10 @@ class EventDispatcher:
         for queue in self._queues.values():
             queue.put_nowait(None)
 
-        workers = list(self._workers.values())
+        workers = list(self._workers.values()) + list(self._detached_workers)
         self._queues.clear()
         self._workers.clear()
+        self._detached_workers.clear()
 
         if not workers:
             return

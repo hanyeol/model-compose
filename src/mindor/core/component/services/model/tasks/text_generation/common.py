@@ -69,6 +69,7 @@ class TextGenerationTaskAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length     = await context.render_variable(self.config.max_input_length)
         max_output_length    = await context.render_variable(self.config.max_output_length)
+        min_output_length    = await context.render_variable(self.config.min_output_length)
         num_return_sequences = await context.render_variable(self.config.num_return_sequences)
         do_sample            = await context.render_variable(self.config.params.do_sample)
         temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
@@ -79,6 +80,7 @@ class TextGenerationTaskAction(ComponentAction):
         return {
             "max_input_length":     max_input_length,
             "max_output_length":    max_output_length,
+            "min_output_length":    min_output_length,
             "num_return_sequences": num_return_sequences,
             "do_sample":            do_sample,
             "temperature":          temperature,

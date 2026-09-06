@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
+from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
@@ -26,6 +27,12 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
+
+        if params["max_input_length"] is not None:
+            logging.warning("llama.cpp backend does not support max_input_length; ignoring configured value %r.", params["max_input_length"])
+
+        if params["min_output_length"] and params["min_output_length"] > 1:
+            logging.warning("llama.cpp backend does not support min_output_length; ignoring configured value %r.", params["min_output_length"])
 
         generation_params: Dict[str, Any] = {
             "max_tokens": params["max_output_length"],

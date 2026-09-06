@@ -502,7 +502,6 @@ class ChatChoicesBuilder:
     partial output in a per-sequence buffer and only emits a ``tool_call`` block once the
     enclosing marker closes; any buffer still open at end-of-stream is discarded.
     """
-
     def __init__(self, parser: Optional[ToolCallParser] = None):
         self.parser: Optional[ToolCallParser] = parser
 

@@ -15,9 +15,9 @@ class PipelineJob(CompositeJob):
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         components: List[Optional[ComponentService]] = []
 
-        for step in self.config.steps:
+        for index, step in enumerate(self.config.steps):
             if isinstance(step, ComponentJobConfig):
-                components.append(await self._create_component(self.id, step.component))
+                components.append(await self._create_component(f"{self.id}[step:{index}]", step.component))
             else:
                 components.append(None)
 

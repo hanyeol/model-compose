@@ -25,7 +25,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         target           = params["target_loudness"]
         include_timeline = params["include_timeline"]
 
-        audio_filter = f"ebur128=peak=true:target={int(target)}"
+        audio_filter = f"ebur128=peak=sample+true:target={int(target)}"
         stderr_text = await self._run_ffmpeg_filter(source, audio_filter, cancellation_token)
 
         summary = self._parse_ebur128_summary(stderr_text)
@@ -53,23 +53,24 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        # astats produces per-channel and overall peak/RMS stats on stderr.
-        # ebur128 (with peak=true) is the standard source for true-peak (dBTP).
+        # ebur128 with peak=sample+true yields both sample and true peaks in a
+        # single pass, so use it when true peak is requested and fall back to
+        # astats' cheaper sample-peak-only stat otherwise.
+        if params["true_peak"]:
+            stderr_text = await self._run_ffmpeg_filter(source, "ebur128=peak=sample+true", cancellation_token)
+            summary = self._parse_ebur128_summary(stderr_text)
+
+            return {
+                "sample_peak_dbfs": summary.get("sample_peak"),
+                "true_peak_dbtp":   summary.get("true_peak"),
+            }
+
         stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0", cancellation_token)
         stats = self._parse_astats(stderr_text)
 
-        result: Dict[str, Any] = {
+        return {
             "sample_peak_dbfs": stats.get("peak_level"),
-            "max_sample":       stats.get("max_level"),
-            "min_sample":       stats.get("min_level"),
         }
-
-        if params["true_peak"]:
-            stderr_text = await self._run_ffmpeg_filter(source, "ebur128=peak=true", cancellation_token)
-            summary = self._parse_ebur128_summary(stderr_text)
-            result["true_peak_dbtp"] = summary.get("true_peak")
-
-        return result
 
     async def _analyze_gain(
         self,
@@ -90,35 +91,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "peak_dbfs":       peak,
             "headroom_db":     headroom,
             "dc_offset":       stats.get("dc_offset"),
-            "crest_factor":    stats.get("crest_factor"),
             "flat_factor":     stats.get("flat_factor"),
-        }
-
-    async def _analyze_clipping(
-        self,
-        source: MediaSource,
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken],
-    ) -> Dict[str, Any]:
-        # astats reports the number of samples at or above digital full-scale.
-        # For threshold-based detection at anything other than 0 dBFS we still
-        # need to walk the PCM, so we surface astats' clipping counts and
-        # leave finer analysis to callers that supply their own threshold.
-        stderr_text = await self._run_ffmpeg_filter(source, "astats=metadata=0:reset=0", cancellation_token)
-        stats = self._parse_astats(stderr_text)
-
-        number_of_samples = stats.get("number_of_samples") or 0
-        clipped = stats.get("number_of_clippings") or 0
-        clipped_ratio = (clipped / number_of_samples) if number_of_samples else 0.0
-
-        return {
-            "threshold_dbfs":         params["threshold"],
-            "min_consecutive_length": params["min_consecutive_length"],
-            "sample_count":           number_of_samples,
-            "clipped_sample_count":   clipped,
-            "clipped_ratio":          clipped_ratio,
-            "peak_dbfs":              stats.get("peak_level"),
-            "regions":                [],
         }
 
     async def _analyze_energy(
@@ -253,7 +226,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         #   Sample peak:
         #     Peak:      -1.2 dBFS
         #   True peak:
-        #     Peak:      -0.8 dBTP
+        #     Peak:      -0.8 dBFS
         summary_text = text.rsplit("Summary:", 1)[-1] if "Summary:" in text else ""
 
         # `Peak:` appears in both sample-peak and true-peak blocks; pull them
@@ -268,7 +241,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
 
         if "True peak:" in summary_text:
             tp_section = summary_text.split("True peak:", 1)[1]
-            m = re.search(r"Peak:\s*(-?\d+(?:\.\d+)?)\s*dBTP", tp_section)
+            m = re.search(r"Peak:\s*(-?\d+(?:\.\d+)?)\s*dBFS", tp_section)
             true_peak = float(m.group(1)) if m else None
 
         # Integrated / range live in the Integrated / Loudness range blocks.
@@ -340,17 +313,12 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
         overall_text = text.rsplit("Overall", 1)[-1] if "Overall" in text else text
 
         return {
-            "dc_offset":           ffmpeg_values.read_float(overall_text, "DC offset"),
-            "min_level":           ffmpeg_values.read_float(overall_text, "Min level"),
-            "max_level":           ffmpeg_values.read_float(overall_text, "Max level"),
-            "peak_level":          ffmpeg_values.read_float(overall_text, "Peak level dB"),
-            "rms_level":           ffmpeg_values.read_float(overall_text, "RMS level dB"),
-            "rms_peak":            ffmpeg_values.read_float(overall_text, "RMS peak dB"),
-            "rms_trough":          ffmpeg_values.read_float(overall_text, "RMS trough dB"),
-            "crest_factor":        ffmpeg_values.read_float(overall_text, "Crest factor"),
-            "flat_factor":         ffmpeg_values.read_float(overall_text, "Flat factor"),
-            "number_of_samples":   ffmpeg_values.read_int(overall_text, "Number of samples"),
-            "number_of_clippings": ffmpeg_values.read_int(overall_text, "Number of clippings"),
+            "dc_offset":   ffmpeg_values.read_float(overall_text, "DC offset"),
+            "peak_level":  ffmpeg_values.read_float(overall_text, "Peak level dB"),
+            "rms_level":   ffmpeg_values.read_float(overall_text, "RMS level dB"),
+            "rms_peak":    ffmpeg_values.read_float(overall_text, "RMS peak dB"),
+            "rms_trough":  ffmpeg_values.read_float(overall_text, "RMS trough dB"),
+            "flat_factor": ffmpeg_values.read_float(overall_text, "Flat factor"),
         }
 
     @staticmethod

@@ -7,7 +7,6 @@ class AudioAnalyzerMetric(str, Enum):
     LOUDNESS = "loudness"
     PEAK     = "peak"
     GAIN     = "gain"
-    CLIPPING = "clipping"
     SILENCE  = "silence"
     ENERGY   = "energy"
 
@@ -27,11 +26,6 @@ class AudioAnalyzerPeakActionConfig(CommonAudioAnalyzerActionConfig):
 
 class AudioAnalyzerGainActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.GAIN]
-
-class AudioAnalyzerClippingActionConfig(CommonAudioAnalyzerActionConfig):
-    metric: Literal[AudioAnalyzerMetric.CLIPPING]
-    threshold: Union[float, int, str] = Field(default=-0.1, description="Amplitude threshold in dBFS above which samples are treated as clipped.")
-    min_consecutive_length: Union[int, str] = Field(default=3, description="Minimum number of consecutive over-threshold samples required to count as a clipping region.")
 
 class AudioAnalyzerSilenceActionConfig(CommonAudioAnalyzerActionConfig):
     metric: Literal[AudioAnalyzerMetric.SILENCE]

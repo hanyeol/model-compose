@@ -4,7 +4,6 @@ from .common import (
     AudioAnalyzerLoudnessActionConfig,
     AudioAnalyzerPeakActionConfig,
     AudioAnalyzerGainActionConfig,
-    AudioAnalyzerClippingActionConfig,
     AudioAnalyzerSilenceActionConfig,
     AudioAnalyzerEnergyActionConfig,
 )
@@ -14,7 +13,6 @@ FFmpegAudioAnalyzerActionConfig = Annotated[
         AudioAnalyzerLoudnessActionConfig,
         AudioAnalyzerPeakActionConfig,
         AudioAnalyzerGainActionConfig,
-        AudioAnalyzerClippingActionConfig,
         AudioAnalyzerSilenceActionConfig,
         AudioAnalyzerEnergyActionConfig,
     ],

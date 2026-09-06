@@ -65,15 +65,6 @@ class AudioAnalyzerAction(ComponentAction):
         if metric == AudioAnalyzerMetric.GAIN:
             return {}
 
-        if metric == AudioAnalyzerMetric.CLIPPING:
-            threshold               = await context.render_scalar(self.config.threshold, float)
-            min_consecutive_length = await context.render_scalar(self.config.min_consecutive_length, int)
-
-            return {
-                "threshold":               threshold,
-                "min_consecutive_length": min_consecutive_length,
-            }
-
         if metric == AudioAnalyzerMetric.SILENCE:
             threshold    = await context.render_scalar(self.config.threshold, float)
             min_duration = await context.render_scalar(self.config.min_duration, "time")
@@ -129,9 +120,6 @@ class AudioAnalyzerAction(ComponentAction):
         if metric == AudioAnalyzerMetric.GAIN:
             return await self._analyze_gain(source, params, cancellation_token)
 
-        if metric == AudioAnalyzerMetric.CLIPPING:
-            return await self._analyze_clipping(source, params, cancellation_token)
-
         if metric == AudioAnalyzerMetric.SILENCE:
             return await self._analyze_silence(source, params, cancellation_token)
 
@@ -160,15 +148,6 @@ class AudioAnalyzerAction(ComponentAction):
 
     @abstractmethod
     async def _analyze_gain(
-        self,
-        source: MediaSource,
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken],
-    ) -> Dict[str, Any]:
-        pass
-
-    @abstractmethod
-    async def _analyze_clipping(
         self,
         source: MediaSource,
         params: Dict[str, Any],

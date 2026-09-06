@@ -210,9 +210,8 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         end_pairs = [
             (float(duration), float(end))
             for duration, end in re.findall(
-                r"freeze_duration:\s*(-?\d+(?:\.\d+)?)[^\n]*?freeze_end:\s*(-?\d+(?:\.\d+)?)",
+                r"freeze_duration:\s*(-?\d+(?:\.\d+)?)[\s\S]*?freeze_end:\s*(-?\d+(?:\.\d+)?)",
                 text,
-                flags=re.DOTALL,
             )
         ]
 

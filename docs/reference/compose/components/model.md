@@ -163,7 +163,30 @@ messages:
 |-------|------|---------|-------------|
 | `chat_template` | string | `null` | Inline Jinja chat template string, overriding the tokenizer default. Applies to `huggingface`, `vllm`, and `llamacpp` drivers. |
 | `tools` | array | `null` | Catalog of tools this component exposes for tool calling. |
+| `reasoning_parser` | object | `null` | Rules for extracting reasoning spans (e.g. `<think>...</think>`) from raw model output. Applied before `tool_call_parser`. See below. |
 | `tool_call_parser` | object | `null` | Rules for extracting tool calls from raw model output. See below. |
+
+**`reasoning_parser` Fields:**
+
+Extracts reasoning spans (chain-of-thought text the model emits before its actual answer) into `reasoning` blocks so downstream consumers can log or hide them separately. Runs before `tool_call_parser`; anything inside a reasoning span is opaque and is not scanned for tool calls. Unclosed reasoning spans are dropped silently (non-streaming) or trimmed at flush (streaming).
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `start_tag` | string | `null` | Literal marker that opens a reasoning span (e.g., `<think>`). Omit for models that begin thinking at the start of the response (e.g., Qwen3 thinking mode) — everything up to `end_tag` is treated as reasoning. |
+| `end_tag` | string | (required) | Literal marker that closes a reasoning span (e.g., `</think>`). |
+
+Examples:
+
+```yaml
+# DeepSeek-R1 / GLM-Z1 / Kimi-K1.5: <think>...</think>
+reasoning_parser:
+  start_tag: '<think>'
+  end_tag:   '</think>'
+
+# Qwen3 thinking mode: response begins inside the reasoning span; only the close marker separates it
+reasoning_parser:
+  end_tag: '</think>'
+```
 
 **`tool_call_parser` Fields:**
 

@@ -9,7 +9,6 @@ from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceSpeechToTextM
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
@@ -135,8 +134,6 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                                 stopping_criteria=stopping_criteria,
                                 streamer=streamer
                             )
-                    except BaseException:
-                        logging.exception("Whisper streaming generate failed")
                     finally:
                         streamer.end()
 

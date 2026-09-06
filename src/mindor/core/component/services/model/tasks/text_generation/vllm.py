@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import TextGenerationTaskAction
-import ulid
+import asyncio, ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine, SamplingParams
@@ -56,51 +56,84 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
-        if streaming:
-            return [ self._stream_text(prompt, params["sampling"], cancellation_token) for prompt in texts ]
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        num_return_sequences = params["num_return_sequences"] or 1
 
-        return [ await self._generate_text(prompt, params["sampling"], cancellation_token) for prompt in texts ]
+        if streaming:
+            return [
+                self._stream_text(prompt, params["sampling"], num_return_sequences, cancellation_token)
+                for prompt in texts
+            ]
+
+        return [
+            await self._generate_text(prompt, params["sampling"], num_return_sequences, cancellation_token)
+            for prompt in texts
+        ]
 
     async def _generate_text(
         self,
         prompt: str,
         sampling: SamplingParams,
+        num_return_sequences: int,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> str:
+    ) -> List[str]:
         request_id = f"request-{ulid.ulid()}"
-        text = ""
+        texts: List[str] = [ "" ] * num_return_sequences
 
         async for output in self.engine.generate(prompt, sampling, request_id=request_id):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 await self.engine.abort(request_id)
                 break
 
-            if output.outputs:
-                text = output.outputs[0].text
+            for sequence in output.outputs:
+                texts[sequence.index] = sequence.text
 
-        return text
+        return texts
 
-    async def _stream_text(
+    def _stream_text(
         self,
         prompt: str,
         sampling: SamplingParams,
+        num_return_sequences: int,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> AsyncIterator[str]:
+    ) -> List[AsyncIterator[str]]:
+        # vLLM emits every sequence's cumulative text in one shared async
+        # iterator, so fan it out into n independent per-sequence queues so
+        # each returned iterator can be consumed on its own.
         request_id = f"request-{ulid.ulid()}"
-        previous = ""
+        queues: List[asyncio.Queue] = [ asyncio.Queue() for _ in range(num_return_sequences) ]
+        end = object()
 
-        async for output in self.engine.generate(prompt, sampling, request_id=request_id):
-            if cancellation_token is not None and cancellation_token.is_cancelled():
-                await self.engine.abort(request_id)
-                return
+        async def _fan_out_sequences():
+            previous = [ "" ] * num_return_sequences
 
-            text = output.outputs[0].text if output.outputs else ""
-            delta = text[len(previous):]
-            previous = text
+            try:
+                async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+                    if cancellation_token is not None and cancellation_token.is_cancelled():
+                        await self.engine.abort(request_id)
+                        break
 
-            if delta:
-                yield delta
+                    for sequence in output.outputs:
+                        index = sequence.index
+                        delta = sequence.text[len(previous[index]):]
+                        previous[index] = sequence.text
+
+                        if delta:
+                            await queues[index].put(delta)
+            finally:
+                for queue in queues:
+                    await queue.put(end)
+
+        asyncio.create_task(_fan_out_sequences())
+
+        async def _stream(queue: asyncio.Queue) -> AsyncIterator[str]:
+            while True:
+                chunk = await queue.get()
+                if chunk is end:
+                    return
+                yield chunk
+
+        return [ _stream(queue) for queue in queues ]
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.VLLM)
 class VllmTextGenerationTaskService(VllmModelTaskService):

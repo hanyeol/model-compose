@@ -22,48 +22,45 @@ class TextGenerationTaskAction(ComponentAction):
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(text, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
-                    for result in batch_results:
-                        if streaming:
-                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                                async for chunk in self._process_result(result):
-                                    if chunk is None:
-                                        continue
-                                    context.register_source("result[]", chunk, scope=scope)
-                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
-
-                            yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
-                        else:
-                            yield self._process_result(result)
+                    for sequences in batch_results:
+                        yield self._wrap_result(sequences, streaming, context, is_direct_output)
 
             return _stream_output_generator()
-        else:
-            results: List[Any] = []
-            async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
-                batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
-                for result in batch_results:
-                    if streaming:
-                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                            async for chunk in self._process_result(result):
-                                if chunk is None:
-                                    continue
-                                context.register_source("result[]", chunk, scope=scope)
-                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
-                        results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
-                    else:
-                        results.append(self._process_result(result))
+        results: List[Any] = []
+        async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
+            batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
+            for sequences in batch_results:
+                results.append(self._wrap_result(sequences, streaming, context, is_direct_output))
 
-            result = results[0] if is_single_input else results
-            context.register_source("result", result)
+        context.register_source("result", results)
 
-            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
+        return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else results
+
+    def _wrap_result(
+        self,
+        sequences: Union[List[str], List[AsyncIterator[str]]],
+        streaming: bool,
+        context: ComponentActionContext,
+        is_direct_output: bool,
+    ) -> Any:
+        if streaming:
+            async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
+                async for chunk in self._process_result(sequences):
+                    if chunk is None:
+                        continue
+                    context.register_source("result[]", chunk, scope=scope)
+                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
+
+        return self._process_result(sequences)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_text(self.config.prompt)
@@ -89,8 +86,14 @@ class TextGenerationTaskAction(ComponentAction):
             "stop_sequences":       stop_sequences,
         }
 
-    def _process_result(self, result: Union[str, AsyncIterator[str]]) -> Any:
-        return result
+    def _process_result(self, sequences: Union[List[str], List[AsyncIterator[str]]]) -> Any:
+        """Convert one prompt's n sequences into the task's user-facing shape.
+
+        For text-generation this passes the list through as-is (List[str] for
+        non-streaming, List[AsyncIterator[str]] for streaming). Subclasses like
+        chat-completion override to wrap the sequences into a `choices` envelope.
+        """
+        return sequences
 
     @abstractmethod
     async def _generate_batch(
@@ -99,13 +102,15 @@ class TextGenerationTaskAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
-        """Generate text (or streaming chunks) for each prompt.
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        """Generate completions for each prompt, with `num_return_sequences` variants each.
 
         Contract:
-          - non-streaming: returns List[str], one completion per prompt.
-          - streaming: returns List[AsyncIterator[str]], one async iterator per prompt.
-            Drivers whose native generator is sync should wrap it with
+          - non-streaming: returns List[List[str]] — outer list is per-prompt,
+            inner list holds n completions per prompt.
+          - streaming: returns List[List[AsyncIterator[str]]] — one async
+            iterator per (prompt, sequence). Drivers whose native generator is
+            sync should wrap it with
             SyncGeneratorStreamer(gen, asyncio.get_running_loop()) before returning.
         """
         pass

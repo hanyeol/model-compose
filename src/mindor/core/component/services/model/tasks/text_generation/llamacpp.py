@@ -54,17 +54,28 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        # llama.cpp has no native `n`; get num_return_sequences by looping.
+        num_return_sequences = params["num_return_sequences"] or 1
+
         if streaming:
-            # llama_cpp yields tokens synchronously; wrap each per-prompt generator
-            # with SyncGeneratorStreamer so the caller can consume it via async for.
+            loop = asyncio.get_running_loop()
             return [
-                SyncGeneratorStreamer(self._stream_text(prompt, params["generation"], cancellation_token), asyncio.get_running_loop())
+                [
+                    SyncGeneratorStreamer(self._stream_text(prompt, params["generation"], cancellation_token), loop)
+                    for _ in range(num_return_sequences)
+                ]
                 for prompt in texts
             ]
 
-        def _generate() -> List[str]:
-            return [ self._generate_text(prompt, params["generation"], cancellation_token) for prompt in texts ]
+        def _generate() -> List[List[str]]:
+            return [
+                [
+                    self._generate_text(prompt, params["generation"], cancellation_token)
+                    for _ in range(num_return_sequences)
+                ]
+                for prompt in texts
+            ]
 
         return await self._run_in_executor(_generate)
 
@@ -94,10 +105,10 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            token = chunk["choices"][0].get("text", "")
+            text = chunk["choices"][0].get("text", "")
 
-            if token:
-                yield token
+            if text:
+                yield text
 
 @register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.LLAMACPP)
 class LlamaCppTextGenerationTaskService(LlamaCppModelTaskService):

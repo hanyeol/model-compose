@@ -10,7 +10,7 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
 from ..text_generation.huggingface import HuggingfaceTextGenerationTaskAction
-from .common import ToolBuilder, ChatCompletionDeltaStreamer
+from .common import ToolBuilder, build_choices_envelope, stream_choices_envelope
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
@@ -54,11 +54,11 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
             **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
 
-    def _process_result(self, result: Union[str, AsyncIterator[str]]) -> Any:
-        if isinstance(result, AsyncIterator):
-            return ChatCompletionDeltaStreamer().stream(result)
+    def _process_result(self, sequences: Union[List[str], List[AsyncIterator[str]]]) -> Any:
+        if sequences and isinstance(sequences[0], AsyncIterator):
+            return stream_choices_envelope(sequences)
 
-        return [ { "type": "text", "text": result } ]
+        return build_choices_envelope(sequences)
 
 @register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)
 class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):

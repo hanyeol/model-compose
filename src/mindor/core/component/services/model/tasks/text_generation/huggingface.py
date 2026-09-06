@@ -114,13 +114,16 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
                 )
 
                 def _run():
-                    with torch.inference_mode():
-                        self.model.generate(
-                            **inputs,
-                            generation_config=GenerationConfig(**params["generation"]),
-                            stopping_criteria=stopping_criteria,
-                            streamer=streamer,
-                        )
+                    try:
+                        with torch.inference_mode():
+                            self.model.generate(
+                                **inputs,
+                                generation_config=GenerationConfig(**params["generation"]),
+                                stopping_criteria=stopping_criteria,
+                                streamer=streamer,
+                            )
+                    finally:
+                        streamer.end()
 
                 Thread(target=_run, daemon=True).start()
 

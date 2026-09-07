@@ -5,6 +5,7 @@ from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import ImageTextToTextTaskAction
@@ -32,10 +33,16 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         params = await super()._resolve_params(context)
 
+        if params["max_input_length"] is not None:
+            logging.warning("vLLM backend does not support max_input_length; ignoring configured value %r.", params["max_input_length"])
+
         sampling_params: Dict[str, Any] = { "n": params["num_return_sequences"] }
 
         if params["max_output_length"] is not None:
             sampling_params["max_tokens"] = params["max_output_length"]
+
+        if params["min_output_length"] and params["min_output_length"] > 1:
+            sampling_params["min_tokens"] = params["min_output_length"]
 
         if params["do_sample"]:
             if params["temperature"] is not None:

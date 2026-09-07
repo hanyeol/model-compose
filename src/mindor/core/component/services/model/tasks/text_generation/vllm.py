@@ -34,13 +34,13 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         if params["max_input_length"] is not None:
             logging.warning("vLLM backend does not support max_input_length; ignoring configured value %r.", params["max_input_length"])
 
-        if params["min_output_length"] and params["min_output_length"] > 1:
-            logging.warning("vLLM backend does not support min_output_length; ignoring configured value %r.", params["min_output_length"])
-
         sampling_params: Dict[str, Any] = { "n": params["num_return_sequences"] }
 
         if params["max_output_length"] is not None:
             sampling_params["max_tokens"] = params["max_output_length"]
+
+        if params["min_output_length"] and params["min_output_length"] > 1:
+            sampling_params["min_tokens"] = params["min_output_length"]
 
         if params["do_sample"]:
             if params["temperature"] is not None:

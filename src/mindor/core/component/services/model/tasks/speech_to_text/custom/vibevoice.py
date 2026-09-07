@@ -349,10 +349,17 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
                 raise ValueError(f"Unknown compute_type: {self.config.compute_type!r}")
             return dtype
 
-        # VibeVoice ships and is validated at bfloat16 on CUDA; the demo falls
-        # back to float32 elsewhere because bfloat16 support is uneven on
-        # mps/cpu.
-        return torch.bfloat16 if device.type == "cuda" else torch.float32
+        # VibeVoice ships and is validated at bfloat16 on CUDA. On MPS,
+        # bfloat16 support is uneven but float16 halves memory vs float32
+        # (~14GB vs ~28GB for the 7B checkpoint) and is what upstream's
+        # macOS support PR settled on. CPU stays on float32.
+        if device.type == "cuda":
+            return torch.bfloat16
+
+        if device.type == "mps":
+            return torch.float16
+
+        return torch.float32
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await VibeVoiceSpeechToTextTaskAction(action, self.model, self.processor, self.streaming_info, self.device).run(context)

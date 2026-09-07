@@ -28,4 +28,5 @@ ModelActionConfig = Union[
     TextToSpeechModelActionConfig,
     SpeechToTextModelActionConfig,
     MusicGenerationModelActionConfig,
+    MusicEmbeddingModelActionConfig,
 ]

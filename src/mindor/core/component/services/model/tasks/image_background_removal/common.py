@@ -32,10 +32,10 @@ class ImageBackgroundRemovalTaskAction(ComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_images = [ self._normalize_image(image) for image in batch_images ]
+                    batch_images = [ self._normalize_image(img) for img in batch_images ]
                     batch_masks = await self._predict_masks_batch(batch_images, params, context.cancellation_token)
-                    for image, mask in zip(batch_images, batch_masks):
-                        yield self._render_output(image, mask, params["output_format"])
+                    for img, mask in zip(batch_images, batch_masks):
+                        yield self._render_output(img, mask, params["output_format"])
 
             return _stream_output_generator()
         else:

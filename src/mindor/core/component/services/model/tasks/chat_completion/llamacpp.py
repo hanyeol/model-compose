@@ -51,7 +51,7 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
 
             return _iterate_prompts(messages)
 
-        if isinstance(messages, list) and messages and isinstance(messages[0], list):
+        if isinstance(messages, list) and len(messages) > 0 and isinstance(messages[0], list):
             formatter = self._resolve_chat_formatter()
 
             def _list_prompts(batch_messages):

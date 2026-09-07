@@ -59,7 +59,7 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
 
             return _iterate_prompts(messages)
 
-        if isinstance(messages, list) and messages and isinstance(messages[0], list):
+        if isinstance(messages, list) and len(messages) > 0 and isinstance(messages[0], list):
             def _list_prompts(batch_messages):
                 return [ self._build_chat_prompt(messages, tools) for messages in batch_messages ]
 

@@ -79,8 +79,10 @@ class SampleidMusicEmbeddingTaskActionImpl(MusicEmbeddingTaskAction):
         for audio in audios:
             buffer = await AudioBufferStreamer(audio, sample_rate=_SAMPLEID_SAMPLE_RATE, channel="mono").collect()
             mono = np.ascontiguousarray(buffer.waveform, dtype=np.float32)
+
             if mono.ndim == 2:
                 mono = mono.mean(axis=0)
+
             waveforms.append(mono)
 
         return waveforms

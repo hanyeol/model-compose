@@ -28,6 +28,8 @@ component:
     type: virtualenv
     driver: python                           # default; uses `python -m venv`
     path: .venv/vibevoice                    # relative to cwd; created on first run
+    start_timeout: 600s                      # first run downloads the 7B checkpoint and installs deps
+    stop_timeout: 30s
   action:
     audio: ${input.audio as audio}
     context_info: ${input.context_info}      # optional hotwords, comma-separated (e.g., "Microsoft,VibeVoice")

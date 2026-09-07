@@ -21,7 +21,7 @@ class ChatCompletionMessage(ChatMessage):
 InputMessage: TypeAlias = Union[ChatMessage, Dict[str, Any]]
 
 class ChatCompletionModelActionConfig(CommonModelActionConfig):
-    messages: Union[InputMessage, List[InputMessage]] = Field(..., description="Input chat messages the model generates a response for.")
+    messages: Union[InputMessage, List[InputMessage], List[List[InputMessage]]] = Field(..., description="Input chat messages the model generates a response for.")
     tools: Optional[Union[List[str], List[ModelTool]]] = Field(default=None, description="Tools the model may call during this action.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens accepted per input message.")
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens generated; unset uses the model or backend's configured limit.")

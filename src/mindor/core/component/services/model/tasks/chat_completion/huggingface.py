@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActio
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.huggingface import HuggingfaceChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
@@ -45,12 +46,32 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
         self.tool_call_parser: Optional[ToolCallParser] = ToolCallParser(tool_call_parser) if tool_call_parser else None
         self.reasoning_parser: Optional[ReasoningParser] = ReasoningParser(reasoning_parser) if reasoning_parser else None
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str], AsyncIterator[str]]:
         messages = await context.render_variable(self.config.messages)
         tools    = await context.render_variable(self.config.tools)
 
         tools = HuggingfaceToolBuilder(self.tools or []).build(tools) or None
 
+        if isinstance(messages, (StreamIterator, AsyncIterator)):
+            async def _iterate_prompts(batch_messages):
+                async for messages in batch_messages:
+                    yield self._build_chat_prompt(messages, tools)
+
+            return _iterate_prompts(messages)
+
+        if isinstance(messages, list) and messages and isinstance(messages[0], list):
+            def _list_prompts(batch_messages):
+                return [ self._build_chat_prompt(messages, tools) for messages in batch_messages ]
+
+            return _list_prompts(messages)
+
+        return self._build_chat_prompt(messages, tools)
+
+    def _build_chat_prompt(
+        self,
+        messages: Union[Dict[str, Any], List[Dict[str, Any]]],
+        tools: Optional[List[Dict[str, Any]]]
+    ) -> str:
         return self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -59,7 +80,11 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
             **({ "chat_template": self.chat_template } if self.chat_template else {}),
         )
 
-    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+    def _process_sequences(
+        self,
+        sequences: Union[List[str], List[AsyncIterator[str]]],
+        streaming: bool
+    ) -> Any:
         builder = ChatChoicesBuilder(self.tool_call_parser, self.reasoning_parser)
 
         if streaming:

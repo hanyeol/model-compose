@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActio
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.llamacpp import LlamaCppChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import LlamaCppModelTaskService, ComponentActionContext
 from ..text_generation.llamacpp import LlamaCppTextGenerationTaskAction
@@ -35,23 +36,52 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
         self.tool_call_parser: Optional[ToolCallParser] = ToolCallParser(tool_call_parser) if tool_call_parser else None
         self.reasoning_parser: Optional[ReasoningParser] = ReasoningParser(reasoning_parser) if reasoning_parser else None
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str], AsyncIterator[str]]:
         messages = await context.render_variable(self.config.messages)
         tools    = await context.render_variable(self.config.tools)
 
+        tools = HuggingfaceToolBuilder(self.tools or []).build(tools) or None
+
+        if isinstance(messages, (StreamIterator, AsyncIterator)):
+            formatter = self._resolve_chat_formatter()
+
+            async def _iterate_prompts(batch_messages):
+                async for messages in batch_messages:
+                    yield self._build_chat_prompt(messages, tools, formatter)
+
+            return _iterate_prompts(messages)
+
+        if isinstance(messages, list) and messages and isinstance(messages[0], list):
+            formatter = self._resolve_chat_formatter()
+
+            def _list_prompts(batch_messages):
+                return [ self._build_chat_prompt(messages, tools, formatter) for messages in batch_messages ]
+
+            return _list_prompts(messages)
+    
+        return self._build_chat_prompt(messages, tools, self._resolve_chat_formatter())
+
+    def _build_chat_prompt(
+        self,
+        messages: Union[Dict[str, Any], List[Dict[str, Any]]],
+        tools: Optional[List[Dict[str, Any]]],
+        formatter: Any
+    ) -> str:
         if not isinstance(messages, list):
             messages = [ messages ]
 
-        tools = HuggingfaceToolBuilder(self.tools or []).build(tools) or None
-
-        conversation = self._resolve_chat_formatter()(
+        conversation = formatter(
             messages=messages,
             **({ "tools": tools, "tool_choice": "auto" } if tools else {})
         )
 
         return conversation.prompt
 
-    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+    def _process_sequences(
+        self,
+        sequences: Union[List[str], List[AsyncIterator[str]]],
+        streaming: bool
+    ) -> Any:
         builder = ChatChoicesBuilder(self.tool_call_parser, self.reasoning_parser)
 
         if streaming:

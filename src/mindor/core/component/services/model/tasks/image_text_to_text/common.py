@@ -70,7 +70,18 @@ class ImageTextToTextTaskAction(ComponentAction):
 
     async def _prepare_input(
         self, context: ComponentActionContext
-    ) -> Tuple[Union[List[Dict[str, Any]], List[List[Dict[str, Any]]], AsyncIterator[List[Dict[str, Any]]]], Union[List[PILImage.Image], List[List[PILImage.Image]], AsyncIterator[List[PILImage.Image]]]]:
+    ) -> Tuple[
+        Union[
+            List[Dict[str, Any]],
+            List[List[Dict[str, Any]]],
+            AsyncIterator[List[Dict[str, Any]]]
+        ],
+        Union[
+            List[PILImage.Image],
+            List[List[PILImage.Image]],
+            AsyncIterator[List[PILImage.Image]]
+        ]
+    ]:
         prompt        = await context.render_text(self.config.prompt)
         image         = await context.render_image_array(self.config.image, single_as_array=True)
         system_prompt = await context.render_text(self.config.system_prompt)
@@ -79,8 +90,8 @@ class ImageTextToTextTaskAction(ComponentAction):
         images = await self._resolve_images(image, is_single_input)
 
         if isinstance(prompt, (StreamIterator, AsyncIterator)):
-            async def _iterate_messages(prompts, images_iter):
-                async for prompt, images in zip(prompts, images_iter):
+            async def _iterate_messages(prompts, images):
+                async for prompt, images in zip(prompts, images):
                     yield self._build_messages(prompt, len(images), system_prompt)
 
             return _iterate_messages(prompt, images), images

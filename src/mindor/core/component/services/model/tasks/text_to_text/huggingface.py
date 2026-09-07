@@ -91,8 +91,10 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
-        def _generate() -> Union[List[str], List[Any]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        num_return_sequences = params["num_return_sequences"] or 1
+
+        def _generate() -> Union[List[List[str]], List[Any]]:
             from transformers import StopStringCriteria, GenerationConfig
             import torch
 
@@ -102,9 +104,11 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
             inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
             if streaming:
+                # generate() flattens (input, sequence) into the batch dim, so
+                # allocate one streamer per (input, sequence) pair.
                 streamer = BatchTextIteratorStreamer(
                     self.tokenizer,
-                    batch_size=len(texts),
+                    batch_size=len(texts) * num_return_sequences,
                     skip_prompt=True,
                     skip_special_tokens=True,
                 )
@@ -123,7 +127,13 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
 
                 Thread(target=_run, daemon=True).start()
 
-                return [ streamer[index] for index in range(len(texts)) ]
+                return [
+                    [
+                        streamer[index * num_return_sequences + sequence]
+                        for sequence in range(num_return_sequences)
+                    ]
+                    for index in range(len(texts))
+                ]
 
             with torch.inference_mode():
                 outputs = self.model.generate(
@@ -132,12 +142,24 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
                     stopping_criteria=stopping_criteria,
                 )
 
-            return self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+            return [
+                [
+                    outputs[index * num_return_sequences + sequence]
+                    for sequence in range(num_return_sequences)
+                ]
+                for index in range(len(texts))
+            ]
 
         results = await self._run_in_executor(_generate)
 
         if streaming:
-            return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
+            loop = asyncio.get_running_loop()
+            return [
+                [ SyncGeneratorStreamer(streamer, loop) for streamer in sequences ]
+                for sequences in results
+            ]
 
         return results
 

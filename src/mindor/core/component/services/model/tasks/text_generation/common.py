@@ -94,11 +94,12 @@ class TextGenerationTaskAction(ComponentAction):
     def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
         """Convert one prompt's n sequences into the task's user-facing shape.
 
-        For text-generation this passes the list through as-is (List[str] for
-        non-streaming, List[AsyncIterator[str]] for streaming). Subclasses like
-        chat-completion override to wrap the sequences into a `choices` envelope.
+        num_return_sequences=1 unwraps to a scalar (str or AsyncIterator[str])
+        so the common single-completion case matches the pre-multi-sequence
+        contract; n>1 returns the list. Subclasses like chat-completion
+        override to wrap the sequences into a `choices` envelope.
         """
-        return sequences
+        return sequences[0] if len(sequences) == 1 else sequences
 
     @abstractmethod
     async def _generate_batch(

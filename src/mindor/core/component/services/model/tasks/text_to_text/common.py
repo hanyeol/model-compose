@@ -29,34 +29,36 @@ class TextToTextTaskAction(ComponentAction):
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
-                    for result in batch_results:
+                    for sequences in batch_results:
                         if streaming:
-                            async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                                async for chunk in result:
-                                    if chunk:
-                                        context.register_source("result[]", chunk, scope=scope)
-                                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                            async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
+                                async for chunk in self._process_sequences(sequences, streaming=True):
+                                    if chunk is None:
+                                        continue
+                                    context.register_source("result[]", chunk, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            yield self._process_sequences(sequences, streaming=False)
 
             return _stream_output_generator()
         else:
             results: List[Any] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                 batch_results = await self._generate_batch(batch_texts, params, streaming, context.cancellation_token)
-                for result in batch_results:
+                for sequences in batch_results:
                     if streaming:
-                        async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                            async for chunk in result:
-                                if chunk:
-                                    context.register_source("result[]", chunk, scope=scope)
-                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                        async def _stream_chunk_generator(sequences=sequences, scope=f"stream:{id(sequences)}"):
+                            async for chunk in self._process_sequences(sequences, streaming=True):
+                                if chunk is None:
+                                    continue
+                                context.register_source("result[]", chunk, scope=scope)
+                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
 
                         results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
                     else:
-                        results.append(result)
+                        results.append(self._process_sequences(sequences, streaming=False))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -65,6 +67,11 @@ class TextToTextTaskAction(ComponentAction):
 
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_text(self.config.text)
+
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+        # Unwrap the single-sequence case so num_return_sequences=1 keeps its
+        # historical scalar shape; callers that ask for n>1 opt into the list.
+        return sequences[0] if len(sequences) == 1 else sequences
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length     = await context.render_variable(self.config.max_input_length)
@@ -94,5 +101,15 @@ class TextToTextTaskAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        """Generate outputs for each input, with `num_return_sequences` variants each.
+
+        Contract:
+          - non-streaming: returns List[List[str]] — outer list is per-input,
+            inner list holds n outputs per input.
+          - streaming: returns List[List[AsyncIterator[str]]] — one async
+            iterator per (input, sequence). Drivers whose native generator is
+            sync should wrap it with
+            SyncGeneratorStreamer(gen, asyncio.get_running_loop()) before returning.
+        """
         pass

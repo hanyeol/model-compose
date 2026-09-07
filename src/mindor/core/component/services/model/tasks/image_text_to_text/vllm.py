@@ -10,11 +10,13 @@ from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import VllmModelTaskService, ComponentActionContext
 from .common import ImageTextToTextTaskAction
 from PIL import Image as PILImage
-import ulid
+import asyncio, ulid
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine, SamplingParams
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+_STREAM_QUEUE_SIZE = 32
 
 class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
     def __init__(
@@ -68,26 +70,35 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        num_return_sequences = params["num_return_sequences"] or 1
+
         prompts = [
             self.tokenizer.apply_chat_template(single_messages, tokenize=False, add_generation_prompt=True)
             for single_messages in messages
         ]
 
         if streaming:
-            return [ self._stream_text(prompt, prompt_images, params["sampling"], cancellation_token) for prompt, prompt_images in zip(prompts, images) ]
+            return [
+                self._stream_text(prompt, prompt_images, params["sampling"], num_return_sequences, cancellation_token)
+                for prompt, prompt_images in zip(prompts, images)
+            ]
 
-        return [ await self._generate_text(prompt, prompt_images, params["sampling"], cancellation_token) for prompt, prompt_images in zip(prompts, images) ]
+        return [
+            await self._generate_text(prompt, prompt_images, params["sampling"], num_return_sequences, cancellation_token)
+            for prompt, prompt_images in zip(prompts, images)
+        ]
 
     async def _generate_text(
         self,
         prompt: str,
         images: List[PILImage.Image],
         sampling: SamplingParams,
+        num_return_sequences: int,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> str:
+    ) -> List[str]:
         request_id = f"request-{ulid.ulid()}"
-        text = ""
+        texts: List[str] = [ "" ] * num_return_sequences
         request = { "prompt": prompt, "multi_modal_data": { "image": images } }
 
         async for output in self.engine.generate(request, sampling, request_id=request_id):
@@ -95,33 +106,83 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
                 await self.engine.abort(request_id)
                 break
 
-            if output.outputs:
-                text = output.outputs[0].text
+            for sequence in output.outputs:
+                texts[sequence.index] = sequence.text
 
-        return text
+        return texts
 
-    async def _stream_text(
+    def _stream_text(
         self,
         prompt: str,
         images: List[PILImage.Image],
         sampling: SamplingParams,
+        num_return_sequences: int,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> AsyncIterator[str]:
+    ) -> List[AsyncIterator[str]]:
+        # vLLM emits every sequence's cumulative text in one shared async
+        # iterator, so fan it out into n independent per-sequence queues so
+        # each returned iterator can be consumed on its own. Queues are
+        # bounded to apply backpressure on the engine when consumers are
+        # slow, and the fan-out task is aborted if any consumer stops early.
         request_id = f"request-{ulid.ulid()}"
         request = { "prompt": prompt, "multi_modal_data": { "image": images } }
-        previous = ""
+        queues: List[asyncio.Queue] = [ asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE) for _ in range(num_return_sequences) ]
+        active = [ True ] * num_return_sequences
+        end = object()
 
-        async for output in self.engine.generate(request, sampling, request_id=request_id):
-            if cancellation_token is not None and cancellation_token.is_cancelled():
+        async def _fan_out_sequences():
+            previous = [ "" ] * num_return_sequences
+
+            try:
+                async for output in self.engine.generate(request, sampling, request_id=request_id):
+                    if cancellation_token is not None and cancellation_token.is_cancelled():
+                        break
+
+                    if not any(active):
+                        break
+
+                    for sequence in output.outputs:
+                        index = sequence.index
+
+                        if not active[index]:
+                            continue
+
+                        delta = sequence.text[len(previous[index]):]
+                        previous[index] = sequence.text
+
+                        if delta:
+                            await queues[index].put(delta)
+            except asyncio.CancelledError:
+                pass
+            finally:
                 await self.engine.abort(request_id)
-                return
+                for index, queue in enumerate(queues):
+                    if active[index]:
+                        try:
+                            queue.put_nowait(end)
+                        except asyncio.QueueFull:
+                            # Drop a pending chunk to guarantee the terminator lands.
+                            try:
+                                queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                pass
+                            queue.put_nowait(end)
 
-            text = output.outputs[0].text if output.outputs else ""
-            delta = text[len(previous):]
-            previous = text
+        fan_out_task = asyncio.create_task(_fan_out_sequences())
 
-            if delta:
-                yield delta
+        async def _stream(index: int, queue: asyncio.Queue) -> AsyncIterator[str]:
+            try:
+                while True:
+                    chunk = await queue.get()
+                    if chunk is end:
+                        return
+                    yield chunk
+            finally:
+                active[index] = False
+                if not any(active) and not fan_out_task.done():
+                    fan_out_task.cancel()
+
+        return [ _stream(index, queue) for index, queue in enumerate(queues) ]
 
     def _build_messages(self, prompt: str, image_count: int, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []

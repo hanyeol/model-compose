@@ -49,10 +49,10 @@ class SampleidMusicEmbeddingTaskActionImpl(MusicEmbeddingTaskAction):
 
             # sampleid expects (batch, samples). Waveforms may differ in length
             # across the batch — pad on the right with zeros so we can stack.
-            max_len = max(w.shape[-1] for w in waveforms)
+            max_len = max(waveform.shape[-1] for waveform in waveforms)
             padded = np.stack([
-                np.pad(w, (0, max_len - w.shape[-1])) if w.shape[-1] < max_len else w
-                for w in waveforms
+                np.pad(waveform, (0, max_len - waveform.shape[-1])) if waveform.shape[-1] < max_len else waveform
+                for waveform in waveforms
             ])
 
             x = torch.from_numpy(padded).float()

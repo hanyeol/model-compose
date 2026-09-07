@@ -56,37 +56,32 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
     async def _generate_batch(
         self,
-        images: List[PILImage.Image],
-        prompts: List[str],
-        system_prompt: Optional[str],
+        messages: List[List[Dict[str, Any]]],
+        images: List[List[PILImage.Image]],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[str], List[AsyncIterator[str]]]:
         prompts = [
-            self.tokenizer.apply_chat_template(
-                self._build_messages(prompt, system_prompt),
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            for prompt in prompts
+            self.tokenizer.apply_chat_template(single_messages, tokenize=False, add_generation_prompt=True)
+            for single_messages in messages
         ]
 
         if streaming:
-            return [ self._stream_text(prompt, image, params["sampling"], cancellation_token) for prompt, image in zip(prompts, images) ]
+            return [ self._stream_text(prompt, prompt_images, params["sampling"], cancellation_token) for prompt, prompt_images in zip(prompts, images) ]
 
-        return [ await self._generate_text(prompt, image, params["sampling"], cancellation_token) for prompt, image in zip(prompts, images) ]
+        return [ await self._generate_text(prompt, prompt_images, params["sampling"], cancellation_token) for prompt, prompt_images in zip(prompts, images) ]
 
     async def _generate_text(
         self,
         prompt: str,
-        image: PILImage.Image,
+        images: List[PILImage.Image],
         sampling: SamplingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> str:
         request_id = f"request-{ulid.ulid()}"
         text = ""
-        request = { "prompt": prompt, "multi_modal_data": { "image": image } }
+        request = { "prompt": prompt, "multi_modal_data": { "image": images } }
 
         async for output in self.engine.generate(request, sampling, request_id=request_id):
             if cancellation_token is not None and cancellation_token.is_cancelled():
@@ -101,12 +96,12 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
     async def _stream_text(
         self,
         prompt: str,
-        image: PILImage.Image,
+        images: List[PILImage.Image],
         sampling: SamplingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[str]:
         request_id = f"request-{ulid.ulid()}"
-        request = { "prompt": prompt, "multi_modal_data": { "image": image } }
+        request = { "prompt": prompt, "multi_modal_data": { "image": images } }
         previous = ""
 
         async for output in self.engine.generate(request, sampling, request_id=request_id):
@@ -121,7 +116,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
             if delta:
                 yield delta
 
-    def _build_messages(self, prompt_text: str, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
+    def _build_messages(self, prompt: str, image_count: int, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []
 
         if system_prompt:
@@ -129,10 +124,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         messages.append({
             "role": "user",
-            "content": [
-                { "type": "image" },
-                { "type": "text", "text": prompt_text },
-            ],
+            "content": [ *[ { "type": "image" } for _ in range(image_count) ], { "type": "text", "text": prompt } ],
         })
 
         return messages

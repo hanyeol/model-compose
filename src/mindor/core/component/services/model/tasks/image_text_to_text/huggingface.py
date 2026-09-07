@@ -95,27 +95,10 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return params
 
-    def _build_messages(self, prompt_text: str, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
-        messages: List[Dict[str, Any]] = []
-
-        if system_prompt:
-            messages.append({ "role": "system", "content": [{ "type": "text", "text": system_prompt }] })
-
-        messages.append({
-            "role": "user",
-            "content": [
-                { "type": "image" },
-                { "type": "text", "text": prompt_text },
-            ],
-        })
-
-        return messages
-
     async def _generate_batch(
         self,
-        images: List[PILImage.Image],
-        prompts: List[str],
-        system_prompt: Optional[str],
+        messages: List[List[Dict[str, Any]]],
+        images: List[List[PILImage.Image]],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
@@ -127,12 +110,8 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
             stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
 
             rendered_prompts = [
-                self.processor.apply_chat_template(
-                    self._build_messages(prompt, system_prompt),
-                    tokenize=False,
-                    add_generation_prompt=True,
-                )
-                for prompt in prompts
+                self.processor.apply_chat_template(single_messages, tokenize=False, add_generation_prompt=True)
+                for single_messages in messages
             ]
 
             inputs: Tensor = self.processor(images=images, text=rendered_prompts, **params["processor"])
@@ -143,7 +122,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
             if streaming:
                 streamer = BatchTextIteratorStreamer(
                     self.processor.tokenizer,
-                    batch_size=len(images),
+                    batch_size=len(messages),
                     skip_prompt=True,
                     skip_special_tokens=True,
                 )
@@ -162,7 +141,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
                 Thread(target=_run, daemon=True).start()
 
-                return [ streamer[index] for index in range(len(images)) ]
+                return [ streamer[index] for index in range(len(messages)) ]
 
             with torch.inference_mode():
                 outputs = self.model.generate(
@@ -182,6 +161,19 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
             return [ SyncGeneratorStreamer(streamer, asyncio.get_running_loop()) for streamer in results ]
 
         return results
+
+    def _build_messages(self, prompt: str, image_count: int, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
+        messages: List[Dict[str, Any]] = []
+
+        if system_prompt:
+            messages.append({ "role": "system", "content": [{ "type": "text", "text": system_prompt }] })
+
+        messages.append({
+            "role": "user",
+            "content": [ *[ { "type": "image" } for _ in range(image_count) ], { "type": "text", "text": prompt } ],
+        })
+
+        return messages
 
 @register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskService):

@@ -308,7 +308,7 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
 
         model = VibeVoiceASRForConditionalGeneration.from_pretrained(
             model_path,
-            dtype=dtype,
+            torch_dtype=dtype,
             attn_implementation=self.config.attn_implementation,
         ).to(device).eval()
 

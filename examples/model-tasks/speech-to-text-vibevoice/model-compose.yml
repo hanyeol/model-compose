@@ -24,6 +24,10 @@ component:
   compute_type: auto                         # 'auto' picks bfloat16 on cuda, float32 elsewhere; override with bfloat16 / float16 / float32
   attn_implementation: sdpa                  # 'sdpa' (default, portable), 'flash_attention_2' (needs flash-attn, cuda-only), or 'eager'
   max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python                           # default; uses `python -m venv`
+    path: .venv/vibevoice                    # relative to cwd; created on first run
   action:
     audio: ${input.audio as audio}
     context_info: ${input.context_info}      # optional hotwords, comma-separated (e.g., "Microsoft,VibeVoice")

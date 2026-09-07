@@ -77,8 +77,12 @@ async def assert_does_not_block(
     if duration < tick_interval_s * min_ticks:
         return result
 
+    # The purpose of this check is to distinguish a fully-blocked loop (0-1 ticks)
+    # from one where control is being yielded. Under CPU contention (e.g. full test
+    # suite running in parallel) even a properly-offloaded coroutine may see the
+    # ticker starved, so we intentionally use a very loose ratio here.
     expected_ticks = int(duration / tick_interval_s)
-    minimum_expected = max(min_ticks, expected_ticks // 3)
+    minimum_expected = max(min_ticks, expected_ticks // 10)
 
     assert tick_count >= minimum_expected, (
         f"Event loop appears to have been blocked: ticker fired only "

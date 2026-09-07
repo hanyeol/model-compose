@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 # pre-chunk with an audio-splitter component if per-segment vectors are needed.
 _SAMPLEID_SAMPLE_RATE = 16000
 
-class SampleidMusicEmbeddingTaskActionImpl(MusicEmbeddingTaskAction):
+class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
     def __init__(
         self,
         config: MusicEmbeddingModelActionConfig,
@@ -130,7 +130,7 @@ class SampleidMusicEmbeddingTaskService(ModelTaskService):
         return model, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await SampleidMusicEmbeddingTaskActionImpl(
+        return await SampleidMusicEmbeddingTaskAction(
             action,
             self.model,
             self.device,

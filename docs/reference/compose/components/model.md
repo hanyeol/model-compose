@@ -491,6 +491,99 @@ component:
       caption: ${response.generated_text}
 ```
 
+### Image-Text-to-Text
+
+Answer a text prompt about one or more images with a vision-language model (VLM). Suitable for visual question answering, image-conditioned instruction following (e.g. document OCR, chart understanding), and single-turn multimodal reasoning. For multi-turn chat, use [`chat-completion`](#chat-completion) with a vision-capable model instead.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-text-to-text` |
+| `driver` | string | `huggingface` | Model inference framework: `huggingface`, `vllm` |
+| `architecture` | string | `auto` | HuggingFace model architecture: `auto`, `qwen2-vl`, `qwen2.5-vl`, `llava`, `llava-next`, `idefics3`, `internvl` |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Text prompt; a list is treated as a batch of prompts |
+| `image` | string/array | **required** | Image or images for the prompt; use a list-of-lists to pass multiple images per prompt in a batch |
+| `system_prompt` | string | `null` | System instruction prepended before the user prompt |
+| `max_input_length` | integer | `null` | Maximum tokens accepted per input prompt |
+| `max_output_length` | integer | `null` | Maximum tokens to generate |
+| `min_output_length` | integer | `1` | Minimum tokens to generate before generation may stop |
+| `num_return_sequences` | integer | `1` | Number of generated sequences to return per input |
+| `stop_sequences` | string/array | `null` | Sequences that terminate generation when produced |
+| `batch_size` | integer | `1` | Number of prompts processed per batch |
+| `streaming` | boolean | `false` | Emit generated tokens incrementally as they are produced |
+| `params.do_sample` | boolean | `true` | Enable sampling; disable for deterministic beam/greedy decoding |
+| `params.temperature` | float | `1.0` | Sampling temperature (used when `params.do_sample: true`) |
+| `params.top_k` | integer | `50` | Top-K sampling cutoff (used when `params.do_sample: true`) |
+| `params.top_p` | float | `0.9` | Nucleus sampling threshold (used when `params.do_sample: true`) |
+| `params.num_beams` | integer | `1` | Beam search width |
+| `params.length_penalty` | float | `1.0` | Length penalty applied during beam search |
+| `params.early_stopping` | boolean | `true` | Stop when all beams finish generating |
+
+**Example — Visual question answering with Qwen2.5-VL (HuggingFace):**
+
+```yaml
+component:
+  type: model
+  task: image-text-to-text
+  driver: huggingface
+  architecture: qwen2.5-vl
+  model: Qwen/Qwen2.5-VL-3B-Instruct
+  action:
+    image: ${input.image as image}
+    prompt: ${input.prompt as text}
+    max_output_length: 512
+    params:
+      do_sample: false
+    output:
+      answer: ${result}
+```
+
+**Example — Multiple images in one prompt:**
+
+```yaml
+component:
+  type: model
+  task: image-text-to-text
+  driver: huggingface
+  architecture: qwen2.5-vl
+  model: Qwen/Qwen2.5-VL-3B-Instruct
+  action:
+    image:
+      - ${input.image_a as image}
+      - ${input.image_b as image}
+    prompt: "Compare the two images and describe the differences."
+    max_output_length: 512
+```
+
+**Example — Document OCR with olmOCR (vLLM):**
+
+```yaml
+component:
+  type: model
+  task: image-text-to-text
+  driver: vllm
+  model: allenai/olmOCR-2-7B-1025-FP8
+  options:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.9
+  action:
+    image: ${input.image as image}
+    prompt: |-
+      Attached is one page of a document. Return the plain text as markdown,
+      converting equations to LaTeX and tables to markdown.
+    max_output_length: 8000
+    params:
+      do_sample: false
+    output:
+      markdown: ${result}
+```
+
 ### Image Embedding
 
 Generate vector embeddings for images. Use this for visual similarity search, image-based dedup/clustering, or building a retrieval index over local image folders. Bi-encoder style: encode once, compare with cosine similarity downstream.

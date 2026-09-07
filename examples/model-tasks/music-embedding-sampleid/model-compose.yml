@@ -1,0 +1,31 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Music Embedding (Sample ID)
+  description: Embed an audio recording into a fixed-size vector suitable for sample-identification retrieval.
+  job:
+    input: ${input}
+    output:
+      embedding: ${output as json}
+
+component:
+  type: model
+  task: music-embedding
+  driver: custom
+  family: sampleid
+  # Sample ID's default checkpoint is downloaded from Zenodo on first use
+  # (~200 MB) and cached inside the installed `sampleid` package directory.
+  # To pin a local checkpoint instead, set `model: /absolute/path/to/your.ckpt`.
+  device: auto
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    params:
+      normalize: ${input.normalize as boolean | true}

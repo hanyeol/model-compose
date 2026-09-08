@@ -109,6 +109,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         video_format  = self._resolve_container_format(encoding)
         video_codec   = self._resolve_video_codec(encoding)
         video_bitrate = encoding.video.bitrate if encoding and encoding.video and encoding.video.bitrate else None
+        video_quality = encoding.video.quality if encoding and encoding.video and encoding.video.quality is not None else None
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_video_input_args(system, display, framerate, region, window_title))
@@ -127,7 +128,9 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         if region is not None and system == "Darwin":
             command.extend([ "-vf", f"crop={region['width']}:{region['height']}:{region['x']}:{region['y']}" ])
 
-        if video_bitrate:
+        if video_quality is not None:
+            command.extend([ "-crf", str(video_quality) ])
+        elif video_bitrate:
             command.extend([ "-b:v", str(video_bitrate) ])
 
         if params["duration"] is not None:

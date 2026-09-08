@@ -175,7 +175,7 @@ component:
   driver: custom
   family: vibevoice
   model: microsoft/VibeVoice-ASR
-  compute_type: bfloat16   # 또는 float16, float32
+  precision: bfloat16   # 또는 float16, float32
 ```
 
 ### Flash Attention 활성화
@@ -216,7 +216,7 @@ component:
 
 ### 일반적인 문제
 
-1. **메모리 부족**: `compute_type`을 `float16`으로 낮추거나 VRAM이 더 큰 머신에서 실행; 일정한 메모리 디코딩이 필요하면 스트리밍 예제 고려
+1. **메모리 부족**: `precision`을 `float16`으로 낮추거나 VRAM이 더 큰 머신에서 실행; 일정한 메모리 디코딩이 필요하면 스트리밍 예제 고려
 2. **모델 다운로드 실패**: 인터넷 연결 및 디스크 공간 확인
 3. **느린 처리**: GPU 가속을 확보하고 지원 시 `flash_attention_2` 활성화
 4. **도메인 용어 누락**: `context_info`를 통해 도메인 어휘 추가

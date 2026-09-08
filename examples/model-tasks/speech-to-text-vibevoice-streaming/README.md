@@ -232,7 +232,7 @@ component:
 
 ### Common Issues
 
-1. **Out of Memory**: Use the 1.5B checkpoint or lower `compute_type` to `float16`
+1. **Out of Memory**: Use the 1.5B checkpoint or lower `precision` to `float16`
 2. **Model Download Fails**: Check internet connection and available disk space
 3. **Slow First Chunk**: Ensure GPU acceleration and consider a smaller `max_output_length`
 4. **Missed Domain Terms**: Add domain vocabulary through `context_info`

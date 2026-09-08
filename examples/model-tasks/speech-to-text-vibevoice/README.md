@@ -175,7 +175,7 @@ component:
   driver: custom
   family: vibevoice
   model: microsoft/VibeVoice-ASR
-  compute_type: bfloat16   # or float16, float32
+  precision: bfloat16   # or float16, float32
 ```
 
 ### Enabling Flash Attention
@@ -216,7 +216,7 @@ component:
 
 ### Common Issues
 
-1. **Out of Memory**: Lower `compute_type` to `float16` or run on a machine with more VRAM; consider the streaming example for constant-memory decoding
+1. **Out of Memory**: Lower `precision` to `float16` or run on a machine with more VRAM; consider the streaming example for constant-memory decoding
 2. **Model Download Fails**: Check internet connection and available disk space
 3. **Slow Processing**: Ensure GPU acceleration is available; enable `flash_attention_2` when supported
 4. **Missed Domain Terms**: Add domain vocabulary through `context_info`

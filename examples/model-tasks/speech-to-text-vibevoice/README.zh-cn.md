@@ -175,7 +175,7 @@ component:
   driver: custom
   family: vibevoice
   model: microsoft/VibeVoice-ASR
-  compute_type: bfloat16   # 或 float16、float32
+  precision: bfloat16   # 或 float16、float32
 ```
 
 ### 启用 Flash Attention
@@ -216,7 +216,7 @@ component:
 
 ### 常见问题
 
-1. **内存不足**：将 `compute_type` 降为 `float16` 或使用 VRAM 更大的机器；如需恒定内存解码请考虑流式示例
+1. **内存不足**：将 `precision` 降为 `float16` 或使用 VRAM 更大的机器；如需恒定内存解码请考虑流式示例
 2. **模型下载失败**：检查互联网连接与可用磁盘空间
 3. **处理缓慢**：确保 GPU 加速可用；在支持时启用 `flash_attention_2`
 4. **遗漏领域术语**：通过 `context_info` 添加领域词汇

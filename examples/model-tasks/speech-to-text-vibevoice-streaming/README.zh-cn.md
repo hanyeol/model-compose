@@ -232,7 +232,7 @@ component:
 
 ### 常见问题
 
-1. **内存不足**：使用 1.5B 检查点或将 `compute_type` 降为 `float16`
+1. **内存不足**：使用 1.5B 检查点或将 `precision` 降为 `float16`
 2. **模型下载失败**：检查互联网连接与可用磁盘空间
 3. **首块延迟**：确保 GPU 加速并考虑更小的 `max_output_length`
 4. **遗漏领域术语**：通过 `context_info` 添加领域词汇

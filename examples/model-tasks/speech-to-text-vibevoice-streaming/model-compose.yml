@@ -12,8 +12,7 @@ workflow:
   description: Streaming speech recognition with Microsoft's VibeVoice-ASR-Streaming; text appears chunk by chunk as the audio is consumed.
   job:
     input: ${input}
-    output:
-      transcription: ${output as text}
+    output: ${output as stream/text}
 
 component:
   type: model

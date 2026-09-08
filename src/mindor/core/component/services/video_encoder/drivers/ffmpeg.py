@@ -162,7 +162,9 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         async def _source_iterator() -> AsyncIterator[bytes]:
             async for frame in frames:
                 buffer = io.BytesIO()
-                await asyncio.to_thread(frame.save, buffer, "PNG")
+                if frame.mode not in ( "RGB", "L" ):
+                    frame = frame.convert("RGB")
+                await asyncio.to_thread(frame.save, buffer, "JPEG", quality=95)
                 yield buffer.getvalue()
 
         source = _source_iterator()

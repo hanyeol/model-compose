@@ -225,6 +225,33 @@ def parse_wav_header(data: bytes) -> Optional[Tuple[int, Dict[str, Any]]]:
 
     return None
 
+def parse_flac_header(data: bytes) -> Optional[Tuple[int, Dict[str, Any]]]:
+    """Parse a FLAC signature + STREAMINFO metadata block from ``data``.
+    Returns ``(header_size, {sample_rate, channels, bit_depth})`` or ``None``
+    if the buffer isn't long enough or the signature doesn't match.
+
+    Layout: 4B ``fLaC`` + 4B block header + 34B STREAMINFO body. The bit
+    fields we care about start at body offset 10:
+    sample_rate:20 | channels-1:3 | bits_per_sample-1:5 | total_samples:36.
+    """
+    if len(data) < 42 or data[:4] != b"fLaC":
+        return None
+
+    # First metadata block must be STREAMINFO (block type 0 in the low 7 bits).
+    if data[4] & 0x7F != 0:
+        return None
+
+    packed = int.from_bytes(data[18:26], "big")
+    sample_rate     = (packed >> 44) & 0xFFFFF
+    channels        = ((packed >> 41) & 0x07) + 1
+    bits_per_sample = ((packed >> 36) & 0x1F) + 1
+
+    return 42, {
+        "sample_rate": int(sample_rate),
+        "channels":    int(channels),
+        "bit_depth":   int(bits_per_sample),
+    }
+
 def is_streamable_audio_format(format: Optional[str]) -> bool:
     """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""
     return format in _STREAMABLE_AUDIO_FORMATS or format in _PCM_FORMATS

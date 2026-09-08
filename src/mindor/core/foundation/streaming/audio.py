@@ -17,6 +17,7 @@ from ...utils.audio import (
     decode_pcm_to_waveform,
     encode_waveform_to_pcm,
     parse_wav_header,
+    parse_flac_header,
 )
 from ...utils.shell import stream_subprocess
 from ...logger import logging
@@ -760,21 +761,39 @@ class AudioBufferStreamer:
         # Peek a container magic and stitch it back in front of the remaining
         # stream so downstream can pass an explicit ``-f`` hint to ffmpeg,
         # whose stdin autodetection fails for seekable containers like WAV.
+        # WAV/FLAC also carry sr/channels/bit_depth in the header, so parse
+        # those too to spare downstream a second decode-side probe.
         head = bytearray()
         stream = aiter(source.stream)
 
-        try:
-            while len(head) < 16:
-                head.extend(await anext(stream))
-        except StopAsyncIteration:
-            pass
+        async def _read_head_until(min_size: int) -> None:
+            try:
+                while len(head) < min_size:
+                    head.extend(await anext(stream))
+            except StopAsyncIteration:
+                pass
+
+        await _read_head_until(16)
 
         format: Optional[str] = None
+        attrs: Dict[str, Any] = dict(source.attrs)
 
         if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
             format = "wav"
+
+            await _read_head_until(4096)
+            header = parse_wav_header(bytes(head))
+
+            if header is not None:
+                attrs.update(header[1])
         elif head[:4] == b"fLaC":
             format = "flac"
+
+            await _read_head_until(42)
+            header = parse_flac_header(bytes(head))
+
+            if header is not None:
+                attrs.update(header[1])
         elif head[:4] == b"OggS":
             format = "ogg"
 
@@ -787,7 +806,7 @@ class AudioBufferStreamer:
         return MediaSource(
             stream=AsyncIterableStreamResource(_stream()),
             format=format,
-            attrs=source.attrs,
+            attrs=attrs,
         )
 
     def _create_stream_context(

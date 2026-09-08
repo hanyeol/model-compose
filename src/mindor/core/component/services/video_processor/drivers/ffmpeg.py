@@ -163,7 +163,9 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
-        if video_encoder and video_encoder.bitrate:
+        if video_encoder and video_encoder.crf is not None:
+            command.extend([ "-crf", str(video_encoder.crf) ])
+        elif video_encoder and video_encoder.bitrate:
             command.extend([ "-b:v", str(video_encoder.bitrate) ])
         if audio_codec:
             command.extend([ "-c:a", audio_codec ])

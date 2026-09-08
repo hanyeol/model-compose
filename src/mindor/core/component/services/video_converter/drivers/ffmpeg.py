@@ -65,7 +65,9 @@ class FFmpegVideoConverterAction(VideoConverterAction):
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
-        if video and video.bitrate and not is_gif_format:
+        if video and video.crf is not None and not is_gif_format:
+            command.extend([ "-crf", str(video.crf) ])
+        elif video and video.bitrate and not is_gif_format:
             command.extend([ "-b:v", str(video.bitrate) ])
         if is_gif_format:
             # GIF has no audio track; palette filtering handles fps/resolution.

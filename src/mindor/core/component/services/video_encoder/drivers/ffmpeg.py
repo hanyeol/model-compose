@@ -365,7 +365,9 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if video_codec:
             options["-c:v"] = video_codec
 
-        if video and video.bitrate:
+        if video and video.crf is not None:
+            options["-crf"] = str(video.crf)
+        elif video and video.bitrate:
             options["-b:v"] = str(video.bitrate)
 
         if video and video.resolution:

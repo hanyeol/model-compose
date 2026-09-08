@@ -703,10 +703,15 @@ class AudioBufferStreamer:
         hop_size: Optional[int],
         pad_final: bool,
     ) -> AsyncIterator[AudioBuffer]:
+        source = self._source
+
+        if source.format is None and not isinstance(source.stream, FileStreamResource):
+            source = await self._create_source_with_format(source)
+
         # Push resample / mono downmix into ffmpeg; `channel=int` still needs
         # the original channels since ffmpeg -ac can only downmix.
         sample_rate, channels = self._sample_rate, 1 if self._channel == "mono" else None
-        source = AudioDecodingStreamer(self._source, sample_rate, channels).as_pcm_stream()
+        source = AudioDecodingStreamer(source, sample_rate, channels).as_pcm_stream()
 
         # ``AudioDecodingStreamer`` populates ``source.attrs`` from the WAV
         # header (or the torchaudio decode result) as its first chunks stream
@@ -750,6 +755,40 @@ class AudioBufferStreamer:
 
         for waveform in await asyncio.to_thread(self._process_final, context):
             yield AudioBuffer(waveform=waveform, sample_rate=context.sample_rate)
+
+    async def _create_source_with_format(self, source: MediaSource) -> MediaSource:
+        # Peek a container magic and stitch it back in front of the remaining
+        # stream so downstream can pass an explicit ``-f`` hint to ffmpeg,
+        # whose stdin autodetection fails for seekable containers like WAV.
+        head = bytearray()
+        stream = aiter(source.stream)
+
+        try:
+            while len(head) < 16:
+                head.extend(await anext(stream))
+        except StopAsyncIteration:
+            pass
+
+        format: Optional[str] = None
+
+        if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+            format = "wav"
+        elif head[:4] == b"fLaC":
+            format = "flac"
+        elif head[:4] == b"OggS":
+            format = "ogg"
+
+        async def _stream() -> AsyncIterator[bytes]:
+            yield bytes(head)
+
+            async for chunk in stream:
+                yield chunk
+
+        return MediaSource(
+            stream=AsyncIterableStreamResource(_stream()),
+            format=format,
+            attrs=source.attrs,
+        )
 
     def _create_stream_context(
         self,

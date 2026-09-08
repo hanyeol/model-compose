@@ -54,6 +54,7 @@ def is_requirement_satisfied(requirement: Requirement) -> bool:
         True if the package is installed and its version meets the requirement, False otherwise.
     """
     distribution_name = canonicalize_name(requirement.name)
+
     try:
         installed_version = version(distribution_name)  # e.g. "4.41.2"
     except PackageNotFoundError:

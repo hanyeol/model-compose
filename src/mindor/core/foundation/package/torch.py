@@ -211,12 +211,17 @@ def _rewrite_specs(specs: Iterable[str], torch_version: Optional[str], channel: 
             rewritten_specs.append(spec)
             continue
 
+        if requirement.url is not None:
+            rewritten_specs.append(spec)
+            continue
+
+        name_with_extras = f"{requirement.name}[{','.join(sorted(requirement.extras))}]" if requirement.extras else requirement.name
         marker_suffix = f"; {requirement.marker}" if requirement.marker else ""
         caller_specifier = str(requirement.specifier)
 
         if requirement.name == "torch":
             resolved_specifier = caller_specifier or (f"=={torch_version}" if torch_version else "")
-            rewritten_specs.append(f"{requirement.name}{resolved_specifier}{marker_suffix}@{index_url}")
+            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
             continue
 
         sibling_version = _TORCH_SIBLING_TABLES[requirement.name].get(torch_version) if torch_version else None
@@ -228,11 +233,11 @@ def _rewrite_specs(specs: Iterable[str], torch_version: Optional[str], channel: 
                     f"paired release for torch=={torch_version} "
                     f"({requirement.name}=={sibling_version}); keeping the caller's pin."
                 )
-            rewritten_specs.append(f"{requirement.name}{caller_specifier}{marker_suffix}@{index_url}")
+            rewritten_specs.append(f"{name_with_extras}{caller_specifier}{marker_suffix}@{index_url}")
             continue
 
         resolved_specifier = f"=={sibling_version}" if sibling_version else ""
-        rewritten_specs.append(f"{requirement.name}{resolved_specifier}{marker_suffix}@{index_url}")
+        rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
 
     return rewritten_specs
 

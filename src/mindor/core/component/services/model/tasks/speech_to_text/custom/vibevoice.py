@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ModelComponentConfig, VibeVoiceSpeechToTextModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, VibeVoiceSpeechToTextModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, VibeVoiceSpeechToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
@@ -343,11 +343,9 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
     def _resolve_torch_dtype(self, device: torch.device) -> torch.dtype:
         import torch
 
-        if self.config.compute_type != "auto":
-            dtype = getattr(torch, self.config.compute_type, None)
-            if not isinstance(dtype, torch.dtype):
-                raise ValueError(f"Unknown compute_type: {self.config.compute_type!r}")
-            return dtype
+        precision = self.config.precision
+        if precision is not None and precision != ModelPrecision.AUTO:
+            return getattr(torch, precision.value)
 
         # VibeVoice ships and is validated at bfloat16 on CUDA. On MPS,
         # bfloat16 support is uneven but float16 halves memory vs float32

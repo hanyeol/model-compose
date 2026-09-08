@@ -11,9 +11,6 @@ import functools, platform, re, shutil, subprocess, sys
 # a separate map so a future release that breaks that convention shows up as an
 # obvious edit rather than a silent bug.
 _TORCHAUDIO_FOR_TORCH: Dict[str, str] = {
-    "2.13.0": "2.13.0",
-    "2.12.1": "2.12.1",
-    "2.12.0": "2.12.0",
     "2.11.0": "2.11.0",
     "2.10.0": "2.10.0",
     "2.9.1":  "2.9.1",
@@ -108,7 +105,8 @@ def torch_requirements(*specs: str) -> List[str]:
         return list(specs)
 
     torch_specifier = _get_torch_specifier(specs)
-    resolution = _resolve_torch_and_channel(torch_specifier, driver_cuda)
+    torch_siblings = _get_torch_siblings(specs)
+    resolution = _resolve_torch_and_channel(torch_specifier, torch_siblings, driver_cuda)
 
     if resolution is None:
         logging.warning(
@@ -153,6 +151,7 @@ def _probe_driver_cuda_version() -> Optional[Tuple[int, int]]:
         return None
 
     match = re.search(r"CUDA Version:\s*(\d+)\.(\d+)", result.stdout)
+
     if match is None:
         return None
 
@@ -167,11 +166,29 @@ def _get_torch_specifier(specs: Iterable[str]) -> Optional[SpecifierSet]:
 
     return None
 
+def _get_torch_siblings(specs: Iterable[str]) -> List[str]:
+    siblings: List[str] = []
+
+    for spec in specs:
+        requirement = _parse_requirement(spec)
+
+        if requirement is None or requirement.url is not None:
+            continue
+
+        if requirement.name in _TORCH_SIBLING_TABLES and requirement.name not in siblings:
+            siblings.append(requirement.name)
+
+    return siblings
+
 def _resolve_torch_and_channel(
     torch_specifier: Optional[SpecifierSet],
+    torch_siblings: List[str],
     driver_cuda: Tuple[int, int],
 ) -> Optional[Tuple[str, str]]:
     for version in _candidate_torch_versions(torch_specifier):
+        if not all(version in _TORCH_SIBLING_TABLES[sibling] for sibling in torch_siblings):
+            continue
+
         channel = _pick_channel_for_driver(version, driver_cuda)
 
         if channel is not None:

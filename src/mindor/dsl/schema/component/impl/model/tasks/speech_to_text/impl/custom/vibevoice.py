@@ -11,7 +11,6 @@ class VibeVoiceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponent
     driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
     family: Literal[SpeechToTextModelFamily.VIBEVOICE]
     model: ModelConfig = Field(..., description="Model identifier — a HuggingFace repo ID or a local path; must be a VibeVoice ASR streaming checkpoint.")
-    compute_type: str = Field(default="auto", description="Numeric precision used for inference (e.g., bfloat16, float16, float32).")
     attn_implementation: Literal[ "sdpa", "flash_attention_2", "eager" ] = Field(default="sdpa", description="Attention kernel used by the underlying transformer.")
     actions: List[VibeVoiceSpeechToTextModelActionConfig] = Field(default_factory=list, description="Actions this speech-to-text component exposes to workflows.")
 

@@ -13,6 +13,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -169,7 +170,7 @@ class QwenTextToSpeechTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "transformers", "qwen_tts", "torch", "huggingface_hub", "numpy", "soundfile" ]
+        return [ *torch_requirements("torch"), "transformers", "qwen_tts", "huggingface_hub", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

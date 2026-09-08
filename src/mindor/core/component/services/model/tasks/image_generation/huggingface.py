@@ -5,6 +5,7 @@ from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
 from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, VaeConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.package.torch import torch_requirements
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
@@ -234,7 +235,7 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 @register_model_task_service(ModelTaskType.IMAGE_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskService[ImageGenerationActionMethod]):
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "diffusers", "transformers", "accelerate", "sentencepiece", "torch" ]
+        return [ *torch_requirements("torch"), "diffusers", "transformers", "accelerate", "sentencepiece" ]
 
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
         if method is None or method == ImageGenerationActionMethod.GENERATE:

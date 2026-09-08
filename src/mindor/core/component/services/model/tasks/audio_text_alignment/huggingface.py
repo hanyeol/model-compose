@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, AudioTextAlignmentModelA
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -242,9 +243,8 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
 class HuggingfaceAudioTextAlignmentTaskService(HuggingfaceMultimodalModelTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [
+            *torch_requirements("torch", "torchaudio"),
             "transformers>=4.21.0",
-            "torch",
-            "torchaudio>=2.1",
             "accelerate",
             "soxr",
         ]

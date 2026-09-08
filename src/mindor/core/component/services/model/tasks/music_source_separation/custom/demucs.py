@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, MusicSourceSeparationMod
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -136,7 +137,7 @@ class DemucsMusicSourceSeparationTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "demucs", "torch", "torchaudio", "numpy", "soxr" ]
+        return [ *torch_requirements("torch", "torchaudio"), "demucs", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.model, self.model_sample_rate, self.model_sources, self.device = await self._load_pretrained_model()

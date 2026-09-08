@@ -12,6 +12,7 @@ from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelDesignActionConfi
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_temporary_file
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -220,8 +221,7 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         # We still declare the runtime deps so the environment matches what the
         # inference paths expect.
         return [
-            "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
-            "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
+            *torch_requirements("torch==2.10.0", "torchaudio==2.10.0"),
             # torchaudio >=2.9 delegates audio decoding to torchcodec.
             # PyPI default targets CUDA 13; pull the cu128 variant from
             # PyTorch's index to match torch above.

@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, VibeVoiceSpeechToTextMod
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging
@@ -279,9 +280,8 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
         # the ASR modules; install from GitHub for the real classes.
         # `transformers==4.51.3` matches the checkpoints' `transformers_version`.
         return [
+            *torch_requirements("torch", "torchaudio"),
             "transformers==4.51.3",
-            "torch",
-            "torchaudio",
             "soxr",
             "vibevoice@git+https://github.com/microsoft/VibeVoice.git",
         ]

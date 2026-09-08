@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import TadaTextToSpeechModelCloneActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
@@ -108,7 +109,7 @@ class TadaTextToSpeechTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "tada-tts", "descript-audio-codec", "transformers", "torch", "huggingface_hub", "numpy", "soundfile" ]
+        return [ *torch_requirements("torch"), "tada-tts", "descript-audio-codec", "transformers", "huggingface_hub", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
         self.model, self.encoder, self.device = await self._load_pretrained_model()

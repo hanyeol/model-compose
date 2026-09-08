@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig, WanImageToVideoPre
 from mindor.dsl.schema.action import ModelActionConfig, WanImageToVideoModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import ImageToVideoTaskAction
 from PIL import Image as PILImage
@@ -117,8 +118,7 @@ class WanImageToVideoTaskService(ModelTaskService):
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [
-            "torch",
-            "torchvision",
+            *torch_requirements("torch", "torchvision"),
             "diffusers",
             "transformers",
             "accelerate",

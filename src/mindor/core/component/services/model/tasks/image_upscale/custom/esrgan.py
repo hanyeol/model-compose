@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, EsrganImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import ImageUpscaleTaskAction
@@ -154,7 +155,7 @@ class EsrganImageUpscaleTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "basicsr", "torch", "torchvision", "huggingface_hub" ]
+        return [ *torch_requirements("torch", "torchvision"), "basicsr", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, MusicSourceSeparationMod
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -231,7 +232,7 @@ class MdxNetMusicSourceSeparationTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "onnxruntime", "torch", "numpy", "soxr" ]
+        return [ *torch_requirements("torch"), "onnxruntime", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.session, self.input_name, self.device = await self._load_onnx_session()

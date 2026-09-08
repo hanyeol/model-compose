@@ -19,6 +19,7 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
@@ -500,13 +501,11 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
 
         # Pre-install packages that ace-step pulls from custom sources: pip ignores its
         # [tool.uv.sources] overrides, so any source-routed dependency must be resolved
-        # here before ace-step itself is processed. On macOS these come from plain PyPI
-        # (torch MPS build) or are excluded by marker (nano-vllm), so no pre-install needed.
+        # here before ace-step itself is processed. torch is pinned to 2.10.0 because
+        # nano-vllm and the shipped flash-attn wheel are built against that release.
         if sys.platform == "linux" and platform.machine() == "x86_64":
             requirements += [
-                "torch==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
-                "torchaudio==2.10.0+cu128@https://download.pytorch.org/whl/cu128",
-                "torchvision==0.25.0+cu128@https://download.pytorch.org/whl/cu128",
+                *torch_requirements("torch==2.10.0", "torchaudio==2.10.0", "torchvision==0.25.0"),
                 # The vendored fork (not upstream nano-vllm) is required — it maps the 5Hz
                 # LM checkpoint's flat Qwen3Model weight names onto Qwen3ForCausalLM.
                 # flash-attn is omitted; its wheel is pinned to cu128/torch2.10/cp312/

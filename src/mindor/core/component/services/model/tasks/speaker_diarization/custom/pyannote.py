@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, SpeakerDiarizationModelA
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import SpeakerDiarizationTaskAction
@@ -164,7 +165,7 @@ class PyannoteSpeakerDiarizationTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "pyannote.audio", "torch", "torchaudio", "numpy", "soxr" ]
+        return [ *torch_requirements("torch", "torchaudio"), "pyannote.audio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.pipeline, self.device = await self._load_pretrained_pipeline()

@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, FasterWhisperSpeechToTex
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -166,7 +167,7 @@ class FasterWhisperSpeechToTextTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "faster-whisper", "torch", "torchaudio", "numpy", "soxr" ]
+        return [ *torch_requirements("torch", "torchaudio"), "faster-whisper", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

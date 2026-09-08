@@ -5,6 +5,7 @@ from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageBackgroundRemovalModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageBackgroundRemovalModelArchitecture, ModelConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.package.torch import torch_requirements
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
@@ -81,7 +82,7 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 @register_model_task_service(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageBackgroundRemovalTaskService(HuggingfaceMultimodalModelTaskService):
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "transformers", "torch", "torchvision", "accelerate", "timm", "kornia" ]
+        return [ *torch_requirements("torch", "torchvision"), "transformers", "accelerate", "timm", "kornia" ]
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageBackgroundRemovalModelArchitecture.AUTO:

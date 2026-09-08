@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from pydantic import BaseModel
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, DeviceMode
+from mindor.core.foundation.package.torch import torch_requirements
 from .common import ModelTaskService
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ class UnslothModelTaskService(ModelTaskService):
         self.tokenizer: Optional[PreTrainedTokenizer] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "unsloth", "transformers", "torch" ]
+        return [ *torch_requirements("torch"), "unsloth", "transformers" ]
 
     async def _load_model(self) -> None:
         self.model, self.tokenizer = await self._load_pretrained_model()

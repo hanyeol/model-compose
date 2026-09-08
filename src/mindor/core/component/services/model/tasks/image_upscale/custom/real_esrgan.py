@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, RealEsrganImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ..common import ImageUpscaleTaskAction
 from ....base import ComponentActionContext, ModelTaskService
@@ -86,7 +87,7 @@ class RealEsrganImageUpscaleTaskService(ModelTaskService):
             hub.cached_download = _raise_not_implemented
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git", "torch", "huggingface_hub" ]
+        return [ *torch_requirements("torch"), "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

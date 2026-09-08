@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from .base import HuggingfaceModelTaskService
 
@@ -20,9 +21,9 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [
+            *torch_requirements("torch"),
             "transformers>=4.21.0",
             "peft>=0.5.0",
-            "torch",
             "sentencepiece",
             "accelerate"
         ]

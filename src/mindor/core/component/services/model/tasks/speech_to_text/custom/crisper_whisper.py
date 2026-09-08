@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, CrisperWhisperSpeechToTe
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -243,7 +244,7 @@ class CrisperWhisperSpeechToTextTaskService(ModelTaskService):
         # `crisperwhisper[transformers]` covers the portable pure-torch backend;
         # users who want the ct2 (Linux NVIDIA) fast path can install
         # crisperwhisper[ct2] separately.
-        return [ "crisperwhisper[transformers]", "torchaudio", "soxr" ]
+        return [ *torch_requirements("torchaudio"), "crisperwhisper[transformers]", "soxr" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

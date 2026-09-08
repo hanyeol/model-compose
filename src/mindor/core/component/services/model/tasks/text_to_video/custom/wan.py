@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig, WanTextToVideoPres
 from mindor.dsl.schema.action import ModelActionConfig, WanTextToVideoModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TextToVideoTaskAction
 import io
@@ -110,8 +111,7 @@ class WanTextToVideoTaskService(ModelTaskService):
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [
-            "torch",
-            "torchvision",
+            *torch_requirements("torch", "torchvision"),
             "diffusers",
             "transformers",
             "accelerate",

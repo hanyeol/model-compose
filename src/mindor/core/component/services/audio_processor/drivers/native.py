@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
 from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
+from mindor.core.foundation.package.torch import torch_requirements
 from ..base import AudioProcessorService, AudioProcessorDriver, register_audio_processor_service
 from ..base import ComponentActionContext
 from .common import AudioProcessorAction
@@ -927,7 +928,7 @@ class NativeAudioProcessorService(AudioProcessorService):
         super().__init__(id, config, daemon)
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "pedalboard", "numpy", "torchaudio", "soxr", "pyloudnorm", "librosa" ]
+        return [ *torch_requirements("torchaudio"), "pedalboard", "numpy", "soxr", "pyloudnorm", "librosa" ]
 
     async def _run(self, action: AudioProcessorActionConfig, context: ComponentActionContext) -> Any:
         return await NativeAudioProcessorAction(action).run(context)

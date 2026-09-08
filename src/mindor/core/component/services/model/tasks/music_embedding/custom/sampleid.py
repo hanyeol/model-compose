@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, MusicEmbeddingModelActio
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import MusicEmbeddingTaskAction
@@ -98,9 +99,8 @@ class SampleidMusicEmbeddingTaskService(ModelTaskService):
 
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [
+            *torch_requirements("torch", "torchaudio"),
             "sampleid@git+https://github.com/sony/sampleid.git",
-            "torch",
-            "torchaudio",
             "soxr",
         ]
 

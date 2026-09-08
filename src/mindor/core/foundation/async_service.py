@@ -1,6 +1,6 @@
 from typing import Optional, List, Callable, Awaitable, Any
 from abc import ABC
-from .package import install_package, parse_requirement, is_requirement_satisfied
+from .package.installer import install_package, parse_requirement, is_requirement_satisfied
 from threading import Thread
 import asyncio, time
 

@@ -9,6 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import SpeechToTextTaskAction
@@ -192,7 +193,7 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "funasr>=1.3.26", "torch", "torchaudio", "numpy", "soxr" ]
+        return [ *torch_requirements("torch", "torchaudio"), "funasr>=1.3.26", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

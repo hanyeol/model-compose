@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import KokoroTextToSpeechModelGenerateActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -121,7 +122,7 @@ class KokoroTextToSpeechTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "kokoro", "torch", "numpy", "soundfile" ]
+        return [ *torch_requirements("torch"), "kokoro", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)

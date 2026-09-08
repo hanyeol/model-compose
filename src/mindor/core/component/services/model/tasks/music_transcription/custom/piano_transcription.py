@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.files import get_temporary_path
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
@@ -167,7 +168,7 @@ class PianoTranscriptionMusicTranscriptionTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "piano_transcription_inference", "torch", "numpy", "soxr" ]
+        return [ *torch_requirements("torch"), "piano_transcription_inference", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
         self.transcriptor, self.device = await self._load_transcriptor()

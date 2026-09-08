@@ -233,8 +233,8 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         for segment in self.processor.post_process_transcription(text):
             text       = segment.get("text", "")
-            start_time = parse_timecode(segment["start_time"])
-            end_time   = parse_timecode(segment["end_time"])
+            start_time = self._parse_time(segment["start_time"])
+            end_time   = self._parse_time(segment["end_time"])
             speaker_id = segment.get("speaker_id")
 
             segments.append(self._build_segment(
@@ -263,6 +263,15 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
             segment["speaker_id"] = speaker_id
 
         return segment
+
+    @staticmethod
+    def _parse_time(value: Any) -> float:
+        # VibeVoice emits timestamps as JSON numbers (int when whole seconds,
+        # float otherwise) but occasionally as "HH:MM:SS(.sss)" strings.
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        return parse_timecode(value)
 
 class VibeVoiceSpeechToTextTaskService(ModelTaskService):
     config: VibeVoiceSpeechToTextModelComponentConfig

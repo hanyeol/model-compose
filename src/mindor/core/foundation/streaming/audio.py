@@ -766,14 +766,14 @@ class AudioBufferStreamer:
         head = bytearray()
         stream = aiter(source.stream)
 
-        async def _read_head_until(min_size: int) -> None:
+        async def _read_head_at_least(size: int) -> None:
             try:
-                while len(head) < min_size:
+                while len(head) < size:
                     head.extend(await anext(stream))
             except StopAsyncIteration:
                 pass
 
-        await _read_head_until(16)
+        await _read_head_at_least(16)
 
         format: Optional[str] = None
         attrs: Dict[str, Any] = dict(source.attrs)
@@ -781,7 +781,7 @@ class AudioBufferStreamer:
         if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
             format = "wav"
 
-            await _read_head_until(4096)
+            await _read_head_at_least(4096)
             header = parse_wav_header(bytes(head))
 
             if header is not None:
@@ -789,7 +789,7 @@ class AudioBufferStreamer:
         elif head[:4] == b"fLaC":
             format = "flac"
 
-            await _read_head_until(42)
+            await _read_head_at_least(42)
             header = parse_flac_header(bytes(head))
 
             if header is not None:

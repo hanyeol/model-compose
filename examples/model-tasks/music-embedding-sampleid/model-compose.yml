@@ -27,9 +27,10 @@ component:
   max_concurrent_count: 1
   runtime:
     type: virtualenv
-    driver: python                           # default; uses `python -m venv`
-    path: .venv/vibevoice                    # relative to cwd; created on first run
-    start_timeout: 600s                      # first run downloads the 7B checkpoint and installs deps
+    driver: pyenv                            # sampleid requires Python >= 3.12
+    python: "3.12"                           # must already be installed via `pyenv install 3.12`
+    path: .venv/sampleid                     # relative to cwd; created on first run
+    start_timeout: 600s                      # first run installs sampleid from GitHub and downloads the checkpoint (~200 MB)
     stop_timeout: 30s
   action:
     audio: ${input.audio as audio}

@@ -78,7 +78,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         video_format  = self._resolve_container_format(encoding)
         video_codec   = self._resolve_video_codec(encoding, system)
         video_bitrate = encoding.video.bitrate if encoding and encoding.video and encoding.video.bitrate else None
-        video_crf     = encoding.video.crf if encoding and encoding.video and encoding.video.crf is not None else None
+        video_quality = encoding.video.quality if encoding and encoding.video and encoding.video.quality is not None else None
 
         command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_video_input_args(system, device, framerate, resolution, pixel_format))
@@ -113,8 +113,8 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         if video_codec == "libx264":
             command.extend([ "-x264opts", "colorprim=bt709:transfer=bt709:colormatrix=bt709" ])
 
-        if video_crf is not None:
-            command.extend([ "-crf", str(video_crf) ])
+        if video_quality is not None:
+            command.extend([ "-crf", str(video_quality) ])
         elif video_bitrate:
             command.extend([ "-b:v", str(video_bitrate) ])
 

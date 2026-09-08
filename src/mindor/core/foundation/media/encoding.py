@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class VideoEncoderParams:
     codec: Optional[str] = None
     bitrate: Optional[int] = None
-    crf: Optional[int] = None
+    quality: Optional[int] = None
     resolution: Optional[str] = None
     fps: Optional[float] = None
 

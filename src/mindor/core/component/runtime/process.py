@@ -1,5 +1,4 @@
 from typing import Optional, Tuple
-from multiprocessing import Queue
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
@@ -7,7 +6,11 @@ from mindor.core.component.runtime.common import ComponentRuntimeManager, Compon
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from mindor.core.runtime.process import ProcessRuntime
-import asyncio
+import asyncio, multiprocessing
+
+# Match the spawn context used by ProcessRuntime so queue handles are picklable
+# by the child (fork-context queues cannot be handed to a spawn-context child).
+Queue = multiprocessing.get_context("spawn").Queue
 
 class ComponentProcessRuntimeWorker(ComponentRuntimeWorker):
     """Worker that runs inside the child process and hosts an embedded component."""

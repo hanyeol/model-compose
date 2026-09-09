@@ -1,8 +1,15 @@
 from typing import Any, Callable, Optional
-from multiprocessing import Process
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.foundation.variable.time import parse_time
-import asyncio, os
+from multiprocessing import Process
+import asyncio, multiprocessing, os
+
+# Use `spawn` explicitly. Linux defaults to `fork`, which duplicates the entire
+# parent state (open fds, threads, partially-initialized CUDA / asyncio loops,
+# multiprocessing exit hooks). That has caused runaway child re-spawns and
+# blocks the controller shutdown path. `spawn` starts a fresh interpreter and
+# only receives what we pass through pickled args.
+_SPAWN_CONTEXT = multiprocessing.get_context("spawn")
 
 class ProcessRuntime:
     """Generic lifecycle wrapper around a `multiprocessing.Process`.
@@ -40,7 +47,7 @@ class ProcessRuntime:
             for key, value in self.config.env.items():
                 os.environ[key] = value
 
-        self._subprocess = Process(
+        self._subprocess = _SPAWN_CONTEXT.Process(
             target=self.target,
             args=self.args,
             daemon=False,

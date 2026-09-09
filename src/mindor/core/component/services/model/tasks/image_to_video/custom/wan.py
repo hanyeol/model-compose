@@ -141,7 +141,19 @@ class WanImageToVideoTaskService(ModelTaskService):
 
         task = _WAN_I2V_TASKS[self.config.preset]
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        device_id = self.device.index if self.device.type == "cuda" and self.device.index is not None else 0
+
+        # Wan2.2's WanI2V / WanTI2V hardcode `self.device = torch.device(f"cuda:{device_id}")`
+        # and use torch.cuda.amp throughout — there is no viable non-CUDA path
+        # today. Fail loudly rather than let the pipeline crash mid-generation
+        # with an opaque CUDA error.
+        if self.device.type != "cuda":
+            raise RuntimeError(
+                f"Component '{self.id}': Wan image-to-video requires a CUDA device, "
+                f"but resolved device is '{self.device.type}'. Set component.device to "
+                "'cuda' or a specific 'cuda:N' index."
+            )
+
+        device_id = self.device.index if self.device.index is not None else 0
 
         if self.config.preset == WanImageToVideoPreset.I2V_A14B:
             return wan.WanI2V(config=WAN_CONFIGS[task], checkpoint_dir=model_path, device_id=device_id)

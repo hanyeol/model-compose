@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Dict, Optional, List, Tuple, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import CosyvoiceTextToSpeechModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelGenerateActionConfig
@@ -209,7 +209,9 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
         )
 
 class CosyvoiceTextToSpeechTaskService(ModelTaskService):
-    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+    config: CosyvoiceTextToSpeechModelComponentConfig
+
+    def __init__(self, id: str, config: CosyvoiceTextToSpeechModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
         self.model: Optional[Any] = None
@@ -291,12 +293,15 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         model_dir = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        # jit/trt/vllm/fp16 are CUDA-only; AutoModel warns and silently disables
-        # them on CPU, but we filter here so the intent is visible in logs.
-        load_jit  = bool(getattr(self.config, "load_jit",  False)) and device.type == "cuda"
-        load_trt  = bool(getattr(self.config, "load_trt",  False)) and device.type == "cuda"
-        load_vllm = bool(getattr(self.config, "load_vllm", False)) and device.type == "cuda"
-        fp16      = bool(getattr(self.config, "fp16",      False)) and device.type == "cuda"
+        # jit/trt/vllm/fp16 are CUDA-only upstream: CosyVoice's AutoModel gates
+        # them behind torch.cuda.is_available() and silently disables them on
+        # any other backend (mps included). We filter here so the intent is
+        # visible in our logs rather than as an upstream warning.
+        is_cuda = device.type == "cuda"
+        load_jit  = self.config.load_jit  and is_cuda
+        load_trt  = self.config.load_trt  and is_cuda
+        load_vllm = self.config.load_vllm and is_cuda
+        fp16      = self.config.fp16      and is_cuda
 
         # AutoModel returns CosyVoice / CosyVoice2 / CosyVoice3. Only v2/v3
         # accept load_vllm, so pass it conditionally by peeking at the yaml.
@@ -306,15 +311,11 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
             "load_trt":  load_trt,
             "fp16":      fp16,
         }
-        resolved_dir = model_dir if os.path.exists(model_dir) else None
-        if resolved_dir and (
-            os.path.exists(os.path.join(resolved_dir, "cosyvoice2.yaml")) or
-            os.path.exists(os.path.join(resolved_dir, "cosyvoice3.yaml"))
-        ):
-            params["load_vllm"] = load_vllm
-        elif load_vllm:
-            # We don't yet know the version (AutoModel will download); attempt
-            # anyway and let AutoModel raise a clear TypeError if unsupported.
+
+        cosyvoice2_yaml = os.path.join(model_dir, "cosyvoice2.yaml")
+        cosyvoice3_yaml = os.path.join(model_dir, "cosyvoice3.yaml")
+
+        if load_vllm or (os.path.exists(cosyvoice2_yaml) or os.path.exists(cosyvoice3_yaml)):
             params["load_vllm"] = load_vllm
 
         model = AutoModel(**params)

@@ -256,10 +256,16 @@ controller:
 | [`showcase/`](examples/showcase/) | 端到端管道：磁盘分析、基于人脸的场景搜索、实时 TTS |
 | [`model-providers/`](examples/model-providers/) | OpenAI、Anthropic、xAI、Google、ElevenLabs、vLLM |
 | [`model-tasks/`](examples/model-tasks/) | 本地聊天、嵌入、TTS、VLM、人脸嵌入等 |
+| [`media-processing/`](examples/media-processing/) | 音频/视频/图像处理：提取、转换、场景检测 |
+| [`media-broadcast/`](examples/media-broadcast/) | 直播管道（例如通过 RTMP 推送到 YouTube Live） |
+| [`web-automation/`](examples/web-automation/) | 网页抓取、无头浏览器自动化、页面捕获 |
+| [`text-processing/`](examples/text-processing/) | 文本切分与预处理 |
 | [`mcp-servers/`](examples/mcp-servers/) | 构建暴露给 Claude、Cursor、ChatGPT 的 MCP 服务器 |
 | [`workflow-queue/`](examples/workflow-queue/) | 基于 Redis 的分布式分发（流式 + 非流式） |
 | [`data-streaming/`](examples/data-streaming/) | video-to-frames、YouTube 实时聊天、流式输入 |
+| [`job-flow/`](examples/job-flow/) | 工作流控制：条件路由、钩子、中断 |
 | [`integrations/`](examples/integrations/) | 向量/图/KV 存储、搜索引擎、通道、隧道 |
+| [`runtime/`](examples/runtime/) | 组件执行运行时：Docker、Apple Container、virtualenv 等 |
 
 完整目录位于 [examples/README.md](examples/README.zh-cn.md)。
 

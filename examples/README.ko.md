@@ -69,6 +69,7 @@ HUGGINGFACE_TOKEN=your-token-here
 | [`agents/`](./agents/) | ReAct 루프와 도구 사용을 활용한 자율 에이전트 |
 | [`showcase/`](./showcase/) | 여러 컴포넌트를 조합한 end-to-end 파이프라인 |
 | [`media-processing/`](./media-processing/) | 오디오, 비디오, 이미지 처리 컴포넌트 |
+| [`media-broadcast/`](./media-broadcast/) | 라이브 방송 파이프라인 (RTMP, YouTube Live) |
 | [`web-automation/`](./web-automation/) | 웹 스크래핑과 브라우저 자동화 |
 | [`text-processing/`](./text-processing/) | 텍스트 분할과 전처리 |
 | [`data-streaming/`](./data-streaming/) | 스트리밍 입출력 (프레임, 라이브 채팅) |
@@ -189,6 +190,12 @@ ReAct 루프와 도구 사용을 활용한 자율 에이전트.
 - [video-scene-detector](./media-processing/video-scene-detector/) — 비디오 장면 변화 감지
 - [image-processor](./media-processing/image-processor/) — 리사이즈, 크롭, 회전, 필터, 조정
 - [image-processor-dual-input](./media-processing/image-processor-dual-input/) — URL + 업로드 이미지 처리
+
+### Media Broadcast
+
+라이브 방송 파이프라인.
+
+- [youtube-live](./media-broadcast/youtube-live/) — 공유 데이터 큐 기반 연속 YouTube Live RTMP 송출
 
 ### Web Automation
 

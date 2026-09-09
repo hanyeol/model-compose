@@ -256,10 +256,16 @@ Browse examples by category:
 | [`showcase/`](examples/showcase/) | End-to-end pipelines: disk analysis, face-based scene search, real-time TTS |
 | [`model-providers/`](examples/model-providers/) | OpenAI, Anthropic, xAI, Google, ElevenLabs, vLLM |
 | [`model-tasks/`](examples/model-tasks/) | Local chat, embedding, TTS, VLM, face embedding, ... |
+| [`media-processing/`](examples/media-processing/) | Audio/video/image processing: extraction, conversion, scene detection |
+| [`media-broadcast/`](examples/media-broadcast/) | Live broadcasting pipelines (e.g. YouTube Live over RTMP) |
+| [`web-automation/`](examples/web-automation/) | Web scraping, headless browser automation, page capture |
+| [`text-processing/`](examples/text-processing/) | Text chunking and preprocessing |
 | [`mcp-servers/`](examples/mcp-servers/) | Build MCP servers exposed to Claude, Cursor, ChatGPT |
 | [`workflow-queue/`](examples/workflow-queue/) | Redis-backed distributed dispatch (streaming + non-streaming) |
 | [`data-streaming/`](examples/data-streaming/) | Video-to-frames, YouTube live chat, streaming inputs |
+| [`job-flow/`](examples/job-flow/) | Workflow control: conditional routing, hooks, interrupts |
 | [`integrations/`](examples/integrations/) | Vector/graph/KV stores, search engines, channels, tunnels |
+| [`runtime/`](examples/runtime/) | Component execution runtimes: Docker, Apple Container, virtualenv, ... |
 
 Browse the full catalog in [examples/README.md](examples/README.md).
 

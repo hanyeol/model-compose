@@ -69,6 +69,7 @@ The examples are organized into the following top-level categories:
 | [`agents/`](./agents/) | Autonomous agents with ReAct loops and tool use |
 | [`showcase/`](./showcase/) | End-to-end pipelines combining multiple components |
 | [`media-processing/`](./media-processing/) | Audio, video, and image processing components |
+| [`media-broadcast/`](./media-broadcast/) | Live broadcasting pipelines (RTMP, YouTube Live) |
 | [`web-automation/`](./web-automation/) | Web scraping and browser automation |
 | [`text-processing/`](./text-processing/) | Text splitting and preprocessing |
 | [`data-streaming/`](./data-streaming/) | Streaming inputs/outputs (frames, live chat) |
@@ -189,6 +190,12 @@ Audio, video, and image processing components.
 - [video-scene-detector](./media-processing/video-scene-detector/) — Detect scene changes in videos
 - [image-processor](./media-processing/image-processor/) — Resize, crop, rotate, filter, adjust
 - [image-processor-dual-input](./media-processing/image-processor-dual-input/) — Image processing from URL + upload
+
+### Media Broadcast
+
+Live broadcasting pipelines.
+
+- [youtube-live](./media-broadcast/youtube-live/) — Continuous YouTube Live RTMP broadcasting driven by a shared data queue
 
 ### Web Automation
 

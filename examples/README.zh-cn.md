@@ -69,6 +69,7 @@ HUGGINGFACE_TOKEN=your-token-here
 | [`agents/`](./agents/) | 使用 ReAct 循环和工具调用的自主智能体 |
 | [`showcase/`](./showcase/) | 组合多个组件的端到端管道 |
 | [`media-processing/`](./media-processing/) | 音频、视频、图像处理组件 |
+| [`media-broadcast/`](./media-broadcast/) | 直播管道（RTMP、YouTube Live） |
 | [`web-automation/`](./web-automation/) | 网页抓取和浏览器自动化 |
 | [`text-processing/`](./text-processing/) | 文本分割和预处理 |
 | [`data-streaming/`](./data-streaming/) | 流式输入/输出（帧、实时聊天） |
@@ -189,6 +190,12 @@ HUGGINGFACE_TOKEN=your-token-here
 - [video-scene-detector](./media-processing/video-scene-detector/) — 检测视频场景变化
 - [image-processor](./media-processing/image-processor/) — 缩放、裁剪、旋转、滤镜、调整
 - [image-processor-dual-input](./media-processing/image-processor-dual-input/) — URL + 上传双输入图像处理
+
+### Media Broadcast
+
+直播管道。
+
+- [youtube-live](./media-broadcast/youtube-live/) — 基于共享数据队列的连续 YouTube Live RTMP 推流
 
 ### Web Automation
 

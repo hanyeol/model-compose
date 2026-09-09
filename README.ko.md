@@ -256,10 +256,16 @@ controller:
 | [`showcase/`](examples/showcase/) | end-to-end 파이프라인: 디스크 분석, 얼굴 기반 장면 검색, 실시간 TTS |
 | [`model-providers/`](examples/model-providers/) | OpenAI, Anthropic, xAI, Google, ElevenLabs, vLLM |
 | [`model-tasks/`](examples/model-tasks/) | 로컬 챗, 임베딩, TTS, VLM, 얼굴 임베딩, ... |
+| [`media-processing/`](examples/media-processing/) | 오디오/비디오/이미지 처리: 추출, 변환, 장면 감지 |
+| [`media-broadcast/`](examples/media-broadcast/) | 라이브 방송 파이프라인 (예: RTMP로 YouTube Live 송출) |
+| [`web-automation/`](examples/web-automation/) | 웹 스크레이핑, 헤드리스 브라우저 자동화, 페이지 캡처 |
+| [`text-processing/`](examples/text-processing/) | 텍스트 청킹 및 전처리 |
 | [`mcp-servers/`](examples/mcp-servers/) | Claude, Cursor, ChatGPT에 노출할 MCP 서버 구축 |
 | [`workflow-queue/`](examples/workflow-queue/) | Redis 기반 분산 디스패치 (스트리밍 + 논-스트리밍) |
 | [`data-streaming/`](examples/data-streaming/) | video-to-frames, YouTube 라이브 채팅, 스트리밍 입력 |
+| [`job-flow/`](examples/job-flow/) | 워크플로 제어: 조건부 라우팅, 훅, 인터럽트 |
 | [`integrations/`](examples/integrations/) | 벡터/그래프/KV 스토어, 검색 엔진, 채널, 터널 |
+| [`runtime/`](examples/runtime/) | 컴포넌트 실행 런타임: Docker, Apple Container, virtualenv, ... |
 
 전체 목록은 [examples/README.md](examples/README.ko.md)에서 확인할 수 있습니다.
 

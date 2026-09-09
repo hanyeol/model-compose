@@ -1626,7 +1626,7 @@ Returns a single mp4 stream (or a list of streams for batched inputs), each with
 
 ### Text to Speech
 
-Generate speech audio from text using TTS models. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field to select the generation method.
+Generate speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field on the action to select the generation method. Supported families: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`.
 
 **Component Settings:**
 
@@ -1634,21 +1634,39 @@ Generate speech audio from text using TTS models. This task uses `driver: custom
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `text-to-speech` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (currently `qwen`) |
-| `model` | string | **required** | Model identifier |
-| `method` | string | **required** | Generation method: `generate`, `clone`, `design` |
+| `family` | string | **required** | Model family: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3` |
+| `model` | string / config | **required** | Model source (HuggingFace repo, local path, or named model) |
+
+Each family may add its own component-level fields (e.g. `preset`, CUDA acceleration flags). See the family sections below.
 
 **Common Action Fields:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | TTS generation method |
-| `text` | string/array | **required** | Text to synthesize into speech |
-| `language` | string | `null` | Language of the text using [standardized codes](../language-codes.md) |
+| `method` | string | **required** | TTS generation method — one of `generate`, `clone`, `design`, `edit`. Availability depends on the family. |
+| `text` | string / array | **required** | Text (or list of texts) to synthesize |
+| `language` | string | `null` | Text language as an ISO 639-1 or BCP 47 code (see [language codes](../language-codes.md)). Only used by families that condition on language. |
+| `batch_size` | int | `1` | Number of input texts processed per batch |
 
-#### Method: `generate`
+**Method Availability by Family:**
 
-Generate speech using a built-in voice with optional style instructions:
+| Family | `generate` | `clone` | `design` | `edit` |
+|--------|:---:|:---:|:---:|:---:|
+| `qwen` | ✅ | ✅ | ✅ | — |
+| `kokoro` | ✅ | — | — | — |
+| `chatterbox` | ✅ | ✅ | — | — |
+| `luxtts` | — | ✅ | — | — |
+| `tada` | — | ✅ | — | — |
+| `cosyvoice` | ✅ | ✅ | ✅ | — |
+| `fireredtts3` | — | ✅ | ✅ | ✅ |
+
+#### Family: `qwen`
+
+Alibaba Qwen3-TTS. Supports built-in voices, cloning, and voice design from natural-language descriptions.
+
+**Component fields:** inherits common model fields only.
+
+**Method: `generate`**
 
 ```yaml
 component:
@@ -1658,7 +1676,6 @@ component:
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
   device: cuda:0
-  max_concurrent_count: 1
   action:
     method: generate
     text: ${input.text as text}
@@ -1668,12 +1685,10 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `voice` | string | `vivian` | Built-in voice name |
+| `voice` | string | `vivian` | Built-in Qwen voice name |
 | `instructions` | string | `""` | Emotion/style instructions for the voice |
 
-#### Method: `clone`
-
-Clone a voice from reference audio and generate speech:
+**Method: `clone`**
 
 ```yaml
 component:
@@ -1683,22 +1698,19 @@ component:
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-Base
   device: cuda:0
-  max_concurrent_count: 1
   action:
     method: clone
     text: ${input.text as text}
-    ref_audio: ${input.ref_audio as audio}
-    ref_text: ${input.ref_text as text}
+    reference_audio: ${input.reference_audio as audio}
+    reference_text: ${input.reference_text as text}
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `ref_audio` | string | **required** | Path or URL to the reference audio for voice cloning |
-| `ref_text` | string | **required** | Transcription text of the reference audio |
+| `reference_audio` | string | **required** | Reference audio to clone the voice from |
+| `reference_text` | string | **required** | Transcript of the reference audio |
 
-#### Method: `design`
-
-Design a new voice from a natural language description and generate speech:
+**Method: `design`**
 
 ```yaml
 component:
@@ -1708,7 +1720,6 @@ component:
   family: qwen
   model: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
   device: cuda:0
-  max_concurrent_count: 1
   action:
     method: design
     text: ${input.text as text}
@@ -1717,15 +1728,354 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `instructions` | string | **required** | Description of the desired voice |
+| `instructions` | string | **required** | Natural-language description of the desired voice |
 
-#### Supported Models (Qwen Family)
+**Suggested checkpoints:**
 
 | Model | Method | Description |
 |-------|--------|-------------|
 | `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` | `generate` | Built-in voices with style control |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | `clone` | Voice cloning from reference audio |
 | `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` | `design` | Voice design from text description |
+
+Languages: English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian (resolved from the ISO 639-1 prefix of `language`).
+
+#### Family: `kokoro`
+
+Kokoro TTS. Lightweight synthesis with preset voices. `generate` only.
+
+**Component fields:** inherits common model fields only.
+
+**Method: `generate`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: kokoro
+  model: hexgrad/Kokoro-82M
+  device: cuda:0
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | af_heart}
+    speed: ${input.speed | 1.0}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `voice` | string | `af_heart` | Kokoro voice ID (e.g. `af_heart`, `af_bella`, `am_michael`) |
+| `speed` | float | `1.0` | Speech speed multiplier; `1.0` is natural |
+
+Languages: American English (`en`), British English (`en-GB`), Japanese (`ja`), Mandarin Chinese (`zh`), Spanish (`es`), French (`fr`), Hindi (`hi`), Italian (`it`), Brazilian Portuguese (`pt-BR`). Output sample rate: 24 kHz.
+
+#### Family: `chatterbox`
+
+Resemble AI Chatterbox. Supports preset synthesis and zero-shot cloning with emotion controls.
+
+**Component fields:** inherits common model fields only.
+
+**Method: `generate`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: chatterbox
+  model: ResembleAI/chatterbox
+  device: cuda:0
+  action:
+    method: generate
+    text: ${input.text as text}
+    exaggeration: ${input.exaggeration | 0.5}
+    cfg_weight: ${input.cfg_weight | 0.5}
+    temperature: ${input.temperature | 0.8}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `exaggeration` | float | — | Emotional exaggeration; `0.0` monotone, `1.0` dramatic |
+| `cfg_weight` | float | — | Classifier-free guidance weight |
+| `temperature` | float | — | Sampling temperature |
+
+**Method: `clone`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: chatterbox
+  model: ResembleAI/chatterbox
+  device: cuda:0
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reference_audio` | string | **required** | Reference audio (5 s+ recommended) |
+| `exaggeration` | float | — | Emotional exaggeration |
+| `cfg_weight` | float | — | Classifier-free guidance weight |
+| `temperature` | float | — | Sampling temperature |
+
+#### Family: `luxtts`
+
+LuxTTS. Zero-shot cloning with fine-grained flow-matching controls. `clone` only.
+
+**Component fields:** inherits common model fields only.
+
+**Method: `clone`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: luxtts
+  model: BeaverAI/luxtts-v1
+  device: cuda:0
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    num_steps: 4
+    guidance_scale: 3.0
+    speed: 1.0
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reference_audio` | string | **required** | Reference audio for zero-shot voice cloning |
+| `reference_duration` | int | `5` | Reference clip duration in seconds |
+| `reference_rms` | float | `0.01` | Target RMS normalization for the reference clip |
+| `num_steps` | int | `4` | Flow-matching solver steps; higher = better quality, slower |
+| `guidance_scale` | float | `3.0` | Classifier-free guidance scale |
+| `t_shift` | float | `0.5` | Flow-matching time shift |
+| `speed` | float | `1.0` | Speech speed multiplier |
+| `seed` | int | — | Random seed for reproducibility |
+
+Output sample rate: 48 kHz. On CPU, thread count is auto-clamped to `min(cpu_count, 8)`.
+
+#### Family: `tada`
+
+Hume TADA. Zero-shot cloning with an optional built-in ASR (English only) when the reference transcript is omitted. `clone` only.
+
+**Component fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tokenizer` | string | `unsloth/Llama-3.2-1B` | HuggingFace repo ID for the tokenizer (ungated Llama-3.2-1B mirror) |
+
+**Method: `clone`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: tada
+  model:
+    repository: HumeAI/tada-v0.1
+    allow_patterns: ["*.safetensors", "*.json", "*.txt", "*.bin", "*.model"]
+  device: cuda:0
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    reference_text: ${input.reference_text | ""}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reference_audio` | string | **required** | Reference audio for voice cloning |
+| `reference_text` | string | — | Transcript of the reference audio; omit to use TADA's built-in English ASR |
+| `seed` | int | — | Random seed for reproducibility |
+
+Output sample rate: 24 kHz. On CUDA/XPU the model uses bfloat16 when supported; MPS falls back to CPU due to flow-matching instability on Apple Silicon.
+
+#### Family: `cosyvoice`
+
+FunAudioLLM CosyVoice / CosyVoice2 / CosyVoice3. AutoModel picks the version by inspecting `cosyvoice{,2,3}.yaml` inside the model directory.
+
+The runtime downloads and installs the `cosyvoice` and `matcha` packages from GitHub on first startup (pinned commits). No `git` CLI is required.
+
+**Component fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `load_jit` | bool | `false` | Load JIT-compiled modules (CUDA only; silently ignored on CPU) |
+| `load_trt` | bool | `false` | Load TensorRT engines (CUDA only) |
+| `load_vllm` | bool | `false` | Load vLLM runtime for the LLM stage (CosyVoice2/3 on CUDA only) |
+| `fp16` | bool | `false` | Run inference in fp16 precision (CUDA only) |
+
+**Method: `generate`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: cosyvoice
+  model: FunAudioLLM/CosyVoice-300M-SFT
+  device: cuda:0
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice}
+    speed: 1.0
+    text_frontend: true
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `voice` | string | **required** | Built-in speaker ID (SFT), or a pre-registered zero-shot speaker on CosyVoice2/3 |
+| `speed` | float | `1.0` | Speech speed multiplier |
+| `text_frontend` | bool | `true` | Run CosyVoice's text-normalization frontend |
+
+**Method: `clone`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: cosyvoice
+  model: FunAudioLLM/CosyVoice2-0.5B
+  device: cuda:0
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    reference_text: ${input.reference_text | ""}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reference_audio` | string | **required** | Reference audio for zero-shot voice cloning |
+| `reference_text` | string | — | Transcript of the reference audio; when provided uses zero-shot inference, otherwise cross-lingual |
+| `speed` | float | `1.0` | Speech speed multiplier |
+| `text_frontend` | bool | `true` | Run text-normalization frontend |
+
+**Method: `design`**
+
+CosyVoice2/3 only. `inference_instruct2` under the hood.
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: cosyvoice
+  model: FunAudioLLM/CosyVoice2-0.5B
+  device: cuda:0
+  action:
+    method: design
+    text: ${input.text as text}
+    instructions: ${input.instructions as text}
+    reference_audio: ${input.reference_audio as audio}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `instructions` | string | **required** | Natural-language instruction for style, dialect, or emotion |
+| `reference_audio` | string | **required** | Prompt audio for voice conditioning |
+| `speed` | float | `1.0` | Speech speed multiplier |
+| `text_frontend` | bool | `true` | Run text-normalization frontend |
+
+Output sample rate: 24 kHz (model default). Calling `design` on CosyVoice1 raises a runtime error.
+
+#### Family: `fireredtts3`
+
+FireRedTeam FireRedTTS3. Two presets share the family: `base` for cloning, `instruct` for cloning plus voice design and audio editing.
+
+The runtime downloads and installs the `fireredtts3` package from GitHub on first startup (pinned commit).
+
+**Component fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `preset` | string | `base` | `base` (FireRedTTS3 checkpoint) or `instruct` (FireRedTTS3-Instruct). `design` and `edit` require `instruct`. |
+
+**Method: `clone`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: fireredtts3
+  preset: base
+  model: FireRedTeam/FireRedTTS3
+  device: cuda:0
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    reference_text: ${input.reference_text | ""}
+    language: ${input.language | en}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reference_audio` | string | **required** | Reference audio for zero-shot voice cloning |
+| `reference_text` | string | — | Transcript of the reference audio; recommended for best speaker similarity |
+| `text_frontend` | bool | `true` | Run FireRedTTS3's text-normalization frontend |
+
+The `language` common field is honored on the `base` preset and ignored on `instruct`.
+
+**Method: `design`** (Instruct only)
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: fireredtts3
+  preset: instruct
+  model: FireRedTeam/FireRedTTS3-Instruct
+  device: cuda:0
+  action:
+    method: design
+    text: ${input.text as text}
+    instructions: ${input.instructions as text}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `instructions` | string | **required** | Natural-language description of the target voice (gender, age, timbre, emotion, pace, accent) |
+
+**Method: `edit`** (Instruct only)
+
+Rewrites audio directly from the instruction — the `text` field is ignored.
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: fireredtts3
+  preset: instruct
+  model: FireRedTeam/FireRedTTS3-Instruct
+  device: cuda:0
+  action:
+    method: edit
+    reference_audio: ${input.reference_audio as audio}
+    instructions: ${input.instructions as text}
+    mode: ${input.mode | semantic}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `reference_audio` | string | **required** | Input audio to edit |
+| `instructions` | string | **required** | Edit instruction (free-form for `semantic`, template-like for `acoustic`, e.g. `adjust the speed to 1.2`) |
+| `mode` | string | `semantic` | `semantic` (content edit) or `acoustic` (speed/pitch/volume edit) |
+
+Output sample rate: 24 kHz (both presets). Calling `design` or `edit` on the `base` preset raises a runtime error.
 
 ### Speech to Text
 

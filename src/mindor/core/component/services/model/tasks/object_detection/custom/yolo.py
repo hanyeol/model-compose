@@ -13,12 +13,14 @@ if TYPE_CHECKING:
     from ultralytics import YOLO
     from ultralytics.engine.results import Results
     import numpy as np
+    import torch
 
 class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
-    def __init__(self, config: YoloObjectDetectionModelActionConfig, model: YOLO):
+    def __init__(self, config: YoloObjectDetectionModelActionConfig, model: YOLO, device: Optional[torch.device]):
         super().__init__(config)
 
         self.model: YOLO = model
+        self.device: Optional[torch.device] = device
 
     async def _detect_batch(
         self,
@@ -38,6 +40,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
                 max_det=params["max_object_count"],
                 agnostic_nms=params["agnostic_nms"],
                 classes=classes,
+                device=self.device,
                 verbose=False,
             )
 
@@ -116,6 +119,7 @@ class YoloObjectDetectionTaskService(ModelTaskService):
         super().__init__(id, config, daemon)
 
         self.model: Optional[YOLO] = None
+        self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "ultralytics" ]
@@ -124,10 +128,13 @@ class YoloObjectDetectionTaskService(ModelTaskService):
         from ultralytics import YOLO
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        self.device = self._resolve_device(self.config.device)
         self.model = YOLO(model_path)
+        self.model.to(self.device)
 
     async def _unload_model(self) -> None:
         self.model = None
+        self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await YoloObjectDetectionTaskAction(action, self.model).run(context)
+        return await YoloObjectDetectionTaskAction(action, self.model, self.device).run(context)

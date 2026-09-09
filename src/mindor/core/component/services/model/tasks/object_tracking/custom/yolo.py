@@ -17,14 +17,16 @@ if TYPE_CHECKING:
     from ultralytics import YOLO
     from ultralytics.engine.results import Results
     import numpy as np
+    import torch
 
 class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     config: YoloObjectTrackingModelActionConfig
 
-    def __init__(self, config: YoloObjectTrackingModelActionConfig, model: YOLO):
+    def __init__(self, config: YoloObjectTrackingModelActionConfig, model: YOLO, device: Optional[torch.device]):
         super().__init__(config)
 
         self.model: YOLO = model
+        self.device: Optional[torch.device] = device
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -311,6 +313,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             classes=params["classes"],
             tracker=params["tracker"],
             persist=True,
+            device=self.device,
             verbose=False,
         )
 
@@ -840,6 +843,7 @@ class YoloObjectTrackingTaskService(ModelTaskService):
         super().__init__(id, config, daemon)
 
         self.model: Optional[YOLO] = None
+        self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "ultralytics", "lap" ]
@@ -848,10 +852,13 @@ class YoloObjectTrackingTaskService(ModelTaskService):
         from ultralytics import YOLO
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        self.device = self._resolve_device(self.config.device)
         self.model = YOLO(model_path)
+        self.model.to(self.device)
 
     async def _unload_model(self) -> None:
         self.model = None
+        self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await YoloObjectTrackingTaskAction(action, self.model).run(context)
+        return await YoloObjectTrackingTaskAction(action, self.model, self.device).run(context)

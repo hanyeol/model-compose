@@ -287,9 +287,13 @@ class FireRedTextToSpeechTaskService(ModelTaskService):
         # fireredtts3 has no pip distribution — clone the repo and add it to the
         # venv's site-packages (e.g. via a .pth file). We only declare the
         # runtime deps its inference paths pull in.
+        # torch is pinned to 2.8.x because flash-attn's pre-built wheels
+        # (v2.8.3.post1) don't cover torch >= 2.10 — leaving torch unpinned
+        # would resolve to a newer minor and force flash-attn into a slow
+        # nvcc source build.
         return [
-            *torch_requirements("torch", "torchaudio", "torchcodec"),
-            *flash_attn_requirements("flash-attn==2.8.3.post1"),
+            *torch_requirements("torch==2.8.*", "torchaudio", "torchcodec"),
+            *flash_attn_requirements("torch==2.8.*", "flash-attn==2.8.3.post1"),
             "transformers",
             "numpy",
             "soundfile",

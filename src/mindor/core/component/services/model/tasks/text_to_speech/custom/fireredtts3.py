@@ -24,12 +24,84 @@ import importlib.util
 if TYPE_CHECKING:
     import torch
 
+_FIREREDTTS3_LANGUAGE_MAP: Dict[str, str] = {
+    "zh": "Chinese",
+    "en": "English",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "es": "Spanish",
+    "fr": "French",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "tr": "Turkish",
+    "id": "Indonesian",
+    "pt": "Portuguese",
+    "it": "Italian",
+    "nl": "Dutch",
+    "vi": "Vietnamese",
+    "de": "German",
+    "uk": "Ukrainian",
+    "th": "Thai",
+    "pl": "Polish",
+    "ro": "Romanian",
+    "el": "Greek",
+    "cs": "Czech",
+    "fi": "Finnish",
+    "hi": "Hindi",
+}
+
+# Chinese dialect sub-tags. Keys are lowercase to allow case-insensitive
+# lookup; values are the exact tags FireRedTTS3's frontend expects.
+_FIREREDTTS3_DIALECT_MAP: Dict[str, str] = {
+    "cantonese": "Cantonese",
+    "yue":       "Cantonese",  # BCP-47 alias
+    "anhui":     "ZH_Anhui",
+    "fujian":    "ZH_Fujian",
+    "gansu":     "ZH_Gansu",
+    "guizhou":   "ZH_Guizhou",
+    "hebei":     "ZH_Hebei",
+    "henan":     "ZH_Henan",
+    "hubei":     "ZH_Hubei",
+    "hunan":     "ZH_Hunan",
+    "jiangxi":   "ZH_Jiangxi",
+    "liaoning":  "ZH_Liaoning",
+    "minnan":    "ZH_Minnan",
+    "ningxia":   "ZH_Ningxia",
+    "shaanxi":   "ZH_Shaanxi",
+    "shandong":  "ZH_Shandong",
+    "shanghai":  "ZH_Shanghai",
+    "shanxi":    "ZH_Shanxi",
+    "sichuan":   "ZH_Sichuan",
+    "tianjin":   "ZH_Tianjin",
+    "wenzhou":   "ZH_Wenzhou",
+    "wu":        "ZH_Wu",
+    "yunnan":    "ZH_Yunnan",
+}
+
 class FireRedTextToSpeechTaskAction(TextToSpeechTaskAction):
     def __init__(self, config: Any, model: Any, sample_rate: int, device: Optional[torch.device]):
         super().__init__(config, device)
 
         self.model = model
         self.sample_rate = sample_rate
+
+    def _resolve_language(self, language: Optional[str]) -> Optional[str]:
+        """Translate a caller-facing language code to a FireRedTTS3 tag.
+
+        Accepts ISO-style codes (``en``, ``zh``, ``ko`` ...) and Chinese dialect
+        sub-tags (``zh-Sichuan``, ``zh-yue`` ...). Unknown values fall back to
+        ``None`` so FireRedTTS3's built-in fasttext detector runs.
+        """
+        if language:
+            language = language.strip().replace("_", "-").lower()
+            language, _, dialect = language.partition("-")
+
+            if language == "zh" and dialect:
+                return _FIREREDTTS3_DIALECT_MAP.get(dialect)
+
+            return _FIREREDTTS3_LANGUAGE_MAP.get(language)
+
+        return None
 
     async def _generate_batch(
         self,
@@ -107,7 +179,7 @@ class FireRedTextToSpeechCloneTaskAction(FireRedTextToSpeechTaskAction):
             "audio":       audio,
             "sample_rate": sample_rate,
             "prompt_text": prompt_text,
-            "language":    language,
+            "language":    self._resolve_language(language),
             "do_tn":       do_tn,
         })
 

@@ -852,8 +852,8 @@ class GradioWebUIBuilder:
                 else:
                     buffers[index] = "" if self._is_string_variable(variable) and not variable.is_list else []
             else:
-                resolved = await self._resolve_output_updates(value, [ variable ], [ component ])
-                updates[index] = resolved if len(resolved) > 1 else resolved[0]
+                variable_updates = await self._resolve_output_updates(value, [ variable ], [ component ])
+                updates[index] = variable_updates if len(variable_updates) > 1 else variable_updates[0]
 
         if not streams:
             yield self._flatten_stream_updates(updates, update_sizes)

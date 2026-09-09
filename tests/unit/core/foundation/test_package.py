@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from packaging.requirements import Requirement
 
-from mindor.core.foundation.package import (
+from mindor.core.foundation.package.installer import (
     is_requirement_satisfied,
     parse_requirement,
 )
@@ -59,21 +59,21 @@ class TestIsRequirementSatisfied:
         assert is_requirement_satisfied(req) is False
 
     def test_satisfied_version_constraint(self):
-        with patch("mindor.core.foundation.package.version", return_value="2.5.0"):
+        with patch("mindor.core.foundation.package.installer.version", return_value="2.5.0"):
             assert is_requirement_satisfied(Requirement("foo>=2.0.0")) is True
 
     def test_unsatisfied_version_constraint(self):
-        with patch("mindor.core.foundation.package.version", return_value="1.0.0"):
+        with patch("mindor.core.foundation.package.installer.version", return_value="1.0.0"):
             assert is_requirement_satisfied(Requirement("foo>=2.0.0")) is False
 
     def test_exact_match(self):
-        with patch("mindor.core.foundation.package.version", return_value="2.5.0"):
+        with patch("mindor.core.foundation.package.installer.version", return_value="2.5.0"):
             assert is_requirement_satisfied(Requirement("foo==2.5.0")) is True
             assert is_requirement_satisfied(Requirement("foo==2.5.1")) is False
 
     def test_canonicalises_name(self):
         # ``Foo_Bar`` should resolve via the canonical form ``foo-bar``.
-        with patch("mindor.core.foundation.package.version") as v:
+        with patch("mindor.core.foundation.package.installer.version") as v:
             v.return_value = "1.0.0"
             assert is_requirement_satisfied(Requirement("Foo_Bar")) is True
             # canonicalize_name normalises hyphens/underscores/dots.
@@ -81,6 +81,6 @@ class TestIsRequirementSatisfied:
             assert v.call_args[0][0] == "foo-bar"
 
     def test_prerelease_versions_accepted_when_constraint_allows(self):
-        with patch("mindor.core.foundation.package.version", return_value="2.0.0a1"):
+        with patch("mindor.core.foundation.package.installer.version", return_value="2.0.0a1"):
             # Per the implementation, prereleases are always considered.
             assert is_requirement_satisfied(Requirement("foo>=2.0.0a0")) is True

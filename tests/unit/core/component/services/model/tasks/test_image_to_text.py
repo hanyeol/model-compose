@@ -61,7 +61,7 @@ class _FakeImageToTextAction(ImageToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
         labels = [ _label(img) for img in images ]
         self.batches_seen.append(labels)
 
@@ -70,14 +70,14 @@ class _FakeImageToTextAction(ImageToTextTaskAction):
             async def _stream():
                 for i in range(n):
                     yield f"tok-{i}"
-            return [ _stream() for _ in labels ]
+            return [ [ _stream() ] for _ in labels ]
 
         # BatchSourceIterator broadcasts a scalar/None prompt to match the image
         # batch, so `prompts` is always a list of the same length — each entry
         # is either a string or None (unpaired).
         if len(prompts) != len(labels):
             raise ValueError(f"images and prompts have different lengths: {len(labels)} vs {len(prompts)}")
-        return [ f"{label}:{'_' if text is None else text}" for label, text in zip(labels, prompts) ]
+        return [ [ f"{label}:{'_' if text is None else text}" ] for label, text in zip(labels, prompts) ]
 
 
 def _make_config(

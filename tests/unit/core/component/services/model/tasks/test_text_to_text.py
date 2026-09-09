@@ -47,7 +47,7 @@ class _FakeTextToTextAction(TextToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
         self.batches_seen.append(list(texts))
         if streaming:
             n = self.stream_chunks
@@ -56,9 +56,9 @@ class _FakeTextToTextAction(TextToTextTaskAction):
                 for i in range(n):
                     yield f"tok-{i}"
 
-            return [ _stream() for _ in texts ]
+            return [ [ _stream() ] for _ in texts ]
 
-        return [ f"{t}#0" for t in texts ]
+        return [ [ f"{t}#0" ] for t in texts ]
 
 
 def _make_config(

@@ -32,10 +32,14 @@ class _FakeGenerationAction(TextGenerationTaskAction):
 
     Matches the current source contract:
     ``async _generate_batch(texts, params, streaming, cancellation_token)
-      -> List[str] | List[AsyncIterator[str]]``.
+      -> List[List[str]] | List[List[AsyncIterator[str]]]``.
 
-    - non-streaming → ``[ "<text>#0" for text in texts ]``
-    - streaming     → ``[ <async iterator yielding tok-0, tok-1, ...> for each text ]``
+    Outer list is per-prompt; inner list holds ``num_return_sequences``
+    entries per prompt (default 1). ``_process_sequences`` unwraps the
+    inner list when it has exactly one element.
+
+    - non-streaming → ``[ [ "<text>#0" ] for text in texts ]``
+    - streaming     → ``[ [ <async iterator yielding tok-0, tok-1, ...> ] for each text ]``
     """
 
     def __init__(self, config: TextGenerationModelActionConfig, stream_chunks: int = 3):
@@ -49,7 +53,7 @@ class _FakeGenerationAction(TextGenerationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[str], List[AsyncIterator[str]]]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
         self.batches_seen.append(list(texts))
         if streaming:
             n = self.stream_chunks
@@ -58,9 +62,9 @@ class _FakeGenerationAction(TextGenerationTaskAction):
                 for i in range(n):
                     yield f"tok-{i}"
 
-            return [ _stream() for _ in texts ]
+            return [ [ _stream() ] for _ in texts ]
 
-        return [ f"{t}#0" for t in texts ]
+        return [ [ f"{t}#0" ] for t in texts ]
 
 
 def _make_config(

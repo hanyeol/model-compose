@@ -297,7 +297,7 @@ class MilvusVectorStoreService(VectorStoreService):
 
         self.client: Optional[AsyncMilvusClient] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "pymilvus" ]
 
     async def _start(self) -> None:

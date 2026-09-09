@@ -262,7 +262,7 @@ class SQLiteSearchEngineService(SearchEngineService):
         self.meta_cache: Dict[str, Any] = {}
         self.write_lock: asyncio.Lock = asyncio.Lock()
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "aiosqlite" ]
 
     async def _start(self) -> None:

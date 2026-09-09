@@ -79,7 +79,7 @@ class HuggingfaceDatasetsService(DatasetsService):
     def __init__(self, id: str, config: HuggingfaceDatasetsComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self):
+    def _get_setup_requirements(self):
         return [ "datasets" ]
 
     async def _run(self, action: DatasetsActionConfig, context: ComponentActionContext) -> Any:

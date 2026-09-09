@@ -179,7 +179,7 @@ class TransNetV2ShotBoundaryDetectionTaskService(ModelTaskService):
 
         self.model: Optional[TransNetV2] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             "transnetv2@git+https://github.com/soCzech/TransNetV2.git",
             "ffmpeg-python",

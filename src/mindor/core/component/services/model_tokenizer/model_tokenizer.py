@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Any
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, ModelTokenizerTaskType, ModelTokenizerDriver
 from mindor.dsl.schema.action import ActionConfig, ModelTokenizerActionConfig
 from ...action.base import ComponentAction
@@ -53,8 +53,11 @@ class ModelTokenizerComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported tokenizer task type: {task} on {driver}") from e
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return self.service.get_setup_requirements()
+    async def _setup(self) -> None:
+        await self.service.setup()
+
+    async def _teardown(self) -> None:
+        await self.service.teardown()
 
     async def _start(self) -> None:
         await self.service.start()

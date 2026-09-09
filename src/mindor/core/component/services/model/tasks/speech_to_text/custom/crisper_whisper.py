@@ -240,7 +240,7 @@ class CrisperWhisperSpeechToTextTaskService(ModelTaskService):
         self.model: Optional[CrisperWhisperModel] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         # `crisperwhisper[transformers]` covers the portable pure-torch backend;
         # users who want the ct2 (Linux NVIDIA) fast path can install
         # crisperwhisper[ct2] separately.

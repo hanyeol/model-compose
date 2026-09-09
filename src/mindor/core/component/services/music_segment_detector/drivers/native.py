@@ -533,7 +533,7 @@ class NativeMusicSegmentDetectorService(MusicSegmentDetectorService):
     def __init__(self, id: str, config: MusicSegmentDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "librosa", "numpy", "soundfile" ]
 
     async def _run(

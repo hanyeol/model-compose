@@ -143,7 +143,7 @@ class NativeImageAnalyzerService(ImageAnalyzerService):
     def __init__(self, id: str, config: ImageAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "numpy" ]
 
     async def _run(

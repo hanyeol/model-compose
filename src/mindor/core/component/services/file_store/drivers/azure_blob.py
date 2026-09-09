@@ -342,7 +342,7 @@ class AzureBlobFileStoreService(FileStoreService):
 
         self._service_client: Optional[BlobServiceClient] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "azure-storage-blob", "aiohttp" ]
 
     async def _start(self) -> None:

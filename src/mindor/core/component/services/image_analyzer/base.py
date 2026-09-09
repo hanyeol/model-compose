@@ -12,7 +12,7 @@ class ImageAnalyzerService(AsyncService):
         self.id: str = id
         self.config: ImageAnalyzerComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: ImageAnalyzerActionConfig, context: ComponentActionContext) -> Any:

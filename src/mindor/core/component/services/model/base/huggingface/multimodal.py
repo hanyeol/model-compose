@@ -18,7 +18,7 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         self.processor: Optional[ProcessorMixin] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch"),
             "transformers>=4.21.0",

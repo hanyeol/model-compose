@@ -496,7 +496,7 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         self.handler: Optional[AceStepHandler] = None
         self.llm_handler: Optional[LLMHandler] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         requirements: List[str] = []
 
         # Pre-install packages that ace-step pulls from custom sources: pip ignores its

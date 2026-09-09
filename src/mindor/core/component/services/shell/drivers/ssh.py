@@ -92,7 +92,7 @@ class SshShellService(ShellService):
 
         self.client: Optional[SshClient] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "paramiko" ]
 
     async def _setup(self) -> None:

@@ -241,7 +241,7 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
 
 @register_model_task_service(ModelTaskType.AUDIO_TEXT_ALIGNMENT, ModelDriver.HUGGINGFACE)
 class HuggingfaceAudioTextAlignmentTaskService(HuggingfaceMultimodalModelTaskService):
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchaudio"),
             "transformers>=4.21.0",

@@ -136,7 +136,7 @@ class SamImageSegmentationTaskService(ModelTaskService):
 
         self.model: Optional[SAM] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "ultralytics" ]
 
     async def _load_model(self) -> None:

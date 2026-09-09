@@ -126,7 +126,7 @@ class LocalSubtitleLoaderService(SubtitleLoaderService):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "pysubs2" ]
 
     async def _run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:

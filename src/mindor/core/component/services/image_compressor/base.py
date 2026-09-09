@@ -12,7 +12,7 @@ class ImageCompressorService(AsyncService):
         self.id: str = id
         self.config: ImageCompressorComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: ImageCompressorActionConfig, context: ComponentActionContext) -> Any:

@@ -48,7 +48,7 @@ class ModelMemoryBuffer(ABC):
         return None
 
     @abstractmethod
-    async def setup(self) -> None:
+    async def configure(self) -> None:
         pass
 
     @abstractmethod

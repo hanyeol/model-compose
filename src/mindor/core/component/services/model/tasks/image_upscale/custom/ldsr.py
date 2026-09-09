@@ -78,7 +78,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
         return await self._run_in_executor(_upscale)
 
 class LdsrImageUpscaleTaskService(HuggingfaceDiffusionPipelineTaskService[None]):
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch"), "diffusers", "transformers", "accelerate" ]
 
     def _get_pipeline_class(self, method: None) -> Type[DiffusionPipeline]:

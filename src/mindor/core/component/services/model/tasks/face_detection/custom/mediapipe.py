@@ -105,7 +105,7 @@ class BlazeFaceFaceDetectionTaskService(ModelTaskService):
 
         self.model_path: Optional[str] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "mediapipe" ]
 
     async def _load_model(self) -> None:

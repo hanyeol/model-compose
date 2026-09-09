@@ -234,7 +234,7 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
 @register_model_task_service(ModelTaskType.IMAGE_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskService[ImageGenerationActionMethod]):
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch"), "diffusers", "transformers", "accelerate", "sentencepiece" ]
 
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:

@@ -292,7 +292,7 @@ class ArangoDBGraphStoreService(GraphStoreService):
         self.client: Optional[ArangoClient] = None
         self.database: Optional[StandardDatabase] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "python-arango" ]
 
     async def _start(self) -> None:

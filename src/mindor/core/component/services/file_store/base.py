@@ -12,7 +12,7 @@ class FileStoreService(AsyncService):
         self.id: str = id
         self.config: FileStoreComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: FileStoreActionConfig, context: ComponentActionContext) -> Any:

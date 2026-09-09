@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriver
 from mindor.dsl.schema.action import ActionConfig
@@ -44,8 +44,11 @@ class VideoFrameExtractorComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported video frame extractor driver: {driver}") from e
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return self.service.get_setup_requirements()
+    async def _setup(self) -> None:
+        await self.service.setup()
+
+    async def _teardown(self) -> None:
+        await self.service.teardown()
 
     async def _start(self) -> None:
         await self.service.start()

@@ -868,7 +868,7 @@ class YoloPoseTrackingTaskService(ModelTaskService):
 
         self.model: Optional[YOLO] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "ultralytics", "lap" ]
 
     async def _load_model(self) -> None:

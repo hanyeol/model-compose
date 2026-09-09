@@ -12,7 +12,7 @@ class VideoEncoderService(AsyncService):
         self.id: str = id
         self.config: VideoEncoderComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: VideoEncoderActionConfig, context: ComponentActionContext) -> Any:

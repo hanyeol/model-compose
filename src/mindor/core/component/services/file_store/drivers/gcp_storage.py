@@ -282,7 +282,7 @@ class GcpStorageFileStoreService(FileStoreService):
         self.client: Optional[Storage] = None
         self.session: Optional[aiohttp.ClientSession] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "gcloud-aio-storage" ]
 
     async def _start(self) -> None:

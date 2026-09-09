@@ -26,7 +26,7 @@ class VllmModelTaskService(ModelTaskService):
         self.engine: Optional[AsyncLLMEngine] = None
         self.tokenizer: Optional[PreTrainedTokenizerBase] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "vllm" ]
 
     async def _load_model(self) -> None:

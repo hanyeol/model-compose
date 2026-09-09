@@ -169,7 +169,7 @@ class QwenTextToSpeechTaskService(ModelTaskService):
         self.model: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch"), "transformers", "qwen_tts", "huggingface_hub", "numpy", "soundfile" ]
 
     async def _load_model(self) -> None:

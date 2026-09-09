@@ -12,7 +12,7 @@ class VectorProcessorService(AsyncService):
         self.id: str = id
         self.config: VectorProcessorComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: VectorProcessorActionConfig, context: ComponentActionContext) -> Any:

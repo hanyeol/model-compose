@@ -216,7 +216,7 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         self.sample_rate: int = 24000
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         # cosyvoice has no pip distribution — clone it from source and add both the
         # repo root and its Matcha-TTS submodule to sys.path (or a venv .pth file).
         # We still declare the runtime deps so the environment matches what the

@@ -282,7 +282,7 @@ class FireRedTextToSpeechTaskService(ModelTaskService):
         self.sample_rate: int = 24000
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         # fireredtts3 has no pip distribution — clone the repo and add it to the
         # venv's site-packages (e.g. via a .pth file). We only declare the
         # runtime deps its inference paths pull in.

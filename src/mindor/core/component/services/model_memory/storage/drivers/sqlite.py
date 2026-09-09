@@ -18,7 +18,7 @@ class SqliteModelMemoryStorage(ModelMemoryStorage):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "aiosqlite" ]
 
-    async def setup(self) -> None:
+    async def configure(self) -> None:
         import aiosqlite
 
         self.database = await aiosqlite.connect(os.path.expanduser(self.config.path))

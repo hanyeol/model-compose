@@ -170,7 +170,7 @@ class PySceneVideoSceneDetectorService(VideoSceneDetectorService):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "scenedetect[opencv]" ]
 
     async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:

@@ -116,8 +116,8 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.HUGGINGFACE)
 class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
-    def get_setup_requirements(self) -> Optional[List[str]]:
-        requirements = super().get_setup_requirements() or []
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        requirements = super()._get_setup_requirements() or []
 
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
             return [ *requirements, "sentence-transformers" ]

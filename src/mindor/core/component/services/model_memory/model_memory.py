@@ -282,12 +282,18 @@ class ModelMemoryComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported model memory storage driver: {driver}") from e
 
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        return [
+            *(self._buffer.get_setup_requirements()  or []),
+            *(self._storage.get_setup_requirements() or []),
+        ] or None
+
     async def _start(self) -> None:
         if self.config.summary:
             self._summary_component = self._create_component(self.config.summary.component)
 
-        await self._buffer.setup()
-        await self._storage.setup()
+        await self._buffer.configure()
+        await self._storage.configure()
 
         await super()._start()
 

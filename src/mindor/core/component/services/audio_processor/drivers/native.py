@@ -927,7 +927,7 @@ class NativeAudioProcessorService(AudioProcessorService):
     def __init__(self, id: str, config: AudioProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torchaudio"), "pedalboard", "numpy", "soxr", "pyloudnorm", "librosa" ]
 
     async def _run(self, action: AudioProcessorActionConfig, context: ComponentActionContext) -> Any:

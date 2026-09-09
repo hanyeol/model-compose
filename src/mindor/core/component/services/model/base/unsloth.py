@@ -17,7 +17,7 @@ class UnslothModelTaskService(ModelTaskService):
         self.model: Optional[PreTrainedModel] = None
         self.tokenizer: Optional[PreTrainedTokenizer] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch"), "unsloth", "transformers" ]
 
     async def _load_model(self) -> None:

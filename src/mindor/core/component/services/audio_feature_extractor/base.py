@@ -12,7 +12,7 @@ class AudioFeatureExtractorService(AsyncService):
         self.id: str = id
         self.config: AudioFeatureExtractorComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: AudioFeatureExtractorActionConfig, context: ComponentActionContext) -> Any:

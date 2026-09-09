@@ -110,7 +110,7 @@ class RedisKeyValueStoreService(KeyValueStoreService):
 
         self.client: Optional[AsyncRedis] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "redis" ]
 
     async def _start(self) -> None:

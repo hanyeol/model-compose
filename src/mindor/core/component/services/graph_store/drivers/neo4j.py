@@ -270,7 +270,7 @@ class Neo4jGraphStoreService(GraphStoreService):
         self.driver: Optional[AsyncDriver] = None
         self.session: Optional[AsyncSession] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "neo4j" ]
 
     async def _start(self) -> None:

@@ -189,7 +189,7 @@ class BasicPitchMusicTranscriptionTaskService(ModelTaskService):
         self.model_path: Optional[str] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         # basic-pitch ships four checkpoint formats (TF SavedModel, CoreML, TFLite,
         # ONNX). We target ONNX because onnxruntime installs cleanly on every
         # platform without pulling in a large TF/CoreML stack.

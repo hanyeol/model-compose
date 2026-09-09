@@ -12,7 +12,7 @@ class VideoConverterService(AsyncService):
         self.id: str = id
         self.config: VideoConverterComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: VideoConverterActionConfig, context: ComponentActionContext) -> Any:

@@ -12,7 +12,7 @@ class SubtitleLoaderService(AsyncService):
         self.id: str = id
         self.config: SubtitleLoaderComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:

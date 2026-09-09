@@ -11,7 +11,7 @@ class MemoryModelMemoryBuffer(ModelMemoryBuffer):
 
         self._turns: Dict[str, List[List[Any]]] = {}
 
-    async def setup(self) -> None:
+    async def configure(self) -> None:
         pass
 
     async def close(self) -> None:

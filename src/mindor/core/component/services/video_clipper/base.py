@@ -12,7 +12,7 @@ class VideoClipperService(AsyncService):
         self.id: str = id
         self.config: VideoClipperComponentConfig = config
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def run(self, action: VideoClipperActionConfig, context: ComponentActionContext) -> Any:

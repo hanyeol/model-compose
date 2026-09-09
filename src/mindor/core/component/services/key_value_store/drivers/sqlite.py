@@ -163,7 +163,7 @@ class SqliteKeyValueStoreService(KeyValueStoreService):
         self.connection: Optional[AsyncConnection] = None
         self.purge_state: Dict[str, float] = {}
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "aiosqlite" ]
 
     async def _start(self) -> None:

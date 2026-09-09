@@ -1,4 +1,4 @@
-from typing import Optional, List, Any
+from typing import Any
 from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlaybackDriver
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -43,8 +43,11 @@ class AudioPlaybackComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported audio playback driver: {driver}") from e
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return self.service.get_setup_requirements()
+    async def _setup(self) -> None:
+        await self.service.setup()
+
+    async def _teardown(self) -> None:
+        await self.service.teardown()
 
     async def _start(self) -> None:
         await self.service.start()

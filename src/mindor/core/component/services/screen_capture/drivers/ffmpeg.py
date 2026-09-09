@@ -523,7 +523,7 @@ class FFmpegScreenCaptureService(ScreenCaptureService):
     def __init__(self, id: str, config: ScreenCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         # Quartz is needed to resolve window titles → screen-space rects for
         # window capture on macOS. Linux relies on the 'xdotool' / 'xwininfo'
         # CLIs (not pip-installable); Windows uses ctypes from stdlib.

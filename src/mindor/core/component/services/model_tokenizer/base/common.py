@@ -21,7 +21,7 @@ class ModelTokenizerTaskService(AsyncService):
 
         self._model_provisioner: ModelProvisioner = ModelProvisioner()
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return None
 
     async def _start(self) -> None:

@@ -40,7 +40,7 @@ class OxipngImageCompressorService(ImageCompressorService):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "pyoxipng" ]
 
     async def _run(self, action: ImageCompressorActionConfig, context: ComponentActionContext) -> Any:

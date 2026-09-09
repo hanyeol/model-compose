@@ -212,7 +212,7 @@ class ChromaVectorStoreService(VectorStoreService):
 
         self.client: Optional[ChromaClient] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "chromadb" ]
 
     async def _start(self) -> None:

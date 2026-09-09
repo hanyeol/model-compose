@@ -232,7 +232,7 @@ class MidiDdspMusicGenerationTaskService(ModelTaskService):
                 f"Got runtime.type = '{runtime_type.value}'."
             )
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             "midi-ddsp",
             "tensorflow>=2.7,<=2.11",

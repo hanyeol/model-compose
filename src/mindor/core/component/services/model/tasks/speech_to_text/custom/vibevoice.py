@@ -284,7 +284,7 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
         self.streaming_info: Optional[Dict[str, float]] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         # PyPI's `vibevoice 0.0.1` is the earlier TTS release and does not ship
         # the ASR modules; install from GitHub for the real classes.
         # `transformers==4.51.3` matches the checkpoints' `transformers_version`.

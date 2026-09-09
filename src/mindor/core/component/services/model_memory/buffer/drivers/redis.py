@@ -27,7 +27,7 @@ class RedisModelMemoryBuffer(ModelMemoryBuffer):
     def get_setup_requirements(self) -> Optional[List[str]]:
         return [ "redis" ]
 
-    async def setup(self) -> None:
+    async def configure(self) -> None:
         import redis.asyncio as aioredis
 
         if self.config.url:

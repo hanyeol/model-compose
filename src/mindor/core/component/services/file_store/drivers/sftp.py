@@ -339,7 +339,7 @@ class SftpFileStoreService(FileStoreService):
         self.base_path: str = self._normalize_posix_base_path(config.base_path)
         self.client: Optional[SftpClient] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "paramiko" ]
 
     async def _start(self) -> None:

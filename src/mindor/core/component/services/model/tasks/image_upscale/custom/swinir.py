@@ -174,7 +174,7 @@ class SwinIRImageUpscaleTaskService(ModelTaskService):
         self.model: Optional[SwinIR] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch", "torchvision"), "basicsr", "huggingface_hub" ]
 
     async def _load_model(self) -> None:

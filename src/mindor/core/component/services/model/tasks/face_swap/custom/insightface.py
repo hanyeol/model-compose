@@ -114,7 +114,7 @@ class InsightfaceFaceSwapTaskService(ModelTaskService):
         self.model: Optional[INSwapper] = None
         self.detector: Optional[FaceAnalysis] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "insightface", "opencv-python", "onnxruntime" ]
 
     async def _load_model(self) -> None:

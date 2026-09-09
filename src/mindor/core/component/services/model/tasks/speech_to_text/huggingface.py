@@ -267,7 +267,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
 @register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchaudio"),
             "transformers>=4.21.0",

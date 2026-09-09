@@ -166,7 +166,7 @@ class FasterWhisperSpeechToTextTaskService(ModelTaskService):
         self.model: Optional[WhisperModel] = None
         self.device: Optional[torch.device] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch", "torchaudio"), "faster-whisper", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:

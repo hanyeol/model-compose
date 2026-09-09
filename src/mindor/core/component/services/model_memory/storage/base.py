@@ -7,7 +7,7 @@ class ModelMemoryStorage(ABC):
         return None
 
     @abstractmethod
-    async def setup(self) -> None:
+    async def configure(self) -> None:
         """Initialize storage (create tables, etc.)."""
         pass
 

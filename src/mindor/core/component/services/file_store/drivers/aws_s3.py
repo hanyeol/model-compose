@@ -294,7 +294,7 @@ class AwsS3FileStoreService(FileStoreService):
 
         self._client_session: Optional[AsyncContextManager[S3Client]] = None
 
-    def get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "aioboto3" ]
 
     async def _start(self) -> None:

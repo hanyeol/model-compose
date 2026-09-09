@@ -832,7 +832,7 @@ class GradioWebUIBuilder:
         # up front and stay put via gr.update() on subsequent chunk yields; streaming
         # slots are consumed concurrently and merged into the shared updates list.
         updates: List[Any] = [ gr.update() for _ in components ]
-        component_counts: List[int] = [
+        update_sizes: List[int] = [
             len(component) if isinstance(variable, WorkflowVariableGroupConfig) else 1
             for variable, component in zip(variables, components)
         ]
@@ -856,7 +856,7 @@ class GradioWebUIBuilder:
                 updates[index] = resolved if len(resolved) > 1 else resolved[0]
 
         if not streams:
-            yield self._flatten_stream_updates(updates, component_counts)
+            yield self._flatten_stream_updates(updates, update_sizes)
             return
 
         queue: asyncio.Queue = asyncio.Queue()
@@ -915,7 +915,7 @@ class GradioWebUIBuilder:
                     buffers[index] = buffer
                     updates[index] = buffer
 
-                yield self._flatten_stream_updates(updates, component_counts)
+                yield self._flatten_stream_updates(updates, update_sizes)
         finally:
             for task in tasks:
                 if not task.done():

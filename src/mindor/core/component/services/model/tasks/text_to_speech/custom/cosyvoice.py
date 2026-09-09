@@ -13,11 +13,12 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import TextToSpeechTaskAction
-import os
+import os, importlib.util
 
 if TYPE_CHECKING:
     import torch
@@ -255,6 +256,24 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
             "wetext",
         ]
 
+    async def _setup(self) -> None:
+        # CosyVoice depends on Matcha-TTS at a submodule-pinned commit. Tarball
+        # downloads don't include submodules, so we fetch it as a separate top-
+        # level `matcha` package.
+        if importlib.util.find_spec("cosyvoice") is None:
+            await install_package_from_github(
+                "cosyvoice",
+                "https://github.com/FunAudioLLM/CosyVoice.git",
+                revision="074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc",
+            )
+
+        if importlib.util.find_spec("matcha") is None:
+            await install_package_from_github(
+                "matcha",
+                "https://github.com/shivammehta25/Matcha-TTS.git",
+                revision="dd9105b34bf2be2230f4aa1e4769fb586a3c824e",
+            )
+
     async def _load_model(self) -> None:
         self.model, self.sample_rate, self.device = await self._load_pretrained_model()
 
@@ -267,17 +286,7 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         # CosyVoice3 by looking for cosyvoice{,2,3}.yaml inside model_dir. Its
         # internal snapshot_download only supports ModelScope, so we always
         # resolve to a local dir via mindor's HF-aware _provision_model().
-        try:
-            from cosyvoice.cli.cosyvoice import AutoModel
-        except ImportError as e:
-            raise RuntimeError(
-                f"Failed to import cosyvoice.cli.cosyvoice: {e}\n"
-                "If the cosyvoice package itself is missing, clone the repo and add it to the venv:\n"
-                "  git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git\n"
-                "then add both the repo root and its third_party/Matcha-TTS to the venv "
-                "(e.g. via a .pth file in the venv's site-packages).\n"
-                "If cosyvoice is present but a dependency is missing, install it into the venv."
-            ) from e
+        from cosyvoice.cli.cosyvoice import AutoModel
 
         model_dir = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)

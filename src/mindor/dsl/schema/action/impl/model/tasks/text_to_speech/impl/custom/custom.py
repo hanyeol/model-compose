@@ -5,6 +5,7 @@ from .chatterbox import ChatterboxTextToSpeechModelActionConfig
 from .luxtts import LuxttsTextToSpeechModelActionConfig
 from .tada import TadaTextToSpeechModelActionConfig
 from .cosyvoice import CosyvoiceTextToSpeechModelActionConfig
+from .fireredtts3 import FireRedTextToSpeechModelActionConfig
 
 CustomTextToSpeechModelActionConfig = Union[
     QwenTextToSpeechModelActionConfig,
@@ -13,4 +14,5 @@ CustomTextToSpeechModelActionConfig = Union[
     LuxttsTextToSpeechModelActionConfig,
     TadaTextToSpeechModelActionConfig,
     CosyvoiceTextToSpeechModelActionConfig,
+    FireRedTextToSpeechModelActionConfig,
 ]

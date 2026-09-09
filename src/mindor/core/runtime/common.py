@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 from mindor.dsl.schema.runtime import AppleContainerRuntimeConfig, DockerRuntimeConfig
-from mindor.core.utils.archive import archive_to_dir, skip_python_artifacts
+from mindor.core.utils.archive import archive_to_directory, skip_python_artifacts
 from mindor.core.logger import logging
 import mindor, hashlib
 
@@ -150,7 +150,7 @@ class ContainerRuntimeBackend(ABC):
         if bootstrap_path.is_file():
             files["bootstrap.sh"] = bootstrap_path
 
-        with archive_to_dir(
+        with archive_to_directory(
             files=files,
             dirs={f"src/{package_source_root.name}": package_source_root},
             filter=skip_python_artifacts,
@@ -183,7 +183,7 @@ class ContainerRuntimeBackend(ABC):
         requirements_path = self._requirements_path if self._requirements_path.is_file() else assets_dir / "requirements.stub.txt"
         setup_script_path = self._setup_script_path if self._setup_script_path.is_file() else assets_dir / "setup.stub.sh"
 
-        with archive_to_dir(
+        with archive_to_directory(
             files={
                 "Dockerfile": dockerfile_path,
                 "user-requirements.txt": requirements_path,

@@ -7,6 +7,7 @@ class TextToSpeechActionMethod(str, Enum):
     GENERATE = "generate"
     CLONE    = "clone"
     DESIGN   = "design"
+    EDIT     = "edit"
 
 class CommonTextToSpeechModelActionConfig(CommonModelActionConfig):
     method: TextToSpeechActionMethod = Field(..., description="TTS synthesis operation this action performs.")

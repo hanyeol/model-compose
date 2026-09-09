@@ -6,7 +6,7 @@ from mindor.core.foundation.streaming.resources import ChunkedStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_file
 from mindor.core.foundation.streaming.resolver import resolve_stream_resource
-from mindor.core.utils.files import list_dir, walk_dir, is_glob_match, is_path_within, guess_content_type
+from mindor.core.utils.files import list_directory, walk_directory, is_glob_match, is_path_within, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
 from mindor.core.foundation.cancellation import CancellationToken
 from ..base import FileStoreService, FileStoreDriver, register_file_store_service
@@ -248,10 +248,10 @@ class LocalFileStoreAction(FileStoreAction):
 
     async def _iterate_files(self, list_path: str, recursive: bool) -> AsyncIterator[Tuple[str, List[Tuple[str, os.stat_result]]]]:
         if recursive:
-            async for dir, _, files in walk_dir(list_path):
+            async for dir, _, files in walk_directory(list_path):
                 yield dir, files
         else:
-            _, files = await list_dir(list_path)
+            _, files = await list_directory(list_path)
             yield list_path, files
 
     def _resolve_absolute_path(self, path: str) -> str:

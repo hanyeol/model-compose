@@ -35,31 +35,37 @@ _CONTENT_TYPE_EXTENSION_MAP: Dict[str, str] = {
     "image/x-icon":     "ico",
 }
 
-async def list_dir(path: str) -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
-    def _scan_dir() -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
+async def list_directory(path: str) -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
+    def _scan_directory() -> Tuple[List[str], List[Tuple[str, os.stat_result]]]:
         dirnames: List[str] = []
         files: List[Tuple[str, os.stat_result]] = []
+
         with os.scandir(path) as entries:
             for entry in entries:
                 if entry.is_dir(follow_symlinks=False):
                     dirnames.append(entry.name)
                 elif entry.is_file(follow_symlinks=False):
                     files.append((entry.name, entry.stat(follow_symlinks=False)))
+
         return dirnames, files
 
-    return await asyncio.to_thread(_scan_dir)
+    return await asyncio.to_thread(_scan_directory)
 
-async def walk_dir(path: str) -> AsyncIterator[Tuple[str, List[str], List[Tuple[str, os.stat_result]]]]:
-    pending: List[str] = [ path ]
-    while pending:
-        current = pending.pop(0)
+async def walk_directory(path: str) -> AsyncIterator[Tuple[str, List[str], List[Tuple[str, os.stat_result]]]]:
+    pending_dirs: List[str] = [ path ]
+
+    while pending_dirs:
+        current = pending_dirs.pop(0)
+
         try:
-            dirnames, files = await list_dir(current)
+            dirnames, files = await list_directory(current)
         except (FileNotFoundError, PermissionError):
             continue
+
         yield current, dirnames, files
+
         for name in dirnames:
-            pending.append(os.path.join(current, name))
+            pending_dirs.append(os.path.join(current, name))
 
 async def save_string_to_temporary_file(content: str, extension: Optional[str] = None, encoding: str = "utf-8") -> str:
     path = get_temporary_path(extension)

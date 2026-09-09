@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Iterator, Optional, Union
+from typing import Callable, Dict, Generator, Optional, Union
 from contextlib import contextmanager
 from pathlib import Path
 import io, shutil, tarfile, tempfile
@@ -10,7 +10,7 @@ TarFilter = Callable[[tarfile.TarInfo], Optional[tarfile.TarInfo]]
 # it to docker.
 _DEFAULT_SPOOL_MAX = 4 * 1024 * 1024  # 4 MiB
 
-def archive_to_tar(
+def archive_to_stream(
     files: Optional[Dict[str, Union[Path, bytes, bytearray]]] = None,
     dirs: Optional[Dict[str, Path]] = None,
     filter: Optional[TarFilter] = None,
@@ -49,6 +49,7 @@ def archive_to_tar(
                             f"files[{arcname!r}] must be a regular file Path; "
                             f"use `dirs` for directory trees"
                         )
+
                     tar.add(str(source), arcname=arcname, recursive=False, filter=filter)
                 else:
                     raise TypeError(
@@ -65,17 +66,17 @@ def archive_to_tar(
     return tar_file
 
 @contextmanager
-def archive_to_dir(
+def archive_to_directory(
     files: Optional[Dict[str, Union[Path, bytes, bytearray]]] = None,
     dirs: Optional[Dict[str, Path]] = None,
     filter: Optional[TarFilter] = None,
     root: Optional[Path] = None,
-) -> Iterator[Path]:
+) -> Generator[Path, None, None]:
     """Materialize `files` / `dirs` into a real directory on disk and yield
     its path. Cleaned up on context exit.
 
-    Mirrors `archive_to_tar` for clients that need a directory rather than
-    a tar stream. Reuses `archive_to_tar` so layout/filter semantics stay
+    Mirrors `archive_to_stream` for clients that need a directory rather than
+    a tar stream. Reuses `archive_to_stream` so layout/filter semantics stay
     identical.
 
     `root` selects the parent directory under which the temporary directory
@@ -83,11 +84,14 @@ def archive_to_dir(
     """
     if root is not None:
         root.mkdir(parents=True, exist_ok=True)
+
     target_dir = Path(tempfile.mkdtemp(dir=str(root) if root else None))
+
     try:
-        with archive_to_tar(files=files, dirs=dirs, filter=filter) as tar_file:
+        with archive_to_stream(files=files, dirs=dirs, filter=filter) as tar_file:
             with tarfile.open(fileobj=tar_file, mode="r") as tar:
                 tar.extractall(path=str(target_dir))
+
         yield target_dir
     finally:
         shutil.rmtree(target_dir, ignore_errors=True)
@@ -96,12 +100,14 @@ def skip_python_artifacts(info: tarfile.TarInfo) -> Optional[tarfile.TarInfo]:
     """A `TarFilter` that drops Python build artifacts (`__pycache__`
     directories and `*.pyc` files).
 
-    Pass to `archive_to_tar(..., filter=skip_python_artifacts)` when packing
+    Pass to `archive_to_stream(..., filter=skip_python_artifacts)` when packing
     a Python source tree for image build / workspace injection — Python
     re-creates these on import, so shipping the host's copy only bloats the
     archive and risks Python-version skew.
     """
     basename = Path(info.name).name
+
     if basename == "__pycache__" or basename.endswith(".pyc"):
         return None
+
     return info

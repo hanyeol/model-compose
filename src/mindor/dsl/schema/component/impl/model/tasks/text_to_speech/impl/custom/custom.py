@@ -6,6 +6,7 @@ from .chatterbox import ChatterboxTextToSpeechModelComponentConfig
 from .luxtts import LuxttsTextToSpeechModelComponentConfig
 from .tada import TadaTextToSpeechModelComponentConfig
 from .cosyvoice import CosyvoiceTextToSpeechModelComponentConfig
+from .fireredtts3 import FireRedTextToSpeechModelComponentConfig
 
 CustomTextToSpeechModelComponentConfig = Annotated[
     Union[
@@ -15,6 +16,7 @@ CustomTextToSpeechModelComponentConfig = Annotated[
         LuxttsTextToSpeechModelComponentConfig,
         TadaTextToSpeechModelComponentConfig,
         CosyvoiceTextToSpeechModelComponentConfig,
+        FireRedTextToSpeechModelComponentConfig,
     ],
     Field(discriminator="family")
 ]

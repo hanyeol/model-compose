@@ -130,7 +130,7 @@ class DockerImageBuilder:
     ) -> None:
         """Build a docker image from a disk-based build context at `path`.
         Knows nothing about mindor's image tiers — callers materialize the
-        context themselves (e.g. via `archive_to_dir`) and pass the path."""
+        context themselves (e.g. via `archive_to_directory`) and pass the path."""
         try:
             response = self._client.api.build(
                 path=path,

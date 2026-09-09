@@ -114,7 +114,7 @@ class AppleContainerImageBuilder:
         Mirrors the subset of `DockerImageBuilder.build` that the Apple
         Container CLI supports. The CLI does not accept stdin tar streams,
         so callers wanting in-memory context should materialize a directory
-        via `archive_to_dir` and pass its path here.
+        via `archive_to_directory` and pass its path here.
         """
         args: List[str] = []
 

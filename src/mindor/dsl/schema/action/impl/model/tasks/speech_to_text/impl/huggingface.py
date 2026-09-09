@@ -5,9 +5,9 @@ from .common import CommonSpeechToTextModelActionConfig
 class HuggingfaceSpeechToTextParamsConfig(BaseModel):
     num_beams: Union[int, str] = Field(default=1, description="Number of beams used in beam search.")
     temperature: Union[float, str] = Field(default=0.0, description="Sampling temperature; 0.0 uses greedy decoding.")
-    compression_ratio_threshold: Union[float, str] = Field(default=2.4, description="Gzip compression ratio above which a segment is considered degenerate and dropped.")
-    log_prob_threshold: Union[float, str] = Field(default=-1.0, description="Average log-probability below which a segment is treated as low-confidence and filtered.")
-    no_speech_threshold: Union[float, str] = Field(default=0.6, description="No-speech probability above which a segment is skipped as silent.")
+    compression_ratio_threshold: Optional[Union[float, str]] = Field(default=None, description="Gzip compression ratio above which a segment is considered degenerate and dropped.")
+    log_prob_threshold: Optional[Union[float, str]] = Field(default=None, description="Average log-probability below which a segment is treated as low-confidence and filtered.")
+    no_speech_threshold: Optional[Union[float, str]] = Field(default=None, description="No-speech probability above which a segment is skipped as silent.")
 
 class HuggingfaceSpeechToTextModelActionConfig(CommonSpeechToTextModelActionConfig):
     task: Optional[Union[Literal[ "transcribe", "translate" ], str]] = Field(default="transcribe", description="Whisper task; `transcribe` keeps the source language, `translate` outputs English.")

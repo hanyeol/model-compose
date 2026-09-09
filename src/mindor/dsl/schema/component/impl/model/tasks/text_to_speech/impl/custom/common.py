@@ -1,9 +1,10 @@
 from enum import Enum
 
 class TextToSpeechModelFamily(str, Enum):
-    QWEN       = "qwen"
-    KOKORO     = "kokoro"
-    CHATTERBOX = "chatterbox"
-    LUXTTS     = "luxtts"
-    TADA       = "tada"
-    COSYVOICE  = "cosyvoice"
+    QWEN        = "qwen"
+    KOKORO      = "kokoro"
+    CHATTERBOX  = "chatterbox"
+    LUXTTS      = "luxtts"
+    TADA        = "tada"
+    COSYVOICE   = "cosyvoice"
+    FIREREDTTS3 = "fireredtts3"

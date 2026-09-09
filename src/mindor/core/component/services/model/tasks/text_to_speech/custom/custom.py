@@ -28,4 +28,8 @@ class CustomTextToSpeechTaskService:
             from .cosyvoice import CosyvoiceTextToSpeechTaskService
             return CosyvoiceTextToSpeechTaskService(id, config, daemon)
 
+        if config.family == TextToSpeechModelFamily.FIREREDTTS3:
+            from .fireredtts3 import FireRedTextToSpeechTaskService
+            return FireRedTextToSpeechTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

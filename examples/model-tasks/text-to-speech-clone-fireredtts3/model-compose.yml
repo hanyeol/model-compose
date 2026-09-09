@@ -1,0 +1,39 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Text to Speech with Voice Cloning (FireRedTTS3)
+  description: Zero-shot voice cloning across 24 languages and 21 Chinese dialects using FireRedTTS3-Base at 24 kHz.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: fireredtts3
+  # preset: base (default) loads FireRedTTS3-Base, tuned for zero-shot cloning.
+  # Switch to preset: instruct for ICL cloning via FireRedTTS3-Instruct.
+  preset: base
+  model: FireRedTeam/FireRedTTS3
+  device: auto
+  max_concurrent_count: 1
+  action:
+    method: clone
+    text: ${input.text as text}
+    reference_audio: ${input.reference_audio as audio}
+    # Omit reference_text to fall back to inference without a transcript;
+    # providing the transcript improves speaker similarity.
+    reference_text: ${input.reference_text as text | ""}
+    # Optional: pick an ISO language code (e.g. "en", "zh", "ko") or a Chinese
+    # dialect sub-tag (e.g. "zh-Sichuan", "zh-Cantonese"). Leave empty to let
+    # FireRedTTS3 auto-detect. "zh-yue" is a BCP-47 alias for "zh-Cantonese".
+    language: ${input.language as select/en,zh,ja,ko,es,fr,ru,ar,tr,id,pt,it,nl,vi,de,uk,th,pl,ro,el,cs,fi,hi,zh-Cantonese,zh-yue,zh-Anhui,zh-Fujian,zh-Gansu,zh-Guizhou,zh-Hebei,zh-Henan,zh-Hubei,zh-Hunan,zh-Jiangxi,zh-Liaoning,zh-Minnan,zh-Ningxia,zh-Shaanxi,zh-Shandong,zh-Shanghai,zh-Shanxi,zh-Sichuan,zh-Tianjin,zh-Wenzhou,zh-Wu,zh-Yunnan | ""}
+    output: ${result as audio/wav}

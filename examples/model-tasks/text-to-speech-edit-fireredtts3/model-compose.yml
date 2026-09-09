@@ -1,0 +1,40 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speech Editing (FireRedTTS3-Instruct)
+  description: Edit an existing speech clip using natural-language instructions. Supports semantic edits (insert/delete/replace content) and acoustic edits (speed, pitch, volume).
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: fireredtts3
+  # Speech editing requires the Instruct preset.
+  preset: instruct
+  model: FireRedTeam/FireRedTTS3
+  device: auto
+  max_concurrent_count: 1
+  action:
+    method: edit
+    # `text` is required by the TTS action contract but ignored by edit —
+    # the model rewrites the audio from the instruction and input clip alone.
+    text: ${input.text as text | ""}
+    reference_audio: ${input.audio_in as audio}
+    instructions: ${input.instructions as text}
+    # Choose "semantic" for content edits (insert/delete/replace words) or
+    # "acoustic" for template-driven speed/pitch/volume edits.
+    #   speed  ->  "adjust the speed to X"       X in [0.5, 2.0], step 0.1
+    #   pitch  ->  "shift the pitch by N step(s)" N in {-6,...,-1,1,...,+6}
+    #   volume ->  "adjust the volume to X"      X in [0.3, 2.0], step 0.1
+    mode: ${input.mode as text | "semantic"}
+    output: ${result as audio/wav}

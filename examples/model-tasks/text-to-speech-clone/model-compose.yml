@@ -1,11 +1,11 @@
 controller:
   adapter:
     type: http-server
-    port: 8083
+    port: 8080
     base_path: /api
   webui:
     driver: gradio
-    port: 8084
+    port: 8081
 
 workflow:
   title: Text to Speech with Voice Cloning

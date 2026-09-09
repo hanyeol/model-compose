@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Text to Speech with Voice Design (FireRedTTS3-Instruct)
+  description: Design a new voice from a natural-language description and generate speech using FireRedTTS3-Instruct at 24 kHz.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: fireredtts3
+  # Voice design requires the Instruct preset.
+  preset: instruct
+  model: FireRedTeam/FireRedTTS3
+  device: auto
+  max_concurrent_count: 1
+  action:
+    method: design
+    text: ${input.text as text}
+    # Natural-language description of the target voice: gender, age, timbre,
+    # emotion, pace, accent. No reference audio is needed.
+    instructions: ${input.instructions as text}
+    output: ${result as audio/wav}

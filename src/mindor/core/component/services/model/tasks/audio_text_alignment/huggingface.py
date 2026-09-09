@@ -98,6 +98,7 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
 
         for piece_count, word in word_pieces:
             spans = [ next(span_iterator) for _ in range(piece_count) ]
+
             if not spans:
                 continue
 
@@ -164,6 +165,7 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
         trim_tail        = overlap_frames - overlap_frames // 2 if not is_last else 0
 
         tail_index = log_probs.shape[1] - trim_tail
+
         if tail_index <= trim_head:
             return log_probs[:, :0, :].cpu()
 
@@ -185,6 +187,7 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
         )
         input_values = inputs["input_values"].to(self.device)
         attention_mask = inputs.get("attention_mask")
+
         if attention_mask is not None:
             attention_mask = attention_mask.to(self.device)
 
@@ -209,34 +212,43 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
 
         groups: List[Tuple[int, str]] = []
         cursor = 0
+
         for word in words:
             count = 0
+
             while cursor < len(target_ids) and target_ids[cursor] != delimiter_id:
                 count += 1
                 cursor += 1
+
             # Skip the delimiter itself between words.
             if cursor < len(target_ids) and target_ids[cursor] == delimiter_id:
                 cursor += 1
+
             groups.append((count, word))
 
         return groups
 
     def _get_blank_id(self) -> int:
         pad_id = getattr(self.processor.tokenizer, "pad_token_id", None)
+
         if pad_id is not None:
             return int(pad_id)
+
         # Wav2Vec2 CTC convention: blank is index 0.
         return 0
 
     def _get_word_delimiter_id(self) -> Optional[int]:
         delimiter = getattr(self.processor.tokenizer, "word_delimiter_token", None)
+
         if delimiter is None:
             return None
+
         return self.processor.tokenizer.convert_tokens_to_ids(delimiter)
 
     def _get_seconds_per_frame(self, num_samples: int, num_frames: int) -> float:
         if num_frames > 0:
             return (num_samples / self.sample_rate) / num_frames
+
         return 0.0
 
 @register_model_task_service(ModelTaskType.AUDIO_TEXT_ALIGNMENT, ModelDriver.HUGGINGFACE)

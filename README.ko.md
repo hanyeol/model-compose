@@ -237,7 +237,7 @@ controller:
 - **어떤 모델이든, 어디서든** — 로컬은 HuggingFace, vLLM, llama.cpp, 클라우드는 OpenAI/Anthropic/Google/xAI를 HTTP로
 - **YAML로 만드는 에이전트** — ReAct 루프, 도구 사용, 다단계 추론 — 코드 없이
 - **Human-in-the-loop** — 승인을 위해 워크플로우 일시 정지, CLI/UI/API로 재개
-- **20+ 컴포넌트** — 모델, 에이전트, HTTP/WebSocket 클라이언트, 벡터/그래프 스토어, 셸, 브라우저 등
+- **90+ 컴포넌트** — 모델, 에이전트, HTTP/WebSocket 클라이언트, 벡터/그래프 스토어, 셸, 브라우저 등
 - **어떤 프로토콜이든** — HTTP REST, WebSocket, MCP를 한 줄로
 - **어떤 런타임이든** — Docker, 네이티브, virtualenv, 프로세스, 임베디드 — 한 줄로 전환
 - **분산 실행** — Redis 큐 디스패치로 수평 확장

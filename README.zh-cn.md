@@ -237,7 +237,7 @@ controller:
 - **任意模型，任意地方** —— 本地使用 HuggingFace、vLLM、llama.cpp，或通过 HTTP 连接 OpenAI/Anthropic/Google/xAI
 - **YAML 中的智能体** —— ReAct 循环、工具使用、多步推理 —— 无需代码
 - **Human-in-the-loop** —— 暂停工作流以获得审批，通过 CLI/UI/API 恢复
-- **20+ 组件** —— 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、shell、浏览器等
+- **90+ 组件** —— 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、shell、浏览器等
 - **任意协议** —— HTTP REST、WebSocket 或 MCP 只需一行
 - **任意运行时** —— Docker、原生、virtualenv、进程、嵌入式 —— 一行切换
 - **分布式** —— 基于 Redis 队列的分发实现水平扩展

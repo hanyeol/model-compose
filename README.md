@@ -237,7 +237,7 @@ No shared filesystem. No code changes. Just add more subscribers to scale.
 - **Any model, anywhere** — HuggingFace, vLLM, llama.cpp locally, or OpenAI/Anthropic/Google/xAI via HTTP
 - **Agents in YAML** — ReAct loops, tool use, multi-step reasoning — no code
 - **Human-in-the-loop** — pause workflows for approval, resume from CLI/UI/API
-- **20+ components** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell, browsers, and more
+- **90+ components** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell, browsers, and more
 - **Any protocol** — HTTP REST, WebSocket, or MCP with one line
 - **Any runtime** — Docker, native, virtualenv, process, embedded — switch in one line
 - **Distributed** — Redis queue dispatch for horizontal scaling

@@ -780,7 +780,6 @@ class GradioWebUIBuilder:
 
         return flattened
 
-
     def _clear_output_updates(self, components: List[gr.Component]) -> List[Any]:
         updates = []
 

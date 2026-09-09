@@ -651,7 +651,7 @@ class GradioWebUIBuilder:
             return gr.File(label=label)
 
         if variable.type == WorkflowVariableType.SELECT:
-            return gr.Dropdown(choices=variable.options or [], label=label, value=default, info=info)
+            return gr.Dropdown(choices=variable.options or [], label=label, value=default if default in (variable.options or []) else None, info=info)
 
         return gr.Textbox(label=label, value=default, info=f"Unsupported type: {variable.type}")
 

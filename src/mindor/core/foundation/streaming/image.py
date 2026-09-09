@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, List
+from typing import Optional, List, Union
 from collections.abc import AsyncIterator
 from .resources import StreamResource
 from PIL import Image as PILImage
@@ -29,40 +29,62 @@ _PIL_FORMAT_MAP = {
 }
 
 class ImageStreamResource(StreamResource):
-    def __init__(self, image: PILImage.Image, format: str = "png", filename: Optional[str] = None):
+    def __init__(
+        self,
+        image: Union[PILImage.Image, bytes],
+        format: str = "png",
+        filename: Optional[str] = None,
+        chunk_size: int = 8192,
+    ):
         super().__init__(self._resolve_content_type(format), filename)
 
-        self.image: PILImage.Image = image
+        self.image: Union[PILImage.Image, bytes] = image
         self.format: str = format
-        self._buffer: Optional[io.BytesIO] = None
+        self.chunk_size: int = chunk_size
+        self._stream: Optional[io.BytesIO] = None
+
+    async def as_image(self) -> PILImage.Image:
+        if isinstance(self.image, bytes):
+            def _decode(data: bytes) -> PILImage.Image:
+                image = PILImage.open(io.BytesIO(data))
+                image.load()
+
+                return image
+
+            self.image = await asyncio.to_thread(_decode, self.image)
+
+        return self.image
 
     def copyable(self) -> bool:
         return True
 
     def copy(self, count: int) -> List[ImageStreamResource]:
         return [
-            ImageStreamResource(self.image, self.format, self.filename)
+            ImageStreamResource(self.image, self.format, self.filename, self.chunk_size)
             for _ in range(count)
         ]
 
     async def close(self) -> None:
-        if self._buffer:
-            self._buffer.close()
-            self._buffer = None
+        if self._stream:
+            self._stream.close()
+            self._stream = None
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        if not self._buffer:
-            self._buffer = await asyncio.to_thread(self._write_to_buffer, self.image, self.format)
+        if self._stream is None:
+            if isinstance(self.image, bytes):
+                self._stream = io.BytesIO(self.image)
+            else:
+                self._stream = await asyncio.to_thread(self._encode_to_buffer, self.image, self.format)
 
         while True:
-            chunk = self._buffer.read(8192)  # Read in 8KB chunks
+            chunk = self._stream.read(self.chunk_size)
 
             if not chunk:
                 break
 
             yield chunk
 
-    def _write_to_buffer(self, image: PILImage.Image, format: str) -> io.BytesIO:
+    def _encode_to_buffer(self, image: PILImage.Image, format: str) -> io.BytesIO:
         buffer = io.BytesIO()
         image.save(buffer, self._resolve_pil_format(format))
         buffer.seek(0)

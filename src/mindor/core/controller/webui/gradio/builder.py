@@ -944,7 +944,7 @@ class GradioWebUIBuilder:
             return await load_image_from_stream(Base64StreamResource(value))
 
         if isinstance(value, ImageStreamResource):
-            return value.image
+            return await value.as_image()
 
         if isinstance(value, StreamResource):
             return await load_image_from_stream(value)

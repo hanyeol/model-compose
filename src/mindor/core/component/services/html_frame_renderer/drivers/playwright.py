@@ -5,14 +5,13 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import PlaywrightHtmlFrameRendererComponentConfig, HtmlFrameRendererDriver
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.image import load_image_from_bytes
+from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.url import UrlResource
 from mindor.core.logger import logging
 from ..base import HtmlFrameRendererService, register_html_frame_renderer_service
 from ..base import ComponentActionContext
 from .common import HtmlFrameRendererAction, HtmlFrameRendererSession
-from PIL import Image as PILImage
 import asyncio, json
 
 class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
@@ -27,7 +26,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         html: UrlResource,
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> AsyncIterator[Tuple[PILImage.Image, float]]:
+    ) -> AsyncIterator[Tuple[ImageStreamResource, float]]:
         fps           = params["fps"]
         width         = params["width"]
         height        = params["height"]
@@ -80,8 +79,8 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             else:
                 await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
 
-            image = await load_image_from_bytes(await self._page.screenshot(**screenshot_params))
-            yield image, timestamp
+            frame_bytes = await self._page.screenshot(**screenshot_params)
+            yield ImageStreamResource(frame_bytes, format=format), timestamp
 
     async def close(self) -> None:
         try:

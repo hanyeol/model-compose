@@ -8,10 +8,10 @@ from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from PIL import Image as PILImage
 from ....action.base import ComponentAction
 from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
@@ -50,7 +50,7 @@ class VideoEncoderAction(ComponentAction):
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, Any], bool, bool]:
         video  = await context.render_video(self.config.video) if self.config.video is not None else None
-        frames = await context.render_image_array(self.config.frames) if self.config.frames is not None else None
+        frames = await context.render_image_array(self.config.frames, as_stream=True) if self.config.frames is not None else None
         audio  = await context.render_audio(self.config.audio) if self.config.audio is not None else None
 
         video = frames if video is None else video
@@ -81,6 +81,7 @@ class VideoEncoderAction(ComponentAction):
 
         for index, video in enumerate(videos):
             audio = audios[index] if audios is not None else None
+
             if isinstance(video, ImageArrayValue):
                 results.append(await self._encode_from_frames(video, audio, params["encoding"], params["frame_rate"], streaming, cancellation_token))
             else:
@@ -102,7 +103,7 @@ class VideoEncoderAction(ComponentAction):
     @abstractmethod
     async def _encode_from_frames(
         self,
-        frames: AsyncIterable[PILImage.Image],
+        frames: AsyncIterable[ImageStreamResource],
         audio: Optional[MediaSource],
         encoding: VideoAudioEncodingParams,
         frame_rate: Optional[float],

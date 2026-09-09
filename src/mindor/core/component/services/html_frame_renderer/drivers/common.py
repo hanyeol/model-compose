@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable, AsyncIterator
-from PIL import Image as PILImage
 
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
+from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -27,12 +27,17 @@ class HtmlFrameRendererSession(ABC):
         html: UrlResource,
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
-    ) -> AsyncIterator[Tuple[PILImage.Image, float]]:
+    ) -> AsyncIterator[Tuple[ImageStreamResource, float]]:
         """Yield (image, timestamp) per frame.
 
         `html` is owned by the component and reused across sessions — do not
         close it here. `params` carries the shared render options resolved by
         `HtmlFrameRendererAction` (`fps`, `width`, `height`, `ready_timeout`).
+
+        Frames are yielded as `ImageStreamResource` carrying the driver's
+        encoded bytes (JPEG/PNG) so downstream consumers that can pipe raw
+        bytes (e.g. ffmpeg `image2pipe`) avoid a decode/re-encode round-trip.
+        Consumers that need a `PIL.Image` call `await frame.as_image()`.
         """
         pass
 

@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
@@ -17,11 +18,10 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from PIL import Image as PILImage
 from ..base import VideoEncoderService, register_video_encoder_service
 from ..base import ComponentActionContext
 from .common import VideoEncoderAction
-import asyncio, io, os
+import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
 
@@ -106,7 +106,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
     async def _encode_from_frames(
         self,
-        frames: AsyncIterable[PILImage.Image],
+        frames: AsyncIterable[ImageStreamResource],
         audio: Optional[MediaSource],
         encoding: VideoAudioEncodingParams,
         frame_rate: Optional[float],
@@ -161,9 +161,9 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         async def _source_iterator() -> AsyncIterator[bytes]:
             async for frame in frames:
-                buffer = io.BytesIO()
-                await asyncio.to_thread(frame.save, buffer, "PNG")
-                yield buffer.getvalue()
+                async with frame:
+                    async for chunk in frame:
+                        yield chunk
 
         source = _source_iterator()
 

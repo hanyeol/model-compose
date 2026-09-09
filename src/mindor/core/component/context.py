@@ -138,16 +138,18 @@ class ComponentActionContext:
 
     async def render_image(
         self,
-        value: Any
+        value: Any,
+        as_stream: bool = False,
     ) -> Optional[Union[PILImage.Image, List[Optional[PILImage.Image]], AsyncIterator[Optional[PILImage.Image]]]]:
-        return await ImageValueRenderer().render(await self.render_variable(value))
+        return await ImageValueRenderer().render(await self.render_variable(value), as_stream)
 
     async def render_image_array(
         self,
         value: Any,
         single_as_array: bool = False,
+        as_stream: bool = False,
     ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
-        return await ImageValueRenderer().render_array(await self.render_variable(value), single_as_array)
+        return await ImageValueRenderer().render_array(await self.render_variable(value), single_as_array, as_stream)
 
     async def render_audio(
         self,

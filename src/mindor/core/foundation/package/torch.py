@@ -3,7 +3,7 @@ from packaging.requirements import Requirement
 from packaging.version import Version
 from packaging.specifiers import SpecifierSet
 from mindor.core.logger import logging
-import functools, platform, re, shutil, subprocess, sys
+from .cuda import get_cuda_driver_version
 
 # torch → paired sibling versions. Keep both tables in sync with
 # pytorch.org/get-started/previous-versions/ — each PyTorch release publishes
@@ -43,9 +43,27 @@ _TORCHVISION_FOR_TORCH: Dict[str, str] = {
     "2.4.0":  "0.19.0",
 }
 
+# torchcodec compatibility per https://github.com/pytorch/torchcodec — pinned to
+# the highest release that officially supports each torch version.
+_TORCHCODEC_FOR_TORCH: Dict[str, str] = {
+    "2.11.0": "0.11",
+    "2.10.0": "0.10",
+    "2.9.1":  "0.9",
+    "2.9.0":  "0.9",
+    "2.8.0":  "0.7",
+    "2.7.1":  "0.5",
+    "2.7.0":  "0.5",
+    "2.6.0":  "0.2",
+    "2.5.1":  "0.1",
+    "2.5.0":  "0.1",
+    "2.4.1":  "0.0.3",
+    "2.4.0":  "0.0.3",
+}
+
 _TORCH_SIBLING_TABLES: Dict[str, Dict[str, str]] = {
     "torchaudio":  _TORCHAUDIO_FOR_TORCH,
     "torchvision": _TORCHVISION_FOR_TORCH,
+    "torchcodec":  _TORCHCODEC_FOR_TORCH,
 }
 
 # torch version → CUDA channels that ship a wheel for it, ordered high-to-low.
@@ -81,7 +99,7 @@ _TORCH_VERSIONS_DESC: List[str] = sorted(
     reverse=True,
 )
 
-_TORCH_PACKAGE_NAMES = frozenset({ "torch", "torchaudio", "torchvision" })
+_TORCH_PACKAGE_NAMES = frozenset({ "torch", "torchaudio", "torchvision", "torchcodec" })
 
 def torch_requirements(*specs: str) -> List[str]:
     """Attach a PyTorch wheel index to each torch/torchaudio/torchvision spec.
@@ -99,19 +117,19 @@ def torch_requirements(*specs: str) -> List[str]:
     Returns specs unchanged on non-Linux/x86_64 hosts or when no NVIDIA driver
     is detected.
     """
-    driver_cuda = _resolve_driver_cuda()
+    cuda_version = get_cuda_driver_version()
 
-    if driver_cuda is None:
+    if cuda_version is None:
         return list(specs)
 
     torch_specifier = _get_torch_specifier(specs)
     torch_siblings = _get_torch_siblings(specs)
-    resolution = _resolve_torch_and_channel(torch_specifier, torch_siblings, driver_cuda)
+    resolution = _resolve_torch_and_channel(torch_specifier, torch_siblings, cuda_version)
 
     if resolution is None:
         logging.warning(
             f"No CUDA wheel channel available for {torch_specifier or 'torch (any)'} "
-            f"on driver CUDA {driver_cuda[0]}.{driver_cuda[1]}; falling back to "
+            f"on driver CUDA {cuda_version[0]}.{cuda_version[1]}; falling back to "
             f"the CPU wheel index while preserving the caller's constraints."
         )
         return _rewrite_specs(specs, None, _CPU_CHANNEL)
@@ -119,43 +137,10 @@ def torch_requirements(*specs: str) -> List[str]:
     torch_version, channel = resolution
     logging.info(
         f"Resolved torch=={torch_version} on channel {channel} for driver "
-        f"CUDA {driver_cuda[0]}.{driver_cuda[1]}."
+        f"CUDA {cuda_version[0]}.{cuda_version[1]}."
     )
 
     return _rewrite_specs(specs, torch_version, channel)
-
-@functools.lru_cache(maxsize=1)
-def _resolve_driver_cuda() -> Optional[Tuple[int, int]]:
-    if sys.platform != "linux" or platform.machine() != "x86_64":
-        return None
-
-    return _probe_driver_cuda_version()
-
-def _probe_driver_cuda_version() -> Optional[Tuple[int, int]]:
-    nvidia_smi = shutil.which("nvidia-smi")
-
-    if nvidia_smi is None:
-        return None
-
-    try:
-        result = subprocess.run(
-            [ nvidia_smi ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return None
-
-    if result.returncode != 0:
-        return None
-
-    match = re.search(r"CUDA Version:\s*(\d+)\.(\d+)", result.stdout)
-
-    if match is None:
-        return None
-
-    return int(match.group(1)), int(match.group(2))
 
 def _get_torch_specifier(specs: Iterable[str]) -> Optional[SpecifierSet]:
     for spec in specs:
@@ -183,13 +168,13 @@ def _get_torch_siblings(specs: Iterable[str]) -> List[str]:
 def _resolve_torch_and_channel(
     torch_specifier: Optional[SpecifierSet],
     torch_siblings: List[str],
-    driver_cuda: Tuple[int, int],
+    cuda_version: Tuple[int, int],
 ) -> Optional[Tuple[str, str]]:
     for version in _candidate_torch_versions(torch_specifier):
         if not all(version in _TORCH_SIBLING_TABLES[sibling] for sibling in torch_siblings):
             continue
 
-        channel = _pick_channel_for_driver(version, driver_cuda)
+        channel = _pick_channel_for_driver(version, cuda_version)
 
         if channel is not None:
             return version, channel
@@ -204,7 +189,7 @@ def _candidate_torch_versions(torch_specifier: Optional[SpecifierSet]) -> List[s
 
 def _pick_channel_for_driver(
     torch_version: str,
-    driver_cuda: Tuple[int, int],
+    cuda_version: Tuple[int, int],
 ) -> Optional[str]:
     channels = _CUDA_CHANNELS_FOR_TORCH.get(torch_version)
 
@@ -212,7 +197,7 @@ def _pick_channel_for_driver(
         return None
 
     for min_driver, channel in channels:
-        if min_driver <= driver_cuda:
+        if min_driver <= cuda_version:
             return channel
 
     return None

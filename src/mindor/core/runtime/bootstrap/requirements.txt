@@ -13,5 +13,5 @@ websockets
 uvicorn
 mcp>=1.10.1,<2.0
 ulid
-Pillow
+Pillow>=9.1.0
 async_timeout>=4.0; python_version < '3.11'

@@ -185,3 +185,8 @@ cython_debug/
 # AI Agents
 CLAUDE.md
 .claude/
+
+# Packages installed at runtime by install_package_from_github into src/
+# (e.g. fireredtts3, cosyvoice). Only src/mindor is tracked here.
+/src/*/
+!/src/mindor/

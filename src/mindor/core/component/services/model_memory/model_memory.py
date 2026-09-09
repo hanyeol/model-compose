@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, List, Any
+from typing import Any
 from mindor.dsl.schema.component import ModelMemoryComponentConfig
 from mindor.dsl.schema.component import ModelMemoryWindowConfig, ModelMemorySummaryConfig
 from mindor.dsl.schema.component import ModelMemoryBufferDriver, ModelMemoryStorageDriver
@@ -281,12 +281,6 @@ class ModelMemoryComponent(ComponentService):
             importlib.import_module(f"mindor.core.component.services.model_memory.storage.drivers.{driver_module}")
         except ImportError as e:
             raise ValueError(f"Unsupported model memory storage driver: {driver}") from e
-
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        buffer_requirements  = self._buffer.get_setup_requirements()
-        storage_requirements = self._storage.get_setup_requirements()
-
-        return [ *(buffer_requirements or []), *(storage_requirements or []) ] or None
 
     async def _start(self) -> None:
         if self.config.summary:

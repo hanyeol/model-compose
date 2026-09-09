@@ -22,7 +22,7 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch"),
-            "transformers>=4.21.0",
+            "transformers>=4.52.0",
             "peft>=0.5.0",
             "sentencepiece",
             "accelerate"

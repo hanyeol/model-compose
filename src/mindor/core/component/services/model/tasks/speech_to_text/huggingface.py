@@ -107,14 +107,19 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]], List[Any]]:
             import torch
 
-            input_features = self.processor(
+            batch_feature = self.processor(
                 waveforms,
                 sampling_rate=16000,
                 return_tensors="pt",
                 padding=True,
                 chunk_length=params["chunk_length"]
             )
-            input_features = input_features.to(self.device)
+            batch_feature = batch_feature.to(self.device)
+
+            # Feature extractor always returns float32; cast only the float tensor to
+            # the model's dtype so fp16/bf16 weights don't hit "Input type / bias type"
+            # mismatch. Leaves integer masks (attention_mask) untouched.
+            batch_feature["input_features"] = batch_feature["input_features"].to(dtype=self.model.dtype)
 
             stopping_criteria = self._build_stopping_criteria(cancellation_token)
 
@@ -130,7 +135,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                     try:
                         with torch.inference_mode():
                             self.model.generate(
-                                **input_features,
+                                **batch_feature,
                                 **params["generation"],
                                 stopping_criteria=stopping_criteria,
                                 streamer=streamer
@@ -145,7 +150,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             with torch.inference_mode():
                 if return_timestamps == "word":
                     outputs = self.model.generate(
-                        **input_features,
+                        **batch_feature,
                         **params["generation"],
                         return_dict_in_generate=True,
                         stopping_criteria=stopping_criteria,
@@ -153,7 +158,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                     predicted_ids  = outputs["sequences"]
                     word_segments  = outputs.get("segments")
                 else:
-                    predicted_ids  = self.model.generate(**input_features, **params["generation"], stopping_criteria=stopping_criteria)
+                    predicted_ids  = self.model.generate(**batch_feature, **params["generation"], stopping_criteria=stopping_criteria)
                     word_segments  = None
 
             if not return_timestamps:
@@ -270,7 +275,7 @@ class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchaudio"),
-            "transformers>=4.21.0",
+            "transformers>=4.52.0",
             "accelerate",
             "soxr",
         ]

@@ -287,8 +287,8 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
-                    async for updates in self._stream_output_updates(output, workflow.output[0], output_components[0]):
+                if workflow.output and self._has_output_stream(output, workflow.output):
+                    async for updates in self._stream_output_updates(output, workflow.output, output_components):
                         log_message_history.drain()
                         yield [
                             _run_button_running(),
@@ -469,8 +469,8 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if len(workflow.output) == 1 and isinstance(output, (StreamIterator, AsyncIterator)):
-                    async for updates in self._stream_output_updates(output, workflow.output[0], output_components[0]):
+                if workflow.output and self._has_output_stream(output, workflow.output):
+                    async for updates in self._stream_output_updates(output, workflow.output, output_components):
                         log_message_history.drain()
                         yield [
                             _run_button_running(),
@@ -769,7 +769,7 @@ class GradioWebUIBuilder:
         return gr.Textbox(label=label, info=f"Unsupported type: {variable.type}")
 
     def _flatten_output_components(self, components: List[Union[gr.Component, List[ComponentGroup]]]) -> List[gr.Component]:
-        flattened = []
+        flattened: List[gr.Component] = []
 
         for component in components:
             if isinstance(component, list): # List[ComponentGroup]]
@@ -824,36 +824,116 @@ class GradioWebUIBuilder:
 
     async def _stream_output_updates(
         self,
-        stream: AsyncIterator,
-        variable: Union[WorkflowVariableConfig, WorkflowVariableGroupConfig],
-        component: Union[gr.Component, List[ComponentGroup]],
+        output: Any,
+        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
+        components: List[Union[gr.Component, List[ComponentGroup]]],
     ) -> AsyncIterator[List[Any]]:
-        if isinstance(variable, WorkflowVariableGroupConfig):
-            window: deque = deque(maxlen=len(component))
-            async for chunk in stream:
-                window.append(chunk)
-                updates: List[Any] = []
-                for index, group in enumerate(component):
-                    value = window[index] if index < len(window) else None
-                    if value is None:
-                        updates.extend(gr.update() for _ in group.components)
-                    else:
-                        updates.extend(await self._resolve_output_updates(value, variable.variables, group.components))
-                yield updates
+        # Split top-level slots into streaming vs static. Static slots resolve once
+        # up front and stay put via gr.update() on subsequent chunk yields; streaming
+        # slots are consumed concurrently and merged into the shared updates list.
+        updates: List[Any] = [ gr.update() for _ in components ]
+        component_counts: List[int] = [
+            len(component) if isinstance(variable, WorkflowVariableGroupConfig) else 1
+            for variable, component in zip(variables, components)
+        ]
+
+        streams: Dict[int, AsyncIterator] = {}
+        buffers: Dict[int, Union[str, List[Any]]] = {}
+        windows: Dict[int, deque] = {}
+
+        for index, (variable, component) in enumerate(zip(variables, components)):
+            value = self._resolve_variable_output(output, variable) if isinstance(output, dict) and variable.name else output
+
+            if isinstance(value, (StreamIterator, AsyncIterator)):
+                streams[index] = value
+
+                if isinstance(variable, WorkflowVariableGroupConfig):
+                    windows[index] = deque(maxlen=len(component))
+                else:
+                    buffers[index] = "" if self._is_string_variable(variable) and not variable.is_list else []
+            else:
+                resolved = await self._resolve_output_updates(value, [ variable ], [ component ])
+                updates[index] = resolved if len(resolved) > 1 else resolved[0]
+
+        if not streams:
+            yield self._flatten_stream_updates(updates, component_counts)
             return
 
-        buffer: Union[str, List[Any]] = "" if self._is_string_variable(variable) and not variable.is_list else []
-        async for chunk in stream:
-            output = self._resolve_variable_output(chunk, variable)
-            value = await self._convert_output_value([ output ] if variable.is_list else output, variable)
-            if value is None:
-                continue
-            value = value[0] if variable.is_list else value
-            if isinstance(buffer, str):
-                buffer += value
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def _forward_chunks(index: int, stream: AsyncIterator):
+            try:
+                async for chunk in stream:
+                    await queue.put((index, chunk))
+            finally:
+                await queue.put(None)
+
+        tasks = [ asyncio.create_task(_forward_chunks(index, stream)) for index, stream in streams.items() ]
+        active_streams = len(tasks)
+
+        try:
+            while active_streams > 0:
+                item = await queue.get()
+
+                if item is None:
+                    active_streams -= 1
+                    continue
+
+                index, chunk = item
+                variable = variables[index]
+                component = components[index]
+
+                if isinstance(variable, WorkflowVariableGroupConfig):
+                    window = windows[index]
+                    window.append(chunk)
+
+                    group_updates: List[Any] = []
+                    for group_index, group in enumerate(component):
+                        value = window[group_index] if group_index < len(window) else None
+
+                        if value is None:
+                            group_updates.extend(gr.update() for _ in group.components)
+                        else:
+                            group_updates.extend(await self._resolve_output_updates(value, variable.variables, group.components))
+
+                    updates[index] = group_updates
+                else:
+                    output = self._resolve_variable_output(chunk, variable)
+                    value = await self._convert_output_value([ output ] if variable.is_list else output, variable)
+
+                    if value is None:
+                        continue
+
+                    value = value[0] if variable.is_list else value
+                    buffer = buffers[index]
+
+                    if isinstance(buffer, str):
+                        buffer += value
+                    else:
+                        buffer.append(value)
+
+                    buffers[index] = buffer
+                    updates[index] = buffer
+
+                yield self._flatten_stream_updates(updates, component_counts)
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+
+    def _flatten_stream_updates(self, updates: List[Any], sizes: List[int]) -> List[Any]:
+        flattened: List[Any] = []
+
+        for update, size in zip(updates, sizes):
+            if size > 1:
+                if isinstance(update, list):
+                    flattened.extend(update)
+                else:
+                    flattened.extend(gr.update() for _ in range(size))
             else:
-                buffer.append(value)
-            yield [ buffer ]
+                flattened.append(update)
+
+        return flattened
 
     def _resolve_variable_output(
         self,
@@ -878,16 +958,32 @@ class GradioWebUIBuilder:
 
         return None if variable.name else output
 
+    def _has_output_stream(
+        self,
+        output: Any,
+        variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
+    ) -> bool:
+        if isinstance(output, (StreamIterator, AsyncIterator)):
+            return True
+        if isinstance(output, dict):
+            for variable in variables:
+                if not variable.name:
+                    continue
+                value = self._resolve_variable_output(output, variable)
+                if isinstance(value, (StreamIterator, AsyncIterator)):
+                    return True
+        return False
+
     def _has_pending_media_updates(
         self,
         updates: List[Any],
-        flattened_output_components: List[gr.Component],
+        components: List[gr.Component],
         media_components: List[gr.Component]
     ) -> bool:
-        if not media_components or len(updates) != len(flattened_output_components):
+        if not media_components or len(updates) != len(components):
             return bool(media_components) and False if not media_components else False
 
-        for update, component in zip(updates, flattened_output_components):
+        for update, component in zip(updates, components):
             if component in media_components and update is not None:
                 return True
 

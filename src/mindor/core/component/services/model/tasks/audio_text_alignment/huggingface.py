@@ -244,7 +244,7 @@ class HuggingfaceAudioTextAlignmentTaskService(HuggingfaceMultimodalModelTaskSer
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchaudio"),
-            "transformers>=4.21.0",
+            "transformers>=4.52.0",
             "accelerate",
             "soxr",
         ]

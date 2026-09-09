@@ -81,11 +81,11 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
         # torchaudio's forced_align has no MPS kernel — run it on CPU for
         # backends without a native implementation. CUDA / CPU keep the forward
         # device to avoid an unnecessary copy.
-        alignment_device = torch.device("cpu") if log_probs.device.type in [ "mps" ] else log_probs.device
-        log_probs = log_probs.to(alignment_device)
+        align_device = torch.device("cpu") if log_probs.device.type in [ "mps" ] else log_probs.device
+        log_probs = log_probs.to(align_device)
 
         blank_id = self._get_blank_id()
-        targets = torch.tensor([ target_ids ], dtype=torch.int32, device=alignment_device)
+        targets = torch.tensor([ target_ids ], dtype=torch.int32, device=align_device)
 
         aligned_tokens, alignment_scores = forced_align(log_probs, targets, blank=blank_id)
         token_spans = merge_tokens(aligned_tokens[0], alignment_scores[0], blank=blank_id)

@@ -22,6 +22,7 @@ from mindor.core.utils.files import guess_file_extension
 from mindor.core.utils.event_history import EventHistory
 from mindor.core.logger import logging
 from .renderer import WorkflowSchemaRenderer, WorkflowFlowRenderer
+from .error import PrettyGradioError
 from PIL import Image as PILImage
 from collections import deque
 import gradio as gr
@@ -234,7 +235,7 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
                     ]
-                    raise gr.Error(str(e))
+                    raise PrettyGradioError(str(e))
 
                 if state.status == TaskStatus.INTERRUPTED:
                     yield [
@@ -267,7 +268,7 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
                     ]
-                    raise gr.Error(str(state.error))
+                    raise PrettyGradioError(str(state.error))
 
                 # STREAMING or COMPLETED
                 clear_interrupt = self._clear_interrupt_updates()
@@ -375,7 +376,7 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.ignore(),
                     ]
-                    raise gr.Error(str(e))
+                    raise PrettyGradioError(str(e))
 
                 while not async_task.done():
                     if await log_message_history.poll(timeout=0.1, linger="adaptive"):
@@ -412,7 +413,7 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
                     ]
-                    raise gr.Error(str(e))
+                    raise PrettyGradioError(str(e))
 
                 if state.status == TaskStatus.INTERRUPTED:
                     yield [
@@ -448,7 +449,7 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
                     ]
-                    raise gr.Error(str(state.error))
+                    raise PrettyGradioError(str(state.error))
 
                 # STREAMING or COMPLETED
                 clear_interrupt = self._clear_interrupt_updates()

@@ -44,6 +44,7 @@ model-compose provides various component types for performing different tasks.
 | `html-frame-renderer` | Render HTML as video frames | Drive an HTML/CSS/JS animation via a `window.__renderer.seek(t)` contract and capture each frame as a PIL image |
 | `video-clipper` | Clip video segments | Cut one or more time ranges from a video, losslessly via ffmpeg stream copy |
 | `video-mixer` | Composite videos | Concat videos end-to-end or overlay one/more videos on a base (watermark, PIP) via ffmpeg |
+| `video-processor` | Per-frame video DSP | Resize, crop, pad, flip, rotate, and speed change (A/V-synced via `setpts` + `atempo`) via ffmpeg |
 | `video-analyzer` | Measure video properties | Black frames, freezes, brightness, and motion summary via ffmpeg filters |
 | `audio-extractor` | Extract audio | Pull audio streams out of video or other media files |
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
@@ -54,6 +55,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-silence-detector` | Detect silence regions | Locate silent runs in audio using ffmpeg's `silencedetect` filter; useful for trimming dead air or splitting on quiet gaps |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
+| `audio-processor` | Audio DSP chain | Rate/time (resample, speed, pitch-shift), EQ (highpass, lowpass, bell, shelves), dynamics (compressor, gate, limiter), spatial (chorus, delay, reverb), level (gain, normalize RMS/peak/LUFS), edit (trim edges/silence, fade in/out), and voice anonymization via pedalboard + librosa + soxr + pyloudnorm |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
 | `media-downloader` | Download media from URL | Fetch audio or video from YouTube, Vimeo, etc. via yt-dlp; returns a stream ready for downstream processing |
 | `subtitle-loader` | Load subtitles | Fetch subtitles from a URL (yt-dlp) or parse a local file / upload / raw text into segments with start/end/duration/text |
@@ -96,8 +98,10 @@ model-compose provides various component types for performing different tasks.
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
 - Video / audio clipping (cut time ranges losslessly) → `video-clipper` / `audio-clipper`
 - Video mixing (concat / overlay for watermarks and PIP) → `video-mixer`
+- Video per-frame DSP (resize, crop, pad, flip, rotate, speed change with synced audio) → `video-processor`
 - Video analysis (black frames, freezes, brightness, motion) → `video-analyzer`
 - Audio mixing (concat / overlay for narration over background, layered SFX) → `audio-mixer`
+- Audio DSP (speed / pitch-shift, EQ, compressor, normalize, trim silence, fade in/out, voice anonymization) → `audio-processor`
 - Audio feature extraction (spectrum / waveform for visualization) → `audio-feature-extractor`
 - Audio analysis (loudness, peak, gain, clipping, silence detection) → `audio-analyzer`
 - Music segment detection (structural boundaries: intro/verse/chorus) → `music-segment-detector`

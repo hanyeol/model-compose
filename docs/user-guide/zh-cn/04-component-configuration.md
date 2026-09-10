@@ -42,12 +42,14 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `video-encoder` | 视频编码 | 将 PIL 帧编码为视频，或对现有视频进行再编码，支持可选音轨（ffmpeg） |
 | `video-frame-extractor` | 视频帧提取 | 将视频解码为 PIL 图像帧，支持采样和时间范围 |
 | `video-clipper` | 视频片段裁剪 | 通过 ffmpeg 流复制无损裁剪视频中一个或多个时间范围 |
+| `video-processor` | 逐帧视频 DSP | 通过 ffmpeg 滤镜进行 resize、crop、pad、flip、rotate、变速（`setpts` + `atempo` 保持 A/V 同步） |
 | `video-analyzer` | 视频属性测量 | 通过 ffmpeg 滤镜测量黑帧、冻结、亮度、运动 |
 | `audio-extractor` | 音频提取 | 从视频/媒体中提取音频流 |
 | `audio-converter` | 音频转换 | 音频转码/格式转换（编解码器、采样率、声道等） |
 | `audio-feature-extractor` | 音频特征提取 | 用于可视化的每帧频谱带 / 波形点 |
 | `audio-analyzer` | 音频电平测量 | 通过 ffmpeg 滤镜测量响度 (LUFS/LRA)、峰值、RMS/增益、削波、静音 |
 | `audio-clipper` | 音频片段裁剪 | 通过 ffmpeg 流复制无损裁剪音频中一个或多个时间范围 |
+| `audio-processor` | 音频 DSP 链 | 基于 pedalboard + librosa + soxr + pyloudnorm：时间/采样率（resample、speed、pitch-shift）、EQ（高/低通、bell、shelf）、动态（compressor、gate、limiter）、空间（chorus、delay、reverb）、电平（gain、normalize RMS/peak/LUFS）、编辑（裁剪/淡入淡出）、语音匿名化 |
 | `media-inspector` | 检查媒体元数据 | 通过 ffprobe 或 exiftool 无需解码即可读取编解码器、时长、分辨率、EXIF/GPS 等 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
@@ -85,9 +87,11 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 视频帧提取 → `video-frame-extractor`
 - 视频编码（帧 → 视频，或再编码）→ `video-encoder`
 - 视频 / 音频裁剪（无损裁切时间范围）→ `video-clipper` / `audio-clipper`
+- 逐帧视频 DSP（resize、crop、pad、flip、rotate、音视频同步变速）→ `video-processor`
 - 视频分析（黑帧、冻结、亮度、运动）→ `video-analyzer`
 - 音频特征提取（可视化用频谱 / 波形）→ `audio-feature-extractor`
 - 音频分析（响度、峰值、增益、削波、静音检测）→ `audio-analyzer`
+- 音频 DSP（变速 / 移调、EQ、压缩器、归一化、静音裁剪、淡入淡出、语音匿名化）→ `audio-processor`
 - 媒体元数据检查（编解码器、时长、EXIF/GPS 等）→ `media-inspector`
 - 网页抓取 → `web-scraper`
 

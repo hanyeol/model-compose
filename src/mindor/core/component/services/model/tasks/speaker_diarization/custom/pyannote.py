@@ -42,13 +42,13 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
     def _resolve_pipeline_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         pipeline_params: Dict[str, Any] = {}
 
-        if params["num_speakers"] is not None:
-            pipeline_params["num_speakers"] = int(params["num_speakers"])
+        if params["speaker_count"] is not None:
+            pipeline_params["num_speakers"] = int(params["speaker_count"])
         else:
-            if params["min_speakers"] is not None:
-                pipeline_params["min_speakers"] = int(params["min_speakers"])
-            if params["max_speakers"] is not None:
-                pipeline_params["max_speakers"] = int(params["max_speakers"])
+            if params["min_speaker_count"] is not None:
+                pipeline_params["min_speakers"] = int(params["min_speaker_count"])
+            if params["max_speaker_count"] is not None:
+                pipeline_params["max_speakers"] = int(params["max_speaker_count"])
 
         return pipeline_params
 

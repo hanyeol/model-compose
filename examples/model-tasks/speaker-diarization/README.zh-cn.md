@@ -8,7 +8,7 @@
 
 1. **本地说话人分离模型**: 首次从 HuggingFace 下载后,在本地运行 pyannote.audio 的 `speaker-diarization-3.1` 流水线
 2. **发言片段分割**: 为每个检测到的发言输出 `speaker`、`start`、`end`、`confidence`
-3. **可配置说话人数**: 可指定精确的 `num_speakers`,或使用 `min_speakers` / `max_speakers` 限定搜索范围
+3. **可配置说话人数**: 可指定精确的 `speaker_count`,或使用 `min_speaker_count` / `max_speaker_count` 限定搜索范围
 4. **无需外部 API**: 流水线缓存完成后完全离线运行
 
 ## 准备工作
@@ -49,13 +49,13 @@
    # 指定精确说话人数并配合后处理
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/audio.mp3" \
-     -F "input={\"audio\": \"@audio\", \"num_speakers\": 3, \"merge_gap\": \"500ms\"}"
+     -F "input={\"audio\": \"@audio\", \"speaker_count\": 3, \"merge_gap\": \"500ms\"}"
    ```
 
    **使用 Web UI:**
    - 打开 Web UI: http://localhost:8081
    - 上传音频文件(MP3、WAV、FLAC 等)
-   - 可选地设置 `num_speakers`、`min_speakers`、`max_speakers`、`min_segment_duration`、`merge_gap`
+   - 可选地设置 `speaker_count`、`min_speaker_count`、`max_speaker_count`、`min_segment_duration`、`merge_gap`
    - 点击 "Run Workflow" 按钮
 
    **使用 CLI:**
@@ -66,8 +66,8 @@
    # 指定最小/最大说话人数范围并合并间隙
    model-compose run speaker-diarization --input '{
      "audio": "/path/to/your/audio.mp3",
-     "min_speakers": 2,
-     "max_speakers": 4,
+     "min_speaker_count": 2,
+     "max_speaker_count": 4,
      "merge_gap": "500ms",
      "min_segment_duration": "250ms"
    }'
@@ -117,9 +117,9 @@ graph TD
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `audio` | audio | 是 | - | 输入音频文件(MP3、WAV、FLAC 等) |
-| `num_speakers` | integer | 否 | `null` | 已知说话人数时的精确值,优先于 min/max |
-| `min_speakers` | integer | 否 | `null` | 考虑的最小说话人数 |
-| `max_speakers` | integer | 否 | `null` | 考虑的最大说话人数 |
+| `speaker_count` | integer | 否 | `null` | 已知说话人数时的精确值,优先于 min/max |
+| `min_speaker_count` | integer | 否 | `null` | 考虑的最小说话人数 |
+| `max_speaker_count` | integer | 否 | `null` | 考虑的最大说话人数 |
 | `min_segment_duration` | duration | 否 | `0s` | 丢弃短于该长度的发言片段 |
 | `merge_gap` | duration | 否 | `0s` | 合并同一说话人间隔不超过该值的相邻片段 |
 
@@ -191,6 +191,6 @@ components:
 ### 常见问题
 
 1. **加载时出现 "gated repo" 错误**: 请在 https://huggingface.co/pyannote/speaker-diarization-3.1 接受模型条款,并在启动服务前 export 一个有效的 `HF_TOKEN`。
-2. **检测到的说话人数过少**: 如果已知实际说话人数,请设置 `min_speakers`(或精确的 `num_speakers`)。
+2. **检测到的说话人数过少**: 如果已知实际说话人数,请设置 `min_speaker_count`(或精确的 `speaker_count`)。
 3. **同一位说话人被拆成多个短片段**: 增大 `merge_gap`(例如 `"500ms"` 或 `"1s"`),合并同一说话人的相邻片段。
 4. **噪声或音乐被识别为说话人**: 先用 `voice-activity-detection` 任务预处理,只对语音区间做说话人分离。

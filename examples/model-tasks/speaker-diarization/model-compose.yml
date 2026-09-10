@@ -28,9 +28,9 @@ component:
   max_concurrent_count: 1
   action:
     audio: ${input.audio as audio}
-    num_speakers: ${input.num_speakers}
-    min_speakers: ${input.min_speakers}
-    max_speakers: ${input.max_speakers}
+    speaker_count: ${input.speaker_count}
+    min_speaker_count: ${input.min_speaker_count}
+    max_speaker_count: ${input.max_speaker_count}
     params:
       min_segment_duration: ${input.min_segment_duration | 0s}
       merge_gap: ${input.merge_gap | 0s}

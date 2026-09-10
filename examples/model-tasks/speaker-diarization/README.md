@@ -8,7 +8,7 @@ This workflow returns a flat list of speaker turns detected in the input audio:
 
 1. **Local Diarization Model**: Runs pyannote.audio's `speaker-diarization-3.1` pipeline locally after a one-time HuggingFace download
 2. **Turn Segmentation**: Emits `speaker`, `start`, `end`, and `confidence` for each detected speaker turn
-3. **Configurable Speaker Count**: Provide an exact `num_speakers`, or bound the search with `min_speakers` / `max_speakers`
+3. **Configurable Speaker Count**: Provide an exact `speaker_count`, or bound the search with `min_speaker_count` / `max_speaker_count`
 4. **No External APIs**: Fully offline once the pipeline is cached
 
 ## Preparation
@@ -49,13 +49,13 @@ Note: diarization returns *time ranges* per speaker, not source-separated audio.
    # With an exact speaker count and post-processing
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/audio.mp3" \
-     -F "input={\"audio\": \"@audio\", \"num_speakers\": 3, \"merge_gap\": \"500ms\"}"
+     -F "input={\"audio\": \"@audio\", \"speaker_count\": 3, \"merge_gap\": \"500ms\"}"
    ```
 
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload an audio file (MP3, WAV, FLAC, etc.)
-   - Optionally set `num_speakers`, `min_speakers`, `max_speakers`, `min_segment_duration`, `merge_gap`
+   - Optionally set `speaker_count`, `min_speaker_count`, `max_speaker_count`, `min_segment_duration`, `merge_gap`
    - Click the "Run Workflow" button
 
    **Using CLI:**
@@ -66,8 +66,8 @@ Note: diarization returns *time ranges* per speaker, not source-separated audio.
    # With min/max speaker bounds and gap merging
    model-compose run speaker-diarization --input '{
      "audio": "/path/to/your/audio.mp3",
-     "min_speakers": 2,
-     "max_speakers": 4,
+     "min_speaker_count": 2,
+     "max_speaker_count": 4,
      "merge_gap": "500ms",
      "min_segment_duration": "250ms"
    }'
@@ -117,9 +117,9 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `audio` | audio | Yes | - | Input audio file (MP3, WAV, FLAC, etc.) |
-| `num_speakers` | integer | No | `null` | Exact number of speakers if known; overrides min/max |
-| `min_speakers` | integer | No | `null` | Minimum number of speakers to consider |
-| `max_speakers` | integer | No | `null` | Maximum number of speakers to consider |
+| `speaker_count` | integer | No | `null` | Exact number of speakers if known; overrides min/max |
+| `min_speaker_count` | integer | No | `null` | Minimum number of speakers to consider |
+| `max_speaker_count` | integer | No | `null` | Maximum number of speakers to consider |
 | `min_segment_duration` | duration | No | `0s` | Discard turns shorter than this |
 | `merge_gap` | duration | No | `0s` | Merge same-speaker turns separated by <= this gap |
 
@@ -191,6 +191,6 @@ components:
 ### Common Issues
 
 1. **Fails to load with "gated repo" error**: Accept the model terms at https://huggingface.co/pyannote/speaker-diarization-3.1 and export a valid `HF_TOKEN` before starting the service.
-2. **Too few speakers detected**: Set `min_speakers` (or an exact `num_speakers`) if you know the true speaker count.
+2. **Too few speakers detected**: Set `min_speaker_count` (or an exact `speaker_count`) if you know the true speaker count.
 3. **Same speaker split into many short turns**: Increase `merge_gap` (e.g. `"500ms"` or `"1s"`) to fuse adjacent turns from the same speaker.
 4. **Noise or music detected as a speaker**: Preprocess with the `voice-activity-detection` task and only diarize the speech regions.

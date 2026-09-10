@@ -8,7 +8,7 @@
 
 1. **로컬 다이어리제이션 모델**: 최초 1회 HuggingFace에서 다운로드한 뒤 pyannote.audio의 `speaker-diarization-3.1` 파이프라인을 로컬에서 실행
 2. **발화 구간 분할**: 감지된 각 발화에 대해 `speaker`, `start`, `end`, `confidence`를 반환
-3. **화자 수 설정 가능**: `num_speakers`로 정확한 수를 지정하거나 `min_speakers` / `max_speakers`로 범위를 지정
+3. **화자 수 설정 가능**: `speaker_count`로 정확한 수를 지정하거나 `min_speaker_count` / `max_speaker_count`로 범위를 지정
 4. **외부 API 불필요**: 파이프라인 캐시가 완료되면 완전 오프라인 동작
 
 ## 사전 준비
@@ -49,13 +49,13 @@
    # 정확한 화자 수 지정 및 후처리
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/audio.mp3" \
-     -F "input={\"audio\": \"@audio\", \"num_speakers\": 3, \"merge_gap\": \"500ms\"}"
+     -F "input={\"audio\": \"@audio\", \"speaker_count\": 3, \"merge_gap\": \"500ms\"}"
    ```
 
    **웹 UI 사용:**
    - 웹 UI 열기: http://localhost:8081
    - 오디오 파일 업로드 (MP3, WAV, FLAC 등)
-   - 선택적으로 `num_speakers`, `min_speakers`, `max_speakers`, `min_segment_duration`, `merge_gap` 설정
+   - 선택적으로 `speaker_count`, `min_speaker_count`, `max_speaker_count`, `min_segment_duration`, `merge_gap` 설정
    - "Run Workflow" 버튼 클릭
 
    **CLI 사용:**
@@ -66,8 +66,8 @@
    # 최소/최대 화자 수 범위 지정과 gap 병합
    model-compose run speaker-diarization --input '{
      "audio": "/path/to/your/audio.mp3",
-     "min_speakers": 2,
-     "max_speakers": 4,
+     "min_speaker_count": 2,
+     "max_speaker_count": 4,
      "merge_gap": "500ms",
      "min_segment_duration": "250ms"
    }'
@@ -117,9 +117,9 @@ graph TD
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |----------|------|------|--------|------|
 | `audio` | audio | 예 | - | 입력 오디오 파일 (MP3, WAV, FLAC 등) |
-| `num_speakers` | integer | 아니오 | `null` | 화자 수를 알고 있을 때의 정확한 값. min/max보다 우선 |
-| `min_speakers` | integer | 아니오 | `null` | 고려할 최소 화자 수 |
-| `max_speakers` | integer | 아니오 | `null` | 고려할 최대 화자 수 |
+| `speaker_count` | integer | 아니오 | `null` | 화자 수를 알고 있을 때의 정확한 값. min/max보다 우선 |
+| `min_speaker_count` | integer | 아니오 | `null` | 고려할 최소 화자 수 |
+| `max_speaker_count` | integer | 아니오 | `null` | 고려할 최대 화자 수 |
 | `min_segment_duration` | duration | 아니오 | `0s` | 이 값보다 짧은 발화는 제거 |
 | `merge_gap` | duration | 아니오 | `0s` | 같은 화자의 발화가 이 간격 이하로 떨어져 있으면 병합 |
 
@@ -191,6 +191,6 @@ components:
 ### 자주 발생하는 문제
 
 1. **"gated repo" 오류로 로딩 실패**: https://huggingface.co/pyannote/speaker-diarization-3.1 에서 모델 이용 약관을 수락한 뒤, 유효한 `HF_TOKEN`을 export하고 서비스를 시작하세요.
-2. **감지된 화자 수가 너무 적음**: 실제 화자 수를 알고 있다면 `min_speakers`(또는 정확한 `num_speakers`)를 설정하세요.
+2. **감지된 화자 수가 너무 적음**: 실제 화자 수를 알고 있다면 `min_speaker_count`(또는 정확한 `speaker_count`)를 설정하세요.
 3. **같은 화자가 여러 짧은 발화로 쪼개짐**: `merge_gap`을 늘려(예: `"500ms"` 또는 `"1s"`) 같은 화자의 인접 발화를 합치세요.
 4. **잡음이나 음악이 화자로 잡힘**: `voice-activity-detection` 태스크로 전처리한 뒤 음성 구간만 다이어리제이션하세요.

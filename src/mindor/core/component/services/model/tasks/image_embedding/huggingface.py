@@ -5,7 +5,6 @@ from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, ImageEmbeddingModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageEmbeddingModelArchitecture
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
@@ -63,22 +62,36 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
             # HuggingFace exposes a joint image projection via get_image_features;
             # otherwise pool the encoder's last_hidden_state.
             if hasattr(self.model, "get_image_features"):
-                return self.model.get_image_features(**inputs)
+                return self._resolve_image_features(self.model.get_image_features(**inputs), pooling)
 
-            outputs: BaseModelOutput = self.model(**inputs)
-            return self._pool_hidden_state(outputs.last_hidden_state, pooling)
+            return self._pool_hidden_state(self.model(**inputs).last_hidden_state, pooling)
 
         if self.architecture == HuggingfaceImageEmbeddingModelArchitecture.CLIP:
-            return self.model.get_image_features(**inputs)
+            return self._resolve_image_features(self.model.get_image_features(**inputs), pooling)
 
         if self.architecture == HuggingfaceImageEmbeddingModelArchitecture.SIGLIP:
-            return self.model.get_image_features(**inputs)
+            return self._resolve_image_features(self.model.get_image_features(**inputs), pooling)
 
         if self.architecture == HuggingfaceImageEmbeddingModelArchitecture.DINOV2:
-            outputs: BaseModelOutput = self.model(**inputs)
-            return self._pool_hidden_state(outputs.last_hidden_state, pooling)
+            return self._pool_hidden_state(self.model(**inputs).last_hidden_state, pooling)
 
         raise ValueError(f"Unknown architecture: {self.architecture}")
+
+    def _resolve_image_features(self, features: Any, pooling: str) -> Tensor:
+        # transformers 5.x returns BaseModelOutputWithPooling from get_image_features;
+        # older versions return a bare tensor. Handle both.
+        import torch
+
+        if isinstance(features, torch.Tensor):
+            return features
+
+        if getattr(features, "pooler_output", None) is not None:
+            return features.pooler_output
+
+        if getattr(features, "last_hidden_state", None) is not None:
+            return self._pool_hidden_state(features.last_hidden_state, pooling)
+
+        raise ValueError(f"Cannot extract image features from output of type {type(features).__name__}")
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, pooling: str) -> Tensor:
         import torch

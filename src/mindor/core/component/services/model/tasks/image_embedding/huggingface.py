@@ -148,4 +148,10 @@ class HuggingfaceImageEmbeddingTaskService(HuggingfaceMultimodalModelTaskService
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceImageEmbeddingTaskAction(action, self.config.architecture, self.model, self.processor, self.device).run(context)
+        return await HuggingfaceImageEmbeddingTaskAction(
+            action,
+            self.config.architecture,
+            self.model,
+            self.processor,
+            self.device
+        ).run(context)

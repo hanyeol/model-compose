@@ -998,8 +998,8 @@ component:
     token: ${env.HUGGINGFACE_TOKEN}
   action:
     audio: ${input.audio as audio}
-    min_speakers: 2
-    max_speakers: 4
+    min_speaker_count: 2
+    max_speaker_count: 4
     params:
       min_segment_duration: 250ms
       merge_gap: 500ms
@@ -1009,9 +1009,9 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `audio` | audio | **required** | Input audio file, list of audios, or async stream |
-| `num_speakers` | int | `null` | Exact speaker count when known |
-| `min_speakers` | int | `null` | Lower bound on the number of speakers considered |
-| `max_speakers` | int | `null` | Upper bound on the number of speakers considered |
+| `speaker_count` | int | `null` | Exact speaker count when known |
+| `min_speaker_count` | int | `null` | Lower bound on the number of speakers considered |
+| `max_speaker_count` | int | `null` | Upper bound on the number of speakers considered |
 | `batch_size` | int | `1` | Number of audios processed per batch |
 | `streaming` | bool | `false` | Emit turns as an async iterator (fake stream: pipeline needs the whole audio first) |
 | `params.min_segment_duration` | duration | `"0s"` | Discard turns shorter than this |

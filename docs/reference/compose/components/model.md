@@ -2195,9 +2195,9 @@ Segment an audio file by speaker — return per-speaker turns with start/end tim
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `audio` | audio | **required** | Input audio file, list of audios, or async stream |
-| `num_speakers` | int | `null` | Exact number of speakers when known; otherwise leave unset and use the min/max hints |
-| `min_speakers` | int | `null` | Minimum number of speakers considered by the pipeline |
-| `max_speakers` | int | `null` | Maximum number of speakers considered by the pipeline |
+| `speaker_count` | int | `null` | Exact number of speakers when known; otherwise leave unset and use the min/max hints |
+| `min_speaker_count` | int | `null` | Minimum number of speakers considered by the pipeline |
+| `max_speaker_count` | int | `null` | Maximum number of speakers considered by the pipeline |
 | `batch_size` | int | `1` | Number of audios processed per batch |
 | `streaming` | bool | `false` | Emit per-speaker turns as an async iterator (fake stream: pipeline needs the whole audio, then re-emits) |
 | `params.min_segment_duration` | duration | `"0s"` | Discard turns shorter than this (e.g., `250ms`) |
@@ -2220,8 +2220,8 @@ component:
     token: ${env.HUGGINGFACE_TOKEN}
   action:
     audio: ${input.audio as audio}
-    min_speakers: 2
-    max_speakers: 4
+    min_speaker_count: 2
+    max_speaker_count: 4
     params:
       min_segment_duration: 250ms
       merge_gap: 500ms

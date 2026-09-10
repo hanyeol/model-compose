@@ -1,0 +1,433 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: resample
+    title: Resample Audio
+    description: Change the sample rate of an audio
+    job:
+      component: processor
+      action: resample
+      output:
+        audio: ${output as audio}
+
+  - id: speed
+    title: Change Speed
+    description: Speed audio up or down, optionally preserving the original pitch
+    job:
+      component: processor
+      action: speed
+      output:
+        audio: ${output as audio}
+
+  - id: highpass
+    title: Highpass Filter
+    description: Attenuate frequencies below a cutoff
+    job:
+      component: processor
+      action: highpass
+      output:
+        audio: ${output as audio}
+
+  - id: lowpass
+    title: Lowpass Filter
+    description: Attenuate frequencies above a cutoff
+    job:
+      component: processor
+      action: lowpass
+      output:
+        audio: ${output as audio}
+
+  - id: bell
+    title: Bell EQ
+    description: Boost or cut a narrow band around a centre frequency
+    job:
+      component: processor
+      action: bell
+      output:
+        audio: ${output as audio}
+
+  - id: low-shelf
+    title: Low Shelf EQ
+    description: Boost or cut frequencies below a corner
+    job:
+      component: processor
+      action: low-shelf
+      output:
+        audio: ${output as audio}
+
+  - id: high-shelf
+    title: High Shelf EQ
+    description: Boost or cut frequencies above a corner
+    job:
+      component: processor
+      action: high-shelf
+      output:
+        audio: ${output as audio}
+
+  - id: pitch-shift
+    title: Pitch Shift
+    description: Shift the pitch of an audio by a number of semitones without changing its duration
+    job:
+      component: processor
+      action: pitch-shift
+      output:
+        audio: ${output as audio}
+
+  - id: dc-shift
+    title: DC Shift
+    description: Remove DC bias and apply an optional offset
+    job:
+      component: processor
+      action: dc-shift
+      output:
+        audio: ${output as audio}
+
+  - id: compressor
+    title: Compress Dynamics
+    description: Apply dynamic range compression to an audio
+    job:
+      component: processor
+      action: compressor
+      output:
+        audio: ${output as audio}
+
+  - id: noise-gate
+    title: Noise Gate
+    description: Attenuate signal below a threshold
+    job:
+      component: processor
+      action: noise-gate
+      output:
+        audio: ${output as audio}
+
+  - id: distortion
+    title: Distortion
+    description: Add aggressive harmonic distortion
+    job:
+      component: processor
+      action: distortion
+      output:
+        audio: ${output as audio}
+
+  - id: saturation
+    title: Saturation
+    description: Add subtle harmonic coloring
+    job:
+      component: processor
+      action: saturation
+      output:
+        audio: ${output as audio}
+
+  - id: gain
+    title: Apply Gain
+    description: Boost or attenuate the audio by a fixed dB amount
+    job:
+      component: processor
+      action: gain
+      output:
+        audio: ${output as audio}
+
+  - id: chorus
+    title: Chorus
+    description: Add a modulated chorus effect
+    job:
+      component: processor
+      action: chorus
+      output:
+        audio: ${output as audio}
+
+  - id: delay
+    title: Delay
+    description: Add a delay/echo effect
+    job:
+      component: processor
+      action: delay
+      output:
+        audio: ${output as audio}
+
+  - id: reverb
+    title: Add Reverb
+    description: Add reverberation to an audio
+    job:
+      component: processor
+      action: reverb
+      output:
+        audio: ${output as audio}
+
+  - id: normalize-rms
+    title: Normalize (RMS)
+    description: Normalize an audio to a target RMS level in dBFS
+    job:
+      component: processor
+      action: normalize-rms
+      output:
+        audio: ${output as audio}
+
+  - id: normalize-peak
+    title: Normalize (Peak)
+    description: Normalize an audio to a target peak level in dBFS
+    job:
+      component: processor
+      action: normalize-peak
+      output:
+        audio: ${output as audio}
+
+  - id: normalize-lufs
+    title: Normalize (LUFS)
+    description: Normalize an audio to a target integrated loudness in LUFS
+    job:
+      component: processor
+      action: normalize-lufs
+      output:
+        audio: ${output as audio}
+
+  - id: peak-limit-hard
+    title: Peak Limit (Hard)
+    description: Clip peaks that exceed a linear amplitude cap
+    job:
+      component: processor
+      action: peak-limit-hard
+      output:
+        audio: ${output as audio}
+
+  - id: peak-limit-smooth
+    title: Peak Limit (Smooth)
+    description: Apply a smooth limiter with a release time
+    job:
+      component: processor
+      action: peak-limit-smooth
+      output:
+        audio: ${output as audio}
+
+  - id: trim-edges
+    title: Trim Edges
+    description: Remove leading and trailing silence relative to peak
+    job:
+      component: processor
+      action: trim-edges
+      output:
+        audio: ${output as audio}
+
+  - id: trim-silence
+    title: Trim Silence
+    description: Cut leading, trailing, and long internal silence from an audio
+    job:
+      component: processor
+      action: trim-silence
+      output:
+        audio: ${output as audio}
+
+  - id: fade-in
+    title: Fade In
+    description: Apply a cosine fade-in at the start of an audio
+    job:
+      component: processor
+      action: fade-in
+      output:
+        audio: ${output as audio}
+
+  - id: fade-out
+    title: Fade Out
+    description: Apply a cosine fade-out at the end of an audio
+    job:
+      component: processor
+      action: fade-out
+      output:
+        audio: ${output as audio}
+
+  - id: anonymize
+    title: Anonymize Voice
+    description: Disguise a speaker with pitch/formant shifts and jitter
+    job:
+      component: processor
+      action: anonymize
+      output:
+        audio: ${output as audio}
+
+components:
+  - id: processor
+    type: audio-processor
+    actions:
+      - id: resample
+        method: resample
+        audio: ${input.audio as audio}
+        sample_rate: ${input.sample_rate as integer}
+
+      - id: speed
+        method: speed
+        audio: ${input.audio as audio}
+        speed: ${input.speed as number}
+        preserve_pitch: ${input.preserve_pitch as boolean | true}
+
+      - id: highpass
+        method: highpass
+        audio: ${input.audio as audio}
+        cutoff: ${input.cutoff as number}
+
+      - id: lowpass
+        method: lowpass
+        audio: ${input.audio as audio}
+        cutoff: ${input.cutoff as number}
+
+      - id: bell
+        method: bell
+        audio: ${input.audio as audio}
+        frequency: ${input.frequency as number}
+        gain: ${input.gain as number}
+        q: ${input.q as number | 0.707}
+
+      - id: low-shelf
+        method: low-shelf
+        audio: ${input.audio as audio}
+        frequency: ${input.frequency as number}
+        gain: ${input.gain as number}
+        q: ${input.q as number | 0.707}
+
+      - id: high-shelf
+        method: high-shelf
+        audio: ${input.audio as audio}
+        frequency: ${input.frequency as number}
+        gain: ${input.gain as number}
+        q: ${input.q as number | 0.707}
+
+      - id: pitch-shift
+        method: pitch-shift
+        audio: ${input.audio as audio}
+        semitones: ${input.semitones as number}
+
+      - id: dc-shift
+        method: dc-shift
+        audio: ${input.audio as audio}
+        offset: ${input.offset as number | 0}
+
+      - id: compressor
+        method: compressor
+        audio: ${input.audio as audio}
+        threshold: ${input.threshold as number | -20}
+        ratio: ${input.ratio as number | 4}
+        attack_time: ${input.attack_time | 1ms}
+        release_time: ${input.release_time | 100ms}
+
+      - id: noise-gate
+        method: noise-gate
+        audio: ${input.audio as audio}
+        threshold: ${input.threshold as number | -40}
+        ratio: ${input.ratio as number | 10}
+        attack_time: ${input.attack_time | 1ms}
+        release_time: ${input.release_time | 100ms}
+
+      - id: distortion
+        method: distortion
+        audio: ${input.audio as audio}
+        drive: ${input.drive as number}
+
+      - id: saturation
+        method: saturation
+        audio: ${input.audio as audio}
+        drive: ${input.drive as number | 3}
+
+      - id: gain
+        method: gain
+        audio: ${input.audio as audio}
+        level: ${input.level as number}
+
+      - id: chorus
+        method: chorus
+        audio: ${input.audio as audio}
+        rate: ${input.rate as number | 1.0}
+        depth: ${input.depth as number | 0.25}
+        feedback: ${input.feedback as number | 0}
+        delay: ${input.delay | 7ms}
+        mix: ${input.mix as number | 0.5}
+
+      - id: delay
+        method: delay
+        audio: ${input.audio as audio}
+        time: ${input.time | 500ms}
+        feedback: ${input.feedback as number | 0}
+        mix: ${input.mix as number | 0.5}
+
+      - id: reverb
+        method: reverb
+        audio: ${input.audio as audio}
+        room_size: ${input.room_size as number | 0.5}
+        damping: ${input.damping as number | 0.5}
+        wet_level: ${input.wet_level as number | 0.33}
+        dry_level: ${input.dry_level as number | 0.4}
+        width: ${input.width as number | 1.0}
+
+      - id: normalize-rms
+        method: normalize
+        mode: rms
+        audio: ${input.audio as audio}
+        level: ${input.level as number | -20}
+        peak_limit: ${input.peak_limit as number | 0.85}
+
+      - id: normalize-peak
+        method: normalize
+        mode: peak
+        audio: ${input.audio as audio}
+        level: ${input.level as number | -1}
+
+      - id: normalize-lufs
+        method: normalize
+        mode: lufs
+        audio: ${input.audio as audio}
+        level: ${input.level as number | -14}
+        tolerance: ${input.tolerance as number | 0.5}
+        max_gain: ${input.max_gain as number | 30}
+        true_peak_ceiling: ${input.true_peak_ceiling as number | -1}
+
+      - id: peak-limit-hard
+        method: peak-limit
+        mode: hard
+        audio: ${input.audio as audio}
+        level: ${input.level as number | 0.95}
+
+      - id: peak-limit-smooth
+        method: peak-limit
+        mode: smooth
+        audio: ${input.audio as audio}
+        level: ${input.level as number | -1}
+        release_time: ${input.release_time | 100ms}
+
+      - id: trim-edges
+        method: trim-edges
+        audio: ${input.audio as audio}
+        threshold: ${input.threshold as number | 40}
+        padding: ${input.padding | 0ms}
+
+      - id: trim-silence
+        method: trim-silence
+        audio: ${input.audio as audio}
+        window: ${input.window | 20ms}
+        threshold: ${input.threshold as number | -40}
+        min_silence: ${input.min_silence | 200ms}
+        max_internal_silence: ${input.max_internal_silence | 1s}
+        fade: ${input.fade | 30ms}
+
+      - id: fade-in
+        method: fade-in
+        audio: ${input.audio as audio}
+        duration: ${input.duration | 500ms}
+
+      - id: fade-out
+        method: fade-out
+        audio: ${input.audio as audio}
+        duration: ${input.duration | 500ms}
+
+      - id: anonymize
+        method: anonymize
+        audio: ${input.audio as audio}
+        pitch_shift: ${input.pitch_shift as number | -2}
+        formant_shift: ${input.formant_shift as number | 1.15}
+        pitch_jitter: ${input.pitch_jitter as number | 0.3}
+        jitter_rate: ${input.jitter_rate as number | 4}
+        lowpass_cutoff: ${input.lowpass_cutoff as number | 6000}

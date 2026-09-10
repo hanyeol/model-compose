@@ -4,13 +4,14 @@ This example demonstrates the `video-processor` component, which applies per-fra
 
 ## Overview
 
-This example exposes five workflows built on the same `video-processor` component:
+This example exposes six workflows built on the same `video-processor` component:
 
 1. **Resize Video**: Rescale a video with `fit`, `fill`, or `stretch` semantics
 2. **Crop Video**: Cut a rectangular region out of every frame
 3. **Pad Video**: Add solid-color borders around a video
 4. **Flip Video**: Mirror a video horizontally or vertically
 5. **Rotate Video**: Rotate a video by an arbitrary angle, optionally expanding the canvas
+6. **Change Speed**: Speed a video up or down while keeping the audio track in sync
 
 ## Preparation
 
@@ -88,6 +89,12 @@ ffmpeg -version
      "angle": 90,
      "expand": true
    }'
+
+   # Play at 1.5x speed with the audio track kept in sync (pitch preserved)
+   model-compose run speed --input '{
+     "video": "/path/to/input.mp4",
+     "speed": 1.5
+   }'
    ```
 
    **Using API:**
@@ -112,7 +119,7 @@ ffmpeg -version
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `method` | string | Yes | - | One of `resize`, `crop`, `pad`, `flip`, `rotate` |
+| `method` | string | Yes | - | One of `resize`, `crop`, `pad`, `flip`, `rotate`, `speed` |
 | `video` | video source | Yes | - | The input video (path, upload, or upstream video reference) |
 | `encoding` | object | No | - | Output encoding overrides (`format`, `video.codec`, `video.bitrate`, etc.). When unset, the container follows the input format and the audio track is stream-copied |
 | `batch_size` | integer | No | `1` | Number of input videos processed per batch when the input is a list/stream; the batch runs concurrently |
@@ -215,6 +222,23 @@ If no `encoding` is supplied, the container is inherited from the input format (
 | Field | Type | Description |
 |-------|------|-------------|
 | `video` | video | The rotated video |
+
+### 6. Change Speed
+
+**Description**: Speed the video up or down. Video frames are re-timed via `setpts`, and the audio track is compressed/stretched with `atempo` in the same ratio so it stays in sync. `atempo` preserves the audio pitch; for speeds far outside `0.5..2.0` the driver chains multiple `atempo` stages automatically.
+
+#### Input Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `video` | file | Yes | - | Source video file |
+| `speed` | number | Yes | - | Playback speed multiplier (e.g., `2.0` for double speed, `0.5` for half) |
+
+#### Output
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `video` | video | The time-scaled video with audio kept in sync |
 
 ## Tips
 

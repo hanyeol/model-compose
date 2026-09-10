@@ -4,13 +4,14 @@
 
 ## 概述
 
-该示例基于同一个 `video-processor` 组件提供五个工作流：
+该示例基于同一个 `video-processor` 组件提供六个工作流：
 
 1. **Resize Video**：使用 `fit`、`fill` 或 `stretch` 方式重新缩放视频
 2. **Crop Video**：从每一帧中裁剪矩形区域
 3. **Pad Video**：在视频周围添加纯色边框
 4. **Flip Video**：水平或垂直翻转视频
 5. **Rotate Video**：以任意角度旋转视频，可选择扩展画布
+6. **Change Speed**：加速或减慢视频，同时保持音频轨道同步
 
 ## 准备工作
 
@@ -88,6 +89,12 @@ ffmpeg -version
      "angle": 90,
      "expand": true
    }'
+
+   # 以 1.5 倍速播放（音频保持同步，音高保持不变）
+   model-compose run speed --input '{
+     "video": "/path/to/input.mp4",
+     "speed": 1.5
+   }'
    ```
 
    **使用 API：**
@@ -112,7 +119,7 @@ ffmpeg -version
 
 | 字段 | 类型 | 必需 | 默认值 | 说明 |
 |-------|------|----------|---------|-------------|
-| `method` | string | 是 | - | `resize`、`crop`、`pad`、`flip`、`rotate` 之一 |
+| `method` | string | 是 | - | `resize`、`crop`、`pad`、`flip`、`rotate`、`speed` 之一 |
 | `video` | 视频源 | 是 | - | 输入视频（文件路径、上传或上游视频引用） |
 | `encoding` | 对象 | 否 | - | 输出编码覆盖（`format`、`video.codec`、`video.bitrate` 等）。未设置时容器沿用输入格式，音频轨道使用 stream copy |
 | `batch_size` | integer | 否 | `1` | 当输入是列表/流时每批处理的视频数量。批次内并发执行 |
@@ -215,6 +222,23 @@ ffmpeg -version
 | 字段 | 类型 | 说明 |
 |-------|------|-------------|
 | `video` | video | 旋转后的视频 |
+
+### 6. Change Speed
+
+**说明**：加速或减慢视频。视频帧通过 `setpts` 重新计时，音频轨道通过相同比例的 `atempo` 压缩/拉伸以保持同步。`atempo` 保持音高不变；对于远超 `0.5..2.0` 的速度，驱动会自动串联多个 `atempo` 阶段。
+
+#### 输入参数
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|-----------|------|----------|---------|-------------|
+| `video` | file | 是 | - | 源视频文件 |
+| `speed` | number | 是 | - | 播放速度倍数（例如 `2.0` 为两倍速，`0.5` 为半速） |
+
+#### 输出
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `video` | video | 音频保持同步的时间缩放视频 |
 
 ## 提示
 

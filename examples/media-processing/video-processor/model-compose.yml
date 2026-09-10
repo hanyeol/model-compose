@@ -53,6 +53,15 @@ workflows:
       output:
         video: ${output as video}
 
+  - id: speed
+    title: Change Speed
+    description: Speed a video up or down while keeping the audio track in sync
+    job:
+      component: processor
+      action: speed
+      output:
+        video: ${output as video}
+
 components:
   - id: processor
     type: video-processor
@@ -91,3 +100,8 @@ components:
         video: ${input.video as video}
         angle: ${input.angle as number}
         expand: ${input.expand as boolean | true}
+
+      - id: speed
+        method: speed
+        video: ${input.video as video}
+        speed: ${input.speed as number}

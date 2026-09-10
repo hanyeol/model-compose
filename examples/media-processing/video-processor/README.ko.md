@@ -4,13 +4,14 @@
 
 ## 개요
 
-동일한 `video-processor` 컴포넌트를 기반으로 다섯 개의 워크플로우를 제공합니다:
+동일한 `video-processor` 컴포넌트를 기반으로 여섯 개의 워크플로우를 제공합니다:
 
 1. **Resize Video**: `fit`, `fill`, `stretch` 방식으로 비디오 크기 조정
 2. **Crop Video**: 모든 프레임에서 사각 영역을 잘라냄
 3. **Pad Video**: 비디오 주위에 단색 테두리 추가
 4. **Flip Video**: 비디오를 수평/수직으로 뒤집음
 5. **Rotate Video**: 임의 각도로 비디오 회전, 캔버스 확장 옵션 지원
+6. **Change Speed**: 오디오 트랙과 sync를 유지한 채 비디오 배속 조절
 
 ## 준비
 
@@ -88,6 +89,12 @@ ffmpeg -version
      "angle": 90,
      "expand": true
    }'
+
+   # 1.5배속 재생 (오디오 sync 유지, pitch 보존)
+   model-compose run speed --input '{
+     "video": "/path/to/input.mp4",
+     "speed": 1.5
+   }'
    ```
 
    **API 사용:**
@@ -112,7 +119,7 @@ ffmpeg -version
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |-------|------|----------|---------|-------------|
-| `method` | string | 예 | - | `resize`, `crop`, `pad`, `flip`, `rotate` 중 하나 |
+| `method` | string | 예 | - | `resize`, `crop`, `pad`, `flip`, `rotate`, `speed` 중 하나 |
 | `video` | 비디오 소스 | 예 | - | 입력 비디오 (파일 경로, 업로드, 또는 상위 비디오 참조) |
 | `encoding` | 객체 | 아니오 | - | 출력 인코딩 오버라이드 (`format`, `video.codec`, `video.bitrate` 등). 미지정 시 컨테이너는 입력 형식을 따르고 오디오는 stream copy됨 |
 | `batch_size` | integer | 아니오 | `1` | 입력이 리스트/스트림일 때 배치당 처리할 비디오 수. 배치는 동시에 실행됨 |
@@ -215,6 +222,23 @@ ffmpeg -version
 | 필드 | 타입 | 설명 |
 |-------|------|-------------|
 | `video` | video | 회전된 비디오 |
+
+### 6. Change Speed
+
+**설명**: 비디오 배속을 조절합니다. 프레임은 `setpts`로 재타이밍하고, 오디오 트랙은 같은 비율의 `atempo`로 압축/확장해 sync를 유지합니다. `atempo`는 pitch를 보존하며, `0.5..2.0` 범위를 크게 벗어나는 배속에는 드라이버가 여러 `atempo` 스테이지를 자동으로 체이닝합니다.
+
+#### 입력 파라미터
+
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|-----------|------|----------|---------|-------------|
+| `video` | file | 예 | - | 원본 비디오 파일 |
+| `speed` | number | 예 | - | 배속 배수 (예: `2.0` = 2배속, `0.5` = 절반 속도) |
+
+#### 출력
+
+| 필드 | 타입 | 설명 |
+|-------|------|-------------|
+| `video` | video | 오디오 sync가 유지된 배속 변경 비디오 |
 
 ## 팁
 

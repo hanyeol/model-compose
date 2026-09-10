@@ -6,6 +6,7 @@ from .common import (
     VideoProcessorPadActionConfig,
     VideoProcessorFlipActionConfig,
     VideoProcessorRotateActionConfig,
+    VideoProcessorSpeedActionConfig,
 )
 
 FFmpegVideoProcessorActionConfig = Annotated[
@@ -15,6 +16,7 @@ FFmpegVideoProcessorActionConfig = Annotated[
         VideoProcessorPadActionConfig,
         VideoProcessorFlipActionConfig,
         VideoProcessorRotateActionConfig,
+        VideoProcessorSpeedActionConfig,
     ],
     Field(discriminator="method")
 ]

@@ -12,6 +12,7 @@ class VideoProcessorActionMethod(str, Enum):
     PAD    = "pad"
     FLIP   = "flip"
     ROTATE = "rotate"
+    SPEED  = "speed"
 
 class VideoScaleMode(str, Enum):
     FIT     = "fit"
@@ -57,3 +58,7 @@ class VideoProcessorRotateActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.ROTATE]
     angle: Union[float, str] = Field(..., description="Rotation angle in degrees, counter-clockwise.")
     expand: Union[bool, str] = Field(default=True, description="Whether the canvas expands to fit the rotated frame.")
+
+class VideoProcessorSpeedActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.SPEED]
+    speed: Union[float, str] = Field(..., description="Playback speed multiplier (e.g., 2.0 for double speed, 0.5 for half).")

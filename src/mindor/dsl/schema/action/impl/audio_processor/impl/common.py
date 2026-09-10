@@ -5,6 +5,7 @@ from ...common import CommonActionConfig
 
 class AudioProcessorActionMethod(str, Enum):
     RESAMPLE     = "resample"
+    SPEED        = "speed"
     HIGHPASS     = "highpass"
     LOWPASS      = "lowpass"
     BELL         = "bell"
@@ -45,6 +46,11 @@ class CommonAudioProcessorActionConfig(CommonActionConfig):
 class AudioProcessorResampleActionConfig(CommonAudioProcessorActionConfig):
     method: Literal[AudioProcessorActionMethod.RESAMPLE]
     sample_rate: Union[int, str] = Field(..., description="Target output sample rate in Hz (e.g., 44100, 48000).")
+
+class AudioProcessorSpeedActionConfig(CommonAudioProcessorActionConfig):
+    method: Literal[AudioProcessorActionMethod.SPEED]
+    speed: Union[float, str] = Field(..., description="Playback speed multiplier (e.g., 2.0 for double speed, 0.5 for half).")
+    preserve_pitch: Union[bool, str] = Field(default=True, description="Keep the original pitch when changing speed; when false, resample so pitch scales with speed.")
 
 class AudioProcessorHighpassActionConfig(CommonAudioProcessorActionConfig):
     method: Literal[AudioProcessorActionMethod.HIGHPASS]

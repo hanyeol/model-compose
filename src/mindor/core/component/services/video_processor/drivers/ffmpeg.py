@@ -61,7 +61,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
                 f"crop={width}:{height}"
             )
 
-        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+        return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
 
     async def _crop(
         self,
@@ -75,7 +75,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     ) -> VideoStreamResource:
         video_filter = f"crop={width}:{height}:{x}:{y}"
 
-        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+        return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
 
     async def _pad(
         self,
@@ -91,7 +91,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         # ffmpeg pad: pad=out_w:out_h:x:y where (x, y) is the top-left of the source inside the padded canvas.
         video_filter = f"pad=iw+{left + right}:ih+{top + bottom}:{left}:{top}:color={self._format_color(color)}"
 
-        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+        return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
 
     async def _flip(
         self,
@@ -102,7 +102,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     ) -> VideoStreamResource:
         video_filter = "hflip" if direction == VideoFlipDirection.HORIZONTAL else "vflip"
 
-        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+        return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
 
     async def _rotate(
         self,
@@ -128,12 +128,28 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         else:
             video_filter = f"rotate={radians}"
 
-        return await self._run_ffmpeg_filter(video, video_filter, encoding, cancellation_token)
+        return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
+
+    async def _speed(
+        self,
+        video: MediaSource,
+        speed: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # Video: setpts scales presentation timestamps — 1/speed speeds playback up.
+        # Audio: atempo preserves pitch, but each stage only accepts 0.5..2.0, so
+        # chain multiple stages for speeds outside that band to keep A/V in sync.
+        video_filter = f"setpts={1.0 / speed}*PTS"
+        audio_filter = self._build_atempo_chain(speed)
+
+        return await self._run_ffmpeg_filter(video, video_filter, audio_filter, encoding, cancellation_token)
 
     async def _run_ffmpeg_filter(
         self,
         source: MediaSource,
         video_filter: str,
+        audio_filter: Optional[str],
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
@@ -158,8 +174,12 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
         command.extend([ "-vf", video_filter ])
 
+        if audio_filter is not None:
+            command.extend([ "-af", audio_filter ])
+
         video_codec = self._resolve_video_codec(encoding, format)
-        audio_codec = self._resolve_audio_codec(encoding)
+        # An audio filter forces re-encoding the audio stream (copy is invalid then).
+        audio_codec = self._resolve_audio_codec(encoding, force_reencode=audio_filter is not None, format=format)
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
@@ -239,6 +259,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         finally:
             if watcher_task is not None and not watcher_task.done():
                 watcher_task.cancel()
+
                 try:
                     await watcher_task
                 except (asyncio.CancelledError, Exception):
@@ -283,6 +304,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         async def _stream() -> AsyncIterator[bytes]:
             watcher_task: Optional[asyncio.Task] = None
+
             try:
                 async with stream_subprocess(
                     command,
@@ -339,16 +361,44 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             return encoding.video.codec
 
         video_codec, _ = get_video_codecs_for_format(format)
+
         return video_codec
 
     @staticmethod
-    def _resolve_audio_codec(encoding: VideoAudioEncodingParams) -> Optional[str]:
+    def _resolve_audio_codec(
+        encoding: VideoAudioEncodingParams,
+        force_reencode: bool = False,
+        format: Optional[str] = None,
+    ) -> Optional[str]:
         # Filters only touch the video stream, so we can stream-copy audio when
-        # the user hasn't asked for anything specific.
+        # the user hasn't asked for anything specific. When an audio filter is
+        # applied (e.g. atempo for `speed`), stream-copy is not valid — fall back
+        # to the container's default audio codec.
         if encoding.audio and encoding.audio.codec:
             return encoding.audio.codec
 
+        if force_reencode:
+            _, audio_codec = get_video_codecs_for_format(format or _DEFAULT_FORMAT)
+            return audio_codec
+
         return "copy"
+
+    @staticmethod
+    def _build_atempo_chain(speed: float) -> str:
+        atempo = speed
+        stages: List[str] = []
+
+        while atempo > 2.0:
+            stages.append("atempo=2.0")
+            atempo /= 2.0
+
+        while atempo < 0.5:
+            stages.append("atempo=0.5")
+            atempo /= 0.5
+
+        stages.append(f"atempo={atempo}")
+
+        return ",".join(stages)
 
     @staticmethod
     def _format_color(color: Any) -> str:

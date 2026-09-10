@@ -2,6 +2,7 @@ from typing import Union, Annotated
 from pydantic import Field
 from .common import (
     AudioProcessorResampleActionConfig,
+    AudioProcessorSpeedActionConfig,
     AudioProcessorHighpassActionConfig,
     AudioProcessorLowpassActionConfig,
     AudioProcessorBellActionConfig,
@@ -29,6 +30,7 @@ from .common import (
 NativeAudioProcessorActionConfig = Annotated[
     Union[
         AudioProcessorResampleActionConfig,
+        AudioProcessorSpeedActionConfig,
         AudioProcessorHighpassActionConfig,
         AudioProcessorLowpassActionConfig,
         AudioProcessorBellActionConfig,
@@ -50,6 +52,7 @@ NativeAudioProcessorActionConfig = Annotated[
         AudioProcessorTrimSilenceActionConfig,
         AudioProcessorFadeInActionConfig,
         AudioProcessorFadeOutActionConfig,
+        AudioProcessorAnonymizeActionConfig,
     ],
     Field(discriminator="method")
 ]

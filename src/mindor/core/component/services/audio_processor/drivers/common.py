@@ -54,6 +54,15 @@ class AudioProcessorAction(ComponentAction):
 
             return { "sample_rate": sample_rate }
 
+        if method == AudioProcessorActionMethod.SPEED:
+            speed          = await context.render_scalar(self.config.speed, float)
+            preserve_pitch = await context.render_scalar(self.config.preserve_pitch, bool)
+
+            return {
+                "speed":          speed,
+                "preserve_pitch": bool(preserve_pitch) if preserve_pitch is not None else True,
+            }
+
         if method == AudioProcessorActionMethod.HIGHPASS:
             cutoff = await context.render_scalar(self.config.cutoff, float)
 
@@ -322,6 +331,9 @@ class AudioProcessorAction(ComponentAction):
         if method == AudioProcessorActionMethod.RESAMPLE:
             return PcmStreamResource(await self._resample(audio, params))
 
+        if method == AudioProcessorActionMethod.SPEED:
+            return PcmStreamResource(await self._speed(audio, params))
+
         if method == AudioProcessorActionMethod.HIGHPASS:
             return PcmStreamResource(await self._highpass(audio, params))
 
@@ -392,6 +404,10 @@ class AudioProcessorAction(ComponentAction):
 
     @abstractmethod
     async def _resample(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
+        pass
+
+    @abstractmethod
+    async def _speed(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
         pass
 
     @abstractmethod

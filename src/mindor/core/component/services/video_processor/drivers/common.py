@@ -116,6 +116,14 @@ class VideoProcessorAction(ComponentAction):
 
             return { "encoding": encoding, "angle": angle, "expand": bool(expand) if expand is not None else True }
 
+        if method == VideoProcessorActionMethod.SPEED:
+            speed = await context.render_scalar(self.config.speed, float)
+
+            if speed is None or speed <= 0:
+                raise ValueError("'speed' must be a positive number for 'speed' method")
+
+            return { "encoding": encoding, "speed": speed }
+
         raise ValueError(f"Unsupported video processing action method: {method}")
 
     async def _process_batch(
@@ -188,6 +196,14 @@ class VideoProcessorAction(ComponentAction):
                 cancellation_token,
             )
 
+        if method == VideoProcessorActionMethod.SPEED:
+            return await self._speed(
+                video,
+                params["speed"],
+                encoding,
+                cancellation_token,
+            )
+
         raise ValueError(f"Unsupported video processing action method: {method}")
 
     @abstractmethod
@@ -245,6 +261,16 @@ class VideoProcessorAction(ComponentAction):
         video: MediaSource,
         angle: float,
         expand: bool,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _speed(
+        self,
+        video: MediaSource,
+        speed: float,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

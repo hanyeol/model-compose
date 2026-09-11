@@ -1,0 +1,51 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Talking Head Video Generation (Float)
+  description: |
+    Generate emotion-conditioned talking-head videos with DeepBrain AI's Float
+    — a flow-matching pipeline with explicit emotion labels.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: float
+  # yuvraj108c/float mirrors DeepBrain AI's Float weights alongside the
+  # wav2vec2-base-960h audio encoder and the emotion recognition head Float
+  # uses when `emotion` is left on the auto-detect (`S2E`) sentinel.
+  model:
+    provider: huggingface
+    repository: yuvraj108c/float
+  max_concurrent_count: 1
+  # Float's repo layout puts `models/`, `options/`, and `generate.py` at the
+  # root; the setup step wraps them into a single `float_talker/` package.
+  # Keep the model worker in its own venv so that wrapper can't collide.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/float
+    start_timeout: 900s   # first run downloads Float source + wav2vec weights
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      # 'S2E' auto-detects emotion from the audio; explicit labels override:
+      # happy, sad, angry, fear, disgust, surprise, neutral.
+      emotion: ${input.emotion | "S2E"}
+      inference_steps: ${input.inference_steps as integer | 10}
+      cfg_scale: ${input.cfg_scale as float | 2.0}
+      a_cfg_scale: ${input.a_cfg_scale as float | 2.0}
+      e_cfg_scale: ${input.e_cfg_scale as float | 1.0}
+      crop: ${input.crop as boolean | true}

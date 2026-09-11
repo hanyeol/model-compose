@@ -1,0 +1,48 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Talking Head Video Generation (Hallo2)
+  description: |
+    Generate high-resolution long-form talking head videos from a portrait
+    image and driving audio using Hallo2's diffusion-based pipeline.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: hallo2
+  # The official fudan-generative-ai/hallo2 HF repo bundles every checkpoint
+  # Hallo2 needs (SD 1.5 base, motion module, wav2vec, face analysis, audio
+  # separator) under one snapshot.
+  model:
+    provider: huggingface
+    repository: fudan-generative-ai/hallo2
+  max_concurrent_count: 1
+  # Hallo2 pulls in a large diffusers/transformers stack and hand-rolled
+  # helpers; isolate it in its own venv so it can't disturb the controller.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/hallo2
+    start_timeout: 1200s   # first run downloads Hallo2 source + deps
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      pose_weight: ${input.pose_weight as float | 1.1}
+      face_weight: ${input.face_weight as float | 1.1}
+      lip_weight: ${input.lip_weight as float | 1.1}
+      face_expand_ratio: ${input.face_expand_ratio as float | 1.2}
+      inference_steps: ${input.inference_steps as integer | 40}
+      cfg_scale: ${input.cfg_scale as float | 3.5}

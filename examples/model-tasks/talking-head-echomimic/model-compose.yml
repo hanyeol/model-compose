@@ -1,0 +1,50 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Talking Head Video Generation (EchoMimic v1)
+  description: |
+    Generate portrait talking-head videos with Alibaba/Ant's EchoMimic —
+    diffusion-based, audio + face-mask conditioned pipeline.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: echomimic
+  # BadToBest/EchoMimic (v1) bundles reference/denoising UNets, VAE, and
+  # audio processor weights alongside the SD 1.5 base.
+  # Set preset: v2 to switch to half-body EchoMimicV2 with the
+  # BadToBest/EchoMimicV2 checkpoint bundle.
+  preset: v1
+  model:
+    provider: huggingface
+    repository: BadToBest/EchoMimic
+  max_concurrent_count: 1
+  # EchoMimic upstream lives under `src/` and expects to be imported that way.
+  # The install step renames it in place, so isolate the model worker.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/echomimic
+    start_timeout: 900s   # first run downloads EchoMimic source + deps
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      width: ${input.width as integer | 512}
+      height: ${input.height as integer | 512}
+      inference_steps: ${input.inference_steps as integer | 30}
+      cfg_scale: ${input.cfg_scale as float | 2.5}
+      context_frames: ${input.context_frames as integer | 12}
+      context_overlap: ${input.context_overlap as integer | 3}

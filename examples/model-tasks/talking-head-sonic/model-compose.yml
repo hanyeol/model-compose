@@ -1,0 +1,46 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Talking Head Video Generation (Sonic)
+  description: |
+    Generate portrait talking-head videos with Tencent's Sonic — an SVD-based
+    pipeline with global audio perception and fast inference.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: sonic
+  # LeonJoe13/Sonic bundles Sonic's unet/audio2token/audio2bucket weights
+  # alongside the SVD-XT base, whisper-tiny, RIFE, and yoloface detector.
+  model:
+    provider: huggingface
+    repository: LeonJoe13/Sonic
+  max_concurrent_count: 1
+  # Sonic's upstream layout mixes a root-level sonic.py with a `src/` package;
+  # isolate the model worker so the install-time rewrites don't leak into the
+  # controller's site-packages.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/sonic
+    start_timeout: 900s   # first run downloads Sonic source + SVD-XT weights
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      dynamic_scale: ${input.dynamic_scale as float | 1.0}
+      inference_steps: ${input.inference_steps as integer | 25}
+      min_resolution: ${input.min_resolution as integer | 512}
+      keep_resolution: ${input.keep_resolution as boolean | false}

@@ -1,0 +1,50 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Talking Head Video Generation
+  description: Animate a portrait to lip-sync with a driving audio using SadTalker.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: sadtalker
+  # v0.0.2-256 renders at 256x256 and runs on modest GPUs;
+  # switch to v0.0.2-512 for a 512x512 render at ~4x the VRAM/latency.
+  preset: v0.0.2-256
+  # The vinthony/SadTalker HF repo bundles every checkpoint SadTalker needs
+  # (Audio2Coeff, face renderer, GFPGAN weights) under one snapshot.
+  model:
+    provider: huggingface
+    repository: vinthony/SadTalker
+  max_concurrent_count: 1
+  # SadTalker pins old numpy/numba/librosa versions that clash with the
+  # controller's site-packages. Isolate the model worker in its own venv.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/sadtalker
+    start_timeout: 900s   # first run downloads SadTalker source + deps
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      # `full` keeps the whole portrait (not just the face crop) in the output;
+      # pair with still=true so only the mouth animates.
+      preprocess: ${input.preprocess as select/crop,extcrop,resize,full,extfull | full}
+      still: ${input.still as boolean | true}
+      # gfpgan sharpens rendered faces; leave unset to skip the enhancer pass.
+      enhancer: ${input.enhancer as select/gfpgan,RestoreFormer | gfpgan}
+      expression_scale: ${input.expression_scale as float | 1.0}
+      pose_style: ${input.pose_style as integer | 0}

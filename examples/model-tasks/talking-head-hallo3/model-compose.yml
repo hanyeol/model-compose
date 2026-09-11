@@ -1,0 +1,47 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Talking Head Video Generation (Hallo3)
+  description: |
+    Generate DiT-based talking head videos with optional text prompt from a
+    portrait and driving audio using Hallo3 (CogVideoX-based).
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: hallo3
+  # The official fudan-generative-ai/hallo3 HF repo bundles the CogVideoX SAT
+  # weights alongside Hallo3's audio/face conditioners.
+  model:
+    provider: huggingface
+    repository: fudan-generative-ai/hallo3
+  max_concurrent_count: 1
+  # Hallo3 stands on the CogVideoX SAT toolkit — heavy diffusion stack, worth
+  # isolating so its transformers/sat pins don't disturb the controller.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/hallo3
+    start_timeout: 1800s   # first run downloads CogVideoX-5B weights (~15 GB)
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      # Optional text prompt guides scene/style; leave empty for audio-only.
+      prompt: ${input.prompt | ""}
+      inference_steps: ${input.inference_steps as integer | 50}
+      guidance_scale: ${input.guidance_scale as float | 6.0}
+      audio_guidance_scale: ${input.audio_guidance_scale as float | 3.0}
+      resolution: ${input.resolution as integer | 480}

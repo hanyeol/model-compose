@@ -22,6 +22,10 @@ component:
   # v0.0.2-256 renders at 256x256 and runs on modest GPUs;
   # switch to v0.0.2-512 for a 512x512 render at ~4x the VRAM/latency.
   preset: v0.0.2-256
+  # Face preprocessing mode. Fixed per component because it selects which
+  # mapping checkpoint (crop vs full) is loaded — `full` keeps the whole
+  # portrait, `crop` restricts to the detected face box.
+  preprocess: full
   # The vinthony/SadTalker HF repo bundles every checkpoint SadTalker needs
   # (Audio2Coeff, face renderer, GFPGAN weights) under one snapshot.
   model:
@@ -40,9 +44,8 @@ component:
     image: ${input.image as image}
     audio: ${input.audio as audio}
     params:
-      # `full` keeps the whole portrait (not just the face crop) in the output;
-      # pair with still=true so only the mouth animates.
-      preprocess: ${input.preprocess as select/crop,extcrop,resize,full,extfull | full}
+      # Pair `still: true` with the component-level `preprocess: full` so the
+      # background stays static and only the mouth animates.
       still: ${input.still as boolean | true}
       # gfpgan sharpens rendered faces; leave unset to skip the enhancer pass.
       enhancer: ${input.enhancer as select/gfpgan,RestoreFormer | gfpgan}

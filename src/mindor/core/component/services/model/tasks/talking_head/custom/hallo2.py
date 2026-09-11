@@ -95,8 +95,15 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
 
     def _render(self, image_path: str, audio_path: str, params: Dict[str, Any]) -> VideoStreamResource:
         from scripts.inference_long import inference_process
+        from pydub import AudioSegment
 
         work_dir = tempfile.mkdtemp(prefix="hallo2-")
+
+        # Hallo2's `cut_audio` calls `AudioSegment.from_wav()` unconditionally
+        # and rejects any container other than WAV. Transcode the driving
+        # audio into a wav next to the work dir before handing it off.
+        wav_audio_path = os.path.join(work_dir, "driving.wav")
+        AudioSegment.from_file(audio_path).export(wav_audio_path, format="wav")
 
         # `inference_process` resolves `./pretrained_models/...` from the
         # config against cwd, so run the call from the repo root and restore
@@ -108,7 +115,7 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
             args = argparse.Namespace(
                 config=self.config_path,
                 source_image=image_path,
-                driving_audio=audio_path,
+                driving_audio=wav_audio_path,
                 output=work_dir,
                 pose_weight=float(params["pose_weight"]),
                 face_weight=float(params["face_weight"]),
@@ -176,7 +183,7 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             "librosa",
             "soundfile",
             "audio-separator",
-            "insightface",
+            "insightface==0.7.3",
             "mediapipe",
             "onnxruntime",
             "moviepy<2",

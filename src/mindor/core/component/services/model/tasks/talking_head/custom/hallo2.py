@@ -172,8 +172,6 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
         ]
 
     async def _setup(self) -> None:
-        # Hallo2's upstream keeps its code under a clean `hallo/` package plus
-        # top-level `scripts/`, so we install both alongside model-compose.
         if importlib.util.find_spec("hallo") is None:
             await install_package_from_github(
                 "hallo",

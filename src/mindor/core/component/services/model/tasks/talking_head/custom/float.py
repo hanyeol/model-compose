@@ -16,7 +16,8 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, asyncio, argparse
+import importlib, importlib.util
+import os, tempfile, shutil, asyncio, argparse
 
 if TYPE_CHECKING:
     import torch
@@ -152,10 +153,8 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         ]
 
     async def _setup(self) -> None:
-        if importlib.util.find_spec("float_talker") is not None:
-            return
-
-        await asyncio.get_running_loop().run_in_executor(None, self._install_float_package)
+        if importlib.util.find_spec("float_talker") is None:
+            await asyncio.get_running_loop().run_in_executor(None, self._install_float_package)
 
     def _install_float_package(self) -> None:
         # `models/`, `options/`, and `generate.py` sit at Float's repo root;
@@ -195,7 +194,6 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
         rewrite_python_imports(target, { name: f"float_talker.{name}" for name in internal_modules })
 
-        import importlib
         importlib.invalidate_caches()
 
     async def _load_model(self) -> None:

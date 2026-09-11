@@ -150,19 +150,17 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         # a proper `sonic/` package (import rewrites happen automatically),
         # then fold `sonic.py`'s contents into `sonic/__init__.py` — with the
         # rewrites applied there too — so callers can `from sonic import Sonic`.
-        if importlib.util.find_spec("sonic") is not None:
-            return
+        if importlib.util.find_spec("sonic") is None:
+            await install_package_from_github(
+                "sonic",
+                "https://github.com/jixiaozhong/Sonic.git",
+                revision="c1bd2d133ecc",
+                subdirs=[ ("sonic", "src"), "config" ],
+            )
 
-        await install_package_from_github(
-            "sonic",
-            "https://github.com/jixiaozhong/Sonic.git",
-            revision="c1bd2d133ecc",
-            subdirs=[ ("sonic", "src"), "config" ],
-        )
-
-        # `install_package_from_github` won't drop the loose `sonic.py`; fetch
-        # the tarball ourselves and lift that single file into __init__.py.
-        await asyncio.get_running_loop().run_in_executor(None, self._merge_sonic_root_module)
+            # `install_package_from_github` won't drop the loose `sonic.py`; fetch
+            # the tarball ourselves and lift that single file into __init__.py.
+            await asyncio.get_running_loop().run_in_executor(None, self._merge_sonic_root_module)
 
     def _merge_sonic_root_module(self) -> None:
         import mindor

@@ -644,14 +644,18 @@ component:
 
 Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
 
-结果形式（检测到的语音片段的扁平列表，省略静音区域）：
+结果形式(包含检测到的语音片段数组 `segments` 的 dict;省略静音区域):
 
 ```json
-[
-  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
-  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
-]
+{
+  "segments": [
+    { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+    { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
+  ]
+}
 ```
+
+当 `streaming: true` 时,每个输入的结果是一个 async iterator,每当一个语音片段被确认时便发出一个 chunk。每个 chunk 在 segment 字段之外还带有 `"type": "segment"`。
 
 #### 支持的系列
 

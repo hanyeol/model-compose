@@ -968,7 +968,7 @@ Plain-text mode (default) returns a string per input; timestamped mode returns a
 ]
 ```
 
-With `streaming: true`, Whisper-family backends stream token-level chunks as decoding proceeds; VibeVoice streaming checkpoints stream per-chunk transcript text. Non-streaming checkpoints (VibeVoice offline, pyannote-based flows) fall back to yielding the collected result as a single chunk to preserve the `AsyncIterator` contract.
+With `streaming: true`, Whisper-family backends stream token-level chunks as decoding proceeds — plain text chunks when `return_timestamps: false`, segment dicts carrying `"type": "segment"` when timestamps are on. VibeVoice streaming checkpoints stream per-chunk transcript text; offline checkpoints re-emit the collected segments one by one (each with `"type": "segment"`), or yield the whole transcript as a single string chunk when timestamps are off.
 
 #### Supported families
 
@@ -1019,17 +1019,19 @@ component:
 
 Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
 
-Result shape (flat list of turns sorted by `start_time`):
+Result shape (per-audio dict wrapping a `segments` array sorted by `start_time`):
 
 ```json
-[
-  { "speaker": "SPEAKER_00", "start_time": 0.48,  "end_time": 3.72,  "confidence": 1.0 },
-  { "speaker": "SPEAKER_01", "start_time": 3.90,  "end_time": 7.16,  "confidence": 1.0 },
-  { "speaker": "SPEAKER_00", "start_time": 7.44,  "end_time": 12.02, "confidence": 1.0 }
-]
+{
+  "segments": [
+    { "speaker": "SPEAKER_00", "start_time": 0.48,  "end_time": 3.72,  "confidence": 1.0 },
+    { "speaker": "SPEAKER_01", "start_time": 3.90,  "end_time": 7.16,  "confidence": 1.0 },
+    { "speaker": "SPEAKER_00", "start_time": 7.44,  "end_time": 12.02, "confidence": 1.0 }
+  ]
+}
 ```
 
-`confidence` is reported as `1.0` — pyannote does not expose per-turn confidence. Pyannote diarization is not truly streamable: with `streaming: true` the same turns are re-emitted one-by-one to preserve the `AsyncIterator` contract.
+`confidence` is reported as `1.0` — pyannote does not expose per-turn confidence. Pyannote diarization is not truly streamable: with `streaming: true` the same turns are re-emitted one-by-one to preserve the `AsyncIterator` contract, and each chunk carries `"type": "segment"` alongside the segment fields.
 
 The default `pyannote/speaker-diarization-3.1` checkpoint is gated on HuggingFace. Accept the license and pass an access token via `model.token` (or `${env.HUGGINGFACE_TOKEN}`).
 
@@ -1070,14 +1072,18 @@ component:
 
 Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
 
-Result shape (flat list of speech segments, silent regions omitted):
+Result shape (per-audio dict wrapping a `segments` array; silent regions omitted):
 
 ```json
-[
-  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
-  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
-]
+{
+  "segments": [
+    { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+    { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
+  ]
+}
 ```
+
+With `streaming: true`, per-input results are async iterators that yield one segment chunk at a time as speech regions are confirmed; each chunk carries `"type": "segment"` alongside the segment fields.
 
 #### Supported families
 
@@ -1303,28 +1309,32 @@ component:
 | `streaming` | bool | `false` | Emit each detected shot as it is confirmed (per-input stream) |
 | `params.threshold` | float | `0.5` | Confidence threshold above which a frame is treated as a shot boundary (0.0 - 1.0); higher = fewer boundaries |
 
-Result shape (flat list of shots per input):
+Result shape (per-video dict wrapping a `shots` array):
 
 ```json
-[
-  {
-    "index": 0,
-    "start_time": "00:00:00.000",
-    "end_time": "00:00:12.345",
-    "start_frame": 0,
-    "end_frame": 370,
-    "duration": "00:00:12.345"
-  },
-  {
-    "index": 1,
-    "start_time": "00:00:12.345",
-    "end_time": "00:00:28.678",
-    "start_frame": 370,
-    "end_frame": 860,
-    "duration": "00:00:16.333"
-  }
-]
+{
+  "shots": [
+    {
+      "index": 0,
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:12.345",
+      "start_frame": 0,
+      "end_frame": 370,
+      "duration": "00:00:12.345"
+    },
+    {
+      "index": 1,
+      "start_time": "00:00:12.345",
+      "end_time": "00:00:28.678",
+      "start_frame": 370,
+      "end_frame": 860,
+      "duration": "00:00:16.333"
+    }
+  ]
+}
 ```
+
+With `streaming: true`, per-input results are async iterators that yield one shot chunk at a time as boundaries are detected; each chunk carries `"type": "shot"` alongside the shot fields.
 
 #### Supported families
 

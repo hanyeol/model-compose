@@ -605,14 +605,18 @@ component:
 
 Duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초) 형식을 허용합니다.
 
-결과 형식 (감지된 음성 구간의 평평한 리스트, 침묵 구간은 생략):
+결과 형식 (감지된 음성 구간 배열 `segments`를 담은 dict; 침묵 구간은 생략):
 
 ```json
-[
-  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
-  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
-]
+{
+  "segments": [
+    { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+    { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 }
+  ]
+}
 ```
+
+`streaming: true`이면 입력별 결과가 async iterator로 반환되며, 음성 구간이 확정될 때마다 청크가 하나씩 방출됩니다. 각 청크는 segment 필드와 함께 `"type": "segment"`를 포함합니다.
 
 #### 지원 패밀리
 

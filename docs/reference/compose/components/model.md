@@ -948,7 +948,7 @@ Instead of a single result dict, the action returns an async iterator of chunks.
 | `type` | When emitted | Payload shape |
 |--------|--------------|---------------|
 | `"detection"` | Once per analyzed frame, after `merge_gap` has passed since the frame. Suppressed when `return_detections: false`. | `{ type, number, timestamp, faces: [...], image? }` |
-| `"segment"` | Whenever a track's ongoing segment is sealed (either the track went idle past `merge_gap` or the stream ended). Suppressed when `return_tracks: false`. | `{ type, track_id, segment: { start_time, end_time, duration, frame_count, score, bounding_box, image? } }` |
+| `"segment"` | Whenever a track's ongoing segment is sealed (either the track went idle past `merge_gap` or the stream ended). Suppressed when `return_tracks: false`. | `{ type, track_id, start_time, end_time, duration, frame_count, score, image?, gender?, age? }` |
 | `"track"` | Whenever a track goes idle past `merge_gap` (may re-emit if the same `track_id` becomes active again). Suppressed when `return_tracks: false`. | `{ type, track_id, segment_count, frame_count, score, embedding?, gender?, age? }` |
 | `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
 
@@ -1193,7 +1193,7 @@ Instead of a single result dict, the action returns an async iterator of chunks.
 | `type` | When emitted | Payload shape |
 |--------|--------------|---------------|
 | `"detection"` | Once per analyzed frame, after `merge_gap` has passed. Suppressed when `return_detections: false`. | `{ type, number, timestamp, poses: [...], image? }` |
-| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, segment: { start_time, end_time, duration, frame_count, score, bounding_box, keypoints?, openpose_keypoints?, skeleton_image?, image? } }` |
+| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, start_time, end_time, duration, frame_count, score, bounding_box, keypoints?, openpose_keypoints?, skeleton_image?, image? }` |
 | `"track"` | When a track goes idle past `merge_gap` (may re-emit for the same `track_id` if it reactivates). Suppressed when `return_tracks: false`. | `{ type, track_id, segment_count, frame_count, score }` |
 | `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
 
@@ -1386,7 +1386,7 @@ Instead of a single result dict, the action returns an async iterator of chunks.
 | `type` | When emitted | Payload shape |
 |--------|--------------|---------------|
 | `"detection"` | Once per analyzed frame, after `merge_gap` has passed. Suppressed when `return_detections: false`. | `{ type, number, timestamp, objects: [...], image? }` |
-| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, segment: { start_time, end_time, duration, frame_count, label, label_id, score, bounding_box, image? } }` |
+| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, start_time, end_time, duration, frame_count, label, label_id, score, bounding_box, image? }` |
 | `"track"` | When a track goes idle past `merge_gap` (may re-emit for the same `track_id` if it reactivates). Suppressed when `return_tracks: false`. | `{ type, track_id, label, label_id, segment_count, frame_count, score }` |
 | `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
 
@@ -2164,7 +2164,7 @@ Word-level timestamps add a `words` array to each segment:
 ]
 ```
 
-When `streaming: true`, per-input results are async iterators. Whisper-family backends emit token-level chunks (a plain string per chunk when timestamps are off, one segment dict per chunk when on). VibeVoice ASR *streaming* checkpoints stream per-chunk transcript text; offline checkpoints fall back to yielding the collected result as a single chunk.
+When `streaming: true`, per-input results are async iterators. Whisper-family backends emit token-level chunks (a plain string per chunk when timestamps are off, one segment dict per chunk when on). Timestamped segment chunks carry a `"type": "segment"` field alongside the segment fields. VibeVoice ASR *streaming* checkpoints stream per-chunk transcript text; offline checkpoints fall back to yielding the collected result as a single chunk (segments carry `"type": "segment"`; plain-text checkpoints yield the whole transcript as one string chunk).
 
 #### Supported Families
 
@@ -2231,16 +2231,18 @@ component:
 **Result Shape:**
 
 ```json
-[
-  { "speaker": "SPEAKER_00", "start_time": 0.48,  "end_time": 3.72,  "confidence": 1.0 },
-  { "speaker": "SPEAKER_01", "start_time": 3.90,  "end_time": 7.16,  "confidence": 1.0 },
-  { "speaker": "SPEAKER_00", "start_time": 7.44,  "end_time": 12.02, "confidence": 1.0 }
-]
+{
+  "segments": [
+    { "speaker": "SPEAKER_00", "start_time": 0.48,  "end_time": 3.72,  "confidence": 1.0 },
+    { "speaker": "SPEAKER_01", "start_time": 3.90,  "end_time": 7.16,  "confidence": 1.0 },
+    { "speaker": "SPEAKER_00", "start_time": 7.44,  "end_time": 12.02, "confidence": 1.0 }
+  ]
+}
 ```
 
 `confidence` is reported as `1.0` for pyannote (the pipeline does not expose per-turn confidence). Segments are sorted by `start_time` after filtering and merging.
 
-Pyannote diarization is not truly streamable — the pipeline needs the full audio before producing turns. With `streaming: true` the same turns are re-emitted one-by-one to preserve the `AsyncIterator` contract expected by downstream jobs.
+Pyannote diarization is not truly streamable — the pipeline needs the full audio before producing turns. With `streaming: true` the same turns are re-emitted one-by-one to preserve the `AsyncIterator` contract expected by downstream jobs. Each streamed chunk carries `"type": "segment"` alongside the segment fields.
 
 #### Supported Families
 
@@ -2298,14 +2300,16 @@ component:
 **Result Shape:**
 
 ```json
-[
-  { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
-  { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 },
-  { "start_time": 151.10, "end_time": 175.24, "confidence": 0.949 }
-]
+{
+  "segments": [
+    { "start_time": 0.124, "end_time": 44.58,  "confidence": 0.916 },
+    { "start_time": 47.07, "end_time": 150.02, "confidence": 0.937 },
+    { "start_time": 151.10, "end_time": 175.24, "confidence": 0.949 }
+  ]
+}
 ```
 
-When the input is a list, the action returns a list of per-audio segment lists. When `streaming: true`, per-input results are async iterators that yield one segment dict at a time as speech regions are confirmed.
+When the input is a list, the action returns a list of per-audio result dicts. When `streaming: true`, per-input results are async iterators that yield one segment chunk at a time as speech regions are confirmed; each chunk carries `"type": "segment"` alongside the segment fields.
 
 #### Supported Families
 
@@ -2360,27 +2364,29 @@ component:
 **Result Shape:**
 
 ```json
-[
-  {
-    "index": 0,
-    "start_time": "00:00:00.000",
-    "end_time": "00:00:12.345",
-    "start_frame": 0,
-    "end_frame": 370,
-    "duration": "00:00:12.345"
-  },
-  {
-    "index": 1,
-    "start_time": "00:00:12.345",
-    "end_time": "00:00:28.678",
-    "start_frame": 370,
-    "end_frame": 860,
-    "duration": "00:00:16.333"
-  }
-]
+{
+  "shots": [
+    {
+      "index": 0,
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:12.345",
+      "start_frame": 0,
+      "end_frame": 370,
+      "duration": "00:00:12.345"
+    },
+    {
+      "index": 1,
+      "start_time": "00:00:12.345",
+      "end_time": "00:00:28.678",
+      "start_frame": 370,
+      "end_frame": 860,
+      "duration": "00:00:16.333"
+    }
+  ]
+}
 ```
 
-When the input is a list, the action returns a list of per-video shot lists. When `streaming: true`, per-input results are async iterators that yield one shot dict at a time as boundaries are detected.
+When the input is a list, the action returns a list of per-video result dicts. When `streaming: true`, per-input results are async iterators that yield one shot chunk at a time as boundaries are detected; each chunk carries `"type": "shot"` alongside the shot fields.
 
 #### Supported Families
 

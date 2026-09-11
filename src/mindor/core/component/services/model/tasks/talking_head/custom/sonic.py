@@ -202,23 +202,40 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         self.pipeline = None
 
     async def _load_pipeline(self) -> Any:
+        from huggingface_hub import snapshot_download
         import sonic  # our installed package
 
+        # LeonJoe13/Sonic ships only Sonic/RIFE/yoloface — the pipeline also
+        # needs the SVD-XT base and whisper-tiny at fixed subdirs. Materialise
+        # `checkpoints/` next to the installed package: Sonic's own weights
+        # as a symlink to the primary snapshot, and the two extra repos
+        # snapshot-downloaded into their expected subdirs.
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        # Sonic resolves every checkpoint path relative to BASE_DIR (defined
-        # inside sonic/__init__.py as the module directory). Symlink the user's
-        # checkpoint tree in as `checkpoints/` next to the installed package so
-        # the hard-coded relative paths in config/inference/sonic.yaml resolve.
         install_root = os.path.dirname(sonic.__file__)
-        checkpoint_symlink = os.path.join(install_root, "checkpoints")
+        checkpoints_dir = os.path.join(install_root, "checkpoints")
 
-        if os.path.islink(checkpoint_symlink):
-            os.unlink(checkpoint_symlink)
-        elif os.path.exists(checkpoint_symlink):
-            shutil.rmtree(checkpoint_symlink)
+        if os.path.islink(checkpoints_dir):
+            os.unlink(checkpoints_dir)
+        elif os.path.exists(checkpoints_dir):
+            shutil.rmtree(checkpoints_dir)
 
-        os.symlink(model_path, checkpoint_symlink)
+        os.makedirs(checkpoints_dir, exist_ok=True)
+
+        for entry in os.listdir(model_path):
+            os.symlink(os.path.join(model_path, entry), os.path.join(checkpoints_dir, entry))
+
+        def _fetch_extras() -> None:
+            snapshot_download(
+                "stabilityai/stable-video-diffusion-img2vid-xt",
+                local_dir=os.path.join(checkpoints_dir, "stable-video-diffusion-img2vid-xt"),
+            )
+            snapshot_download(
+                "openai/whisper-tiny",
+                local_dir=os.path.join(checkpoints_dir, "whisper-tiny"),
+            )
+
+        await asyncio.get_running_loop().run_in_executor(None, _fetch_extras)
 
         device_index = self.device.index if self.device.index is not None else 0
 

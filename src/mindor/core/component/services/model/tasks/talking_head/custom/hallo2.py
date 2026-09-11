@@ -157,6 +157,7 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             "diffusers",
             "transformers",
             "accelerate",
+            "xformers",
             "einops",
             "omegaconf",
             "opencv-python",
@@ -166,9 +167,12 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             "soundfile",
             "audio-separator",
             "insightface",
+            "mediapipe",
             "onnxruntime",
-            "moviepy",
+            "moviepy<2",
             "safetensors",
+            "av<14",
+            "icecream",
         ]
 
     async def _setup(self) -> None:
@@ -177,7 +181,7 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
                 "hallo",
                 "https://github.com/fudan-generative-vision/hallo2.git",
                 revision="58a9aa6c9f66",
-                subdirs=[ "hallo", "scripts" ],
+                subdirs=[ "hallo", "scripts", "configs" ],
             )
 
     async def _load_model(self) -> None:
@@ -194,8 +198,9 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        # Config yaml lives inside the repo tree we installed above.
-        repo_root = os.path.dirname(os.path.dirname(hallo.__file__))
+        # Config yaml lives inside the repo tree we installed above; `hallo`
+        # is a namespace package so `__file__` may be None — use __path__.
+        repo_root = os.path.dirname(hallo.__path__[0])
         config_path = os.path.join(repo_root, "configs", "inference", "long.yaml")
 
         return model_path, config_path

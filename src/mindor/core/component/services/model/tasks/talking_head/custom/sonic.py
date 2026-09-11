@@ -215,15 +215,13 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         install_root = os.path.dirname(sonic.__file__)
         checkpoints_dir = os.path.join(install_root, "checkpoints")
 
-        if os.path.islink(checkpoints_dir):
-            os.unlink(checkpoints_dir)
-        elif os.path.exists(checkpoints_dir):
-            shutil.rmtree(checkpoints_dir)
-
         os.makedirs(checkpoints_dir, exist_ok=True)
 
         for entry in os.listdir(model_path):
-            os.symlink(os.path.join(model_path, entry), os.path.join(checkpoints_dir, entry))
+            symlink = os.path.join(checkpoints_dir, entry)
+
+            if not os.path.lexists(symlink):
+                os.symlink(os.path.join(model_path, entry), symlink)
 
         def _fetch_extras() -> None:
             snapshot_download(

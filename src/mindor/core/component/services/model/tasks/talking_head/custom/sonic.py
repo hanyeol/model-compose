@@ -156,7 +156,8 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         await install_package_from_github(
             "sonic",
             "https://github.com/jixiaozhong/Sonic.git",
-            subdirs=[("sonic", "src"), "config"],
+            revision="c1bd2d133ecc72f1a5abd990f1de101efcc3cfdb",
+            subdirs=[ ("sonic", "src"), "config" ],
         )
 
         # `install_package_from_github` won't drop the loose `sonic.py`; fetch
@@ -173,43 +174,53 @@ class SonicTalkingHeadTaskService(ModelTaskService):
             return
 
         clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / "sonic"
-        source_file = clone_dir / "sonic.py"
-        if not source_file.exists():
+        sonic_module_file = clone_dir / "sonic.py"
+
+        if not sonic_module_file.exists():
             # tarball already gone (cache miss) — refetch to grab just sonic.py
             asyncio.get_event_loop().run_until_complete(
-                download_github_tarball("https://github.com/jixiaozhong/Sonic.git", None, clone_dir)
+                download_github_tarball(
+                    "https://github.com/jixiaozhong/Sonic.git",
+                    "c1bd2d133ecc72f1a5abd990f1de101efcc3cfdb",
+                    clone_dir,
+                )
             )
 
-        shutil.copy2(source_file, init_path)
+        shutil.copy2(sonic_module_file, init_path)
         rewrite_python_imports(sonic_pkg_dir, { "src": "sonic" })
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
-        self.pipeline = await asyncio.get_running_loop().run_in_executor(
-            None, self._load_pipeline, checkpoint_dir,
-        )
+        self.pipeline = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
 
-    def _load_pipeline(self, checkpoint_dir: str) -> Any:
+    async def _load_pipeline(self) -> Any:
+        import sonic  # our installed package
+
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+
         # Sonic resolves every checkpoint path relative to BASE_DIR (defined
         # inside sonic/__init__.py as the module directory). Symlink the user's
         # checkpoint tree in as `checkpoints/` next to the installed package so
         # the hard-coded relative paths in config/inference/sonic.yaml resolve.
-        import sonic  # our installed package
-
         install_root = os.path.dirname(sonic.__file__)
-        checkpoint_link = os.path.join(install_root, "checkpoints")
-        if os.path.islink(checkpoint_link):
-            os.unlink(checkpoint_link)
-        elif os.path.exists(checkpoint_link):
-            shutil.rmtree(checkpoint_link)
-        os.symlink(checkpoint_dir, checkpoint_link)
+        checkpoint_symlink = os.path.join(install_root, "checkpoints")
+
+        if os.path.islink(checkpoint_symlink):
+            os.unlink(checkpoint_symlink)
+        elif os.path.exists(checkpoint_symlink):
+            shutil.rmtree(checkpoint_symlink)
+
+        os.symlink(model_path, checkpoint_symlink)
 
         device_index = self.device.index if self.device.index is not None else 0
-        return sonic.Sonic(device_id=device_index, enable_interpolate_frame=True)
+
+        def _load() -> Any:
+            return sonic.Sonic(device_id=device_index, enable_interpolate_frame=True)
+
+        return await asyncio.get_running_loop().run_in_executor(None, _load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await SonicTalkingHeadTaskAction(action, self.pipeline, self.device).run(context)

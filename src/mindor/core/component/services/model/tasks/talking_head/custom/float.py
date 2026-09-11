@@ -171,7 +171,11 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         if not clone_dir.exists():
             clone_dir.parent.mkdir(parents=True, exist_ok=True)
             asyncio.get_event_loop().run_until_complete(
-                download_github_tarball("https://github.com/deepbrainai-research/float.git", None, clone_dir)
+                download_github_tarball(
+                    "https://github.com/deepbrainai-research/float.git",
+                    "3b5b2dfc3e65df26e7fbba17d9adb3f43747851c",
+                    clone_dir,
+                )
             )
 
         target.mkdir(parents=True, exist_ok=False)
@@ -193,30 +197,33 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
-        self.agent = await asyncio.get_running_loop().run_in_executor(
-            None, self._load_agent, checkpoint_dir,
-        )
+        self.agent = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.agent = None
 
-    def _load_agent(self, checkpoint_dir: str) -> Any:
+    async def _load_pipeline(self) -> Any:
         from float_talker.generate import InferenceAgent
         from float_talker.options.base_options import BaseOptions
+
+        model_path = await self._provision_model(self.config.model, prefetch=True)
 
         # BaseOptions parses argparse from sys.argv, so hand it a synthetic
         # argv that points every checkpoint path at the user-provided dir.
         parser = BaseOptions().initialize(argparse.ArgumentParser())
         opt = parser.parse_args([
-            "--pretrained_dir", checkpoint_dir,
-            "--ckpt_path", os.path.join(checkpoint_dir, "float.pth"),
-            "--wav2vec_model_path", os.path.join(checkpoint_dir, "wav2vec2-base-960h"),
-            "--audio2emotion_path", os.path.join(checkpoint_dir, "wav2vec-english-speech-emotion-recognition"),
+            "--pretrained_dir", model_path,
+            "--ckpt_path", os.path.join(model_path, "float.pth"),
+            "--wav2vec_model_path", os.path.join(model_path, "wav2vec2-base-960h"),
+            "--audio2emotion_path", os.path.join(model_path, "wav2vec-english-speech-emotion-recognition"),
         ])
 
         device_index = self.device.index if self.device.index is not None else 0
-        return InferenceAgent(opt, gpu_rank=device_index)
+
+        def _load() -> Any:
+            return InferenceAgent(opt, gpu_rank=device_index)
+
+        return await asyncio.get_running_loop().run_in_executor(None, _load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await FloatTalkingHeadTaskAction(action, self.agent, self.device).run(context)

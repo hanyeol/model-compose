@@ -143,45 +143,48 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
             await install_package_from_github(
                 "hallo3",
                 "https://github.com/fudan-generative-vision/hallo3.git",
+                revision="e342dcec7ec17cdf26da6c97679c0414c9738a3c",
                 subdirs=[ "hallo3", "configs" ],
             )
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
-        self.repo_root = self._resolve_repo_root(checkpoint_dir)
-        self.generator = await self._load_generator()
+        self.generator, self.repo_root = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.generator = None
 
-    def _resolve_repo_root(self, checkpoint_dir: str) -> str:
+    async def _load_pipeline(self) -> tuple[Any, str]:
+        from hallo3.app import VideoGenerator
+        import hallo3
+
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+
         # Hallo3 reads `./pretrained_models/hallo3` relative to cwd, so we set up
         # a working root next to site-packages that symlinks the checkpoint dir
         # into `pretrained_models/hallo3` and the installed configs into `configs/`.
-        import hallo3
-        install_root = os.path.dirname(os.path.dirname(hallo3.__file__))
+        repo_root = os.path.dirname(os.path.dirname(hallo3.__file__))
+        pretrained_link = os.path.join(repo_root, "pretrained_models", "hallo3")
 
-        pretrained_link = os.path.join(install_root, "pretrained_models", "hallo3")
         os.makedirs(os.path.dirname(pretrained_link), exist_ok=True)
+
         if os.path.islink(pretrained_link) or os.path.exists(pretrained_link):
             if os.path.islink(pretrained_link):
                 os.unlink(pretrained_link)
             else:
                 shutil.rmtree(pretrained_link)
-        os.symlink(checkpoint_dir, pretrained_link)
 
-        return install_root
-
-    async def _load_generator(self) -> Any:
-        from hallo3.app import VideoGenerator
+        os.symlink(model_path, pretrained_link)
 
         last_cwd = os.getcwd()
-        os.chdir(self.repo_root)
+        os.chdir(repo_root)
+
         try:
-            return await asyncio.get_running_loop().run_in_executor(None, VideoGenerator)
+            generator = await asyncio.get_running_loop().run_in_executor(None, VideoGenerator)
         finally:
             os.chdir(last_cwd)
+
+        return generator, repo_root
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Hallo3TalkingHeadTaskAction(

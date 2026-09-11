@@ -25,13 +25,13 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
     def __init__(
         self,
         config: Hallo2TalkingHeadModelActionConfig,
-        checkpoint_dir: str,
+        model_path: str,
         config_path: str,
         device: torch.device,
     ):
         super().__init__(config)
 
-        self.checkpoint_dir: str = checkpoint_dir
+        self.model_path: str = model_path
         self.config_path: str = config_path
         self.device: torch.device = device
 
@@ -106,7 +106,7 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
                 face_weight=float(params["face_weight"]),
                 lip_weight=float(params["lip_weight"]),
                 face_expand_ratio=float(params["face_expand_ratio"]),
-                audio_ckpt_dir=self.checkpoint_dir,
+                audio_ckpt_dir=self.model_path,
             )
             inference_process(args)
 
@@ -140,14 +140,14 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
         fd, path = tempfile.mkstemp(suffix=".png")
         os.close(fd)
         image.save(path, format="PNG")
-        return path
 
+        return path
 
 class Hallo2TalkingHeadTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.checkpoint_dir: Optional[str] = None
+        self.model_path: Optional[str] = None
         self.config_path: Optional[str] = None
         self.device: Optional[torch.device] = None
 
@@ -178,29 +178,34 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             await install_package_from_github(
                 "hallo",
                 "https://github.com/fudan-generative-vision/hallo2.git",
+                revision="58a9aa6c9f66817a6e084f3874cfc01ac24fed3e",
                 subdirs=[ "hallo", "scripts" ],
             )
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        self.checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
-        self.config_path = self._resolve_config_path()
+        self.model_path, self.config_path = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         # Hallo2's inference_process constructs the pipeline lazily inside the
         # call, so there is no long-lived model handle we need to release here.
         pass
 
-    def _resolve_config_path(self) -> str:
-        # Config yaml lives inside the repo tree we installed above.
+    async def _load_pipeline(self) -> tuple[str, str]:
         import hallo
+
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+
+        # Config yaml lives inside the repo tree we installed above.
         repo_root = os.path.dirname(os.path.dirname(hallo.__file__))
-        return os.path.join(repo_root, "configs", "inference", "long.yaml")
+        config_path = os.path.join(repo_root, "configs", "inference", "long.yaml")
+
+        return model_path, config_path
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Hallo2TalkingHeadTaskAction(
             action,
-            self.checkpoint_dir,
+            self.model_path,
             self.config_path,
             self.device,
         ).run(context)

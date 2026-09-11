@@ -279,7 +279,8 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
             await install_package_from_github(
                 "sadtalker",
                 "https://github.com/OpenTalker/SadTalker.git",
-                subdirs=[("sadtalker", "src")],
+                revision="cd4c0465ae0b54a6f85af57f5c65fec9fe39c9d0",
+                subdirs=[ ("sadtalker", "src") ],
             )
 
     async def _load_model(self) -> None:
@@ -296,13 +297,14 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
         from sadtalker.utils.init_path import init_path
         import sadtalker
 
-        checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
+        model_path = await self._provision_model(self.config.model, prefetch=True)
+
         # SadTalker keeps its yaml configs alongside the code under `src/config`
         # in the upstream layout — after the install-time rename that becomes
         # `sadtalker/config` in site-packages.
         config_dir = os.path.join(os.path.dirname(sadtalker.__file__), "config")
         size = _SADTALKER_PRESET_SIZE[self.config.preset]
-        sadtalker_paths = init_path(checkpoint_dir, config_dir, size, False, "crop")
+        sadtalker_paths = init_path(model_path, config_dir, size, False, "crop")
 
         def _load() -> Dict[str, Any]:
             return {

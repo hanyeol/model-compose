@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, EchoMimicPreset
 from mindor.dsl.schema.action import ModelActionConfig, EchoMimicTalkingHeadModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -14,14 +14,24 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, asyncio
+import  importlib, importlib.util
+import os, tempfile, asyncio
 
 if TYPE_CHECKING:
     import torch
 
-_ECHOMIMIC_REPOS: Dict[EchoMimicPreset, str] = {
-    EchoMimicPreset.V1: "https://github.com/antgroup/echomimic.git",
-    EchoMimicPreset.V2: "https://github.com/antgroup/echomimic_v2.git",
+# Repo URL + pinned revision for each preset. The pin guards against upstream
+# layout changes silently invalidating the `subdirs=[(pkg, "src")]` rename
+# and import rewrite.
+_ECHOMIMIC_REPOS: Dict[EchoMimicPreset, Tuple[str, str]] = {
+    EchoMimicPreset.V1: (
+        "https://github.com/antgroup/echomimic.git",
+        "c32b3a557003f84ead1483a2d2386035685d984d",
+    ),
+    EchoMimicPreset.V2: (
+        "https://github.com/antgroup/echomimic_v2.git",
+        "38c86809efa041884c774ee31d984a9577c0e0aa",
+    ),
 }
 
 # Each preset gets its own top-level package so v1 and v2 checkpoints/code can
@@ -240,32 +250,32 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         module_name = _ECHOMIMIC_MODULES[self.config.preset]
 
         if importlib.util.find_spec(module_name) is None:
+            repo_url, revision = _ECHOMIMIC_REPOS[self.config.preset]
+
             await install_package_from_github(
                 module_name,
-                _ECHOMIMIC_REPOS[self.config.preset],
-                subdirs=[(module_name, "src"), "configs"],
+                repo_url,
+                revision=revision,
+                subdirs=[ (module_name, "src"), "configs" ],
             )
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
-        self.pipeline = await asyncio.get_running_loop().run_in_executor(
-            None, self._load_pipeline, checkpoint_dir,
-        )
+        self.pipeline = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
 
-    def _load_pipeline(self, checkpoint_dir: str) -> Any:
+    async def _load_pipeline(self) -> Any:
         # EchoMimic's inference script hand-wires each sub-model from checkpoint
         # paths listed in configs/prompts/{animation,infer}.yaml. Rather than
         # duplicate that logic here, delegate to the upstream builder that
         # replicates infer_audio2vid.py's pipeline assembly.
         from omegaconf import OmegaConf
-        import torch
+
+        model_path = await self._provision_model(self.config.model, prefetch=True)
 
         module_name = _ECHOMIMIC_MODULES[self.config.preset]
-        import importlib
         module = importlib.import_module(module_name)
         repo_root = os.path.dirname(os.path.dirname(module.__file__))
 
@@ -278,30 +288,92 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         # the root prefix so ops can point at their own snapshot layout.
         for key, value in list(config.items()):
             if isinstance(value, str) and value.startswith("./pretrained_weights/"):
-                config[key] = os.path.join(checkpoint_dir, value[len("./pretrained_weights/"):])
+                config[key] = os.path.join(model_path, value[len("./pretrained_weights/"):])
 
-        pipeline_module = importlib.import_module(
-            f"{module_name}.pipelines.pipeline_echo_mimic"
-            if self.config.preset == EchoMimicPreset.V1
-            else f"{module_name}.pipelines.pipeline_echomimicv2"
-        )
-        pipeline_cls = (
-            pipeline_module.Audio2VideoPipeline
-            if self.config.preset == EchoMimicPreset.V1
-            else pipeline_module.EchoMimicV2Pipeline
-        )
+        if self.config.preset == EchoMimicPreset.V1:
+            pipeline_module = importlib.import_module(f"{module_name}.pipelines.pipeline_echo_mimic")
+            pipeline_cls = pipeline_module.Audio2VideoPipeline
+        else:
+            pipeline_module = importlib.import_module(f"{module_name}.pipelines.pipeline_echomimicv2")
+            pipeline_cls = pipeline_module.EchoMimicV2Pipeline
 
-        return self._build_pipeline(pipeline_cls, config, inference_config, module_name)
+        def _load() -> Any:
+            return self._build_pipeline(pipeline_cls, config, inference_config, module_name)
+
+        return await asyncio.get_running_loop().run_in_executor(None, _load)
 
     def _build_pipeline(self, pipeline_cls: type, config: Any, inference_config: Any, module_name: str) -> Any:
-        # Actual sub-model construction (VAE, reference/denoising UNet, audio
-        # processor, pose encoder for v2) follows the upstream inference script.
-        # Kept as a thin call-through so build breaks surface as clear errors
-        # rather than as silent misconfiguration.
-        raise NotImplementedError(
-            "EchoMimic pipeline assembly is delegated to the upstream inference script. "
-            "Implement per-checkpoint wiring here once the target checkpoint layout is fixed."
+        # Mirrors upstream infer_audio2vid.py (v1) / infer.py (v2) sub-model wiring.
+        # Both variants share VAE + reference UNet + audio processor + DDIM scheduler;
+        # they diverge on the denoising UNet class (Echo vs EMO) and the spatial
+        # conditioner (FaceLocator[1ch] vs PoseEncoder[3ch]).
+        import torch
+        from omegaconf import OmegaConf
+        from diffusers import AutoencoderKL, DDIMScheduler
+
+        unet_2d_cls = importlib.import_module(f"{module_name}.models.unet_2d_condition").UNet2DConditionModel
+        audio_loader = importlib.import_module(f"{module_name}.audio_processor").load_audio_model
+
+        if self.config.preset == EchoMimicPreset.V1:
+            denoising_unet_cls = importlib.import_module(f"{module_name}.models.unet_3d_echo_mimic").EchoUNet3DConditionModel
+            conditioner_cls = importlib.import_module(f"{module_name}.models.face_locator").FaceLocator
+            conditioner_channels = 1
+            conditioner_ckpt_key = "face_locator_path"
+        else:
+            denoising_unet_cls = importlib.import_module(f"{module_name}.models.unet_3d_emo").EMOUNet3DConditionModel
+            conditioner_cls = importlib.import_module(f"{module_name}.models.pose_encoder").PoseEncoder
+            conditioner_channels = 3
+            conditioner_ckpt_key = "pose_encoder_path"
+
+        weight_dtype = torch.float16 if config.get("weight_dtype", "fp32") == "fp16" else torch.float32
+
+        vae = AutoencoderKL.from_pretrained(config.pretrained_vae_path).to(self.device, dtype=weight_dtype)
+
+        reference_unet = unet_2d_cls.from_pretrained(
+            config.pretrained_base_model_path,
+            subfolder="unet",
+        ).to(dtype=weight_dtype, device=self.device)
+        reference_unet.load_state_dict(torch.load(config.reference_unet_path, map_location="cpu"))
+
+        denoising_unet = denoising_unet_cls.from_pretrained_2d(
+            config.pretrained_base_model_path,
+            config.motion_module_path,
+            subfolder="unet",
+            unet_additional_kwargs=inference_config.unet_additional_kwargs,
+        ).to(dtype=weight_dtype, device=self.device)
+        denoising_unet.load_state_dict(
+            torch.load(config.denoising_unet_path, map_location="cpu"),
+            strict=False,
         )
+
+        # FaceLocator (v1) / PoseEncoder (v2) share the (320, conditioning_channels,
+        # block_out_channels=(16, 32, 96, 256)) construction signature — only the
+        # conditioning channel count differs.
+        conditioner = conditioner_cls(
+            320,
+            conditioning_channels=conditioner_channels,
+            block_out_channels=(16, 32, 96, 256),
+        )
+        conditioner.load_state_dict(torch.load(config[conditioner_ckpt_key]))
+        conditioner.to(dtype=weight_dtype, device=self.device)
+
+        audio_processor = audio_loader(model_path=config.audio_model_path, device=self.device)
+        scheduler = DDIMScheduler(**OmegaConf.to_container(inference_config.noise_scheduler_kwargs))
+
+        pipeline_params = {
+            "vae":             vae,
+            "reference_unet":  reference_unet,
+            "denoising_unet":  denoising_unet,
+            "audio_guider":    audio_processor,
+            "scheduler":       scheduler,
+        }
+
+        if self.config.preset == EchoMimicPreset.V1:
+            pipeline_params["face_locator"] = conditioner
+        else:
+            pipeline_params["pose_encoder"] = conditioner
+
+        return pipeline_cls(**pipeline_params).to(self.device, dtype=weight_dtype)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await EchoMimicTalkingHeadTaskAction(

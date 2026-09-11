@@ -38,7 +38,8 @@ ModelComponentConfig = Annotated[
         MusicGenerationModelComponentConfig,
         MusicSourceSeparationModelComponentConfig,
         MusicTranscriptionModelComponentConfig,
-        MusicEmbeddingModelComponentConfig
+        MusicEmbeddingModelComponentConfig,
+        VoiceEmbeddingModelComponentConfig
     ],
     Field(discriminator="task")
 ]

@@ -33,3 +33,4 @@ from .music_generation import *
 from .music_source_separation import *
 from .music_transcription import *
 from .music_embedding import *
+from .voice_embedding import *

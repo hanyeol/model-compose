@@ -42,6 +42,7 @@ class ModelTaskType(str, Enum):
     MUSIC_SOURCE_SEPARATION  = "music-source-separation"
     MUSIC_TRANSCRIPTION      = "music-transcription"
     MUSIC_EMBEDDING          = "music-embedding"
+    VOICE_EMBEDDING          = "voice-embedding"
 
 class ModelDriver(str, Enum):
     HUGGINGFACE = "huggingface"

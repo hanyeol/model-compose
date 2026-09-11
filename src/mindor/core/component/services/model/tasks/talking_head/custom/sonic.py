@@ -177,14 +177,14 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         sonic_module_file = clone_dir / "sonic.py"
 
         if not sonic_module_file.exists():
-            # tarball already gone (cache miss) — refetch to grab just sonic.py
-            asyncio.get_event_loop().run_until_complete(
-                download_github_tarball(
-                    "https://github.com/jixiaozhong/Sonic.git",
-                    "c1bd2d133ecc",
-                    clone_dir,
-                )
-            )
+            # tarball already gone (cache miss) — refetch to grab just sonic.py.
+            # `_merge_sonic_root_module` runs in an executor thread that has no
+            # event loop, so spin one up just for the async fetch.
+            asyncio.run(download_github_tarball(
+                "https://github.com/jixiaozhong/Sonic.git",
+                "c1bd2d133ecc",
+                clone_dir,
+            ))
 
         shutil.copy2(sonic_module_file, init_path)
         rewrite_python_imports(sonic_pkg_dir, { "src": "sonic" })

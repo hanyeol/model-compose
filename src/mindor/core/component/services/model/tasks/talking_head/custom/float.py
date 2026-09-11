@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import rewrite_python_imports
+from mindor.core.foundation.package.installer import rewrite_python_imports, get_mindor_install_root
 from mindor.core.utils.github import download_github_tarball
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
@@ -160,23 +160,23 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         # don't collide with anything else installed alongside model-compose.
         internal_modules = ("models", "options", "generate")
 
-        import mindor
-        install_root = Path(mindor.__file__).resolve().parent.parent
-        target = install_root / "float_talker"
+        target = get_mindor_install_root() / "float_talker"
 
         if target.exists():
             return
 
         clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / "float_talker"
+
         if not clone_dir.exists():
             clone_dir.parent.mkdir(parents=True, exist_ok=True)
-            asyncio.get_event_loop().run_until_complete(
-                download_github_tarball(
-                    "https://github.com/deepbrainai-research/float.git",
-                    "3b5b2dfc3e65",
-                    clone_dir,
-                )
-            )
+            # `_install_float_package` already runs inside an executor thread,
+            # so it has no event loop of its own — spin one up just for the
+            # tarball fetch (which is the only async call here).
+            asyncio.run(download_github_tarball(
+                "https://github.com/deepbrainai-research/float.git",
+                "3b5b2dfc3e65",
+                clone_dir,
+            ))
 
         target.mkdir(parents=True, exist_ok=False)
         (target / "__init__.py").write_text("", encoding="utf-8")

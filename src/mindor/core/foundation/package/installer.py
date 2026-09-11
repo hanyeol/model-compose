@@ -8,9 +8,11 @@ import mindor
 import sys, subprocess, shutil, importlib, importlib.util, tempfile
 import asyncio, re
 
-# mindor is our own package, so its parent directory is the site-packages root
-# (or the src/ folder under an editable install). Placing new package dirs
-# there makes them importable without touching sys.path.
+# The directory that hosts the running `mindor` package — site-packages root
+# under a normal install, or `src/` under an editable install. Custom services
+# that need to drop an ad-hoc package alongside `mindor` (rename-and-install
+# patterns for upstream repos that ship as a bare `src/`) copy into this root
+# so the new package becomes importable without touching `sys.path`.
 _MINDOR_INSTALL_ROOT: Path = Path(mindor.__file__).resolve().parent.parent
 
 async def install_package(package_spec: str, pip_options: Optional[List[str]] = None) -> None:
@@ -150,7 +152,11 @@ def is_requirement_satisfied(requirement: Requirement) -> bool:
         return False
 
     specifier: SpecifierSet = requirement.specifier
+
     if not specifier:
         return True
 
     return specifier.contains(installed_version, prereleases=True)
+
+def get_mindor_install_root() -> Path:
+    return _MINDOR_INSTALL_ROOT

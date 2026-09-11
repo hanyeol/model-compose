@@ -181,17 +181,17 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
         # a working root next to site-packages that symlinks the checkpoint dir
         # into `pretrained_models/hallo3` and the installed configs into `configs/`.
         repo_root = os.path.dirname(hallo3.__path__[0])
-        pretrained_link = os.path.join(repo_root, "pretrained_models", "hallo3")
+        pretrained_symlink = os.path.join(repo_root, "pretrained_models", "hallo3")
 
-        os.makedirs(os.path.dirname(pretrained_link), exist_ok=True)
+        os.makedirs(os.path.dirname(pretrained_symlink), exist_ok=True)
 
-        if os.path.islink(pretrained_link) or os.path.exists(pretrained_link):
-            if os.path.islink(pretrained_link):
-                os.unlink(pretrained_link)
+        if os.path.islink(pretrained_symlink) or os.path.exists(pretrained_symlink):
+            if os.path.islink(pretrained_symlink):
+                os.unlink(pretrained_symlink)
             else:
-                shutil.rmtree(pretrained_link)
+                shutil.rmtree(pretrained_symlink)
 
-        os.symlink(model_path, pretrained_link)
+        os.symlink(model_path, pretrained_symlink)
 
         last_cwd = os.getcwd()
         os.chdir(repo_root)

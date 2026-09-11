@@ -14,7 +14,7 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, argparse, glob
+import os, tempfile, shutil, importlib.util, argparse
 
 if TYPE_CHECKING:
     import torch
@@ -95,6 +95,7 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
 
     def _render(self, image_path: str, audio_path: str, params: Dict[str, Any]) -> VideoStreamResource:
         from scripts.inference_long import inference_process
+        from hallo.utils.util import merge_videos
         from pydub import AudioSegment
 
         work_dir = tempfile.mkdtemp(prefix="hallo2-")
@@ -112,34 +113,30 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
         os.chdir(self.repo_root)
 
         try:
-            # `audio_ckpt_dir` is intentionally left None so `inference_process`
-            # falls back to the config default (`pretrained_models/hallo2`),
-            # which resolves through the snapshot symlink we set up.
+            # inference_process merges args into the config via OmegaConf, so
+            # `save_path` here overrides `config.save_path` and every artifact
+            # lands under our work_dir. `audio_ckpt_dir=None` keeps the config
+            # default (`pretrained_models/hallo2`), which resolves through the
+            # snapshot symlink we set up.
             args = argparse.Namespace(
                 config=self.config_path,
                 source_image=image_path,
                 driving_audio=wav_audio_path,
-                output=work_dir,
+                save_path=work_dir,
                 pose_weight=float(params["pose_weight"]),
                 face_weight=float(params["face_weight"]),
                 lip_weight=float(params["lip_weight"]),
                 face_expand_ratio=float(params["face_expand_ratio"]),
                 audio_ckpt_dir=None,
             )
-            inference_process(args)
 
-            # inference_process writes segments to <output>/seg_video/*.mp4 and
-            # then calls merge_videos into <output>/merge_video.mp4. Fall back to
-            # the last segment if the merge step didn't run in this build.
-            result_path = os.path.join(work_dir, "merge_video.mp4")
-
-            if not os.path.exists(result_path):
-                segments = sorted(glob.glob(os.path.join(work_dir, "seg_video", "*.mp4")))
-
-                if not segments:
-                    raise RuntimeError("Hallo2 produced no output segments")
-
-                result_path = segments[-1]
+            # inference_process returns the seg_video directory
+            # (`<save_path>/<image_stem>/seg_video`). Upstream's `__main__`
+            # calls merge_videos afterwards to stitch the segments into a
+            # single MP4 next to it; we replicate that here.
+            seg_video_dir = inference_process(args)
+            result_path = os.path.join(os.path.dirname(seg_video_dir), "merge_video.mp4")
+            merge_videos(seg_video_dir, result_path)
 
             fd, video_path = tempfile.mkstemp(suffix=".mp4")
             os.close(fd)

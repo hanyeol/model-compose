@@ -155,11 +155,13 @@ class SonicTalkingHeadTaskService(ModelTaskService):
                 "sonic",
                 "https://github.com/jixiaozhong/Sonic.git",
                 revision="c1bd2d133ecc",
-                subdirs=[ ("sonic", "src"), "config" ],
+                subdirs=[ ("sonic", "src") ],
             )
 
-            # `install_package_from_github` won't drop the loose `sonic.py`; fetch
-            # the tarball ourselves and lift that single file into __init__.py.
+            # `install_package_from_github` won't drop the loose `sonic.py`
+            # nor the `config/` yaml tree; fetch the tarball ourselves and
+            # place both inside the installed `sonic/` package so the code's
+            # `os.path.join(BASE_DIR, 'config/...')` lookups resolve.
             await asyncio.get_running_loop().run_in_executor(None, self._merge_sonic_root_module)
 
     def _merge_sonic_root_module(self) -> None:
@@ -167,8 +169,9 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         install_root = Path(mindor.__file__).resolve().parent.parent
         sonic_pkg_dir = install_root / "sonic"
         init_path = sonic_pkg_dir / "__init__.py"
+        config_dir = sonic_pkg_dir / "config"
 
-        if init_path.exists() and init_path.stat().st_size > 0:
+        if init_path.exists() and init_path.stat().st_size > 0 and config_dir.exists():
             return
 
         clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / "sonic"
@@ -185,6 +188,10 @@ class SonicTalkingHeadTaskService(ModelTaskService):
             ))
 
         shutil.copy2(sonic_module_file, init_path)
+
+        if not config_dir.exists():
+            shutil.copytree(clone_dir / "config", config_dir)
+
         rewrite_python_imports(sonic_pkg_dir, { "src": "sonic" })
 
     async def _load_model(self) -> None:

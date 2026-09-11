@@ -114,8 +114,8 @@ class SonicTalkingHeadTaskAction(TalkingHeadTaskAction):
         fd, path = tempfile.mkstemp(suffix=".png")
         os.close(fd)
         image.save(path, format="PNG")
-        return path
 
+        return path
 
 class SonicTalkingHeadTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

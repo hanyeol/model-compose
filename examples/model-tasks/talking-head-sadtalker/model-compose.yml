@@ -46,5 +46,5 @@ component:
       still: ${input.still as boolean | true}
       # gfpgan sharpens rendered faces; leave unset to skip the enhancer pass.
       enhancer: ${input.enhancer as select/gfpgan,RestoreFormer | gfpgan}
-      expression_scale: ${input.expression_scale as float | 1.0}
+      expression_scale: ${input.expression_scale as number | 1.0}
       pose_style: ${input.pose_style as integer | 0}

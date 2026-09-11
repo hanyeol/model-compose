@@ -45,6 +45,6 @@ component:
       width: ${input.width as integer | 512}
       height: ${input.height as integer | 512}
       inference_steps: ${input.inference_steps as integer | 30}
-      cfg_scale: ${input.cfg_scale as float | 2.5}
+      cfg_scale: ${input.cfg_scale as number | 2.5}
       context_frames: ${input.context_frames as integer | 12}
       context_overlap: ${input.context_overlap as integer | 3}

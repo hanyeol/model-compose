@@ -45,7 +45,7 @@ component:
       # happy, sad, angry, fear, disgust, surprise, neutral.
       emotion: ${input.emotion | "S2E"}
       inference_steps: ${input.inference_steps as integer | 10}
-      cfg_scale: ${input.cfg_scale as float | 2.0}
-      a_cfg_scale: ${input.a_cfg_scale as float | 2.0}
-      e_cfg_scale: ${input.e_cfg_scale as float | 1.0}
+      cfg_scale: ${input.cfg_scale as number | 2.0}
+      a_cfg_scale: ${input.a_cfg_scale as number | 2.0}
+      e_cfg_scale: ${input.e_cfg_scale as number | 1.0}
       crop: ${input.crop as boolean | true}

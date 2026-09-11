@@ -40,9 +40,9 @@ component:
     image: ${input.image as image}
     audio: ${input.audio as audio}
     params:
-      pose_weight: ${input.pose_weight as float | 1.1}
-      face_weight: ${input.face_weight as float | 1.1}
-      lip_weight: ${input.lip_weight as float | 1.1}
-      face_expand_ratio: ${input.face_expand_ratio as float | 1.2}
+      pose_weight: ${input.pose_weight as number | 1.1}
+      face_weight: ${input.face_weight as number | 1.1}
+      lip_weight: ${input.lip_weight as number | 1.1}
+      face_expand_ratio: ${input.face_expand_ratio as number | 1.2}
       inference_steps: ${input.inference_steps as integer | 40}
-      cfg_scale: ${input.cfg_scale as float | 3.5}
+      cfg_scale: ${input.cfg_scale as number | 3.5}

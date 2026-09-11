@@ -42,6 +42,6 @@ component:
       # Optional text prompt guides scene/style; leave empty for audio-only.
       prompt: ${input.prompt | ""}
       inference_steps: ${input.inference_steps as integer | 50}
-      guidance_scale: ${input.guidance_scale as float | 6.0}
-      audio_guidance_scale: ${input.audio_guidance_scale as float | 3.0}
+      guidance_scale: ${input.guidance_scale as number | 6.0}
+      audio_guidance_scale: ${input.audio_guidance_scale as number | 3.0}
       resolution: ${input.resolution as integer | 480}

@@ -40,7 +40,7 @@ component:
     image: ${input.image as image}
     audio: ${input.audio as audio}
     params:
-      dynamic_scale: ${input.dynamic_scale as float | 1.0}
+      dynamic_scale: ${input.dynamic_scale as number | 1.0}
       inference_steps: ${input.inference_steps as integer | 25}
       min_resolution: ${input.min_resolution as integer | 512}
       keep_resolution: ${input.keep_resolution as boolean | false}

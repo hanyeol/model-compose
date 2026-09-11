@@ -158,10 +158,10 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         await asyncio.get_running_loop().run_in_executor(None, self._install_float_package)
 
     def _install_float_package(self) -> None:
-        # `models/`, `argsions/`, and `generate.py` sit at Float's repo root;
+        # `models/`, `options/`, and `generate.py` sit at Float's repo root;
         # funnel them all into one `float_talker/` package so top-level names
         # don't collide with anything else installed alongside model-compose.
-        internal_modules = ("models", "argsions", "generate")
+        internal_modules = ("models", "options", "generate")
 
         target = get_mindor_install_root() / "float_talker"
 
@@ -207,7 +207,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
     async def _load_pipeline(self) -> Any:
         from float_talker.generate import InferenceAgent
-        from float_talker.argsions.base_argsions import BaseOptions
+        from float_talker.options.base_options import BaseOptions
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 

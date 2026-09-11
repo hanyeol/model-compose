@@ -132,7 +132,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
-            *torch_requirements("torch", "torchvision", "torchaudio"),
+            *torch_requirements("torch>=2.4,<2.5", "torchvision", "torchaudio"),
             "diffusers>=0.28,<0.35",
             "transformers>=4.38.2,<4.49",
             "accelerate",

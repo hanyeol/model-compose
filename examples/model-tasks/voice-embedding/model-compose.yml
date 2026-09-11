@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Voice Embedding
+  description: Extract a speaker embedding vector from an audio file using a local pyannote embedding model.
+  job:
+    input: ${input}
+    output:
+      embedding: ${output as json}
+
+component:
+  type: model
+  task: voice-embedding
+  driver: custom
+  family: pyannote
+  model:
+    provider: huggingface
+    repository: pyannote/embedding
+    token: ${env.HF_TOKEN}
+  device: cpu
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    params:
+      normalize: ${input.normalize | true}
+      sample_rate: ${input.sample_rate | 16000}

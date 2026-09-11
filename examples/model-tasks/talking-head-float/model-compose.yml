@@ -41,9 +41,7 @@ component:
     image: ${input.image as image}
     audio: ${input.audio as audio}
     params:
-      # 'S2E' auto-detects emotion from the audio; explicit labels override:
-      # happy, sad, angry, fear, disgust, surprise, neutral.
-      emotion: ${input.emotion | "S2E"}
+      emotion: ${input.emotion as select/S2E,happy,sad,angry,fear,disgust,surprise,neutral | S2E}
       inference_steps: ${input.inference_steps as integer | 10}
       cfg_scale: ${input.cfg_scale as number | 2.0}
       a_cfg_scale: ${input.a_cfg_scale as number | 2.0}

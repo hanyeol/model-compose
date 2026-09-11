@@ -14,7 +14,7 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, asyncio
+import os, sys, tempfile, shutil, importlib.util, asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -134,8 +134,11 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
             "audio-separator",
             "insightface",
             "onnxruntime",
-            "moviepy",
+            "moviepy<2",
             "safetensors",
+            "wandb",
+            "deepspeed",
+            "gradio",
         ]
 
     async def _setup(self) -> None:
@@ -155,8 +158,17 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
         self.generator = None
 
     async def _load_pipeline(self) -> tuple[Any, str]:
-        from hallo3.app import VideoGenerator
         import hallo3
+
+        # Hallo3's internal modules import each other as top-level names
+        # (`from diffusion_video import ...`) rather than `from hallo3.…`,
+        # so the `hallo3/` package directory must be on sys.path itself.
+        hallo3_dir = os.path.dirname(hallo3.__file__)
+
+        if hallo3_dir not in sys.path:
+            sys.path.insert(0, hallo3_dir)
+
+        from hallo3.app import VideoGenerator
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 

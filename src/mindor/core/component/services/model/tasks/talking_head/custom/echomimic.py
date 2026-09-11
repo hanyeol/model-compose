@@ -230,8 +230,8 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
-            "diffusers",
-            "transformers",
+            "diffusers==0.24.0",
+            "transformers>=4.38.2,<4.49",
             "accelerate",
             "einops",
             "omegaconf",
@@ -244,6 +244,11 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
             "safetensors",
             "insightface",
             "onnxruntime",
+            "mediapipe",
+            "torchmetrics",
+            "torchtyping",
+            "ffmpeg-python==0.2.0",
+            "huggingface_hub>=0.20,<0.26",
         ]
 
     async def _setup(self) -> None:
@@ -307,15 +312,15 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         # Both variants share VAE + reference UNet + audio processor + DDIM scheduler;
         # they diverge on the denoising UNet class (Echo vs EMO) and the spatial
         # conditioner (FaceLocator[1ch] vs PoseEncoder[3ch]).
-        import torch
         from omegaconf import OmegaConf
         from diffusers import AutoencoderKL, DDIMScheduler
+        import torch
 
         unet_2d_cls = importlib.import_module(f"{module_name}.models.unet_2d_condition").UNet2DConditionModel
-        audio_loader = importlib.import_module(f"{module_name}.audio_processor").load_audio_model
+        audio_loader = importlib.import_module(f"{module_name}.models.whisper.audio2feature").load_audio_model
 
         if self.config.preset == EchoMimicPreset.V1:
-            denoising_unet_cls = importlib.import_module(f"{module_name}.models.unet_3d_echo_mimic").EchoUNet3DConditionModel
+            denoising_unet_cls = importlib.import_module(f"{module_name}.models.unet_3d_echo").EchoUNet3DConditionModel
             conditioner_cls = importlib.import_module(f"{module_name}.models.face_locator").FaceLocator
             conditioner_channels = 1
             conditioner_ckpt_key = "face_locator_path"

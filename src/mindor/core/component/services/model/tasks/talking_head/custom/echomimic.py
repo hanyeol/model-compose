@@ -168,13 +168,15 @@ class EchoMimicTalkingHeadTaskAction(TalkingHeadTaskAction):
         )
 
     def _build_face_mask(self, image: PILImage.Image, width: int, height: int) -> Any:
-        import torch, numpy as np
+        import torch
 
         # v1's pipeline_echo_mimic expects a (B, 1, 1, H, W) mask; the reference
         # inference script builds this from an insightface bbox, but a full-frame
         # mask is a safe default when no bbox is supplied.
-        mask = torch.ones(1, 1, 1, height, width, dtype=torch.float32, device=self.device)
-        return mask
+        # Match the face_locator's dtype (fp16 when the pipeline was loaded in
+        # fp16) — its conv layers reject a mixed-precision input tensor.
+        dtype = next(self.pipeline.face_locator.parameters()).dtype
+        return torch.ones(1, 1, 1, height, width, dtype=dtype, device=self.device)
 
     def _load_pose_tensor(self, pose_dir: str, width: int, height: int) -> Any:
         from echomimic_v2.utils.dwpose_util import draw_pose_select_v2
@@ -190,10 +192,11 @@ class EchoMimicTalkingHeadTaskAction(TalkingHeadTaskAction):
             frame = draw_pose_select_v2(detected_pose, height, width)
             pose_frames.append(frame)
 
-        # Stack to (L, H, W, 3) -> (3, L, H, W) -> (1, 3, L, H, W)
+        # Stack to (L, H, W, 3) -> (3, L, H, W) -> (1, 3, L, H, W). Match the
+        # pose_encoder's dtype so v2's conv layers get consistent precision.
         arr = np.stack(pose_frames, axis=0).astype(np.float32) / 255.0
-        tensor = torch.from_numpy(arr).permute(3, 0, 1, 2).unsqueeze(0).to(self.device)
-        return tensor
+        dtype = next(self.pipeline.pose_encoder.parameters()).dtype
+        return torch.from_numpy(arr).permute(3, 0, 1, 2).unsqueeze(0).to(self.device, dtype=dtype)
 
     def _resolve_video_length(self, audio_path: str, sample_rate: int, fps: int) -> int:
         import librosa

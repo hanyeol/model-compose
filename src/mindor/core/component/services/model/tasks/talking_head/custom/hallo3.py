@@ -177,19 +177,19 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        # Hallo3 reads `./pretrained_models/hallo3` relative to cwd, so we set up
-        # a working root next to site-packages that symlinks the checkpoint dir
-        # into `pretrained_models/hallo3` and the installed configs into `configs/`.
+        # Hallo3's configs reference `./pretrained_models/<subdir>` for six
+        # different checkpoints (hallo3, t5-v1_1-xxl, cogvideox-5b-i2v-sat,
+        # wav2vec, audio_separator, face_analysis). The fudan-generative-ai/
+        # hallo3 HF repo bundles all of them at its snapshot root, so mount
+        # the whole snapshot as `pretrained_models` and every relative path
+        # resolves.
         repo_root = os.path.dirname(hallo3.__path__[0])
-        pretrained_symlink = os.path.join(repo_root, "pretrained_models", "hallo3")
+        pretrained_symlink = os.path.join(repo_root, "pretrained_models")
 
-        os.makedirs(os.path.dirname(pretrained_symlink), exist_ok=True)
-
-        if os.path.islink(pretrained_symlink) or os.path.exists(pretrained_symlink):
-            if os.path.islink(pretrained_symlink):
-                os.unlink(pretrained_symlink)
-            else:
-                shutil.rmtree(pretrained_symlink)
+        if os.path.islink(pretrained_symlink):
+            os.unlink(pretrained_symlink)
+        elif os.path.exists(pretrained_symlink):
+            shutil.rmtree(pretrained_symlink)
 
         os.symlink(model_path, pretrained_symlink)
 

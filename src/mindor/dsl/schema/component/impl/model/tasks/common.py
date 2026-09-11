@@ -24,6 +24,7 @@ class ModelTaskType(str, Enum):
     IMAGE_SEGMENTATION       = "image-segmentation"
     TEXT_TO_VIDEO            = "text-to-video"
     IMAGE_TO_VIDEO           = "image-to-video"
+    TALKING_HEAD             = "talking-head"
     OBJECT_DETECTION         = "object-detection"
     OBJECT_TRACKING          = "object-tracking"
     SHOT_BOUNDARY_DETECTION  = "shot-boundary-detection"

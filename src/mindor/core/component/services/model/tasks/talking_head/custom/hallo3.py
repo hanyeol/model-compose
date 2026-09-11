@@ -1,0 +1,192 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Optional, Dict, List, Any
+from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.action import ModelActionConfig, Hallo3TalkingHeadModelActionConfig
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github
+from ......action.media import MediaInputPathResolver
+from ....base import ComponentActionContext, ModelTaskService
+from ..common import TalkingHeadTaskAction
+from PIL import Image as PILImage
+import os, tempfile, shutil, importlib.util, asyncio
+
+if TYPE_CHECKING:
+    import torch
+
+class Hallo3TalkingHeadTaskAction(TalkingHeadTaskAction):
+    config: Hallo3TalkingHeadModelActionConfig
+
+    def __init__(
+        self,
+        config: Hallo3TalkingHeadModelActionConfig,
+        generator: Any,
+        repo_root: str,
+        device: torch.device,
+    ):
+        super().__init__(config)
+
+        self.generator: Any = generator
+        self.repo_root: str = repo_root
+        self.device: torch.device = device
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        prompt               = await context.render_text(self.config.params.prompt) if self.config.params.prompt is not None else None
+        negative_prompt      = await context.render_text(self.config.params.negative_prompt) if self.config.params.negative_prompt is not None else None
+        inference_steps      = await context.render_variable(self.config.params.inference_steps)
+        guidance_scale       = await context.render_variable(self.config.params.guidance_scale)
+        audio_guidance_scale = await context.render_variable(self.config.params.audio_guidance_scale)
+        resolution           = await context.render_variable(self.config.params.resolution)
+        num_frames           = await context.render_variable(self.config.params.num_frames)
+        shift                = await context.render_variable(self.config.params.shift)
+        long_video           = await context.render_variable(self.config.params.long_video)
+
+        params.update({
+            "prompt":               prompt,
+            "negative_prompt":      negative_prompt,
+            "inference_steps":      inference_steps,
+            "guidance_scale":       guidance_scale,
+            "audio_guidance_scale": audio_guidance_scale,
+            "resolution":           resolution,
+            "num_frames":           num_frames,
+            "shift":                shift,
+            "long_video":           long_video,
+        })
+
+        return params
+
+    async def _generate_batch(
+        self,
+        images: List[PILImage.Image],
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[VideoStreamResource]:
+        audio_paths = [ await MediaInputPathResolver().resolve(audio) for audio in audios ]
+
+        try:
+            def _generate() -> List[VideoStreamResource]:
+                results: List[VideoStreamResource] = []
+
+                for image, (audio_path, _) in zip(images, audio_paths):
+                    results.append(self._render(image, audio_path, params))
+
+                return results
+
+            return await self._run_in_executor(_generate)
+        finally:
+            for path, spooled in audio_paths:
+                if spooled and path and os.path.exists(path):
+                    os.remove(path)
+
+    def _render(self, image: PILImage.Image, audio_path: str, params: Dict[str, Any]) -> VideoStreamResource:
+        # Hallo3's VideoGenerator resolves config-relative paths (configs/, pretrained_models/)
+        # from the current working directory, so we cd into the installed repo root
+        # for the duration of the call and restore afterwards.
+        last_cwd = os.getcwd()
+        os.chdir(self.repo_root)
+
+        try:
+            result_path = self.generator.generate_video(image, audio_path, params.get("prompt") or "")
+        finally:
+            os.chdir(last_cwd)
+
+        fd, video_path = tempfile.mkstemp(suffix=".mp4")
+        os.close(fd)
+        shutil.move(result_path, video_path)
+
+        return VideoStreamResource(
+            FileStreamResource(video_path, auto_delete=True),
+            format="mp4",
+            attrs={ "fps": str(params["fps"] or 25) },
+        )
+
+class Hallo3TalkingHeadTaskService(ModelTaskService):
+    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
+
+        self.generator: Optional[Any] = None
+        self.repo_root: Optional[str] = None
+        self.device: Optional[torch.device] = None
+
+    def _get_setup_requirements(self) -> Optional[List[str]]:
+        return [
+            *torch_requirements("torch", "torchvision", "torchaudio"),
+            "diffusers",
+            "transformers",
+            "accelerate",
+            "einops",
+            "omegaconf",
+            "sat",  # cogvideox-sat toolkit
+            "sentencepiece",
+            "opencv-python",
+            "imageio",
+            "imageio-ffmpeg",
+            "librosa",
+            "soundfile",
+            "audio-separator",
+            "insightface",
+            "onnxruntime",
+            "moviepy",
+            "safetensors",
+        ]
+
+    async def _setup(self) -> None:
+        if importlib.util.find_spec("hallo3") is None:
+            await install_package_from_github(
+                "hallo3",
+                "https://github.com/fudan-generative-vision/hallo3.git",
+                subdirs=[ "hallo3", "configs" ],
+            )
+
+    async def _load_model(self) -> None:
+        self.device = self._resolve_device(self.config.device)
+        checkpoint_dir = await self._provision_model(self.config.model, prefetch=True)
+        self.repo_root = self._resolve_repo_root(checkpoint_dir)
+        self.generator = await self._load_generator()
+
+    async def _unload_model(self) -> None:
+        self.generator = None
+
+    def _resolve_repo_root(self, checkpoint_dir: str) -> str:
+        # Hallo3 reads `./pretrained_models/hallo3` relative to cwd, so we set up
+        # a working root next to site-packages that symlinks the checkpoint dir
+        # into `pretrained_models/hallo3` and the installed configs into `configs/`.
+        import hallo3
+        install_root = os.path.dirname(os.path.dirname(hallo3.__file__))
+
+        pretrained_link = os.path.join(install_root, "pretrained_models", "hallo3")
+        os.makedirs(os.path.dirname(pretrained_link), exist_ok=True)
+        if os.path.islink(pretrained_link) or os.path.exists(pretrained_link):
+            if os.path.islink(pretrained_link):
+                os.unlink(pretrained_link)
+            else:
+                shutil.rmtree(pretrained_link)
+        os.symlink(checkpoint_dir, pretrained_link)
+
+        return install_root
+
+    async def _load_generator(self) -> Any:
+        from hallo3.app import VideoGenerator
+
+        last_cwd = os.getcwd()
+        os.chdir(self.repo_root)
+        try:
+            return await asyncio.get_running_loop().run_in_executor(None, VideoGenerator)
+        finally:
+            os.chdir(last_cwd)
+
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        return await Hallo3TalkingHeadTaskAction(
+            action,
+            self.generator,
+            self.repo_root,
+            self.device,
+        ).run(context)

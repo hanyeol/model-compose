@@ -141,7 +141,9 @@ cd examples/model-tasks/shot-boundary-detection
 
 ### 출력 형식
 
-모든 워크플로우는 감지된 샷들의 평평한 리스트를 반환합니다.
+모든 워크플로우는 `shots` 배열을 담은 JSON 객체를 반환합니다(부가 메타 키 포함 가능).
+
+`shots[]` 필드:
 
 | 필드 | 유형 | 설명 |
 |-----|------|------|
@@ -152,28 +154,34 @@ cd examples/model-tasks/shot-boundary-detection
 | `end_frame` | integer | 샷 종료 프레임 번호 |
 | `duration` | string | 샷 지속 시간 타임코드 |
 
+선택 키(`return_metadata: true`일 때): `frame_count` (int), `duration` (타임코드).
+
 #### 출력 예시
 
 ```json
-[
-  {
-    "index": 0,
-    "start_time": "00:00:00.000",
-    "end_time": "00:00:12.345",
-    "start_frame": 0,
-    "end_frame": 370,
-    "duration": "00:00:12.345"
-  },
-  {
-    "index": 1,
-    "start_time": "00:00:12.345",
-    "end_time": "00:00:28.678",
-    "start_frame": 370,
-    "end_frame": 860,
-    "duration": "00:00:16.333"
-  }
-]
+{
+  "shots": [
+    {
+      "index": 0,
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:12.345",
+      "start_frame": 0,
+      "end_frame": 370,
+      "duration": "00:00:12.345"
+    },
+    {
+      "index": 1,
+      "start_time": "00:00:12.345",
+      "end_time": "00:00:28.678",
+      "start_frame": 370,
+      "end_frame": 860,
+      "duration": "00:00:16.333"
+    }
+  ]
+}
 ```
+
+스트리밍 모드(`streaming: true`)에서는 같은 정보가 `type` 태그가 붙은 청크로 전달됩니다: 감지된 샷마다 `{"type": "shot", ...}`, `return_metadata`가 활성화된 경우 마지막에 `{"type": "metadata", ...}`.
 
 ## 임계값 가이드
 

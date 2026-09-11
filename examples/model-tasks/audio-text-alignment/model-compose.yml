@@ -12,8 +12,7 @@ workflow:
   description: Align a reference transcript to an audio file and return per-word timestamps using a local Wav2Vec2 CTC model.
   job:
     input: ${input}
-    output:
-      segments: ${output}
+    output: ${output}
 
 component:
   type: model

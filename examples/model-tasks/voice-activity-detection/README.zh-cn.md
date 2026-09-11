@@ -124,13 +124,17 @@ Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
 
 #### 输出格式
 
-工作流输出是检测到的语音片段的扁平 JSON 数组（静音区域被省略）。
+工作流输出是一个包含检测到的语音片段数组 `segments` 的 JSON 对象(静音区域被省略)。
+
+`segments[]` 字段:
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| `start` | float | 片段开始时间（秒） |
-| `end` | float | 片段结束时间（秒） |
+| `start_time` | float | 片段开始时间（秒） |
+| `end_time` | float | 片段结束时间（秒） |
 | `confidence` | float | 片段内 Silero 语音概率均值（0.0–1.0） |
+
+可选键(`return_metadata: true` 时): `segment_count` (int), `total_speech_duration` (float, 秒)。
 
 #### 输出示例
 
@@ -143,6 +147,8 @@ Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
   ]
 }
 ```
+
+在流式模式(`streaming: true`)下,同样的信息以带 `type` 标识的块传递:每个检测到的片段发出 `{"type": "segment", ...}`,若启用 `return_metadata`,最后追加 `{"type": "metadata", ...}`。
 
 ## 自定义
 

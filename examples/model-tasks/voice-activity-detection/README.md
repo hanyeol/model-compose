@@ -124,13 +124,17 @@ Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
 
 #### Output Format
 
-The workflow output is a flat JSON array of detected speech segments (silent regions are omitted).
+The workflow output is a JSON object containing a `segments` array of detected speech segments (silent regions are omitted).
+
+`segments[]` fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `start` | float | Segment start time in seconds |
-| `end` | float | Segment end time in seconds |
+| `start_time` | float | Segment start time in seconds |
+| `end_time` | float | Segment end time in seconds |
 | `confidence` | float | Mean Silero speech probability over the segment (0.0–1.0) |
+
+Optional keys (present when `return_metadata: true`): `segment_count` (int), `total_speech_duration` (float, seconds).
 
 #### Example Output
 
@@ -143,6 +147,8 @@ The workflow output is a flat JSON array of detected speech segments (silent reg
   ]
 }
 ```
+
+In streaming mode (`streaming: true`), the same information arrives as chunks tagged by `type`: `{"type": "segment", ...}` per detected segment, followed by `{"type": "metadata", ...}` when `return_metadata` is enabled.
 
 ## Customization
 

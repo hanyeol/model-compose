@@ -12,8 +12,7 @@ workflow:
   description: Detect speech segments in an audio file using a local Silero VAD model.
   job:
     input: ${input}
-    output:
-      segments: ${output as json}
+    output: ${output as json}
 
 component:
   type: model

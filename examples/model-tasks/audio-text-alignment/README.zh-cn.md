@@ -136,14 +136,16 @@ graph TD
 
 #### 输出格式
 
-`segments` 是每个词的条目列表：
+工作流输出是一个包含每个词条目数组 `segments` 的 JSON 对象。当 `return_metadata: true` 时,会附加 `segment_count` (int)。
+
+`segments[]` 字段:
 
 | 字段         | 类型   | 描述 |
 |--------------|--------|------|
 | `text`       | text   | 来自参考文本的词 |
 | `start_time` | number | 词起始时间（秒） |
 | `end_time`   | number | 词结束时间（秒） |
-| `confidence` | number | 每个词的对齐置信度 (0.0–1.0) |
+| `confidence` | number | 每个词的对齐置信度 (0.0–1.0);仅在 `return_confidence: true` 时存在 |
 
 示例：
 ```json

@@ -136,14 +136,16 @@ graph TD
 
 #### Output Format
 
-`segments` is a list of per-word entries:
+The workflow output is a JSON object containing a `segments` array of per-word entries. Optional `segment_count` (int) is added when `return_metadata: true`.
+
+`segments[]` fields:
 
 | Field        | Type   | Description |
 |--------------|--------|-------------|
 | `text`       | text   | The word from the reference transcript |
 | `start_time` | number | Word start time in seconds |
 | `end_time`   | number | Word end time in seconds |
-| `confidence` | number | Per-word alignment confidence (0.0–1.0) |
+| `confidence` | number | Per-word alignment confidence (0.0–1.0); present when `return_confidence: true` |
 
 Example:
 ```json

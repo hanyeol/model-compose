@@ -124,13 +124,17 @@ Duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초) 형식을 허�
 
 #### 출력 형식
 
-워크플로우 출력은 감지된 음성 구간의 평평한 JSON 배열입니다 (침묵 구간은 생략).
+워크플로우 출력은 감지된 음성 구간(침묵 구간 제외) 배열 `segments`를 포함하는 JSON 객체입니다.
+
+`segments[]` 필드:
 
 | 필드 | 유형 | 설명 |
 |-----|------|------|
-| `start` | float | 구간 시작 시간 (초) |
-| `end` | float | 구간 종료 시간 (초) |
+| `start_time` | float | 구간 시작 시간 (초) |
+| `end_time` | float | 구간 종료 시간 (초) |
 | `confidence` | float | 구간 내 Silero 음성 확률 평균 (0.0–1.0) |
+
+선택 키(`return_metadata: true`일 때): `segment_count` (int), `total_speech_duration` (float, 초).
 
 #### 출력 예시
 
@@ -143,6 +147,8 @@ Duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초) 형식을 허�
   ]
 }
 ```
+
+스트리밍 모드(`streaming: true`)에서는 같은 정보가 `type` 태그가 붙은 청크로 전달됩니다: 감지된 구간마다 `{"type": "segment", ...}`, `return_metadata`가 활성화된 경우 마지막에 `{"type": "metadata", ...}`.
 
 ## 맞춤화
 

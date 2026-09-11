@@ -14,8 +14,7 @@ workflows:
     job:
       component: shot-detector
       action: default
-      output:
-        shots: ${output as json}
+      output: ${output as json}
 
   - id: detect-shots-range
     title: Detect Shot Boundaries (Time Range)
@@ -23,8 +22,7 @@ workflows:
     job:
       component: shot-detector
       action: with-range
-      output:
-        shots: ${output as json}
+      output: ${output as json}
 
 component:
   id: shot-detector

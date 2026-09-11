@@ -141,7 +141,9 @@ cd examples/model-tasks/shot-boundary-detection
 
 ### Output Format
 
-All workflows return a flat list of detected shots.
+All workflows return a JSON object with a `shots` array (and optional metadata keys).
+
+`shots[]` fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -152,28 +154,34 @@ All workflows return a flat list of detected shots.
 | `end_frame` | integer | Shot end frame number |
 | `duration` | string | Shot duration timecode |
 
+Optional keys (present when `return_metadata: true`): `frame_count` (int), `duration` (timecode).
+
 #### Example Output
 
 ```json
-[
-  {
-    "index": 0,
-    "start_time": "00:00:00.000",
-    "end_time": "00:00:12.345",
-    "start_frame": 0,
-    "end_frame": 370,
-    "duration": "00:00:12.345"
-  },
-  {
-    "index": 1,
-    "start_time": "00:00:12.345",
-    "end_time": "00:00:28.678",
-    "start_frame": 370,
-    "end_frame": 860,
-    "duration": "00:00:16.333"
-  }
-]
+{
+  "shots": [
+    {
+      "index": 0,
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:12.345",
+      "start_frame": 0,
+      "end_frame": 370,
+      "duration": "00:00:12.345"
+    },
+    {
+      "index": 1,
+      "start_time": "00:00:12.345",
+      "end_time": "00:00:28.678",
+      "start_frame": 370,
+      "end_frame": 860,
+      "duration": "00:00:16.333"
+    }
+  ]
+}
 ```
+
+In streaming mode (`streaming: true`), the same information arrives as chunks tagged by `type`: `{"type": "shot", ...}` per detected shot, followed by `{"type": "metadata", ...}` when `return_metadata` is enabled.
 
 ## Threshold Guide
 

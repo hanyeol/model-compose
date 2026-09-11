@@ -141,7 +141,9 @@ cd examples/model-tasks/shot-boundary-detection
 
 ### 输出格式
 
-所有工作流都返回检测到的镜头的平面列表。
+所有工作流都返回一个包含 `shots` 数组的 JSON 对象(可含附加元数据键)。
+
+`shots[]` 字段:
 
 | 字段 | 类型 | 描述 |
 |-----|------|------|
@@ -152,28 +154,34 @@ cd examples/model-tasks/shot-boundary-detection
 | `end_frame` | integer | 镜头结束帧号 |
 | `duration` | string | 镜头持续时间时间码 |
 
+可选键(`return_metadata: true` 时): `frame_count` (int), `duration` (时间码)。
+
 #### 输出示例
 
 ```json
-[
-  {
-    "index": 0,
-    "start_time": "00:00:00.000",
-    "end_time": "00:00:12.345",
-    "start_frame": 0,
-    "end_frame": 370,
-    "duration": "00:00:12.345"
-  },
-  {
-    "index": 1,
-    "start_time": "00:00:12.345",
-    "end_time": "00:00:28.678",
-    "start_frame": 370,
-    "end_frame": 860,
-    "duration": "00:00:16.333"
-  }
-]
+{
+  "shots": [
+    {
+      "index": 0,
+      "start_time": "00:00:00.000",
+      "end_time": "00:00:12.345",
+      "start_frame": 0,
+      "end_frame": 370,
+      "duration": "00:00:12.345"
+    },
+    {
+      "index": 1,
+      "start_time": "00:00:12.345",
+      "end_time": "00:00:28.678",
+      "start_frame": 370,
+      "end_frame": 860,
+      "duration": "00:00:16.333"
+    }
+  ]
+}
 ```
+
+在流式模式(`streaming: true`)下,同样的信息以带 `type` 标识的块传递:每个检测到的镜头发出 `{"type": "shot", ...}`,若启用 `return_metadata`,最后追加 `{"type": "metadata", ...}`。
 
 ## 阈值指南
 

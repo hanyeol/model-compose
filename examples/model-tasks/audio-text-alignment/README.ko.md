@@ -136,14 +136,16 @@ graph TD
 
 #### 출력 형식
 
-`segments`는 단어별 항목의 리스트입니다:
+워크플로우 출력은 단어별 항목 배열 `segments`를 담은 JSON 객체입니다. `return_metadata: true`이면 `segment_count` (int)가 추가됩니다.
+
+`segments[]` 필드:
 
 | 필드         | 유형   | 설명 |
 |--------------|--------|------|
 | `text`       | text   | 참조 스크립트에서 가져온 단어 |
 | `start_time` | number | 단어 시작 시간(초) |
 | `end_time`   | number | 단어 종료 시간(초) |
-| `confidence` | number | 단어별 정렬 신뢰도 (0.0–1.0) |
+| `confidence` | number | 단어별 정렬 신뢰도 (0.0–1.0). `return_confidence: true`일 때만 포함 |
 
 예:
 ```json

@@ -266,14 +266,14 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
             await install_package_from_github(
                 "cosyvoice",
                 "https://github.com/FunAudioLLM/CosyVoice.git",
-                revision="074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc",
+                revision="074ca6dc9e80",
             )
 
         if importlib.util.find_spec("matcha") is None:
             await install_package_from_github(
                 "matcha",
                 "https://github.com/shivammehta25/Matcha-TTS.git",
-                revision="dd9105b34bf2be2230f4aa1e4769fb586a3c824e",
+                revision="dd9105b34bf2",
             )
 
     async def _load_model(self) -> None:

@@ -310,7 +310,7 @@ class FireRedTextToSpeechTaskService(ModelTaskService):
             await install_package_from_github(
                 "fireredtts3",
                 "https://github.com/FireRedTeam/FireRedTTS3.git",
-                revision="7a1f3a7282ff184cc1c7f070556baaf5f08b5216",
+                revision="7a1f3a7282ff",
             )
 
     async def _load_model(self) -> None:

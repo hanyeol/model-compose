@@ -156,7 +156,7 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         await install_package_from_github(
             "sonic",
             "https://github.com/jixiaozhong/Sonic.git",
-            revision="c1bd2d133ecc72f1a5abd990f1de101efcc3cfdb",
+            revision="c1bd2d133ecc",
             subdirs=[ ("sonic", "src"), "config" ],
         )
 
@@ -181,7 +181,7 @@ class SonicTalkingHeadTaskService(ModelTaskService):
             asyncio.get_event_loop().run_until_complete(
                 download_github_tarball(
                     "https://github.com/jixiaozhong/Sonic.git",
-                    "c1bd2d133ecc72f1a5abd990f1de101efcc3cfdb",
+                    "c1bd2d133ecc",
                     clone_dir,
                 )
             )

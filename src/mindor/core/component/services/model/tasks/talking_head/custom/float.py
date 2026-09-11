@@ -173,7 +173,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
             asyncio.get_event_loop().run_until_complete(
                 download_github_tarball(
                     "https://github.com/deepbrainai-research/float.git",
-                    "3b5b2dfc3e65df26e7fbba17d9adb3f43747851c",
+                    "3b5b2dfc3e65",
                     clone_dir,
                 )
             )

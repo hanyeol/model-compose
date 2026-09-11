@@ -26,11 +26,11 @@ if TYPE_CHECKING:
 _ECHOMIMIC_REPOS: Dict[EchoMimicPreset, Tuple[str, str]] = {
     EchoMimicPreset.V1: (
         "https://github.com/antgroup/echomimic.git",
-        "c32b3a557003f84ead1483a2d2386035685d984d",
+        "c32b3a557003",
     ),
     EchoMimicPreset.V2: (
         "https://github.com/antgroup/echomimic_v2.git",
-        "38c86809efa041884c774ee31d984a9577c0e0aa",
+        "38c86809efa0",
     ),
 }
 

@@ -279,7 +279,7 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
             await install_package_from_github(
                 "sadtalker",
                 "https://github.com/OpenTalker/SadTalker.git",
-                revision="cd4c0465ae0b54a6f85af57f5c65fec9fe39c9d0",
+                revision="cd4c0465ae0b",
                 subdirs=[ ("sadtalker", "src") ],
             )
 

@@ -178,7 +178,7 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             await install_package_from_github(
                 "hallo",
                 "https://github.com/fudan-generative-vision/hallo2.git",
-                revision="58a9aa6c9f66817a6e084f3874cfc01ac24fed3e",
+                revision="58a9aa6c9f66",
                 subdirs=[ "hallo", "scripts" ],
             )
 

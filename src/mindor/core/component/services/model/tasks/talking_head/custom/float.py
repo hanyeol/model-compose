@@ -133,8 +133,8 @@ class FloatTalkingHeadTaskService(ModelTaskService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
-            "diffusers",
-            "transformers",
+            "diffusers>=0.28,<0.35",
+            "transformers>=4.38.2,<4.49",
             "accelerate",
             "einops",
             "omegaconf",
@@ -211,8 +211,6 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
         # BaseOptions parses argparse from sys.argv, so hand it a synthetic
         # argv that points every checkpoint path at the user-provided dir.
-        # Float looks for `float.pth` under `pretrained_dir` — no explicit
-        # ckpt_path flag exists on BaseOptions.
         parser = BaseOptions().initialize(argparse.ArgumentParser())
         args = parser.parse_args([
             "--pretrained_dir", model_path,
@@ -220,7 +218,9 @@ class FloatTalkingHeadTaskService(ModelTaskService):
             "--audio2emotion_path", os.path.join(model_path, "wav2vec-english-speech-emotion-recognition"),
         ])
 
-        # InferenceAgent reads gpu id from args.rank; it isn't an argparse flag.
+        # InferenceAgent reads `ckpt_path` and `rank` off the Namespace but
+        # neither is registered as an argparse flag on BaseOptions.
+        args.ckpt_path = os.path.join(model_path, "float.pth")
         args.rank = self.device.index if self.device.index is not None else 0
 
         def _load() -> Any:

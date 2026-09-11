@@ -149,6 +149,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
             "torchdiffeq",
             "albumentations",
             "timm",
+            "av",
             "huggingface_hub",
         ]
 
@@ -222,6 +223,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         # neither is registered as an argparse flag on BaseOptions.
         args.ckpt_path = os.path.join(model_path, "float.pth")
         args.rank = self.device.index if self.device.index is not None else 0
+        args.fps = int(args.fps)
 
         def _load() -> Any:
             return InferenceAgent(args)

@@ -779,7 +779,9 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
         best_pose = tracked_segment["best_pose"]
-        segment: Dict[str, Any] = {
+        chunk: Dict[str, Any] = {
+            "type":         "segment",
+            "track_id":     int(track_id),
             "start_time":   format_timecode(tracked_segment["start"]),
             "end_time":     format_timecode(tracked_segment["end"]),
             "duration":     format_timecode(tracked_segment["end"] - tracked_segment["start"]),
@@ -789,19 +791,15 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         }
 
         if params["return_keypoints"] and "keypoints" in best_pose:
-            segment["keypoints"] = best_pose["keypoints"]
+            chunk["keypoints"] = best_pose["keypoints"]
         if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
-            segment["openpose_keypoints"] = best_pose["openpose_keypoints"]
+            chunk["openpose_keypoints"] = best_pose["openpose_keypoints"]
         if params["return_skeleton_image"]:
-            segment["skeleton_image"] = self._render_skeleton(best_pose, params)
+            chunk["skeleton_image"] = self._render_skeleton(best_pose, params)
         if params["return_track_image"]:
-            segment["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
+            chunk["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
 
-        return {
-            "type":     "segment",
-            "track_id": int(track_id),
-            "segment":  segment,
-        }
+        return chunk
 
     def _build_detection_chunk(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         chunk: Dict[str, Any] = {

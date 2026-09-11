@@ -760,7 +760,9 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
         best_object = tracked_segment["best_object"]
-        segment: Dict[str, Any] = {
+        chunk: Dict[str, Any] = {
+            "type":         "segment",
+            "track_id":     int(track_id),
             "start_time":   format_timecode(tracked_segment["start"]),
             "end_time":     format_timecode(tracked_segment["end"]),
             "duration":     format_timecode(tracked_segment["end"] - tracked_segment["start"]),
@@ -772,13 +774,9 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         }
 
         if params["return_track_image"]:
-            segment["image"] = self._crop_object_image(best_object, params["bounding_box_padding"])
+            chunk["image"] = self._crop_object_image(best_object, params["bounding_box_padding"])
 
-        return {
-            "type":     "segment",
-            "track_id": int(track_id),
-            "segment":  segment,
-        }
+        return chunk
 
     def _build_detection_chunk(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         chunk: Dict[str, Any] = {

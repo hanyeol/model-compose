@@ -27,6 +27,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         self.model: FaceAnalysis = model
         self.device_id: int = device_id
+
         self._prepared: bool = False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -909,7 +910,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
         best_face = tracked_segment["best_face"]
-        segment: Dict[str, Any] = {
+        chunk: Dict[str, Any] = {
+            "type":        "segment",
+            "track_id":    cluster_id + 1,
             "start_time":  format_timecode(tracked_segment["start"]),
             "end_time":    format_timecode(tracked_segment["end"]),
             "duration":    format_timecode(tracked_segment["end"] - tracked_segment["start"]),
@@ -918,19 +921,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         }
 
         if params["return_track_image"] and "image" in best_face:
-            segment["image"] = best_face["image"]
+            chunk["image"] = best_face["image"]
 
         if params["return_gender_age"]:
             if "gender" in best_face:
-                segment["gender"] = self._gender_to_label(best_face["gender"])
+                chunk["gender"] = self._gender_to_label(best_face["gender"])
             if "age" in best_face:
-                segment["age"] = best_face["age"]
+                chunk["age"] = best_face["age"]
 
-        return {
-            "type":     "segment",
-            "track_id": cluster_id + 1,
-            "segment":  segment,
-        }
+        return chunk
 
     def _build_detection_chunk(self, tracked_frame: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         chunk: Dict[str, Any] = {

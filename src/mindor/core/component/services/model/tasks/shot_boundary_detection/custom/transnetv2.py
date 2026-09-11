@@ -31,8 +31,8 @@ class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction)
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
-        results: List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]] = []
+    ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
+        results: List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]] = []
 
         for video in videos:
             results.append(await self._detect(
@@ -54,7 +54,7 @@ class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction)
         end_time: Optional[float],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]:
+    ) -> Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]:
         input_path, spooled = await MediaInputPathResolver().resolve(video)
 
         def _cleanup() -> None:
@@ -77,13 +77,13 @@ class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction)
         end_time: Optional[float],
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         try:
             shots = await self._detect_shots(input_path, threshold, start_time, end_time)
 
             logging.debug(f"TransNetV2 detected {len(shots)} shots")
 
-            return shots
+            return { "shots": shots }
         finally:
             cleanup()
 
@@ -100,7 +100,7 @@ class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction)
             shots = await self._detect_shots(input_path, threshold, start_time, end_time)
 
             for shot in shots:
-                yield shot
+                yield { "type": "shot", **shot }
         finally:
             cleanup()
 

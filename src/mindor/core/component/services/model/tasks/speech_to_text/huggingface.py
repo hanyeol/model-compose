@@ -181,7 +181,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             for result in results:
                 async def _stream_chunk_generator(result=result):
                     for segment in result:
-                        yield segment
+                        yield { "type": "segment", **segment }
 
                 streams.append(_stream_chunk_generator())
 

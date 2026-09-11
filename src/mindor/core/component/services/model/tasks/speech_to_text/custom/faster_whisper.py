@@ -137,7 +137,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         segments, _ = self.model.transcribe(waveform, **params)
 
         for segment in segments:
-            yield self._build_segment(segment) if return_timestamps else segment.text
+            yield { "type": "segment", **self._build_segment(segment) } if return_timestamps else segment.text
 
     def _build_segment(self, segment: Any) -> Dict[str, Any]:
         words = getattr(segment, "words", None)

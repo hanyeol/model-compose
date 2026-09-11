@@ -148,7 +148,7 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 async def _stream_chunk_generator(result=result):
                     if isinstance(result, list):
                         for segment in result:
-                            yield segment
+                            yield { "type": "segment", **segment }
                     else:
                         yield result
 

@@ -58,7 +58,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
+    ) -> Union[List[Dict[str, Any]], List[AsyncIterator[Dict[str, Any]]]]:
         waveforms = await self._preprocess_audio(audios)
 
         def _diarize() -> List[List[Dict[str, Any]]]:
@@ -75,16 +75,16 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
             # Diarization needs the full audio; fake streaming by re-emitting segments.
             streams: List[AsyncIterator[Dict[str, Any]]] = []
 
-            for result in results:
-                async def _stream_chunk_generator(result=result):
-                    for segment in result:
-                        yield segment
+            for segments in results:
+                async def _stream_chunk_generator(segments=segments):
+                    for segment in segments:
+                        yield { "type": "segment", **segment }
 
                 streams.append(_stream_chunk_generator())
 
             return streams
 
-        return results
+        return [ { "segments": segments } for segments in results ]
 
     async def _preprocess_audio(self, audios: List[MediaSource]) -> List[Tuple[np.ndarray, int]]:
         waveforms: List[Tuple[np.ndarray, int]] = []

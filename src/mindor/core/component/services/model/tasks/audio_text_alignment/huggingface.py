@@ -56,11 +56,11 @@ class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[Dict[str, Any]]]:
-        results: List[List[Dict[str, Any]]] = []
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
 
         for audio, text in zip(audios, texts):
-            results.append(await self._align(audio, text, params))
+            results.append({ "segments": await self._align(audio, text, params) })
 
         return results
 

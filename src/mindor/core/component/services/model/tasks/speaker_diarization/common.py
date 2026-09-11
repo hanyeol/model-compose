@@ -90,5 +90,5 @@ class SpeakerDiarizationTaskAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
+    ) -> Union[List[Dict[str, Any]], List[AsyncIterator[Dict[str, Any]]]]:
         pass

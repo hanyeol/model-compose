@@ -39,7 +39,7 @@ class AudioTextAlignmentTaskAction(ComponentAction):
 
             return _stream_output_generator()
         else:
-            results: List[List[Dict[str, Any]]] = []
+            results: List[Dict[str, Any]] = []
             async for batch_audios, batch_texts in BatchSourceIterator((audio, text), batch_size=batch_size or 1):
                 batch_results = await self._align_batch(batch_audios, batch_texts, params, context.cancellation_token)
                 results.extend(batch_results)
@@ -72,5 +72,5 @@ class AudioTextAlignmentTaskAction(ComponentAction):
         texts: List[str],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[Dict[str, Any]]]:
+    ) -> List[Dict[str, Any]]:
         pass

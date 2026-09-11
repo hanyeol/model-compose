@@ -37,7 +37,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[List[Dict[str, Any]]], List[AsyncIterator[Dict[str, Any]]]]:
+    ) -> Union[List[Dict[str, Any]], List[AsyncIterator[Dict[str, Any]]]]:
         import numpy as np
 
         sample_rate = int(params["sample_rate"])
@@ -69,10 +69,10 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
                     # AsyncIterator interface expected by downstream jobs.
                     async def _stream_chunk_generator(segments=segments):
                         for segment in segments:
-                            yield segment
+                            yield { "type": "segment", **segment }
                     results[index] = _stream_chunk_generator()
                 else:
-                    results[index] = segments
+                    results[index] = { "segments": segments }
 
         return results
 
@@ -145,23 +145,23 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
                     segment = segmenter.feed(prob, offset)
                     if segment is not None:
                         # audio_length is not known ahead of time; clamp trailing padding to current offset + pad.
-                        yield self._build_padded_segment(
+                        yield { "type": "segment", **self._build_padded_segment(
                             *segment,
                             offset + segmenter.speech_pad_samples,
                             sample_rate,
                             segmenter.speech_pad_samples,
-                        )
+                        ) }
 
                     offset += window_size
 
             trailing = segmenter.flush(offset)
             if trailing is not None:
-                yield self._build_padded_segment(
+                yield { "type": "segment", **self._build_padded_segment(
                     *trailing,
                     offset,
                     sample_rate,
                     segmenter.speech_pad_samples,
-                )
+                ) }
         finally:
             self.model.reset_states()
 

@@ -82,5 +82,5 @@ class ShotBoundaryDetectionTaskAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Union[List[Dict[str, Any]], AsyncIterable[Dict[str, Any]]]]:
+    ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
         pass

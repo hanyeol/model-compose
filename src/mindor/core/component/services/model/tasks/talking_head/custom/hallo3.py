@@ -124,7 +124,7 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
             "accelerate",
             "einops",
             "omegaconf",
-            "sat",  # cogvideox-sat toolkit
+            "SwissArmyTransformer",
             "sentencepiece",
             "opencv-python",
             "imageio",

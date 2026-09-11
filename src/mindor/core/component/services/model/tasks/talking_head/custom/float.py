@@ -158,10 +158,10 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         await asyncio.get_running_loop().run_in_executor(None, self._install_float_package)
 
     def _install_float_package(self) -> None:
-        # `models/`, `options/`, and `generate.py` sit at Float's repo root;
+        # `models/`, `argsions/`, and `generate.py` sit at Float's repo root;
         # funnel them all into one `float_talker/` package so top-level names
         # don't collide with anything else installed alongside model-compose.
-        internal_modules = ("models", "options", "generate")
+        internal_modules = ("models", "argsions", "generate")
 
         target = get_mindor_install_root() / "float_talker"
 
@@ -207,7 +207,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
     async def _load_pipeline(self) -> Any:
         from float_talker.generate import InferenceAgent
-        from float_talker.options.base_options import BaseOptions
+        from float_talker.argsions.base_argsions import BaseOptions
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
@@ -216,16 +216,17 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         # Float looks for `float.pth` under `pretrained_dir` — no explicit
         # ckpt_path flag exists on BaseOptions.
         parser = BaseOptions().initialize(argparse.ArgumentParser())
-        opt = parser.parse_args([
+        args = parser.parse_args([
             "--pretrained_dir", model_path,
             "--wav2vec_model_path", os.path.join(model_path, "wav2vec2-base-960h"),
             "--audio2emotion_path", os.path.join(model_path, "wav2vec-english-speech-emotion-recognition"),
         ])
 
-        device_index = self.device.index if self.device.index is not None else 0
+        # InferenceAgent reads gpu id from args.rank; it isn't an argparse flag.
+        args.rank = self.device.index if self.device.index is not None else 0
 
         def _load() -> Any:
-            return InferenceAgent(opt, gpu_rank=device_index)
+            return InferenceAgent(args)
 
         return await asyncio.get_running_loop().run_in_executor(None, _load)
 

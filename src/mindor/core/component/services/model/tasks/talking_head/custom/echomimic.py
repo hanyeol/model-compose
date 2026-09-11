@@ -251,6 +251,7 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
             "torchmetrics",
             "torchtyping",
             "ffmpeg-python==0.2.0",
+            "av",
             "huggingface_hub>=0.20,<0.26",
         ]
 

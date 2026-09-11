@@ -149,7 +149,7 @@ class FloatTalkingHeadTaskService(ModelTaskService):
             "torchdiffeq",
             "albumentations",
             "timm",
-            "av",
+            "av<14",
             "huggingface_hub",
         ]
 

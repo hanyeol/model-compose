@@ -898,6 +898,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if params["return_gender_age"]:
             if "gender" in best_face:
                 chunk["gender"] = self._gender_to_label(best_face["gender"])
+
             if "age" in best_face:
                 chunk["age"] = best_face["age"]
 

@@ -163,7 +163,7 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
         # Hallo3's internal modules import each other as top-level names
         # (`from diffusion_video import ...`) rather than `from hallo3.…`,
         # so the `hallo3/` package directory must be on sys.path itself.
-        hallo3_dir = os.path.dirname(hallo3.__file__)
+        hallo3_dir = hallo3.__path__[0]
 
         if hallo3_dir not in sys.path:
             sys.path.insert(0, hallo3_dir)
@@ -175,7 +175,7 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
         # Hallo3 reads `./pretrained_models/hallo3` relative to cwd, so we set up
         # a working root next to site-packages that symlinks the checkpoint dir
         # into `pretrained_models/hallo3` and the installed configs into `configs/`.
-        repo_root = os.path.dirname(os.path.dirname(hallo3.__file__))
+        repo_root = os.path.dirname(hallo3.__path__[0])
         pretrained_link = os.path.join(repo_root, "pretrained_models", "hallo3")
 
         os.makedirs(os.path.dirname(pretrained_link), exist_ok=True)

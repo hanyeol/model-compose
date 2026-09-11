@@ -885,11 +885,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         best_face = best_segment["best_face"]
 
         chunk: Dict[str, Any] = {
-            "type":           "track",
-            "track_id":       cluster_id + 1,
-            "segment_count":  len(track["segments"]),
-            "frame_count":    sum(segment["frame_count"] for segment in track["segments"]),
-            "score":          best_face["score"],
+            "type":          "track",
+            "track_id":      cluster_id + 1,
+            "segment_count": len(track["segments"]),
+            "frame_count":   sum(segment["frame_count"] for segment in track["segments"]),
+            "score":         best_face["score"],
         }
 
         if params["return_embedding"]:

@@ -5,6 +5,7 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig
+from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation import AsyncService
 from mindor.core.logger import logging
 from ....context import ComponentActionContext
@@ -88,6 +89,20 @@ class ModelTaskService(AsyncService):
             if key in checkpoint:
                 return checkpoint[key]
         return checkpoint
+
+    def _require_isolated_runtime(self) -> None:
+        # Some upstream packages carry version pins that can't coexist with the
+        # host mindor stack. Refuse runtimes that share the host interpreter or
+        # a plain subprocess of it, forcing the user onto virtualenv/docker.
+        # `EMBEDDED` is the sentinel the worker sets on itself after entering
+        # an already-isolated environment, so it's allowed through.
+        runtime_type = self.config.runtime.type
+
+        if runtime_type in (RuntimeType.NATIVE, RuntimeType.PROCESS):
+            raise RuntimeError(
+                f"Component '{self.id}' requires an isolated runtime; "
+                f"got runtime.type = '{runtime_type.value}'."
+            )
 
 def register_model_task_service(type: ModelTaskType, driver: ModelDriver):
     def decorator(cls: Type[ModelTaskService]) -> Type[ModelTaskService]:

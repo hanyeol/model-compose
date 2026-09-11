@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
-from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.action import (
     ModelActionConfig,
     MusicGenerationActionMethod,
@@ -213,24 +212,10 @@ class MidiDdspMusicGenerationTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        # Reject unsupported runtimes before setup runs.
         self._require_isolated_runtime()
 
         self.synthesis_generator: Optional["SynthesisGenerator"] = None
         self.expression_generator: Optional["ExpressionGenerator"] = None
-
-    def _require_isolated_runtime(self) -> None:
-        # MIDI-DDSP's TF 2.7-era pin collides with the host mindor stack
-        # (torch 2.10 / TF-free). Refuse runtimes that share the host
-        # interpreter or a plain subprocess of it.
-        runtime_type = self.config.runtime.type
-
-        if runtime_type in (RuntimeType.NATIVE, RuntimeType.EMBEDDED, RuntimeType.PROCESS):
-            raise RuntimeError(
-                f"MIDI-DDSP requires an isolated runtime (virtualenv, docker, or apple-container) "
-                f"because it pins TensorFlow 2.11 and cannot coexist with the host interpreter. "
-                f"Got runtime.type = '{runtime_type.value}'."
-            )
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [

@@ -3,13 +3,6 @@ from enum import Enum
 from pydantic import Field
 from ..common import CommonTalkingHeadParamsConfig, CommonTalkingHeadModelActionConfig
 
-class SadTalkerPreprocess(str, Enum):
-    CROP     = "crop"
-    EXTCROP  = "extcrop"
-    RESIZE   = "resize"
-    FULL     = "full"
-    EXTFULL  = "extfull"
-
 class SadTalkerEnhancer(str, Enum):
     GFPGAN         = "gfpgan"
     RESTORE_FORMER = "RestoreFormer"
@@ -25,7 +18,6 @@ class SadTalkerTalkingHeadParamsConfig(CommonTalkingHeadParamsConfig):
     input_yaw: Optional[Union[List[int], str]] = Field(default=None, description="Manual yaw keyframes (degrees) that override predicted head rotation.")
     input_pitch: Optional[Union[List[int], str]] = Field(default=None, description="Manual pitch keyframes (degrees) that override predicted head rotation.")
     input_roll: Optional[Union[List[int], str]] = Field(default=None, description="Manual roll keyframes (degrees) that override predicted head rotation.")
-    preprocess: Union[SadTalkerPreprocess, str] = Field(default=SadTalkerPreprocess.CROP, description="Face preprocessing mode applied to the input portrait.")
     still: Union[bool, str] = Field(default=False, description="Keep the head still (only mouth moves); recommended with `full` preprocess.")
     enhancer: Optional[Union[SadTalkerEnhancer, str]] = Field(default=None, description="Face enhancer applied to the rendered frames.")
     background_enhancer: Optional[Union[SadTalkerBackgroundEnhancer, str]] = Field(default=None, description="Background super-resolution enhancer applied to the rendered frames.")

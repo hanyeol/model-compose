@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
-from mindor.dsl.schema.component import ModelComponentConfig, SadTalkerPreset
+from mindor.dsl.schema.component import ModelComponentConfig, SadTalkerPreset, SadTalkerPreprocess
 from mindor.dsl.schema.action import ModelActionConfig, SadTalkerTalkingHeadModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
@@ -32,12 +32,14 @@ class SadTalkerTalkingHeadTaskAction(TalkingHeadTaskAction):
         config: SadTalkerTalkingHeadModelActionConfig,
         pipeline: Dict[str, Any],
         preset: SadTalkerPreset,
+        preprocess: SadTalkerPreprocess,
         device: torch.device,
     ):
         super().__init__(config)
 
         self.pipeline: Dict[str, Any] = pipeline
         self.preset: SadTalkerPreset = preset
+        self.preprocess: SadTalkerPreprocess = preprocess
         self.device: torch.device = device
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -50,7 +52,6 @@ class SadTalkerTalkingHeadTaskAction(TalkingHeadTaskAction):
         input_yaw           = await context.render_variable(self.config.params.input_yaw)
         input_pitch         = await context.render_variable(self.config.params.input_pitch)
         input_roll          = await context.render_variable(self.config.params.input_roll)
-        preprocess          = await context.render_variable(self.config.params.preprocess)
         still               = await context.render_variable(self.config.params.still)
         enhancer            = await context.render_variable(self.config.params.enhancer)
         background_enhancer = await context.render_variable(self.config.params.background_enhancer)
@@ -66,7 +67,6 @@ class SadTalkerTalkingHeadTaskAction(TalkingHeadTaskAction):
             "input_yaw":            input_yaw,
             "input_pitch":          input_pitch,
             "input_roll":           input_roll,
-            "preprocess":           preprocess.value if hasattr(preprocess, "value") else preprocess,
             "still":                still,
             "enhancer":             enhancer.value if hasattr(enhancer, "value") else enhancer,
             "background_enhancer":  background_enhancer.value if hasattr(background_enhancer, "value") else background_enhancer,
@@ -113,7 +113,7 @@ class SadTalkerTalkingHeadTaskAction(TalkingHeadTaskAction):
         from sadtalker.generate_facerender_batch import get_facerender_data
 
         size             = int(params["size"] or _SADTALKER_PRESET_SIZE[self.preset])
-        preprocess       = params["preprocess"] or "crop"
+        preprocess       = self.preprocess.value
         still            = bool(params["still"])
         pose_style       = int(params["pose_style"])
         expression_scale = float(params["expression_scale"])
@@ -241,23 +241,25 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
+        self._require_isolated_runtime()
+
         self.pipeline: Optional[Dict[str, Any]] = None
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchvision"),
-            "numpy",
-            "scipy",
-            "librosa",
-            "numba",
+            "numpy<1.24",
+            "scipy<1.14",
+            "scikit-image<0.24",
+            "numba<0.60",
+            "librosa<0.11",
+            "kornia<0.7.4",
             "resampy",
             "pydub",
-            "kornia",
             "yacs",
             "pyyaml",
             "joblib",
-            "scikit-image",
             "imageio",
             "imageio-ffmpeg",
             "opencv-python",
@@ -268,6 +270,7 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
             "basicsr",
             "safetensors",
             "av",
+            "huggingface_hub",
         ]
 
     async def _setup(self) -> None:
@@ -282,6 +285,28 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
                 revision="cd4c0465ae0b",
                 subdirs=[ ("sadtalker", "src") ],
             )
+
+        # basicsr 1.4.2 imports `torchvision.transforms.functional_tensor`, which
+        # was removed in torchvision 0.17. Rewrite the broken import in place.
+        # Locate the file via find_spec instead of importing basicsr directly —
+        # importing already fails on the same missing module.
+        basicsr_spec = importlib.util.find_spec("basicsr")
+
+        if basicsr_spec and basicsr_spec.origin:
+            degradations_path = os.path.join(os.path.dirname(basicsr_spec.origin), "data", "degradations.py")
+
+            if os.path.exists(degradations_path):
+                with open(degradations_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+
+                if "torchvision.transforms.functional_tensor" in text:
+                    with open(degradations_path, "w", encoding="utf-8") as f:
+                        f.write(text.replace(
+                            "from torchvision.transforms.functional_tensor import rgb_to_grayscale",
+                            "from torchvision.transforms.functional import rgb_to_grayscale",
+                        ))
+
+                    importlib.invalidate_caches()
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
@@ -301,10 +326,12 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
 
         # SadTalker keeps its yaml configs alongside the code under `src/config`
         # in the upstream layout — after the install-time rename that becomes
-        # `sadtalker/config` in site-packages.
-        config_dir = os.path.join(os.path.dirname(sadtalker.__file__), "config")
+        # `sadtalker/config` in site-packages. Upstream ships no __init__.py,
+        # so `sadtalker` is a namespace package with `__file__ is None` — read
+        # the directory from `__path__` instead.
+        config_dir = os.path.join(sadtalker.__path__[0], "config")
         size = _SADTALKER_PRESET_SIZE[self.config.preset]
-        sadtalker_paths = init_path(model_path, config_dir, size, False, "crop")
+        sadtalker_paths = init_path(model_path, config_dir, size, False, self.config.preprocess.value)
 
         def _load() -> Dict[str, Any]:
             return {
@@ -320,5 +347,6 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
             action,
             self.pipeline,
             self.config.preset,
+            self.config.preprocess,
             self.device,
         ).run(context)

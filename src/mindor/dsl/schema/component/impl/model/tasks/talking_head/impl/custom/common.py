@@ -12,6 +12,13 @@ class SadTalkerPreset(str, Enum):
     V002_256 = "v0.0.2-256"
     V002_512 = "v0.0.2-512"
 
+class SadTalkerPreprocess(str, Enum):
+    CROP    = "crop"
+    EXTCROP = "extcrop"
+    RESIZE  = "resize"
+    FULL    = "full"
+    EXTFULL = "extfull"
+
 class EchoMimicPreset(str, Enum):
     V1 = "v1"
     V2 = "v2"

@@ -112,6 +112,9 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
         os.chdir(self.repo_root)
 
         try:
+            # `audio_ckpt_dir` is intentionally left None so `inference_process`
+            # falls back to the config default (`pretrained_models/hallo2`),
+            # which resolves through the snapshot symlink we set up.
             args = argparse.Namespace(
                 config=self.config_path,
                 source_image=image_path,
@@ -121,7 +124,7 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
                 face_weight=float(params["face_weight"]),
                 lip_weight=float(params["lip_weight"]),
                 face_expand_ratio=float(params["face_expand_ratio"]),
-                audio_ckpt_dir=self.model_path,
+                audio_ckpt_dir=None,
             )
             inference_process(args)
 
@@ -171,8 +174,8 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
-            "diffusers",
-            "transformers",
+            "diffusers>=0.32,<0.33",
+            "transformers<4.45",
             "accelerate",
             "xformers",
             "einops",

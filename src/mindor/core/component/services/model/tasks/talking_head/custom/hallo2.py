@@ -27,12 +27,14 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
         config: Hallo2TalkingHeadModelActionConfig,
         model_path: str,
         config_path: str,
+        repo_root: str,
         device: torch.device,
     ):
         super().__init__(config)
 
         self.model_path: str = model_path
         self.config_path: str = config_path
+        self.repo_root: str = repo_root
         self.device: torch.device = device
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -96,6 +98,12 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
 
         work_dir = tempfile.mkdtemp(prefix="hallo2-")
 
+        # `inference_process` resolves `./pretrained_models/...` from the
+        # config against cwd, so run the call from the repo root and restore
+        # the original directory when it returns.
+        last_cwd = os.getcwd()
+        os.chdir(self.repo_root)
+
         try:
             args = argparse.Namespace(
                 config=self.config_path,
@@ -133,6 +141,7 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
                 attrs={ "fps": str(params["fps"] or 25) },
             )
         finally:
+            os.chdir(last_cwd)
             shutil.rmtree(work_dir, ignore_errors=True)
 
     @staticmethod
@@ -149,6 +158,7 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
 
         self.model_path: Optional[str] = None
         self.config_path: Optional[str] = None
+        self.repo_root: Optional[str] = None
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
@@ -186,14 +196,14 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
-        self.model_path, self.config_path = await self._load_pipeline()
+        self.model_path, self.config_path, self.repo_root = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         # Hallo2's inference_process constructs the pipeline lazily inside the
         # call, so there is no long-lived model handle we need to release here.
         pass
 
-    async def _load_pipeline(self) -> tuple[str, str]:
+    async def _load_pipeline(self) -> tuple[str, str, str]:
         import hallo
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
@@ -203,12 +213,28 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
         repo_root = os.path.dirname(hallo.__path__[0])
         config_path = os.path.join(repo_root, "configs", "inference", "long.yaml")
 
-        return model_path, config_path
+        # Hallo2's configs reference `./pretrained_models/<subdir>` for every
+        # sub-checkpoint (hallo2, stable-diffusion-v1-5, motion_module, wav2vec,
+        # face_analysis, audio_separator, sd-vae-ft-mse). The fudan-generative-
+        # ai/hallo2 HF repo bundles all of them at its snapshot root, so mount
+        # the whole snapshot as `pretrained_models` and every relative path
+        # resolves.
+        pretrained_symlink = os.path.join(repo_root, "pretrained_models")
+
+        if os.path.islink(pretrained_symlink):
+            os.unlink(pretrained_symlink)
+        elif os.path.exists(pretrained_symlink):
+            shutil.rmtree(pretrained_symlink)
+
+        os.symlink(model_path, pretrained_symlink)
+
+        return model_path, config_path, repo_root
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Hallo2TalkingHeadTaskAction(
             action,
             self.model_path,
             self.config_path,
+            self.repo_root,
             self.device,
         ).run(context)

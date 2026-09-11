@@ -146,6 +146,9 @@ class FloatTalkingHeadTaskService(ModelTaskService):
             "safetensors",
             "face-alignment",
             "torchdiffeq",
+            "albumentations",
+            "timm",
+            "huggingface_hub",
         ]
 
     async def _setup(self) -> None:
@@ -210,10 +213,11 @@ class FloatTalkingHeadTaskService(ModelTaskService):
 
         # BaseOptions parses argparse from sys.argv, so hand it a synthetic
         # argv that points every checkpoint path at the user-provided dir.
+        # Float looks for `float.pth` under `pretrained_dir` — no explicit
+        # ckpt_path flag exists on BaseOptions.
         parser = BaseOptions().initialize(argparse.ArgumentParser())
         opt = parser.parse_args([
             "--pretrained_dir", model_path,
-            "--ckpt_path", os.path.join(model_path, "float.pth"),
             "--wav2vec_model_path", os.path.join(model_path, "wav2vec2-base-960h"),
             "--audio2emotion_path", os.path.join(model_path, "wav2vec-english-speech-emotion-recognition"),
         ])

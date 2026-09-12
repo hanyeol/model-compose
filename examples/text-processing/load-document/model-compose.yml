@@ -1,0 +1,146 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+# Multiple workflows exposing the document-loader component. The docling
+# driver supports several chunker strategies, each surfaced as its own
+# workflow so users can pick the segmentation that fits their downstream
+# target. The pypdf driver is a separate workflow for lightweight,
+# page-based extraction.
+#
+#   load-with-docling-hybrid        → token-sized, heading-aware chunks
+#                                     for embedding/retrieval targets.
+#   load-with-docling-hierarchical  → heading-driven chunks with no token
+#                                     budget. Good for reading order.
+#   load-with-docling-line          → fixed line-count chunks, token-aware.
+#   load-with-docling-page          → one chunk per source page.
+#   load-with-docling-whole         → the entire document as a single
+#                                     markdown chunk (no chunker applied).
+#   load-with-pypdf                 → raw pypdf page extraction; no models.
+#
+# Every workflow enables `streaming: true`, so chunks flow out as they are
+# produced instead of accumulating into a single response.
+workflows:
+  - id: load-with-docling-hybrid
+    title: Token-windowed chunks (Docling)
+    description: |
+      Parse the document with docling and chunk it with the HybridChunker,
+      sized against the configured tokenizer so each chunk stays within
+      `max_token_count`. Heading and caption metadata is attached to each
+      chunk for downstream retrieval indexing.
+    job:
+      component: docling-loader
+      input:
+        source: ${input.source as file/path}
+        chunker: hybrid
+        max_token_count: ${input.max_token_count as integer | 384}
+      output: ${output as stream/json}
+
+  - id: load-with-docling-hierarchical
+    title: Heading-based chunks (Docling)
+    description: |
+      Parse the document with docling and emit chunks along heading
+      boundaries. No token budget is applied; chunks can be arbitrarily
+      long. Optionally enable code-aware splitting via
+      `code_chunking_strategy`.
+    job:
+      component: docling-loader
+      input:
+        source: ${input.source as file/path}
+        chunker: hierarchical
+        always_emit_headings: ${input.always_emit_headings as boolean | false}
+        code_chunking_strategy: ${input.code_chunking_strategy as text}
+      output: ${output as stream/json}
+
+  - id: load-with-docling-line
+    title: Line-based chunks (Docling)
+    description: |
+      Parse the document with docling and chunk it by lines, respecting
+      the tokenizer's token budget. Each chunk contains up to
+      `max_line_count` lines while keeping total tokens under
+      `max_token_count`.
+    job:
+      component: docling-loader
+      input:
+        source: ${input.source as file/path}
+        chunker: line
+        max_line_count: ${input.max_line_count as integer | 40}
+        max_token_count: ${input.max_token_count as integer | 384}
+      output: ${output as stream/json}
+
+  - id: load-with-docling-page
+    title: Page-level chunks (Docling)
+    description: |
+      Parse the document with docling and emit one chunk per source
+      page. Metadata retains docling's per-page provenance so pages can
+      be correlated back to the original document.
+    job:
+      component: docling-loader
+      input:
+        source: ${input.source as file/path}
+        chunker: page
+      output: ${output as stream/json}
+
+  - id: load-with-docling-whole
+    title: Whole document (Docling)
+    description: |
+      Parse the document with docling and return the entire content as a
+      single chunk (markdown-exported). No segmentation is applied — use
+      this when the downstream consumer wants the full document text in
+      one piece.
+    job:
+      component: docling-loader
+      input:
+        source: ${input.source as file/path}
+      output: ${output as stream/json}
+
+  - id: load-with-pypdf
+    title: Page extraction (pypdf)
+    description: |
+      Open a PDF with pypdf and stream one record per page. Use this
+      when you want raw PDF text without loading docling's parsing
+      pipeline.
+    job:
+      component: pypdf-loader
+      input:
+        source: ${input.source as file/path}
+        page_range: ${input.page_range}
+      output: ${output as stream/json}
+
+components:
+  # Single docling component reused by every docling-* workflow. The
+  # tokenizer is loaded once at start and shared across chunker
+  # strategies; chunkers that don't consume it (hierarchical, page,
+  # whole) simply ignore it. `chunker` is left to each workflow so a
+  # single component can serve every strategy.
+  - id: docling-loader
+    type: document-loader
+    driver: docling
+    # pypdfium2 backend is much faster on text-layer PDFs. It skips OCR
+    # entirely, so switch back to the default backend when parsing scanned
+    # documents.
+    backend: pypdfium2
+    tokenizer: sentence-transformers/all-MiniLM-L6-v2
+    action:
+      source: ${input.source}
+      chunker: ${input.chunker}
+      max_token_count: ${input.max_token_count}
+      always_emit_headings: ${input.always_emit_headings}
+      code_chunking_strategy: ${input.code_chunking_strategy}
+      max_line_count: ${input.max_line_count}
+      streaming: true
+
+  # pypdf driver. Independent of docling — every action opens the PDF
+  # fresh with no model warm-up.
+  - id: pypdf-loader
+    type: document-loader
+    driver: pypdf
+    action:
+      source: ${input.source}
+      page_range: ${input.page_range}
+      streaming: true

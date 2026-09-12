@@ -56,7 +56,7 @@ class MusicGenerationTaskAction(ComponentAction):
     @abstractmethod
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:

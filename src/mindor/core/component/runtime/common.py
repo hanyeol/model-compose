@@ -11,8 +11,6 @@ from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
 from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.runtime.common import ContainerRuntimeBackend, ContainerRuntimeConfig
 from mindor.core.logger import logging
-from mindor.core.logger.logger import create_logger, LoggerInstances
-from mindor.dsl.schema.logger import ConsoleLoggerConfig, LoggerType
 from mindor.version import __version__
 import asyncio, re
 
@@ -67,8 +65,6 @@ class ComponentRuntimeWorker(IpcRuntimeWorker):
     async def _start(self) -> None:
         self._loop = asyncio.get_event_loop()
 
-        await self._ensure_default_logger()
-
         embedded_config = self.component_config.model_copy(deep=True)
         embedded_config.runtime = EmbeddedRuntimeConfig(type="embedded")
 
@@ -100,28 +96,17 @@ class ComponentRuntimeWorker(IpcRuntimeWorker):
             on_event=on_event,
         )
 
-    async def _ensure_default_logger(self) -> None:
-        # In an isolated worker interpreter (venv / subprocess), `LoggerInstances`
-        # starts empty and mindor.core.logger.logging.* silently no-ops. Register
-        # a Console logger so worker-side logs reach the inherited stderr and, by
-        # fd inheritance, the parent terminal.
-        if LoggerInstances:
-            return
-        logger = create_logger(
-            self.worker_id,
-            ConsoleLoggerConfig(type=LoggerType.CONSOLE),
-            daemon=True,
-        )
-        await logger.start()
+    @abstractmethod
+    async def _send_message(self, message: bytes) -> None:
+        """Send a framed message over the backend-specific transport."""
 
     @abstractmethod
-    async def _send_message(self, message: bytes) -> None: ...
+    async def _recv_message(self) -> Optional[bytes]:
+        """Receive the next framed message, or `None` when the transport is closed."""
 
     @abstractmethod
-    async def _recv_message(self) -> Optional[bytes]: ...
-
-    @abstractmethod
-    def _close_transport(self) -> None: ...
+    def _close_transport(self) -> None:
+        """Close the backend-specific transport. Counterpart to the transport open in `_start`."""
 
 class ComponentRuntimeProxy(IpcRuntimeProxy):
     """Component-side IPC proxy base — remote worker's local representative.

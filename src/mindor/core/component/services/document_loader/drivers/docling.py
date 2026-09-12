@@ -10,6 +10,7 @@ from mindor.dsl.schema.component import (
 )
 from mindor.dsl.schema.action import DocumentLoaderActionConfig, DoclingDocumentLoaderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.logger import logging
 from ..base import DocumentLoaderService, register_document_loader_service
 from ..base import ComponentActionContext
 from .common import DocumentLoaderAction
@@ -310,12 +311,38 @@ class DoclingDocumentLoaderService(DocumentLoaderService):
         self._tokenizer: Optional[PreTrainedTokenizerBase] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        requirements = [ "docling", "docling-core>=2.67.0" ]
+        # docling-slim is the actual package shipping the docling Python
+        # modules from v2.100.0 onward; the legacy `docling` distribution
+        # became a CLI-only alias whose install can leave the top-level
+        # docling package files missing. Pinning docling-slim directly avoids
+        # that broken half-install.
+        #
+        # Extras are assembled per component config so only the pipeline
+        # pieces this instance actually uses get downloaded:
+        #   feat-chunking       — always required (docling-core[chunking]
+        #                         provides LineBasedTokenChunker and the
+        #                         tree-sitter/transformers deps the chunker
+        #                         package imports eagerly).
+        #   format-pdf-docling  — always required. docling-slim's
+        #                         document_converter imports docling-parse
+        #                         unconditionally, so even when the action
+        #                         uses `backend: pypdfium2` docling-parse
+        #                         must be installed for the base module to
+        #                         load. This extra bundles pypdfium2 too, so
+        #                         a separate format-pdf-pypdfium2 pin is
+        #                         redundant.
+        #   models-local        — always required. The standard PDF pipeline
+        #                         loads docling-ibm-models (layout, reading
+        #                         order, TableFormer) at construction time,
+        #                         regardless of `recognize_table`.
+        #   feat-ocr-<engine>   — OCR engine when `enable_ocr` is set.
+        extras: List[str] = [ "feat-chunking", "format-pdf-docling", "models-local" ]
 
-        if self.config.tokenizer:
-            requirements.append("transformers")
+        if self.config.enable_ocr:
+            engine = self.config.ocr_engine or "easyocr"
+            extras.append(f"feat-ocr-{engine}")
 
-        return requirements
+        return [ f"docling-slim[{','.join(extras)}]>=2.100.0" ]
 
     async def _start(self) -> None:
         await super()._start()
@@ -335,13 +362,78 @@ class DoclingDocumentLoaderService(DocumentLoaderService):
         return await DoclingDocumentLoaderAction(action, context, self._converter, self._tokenizer).run()
 
     def _load_document_converter(self) -> Any:
-        from docling.document_converter import DocumentConverter
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
 
-        # The DocumentConverter constructor accepts pipeline options via
-        # `format_options`; we keep the default pipeline for now and rely on
-        # docling's own defaults. Component-level fields (ocr, table_mode,
-        # accelerator) become plumbing here as their downstream wiring solidifies.
-        return DocumentConverter()
+        # PyPdfiumDocumentBackend reads only the PDF text layer and ignores
+        # `do_ocr` entirely, so pairing it with `enable_ocr: true` is a silent
+        # no-op. Warn but keep going — scanned PDFs will just come back empty,
+        # which is the documented behavior of that backend.
+        if self.config.backend == "pypdfium2" and self.config.enable_ocr:
+            logging.warning(
+                "docling `backend: pypdfium2` does not run OCR; `enable_ocr: true` is ignored for component '%s'.",
+                self.id,
+            )
+
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = self.config.enable_ocr
+        pipeline_options.do_table_structure = self.config.recognize_table
+
+        if self.config.enable_ocr and self.config.ocr_engine:
+            pipeline_options.ocr_options = self._build_ocr_options(self.config.ocr_engine)
+
+        if self.config.recognize_table and self.config.table_mode:
+            from docling.datamodel.pipeline_options import TableFormerMode
+
+            pipeline_options.table_structure_options.mode = TableFormerMode(self.config.table_mode)
+
+        if self.config.accelerator:
+            from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
+
+            pipeline_options.accelerator_options = AcceleratorOptions(
+                device=AcceleratorDevice(self.config.accelerator),
+            )
+
+        pdf_format_option = PdfFormatOption(pipeline_options=pipeline_options)
+
+        if self.config.backend == "pypdfium2":
+            from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+
+            pdf_format_option = PdfFormatOption(pipeline_options=pipeline_options, backend=PyPdfiumDocumentBackend)
+
+        return DocumentConverter(format_options={ InputFormat.PDF: pdf_format_option })
+
+    @staticmethod
+    def _build_ocr_options(engine: str) -> Any:
+        """Instantiate docling's OCR options for the requested engine.
+
+        Docling ships engine-specific option classes (EasyOcrOptions,
+        TesseractOcrOptions, RapidOcrOptions, OcrMacOptions). Unknown engine
+        names raise a clear error rather than silently falling back to the
+        default engine.
+        """
+        if engine == "easyocr":
+            from docling.datamodel.pipeline_options import EasyOcrOptions
+
+            return EasyOcrOptions()
+
+        if engine == "tesseract":
+            from docling.datamodel.pipeline_options import TesseractOcrOptions
+
+            return TesseractOcrOptions()
+
+        if engine == "rapidocr":
+            from docling.datamodel.pipeline_options import RapidOcrOptions
+
+            return RapidOcrOptions()
+
+        if engine == "ocrmac":
+            from docling.datamodel.pipeline_options import OcrMacOptions
+
+            return OcrMacOptions()
+
+        raise ValueError(f"Unsupported docling OCR engine: {engine}")
 
     @staticmethod
     def _load_pretrained_tokenizer(tokenizer_id: str) -> PreTrainedTokenizerBase:

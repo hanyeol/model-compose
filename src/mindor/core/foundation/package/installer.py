@@ -2,7 +2,7 @@ from typing import Optional, Tuple, List, Dict, Union
 from pathlib import Path
 from packaging.requirements import Requirement, SpecifierSet
 from packaging.utils import canonicalize_name
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import version, metadata, PackageNotFoundError
 from mindor.core.utils.github import download_github_tarball
 import mindor
 import sys, subprocess, shutil, importlib, importlib.util, tempfile
@@ -153,10 +153,55 @@ def is_requirement_satisfied(requirement: Requirement) -> bool:
 
     specifier: SpecifierSet = requirement.specifier
 
-    if not specifier:
-        return True
+    if specifier and not specifier.contains(installed_version, prereleases=True):
+        return False
 
-    return specifier.contains(installed_version, prereleases=True)
+    if requirement.extras and not is_extra_requirement_satisfied(requirement):
+        return False
+
+    return True
+
+def is_extra_requirement_satisfied(requirement: Requirement) -> bool:
+    """Check whether the extras listed on ``requirement`` have their dependencies installed.
+
+    Base version and existence are the caller's job — this function only walks
+    the ``Requires-Dist`` entries gated by ``extra == "..."`` markers and
+    verifies each of those dependencies is itself satisfied.
+
+    Args:
+        requirement: Requirement object whose ``extras`` set names one or
+            more optional dependency groups declared by the target package.
+
+    Returns:
+        True if every dependency listed under the requested extras is
+        installed at a matching version. False if any is missing or if the
+        target package's metadata cannot be read.
+    """
+    distribution_name = canonicalize_name(requirement.name)
+
+    try:
+        requires_dist = metadata(distribution_name).get_all("Requires-Dist") or []
+    except PackageNotFoundError:
+        return False
+
+    requested_extras = { canonicalize_name(extra) for extra in requirement.extras }
+
+    for dependency_spec in requires_dist:
+        try:
+            dependency = Requirement(dependency_spec)
+        except Exception:
+            continue
+
+        if dependency.marker is None:
+            continue
+
+        if not any(dependency.marker.evaluate({ "extra": extra }) for extra in requested_extras):
+            continue
+
+        if not is_requirement_satisfied(dependency):
+            return False
+
+    return True
 
 def get_mindor_install_root() -> Path:
     return _MINDOR_INSTALL_ROOT

@@ -49,18 +49,20 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        time_signature  = await context.render_variable(self.config.params.time_signature)
-        inference_steps = await context.render_variable(self.config.params.inference_steps)
-        guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
-        shift           = await context.render_variable(self.config.params.shift)
-        use_adg         = await context.render_variable(self.config.params.use_adg)
+        inference_steps      = await context.render_variable(self.config.params.inference_steps)
+        guidance_scale       = await context.render_variable(self.config.params.guidance_scale)
+        shift                = await context.render_variable(self.config.params.shift)
+        use_adg              = await context.render_variable(self.config.params.use_adg)
+        time_signature       = await context.render_variable(self.config.params.time_signature)
+        audio_cover_strength = await context.render_variable(self.config.params.audio_cover_strength)
 
         params.update({
-            "time_signature":  time_signature,
-            "inference_steps": inference_steps,
-            "guidance_scale":  guidance_scale,
-            "shift":           shift,
-            "use_adg":         use_adg,
+            "inference_steps":      inference_steps,
+            "guidance_scale":       guidance_scale,
+            "shift":                shift,
+            "use_adg":              use_adg,
+            "time_signature":       time_signature,
+            "audio_cover_strength": audio_cover_strength,
         })
 
         return params
@@ -81,6 +83,7 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         params: Dict[str, Any],
         task_type: str,
         src_audio: Optional[str] = None,
+        reference_audio: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> Any:
         from acestep.inference import GenerationParams
@@ -97,7 +100,9 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
             guidance_scale=float(params["guidance_scale"]),
             shift=float(params["shift"]),
             use_adg=bool(params["use_adg"]),
+            audio_cover_strength=float(params["audio_cover_strength"]),
             src_audio=src_audio or None,
+            reference_audio=reference_audio or None,
             thinking="codes" in self.thinking_scope,
             use_cot_metas="metas" in self.thinking_scope,
             use_cot_caption="caption" in self.thinking_scope,
@@ -158,13 +163,14 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        prompt = await context.render_text(self.config.prompt)
-        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        prompt          = await context.render_text(self.config.prompt)
+        lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (prompt, lyrics))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (prompt, lyrics, reference_audio))
 
-        return (prompt, lyrics), is_single_input, is_streaming_input
+        return (prompt, lyrics, reference_audio), is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -175,10 +181,14 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
         def _generate() -> List[Any]:
             results: List[PcmStreamResource] = []
 
-            for prompt, lyrics in inputs:
+            for prompt, lyrics, reference_audio in inputs:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
-                generation_params = self._build_generation_params(prompt, lyrics, params, task_type="text2music")
+                generation_params = self._build_generation_params(
+                    prompt, lyrics, params,
+                    task_type="text2music",
+                    reference_audio=reference_audio,
+                )
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
@@ -198,14 +208,15 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        source = await context.render_audio(self.config.source)
-        prompt = await context.render_text(self.config.prompt)
-        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        source          = await context.render_audio(self.config.source)
+        prompt          = await context.render_text(self.config.prompt)
+        lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
 
-        return (source, prompt, lyrics), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -213,19 +224,20 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
+        sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
+            for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="cover",
                     src_audio=src_path,
+                    reference_audio=reference_audio,
                 )
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
@@ -249,14 +261,15 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        source = await context.render_audio(self.config.source)
-        prompt = await context.render_text(self.config.prompt)
-        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        source          = await context.render_audio(self.config.source)
+        prompt          = await context.render_text(self.config.prompt)
+        lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
 
-        return (source, prompt, lyrics), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -272,19 +285,20 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
+        sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
+            for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="repaint",
                     src_audio=src_path,
+                    reference_audio=reference_audio,
                     extra={
                         "repainting_start": float(params["start_time"]),
                         "repainting_end":   float(params["end_time"]),
@@ -312,14 +326,15 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        source = await context.render_audio(self.config.source)
-        prompt = await context.render_text(self.config.prompt)
-        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        source          = await context.render_audio(self.config.source)
+        prompt          = await context.render_text(self.config.prompt)
+        lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
 
-        return (source, prompt, lyrics), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -327,19 +342,20 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
+        sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
+            for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="complete",
                     src_audio=src_path,
+                    reference_audio=reference_audio,
                 )
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
@@ -363,14 +379,15 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        source = await context.render_audio(self.config.source)
-        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
-        lyrics = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        source          = await context.render_audio(self.config.source)
+        prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
+        reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
         is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
 
-        return (source, prompt, lyrics), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -392,19 +409,20 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
+        sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
+            for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="lego",
                     src_audio=src_path,
+                    reference_audio=reference_audio,
                     extra={
                         "instruction": self.handler.generate_instruction(
                             task_type="lego", track_name=params["track_class"],
@@ -433,13 +451,14 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
         super().__init__(config, handler, llm_handler, thinking_scope)
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        vocal  = await context.render_audio(self.config.vocal)
-        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        vocal           = await context.render_audio(self.config.vocal)
+        prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
         is_single_input    = not isinstance(vocal, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vocal, prompt))
+        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vocal, prompt, reference_audio))
 
-        return (vocal, prompt), is_single_input, is_streaming_input
+        return (vocal, prompt, reference_audio), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -461,19 +480,20 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        vocals: List[MediaSource] = [ vocal for vocal, _ in inputs ]
+        vocals: List[MediaSource] = [ vocal for vocal, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(vocals)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt), (src_path, _) in zip(inputs, source_paths):
+            for (_, prompt, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
                     prompt, None, params,
                     task_type="complete",
                     src_audio=src_path,
+                    reference_audio=reference_audio,
                     extra={
                         "instruction": self.handler.generate_instruction(
                             task_type="complete", complete_track_classes=params["track_classes"],

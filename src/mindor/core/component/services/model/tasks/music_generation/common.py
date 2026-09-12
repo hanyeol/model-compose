@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Tuple, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import CommonMusicGenerationModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction

@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -60,6 +60,7 @@ Model-compose supports the following component types:
 | `workflow` | Sub-workflow execution | [workflow.md](components/workflow.md) |
 | `shell` | Shell command execution | [shell.md](components/shell.md) |
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
+| `document-loader` | Parse PDF/DOCX/HTML/etc. into a streaming sequence of chunk records (docling, pypdf) | [document-loader.md](components/document-loader.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `image-drawing` | Draw shapes, text, and bitmaps onto images (Pillow ImageDraw) | [image-drawing.md](components/image-drawing.md) |
 | `image-compressor` | PNG compression (Pillow, oxipng, pngquant) | [image-compressor.md](components/image-compressor.md) |

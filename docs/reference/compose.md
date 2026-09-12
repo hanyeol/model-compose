@@ -29,6 +29,7 @@ This reference guide provides comprehensive documentation for all configuration 
 - [Key-Value Store](compose/components/key-value-store.md) - Key-value data storage
 - [Shell](compose/components/shell.md) - System command execution
 - [Text Splitter](compose/components/text-splitter.md) - Document processing
+- [Document Loader](compose/components/document-loader.md) - Parse PDF/DOCX/HTML documents into streaming chunk records
 - [Workflow](compose/components/workflow.md) - Nested workflow execution
 
 ## Configuration Structure Overview

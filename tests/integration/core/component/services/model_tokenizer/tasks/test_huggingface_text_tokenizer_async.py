@@ -77,6 +77,16 @@ def _make_context(text: Any) -> ComponentActionContext:
         return value
     ctx.render_variable = AsyncMock(side_effect=render_variable)
 
+    async def render_scalar(value, typ, **kwargs):
+        if value is None:
+            return None
+        return typ(value)
+    ctx.render_scalar = AsyncMock(side_effect=render_scalar)
+
+    async def render_array(value, **kwargs):
+        return value
+    ctx.render_array = AsyncMock(side_effect=render_array)
+
     return ctx
 
 

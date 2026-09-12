@@ -85,7 +85,7 @@ def pyannote_action_factory():
     try:
         pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
-            use_auth_token=os.environ["HF_TOKEN"],
+            token=os.environ["HF_TOKEN"],
         )
     except Exception as e:
         pytest.skip(f"could not load pyannote/speaker-diarization-3.1: {e}")
@@ -149,9 +149,9 @@ def _make_config(
     streaming: bool = False,
     batch_size: int = 1,
     output: Any = None,
-    num_speakers: int | None = None,
-    min_speakers: int | None = None,
-    max_speakers: int | None = None,
+    speaker_count: int | None = None,
+    min_speaker_count: int | None = None,
+    max_speaker_count: int | None = None,
     merge_gap: str = "0s",
     min_segment_duration: str = "0s",
 ) -> SpeakerDiarizationModelActionConfig:
@@ -160,10 +160,10 @@ def _make_config(
         "streaming": streaming,
         "batch_size": batch_size,
         "sample_rate": 16000,
+        "speaker_count": speaker_count,
+        "min_speaker_count": min_speaker_count,
+        "max_speaker_count": max_speaker_count,
         "params": {
-            "num_speakers": num_speakers,
-            "min_speakers": min_speakers,
-            "max_speakers": max_speakers,
             "merge_gap": merge_gap,
             "min_segment_duration": min_segment_duration,
         },
@@ -174,7 +174,7 @@ def _make_config(
 
 
 def _assert_segment(seg: dict) -> None:
-    assert set(seg.keys()) == {"speaker", "start_time", "end_time", "confidence"}
+    assert {"speaker", "start_time", "end_time", "confidence"} <= set(seg.keys())
     assert isinstance(seg["speaker"], str)
     assert isinstance(seg["start_time"], float)
     assert isinstance(seg["end_time"], float)
@@ -187,19 +187,20 @@ def _assert_segment(seg: dict) -> None:
 @pyannote_required
 class TestNonStreaming:
     @pytest.mark.anyio
-    async def test_single_input_returns_list(self, synthetic_wav_path, pyannote_action_factory):
+    async def test_single_input_returns_dict(self, synthetic_wav_path, pyannote_action_factory):
         config = _make_config(streaming=False)
         ctx = _make_context(synthetic_wav_path)
         action = pyannote_action_factory(config)
 
         result = await action.run(ctx)
 
-        assert isinstance(result, list)
-        for seg in result:
+        assert isinstance(result, dict)
+        assert "segments" in result
+        for seg in result["segments"]:
             _assert_segment(seg)
 
     @pytest.mark.anyio
-    async def test_list_input_returns_list_of_lists(self, synthetic_wav_path, pyannote_action_factory):
+    async def test_list_input_returns_list_of_dicts(self, synthetic_wav_path, pyannote_action_factory):
         config = _make_config(streaming=False, batch_size=2)
         ctx = _make_context([synthetic_wav_path, synthetic_wav_path])
         action = pyannote_action_factory(config)
@@ -209,8 +210,9 @@ class TestNonStreaming:
         assert isinstance(result, list)
         assert len(result) == 2
         for per_audio in result:
-            assert isinstance(per_audio, list)
-            for seg in per_audio:
+            assert isinstance(per_audio, dict)
+            assert "segments" in per_audio
+            for seg in per_audio["segments"]:
                 _assert_segment(seg)
 
 
@@ -227,9 +229,10 @@ class TestStreaming:
         result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
-        collected = [seg async for seg in result]
-        for seg in collected:
-            _assert_segment(seg)
+        collected = [chunk async for chunk in result]
+        for chunk in collected:
+            assert chunk["type"] == "segment"
+            _assert_segment(chunk)
 
     @pytest.mark.anyio
     async def test_list_input_returns_list_of_stream_chunk_iterators(self, synthetic_wav_path, pyannote_action_factory):
@@ -243,6 +246,7 @@ class TestStreaming:
         assert len(result) == 2
         for item in result:
             assert isinstance(item, StreamChunkIterator)
-            collected = [seg async for seg in item]
-            for seg in collected:
-                _assert_segment(seg)
+            collected = [chunk async for chunk in item]
+            for chunk in collected:
+                assert chunk["type"] == "segment"
+                _assert_segment(chunk)

@@ -176,34 +176,40 @@ def _make_config(
 
 
 def _assert_segment(seg: dict) -> None:
-    assert set(seg.keys()) == {"start_time", "end_time", "confidence"}
+    assert {"start_time", "end_time", "confidence"} <= set(seg.keys())
     assert isinstance(seg["start_time"], float)
     assert isinstance(seg["end_time"], float)
     assert 0.0 <= seg["confidence"] <= 1.0
     assert seg["end_time"] > seg["start_time"]
 
 
+def _assert_segment_chunk(chunk: dict) -> None:
+    assert chunk.get("type") == "segment"
+    _assert_segment(chunk)
+
+
 # ---- Non-streaming: benchmark audio ----
 
 @silero_required
 class TestNonStreamingBenchmark:
-    """streaming=False on benchmark audio: single input → List[dict], list input → List[List[dict]]."""
+    """streaming=False on benchmark audio: single input → dict, list input → List[dict]."""
 
     @pytest.mark.anyio
-    async def test_single_input_returns_list_of_segments(self, benchmark_mp3_path, silero_action_factory):
+    async def test_single_input_returns_dict(self, benchmark_mp3_path, silero_action_factory):
         config = _make_config(streaming=False)
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
 
         result = await action.run(ctx)
 
-        assert isinstance(result, list)
-        assert len(result) > 10
-        for seg in result:
+        assert isinstance(result, dict)
+        assert "segments" in result
+        assert len(result["segments"]) > 10
+        for seg in result["segments"]:
             _assert_segment(seg)
 
     @pytest.mark.anyio
-    async def test_list_input_returns_list_of_lists(self, benchmark_mp3_path, silero_action_factory):
+    async def test_list_input_returns_list_of_dicts(self, benchmark_mp3_path, silero_action_factory):
         config = _make_config(streaming=False, batch_size=2)
         ctx = _make_context([benchmark_mp3_path, benchmark_mp3_path])
         action = silero_action_factory(config)
@@ -213,8 +219,9 @@ class TestNonStreamingBenchmark:
         assert isinstance(result, list)
         assert len(result) == 2
         for per_audio in result:
-            assert isinstance(per_audio, list)
-            for seg in per_audio:
+            assert isinstance(per_audio, dict)
+            assert "segments" in per_audio
+            for seg in per_audio["segments"]:
                 _assert_segment(seg)
 
 
@@ -233,10 +240,10 @@ class TestStreamingBenchmark:
         result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
-        collected = [seg async for seg in result]
+        collected = [chunk async for chunk in result]
         assert len(collected) > 10
-        for seg in collected:
-            _assert_segment(seg)
+        for chunk in collected:
+            _assert_segment_chunk(chunk)
 
     @pytest.mark.anyio
     async def test_list_input_returns_list_of_stream_chunk_iterators(self, benchmark_mp3_path, silero_action_factory):
@@ -250,7 +257,7 @@ class TestStreamingBenchmark:
         assert len(result) == 2
         for item in result:
             assert isinstance(item, StreamChunkIterator)
-            collected = [seg async for seg in item]
+            collected = [chunk async for chunk in item]
             assert len(collected) > 10
 
 
@@ -273,9 +280,10 @@ class TestSyntheticSanity:
         result = await action.run(ctx)
 
         # A 440 Hz sine may or may not fool Silero into finding "speech".
-        # We only assert shape: list of dicts (possibly empty).
-        assert isinstance(result, list)
-        for seg in result:
+        # We only assert shape: dict with segments (possibly empty).
+        assert isinstance(result, dict)
+        assert "segments" in result
+        for seg in result["segments"]:
             _assert_segment(seg)
 
     @pytest.mark.anyio
@@ -287,9 +295,9 @@ class TestSyntheticSanity:
         result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
-        collected = [seg async for seg in result]
-        for seg in collected:
-            _assert_segment(seg)
+        collected = [chunk async for chunk in result]
+        for chunk in collected:
+            _assert_segment_chunk(chunk)
 
 
 # ---- Output template routing ----
@@ -300,7 +308,7 @@ class TestOutputTemplate:
 
     @pytest.mark.anyio
     async def test_default_output_passes_through_stream(self, benchmark_mp3_path, silero_action_factory):
-        """Without an explicit `output`, streaming yields a StreamChunkIterator of segments."""
+        """Without an explicit `output`, streaming yields a StreamChunkIterator of chunks."""
         config = _make_config(streaming=True, output=None)
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
@@ -308,21 +316,22 @@ class TestOutputTemplate:
         result = await action.run(ctx)
 
         assert isinstance(result, StreamChunkIterator)
-        collected = [seg async for seg in result]
+        collected = [chunk async for chunk in result]
         assert len(collected) > 0
-        for seg in collected:
-            _assert_segment(seg)
+        for chunk in collected:
+            _assert_segment_chunk(chunk)
 
     @pytest.mark.anyio
     async def test_default_output_passes_through_batch(self, benchmark_mp3_path, silero_action_factory):
-        """Without an explicit `output`, non-streaming returns the raw List[dict]."""
+        """Without an explicit `output`, non-streaming returns the raw dict."""
         config = _make_config(streaming=False, output=None)
         ctx = _make_context(benchmark_mp3_path)
         action = silero_action_factory(config)
 
         result = await action.run(ctx)
 
-        assert isinstance(result, list)
-        assert len(result) > 0
-        for seg in result:
+        assert isinstance(result, dict)
+        assert "segments" in result
+        assert len(result["segments"]) > 0
+        for seg in result["segments"]:
             _assert_segment(seg)

@@ -107,7 +107,7 @@ def make_action(yolo_model_path):
     model = YOLO(yolo_model_path)
 
     def _factory(**kwargs: Any) -> YoloPoseDetectionTaskAction:
-        return YoloPoseDetectionTaskAction(_make_action_config(**kwargs), model)
+        return YoloPoseDetectionTaskAction(_make_action_config(**kwargs), model, None)
 
     return _factory
 

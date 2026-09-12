@@ -104,11 +104,20 @@ def _make_context(
                 a = f.read()
         return create_audio_source(a)
 
-    async def render_image_array(value):
+    async def render_image_array(value, **kwargs):
         # `_encode_from_frames` is entered only when the resolved value is
         # (or contains) `ImageArrayValue`. Callers still pass raw lists of
         # PIL images for convenience; wrap them here so the encoder's
         # dispatch in `_process` picks the frames path.
+        from mindor.core.foundation.streaming.image import ImageStreamResource
+
+        as_stream = kwargs.get("as_stream", False)
+
+        def _wrap(image):
+            if as_stream and isinstance(image, PILImage.Image):
+                return ImageStreamResource(image, "png")
+            return image
+
         target = frames_value if frames_value is not None else value
         if callable(target) and not isinstance(target, (list, str)):
             src = target()
@@ -116,11 +125,11 @@ def _make_context(
 
             async def _map():
                 async for chunk in src:
-                    yield ImageArrayValue(list(chunk))
+                    yield ImageArrayValue([_wrap(item) for item in chunk])
             return _map()
         # `target` is a list-of-lists of PIL images (one inner list per
         # ImageArrayValue).
-        return [ImageArrayValue(list(inner)) for inner in target]
+        return [ImageArrayValue([_wrap(item) for item in inner]) for inner in target]
 
     async def render_video(value):
         target = video_value if video_value is not None else value

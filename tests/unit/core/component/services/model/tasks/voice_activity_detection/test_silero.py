@@ -100,6 +100,7 @@ def params():
         "max_speech_duration": None,
         "min_silence_duration": parse_time("500ms"),
         "speech_padding_time": parse_time("100ms"),
+        "return_metadata": False,
     }
 
 
@@ -120,11 +121,16 @@ async def _collect(async_iter: AsyncIterator[dict]) -> List[dict]:
 
 
 def _assert_segment_shape(seg: dict) -> None:
-    assert set(seg.keys()) == {"start_time", "end_time", "confidence"}
+    assert {"start_time", "end_time", "confidence"} <= set(seg.keys())
     assert isinstance(seg["start_time"], float)
     assert isinstance(seg["end_time"], float)
     assert 0.0 <= seg["confidence"] <= 1.0
     assert seg["end_time"] > seg["start_time"]
+
+
+def _assert_segment_chunk(chunk: dict) -> None:
+    assert chunk.get("type") == "segment"
+    _assert_segment_shape(chunk)
 
 
 # ---- Path 1: streaming=True + streamable PCM ----
@@ -141,10 +147,10 @@ class TestStreamingPcm:
     async def test_emits_segments_matching_batch(self, action, audio_pcm_bytes, params):
         src = _pcm_mono_source(audio_pcm_bytes)
         results = await action._detect_batch([src], params, streaming=True)
-        segments = await _collect(results[0])
-        assert len(segments) > 10
-        for seg in segments:
-            _assert_segment_shape(seg)
+        chunks = await _collect(results[0])
+        assert len(chunks) > 10
+        for chunk in chunks:
+            _assert_segment_chunk(chunk)
 
 
 # ---- Path 2: streaming=True + non-streamable (MP3) ----
@@ -158,24 +164,25 @@ class TestStreamingNonPcm:
     @pytest.mark.anyio
     async def test_pseudo_stream_yields_batch_segments(self, action, params):
         results = await action._detect_batch([_mp3_source()], params, streaming=True)
-        segments = await _collect(results[0])
-        assert len(segments) > 10
-        for seg in segments:
-            _assert_segment_shape(seg)
+        chunks = await _collect(results[0])
+        assert len(chunks) > 10
+        for chunk in chunks:
+            _assert_segment_chunk(chunk)
 
 
 # ---- Path 3: streaming=False (batch) ----
 
 class TestBatchMp3:
     @pytest.mark.anyio
-    async def test_returns_list(self, action, params):
+    async def test_returns_dict(self, action, params):
         results = await action._detect_batch([_mp3_source()], params, streaming=False)
-        assert isinstance(results[0], list)
+        assert isinstance(results[0], dict)
+        assert "segments" in results[0]
 
     @pytest.mark.anyio
     async def test_batch_shape_and_content(self, action, params):
         results = await action._detect_batch([_mp3_source()], params, streaming=False)
-        segments = results[0]
+        segments = results[0]["segments"]
         assert len(segments) > 10
         for seg in segments:
             _assert_segment_shape(seg)
@@ -191,7 +198,7 @@ class TestBatchPcmNormalization:
     async def test_pcm_batch_segment_count_reasonable(self, action, audio_pcm_bytes, params):
         src = _pcm_mono_source(audio_pcm_bytes)
         results = await action._detect_batch([src], params, streaming=False)
-        segments = results[0]
+        segments = results[0]["segments"]
         # If normalization is missing, this explodes into hundreds of segments.
         # ~86 is the expected count for our benchmark audio (~40 min).
         assert 50 <= len(segments) <= 150, (
@@ -205,7 +212,7 @@ class TestBatchPcmNormalization:
         """
         src_batch = _pcm_mono_source(audio_pcm_bytes)
         batch_res = await action._detect_batch([src_batch], params, streaming=False)
-        batch_count = len(batch_res[0])
+        batch_count = len(batch_res[0]["segments"])
 
         src_online = _pcm_mono_source(audio_pcm_bytes)
         online_res = await action._detect_batch([src_online], params, streaming=True)
@@ -239,10 +246,10 @@ class TestMixedBatch:
         results = await action._detect_batch(
             [src_pcm, src_mp3], params, streaming=True,
         )
-        pcm_segments = await _collect(results[0])
-        mp3_segments = await _collect(results[1])
-        assert len(pcm_segments) > 10
-        assert len(mp3_segments) > 10
+        pcm_chunks = await _collect(results[0])
+        mp3_chunks = await _collect(results[1])
+        assert len(pcm_chunks) > 10
+        assert len(mp3_chunks) > 10
         # Different decoding paths → different exact counts, but both non-empty.
 
 
@@ -254,10 +261,11 @@ class TestOutputContract:
         """start/end pairs should be non-overlapping and monotonically increasing."""
         src = _pcm_mono_source(audio_pcm_bytes)
         results = await action._detect_batch([src], params, streaming=True)
-        segments = await _collect(results[0])
+        chunks = await _collect(results[0])
         prev_end = -1.0
-        for seg in segments:
-            assert seg["start_time"] >= prev_end - 0.5, (
-                f"segments overlap: {seg['start_time']} < {prev_end}"
+        for chunk in chunks:
+            _assert_segment_chunk(chunk)
+            assert chunk["start_time"] >= prev_end - 0.5, (
+                f"segments overlap: {chunk['start_time']} < {prev_end}"
             )
-            prev_end = seg["end_time"]
+            prev_end = chunk["end_time"]

@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from multiprocessing import Process, Queue
+from multiprocessing import Queue
+from multiprocessing.process import BaseProcess
 
 import pytest
 
@@ -65,7 +66,7 @@ class TestProcessRuntimeLifecycle:
         runtime = ProcessRuntime(target=_exit_immediately, args=(), config=_config())
         await runtime.start()
         try:
-            assert isinstance(runtime.subprocess, Process)
+            assert isinstance(runtime.subprocess, BaseProcess)
             # The child either is alive momentarily or has already exited cleanly.
             runtime.subprocess.join(timeout=5.0)
             assert runtime.subprocess.exitcode == 0

@@ -7,7 +7,7 @@ focus on the task-owned post-processing:
      and never merges across speakers.
   2. `_collect_segments` applies `min_segment_duration` filter, sorts by
      start time, and produces `{speaker, start, end, confidence}` shape.
-  3. Pipeline kwargs routing (`num_speakers` overrides min/max hints).
+  3. Pipeline kwargs routing (`speaker_count` overrides min/max hints).
   4. `_diarize` returns `List[List[dict]]` / `List[AsyncIterator[dict]]`
      matching the shape base `TaskAction.run()` expects.
 """
@@ -80,7 +80,7 @@ def action():
 
 
 def _assert_segment(seg: dict) -> None:
-    assert set(seg.keys()) == {"speaker", "start_time", "end_time", "confidence"}
+    assert {"speaker", "start_time", "end_time", "confidence"} <= set(seg.keys())
     assert isinstance(seg["speaker"], str)
     assert isinstance(seg["start_time"], float)
     assert isinstance(seg["end_time"], float)
@@ -90,13 +90,17 @@ def _assert_segment(seg: dict) -> None:
 
 def _base_params(action, **overrides) -> dict:
     """Build the params dict that `_resolve_params` would produce, letting the
-    action compute `pipeline` from num/min/max speakers so tests stay aligned
+    action compute `pipeline` from speaker count hints so tests stay aligned
     with the real dispatch path."""
     params: dict = {
         "sample_rate": 16000,
-        "num_speakers": None,
-        "min_speakers": None,
-        "max_speakers": None,
+        "speaker_count": None,
+        "min_speaker_count": None,
+        "max_speaker_count": None,
+        "return_segments": True,
+        "return_speakers": False,
+        "return_embedding": False,
+        "return_metadata": False,
         "merge_gap": 0.0,
         "min_segment_duration": 0.0,
     }
@@ -152,34 +156,34 @@ class TestMergeSegments:
 
 
 class TestResolvePipelineParams:
-    """`num_speakers` overrides `min/max_speakers`; unset values are dropped."""
+    """`speaker_count` overrides `min/max_speaker_count`; unset values are dropped."""
 
     def test_empty_when_all_unset(self, action):
         assert action._resolve_pipeline_params({
-            "num_speakers": None,
-            "min_speakers": None,
-            "max_speakers": None,
+            "speaker_count": None,
+            "min_speaker_count": None,
+            "max_speaker_count": None,
         }) == {}
 
-    def test_num_speakers_overrides_min_max(self, action):
+    def test_speaker_count_overrides_min_max(self, action):
         assert action._resolve_pipeline_params({
-            "num_speakers": 2,
-            "min_speakers": 3,
-            "max_speakers": 5,
+            "speaker_count": 2,
+            "min_speaker_count": 3,
+            "max_speaker_count": 5,
         }) == {"num_speakers": 2}
 
-    def test_min_max_hints_passed_when_num_absent(self, action):
+    def test_min_max_hints_passed_when_count_absent(self, action):
         assert action._resolve_pipeline_params({
-            "num_speakers": None,
-            "min_speakers": 2,
-            "max_speakers": 4,
+            "speaker_count": None,
+            "min_speaker_count": 2,
+            "max_speaker_count": 4,
         }) == {"min_speakers": 2, "max_speakers": 4}
 
-    def test_only_min_speakers_present(self, action):
+    def test_only_min_speaker_count_present(self, action):
         assert action._resolve_pipeline_params({
-            "num_speakers": None,
-            "min_speakers": 2,
-            "max_speakers": None,
+            "speaker_count": None,
+            "min_speaker_count": 2,
+            "max_speaker_count": None,
         }) == {"min_speakers": 2}
 
 
@@ -190,7 +194,7 @@ class TestCollectSegments:
             (_Turn(3.4, 7.1), "SPEAKER_01"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
+        segments, _speakers = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         assert len(segments) == 2
         for seg in segments:
             _assert_segment(seg)
@@ -201,7 +205,7 @@ class TestCollectSegments:
             (_Turn(1.0, 3.0), "SPEAKER_01"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action, min_segment_duration=0.5))
+        segments, _speakers = action._diarize(waveform, sample_rate=16000, params=_base_params(action, min_segment_duration=0.5))
         assert len(segments) == 1
         assert segments[0]["speaker"] == "SPEAKER_01"
 
@@ -212,14 +216,14 @@ class TestCollectSegments:
             (_Turn(3.0, 4.0), "SPEAKER_00"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
+        segments, _speakers = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         starts = [seg["start_time"] for seg in segments]
         assert starts == sorted(starts)
 
     def test_forwards_pipeline_params_to_pipeline(self, action):
         action.pipeline = _FakePyannotePipeline([(_Turn(0.0, 1.0), "SPEAKER_00")])
         waveform = np.zeros(16000, dtype=np.float32)
-        action._diarize(waveform, sample_rate=16000, params=_base_params(action, num_speakers=2))
+        action._diarize(waveform, sample_rate=16000, params=_base_params(action, speaker_count=2))
         assert action.pipeline.last_call_kwargs == {"num_speakers": 2}
 
     def test_passes_waveform_and_sample_rate(self, action):
@@ -233,10 +237,10 @@ class TestCollectSegments:
 
 
 class TestDiarizeReturnShape:
-    """`_diarize` output shape must match what base `TaskAction.run()` expects."""
+    """`_diarize_batch` output shape must match what base `TaskAction.run()` expects."""
 
     @pytest.mark.anyio
-    async def test_streaming_false_returns_list_of_lists(self, action, monkeypatch):
+    async def test_streaming_false_returns_dict_per_audio(self, action, monkeypatch):
         action.pipeline = _FakePyannotePipeline([(_Turn(0.0, 1.0), "SPEAKER_00")])
 
         async def _fake_preprocess(audios):
@@ -252,12 +256,13 @@ class TestDiarizeReturnShape:
         )
         assert len(results) == 2
         for per_audio in results:
-            assert isinstance(per_audio, list)
-            for seg in per_audio:
+            assert isinstance(per_audio, dict)
+            assert "segments" in per_audio
+            for seg in per_audio["segments"]:
                 _assert_segment(seg)
 
     @pytest.mark.anyio
-    async def test_streaming_true_returns_async_iterators(self, action, monkeypatch):
+    async def test_streaming_true_returns_typed_chunks(self, action, monkeypatch):
         action.pipeline = _FakePyannotePipeline([
             (_Turn(0.0, 1.0), "SPEAKER_00"),
             (_Turn(1.5, 2.5), "SPEAKER_01"),
@@ -277,5 +282,6 @@ class TestDiarizeReturnShape:
         assert isinstance(results[0], AsyncIterator)
         collected = [chunk async for chunk in results[0]]
         assert len(collected) == 2
-        for seg in collected:
-            _assert_segment(seg)
+        for chunk in collected:
+            assert chunk["type"] == "segment"
+            _assert_segment(chunk)

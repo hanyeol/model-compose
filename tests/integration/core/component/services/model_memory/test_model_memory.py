@@ -345,7 +345,7 @@ async def sqlite_storage():
     with tempfile.TemporaryDirectory() as tmpdir:
         config = SqliteModelMemoryStorageConfig(path=os.path.join(tmpdir, "test.db"))
         storage = SqliteModelMemoryStorage(config)
-        await storage.setup()
+        await storage.configure()
         yield storage
         await storage.close()
 

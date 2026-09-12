@@ -107,7 +107,16 @@ def _make_context(
                 v = f.read()
         return create_video_source(v)
 
-    async def render_image_array(value):
+    async def render_image_array(value, **kwargs):
+        from mindor.core.foundation.streaming.image import ImageStreamResource
+
+        as_stream = kwargs.get("as_stream", False)
+
+        def _wrap(image):
+            if as_stream and isinstance(image, PILImage.Image):
+                return ImageStreamResource(image, "png")
+            return image
+
         target = frames_value if frames_value is not None else value
         if callable(target) and not isinstance(target, (list, str)):
             src = target()
@@ -115,9 +124,9 @@ def _make_context(
 
             async def _map():
                 async for chunk in src:
-                    yield ImageArrayValue(list(chunk))
+                    yield ImageArrayValue([_wrap(item) for item in chunk])
             return _map()
-        return [ImageArrayValue(list(inner)) for inner in target]
+        return [ImageArrayValue([_wrap(item) for item in inner]) for inner in target]
 
     async def render_video(value):
         target = video_value if video_value is not None else value

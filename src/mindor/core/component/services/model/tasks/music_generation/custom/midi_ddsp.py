@@ -91,14 +91,14 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (midi_path,) in batch_input:
+            for (midi_path,) in inputs:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 results.append(self._synthesize(midi_path, params))

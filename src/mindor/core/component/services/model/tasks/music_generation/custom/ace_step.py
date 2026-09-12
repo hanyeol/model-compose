@@ -168,14 +168,14 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         def _generate() -> List[Any]:
             results: List[PcmStreamResource] = []
 
-            for prompt, lyrics in batch_input:
+            for prompt, lyrics in inputs:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(prompt, lyrics, params, task_type="text2music")
@@ -209,17 +209,17 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
@@ -268,17 +268,17 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
@@ -323,17 +323,17 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
@@ -388,17 +388,17 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        sources: List[MediaSource] = [ source for source, _, _ in batch_input ]
+        sources: List[MediaSource] = [ source for source, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt, lyrics), (src_path, _) in zip(batch_input, source_paths):
+            for (_, prompt, lyrics), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(
@@ -457,17 +457,17 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
 
     async def _generate_batch(
         self,
-        batch_input: Any,
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        vocals: List[MediaSource] = [ vocal for vocal, _ in batch_input ]
+        vocals: List[MediaSource] = [ vocal for vocal, _ in inputs ]
         source_paths = await self._resolve_source_paths(vocals)
 
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
-            for (_, prompt), (src_path, _) in zip(batch_input, source_paths):
+            for (_, prompt), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
                 generation_params = self._build_generation_params(

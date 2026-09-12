@@ -22,6 +22,9 @@ class AceStepTrackClass(str, Enum):
     VOCALS          = "vocals"
 
 class AceStepMusicGenerationParamsConfig(CommonMusicGenerationParamsConfig):
+    duration: Union[int, str] = Field(default=30, description="Duration of the generated music in seconds.")
+    bpm: Union[int, str] = Field(default=120, description="Target tempo in beats per minute.")
+    key_scale: Optional[str] = Field(default=None, description="Musical key of the generated music (e.g., C, D, Em).")
     inference_steps: Union[int, str] = Field(default=8, description="Number of diffusion inference steps (turbo: 8, base: 32, sft: 50).")
     guidance_scale: Union[float, str] = Field(default=5.0, description="Classifier-free guidance scale applied during sampling.")
     shift: Union[float, str] = Field(default=1.0, description="Flow-matching timestep shift (turbo: 1.0, base/sft: 3.0).")

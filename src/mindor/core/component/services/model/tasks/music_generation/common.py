@@ -44,16 +44,10 @@ class MusicGenerationTaskAction(ComponentAction):
         return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        duration  = await context.render_variable(self.config.params.duration)
-        bpm       = await context.render_variable(self.config.params.bpm)
-        key_scale = await context.render_variable(self.config.params.key_scale)
-        seed      = await context.render_scalar(self.config.seed, int)
+        seed = await context.render_scalar(self.config.seed, int)
 
         return {
-            "duration":  duration,
-            "bpm":       bpm,
-            "key_scale": key_scale,
-            "seed":      seed,
+            "seed": seed,
         }
 
     @abstractmethod

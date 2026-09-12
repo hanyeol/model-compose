@@ -12,12 +12,10 @@ class MusicGenerationActionMethod(str, Enum):
     ACCOMPANY = "accompany"
 
 class CommonMusicGenerationParamsConfig(BaseModel):
-    duration: Union[int, str] = Field(default=30, description="Duration of the generated music in seconds.")
-    bpm: Union[int, str] = Field(default=120, description="Target tempo in beats per minute.")
-    key_scale: Optional[str] = Field(default=None, description="Musical key of the generated music (e.g., C, D, Em).")
+    pass
 
 class CommonMusicGenerationModelActionConfig(CommonModelActionConfig):
     method: MusicGenerationActionMethod = Field(..., description="Music generation operation this action performs.")
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make generation reproducible; ignored by drivers without seed control.")
     batch_size: Union[int, str] = Field(default=1, description="Number of inputs processed per batch.")
-    params: CommonMusicGenerationParamsConfig = Field(default_factory=CommonMusicGenerationParamsConfig, description="Duration, tempo, and key parameters applied to generation.")
+    params: CommonMusicGenerationParamsConfig = Field(default_factory=CommonMusicGenerationParamsConfig, description="Driver-specific generation parameters.")

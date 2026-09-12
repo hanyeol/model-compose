@@ -49,6 +49,9 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        duration             = await context.render_variable(self.config.params.duration)
+        bpm                  = await context.render_variable(self.config.params.bpm)
+        key_scale            = await context.render_variable(self.config.params.key_scale)
         inference_steps      = await context.render_variable(self.config.params.inference_steps)
         guidance_scale       = await context.render_variable(self.config.params.guidance_scale)
         shift                = await context.render_variable(self.config.params.shift)
@@ -57,6 +60,9 @@ class AceStepMusicGenerationTaskAction(MusicGenerationTaskAction):
         audio_cover_strength = await context.render_variable(self.config.params.audio_cover_strength)
 
         params.update({
+            "duration":             duration,
+            "bpm":                  bpm,
+            "key_scale":            key_scale,
             "inference_steps":      inference_steps,
             "guidance_scale":       guidance_scale,
             "shift":                shift,

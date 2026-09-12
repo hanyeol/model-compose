@@ -30,17 +30,17 @@ class MusicGenerationTaskAction(ComponentAction):
                         yield result
 
             return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
+                batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
+                results.extend(batch_results)
 
-        results: List[Any] = []
-        async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
-            batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
-            batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
-            results.extend(batch_results)
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         seed = await context.render_scalar(self.config.seed, int)

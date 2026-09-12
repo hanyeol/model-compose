@@ -21,8 +21,9 @@ component:
   task: talking-head
   driver: custom
   family: sonic
-  # LeonJoe13/Sonic bundles Sonic's unet/audio2token/audio2bucket weights
-  # alongside the SVD-XT base, whisper-tiny, RIFE, and yoloface detector.
+  # LeonJoe13/Sonic ships only Sonic's own weights plus RIFE and yoloface;
+  # the service fetches the SVD-XT base and whisper-tiny separately on first
+  # run and places them into `checkpoints/<subdir>/` next to these.
   model:
     provider: huggingface
     repository: LeonJoe13/Sonic

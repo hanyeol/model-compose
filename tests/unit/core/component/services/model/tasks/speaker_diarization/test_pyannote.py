@@ -80,7 +80,7 @@ def action():
 
 
 def _assert_segment(seg: dict) -> None:
-    assert {"speaker", "start_time", "end_time", "confidence"} <= set(seg.keys())
+    assert set(seg.keys()) == {"speaker", "start_time", "end_time", "confidence"}
     assert isinstance(seg["speaker"], str)
     assert isinstance(seg["start_time"], float)
     assert isinstance(seg["end_time"], float)
@@ -97,10 +97,6 @@ def _base_params(action, **overrides) -> dict:
         "speaker_count": None,
         "min_speaker_count": None,
         "max_speaker_count": None,
-        "return_segments": True,
-        "return_speakers": False,
-        "return_embedding": False,
-        "return_metadata": False,
         "merge_gap": 0.0,
         "min_segment_duration": 0.0,
     }
@@ -194,7 +190,7 @@ class TestCollectSegments:
             (_Turn(3.4, 7.1), "SPEAKER_01"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments, _speakers = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
+        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         assert len(segments) == 2
         for seg in segments:
             _assert_segment(seg)
@@ -205,7 +201,7 @@ class TestCollectSegments:
             (_Turn(1.0, 3.0), "SPEAKER_01"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments, _speakers = action._diarize(waveform, sample_rate=16000, params=_base_params(action, min_segment_duration=0.5))
+        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action, min_segment_duration=0.5))
         assert len(segments) == 1
         assert segments[0]["speaker"] == "SPEAKER_01"
 
@@ -216,7 +212,7 @@ class TestCollectSegments:
             (_Turn(3.0, 4.0), "SPEAKER_00"),
         ])
         waveform = np.zeros(16000, dtype=np.float32)
-        segments, _speakers = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
+        segments = action._diarize(waveform, sample_rate=16000, params=_base_params(action))
         starts = [seg["start_time"] for seg in segments]
         assert starts == sorted(starts)
 
@@ -284,4 +280,5 @@ class TestDiarizeReturnShape:
         assert len(collected) == 2
         for chunk in collected:
             assert chunk["type"] == "segment"
-            _assert_segment(chunk)
+            segment = {k: v for k, v in chunk.items() if k != "type"}
+            _assert_segment(segment)

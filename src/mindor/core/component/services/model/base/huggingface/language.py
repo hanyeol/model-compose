@@ -2,8 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceModelConfig
-from mindor.core.foundation.package.torch import torch_requirements
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.core.logger import logging
 from .base import HuggingfaceModelTaskService
 
@@ -19,13 +18,11 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         self.tokenizer: Optional[PreTrainedTokenizer] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> List[str]:
         return [
-            *torch_requirements("torch"),
-            "transformers>=4.52.0",
+            *super()._get_setup_requirements(),
             "peft>=0.5.0",
             "sentencepiece",
-            "accelerate"
         ]
 
     async def _load_model(self) -> None:
@@ -40,7 +37,15 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
 
     async def _load_pretrained_tokenizer(self, model_path: str) -> Optional[PreTrainedTokenizer]:
         tokenizer_cls = self._get_tokenizer_class()
-        tokenizer = tokenizer_cls.from_pretrained(model_path, **self._get_tokenizer_params())
+
+        if not tokenizer_cls:
+            return None
+
+        tokenizer = await self._run_in_executor(
+            tokenizer_cls.from_pretrained,
+            model_path,
+            **self._get_tokenizer_params()
+        )
 
         if tokenizer.pad_token is None:
             logging.info("Tokenizer does not have a pad_token defined. Configuring pad_token automatically.")
@@ -51,29 +56,16 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
     def _configure_missing_pad_token(self, tokenizer: PreTrainedTokenizer) -> None:
         if tokenizer.eos_token is not None:
             tokenizer.pad_token = tokenizer.eos_token
-            logging.info(f"Set pad_token to eos_token: {tokenizer.eos_token}")
+            logging.debug(f"Set pad_token to eos_token: {tokenizer.eos_token}")
         else:
             tokenizer.add_special_tokens({ "pad_token": "[PAD]" })
-            logging.info("Added new pad_token: [PAD]")
+            logging.debug("Added new pad_token: [PAD]")
 
     def _get_tokenizer_class(self) -> Optional[Type[PreTrainedTokenizer]]:
-        return None
+        raise NotImplementedError("Tokenizer class loader not implemented.")
 
     def _get_tokenizer_params(self) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-
-        if isinstance(self.config.model, HuggingfaceModelConfig):
-            if self.config.model.revision:
-                params["revision"] = self.config.model.revision
-
-            if self.config.model.cache_dir:
-                params["cache_dir"] = self.config.model.cache_dir
-
-            if self.config.model.local_files_only:
-                params["local_files_only"] = True
-
-            if self.config.model.token:
-                params["token"] = self.config.model.token
+        params = self._get_model_params(self.config.model)
 
         if not self.config.fast_tokenizer:
             params["use_fast"] = False

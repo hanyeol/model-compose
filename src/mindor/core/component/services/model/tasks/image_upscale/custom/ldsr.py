@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, LdsrImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext
 from ....base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
 from ..common import ImageUpscaleTaskAction
@@ -78,8 +77,8 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
         return await self._run_in_executor(_upscale)
 
 class LdsrImageUpscaleTaskService(HuggingfaceDiffusionPipelineTaskService[None]):
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "diffusers", "transformers", "accelerate" ]
+    def _get_setup_requirements(self) -> List[str]:
+        return super()._get_setup_requirements()
 
     def _get_pipeline_class(self, method: None) -> Type[DiffusionPipeline]:
         from diffusers import LDMSuperResolutionPipeline

@@ -2,12 +2,11 @@ from typing import Literal, Union, Optional, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.utils.path import is_local_path
 from mindor.dsl.schema.action import ImageGenerationActionMethod
-from ...common import CommonModelComponentConfig, ModelConfig, ModelProvider, ModelPrecision, ModelQuantizationConfig, ModelTaskType
+from ...common import CommonModelComponentConfig, ModelConfig, ModelProvider, ModelPrecision, ModelTaskType
 
 class VaeConfig(BaseModel):
     model: ModelConfig = Field(..., description="VAE model identifier — a HuggingFace repo ID or a local path.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for VAE weights and computation.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to the VAE weights.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the VAE with reduced CPU RAM usage.")
 
     @model_validator(mode="before")
@@ -30,13 +29,6 @@ class VaeConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
-        return values
-
-    @model_validator(mode="before")
-    def inflate_quantization(cls, values: Dict[str, Any]):
-        quantization = values.get("quantization")
-        if isinstance(quantization, str):
-            values["quantization"] = { "type": quantization }
         return values
 
 class CommonImageGenerationModelComponentConfig(CommonModelComponentConfig):

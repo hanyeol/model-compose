@@ -1,8 +1,8 @@
-from typing import Optional, List, Callable, Awaitable, Any
+from typing import Optional, List, Callable, Any
 from abc import ABC
 from .package.installer import install_package, parse_requirement, is_requirement_satisfied
 from threading import Thread
-import asyncio, time
+import asyncio, functools, time
 
 class AsyncService(ABC):
     def __init__(self, daemon: bool):
@@ -64,77 +64,6 @@ class AsyncService(ABC):
         if self.daemon_task:
             await self.daemon_task
 
-    def run_in_thread(self, runner: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> asyncio.Future:
-        loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-        future: asyncio.Future = loop.create_future()
-        thread_loop: Optional[asyncio.AbstractEventLoop] = None
-        inner_task: Optional[asyncio.Task] = None
-
-        def _set_future_result(value: Any) -> None:
-            if not future.done():
-                future.set_result(value)
-
-        def _set_future_exception(exception: BaseException) -> None:
-            if not future.done():
-                future.set_exception(exception)
-
-        def _cancel_future() -> None:
-            if not future.done():
-                future.cancel()
-
-        def _propagate_cancel(future: asyncio.Future) -> None:
-            # When the outer future is cancelled (typically because the awaiting
-            # task was cancelled), forward the cancellation into the thread's
-            # event loop so the inner coroutine can unwind at its next await.
-            if not future.cancelled():
-                return
-            if inner_task is None or thread_loop is None or inner_task.done():
-                return
-            try:
-                thread_loop.call_soon_threadsafe(inner_task.cancel)
-            except RuntimeError:
-                # Thread loop already closed; nothing to cancel.
-                pass
-
-        def _schedule_on_outer_loop(callback, *args) -> None:
-            # The outer loop may have already closed (e.g. process shutdown, or
-            # nested run_in_thread where the parent thread's loop closed first).
-            # Swallow that specific case; anything else re-raises.
-            try:
-                loop.call_soon_threadsafe(callback, *args)
-            except RuntimeError:
-                pass
-
-        def _start_in_thread():
-            nonlocal thread_loop, inner_task
-
-            thread_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(thread_loop)
-
-            async def _run_in_thread():
-                nonlocal inner_task
-
-                inner_task = asyncio.current_task()
-                try:
-                    result = await runner(*args, **kwargs)
-                    _schedule_on_outer_loop(_set_future_result, result)
-                except asyncio.CancelledError:
-                    _schedule_on_outer_loop(_cancel_future)
-                except Exception as e:
-                    _schedule_on_outer_loop(_set_future_exception, e)
-
-            try:
-                thread_loop.run_until_complete(_run_in_thread())
-            finally:
-                thread_loop.close()
-
-        future.add_done_callback(_propagate_cancel)
-
-        thread = Thread(target=_start_in_thread)
-        thread.start()
-
-        return future
-
     async def _setup(self) -> None:
         pass
 
@@ -184,3 +113,6 @@ class AsyncService(ABC):
             await install_package(package_spec, ["--index-url", repository])
         else:
             await install_package(package_spec)
+
+    async def _run_in_executor(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        return await asyncio.get_running_loop().run_in_executor(None, functools.partial(fn, *args, **kwargs))

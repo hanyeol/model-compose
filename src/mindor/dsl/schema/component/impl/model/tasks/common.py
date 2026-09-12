@@ -181,7 +181,6 @@ class PeftAdapterConfig(BaseModel):
     model: ModelConfig = Field(..., description="Adapter model identifier — a HuggingFace repo ID or a local path.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight applied when merging with the base model (0.0-1.0).")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for adapter weights and computation.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to the adapter weights.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the adapter with reduced CPU RAM usage.")
 
     @model_validator(mode="before")
@@ -204,13 +203,6 @@ class PeftAdapterConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
-        return values
-
-    @model_validator(mode="before")
-    def inflate_quantization(cls, values: Dict[str, Any]):
-        quantization = values.get("quantization")
-        if isinstance(quantization, str):
-            values["quantization"] = { "type": quantization }
         return values
 
 class OnDemandConfig(BaseModel):
@@ -252,6 +244,13 @@ class CommonModelComponentConfig(CommonComponentConfig):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+        return values
+
+    @model_validator(mode="before")
+    def apply_default_device_mode(cls, values: Dict[str, Any]):
+        if "device_mode" not in values:
+            if values.get("device") not in (None, "auto"):
+                values["device_mode"] = DeviceMode.SINGLE
         return values
 
     @model_validator(mode="before")

@@ -5,7 +5,6 @@ from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
 from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, VaeConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.package.torch import torch_requirements
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
 from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
@@ -234,8 +233,11 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
 @register_model_task_service(ModelTaskType.IMAGE_GENERATION, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskService[ImageGenerationActionMethod]):
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "diffusers", "transformers", "accelerate", "sentencepiece" ]
+    def _get_setup_requirements(self) -> List[str]:
+        return [
+            *super()._get_setup_requirements(),
+            "sentencepiece"
+        ]
 
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
         if method is None or method == ImageGenerationActionMethod.GENERATE:
@@ -272,6 +274,21 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
 
         return torch.bfloat16
 
+    def _get_quantizable_components(self) -> List[str]:
+        # VAE and CLIP text encoders are excluded per diffusers guidance —
+        # they're small and quantization hurts quality more than it saves.
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
+            return [ "unet" ]
+
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
+            # text_encoder_2 is T5-XXL (~9GB fp16); biggest single win after transformer.
+            return [ "transformer", "text_encoder_2" ]
+
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
+            return [ "transformer", "text_encoder" ]
+
+        return []
+
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         submodules: Dict[str, Any] = {}
 
@@ -292,7 +309,8 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
         model_path = await self._provision_model(vae.model)
 
         logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
-        return model_class.from_pretrained(model_path, **params).to(device)
+        model = await self._run_in_executor(model_class.from_pretrained, model_path, **params)
+        return await self._run_in_executor(model.to, device)
 
     def _get_vae_model_class(self) -> Type[Any]:
         if self.config.architecture in (

@@ -2,8 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceModelConfig
-from mindor.core.foundation.package.torch import torch_requirements
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from .base import HuggingfaceModelTaskService
 
 if TYPE_CHECKING:
@@ -18,12 +17,11 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         self.processor: Optional[ProcessorMixin] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> List[str]:
         return [
-            *torch_requirements("torch"),
-            "transformers>=4.52.0",
+            *super()._get_setup_requirements(),
+            "peft>=0.5.0",
             "sentencepiece",
-            "accelerate"
         ]
 
     async def _load_model(self) -> None:
@@ -42,25 +40,14 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         if not processor_cls:
             return None
 
-        return processor_cls.from_pretrained(model_path, **self._get_processor_params(self.config.model))
+        return await self._run_in_executor(
+            processor_cls.from_pretrained,
+            model_path,
+            **self._get_processor_params(self.config.model)
+        )
 
     def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
-        return None
+        raise NotImplementedError("Processor class loader not implemented.")
 
     def _get_processor_params(self, model: ModelConfig) -> Dict[str, Any]:
-        params: Dict[str, Any] = {}
-
-        if isinstance(model, HuggingfaceModelConfig):
-            if model.revision:
-                params["revision"] = model.revision
-
-            if model.cache_dir:
-                params["cache_dir"] = model.cache_dir
-
-            if model.local_files_only:
-                params["local_files_only"] = True
-
-            if model.token:
-                params["token"] = model.token
-
-        return params
+        return self._get_model_params(model)

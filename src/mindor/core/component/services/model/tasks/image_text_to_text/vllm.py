@@ -128,7 +128,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         request = { "prompt": prompt, "multi_modal_data": { "image": images } }
         queues: List[asyncio.Queue] = [ asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE) for _ in range(num_return_sequences) ]
         active = [ True ] * num_return_sequences
-        end = object()
+        end_of_stream = object()
 
         async def _fan_out_sequences():
             previous = [ "" ] * num_return_sequences
@@ -159,14 +159,14 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
                 for index, queue in enumerate(queues):
                     if active[index]:
                         try:
-                            queue.put_nowait(end)
+                            queue.put_nowait(end_of_stream)
                         except asyncio.QueueFull:
                             # Drop a pending chunk to guarantee the terminator lands.
                             try:
                                 queue.get_nowait()
                             except asyncio.QueueEmpty:
                                 pass
-                            queue.put_nowait(end)
+                            queue.put_nowait(end_of_stream)
 
         fan_out_task = asyncio.create_task(_fan_out_sequences())
 
@@ -174,7 +174,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
             try:
                 while True:
                     chunk = await queue.get()
-                    if chunk is end:
+                    if chunk is end_of_stream:
                         return
                     yield chunk
             finally:

@@ -45,6 +45,7 @@ ComponentConfig = Annotated[
         MediaInspectorComponentConfig,
         MediaDownloaderComponentConfig,
         SubtitleLoaderComponentConfig,
+        DocumentLoaderComponentConfig,
         AudioExtractorComponentConfig,
         AudioClipperComponentConfig,
         AudioConverterComponentConfig,

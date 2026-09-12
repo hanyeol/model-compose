@@ -967,7 +967,7 @@ class ChatChoicesBuilder:
 
     async def stream(self, sequences: List[AsyncIterator[str]]) -> AsyncIterator[Dict[str, Any]]:
         queue: asyncio.Queue = asyncio.Queue()
-        end = object()
+        end_of_stream = object()
 
         async def _stream(index: int, source: AsyncIterator[str]) -> None:
             reasoning_splitter = ReasoningStreamSplitter(self.reasoning_parser) if self.reasoning_parser is not None else None
@@ -1018,7 +1018,7 @@ class ChatChoicesBuilder:
 
                 await queue.put(self._choice_chunk(index, [], finish_reason="stop"))
             finally:
-                await queue.put(end)
+                await queue.put(end_of_stream)
 
         stream_tasks = [ asyncio.create_task(_stream(index, source)) for index, source in enumerate(sequences) ]
         active_stream_count = len(sequences)
@@ -1027,7 +1027,7 @@ class ChatChoicesBuilder:
             while active_stream_count > 0:
                 chunk = await queue.get()
 
-                if chunk is end:
+                if chunk is end_of_stream:
                     active_stream_count -= 1
                     continue
 

@@ -44,6 +44,7 @@ class ComponentType(str, Enum):
     MEDIA_INSPECTOR         = "media-inspector"
     MEDIA_DOWNLOADER        = "media-downloader"
     SUBTITLE_LOADER         = "subtitle-loader"
+    DOCUMENT_LOADER         = "document-loader"
     AUDIO_EXTRACTOR         = "audio-extractor"
     AUDIO_CLIPPER           = "audio-clipper"
     AUDIO_CONVERTER         = "audio-converter"

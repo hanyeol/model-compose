@@ -37,6 +37,7 @@ ActionConfig = Union[
     MediaInspectorActionConfig,
     MediaDownloaderActionConfig,
     SubtitleLoaderActionConfig,
+    DocumentLoaderActionConfig,
     AudioExtractorActionConfig,
     AudioClipperActionConfig,
     AudioProcessorActionConfig,

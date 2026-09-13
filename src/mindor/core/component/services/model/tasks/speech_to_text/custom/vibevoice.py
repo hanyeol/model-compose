@@ -105,10 +105,16 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 add_generation_prompt=True,
                 context_info=params["generation"]["context_info"],
             )
-            inputs = { key: value.to(self.device) if isinstance(value, torch.Tensor) else value for key, value in inputs.items() }
+            inputs = {
+                key: value.to(self.device) if isinstance(value, torch.Tensor) else value
+                for key, value in inputs.items()
+            }
 
             with torch.inference_mode():
-                output_ids = self.model.generate(**inputs, **self._resolve_generate_kwargs(params["generation"]))
+                output_ids = self.model.generate(
+                    **inputs,
+                    **self._resolve_generate_kwargs(params["generation"])
+                )
 
             input_length = inputs["input_ids"].shape[1]
             eos_id = self.processor.tokenizer.eos_token_id

@@ -15,7 +15,7 @@ from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
 from ..common import SpeechToTextTaskAction
-import asyncio
+import os, asyncio, json
 
 if TYPE_CHECKING:
     import numpy as np
@@ -338,10 +338,8 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
         # Streaming checkpoints ship chunk/lookahead sizes in
         # preprocessor_config.json; non-streaming checkpoints don't ship this
         # file at all. Absence is the signal for "non-streaming checkpoint".
-        import json
-        import os
-
         config_path = os.path.join(model_path, "preprocessor_config.json")
+
         if not os.path.exists(config_path):
             return None
 

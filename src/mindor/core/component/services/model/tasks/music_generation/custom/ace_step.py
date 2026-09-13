@@ -573,41 +573,47 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         self.handler = None
 
     async def _load_generation_handler(self, model_path: str) -> AceStepHandler:
-        from acestep.handler import AceStepHandler
-        import torch
+        def _load() -> AceStepHandler:
+            from acestep.handler import AceStepHandler
+            import torch
 
-        handler = AceStepHandler()
-        handler.initialize_service(
-            project_root=model_path,
-            config_path=self.config.preset,
-            device=str(self._resolve_device(self.config.device)),
-        )
+            handler = AceStepHandler()
+            handler.initialize_service(
+                project_root=model_path,
+                config_path=self.config.preset,
+                device=str(self._resolve_device(self.config.device)),
+            )
 
-        if self.config.precision is not None:
-            handler.dtype = getattr(torch, self.config.precision.value)
+            if self.config.precision is not None:
+                handler.dtype = getattr(torch, self.config.precision.value)
 
-        return handler
+            return handler
+
+        return await self._run_in_executor(_load)
 
     async def _load_llm_handler(self, model_path: str) -> LLMHandler:
-        from acestep.llm_inference import LLMHandler
-        import torch
+        def _load() -> LLMHandler:
+            from acestep.llm_inference import LLMHandler
+            import torch
 
-        dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else None
+            dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else None
 
-        handler = LLMHandler()
-        status, success = handler.initialize(
-            # Mirror the DiT handler's convention: project_root=<model_path>, so the LM
-            # checkpoint lives under <model_path>/checkpoints/<thinking_model>.
-            checkpoint_dir=os.path.join(model_path, "checkpoints"),
-            lm_model_path=self.config.thinking_model,
-            device=self._resolve_device(self.config.device).type,
-            dtype=dtype,
-        )
+            handler = LLMHandler()
+            status, success = handler.initialize(
+                # Mirror the DiT handler's convention: project_root=<model_path>, so the LM
+                # checkpoint lives under <model_path>/checkpoints/<thinking_model>.
+                checkpoint_dir=os.path.join(model_path, "checkpoints"),
+                lm_model_path=self.config.thinking_model,
+                device=self._resolve_device(self.config.device).type,
+                dtype=dtype,
+            )
 
-        if not success:
-            raise RuntimeError(f"Failed to initialize 5Hz LM: {status}")
+            if not success:
+                raise RuntimeError(f"Failed to initialize 5Hz LM: {status}")
 
-        return handler
+            return handler
+
+        return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         thinking_scope = list(self.config.thinking_scope) if self.llm_handler is not None else []

@@ -180,20 +180,23 @@ class QwenTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
-        from qwen_tts import Qwen3TTSModel
-        import torch
-
         # qwen_tts handles model downloading internally via from_pretrained(),
         # so pass the repo ID directly instead of a snapshot_download() path.
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
-        model = Qwen3TTSModel.from_pretrained(
-            model_path,
-            device_map=device,
-            dtype=torch.bfloat16,
-            trust_remote_code=True,
-        )
+        def _load() -> Any:
+            from qwen_tts import Qwen3TTSModel
+            import torch
+
+            return Qwen3TTSModel.from_pretrained(
+                model_path,
+                device_map=device,
+                dtype=torch.bfloat16,
+                trust_remote_code=True,
+            )
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

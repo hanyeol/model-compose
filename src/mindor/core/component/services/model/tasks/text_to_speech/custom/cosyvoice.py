@@ -284,42 +284,47 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
-        # CosyVoice ships an AutoModel factory that picks CosyVoice / CosyVoice2 /
-        # CosyVoice3 by looking for cosyvoice{,2,3}.yaml inside model_dir. Its
-        # internal snapshot_download only supports ModelScope, so we always
-        # resolve to a local dir via mindor's HF-aware _provision_model().
-        from cosyvoice.cli.cosyvoice import AutoModel
-
-        model_dir = await self._provision_model(self.config.model, prefetch=True)
+        # CosyVoice's AutoModel selects CosyVoice / CosyVoice2 / CosyVoice3 based on
+        # yaml files inside model_dir, and its upstream snapshot_download is
+        # ModelScope-only — so we resolve to a local dir via _provision_model() and
+        # let AutoModel dispatch from there.
+        model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        # jit/trt/vllm/fp16 are CUDA-only upstream: CosyVoice's AutoModel gates
-        # them behind torch.cuda.is_available() and silently disables them on
-        # any other backend (mps included). We filter here so the intent is
-        # visible in our logs rather than as an upstream warning.
-        is_cuda = device.type == "cuda"
-        load_jit  = self.config.load_jit  and is_cuda
-        load_trt  = self.config.load_trt  and is_cuda
-        load_vllm = self.config.load_vllm and is_cuda
-        fp16      = self.config.fp16      and is_cuda
+        def _load() -> Tuple[Any, int]:
+            from cosyvoice.cli.cosyvoice import AutoModel
 
-        # AutoModel returns CosyVoice / CosyVoice2 / CosyVoice3. Only v2/v3
-        # accept load_vllm, so pass it conditionally by peeking at the yaml.
-        params: Dict[str, Any] = {
-            "model_dir": model_dir,
-            "load_jit":  load_jit,
-            "load_trt":  load_trt,
-            "fp16":      fp16,
-        }
+            # jit/trt/vllm/fp16 are CUDA-only upstream: CosyVoice's AutoModel gates
+            # them behind torch.cuda.is_available() and silently disables them on
+            # any other backend (mps included). We filter here so the intent is
+            # visible in our logs rather than as an upstream warning.
+            is_cuda = device.type == "cuda"
+            load_jit  = self.config.load_jit  and is_cuda
+            load_trt  = self.config.load_trt  and is_cuda
+            load_vllm = self.config.load_vllm and is_cuda
+            fp16      = self.config.fp16      and is_cuda
 
-        cosyvoice2_yaml = os.path.join(model_dir, "cosyvoice2.yaml")
-        cosyvoice3_yaml = os.path.join(model_dir, "cosyvoice3.yaml")
+            # AutoModel returns CosyVoice / CosyVoice2 / CosyVoice3. Only v2/v3
+            # accept load_vllm, so pass it conditionally by peeking at the yaml.
+            params: Dict[str, Any] = {
+                "model_dir": model_path,
+                "load_jit":  load_jit,
+                "load_trt":  load_trt,
+                "fp16":      fp16,
+            }
 
-        if load_vllm or (os.path.exists(cosyvoice2_yaml) or os.path.exists(cosyvoice3_yaml)):
-            params["load_vllm"] = load_vllm
+            cosyvoice2_yaml = os.path.join(model_path, "cosyvoice2.yaml")
+            cosyvoice3_yaml = os.path.join(model_path, "cosyvoice3.yaml")
 
-        model = AutoModel(**params)
-        sample_rate = int(getattr(model, "sample_rate", 24000))
+            if load_vllm or (os.path.exists(cosyvoice2_yaml) or os.path.exists(cosyvoice3_yaml)):
+                params["load_vllm"] = load_vllm
+
+            model = AutoModel(**params)
+            sample_rate = int(getattr(model, "sample_rate", 24000))
+
+            return model, sample_rate
+
+        model, sample_rate = await self._run_in_executor(_load)
 
         return model, sample_rate, device
 

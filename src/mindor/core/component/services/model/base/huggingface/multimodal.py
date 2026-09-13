@@ -40,11 +40,13 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         if not processor_cls:
             return None
 
-        return await self._run_in_executor(
-            processor_cls.from_pretrained,
-            model_path,
-            **self._get_processor_params(self.config.model)
-        )
+        def _load() -> ProcessorMixin:
+            return processor_cls.from_pretrained(
+                model_path,
+                **self._get_processor_params(self.config.model)
+            )
+
+        return await self._run_in_executor(_load)
 
     def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
         raise NotImplementedError("Processor class loader not implemented.")

@@ -321,28 +321,27 @@ class FireRedTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
-        preset = self.config.preset
-
-        if preset == FireRedTextToSpeechPreset.INSTRUCT:
-            from fireredtts3.core import FireRedTTS3Instruct as FireRedTTS3Model
-        else:
-            from fireredtts3.core import FireRedTTS3 as FireRedTTS3Model
-
         model_dir = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        # LLM TN needs an external API key via .env; keep it off by default.
-        # wetext covers zh/en and does basic cleaning for other languages.
-        model = FireRedTTS3Model(
-            model_dir,
-            use_wetext=True,
-            use_llm_tn=False,
-        )
+        def _load() -> Any:
+            if self.config.preset == FireRedTextToSpeechPreset.INSTRUCT:
+                from fireredtts3.core import FireRedTTS3Instruct as FireRedTTS3Model
+            else:
+                from fireredtts3.core import FireRedTTS3 as FireRedTTS3Model
+
+            # LLM TN needs an external API key via .env; keep it off by default.
+            # wetext covers zh/en and does basic cleaning for other languages.
+            return FireRedTTS3Model(
+                model_dir,
+                use_wetext=True,
+                use_llm_tn=False,
+            )
+
+        model = await self._run_in_executor(_load)
 
         # FireRedTTS3 renders at 24 kHz for both Base and Instruct.
-        sample_rate = 24000
-
-        return model, sample_rate, device
+        return model, 24000, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         preset = self.config.preset

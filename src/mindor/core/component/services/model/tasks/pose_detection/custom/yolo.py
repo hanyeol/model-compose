@@ -126,12 +126,18 @@ class YoloPoseDetectionTaskService(ModelTaskService):
         return [ "ultralytics" ]
 
     async def _load_model(self) -> None:
-        from ultralytics import YOLO
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        self.device = self._resolve_device(self.config.device)
-        self.model = YOLO(model_path)
-        self.model.to(self.device)
+        device = self._resolve_device(self.config.device)
+
+        def _load() -> YOLO:
+            from ultralytics import YOLO
+
+            model = YOLO(model_path)
+            model.to(device)
+
+            return model
+
+        self.model, self.device = await self._run_in_executor(_load), device
 
     async def _unload_model(self) -> None:
         self.model = None

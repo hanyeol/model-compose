@@ -92,19 +92,27 @@ class PyannoteVoiceEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_inference(self) -> Tuple[Any, torch.device]:
-        from pyannote.audio import Model, Inference
-
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
-        token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
-        model = Model.from_pretrained(model_path, token=token)
+        def _load() -> Any:
+            from pyannote.audio import Model, Inference
 
-        if model is None:
-            raise RuntimeError(f"Failed to load pyannote embedding model '{model_path}'. Verify the HuggingFace token has access to the gated model.")
+            token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
+            model = Model.from_pretrained(model_path, token=token)
 
-        inference = Inference(model, window="whole")
-        inference.to(device)
+            if model is None:
+                raise RuntimeError(
+                    f"Failed to load pyannote embedding model '{model_path}'. "
+                    "Verify the HuggingFace token has access to the gated model."
+                )
+
+            inference = Inference(model, window="whole")
+            inference.to(device)
+
+            return inference
+
+        inference = await self._run_in_executor(_load)
 
         return inference, device
 

@@ -120,11 +120,6 @@ class TadaTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, Any, Any]:
-        from tada.modules.aligner import AlignerConfig
-        from tada.modules.encoder import Encoder
-        from tada.modules.tada import TadaForCausalLM, TadaConfig
-        import torch
-
         # LM weights: for HF sources the schema's default allow_patterns keeps
         # the download to relevant files; local paths are used as-is.
         model_path = await self._provision_model(self.config.model, prefetch=True)
@@ -139,17 +134,27 @@ class TadaTextToSpeechTaskService(ModelTaskService):
             allow_patterns=[ "tokenizer*", "special_tokens*" ],
         )
 
-        AlignerConfig.tokenizer_name = tokenizer_path
-        encoder = Encoder.from_pretrained(_TADA_CODEC_REPO, subfolder="encoder").to(device).eval()
+        def _load() -> Tuple[Any, Any]:
+            from tada.modules.aligner import AlignerConfig
+            from tada.modules.encoder import Encoder
+            from tada.modules.tada import TadaForCausalLM, TadaConfig
+            import torch
 
-        config = TadaConfig.from_pretrained(model_path)
-        config.tokenizer_name = tokenizer_path
+            AlignerConfig.tokenizer_name = tokenizer_path
+            encoder = Encoder.from_pretrained(_TADA_CODEC_REPO, subfolder="encoder").to(device).eval()
 
-        model = TadaForCausalLM.from_pretrained(
-            model_path,
-            config=config,
-            torch_dtype=dtype,
-        ).to(device).eval()
+            config = TadaConfig.from_pretrained(model_path)
+            config.tokenizer_name = tokenizer_path
+
+            model = TadaForCausalLM.from_pretrained(
+                model_path,
+                config=config,
+                torch_dtype=dtype,
+            ).to(device).eval()
+
+            return model, encoder
+
+        model, encoder = await self._run_in_executor(_load)
 
         return model, encoder, device
 

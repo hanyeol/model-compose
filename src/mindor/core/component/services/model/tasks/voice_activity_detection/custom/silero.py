@@ -259,10 +259,14 @@ class SileroVoiceActivityDetectionTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
-        from silero_vad import load_silero_vad
-
         device = self._resolve_device(self.config.device)
-        model = load_silero_vad()
+
+        def _load() -> Any:
+            from silero_vad import load_silero_vad
+
+            return load_silero_vad()
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

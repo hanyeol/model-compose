@@ -148,19 +148,25 @@ class DemucsMusicSourceSeparationTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, List[str], torch.device]:
-        from demucs.pretrained import get_model
-
         device = self._resolve_device(self.config.device)
-        model = get_model(self.config.model.name)
 
-        if model is None:
-            raise RuntimeError(f"Failed to load Demucs model '{self.config.model.name}'.")
+        def _load() -> Tuple[Any, int, List[str]]:
+            from demucs.pretrained import get_model
 
-        model.to(device)
-        model.eval()
+            model = get_model(self.config.model.name)
 
-        sample_rate = int(getattr(model, "samplerate", 44100))
-        sources = list(getattr(model, "sources", [ "drums", "bass", "other", "vocals" ]))
+            if model is None:
+                raise RuntimeError(f"Failed to load Demucs model '{self.config.model.name}'.")
+
+            model.to(device)
+            model.eval()
+
+            sample_rate = int(getattr(model, "samplerate", 44100))
+            sources = list(getattr(model, "sources", [ "drums", "bass", "other", "vocals" ]))
+
+            return model, sample_rate, sources
+
+        model, sample_rate, sources = await self._run_in_executor(_load)
 
         return model, sample_rate, sources, device
 

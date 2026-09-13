@@ -187,10 +187,14 @@ class TransNetV2ShotBoundaryDetectionTaskService(ModelTaskService):
         ]
 
     async def _load_model(self) -> None:
-        from transnetv2 import TransNetV2
+        model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        model_dir = await self._provision_model(self.config.model, prefetch=True)
-        self.model = TransNetV2(model_dir=model_dir)
+        def _load() -> TransNetV2:
+            from transnetv2 import TransNetV2
+
+            return TransNetV2(model_dir=model_path)
+
+        self.model = await self._run_in_executor(_load)
 
     async def _unload_model(self) -> None:
         self.model = None

@@ -193,7 +193,12 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch", "torchaudio"), "funasr>=1.3.26", "numpy", "soxr" ]
+        return [
+            *torch_requirements("torch", "torchaudio"),
+            "funasr>=1.3.26",
+            "numpy",
+            "soxr"
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()
@@ -203,39 +208,47 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
-        from funasr import AutoModel
-
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
-        params: Dict[str, Any] = {
-            "model": model_path,
-            "hub": "hf",
-            "trust_remote_code": True,
-            "device": f"{device.type}:{device.index}" if device.index is not None else device.type,
-        }
+        def _load() -> Any:
+            from funasr import AutoModel
 
-        if self.config.voice_activity_detection is not None:
-            # FunASR wires vad_model + vad_kwargs together. Everything except
-            # the model identifier itself is passed as vad_kwargs.
-            vad_params = self.config.voice_activity_detection.model_dump(exclude_none=True)
-            params["vad_model"] = vad_params.pop("model")
-            # FunASR expects max_single_segment_time in milliseconds; accept
-            # human-readable durations ('30s', '1.5m') from the config side.
-            if "max_single_segment_time" in vad_params:
-                vad_params["max_single_segment_time"] = int(parse_time(vad_params["max_single_segment_time"]) * 1000)
-            if vad_params:
-                params["vad_kwargs"] = vad_params
+            params: Dict[str, Any] = {
+                "model": model_path,
+                "hub": "hf",
+                "trust_remote_code": True,
+                "device": f"{device.type}:{device.index}" if device.index is not None else device.type,
+            }
 
-        if self.config.punctuation is not None:
-            # Punctuation model drives sentence splitting; sentence_info is
-            # only populated in the result when this is wired up.
-            punc_params = self.config.punctuation.model_dump(exclude_none=True)
-            params["punc_model"] = punc_params.pop("model")
-            if punc_params:
-                params["punc_kwargs"] = punc_params
+            if self.config.voice_activity_detection is not None:
+                # FunASR wires vad_model + vad_kwargs together. Everything except
+                # the model identifier itself is passed as vad_kwargs.
+                vad_kwargs = self.config.voice_activity_detection.model_dump(exclude_none=True)
 
-        model = AutoModel(**params)
+                params["vad_model"] = vad_kwargs.pop("model")
+
+                # FunASR expects max_single_segment_time in milliseconds; accept
+                # human-readable durations ('30s', '1.5m') from the config side.
+                if "max_single_segment_time" in vad_kwargs:
+                    vad_kwargs["max_single_segment_time"] = int(parse_time(vad_kwargs["max_single_segment_time"]) * 1000)
+
+                if vad_kwargs:
+                    params["vad_kwargs"] = vad_kwargs
+
+            if self.config.punctuation is not None:
+                # Punctuation model drives sentence splitting; sentence_info is
+                # only populated in the result when this is wired up.
+                punc_kwargs = self.config.punctuation.model_dump(exclude_none=True)
+
+                params["punc_model"] = punc_kwargs.pop("model")
+
+                if punc_kwargs:
+                    params["punc_kwargs"] = punc_kwargs
+
+            return AutoModel(**params)
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

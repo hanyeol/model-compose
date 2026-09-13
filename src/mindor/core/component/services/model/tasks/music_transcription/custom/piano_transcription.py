@@ -178,21 +178,24 @@ class PianoTranscriptionMusicTranscriptionTaskService(ModelTaskService):
         self.device = None
 
     async def _load_transcriptor(self) -> Tuple[PianoTranscription, torch.device]:
-        from piano_transcription_inference import PianoTranscription
-
         device = self._resolve_device(self.config.device)
 
-        # PianoTranscription auto-downloads its default checkpoint on first use
-        # when checkpoint_path is None. The schema stamps a sentinel name so the
-        # discriminator has something to compare, but we only forward it when
-        # it's an actual filesystem path — otherwise let the library resolve
-        # its default.
-        checkpoint_path = self.config.model.name
+        def _load() -> PianoTranscription:
+            from piano_transcription_inference import PianoTranscription
 
-        if not checkpoint_path or not os.path.isfile(checkpoint_path):
-            checkpoint_path = None
+            # PianoTranscription auto-downloads its default checkpoint on first use
+            # when checkpoint_path is None. The schema stamps a sentinel name so the
+            # discriminator has something to compare, but we only forward it when
+            # it's an actual filesystem path — otherwise let the library resolve
+            # its default.
+            checkpoint_path = self.config.model.name
 
-        transcriptor = PianoTranscription(device=str(device), checkpoint_path=checkpoint_path)
+            if not checkpoint_path or not os.path.isfile(checkpoint_path):
+                checkpoint_path = None
+
+            return PianoTranscription(device=str(device), checkpoint_path=checkpoint_path)
+
+        transcriptor = await self._run_in_executor(_load)
 
         return transcriptor, device
 

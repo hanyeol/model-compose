@@ -102,8 +102,13 @@ class RealEsrganImageUpscaleTaskService(ModelTaskService):
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        model = RealESRGAN(device=device, scale=self.config.scale)
-        model.load_weights(model_path)
+        def _load() -> RealESRGAN:
+            model = RealESRGAN(device=device, scale=self.config.scale)
+            model.load_weights(model_path)
+
+            return model
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

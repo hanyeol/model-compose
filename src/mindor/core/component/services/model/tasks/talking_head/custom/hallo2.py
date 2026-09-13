@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, Hallo2TalkingHeadModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -202,40 +202,40 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             )
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.model_path, self.config_path, self.repo_root = await self._load_pipeline()
+        self.model_path, self.config_path, self.repo_root, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
-        # Hallo2's inference_process constructs the pipeline lazily inside the
-        # call, so there is no long-lived model handle we need to release here.
-        pass
+        self.model_path = None
+        self.config_path = None
+        self.repo_root = None
+        self.device = None
 
-    async def _load_pipeline(self) -> tuple[str, str, str]:
-        import hallo
-
+    async def _load_pipeline(self) -> Tuple[str, str, str, torch.device]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        device = self._resolve_device(self.config.device)
 
-        # Config yaml lives inside the repo tree we installed above; `hallo`
-        # is a namespace package so `__file__` may be None — use __path__.
-        repo_root = os.path.dirname(hallo.__path__[0])
-        config_path = os.path.join(repo_root, "configs", "inference", "long.yaml")
+        def _load() -> Tuple[str, str, str]:
+            import hallo
 
-        # Hallo2's configs reference `./pretrained_models/<subdir>` for every
-        # sub-checkpoint (hallo2, stable-diffusion-v1-5, motion_module, wav2vec,
-        # face_analysis, audio_separator, sd-vae-ft-mse). The fudan-generative-
-        # ai/hallo2 HF repo bundles all of them at its snapshot root, so mount
-        # the whole snapshot as `pretrained_models` and every relative path
-        # resolves.
-        pretrained_symlink = os.path.join(repo_root, "pretrained_models")
+            # Config yaml lives inside the repo tree we installed above; `hallo`
+            # is a namespace package so `__file__` may be None — use __path__.
+            repo_root = os.path.dirname(hallo.__path__[0])
+            config_path = os.path.join(repo_root, "configs", "inference", "long.yaml")
 
-        if os.path.islink(pretrained_symlink):
-            os.unlink(pretrained_symlink)
-        elif os.path.exists(pretrained_symlink):
-            shutil.rmtree(pretrained_symlink)
+            pretrained_symlink = os.path.join(repo_root, "pretrained_models")
 
-        os.symlink(model_path, pretrained_symlink)
+            if os.path.islink(pretrained_symlink):
+                os.unlink(pretrained_symlink)
+            elif os.path.exists(pretrained_symlink):
+                shutil.rmtree(pretrained_symlink)
 
-        return model_path, config_path, repo_root
+            os.symlink(model_path, pretrained_symlink)
+
+            return model_path, config_path, repo_root
+
+        model_path, config_path, repo_root = await self._run_in_executor(_load)
+
+        return model_path, config_path, repo_root, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Hallo2TalkingHeadTaskAction(

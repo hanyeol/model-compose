@@ -175,18 +175,23 @@ class PyannoteSpeakerDiarizationTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_pipeline(self) -> Tuple[Any, torch.device]:
-        from pyannote.audio import Pipeline
-
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
-        token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
-        pipeline = Pipeline.from_pretrained(model_path, token=token)
+        def _load() -> Any:
+            from pyannote.audio import Pipeline
 
-        if pipeline is None:
-            raise RuntimeError(f"Failed to load pyannote pipeline '{model_path}'. Verify the HuggingFace token has access to the gated model.")
+            token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
+            pipeline = Pipeline.from_pretrained(model_path, token=token)
 
-        pipeline.to(device)
+            if pipeline is None:
+                raise RuntimeError(f"Failed to load pyannote pipeline '{model_path}'. Verify the HuggingFace token has access to the gated model.")
+
+            pipeline.to(device)
+
+            return pipeline
+
+        pipeline = await self._run_in_executor(_load)
 
         return pipeline, device
 

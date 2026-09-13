@@ -122,11 +122,25 @@ class KokoroTextToSpeechTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "kokoro", "numpy", "soundfile" ]
+        return [
+            *torch_requirements("torch"),
+            "kokoro",
+            "numpy",
+            "soundfile"
+        ]
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self._get_or_create_pipeline(_KOKORO_DEFAULT_LANG_CODE)
+        device = self._resolve_device(self.config.device)
+
+        def _load() -> Any:
+            from kokoro import KPipeline
+
+            return KPipeline(
+                lang_code=_KOKORO_DEFAULT_LANG_CODE,
+                device=str(device)
+            )
+
+        self.pipelines[_KOKORO_DEFAULT_LANG_CODE], self.device = await self._run_in_executor(_load), device
 
     async def _unload_model(self) -> None:
         self.pipelines = {}

@@ -112,18 +112,24 @@ class LuxttsTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, Any]:
-        from zipvoice.luxvoice import LuxTTS
-
         # zipvoice's LuxTTS takes an HF repo id directly for `model_path` and
         # handles the download itself.
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
-        if device.type == "cpu":
-            threads = min(os.cpu_count() or 4, 8)
-            model = LuxTTS(model_path=model_path, device=str(device), threads=threads)
-        else:
-            model = LuxTTS(model_path=model_path, device=str(device))
+        def _load() -> Any:
+            from zipvoice.luxvoice import LuxTTS
+
+            if device.type == "cpu":
+                return LuxTTS(
+                    model_path=model_path,
+                    device=str(device),
+                    threads=min(os.cpu_count() or 4, 8)
+                )
+
+            return LuxTTS(model_path=model_path, device=str(device))
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

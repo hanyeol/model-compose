@@ -298,19 +298,20 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
         return submodules
 
     async def _load_pretrained_vae_model(self, vae: VaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
-        model_class = self._get_vae_model_class()
-
-        params = self._get_model_params(vae.model)
-        options = self._get_model_options(vae, default_dtype=dtype)
-
-        if options:
-            params.update(options)
-
+        model_cls = self._get_vae_model_class()
         model_path = await self._provision_model(vae.model)
 
-        logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
-        model = await self._run_in_executor(model_class.from_pretrained, model_path, **params)
-        return await self._run_in_executor(model.to, device)
+        logging.info(f"Component '{self.id}': loading {model_cls.__name__} from {model_path}")
+
+        def _load() -> Any:
+            params: Dict[str, Any] = {
+                **self._get_model_params(vae.model),
+                **self._get_model_options(vae, default_dtype=dtype),
+            }
+
+            return model_cls.from_pretrained(model_path, **params).to(device)
+
+        return await self._run_in_executor(_load)
 
     def _get_vae_model_class(self) -> Type[Any]:
         if self.config.architecture in (

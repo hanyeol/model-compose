@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, FloatTalkingHeadModelActionConfig
@@ -198,37 +198,40 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         importlib.invalidate_caches()
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.agent = await self._load_pipeline()
+        self.agent, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.agent = None
+        self.device = None
 
-    async def _load_pipeline(self) -> Any:
-        from float_talker.generate import InferenceAgent
-        from float_talker.options.base_options import BaseOptions
-
+    async def _load_pipeline(self) -> Tuple[Any, torch.device]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
-
-        # BaseOptions parses argparse from sys.argv, so hand it a synthetic
-        # argv that points every checkpoint path at the user-provided dir.
-        parser = BaseOptions().initialize(argparse.ArgumentParser())
-        args = parser.parse_args([
-            "--pretrained_dir", model_path,
-            "--wav2vec_model_path", os.path.join(model_path, "wav2vec2-base-960h"),
-            "--audio2emotion_path", os.path.join(model_path, "wav2vec-english-speech-emotion-recognition"),
-        ])
-
-        # InferenceAgent reads `ckpt_path` and `rank` off the Namespace but
-        # neither is registered as an argparse flag on BaseOptions.
-        args.ckpt_path = os.path.join(model_path, "float.pth")
-        args.rank = self.device.index if self.device.index is not None else 0
-        args.fps = int(args.fps)
+        device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
+            from float_talker.generate import InferenceAgent
+            from float_talker.options.base_options import BaseOptions
+
+            # BaseOptions parses argparse from sys.argv, so hand it a synthetic
+            # argv that points every checkpoint path at the user-provided dir.
+            parser = BaseOptions().initialize(argparse.ArgumentParser())
+            args = parser.parse_args([
+                "--pretrained_dir", model_path,
+                "--wav2vec_model_path", os.path.join(model_path, "wav2vec2-base-960h"),
+                "--audio2emotion_path", os.path.join(model_path, "wav2vec-english-speech-emotion-recognition"),
+            ])
+
+            # InferenceAgent reads `ckpt_path` and `rank` off the Namespace but
+            # neither is registered as an argparse flag on BaseOptions.
+            args.ckpt_path = os.path.join(model_path, "float.pth")
+            args.rank = device.index if device.index is not None else 0
+            args.fps = int(args.fps)
+
             return InferenceAgent(args)
 
-        return await asyncio.get_running_loop().run_in_executor(None, _load)
+        agent = await self._run_in_executor(_load)
+
+        return agent, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await FloatTalkingHeadTaskAction(action, self.agent, self.device).run(context)

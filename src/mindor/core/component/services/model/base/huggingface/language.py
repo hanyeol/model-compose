@@ -41,17 +41,19 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         if not tokenizer_cls:
             return None
 
-        tokenizer = await self._run_in_executor(
-            tokenizer_cls.from_pretrained,
-            model_path,
-            **self._get_tokenizer_params()
-        )
+        def _load() -> PreTrainedTokenizer:
+            tokenizer = tokenizer_cls.from_pretrained(
+                model_path, 
+                **self._get_tokenizer_params()
+            )
 
-        if tokenizer.pad_token is None:
-            logging.info("Tokenizer does not have a pad_token defined. Configuring pad_token automatically.")
-            self._configure_missing_pad_token(tokenizer)
+            if tokenizer.pad_token is None:
+                logging.info("Tokenizer does not have a pad_token defined. Configuring pad_token automatically.")
+                self._configure_missing_pad_token(tokenizer)
 
-        return tokenizer
+            return tokenizer
+
+        return await self._run_in_executor(_load)
 
     def _configure_missing_pad_token(self, tokenizer: PreTrainedTokenizer) -> None:
         if tokenizer.eos_token is not None:

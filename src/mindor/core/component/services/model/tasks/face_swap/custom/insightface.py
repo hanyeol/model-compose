@@ -132,14 +132,18 @@ class InsightfaceFaceSwapTaskService(ModelTaskService):
         from insightface.model_zoo import get_model
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
-        providers = self._resolve_onnx_providers()
-        model = get_model(os.path.join(root, name), download=False, download_zip=False)
-        detector = FaceAnalysis(name=self.config.detector_model, root=root, providers=providers)
-        detector.prepare(ctx_id=self._get_device_id(), det_size=(640, 640))
 
-        logging.debug(f"InsightFace providers: {providers}")
+        def _load() -> Tuple[INSwapper, FaceAnalysis]:
+            providers = self._resolve_onnx_providers()
+            model = get_model(os.path.join(root, name), download=False, download_zip=False)
+            detector = FaceAnalysis(name=self.config.detector_model, root=root, providers=providers)
+            detector.prepare(ctx_id=self._get_device_id(), det_size=(640, 640))
 
-        return model, detector
+            logging.debug(f"InsightFace providers: {providers}")
+
+            return model, detector
+
+        return await self._run_in_executor(_load)
 
     async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> Tuple[str, str]:
         path = await super()._provision_model(model, prefetch=prefetch)

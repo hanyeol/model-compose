@@ -21,17 +21,21 @@ class LlamaCppModelTaskService(ModelTaskService):
         return [ "llama-cpp-python", "huggingface_hub" ]
 
     async def _load_model(self) -> None:
-        from llama_cpp import Llama
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        params = self._get_model_params(self.config.model)
-        options = self._get_model_options(self.config)
-
-        if options:
-            params.update(options)
 
         logging.info(f"Component '{self.id}': loading llama.cpp model from '{model_path}'")
-        self.model = Llama(model_path=model_path, **params)
+
+        def _load() -> Llama:
+            from llama_cpp import Llama
+
+            params: Dict[str, Any] = {
+                **self._get_model_params(self.config.model),
+                **self._get_model_options(self.config),
+            }
+
+            return Llama(model_path=model_path, **params)
+
+        self.model = await self._run_in_executor(_load)
 
     async def _unload_model(self) -> None:
         self.model = None

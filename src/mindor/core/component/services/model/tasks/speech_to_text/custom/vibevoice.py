@@ -305,21 +305,26 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, Any, Optional[Dict[str, float]], torch.device]:
-        from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
-        from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
-
-        processor = VibeVoiceASRProcessor.from_pretrained(model_path)
-        streaming_info = self._load_streaming_info(model_path)
         dtype = self._resolve_torch_dtype(device)
 
-        model = VibeVoiceASRForConditionalGeneration.from_pretrained(
-            model_path,
-            torch_dtype=dtype,
-            attn_implementation=self.config.attn_implementation,
-        ).to(device).eval()
+        def _load() -> Tuple[Any, Any, Optional[Dict[str, float]]]:
+            from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+            from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
+
+            processor = VibeVoiceASRProcessor.from_pretrained(model_path)
+            streaming_info = self._load_streaming_info(model_path)
+
+            model = VibeVoiceASRForConditionalGeneration.from_pretrained(
+                model_path,
+                torch_dtype=dtype,
+                attn_implementation=self.config.attn_implementation,
+            ).to(device).eval()
+
+            return model, processor, streaming_info
+
+        model, processor, streaming_info = await self._run_in_executor(_load)
 
         return model, processor, streaming_info, device
 
@@ -353,6 +358,7 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
         import torch
 
         precision = self.config.precision
+
         if precision is not None and precision != ModelPrecision.AUTO:
             return getattr(torch, precision.value)
 

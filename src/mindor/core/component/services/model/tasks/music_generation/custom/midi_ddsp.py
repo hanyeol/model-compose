@@ -230,51 +230,55 @@ class MidiDdspMusicGenerationTaskService(ModelTaskService):
         if isinstance(self.config.model, HuggingfaceModelConfig):
             raise ValueError("MIDI-DDSP does not support HuggingFace Hub models. Provide a local model directory instead.")
 
-        model_path = await self._provision_model(self.config.model, prefetch=True)
-        self.synthesis_generator, self.expression_generator = await self._load_generators(model_path)
+        self.synthesis_generator, self.expression_generator = await self._load_generators()
 
     async def _unload_model(self) -> None:
         self.synthesis_generator = None
         self.expression_generator = None
 
-    async def _load_generators(self, model_path: str) -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
-        from midi_ddsp.hparams_synthesis_generator import hparams as hp
-        from midi_ddsp.modules.get_synthesis_generator import (
-            get_synthesis_generator,
-            get_fake_data_synthesis_generator,
-        )
-        from midi_ddsp.modules.expression_generator import (
-            ExpressionGenerator,
-            get_fake_data_expression_generator,
-        )
-        from midi_ddsp.utils.training_utils import get_hp
+    async def _load_generators(self) -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
+        model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        synthesis_generator_path, expression_generator_path = self._resolve_checkpoint_paths(model_path)
-
-        # Upstream stores training hyperparameters next to the checkpoint as
-        # `train.log`. Missing it means the caller pointed us at a directory
-        # that isn't a MIDI-DDSP release layout.
-        train_log_path = os.path.join(os.path.dirname(synthesis_generator_path), "train.log")
-
-        if not os.path.isfile(train_log_path):
-            raise FileNotFoundError(
-                f"Synthesis generator train.log not found at '{train_log_path}'. "
-                f"MIDI-DDSP requires the URMP release layout with a train.log alongside the checkpoint."
+        def _load() -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
+            from midi_ddsp.hparams_synthesis_generator import hparams as hp
+            from midi_ddsp.modules.get_synthesis_generator import (
+                get_synthesis_generator,
+                get_fake_data_synthesis_generator,
             )
+            from midi_ddsp.modules.expression_generator import (
+                ExpressionGenerator,
+                get_fake_data_expression_generator,
+            )
+            from midi_ddsp.utils.training_utils import get_hp
 
-        for key, value in get_hp(train_log_path).items():
-            setattr(hp, key, value)
+            synthesis_generator_path, expression_generator_path = self._resolve_checkpoint_paths(model_path)
 
-        synthesis_generator = get_synthesis_generator(hp)
-        synthesis_generator._build(get_fake_data_synthesis_generator(hp))
-        synthesis_generator.load_weights(synthesis_generator_path).expect_partial()
+            # Upstream stores training hyperparameters next to the checkpoint as
+            # `train.log`. Missing it means the caller pointed us at a directory
+            # that isn't a MIDI-DDSP release layout.
+            train_log_path = os.path.join(os.path.dirname(synthesis_generator_path), "train.log")
 
-        expression_generator = ExpressionGenerator(n_out=6, nhid=128)
-        fake_data = get_fake_data_expression_generator(6)
-        _ = expression_generator(fake_data["cond"], out=fake_data["target"], training=True)
-        expression_generator.load_weights(expression_generator_path).expect_partial()
+            if not os.path.isfile(train_log_path):
+                raise FileNotFoundError(
+                    f"Synthesis generator train.log not found at '{train_log_path}'. "
+                    f"MIDI-DDSP requires the URMP release layout with a train.log alongside the checkpoint."
+                )
 
-        return synthesis_generator, expression_generator
+            for key, value in get_hp(train_log_path).items():
+                setattr(hp, key, value)
+
+            synthesis_generator = get_synthesis_generator(hp)
+            synthesis_generator._build(get_fake_data_synthesis_generator(hp))
+            synthesis_generator.load_weights(synthesis_generator_path).expect_partial()
+
+            expression_generator = ExpressionGenerator(n_out=6, nhid=128)
+            fake_data = get_fake_data_expression_generator(6)
+            _ = expression_generator(fake_data["cond"], out=fake_data["target"], training=True)
+            expression_generator.load_weights(expression_generator_path).expect_partial()
+
+            return synthesis_generator, expression_generator
+
+        return await self._run_in_executor(_load)
 
     def _resolve_checkpoint_paths(self, model_path: str) -> Tuple[str, str]:
         synthesis_generator_path = os.path.join(model_path, "synthesis_generator", _DEFAULT_SYNTHESIS_GENERATOR_STEP)

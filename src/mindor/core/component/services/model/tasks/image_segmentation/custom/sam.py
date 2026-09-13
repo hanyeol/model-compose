@@ -143,7 +143,11 @@ class SamImageSegmentationTaskService(ModelTaskService):
         from ultralytics import SAM
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        self.model = SAM(model_path)
+
+        def _load() -> SAM:
+            return SAM(model_path)
+
+        self.model = await self._run_in_executor(_load)
 
     async def _unload_model(self) -> None:
         self.model = None

@@ -170,11 +170,16 @@ class EsrganImageUpscaleTaskService(ModelTaskService):
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=self.config.scale)
-        self._load_model_checkpoint(model, model_path)
+        def _load() -> RRDBNet:
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=self.config.scale)
+            self._load_model_checkpoint(model, model_path)
 
-        model = model.to(device)
-        model.eval()
+            model = model.to(device)
+            model.eval()
+
+            return model
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

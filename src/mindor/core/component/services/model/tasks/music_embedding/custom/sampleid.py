@@ -112,22 +112,25 @@ class SampleidMusicEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _load_sampleid(self) -> Tuple[SampleID, torch.device]:
-        from sampleid import SampleID
-
         device = self._resolve_device(self.config.device)
 
-        # sampleid.SampleID.load_checkpoint auto-downloads the Zenodo weights
-        # when ckpt_path is None. The schema stamps a sentinel name for the
-        # discriminator, so we only forward the name as a checkpoint path when
-        # it points at an existing local file.
-        checkpoint_path = self.config.model.name
+        def _load() -> Tuple[SampleID, torch.device]:
+            from sampleid import SampleID
 
-        if not checkpoint_path or not os.path.isfile(checkpoint_path):
-            checkpoint_path = None
+            # sampleid.SampleID.load_checkpoint auto-downloads the Zenodo weights
+            # when ckpt_path is None. The schema stamps a sentinel name for the
+            # discriminator, so we only forward the name as a checkpoint path when
+            # it points at an existing local file.
+            checkpoint_path = self.config.model.name
 
-        model = SampleID.load_checkpoint(ckpt_path=checkpoint_path, device=device)
+            if not checkpoint_path or not os.path.isfile(checkpoint_path):
+                checkpoint_path = None
 
-        return model, device
+            model = SampleID.load_checkpoint(ckpt_path=checkpoint_path, device=device)
+
+            return model, device
+
+        return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await SampleidMusicEmbeddingTaskAction(

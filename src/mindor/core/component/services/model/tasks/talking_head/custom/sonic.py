@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SonicTalkingHeadModelActionConfig
@@ -16,7 +16,7 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, asyncio, sys
+import os, tempfile, shutil, importlib.util, asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -166,6 +166,7 @@ class SonicTalkingHeadTaskService(ModelTaskService):
 
     def _merge_sonic_root_module(self) -> None:
         import mindor
+
         install_root = Path(mindor.__file__).resolve().parent.parent
         sonic_pkg_dir = install_root / "sonic"
         init_path = sonic_pkg_dir / "__init__.py"
@@ -195,35 +196,36 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         rewrite_python_imports(sonic_pkg_dir, { "src": "sonic" })
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.pipeline = await self._load_pipeline()
+        self.pipeline, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
+        self.device = None
 
-    async def _load_pipeline(self) -> Any:
-        from huggingface_hub import snapshot_download
-        import sonic  # our installed package
-
+    async def _load_pipeline(self) -> Tuple[Any, torch.device]:
         # LeonJoe13/Sonic ships only Sonic/RIFE/yoloface — the pipeline also
         # needs the SVD-XT base and whisper-tiny at fixed subdirs. Materialise
         # `checkpoints/` next to the installed package: Sonic's own weights
         # as a symlink to the primary snapshot, and the two extra repos
         # snapshot-downloaded into their expected subdirs.
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        device = self._resolve_device(self.config.device)
 
-        install_root = os.path.dirname(sonic.__file__)
-        checkpoints_dir = os.path.join(install_root, "checkpoints")
+        def _load() -> Any:
+            from huggingface_hub import snapshot_download
+            import sonic  # our installed package
 
-        os.makedirs(checkpoints_dir, exist_ok=True)
+            checkpoints_dir = os.path.join(os.path.dirname(sonic.__file__), "checkpoints")
+            device_index = device.index if device.index is not None else 0
 
-        for entry in os.listdir(model_path):
-            symlink = os.path.join(checkpoints_dir, entry)
+            os.makedirs(checkpoints_dir, exist_ok=True)
 
-            if not os.path.lexists(symlink):
-                os.symlink(os.path.join(model_path, entry), symlink)
+            for entry in os.listdir(model_path):
+                symlink = os.path.join(checkpoints_dir, entry)
 
-        def _fetch_extras() -> None:
+                if not os.path.lexists(symlink):
+                    os.symlink(os.path.join(model_path, entry), symlink)
+
             snapshot_download(
                 "stabilityai/stable-video-diffusion-img2vid-xt",
                 local_dir=os.path.join(checkpoints_dir, "stable-video-diffusion-img2vid-xt"),
@@ -233,14 +235,11 @@ class SonicTalkingHeadTaskService(ModelTaskService):
                 local_dir=os.path.join(checkpoints_dir, "whisper-tiny"),
             )
 
-        await asyncio.get_running_loop().run_in_executor(None, _fetch_extras)
-
-        device_index = self.device.index if self.device.index is not None else 0
-
-        def _load() -> Any:
             return sonic.Sonic(device_id=device_index, enable_interpolate_frame=True)
 
-        return await asyncio.get_running_loop().run_in_executor(None, _load)
+        pipeline = await self._run_in_executor(_load)
+
+        return pipeline, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await SonicTalkingHeadTaskAction(action, self.pipeline, self.device).run(context)

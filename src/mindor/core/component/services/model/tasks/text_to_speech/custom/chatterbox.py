@@ -113,10 +113,14 @@ class ChatterboxTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, Any]:
-        from chatterbox.tts import ChatterboxTTS
-
         device = self._resolve_device(self.config.device)
-        model = ChatterboxTTS.from_pretrained(str(device))
+
+        def _load() -> Any:
+            from chatterbox.tts import ChatterboxTTS
+
+            return ChatterboxTTS.from_pretrained(str(device))
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

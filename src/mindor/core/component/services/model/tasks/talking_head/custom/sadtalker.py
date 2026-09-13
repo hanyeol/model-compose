@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, SadTalkerPreset, SadTalkerPreprocess
 from mindor.dsl.schema.action import ModelActionConfig, SadTalkerTalkingHeadModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -14,7 +14,7 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, asyncio
+import os, tempfile, shutil, importlib.util
 
 if TYPE_CHECKING:
     import torch
@@ -309,38 +309,41 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
                     importlib.invalidate_caches()
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.pipeline = await self._load_pipeline()
+        self.pipeline, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
+        self.device = None
 
-    async def _load_pipeline(self) -> Dict[str, Any]:
-        from sadtalker.utils.preprocess import CropAndExtract
-        from sadtalker.test_audio2coeff import Audio2Coeff
-        from sadtalker.facerender.animate import AnimateFromCoeff
-        from sadtalker.utils.init_path import init_path
-        import sadtalker
-
+    async def _load_pipeline(self) -> Tuple[Dict[str, Any], torch.device]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
-
-        # SadTalker keeps its yaml configs alongside the code under `src/config`
-        # in the upstream layout — after the install-time rename that becomes
-        # `sadtalker/config` in site-packages. Upstream ships no __init__.py,
-        # so `sadtalker` is a namespace package with `__file__ is None` — read
-        # the directory from `__path__` instead.
-        config_dir = os.path.join(sadtalker.__path__[0], "config")
-        size = _SADTALKER_PRESET_SIZE[self.config.preset]
-        sadtalker_paths = init_path(model_path, config_dir, size, False, self.config.preprocess.value)
+        device = self._resolve_device(self.config.device)
 
         def _load() -> Dict[str, Any]:
+            from sadtalker.utils.preprocess import CropAndExtract
+            from sadtalker.test_audio2coeff import Audio2Coeff
+            from sadtalker.facerender.animate import AnimateFromCoeff
+            from sadtalker.utils.init_path import init_path
+            import sadtalker
+
+            config_dir = os.path.join(sadtalker.__path__[0], "config")
+            sadtalker_paths = init_path(
+                model_path,
+                config_dir,
+                _SADTALKER_PRESET_SIZE[self.config.preset],
+                False,
+                self.config.preprocess.value
+            )
+
             return {
-                "preprocess":     CropAndExtract(sadtalker_paths, self.device),
-                "audio_to_coeff": Audio2Coeff(sadtalker_paths, self.device),
-                "animate":        AnimateFromCoeff(sadtalker_paths, self.device),
+                "preprocess":     CropAndExtract(sadtalker_paths, device),
+                "audio_to_coeff": Audio2Coeff(sadtalker_paths, device),
+                "animate":        AnimateFromCoeff(sadtalker_paths, device),
             }
 
-        return await asyncio.get_running_loop().run_in_executor(None, _load)
+        pipeline = await self._run_in_executor(_load)
+
+        return pipeline, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await SadTalkerTalkingHeadTaskAction(

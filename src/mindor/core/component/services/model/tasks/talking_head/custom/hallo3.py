@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, Hallo3TalkingHeadModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -14,7 +14,7 @@ from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, sys, tempfile, shutil, importlib.util, asyncio
+import os, sys, tempfile, shutil, importlib.util
 
 if TYPE_CHECKING:
     import torch
@@ -156,52 +156,58 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
             )
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.generator, self.repo_root = await self._load_pipeline()
+        self.generator, self.repo_root, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.generator = None
+        self.repo_root = None
+        self.device = None
 
-    async def _load_pipeline(self) -> tuple[Any, str]:
-        import hallo3
-
-        # Hallo3's internal modules import each other as top-level names
-        # (`from diffusion_video import ...`) rather than `from hallo3.…`,
-        # so the `hallo3/` package directory must be on sys.path itself.
-        hallo3_dir = hallo3.__path__[0]
-
-        if hallo3_dir not in sys.path:
-            sys.path.insert(0, hallo3_dir)
-
-        from hallo3.app import VideoGenerator
-
+    async def _load_pipeline(self) -> Tuple[Any, str, torch.device]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        device = self._resolve_device(self.config.device)
 
-        # Hallo3's configs reference `./pretrained_models/<subdir>` for six
-        # different checkpoints (hallo3, t5-v1_1-xxl, cogvideox-5b-i2v-sat,
-        # wav2vec, audio_separator, face_analysis). The fudan-generative-ai/
-        # hallo3 HF repo bundles all of them at its snapshot root, so mount
-        # the whole snapshot as `pretrained_models` and every relative path
-        # resolves.
-        repo_root = os.path.dirname(hallo3.__path__[0])
-        pretrained_symlink = os.path.join(repo_root, "pretrained_models")
+        def _load() -> Tuple[Any, str]:
+            import hallo3
 
-        if os.path.islink(pretrained_symlink):
-            os.unlink(pretrained_symlink)
-        elif os.path.exists(pretrained_symlink):
-            shutil.rmtree(pretrained_symlink)
+            # Hallo3's internal modules import each other as top-level names
+            # (`from diffusion_video import ...`) rather than `from hallo3.…`,
+            # so the `hallo3/` package directory must be on sys.path itself.
+            hallo3_dir = hallo3.__path__[0]
 
-        os.symlink(model_path, pretrained_symlink)
+            if hallo3_dir not in sys.path:
+                sys.path.insert(0, hallo3_dir)
 
-        last_cwd = os.getcwd()
-        os.chdir(repo_root)
+            from hallo3.app import VideoGenerator
 
-        try:
-            generator = await asyncio.get_running_loop().run_in_executor(None, VideoGenerator)
-        finally:
-            os.chdir(last_cwd)
+            # Hallo3's configs reference `./pretrained_models/<subdir>` for six
+            # different checkpoints (hallo3, t5-v1_1-xxl, cogvideox-5b-i2v-sat,
+            # wav2vec, audio_separator, face_analysis). The fudan-generative-ai/
+            # hallo3 HF repo bundles all of them at its snapshot root, so mount
+            # the whole snapshot as `pretrained_models` and every relative path
+            # resolves.
+            repo_root = os.path.dirname(hallo3.__path__[0])
 
-        return generator, repo_root
+            pretrained_symlink = os.path.join(repo_root, "pretrained_models")
+
+            if os.path.islink(pretrained_symlink):
+                os.unlink(pretrained_symlink)
+            elif os.path.exists(pretrained_symlink):
+                shutil.rmtree(pretrained_symlink)
+
+            os.symlink(model_path, pretrained_symlink)
+
+            last_cwd = os.getcwd()
+            os.chdir(repo_root)
+
+            try:
+                return VideoGenerator(), repo_root
+            finally:
+                os.chdir(last_cwd)
+
+        generator, repo_root = await self._run_in_executor(_load)
+
+        return generator, repo_root, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Hallo3TalkingHeadTaskAction(

@@ -190,11 +190,16 @@ class SwinIRImageUpscaleTaskService(ModelTaskService):
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        model = SwinIR(**self._get_model_params())
-        self._load_model_checkpoint(model, model_path)
+        def _load() -> SwinIR:
+            model = SwinIR(**self._get_model_params())
+            self._load_model_checkpoint(model, model_path)
 
-        model = model.to(device)
-        model.eval()
+            model = model.to(device)
+            model.eval()
+
+            return model
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

@@ -30,21 +30,26 @@ class VllmModelTaskService(ModelTaskService):
         return [ "vllm" ]
 
     async def _load_model(self) -> None:
-        from vllm import AsyncEngineArgs, AsyncLLMEngine
-
         model_path = await self._provision_model(self.config.model)
-        params = self._get_model_params(self.config.model)
-        options = self._get_model_options(self.config)
-
-        if options:
-            params.update(options)
 
         logging.info(f"Component '{self.id}': loading vLLM model from '{model_path}'")
 
-        engine_args = AsyncEngineArgs(model=model_path, **params)
-        self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+        def _load() -> AsyncLLMEngine:
+            from vllm import AsyncEngineArgs, AsyncLLMEngine
 
-        self._load_tokenizer(model_path, params)
+            params: Dict[str, Any] = {
+                **self._get_model_params(self.config.model),
+                **self._get_model_options(self.config),
+            }
+
+            engine_args = AsyncEngineArgs(model=model_path, **params)
+            engine = AsyncLLMEngine.from_engine_args(engine_args)
+
+            self._load_tokenizer(model_path, params)
+
+            return engine
+
+        self.engine = await self._run_in_executor(_load)
 
     def _load_tokenizer(self, model_path: str, params: Dict[str, Any]) -> None:
         from transformers import AutoTokenizer
@@ -54,6 +59,7 @@ class VllmModelTaskService(ModelTaskService):
 
         if params.get("trust_remote_code"):
             tokenizer_params["trust_remote_code"] = True
+
         if params.get("tokenizer_revision"):
             tokenizer_params["revision"] = params["tokenizer_revision"]
         elif params.get("revision"):
@@ -65,6 +71,7 @@ class VllmModelTaskService(ModelTaskService):
         if self.engine is not None:
             try:
                 shutdown = getattr(self.engine, "shutdown_background_loop", None)
+
                 if callable(shutdown):
                     shutdown()
             except Exception:

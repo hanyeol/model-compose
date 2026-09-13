@@ -254,8 +254,6 @@ class CrisperWhisperSpeechToTextTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[CrisperWhisperModel, torch.device]:
-        from crisperwhisper import CrisperWhisperModel
-
         if isinstance(self.config.model, HuggingfaceModelConfig) and self.config.model.repository in _MODEL_SHORTHANDS:
             # CrisperWhisperModel resolves shorthands ("large", "turbo", ...) to
             # nyralabs/CrisperWhisper2.0_<size> itself, so skip our provisioner.
@@ -266,14 +264,19 @@ class CrisperWhisperSpeechToTextTaskService(ModelTaskService):
         device = self._resolve_device(self.config.device)
         backend = self._resolve_backend()
 
-        model = CrisperWhisperModel(
-            model_path,
-            backend=backend,
-            compute_type=self._resolve_compute_type(device, backend),
-            device=device.type,
-            device_index=device.index if device.index is not None else 0,
-            draft_model=self.config.draft_model,
-        )
+        def _load() -> CrisperWhisperModel:
+            from crisperwhisper import CrisperWhisperModel
+
+            return CrisperWhisperModel(
+                model_path,
+                backend=backend,
+                compute_type=self._resolve_compute_type(device, backend),
+                device=device.type,
+                device_index=device.index if device.index is not None else 0,
+                draft_model=self.config.draft_model,
+            )
+
+        model = await self._run_in_executor(_load)
 
         return model, device
 

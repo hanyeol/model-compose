@@ -65,23 +65,27 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.VLLM)
 class VllmTextEmbeddingTaskService(VllmModelTaskService):
     async def _load_model(self) -> None:
-        from vllm import AsyncEngineArgs, AsyncLLMEngine
-
         model_path = await self._provision_model(self.config.model)
-        params = self._get_model_params(self.config.model)
-        options = self._get_model_options(self.config)
-
-        if options:
-            params.update(options)
-
-        params.setdefault("task", "embed")
 
         logging.info(f"Component '{self.id}': loading vLLM embedding model from '{model_path}'")
 
-        engine_args = AsyncEngineArgs(model=model_path, **params)
-        self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+        def _load():
+            from vllm import AsyncEngineArgs, AsyncLLMEngine
 
-        self._load_tokenizer(model_path, params)
+            params: Dict[str, Any] = {
+                "task": "embed",
+                **self._get_model_params(self.config.model),
+                **self._get_model_options(self.config),
+            }
+
+            engine_args = AsyncEngineArgs(model=model_path, **params)
+            engine = AsyncLLMEngine.from_engine_args(engine_args)
+
+            self._load_tokenizer(model_path, params)
+
+            return engine
+
+        self.engine = await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await VllmTextEmbeddingTaskAction(action, self.engine).run(context)

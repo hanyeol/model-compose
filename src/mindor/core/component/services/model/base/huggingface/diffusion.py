@@ -43,34 +43,38 @@ class HuggingfaceDiffusionPipelineTaskService(HuggingfaceModelTaskService, Gener
         device = self._resolve_device(self.config.device)
         dtype = self._get_pipeline_dtype(device)
 
-        params = self._get_model_params(self.config.model)
-        params["torch_dtype"] = dtype
-
-        quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
-
-        if quantization_config is not None:
-            params["quantization_config"] = quantization_config
-
         submodules = await self._load_pipeline_submodules(device, dtype)
 
-        if submodules:
-            params.update(submodules)
+        def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
+            params: Dict[str, Any] = {
+                **self._get_model_params(self.config.model),
+                **submodules,
+                "torch_dtype": dtype,
+            }
 
-        base_pipeline_cls = self._get_pipeline_class(None)
-        logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {model_path}")
-        base_pipeline = await self._run_in_executor(base_pipeline_cls.from_pretrained, model_path, **params)
-        base_pipeline = await self._run_in_executor(base_pipeline.to, device)
+            quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
 
-        pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
+            if quantization_config is not None:
+                params["quantization_config"] = quantization_config
 
-        for method in methods:
-            pipeline_cls = self._get_pipeline_class(method)
+            base_pipeline_cls = self._get_pipeline_class(None)
+            logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {model_path}")
+            base_pipeline = base_pipeline_cls.from_pretrained(model_path, **params).to(device)
 
-            if pipeline_cls is base_pipeline_cls:
-                pipelines[method] = base_pipeline
-            else:
-                logging.info(f"Component '{self.id}': deriving {pipeline_cls.__name__} from {base_pipeline_cls.__name__}")
-                pipelines[method] = await self._run_in_executor(pipeline_cls.from_pipe, base_pipeline)
+            pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
+
+            for method in methods:
+                pipeline_cls = self._get_pipeline_class(method)
+
+                if pipeline_cls is base_pipeline_cls:
+                    pipelines[method] = base_pipeline
+                else:
+                    logging.info(f"Component '{self.id}': deriving {pipeline_cls.__name__} from {base_pipeline_cls.__name__}")
+                    pipelines[method] = pipeline_cls.from_pipe(base_pipeline)
+
+            return pipelines
+
+        pipelines = await self._run_in_executor(_load)
 
         return pipelines, device
 

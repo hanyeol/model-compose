@@ -166,10 +166,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
             outputs = self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
             return [
-                [
-                    outputs[index * num_return_sequences + sequence]
-                    for sequence in range(num_return_sequences)
-                ]
+                [ outputs[index * num_return_sequences + sequence] for sequence in range(num_return_sequences) ]
                 for index in range(len(messages))
             ]
 
@@ -177,6 +174,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         if streaming:
             loop = asyncio.get_running_loop()
+
             return [
                 [ SyncGeneratorStreamer(streamer, loop) for streamer in sequences ]
                 for sequences in results
@@ -188,11 +186,17 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         messages: List[Dict[str, Any]] = []
 
         if system_prompt:
-            messages.append({ "role": "system", "content": [{ "type": "text", "text": system_prompt }] })
+            messages.append({
+                "role": "system",
+                "content": [ { "type": "text", "text": system_prompt } ]
+            })
 
         messages.append({
             "role": "user",
-            "content": [ *[ { "type": "image" } for _ in range(image_count) ], { "type": "text", "text": prompt } ],
+            "content": [
+                *[ { "type": "image" } for _ in range(image_count) ],
+                { "type": "text", "text": prompt }
+            ],
         })
 
         return messages

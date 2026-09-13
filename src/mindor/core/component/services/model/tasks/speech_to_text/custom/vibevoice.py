@@ -14,6 +14,7 @@ from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ....base import ModelTaskService
+from ....utils.huggingface import is_checkpoint_prequantized
 from ..common import SpeechToTextTaskAction
 import os, asyncio, json
 
@@ -320,15 +321,25 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
             from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
 
             processor = VibeVoiceASRProcessor.from_pretrained(model_path)
+            prequantized = is_checkpoint_prequantized(model_path)
             streaming_info = self._load_streaming_info(model_path)
 
-            model = VibeVoiceASRForConditionalGeneration.from_pretrained(
-                model_path,
-                torch_dtype=dtype,
-                attn_implementation=self.config.attn_implementation,
-            ).to(device).eval()
+            params: Dict[str, Any] = {
+                "torch_dtype": dtype,
+                "attn_implementation": self.config.attn_implementation,
+            }
 
-            return model, processor, streaming_info
+            # Pre-quantized bnb checkpoints must be placed via device_map at
+            # load time; Linear4bit rejects a follow-up `.to(device)`.
+            if prequantized:
+                params["device_map"] = { "": device }
+
+            model = VibeVoiceASRForConditionalGeneration.from_pretrained(model_path, **params)
+
+            if not prequantized:
+                model = model.to(device)
+
+            return model.eval(), processor, streaming_info
 
         model, processor, streaming_info = await self._run_in_executor(_load)
 

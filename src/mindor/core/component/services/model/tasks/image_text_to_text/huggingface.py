@@ -92,6 +92,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         if num_beams > 1:
             if length_penalty is not None:
                 params["length_penalty"] = length_penalty
+
             params["early_stopping"] = early_stopping
 
         return params

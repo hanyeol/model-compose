@@ -321,7 +321,7 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
             from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
 
             processor = VibeVoiceASRProcessor.from_pretrained(model_path)
-            prequantized = is_checkpoint_prequantized(model_path)
+            is_prequantized = is_checkpoint_prequantized(model_path)
             streaming_info = self._load_streaming_info(model_path)
 
             params: Dict[str, Any] = {
@@ -331,12 +331,12 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
 
             # Pre-quantized bnb checkpoints must be placed via device_map at
             # load time; Linear4bit rejects a follow-up `.to(device)`.
-            if prequantized:
+            if is_prequantized:
                 params["device_map"] = { "": device }
 
             model = VibeVoiceASRForConditionalGeneration.from_pretrained(model_path, **params)
 
-            if not prequantized:
+            if not is_prequantized:
                 model = model.to(device)
 
             return model.eval(), processor, streaming_info

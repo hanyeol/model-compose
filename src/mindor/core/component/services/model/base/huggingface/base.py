@@ -17,6 +17,7 @@ from mindor.dsl.schema.component import (
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ..common import ModelTaskService
+from ...utils.huggingface import is_checkpoint_prequantized
 import asyncio
 
 if TYPE_CHECKING:
@@ -50,33 +51,37 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
         # from_pretrained downloads/mmaps checkpoint shards and instantiates
         # the model on-device — blocking work that would freeze the loop.
-        def _load() -> Tuple[PreTrainedModel, Optional[Any]]:
+        def _load() -> Tuple[PreTrainedModel, Optional[Any], bool]:
             params: Dict[str, Any] = {
                 **self._get_model_params(self.config.model),
                 **self._get_model_options(self.config)
             }
 
             quantization_config = self._resolve_model_quantization_config(self.config, device, dtype)
+            is_prequantized = is_checkpoint_prequantized(model_path)
 
             if quantization_config is not None:
                 params["quantization_config"] = quantization_config
 
             if device is not None:
-                if quantization_config is not None:
+                # Both runtime-quantized and pre-quantized bnb models must be
+                # placed via device_map at load time; Linear4bit rejects a
+                # follow-up `.to(device)`.
+                if quantization_config is not None or is_prequantized:
                     params["device_map"] = { "": device }
             else:
                 params["device_map"] = self.config.device_mode.value
 
             model = self._get_model_class().from_pretrained(model_path, **params)
 
-            return model, quantization_config
+            return model, quantization_config, is_prequantized
 
-        model, quantization_config = await self._run_in_executor(_load)
+        model, quantization_config, is_prequantized = await self._run_in_executor(_load)
 
         if len(self.config.peft_adapters or []) > 0:
             model = await self._load_peft_adapters(model, self.config.peft_adapters)
 
-        if device is not None and quantization_config is None:
+        if device is not None and quantization_config is None and not is_prequantized:
             model = await self._run_in_executor(model.to, device)
 
         return model, model_path

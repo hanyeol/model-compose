@@ -59,6 +59,9 @@ class HuggingfaceDiffusionPipelineTaskService(HuggingfaceModelTaskService, Gener
 
             base_pipeline_cls = self._get_pipeline_class(None)
             logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {model_path}")
+
+            # Pipeline-level `.to(device)` is safe even for quantized pipelines
+            # (diffusers docs), unlike transformers' Linear4bit which rejects it.
             base_pipeline = base_pipeline_cls.from_pretrained(model_path, **params).to(device)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}

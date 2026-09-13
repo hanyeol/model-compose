@@ -25,14 +25,12 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
     def __init__(
         self,
         config: Hallo2TalkingHeadModelActionConfig,
-        model_path: str,
         config_path: str,
         repo_root: str,
         device: torch.device,
     ):
         super().__init__(config)
 
-        self.model_path: str = model_path
         self.config_path: str = config_path
         self.repo_root: str = repo_root
         self.device: torch.device = device
@@ -163,7 +161,6 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.model_path: Optional[str] = None
         self.config_path: Optional[str] = None
         self.repo_root: Optional[str] = None
         self.device: Optional[torch.device] = None
@@ -202,19 +199,18 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
             )
 
     async def _load_model(self) -> None:
-        self.model_path, self.config_path, self.repo_root, self.device = await self._load_pipeline()
+        self.config_path, self.repo_root, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
-        self.model_path = None
         self.config_path = None
         self.repo_root = None
         self.device = None
 
-    async def _load_pipeline(self) -> Tuple[str, str, str, torch.device]:
+    async def _load_pipeline(self) -> Tuple[str, str, torch.device]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
-        def _load() -> Tuple[str, str, str]:
+        def _load() -> Tuple[str, str]:
             import hallo
 
             # Config yaml lives inside the repo tree we installed above; `hallo`
@@ -231,16 +227,15 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
 
             os.symlink(model_path, pretrained_symlink)
 
-            return model_path, config_path, repo_root
+            return config_path, repo_root
 
-        model_path, config_path, repo_root = await self._run_in_executor(_load)
+        config_path, repo_root = await self._run_in_executor(_load)
 
-        return model_path, config_path, repo_root, device
+        return config_path, repo_root, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Hallo2TalkingHeadTaskAction(
             action,
-            self.model_path,
             self.config_path,
             self.repo_root,
             self.device,

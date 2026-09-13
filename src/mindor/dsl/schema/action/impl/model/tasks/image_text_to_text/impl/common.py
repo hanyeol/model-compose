@@ -13,7 +13,7 @@ class ImageTextToTextParamsConfig(BaseModel):
     early_stopping: bool = Field(default=True, description="Whether beam search stops once all beams finish generating.")
 
 class ImageTextToTextModelActionConfig(CommonModelActionConfig):
-    prompt: Union[str, List[str]] = Field(..., description="Text prompt; a list is treated as a batch of prompts.")
+    prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text prompt; a list is treated as a batch of prompts. Omit for image-only models (e.g. OCR).")
     image: Union[str, List[str], List[List[str]]] = Field(..., description="Image or images fed into the vision-language model; a list per prompt for multi-image prompts.")
     system_prompt: Optional[str] = Field(default=None, description="System instruction prepended before the user prompt.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens accepted per input prompt.")

@@ -6,13 +6,14 @@ from .common import CommonImageTextToTextModelComponentConfig
 from ...common import ModelDriver
 
 class HuggingfaceImageTextToTextModelArchitecture(str, Enum):
-    AUTO       = "auto"
-    QWEN2_VL   = "qwen2-vl"
-    QWEN2_5_VL = "qwen2.5-vl"
-    LLAVA      = "llava"
-    LLAVA_NEXT = "llava-next"
-    IDEFICS3   = "idefics3"
-    INTERNVL   = "internvl"
+    AUTO        = "auto"
+    QWEN2_VL    = "qwen2-vl"
+    QWEN2_5_VL  = "qwen2.5-vl"
+    LLAVA       = "llava"
+    LLAVA_NEXT  = "llava-next"
+    IDEFICS3    = "idefics3"
+    INTERNVL    = "internvl"
+    LIGHTON_OCR = "lighton-ocr"
 
 class HuggingfaceImageTextToTextModelComponentConfig(CommonImageTextToTextModelComponentConfig):
     driver: Literal[ModelDriver.HUGGINGFACE]

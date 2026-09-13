@@ -110,39 +110,36 @@ def rewrite_python_imports(root: Path, mapping: Dict[str, str]) -> None:
 
     for path in root.rglob("*.py"):
         try:
-            original = path.read_text(encoding="utf-8")
+            source = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
 
-        rewritten = original
-        for pattern, repl in patterns:
-            rewritten = pattern.sub(repl, rewritten)
+        rewritten = source
 
-        if rewritten != original:
+        for pattern, replacement in patterns:
+            rewritten = pattern.sub(replacement, rewritten)
+
+        if rewritten != source:
             path.write_text(rewritten, encoding="utf-8")
 
 def parse_requirement(package_spec: str) -> Optional[Requirement]:
-    """Attempt to parse the package specification as a PEP 508 requirement.
+    """Parse `package_spec` as a PEP 508 requirement.
 
-    Args:
-        package_spec: A package specification string (e.g., "torch>=2.0.0" or "git+https://github.com/...")
-
-    Returns:
-        A Requirement object if the specification can be parsed, None otherwise
-    """    
+    Returns None when the spec is not a valid PEP 508 requirement — for example
+    direct URLs (`"git+https://..."`) or local paths — so callers can distinguish
+    "not a versioned dependency" from a parse error.
+    """
     try:
         return Requirement(package_spec)
     except Exception:
         return None
 
 def is_requirement_satisfied(requirement: Requirement) -> bool:
-    """Check whether the installed version of a package satisfies the given requirement.
+    """Check whether the installed distribution satisfies `requirement`.
 
-    Args:
-        requirement: Requirement object specifying the package name and version constraints.
-
-    Returns:
-        True if the package is installed and its version meets the requirement, False otherwise.
+    Returns False when the package is not installed at all, when its version
+    falls outside the specifier, or when any of the requested extras are
+    themselves unsatisfied.
     """
     distribution_name = canonicalize_name(requirement.name)
 
@@ -162,20 +159,12 @@ def is_requirement_satisfied(requirement: Requirement) -> bool:
     return True
 
 def is_extra_requirement_satisfied(requirement: Requirement) -> bool:
-    """Check whether the extras listed on ``requirement`` have their dependencies installed.
+    """Check whether the extras listed on `requirement` have their dependencies installed.
 
     Base version and existence are the caller's job — this function only walks
-    the ``Requires-Dist`` entries gated by ``extra == "..."`` markers and
-    verifies each of those dependencies is itself satisfied.
-
-    Args:
-        requirement: Requirement object whose ``extras`` set names one or
-            more optional dependency groups declared by the target package.
-
-    Returns:
-        True if every dependency listed under the requested extras is
-        installed at a matching version. False if any is missing or if the
-        target package's metadata cannot be read.
+    the `Requires-Dist` entries gated by `extra == "..."` markers and verifies
+    each of those dependencies is itself satisfied. Returns False if any is
+    missing or if the target package's metadata cannot be read.
     """
     distribution_name = canonicalize_name(requirement.name)
 
@@ -202,6 +191,23 @@ def is_extra_requirement_satisfied(requirement: Requirement) -> bool:
             return False
 
     return True
+
+def remove_requirement(requirements: List[str], package_name: str) -> Optional[str]:
+    """Remove the first spec in `requirements` that targets `package_name` and return it.
+
+    Matches on canonicalized distribution names rather than raw prefixes so
+    `transformers` doesn't accidentally strip `transformers-foo`. Mutates
+    `requirements` in place; returns None when no matching spec is present.
+    """
+    canonical_name = canonicalize_name(package_name)
+
+    for index, spec in enumerate(requirements):
+        requirement = parse_requirement(spec)
+
+        if requirement and canonicalize_name(requirement.name) == canonical_name:
+            return requirements.pop(index)
+
+    return None
 
 def get_mindor_install_root() -> Path:
     return _MINDOR_INSTALL_ROOT

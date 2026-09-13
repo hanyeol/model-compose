@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageTextToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.package.installer import remove_requirement
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -182,7 +183,12 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return results
 
-    def _build_messages(self, prompt: str, image_count: int, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
+    def _build_messages(
+        self,
+        prompt: Optional[str],
+        image_count: int,
+        system_prompt: Optional[str]
+    ) -> List[Dict[str, Any]]:
         messages: List[Dict[str, Any]] = []
 
         if system_prompt:
@@ -191,18 +197,31 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
                 "content": [ { "type": "text", "text": system_prompt } ]
             })
 
+        content: List[Dict[str, Any]] = [ { "type": "image" } for _ in range(image_count) ]
+
+        if prompt:
+            content.append({ "type": "text", "text": prompt })
+
         messages.append({
             "role": "user",
-            "content": [
-                *[ { "type": "image" } for _ in range(image_count) ],
-                { "type": "text", "text": prompt }
-            ],
+            "content": content,
         })
 
         return messages
 
 @register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
 class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskService):
+    def _get_setup_requirements(self) -> List[str]:
+        requirements = super()._get_setup_requirements()
+
+        if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.LIGHTON_OCR:
+            # LightOnOcr* classes ship in transformers v5+; drop the base pin so
+            # the stricter one wins instead of racing two specs at install time.
+            remove_requirement(requirements, "transformers")
+            requirements.append("transformers>=5.0.0")
+
+        return requirements
+
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.AUTO:
             from transformers import AutoModelForVision2Seq
@@ -231,6 +250,10 @@ class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskServic
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.INTERNVL:
             from transformers import InternVLForConditionalGeneration
             return InternVLForConditionalGeneration
+
+        if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.LIGHTON_OCR:
+            from transformers import LightOnOcrForConditionalGeneration
+            return LightOnOcrForConditionalGeneration
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 
@@ -262,6 +285,10 @@ class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskServic
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.INTERNVL:
             from transformers import InternVLProcessor
             return InternVLProcessor
+
+        if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.LIGHTON_OCR:
+            from transformers import LightOnOcrProcessor
+            return LightOnOcrProcessor
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
 

@@ -1,0 +1,150 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Video Dubbing (Transcribe → Translate → TTS → Lip Sync)
+  description: |
+    End-to-end video dubbing pipeline: extract the source audio track,
+    transcribe it to text, translate the transcript into the target
+    language, synthesise a new voice-over with TTS, and re-sync the
+    original video's mouth movements to the generated voice using
+    Wav2Lip. The output is a dubbed video whose lips match the new
+    audio track.
+
+    Each stage is a separate component so any step can be swapped —
+    e.g. switch the STT backend to `crisper-whisper` for punctuation,
+    swap the TTS voice, or replace Wav2Lip with `musetalk` /
+    `latentsync` for higher-quality lip sync.
+  jobs:
+    - id: extract-audio
+      component: audio-extractor
+      input:
+        source: ${input.video as video}
+
+    - id: transcribe
+      component: stt
+      input:
+        audio: ${jobs.extract-audio.output}
+        language: ${input.source_language as select/en,ko,ja,zh | en}
+      depends_on: [ extract-audio ]
+
+    - id: translate
+      component: translator
+      input:
+        text: ${jobs.transcribe.output}
+        target_language: ${input.target_language as select/en,ko,ja,zh | ko}
+      depends_on: [ transcribe ]
+
+    - id: synthesize
+      component: tts
+      input:
+        text: ${jobs.translate.output}
+      depends_on: [ translate ]
+
+    - id: lip-sync
+      component: lip-syncer
+      input:
+        video: ${input.video as video}
+        audio: ${jobs.synthesize.output}
+      output: ${output as video/mp4}
+      depends_on: [ synthesize ]
+
+components:
+  # Strip the source audio track from the input video into a WAV file
+  # that Whisper can consume directly (16 kHz mono, no re-encoding
+  # surprises further down the pipeline).
+  - id: audio-extractor
+    type: audio-extractor
+    driver: ffmpeg
+    action:
+      source: ${input.source}
+      format: wav
+      encoding:
+        codec: pcm_s16le
+      track: 0
+
+  # Whisper turbo for fast STT; returns a single string per input so
+  # the downstream translator sees the full transcript in one shot.
+  - id: stt
+    type: model
+    task: speech-to-text
+    driver: huggingface
+    architecture: whisper
+    model: openai/whisper-large-v3-turbo
+    device: cuda:0
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio}
+      language: ${input.language}
+      task: transcribe
+      return_timestamps: false
+      max_output_length: 444
+
+  # Multilingual seq2seq translator (SMaLL-100 covers ~100 languages).
+  # Feed the source-language transcript and the target-language ISO
+  # code; the model handles the rest.
+  - id: translator
+    type: model
+    task: text-to-text
+    driver: huggingface
+    model: alirezamsh/small100
+    max_concurrent_count: 1
+    action:
+      text: ${input.text}
+      max_input_length: 1024
+      params:
+        do_sample: false
+        # SMaLL-100 selects the target language via a special language
+        # token forced as the first generated token. Its tokenizer spells
+        # the language token as `__<code>__` (e.g. `__ko__`) — swap in
+        # the appropriate spelling if you point `model` at a different
+        # multilingual seq2seq (NLLB expects `kor_Hang`, mBART expects
+        # `ko_KR`, etc.).
+        forced_bos_token: "__${input.target_language}__"
+
+  # Qwen3-TTS with the built-in `vivian` preset voice. Swap in a
+  # `clone` action + reference audio to preserve the source speaker's
+  # timbre in the dubbed output.
+  - id: tts
+    type: model
+    task: text-to-speech
+    driver: custom
+    family: qwen
+    model: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+    device: cuda:0
+    max_concurrent_count: 1
+    action:
+      method: generate
+      text: ${input.text}
+      voice: vivian
+
+  # Wav2Lip GAN generator: takes the original video plus the new TTS
+  # audio and rewrites the mouth region frame by frame. Auto-fetches
+  # the Wav2Lip_GAN.pth checkpoint on first run.
+  - id: lip-syncer
+    type: model
+    task: lip-sync
+    driver: custom
+    family: wav2lip
+    preset: wav2lip-gan
+    device: cuda:0
+    max_concurrent_count: 1
+    runtime:
+      type: virtualenv
+      driver: python
+      path: .venv/wav2lip
+      start_timeout: 900s
+      stop_timeout: 15s
+    action:
+      video: ${input.video}
+      audio: ${input.audio}
+      params:
+        face_bounding_box_padding: [0, 0, 0, 10]
+        resize_factor: 1
+        face_smoothing: true

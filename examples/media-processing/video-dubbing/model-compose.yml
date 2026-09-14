@@ -51,7 +51,7 @@ workflow:
       component: lip-syncer
       input:
         video: ${input.video as video}
-        audio: ${jobs.synthesize.output}
+        audio: ${jobs.synthesize.output as audio/wav}
       output: ${output as video/mp4}
       depends_on: [ synthesize ]
 

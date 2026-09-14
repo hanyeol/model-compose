@@ -87,7 +87,11 @@ class RealEsrganImageUpscaleTaskService(ModelTaskService):
             hub.cached_download = _raise_not_implemented
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git", "huggingface_hub" ]
+        return [
+            *torch_requirements("torch", "torchvision"),
+            "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git",
+            "huggingface_hub"
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

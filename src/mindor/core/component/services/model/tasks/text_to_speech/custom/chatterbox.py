@@ -103,7 +103,12 @@ class ChatterboxTextToSpeechTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "chatterbox-tts", "numpy", "soundfile" ]
+        return [
+            *torch_requirements("torch", "torchaudio"),
+            "chatterbox-tts",
+            "numpy",
+            "soundfile"
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

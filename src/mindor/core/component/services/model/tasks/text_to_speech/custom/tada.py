@@ -109,7 +109,15 @@ class TadaTextToSpeechTaskService(ModelTaskService):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "tada-tts", "descript-audio-codec", "transformers", "huggingface_hub", "numpy", "soundfile" ]
+        return [
+            *torch_requirements("torch", "torchaudio"),
+            "tada-tts",
+            "descript-audio-codec",
+            "transformers",
+            "numpy",
+            "soundfile",
+            "huggingface_hub"
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.encoder, self.device = await self._load_pretrained_model()

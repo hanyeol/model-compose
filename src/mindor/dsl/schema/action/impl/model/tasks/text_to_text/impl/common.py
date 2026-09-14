@@ -11,6 +11,7 @@ class TextToTextParamsConfig(BaseModel):
     num_beams: Union[int, str] = Field(default=4, description="Number of beams used in beam search.")
     length_penalty: Union[float, str] = Field(default=1.0, description="Length penalty applied during beam search.")
     early_stopping: bool = Field(default=True, description="Whether beam search stops once all beams finish generating.")
+    forced_bos_token: Optional[str] = Field(default=None, description="Token forced as the first generated token.")
 
 class TextToTextModelActionConfig(CommonModelActionConfig):
     text: Union[str, List[str]] = Field(..., description="Source text or texts to translate, summarize, or otherwise transform.")

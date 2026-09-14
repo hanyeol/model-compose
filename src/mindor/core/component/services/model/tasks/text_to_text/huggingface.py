@@ -37,10 +37,11 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        min_output_length    = await context.render_variable(self.config.min_output_length)
-        num_beams            = await context.render_variable(self.config.params.num_beams)
-        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
-        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        min_output_length = await context.render_variable(self.config.min_output_length)
+        num_beams         = await context.render_variable(self.config.params.num_beams)
+        length_penalty    = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping    = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        forced_bos_token  = await context.render_variable(self.config.params.forced_bos_token)
 
         tokenizer_params: Dict[str, Any] = {
             "return_tensors": "pt",
@@ -79,6 +80,14 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
             if length_penalty is not None:
                 generation_params["length_penalty"] = length_penalty
             generation_params["early_stopping"] = early_stopping
+
+        if forced_bos_token is not None:
+            token_id = self.tokenizer.convert_tokens_to_ids(forced_bos_token)
+
+            if token_id is None or token_id == self.tokenizer.unk_token_id:
+                raise ValueError(f"`forced_bos_token` {forced_bos_token!r} is not a known token in this model's tokenizer.")
+
+            generation_params["forced_bos_token_id"] = token_id
 
         params["tokenizer"] = tokenizer_params
         params["generation"] = generation_params

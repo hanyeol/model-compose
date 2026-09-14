@@ -10,7 +10,6 @@ from mindor.dsl.schema.action import QwenTextToSpeechModelGenerateActionConfig
 from mindor.dsl.schema.action import QwenTextToSpeechModelCloneActionConfig
 from mindor.dsl.schema.action import QwenTextToSpeechModelDesignActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.logger import logging
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.package.torch import torch_requirements

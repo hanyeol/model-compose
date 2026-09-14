@@ -18,6 +18,7 @@ ModelActionConfig = Union[
     TextToVideoModelActionConfig,
     ImageToVideoModelActionConfig,
     TalkingHeadModelActionConfig,
+    LipSyncModelActionConfig,
     ObjectDetectionModelActionConfig,
     ObjectTrackingModelActionConfig,
     ShotBoundaryDetectionModelActionConfig,

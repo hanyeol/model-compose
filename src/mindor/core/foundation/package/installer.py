@@ -86,9 +86,15 @@ async def install_package_from_github(
         if not target.exists():
             shutil.copytree(source, target)
 
-            top_module = Path(source_path).parts[0]
+            # `source_path == "."` means the repo root is the package — there
+            # is no original top-level module name to rewrite. Skip the rewrite
+            # in that case; callers that rely on the repo root being on sys.path
+            # (e.g. because upstream uses `from models import ...` style
+            # top-level imports) are expected to insert it themselves at load time.
+            parts = Path(source_path).parts
+            top_module = parts[0] if parts else None
 
-            if top_module != package_name:
+            if top_module is not None and top_module != package_name:
                 rewrite_python_imports(target, { top_module: package_name })
 
     importlib.invalidate_caches()

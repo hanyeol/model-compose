@@ -17,6 +17,7 @@ from .image_segmentation import *
 from .text_to_video import *
 from .image_to_video import *
 from .talking_head import *
+from .lip_sync import *
 from .object_detection import *
 from .object_tracking import *
 from .shot_boundary_detection import *

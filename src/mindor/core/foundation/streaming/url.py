@@ -120,6 +120,7 @@ async def download_to_file(
         # If the server advertised a Content-Length, ensure the download wasn't
         # truncated mid-stream. Chunked/compressed responses leave size=None.
         file_size = os.path.getsize(temp_path)
+
         if stream.size is not None and stream.size != file_size:
             raise IOError(f"Incomplete download from {url}: expected {stream.size} bytes, got {file_size}")
 

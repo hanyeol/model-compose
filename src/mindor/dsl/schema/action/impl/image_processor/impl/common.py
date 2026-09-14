@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
+from mindor.dsl.schema.common.color import Color
 from ...common import CommonActionConfig
 
 class ImageProcessorActionMethod(str, Enum):
@@ -106,12 +107,12 @@ class ImageProcessorConcatActionConfig(CommonImageProcessorActionConfig):
     columns: Optional[Union[int, str]] = Field(default=None, description="Number of columns when `mode` is `grid`.")
     rows: Optional[Union[int, str]] = Field(default=None, description="Number of rows when `mode` is `grid`.")
     spacing: Union[int, str] = Field(default=0, description="Spacing in pixels between adjacent images.")
-    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Canvas background color as a hex string or RGBA tuple.")
+    background: Union[Color, str] = Field(default="#00000000", description="Canvas background color as a hex string or RGBA tuple.")
 
 class ImageProcessorMergeActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.MERGE]
     anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.CENTER, description="Alignment applied to each image on the shared canvas.")
-    background: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Canvas background color as a hex string or RGBA tuple.")
+    background: Union[Color, str] = Field(default="#00000000", description="Canvas background color as a hex string or RGBA tuple.")
 
 class ImageProcessorOverlayActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.OVERLAY]

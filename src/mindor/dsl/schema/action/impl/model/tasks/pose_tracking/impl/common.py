@@ -1,5 +1,6 @@
 from typing import Literal, Optional, Tuple, Union, List, Any
 from pydantic import BaseModel, Field, model_validator
+from mindor.dsl.schema.common.color import Color
 from ...common import CommonModelActionConfig
 
 class CommonPoseTrackingParamsConfig(BaseModel):
@@ -15,7 +16,7 @@ class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
     frame_rate: Union[float, str] = Field(..., description="Frame rate in frames per second used to derive per-frame timestamps.")
     time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch; scalar values broadcast, lists pair per batch.")
     skeleton_format: Union[Literal[ "natural", "openpose" ], str] = Field(default="natural", description="Layout used when rendering the skeleton image.")
-    skeleton_background: Optional[Union[str, Tuple[int, int, int], Tuple[int, int, int, int], List[int]]] = Field(default=None, description="Skeleton canvas background: None yields a transparent RGBA PNG; a color (e.g. '#000000') flattens to that solid RGB fill.")
+    skeleton_background: Optional[Union[Color, str]] = Field(default=None, description="Skeleton canvas background: None yields a transparent RGBA PNG; a color (e.g. '#000000') flattens to that solid RGB fill.")
     return_tracks: Union[bool, str] = Field(default=True, description="Whether the per-person track list is included in the result.")
     return_keypoints: Union[bool, str] = Field(default=True, description="Whether natural-layout 2D keypoints are included on each pose; also emitted per-frame when 'return_detections' is enabled.")
     return_openpose_keypoints: Union[bool, str] = Field(default=False, description="Whether OpenPose BODY_18 keypoints are included on each pose; also emitted per-frame when 'return_detections' is enabled.")

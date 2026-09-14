@@ -16,6 +16,7 @@ from mindor.core.foundation.variable.size import parse_size
 from mindor.core.foundation.variable.time import TimeValueRenderer, parse_time
 from mindor.core.foundation.variable.decimal import parse_decimal
 from mindor.core.foundation.variable.color import parse_color, Color
+from mindor.core.foundation.variable.box import parse_box, Box
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
 from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue, VectorArrayValue
 from mindor.core.foundation.streaming.media import MediaSource
@@ -34,6 +35,7 @@ _SCALAR_PARSERS: Dict[str, Callable[[Any], Any]] = {
     "size":     parse_size,
     "decimal":  parse_decimal,
     "color":    parse_color,
+    "box":      parse_box,
 }
 
 ComponentEventPayload = Dict[str, Any]
@@ -245,9 +247,9 @@ class ComponentActionContext:
     async def render_scalar(
         self,
         value: Any,
-        caster: Union[Callable[[Any], ScalarT], Literal["time", "size", "decimal", "color"]],
-        default: Optional[Union[ScalarT, float, int, Color]] = None
-    ) -> Optional[Union[ScalarT, float, int, Color]]:
+        caster: Union[Callable[[Any], ScalarT], Literal[ "time", "size", "decimal", "color", "box" ]],
+        default: Optional[Union[ScalarT, float, int, Color, Box]] = None
+    ) -> Optional[Union[ScalarT, float, int, Color, Box]]:
         value = await self.render_variable(value) if value is not None else None
 
         if value is not None:

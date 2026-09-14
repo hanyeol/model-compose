@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Union, Literal, Optional, List, Tuple
 from enum import Enum
 from pydantic import Field
+from mindor.dsl.schema.common.color import Color
 from ...common import CommonActionConfig
 from ...media import VideoAudioEncodingConfig
 
@@ -48,7 +49,7 @@ class VideoProcessorPadActionConfig(CommonVideoProcessorActionConfig):
     right: Union[int, str] = Field(default=0, description="Right padding in pixels.")
     top: Union[int, str] = Field(default=0, description="Top padding in pixels.")
     bottom: Union[int, str] = Field(default=0, description="Bottom padding in pixels.")
-    color: Union[str, Tuple[int, int, int, int], List[int]] = Field(default="#00000000", description="Padding color as a hex string or RGBA tuple.")
+    color: Union[Color, str] = Field(default="#00000000", description="Padding color as a hex string or RGBA tuple.")
 
 class VideoProcessorFlipActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.FLIP]

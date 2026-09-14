@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -2791,6 +2791,351 @@ Returns a dict with two fields per input (or a list of dicts for batched inputs)
 
 - `midi` — a MIDI file suitable for saving to `.mid` or feeding into a score renderer.
 - `notes` — a list of `{ "start_time", "end_time", "pitch", "velocity" }` objects (times in seconds, `pitch` as MIDI note number, `velocity` in 0.0-1.0). Basic Pitch adds a `pitch_bends` array on each note when `return_pitch_bends` is enabled.
+
+### Talking Head
+
+Animates a still portrait so it lip-syncs (and moves the head) to a driving audio clip. In contrast to `lip-sync` — which edits the mouth of an existing video — `talking-head` synthesises head motion and expression from a single image. Uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `talking-head` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family: `sadtalker`, `hallo2`, `hallo3`, `sonic`, `echomimic`, or `float` |
+| `preset` | string | family default | Checkpoint variant — see per-family tables below |
+| `model` | string/object | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
+
+**Common Action Fields** (available on every family):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input portrait image (or list/stream of images) used as the source face |
+| `audio` | audio/array | **required** | Input audio (or list of audios) driving the lip sync |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of `(image, audio)` pairs processed per batch |
+| `params.fps` | int | `25` | Output video frame rate |
+
+#### Family: `sadtalker`
+
+OpenTalker/SadTalker — Audio2Coeff + face renderer. Classical, fastest of the six; runs on a single mid-range GPU.
+
+**Component-level fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `preset` | string | `v0.0.2-256` | Checkpoint variant: `v0.0.2-256` or `v0.0.2-512` |
+| `preprocessor` | string | `crop` | Face preprocessor mode: `crop`, `extcrop`, `resize`, `full`, `extfull`. Determines which mapping checkpoint is loaded and cannot vary per action |
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.ref_eyeblink` | string/array | `null` | Reference video whose eye-blink motion is transferred onto the output |
+| `params.ref_pose` | string/array | `null` | Reference video whose head-pose motion is transferred onto the output |
+| `params.pose_style` | int | `0` | Head-pose style index in `[0, 46]` |
+| `params.expression_scale` | float | `1.0` | Multiplier applied to facial expression intensity |
+| `params.input_yaw` / `input_pitch` / `input_roll` | list[int] | `null` | Manual head-rotation keyframes (degrees); override predicted rotation |
+| `params.still` | bool | `false` | Keep the head still (only mouth moves); recommended with `preprocessor: full` |
+| `params.enhancer` | string | `null` | Per-frame face enhancer: `gfpgan` or `RestoreFormer` |
+| `params.background_enhancer` | string | `null` | Background super-resolution enhancer: `realesrgan` |
+| `params.face3dvis` | bool | `false` | Render an additional 3D face visualization video alongside the output |
+| `params.size` | int | `256` | Face renderer resolution; must match the loaded preset (256 or 512) |
+| `params.facerender_batch_size` | int | `2` | Batch size used by the face renderer inference loop |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: sadtalker
+  preset: v0.0.2-256
+  preprocessor: full
+  model: vinthony/SadTalker
+  device: cuda:0
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      still: true
+      enhancer: gfpgan
+      expression_scale: 1.0
+```
+
+#### Family: `hallo2`
+
+fudan-generative-vision/hallo2 — diffusion-based portrait animator with long-video chunk-and-blend and optional built-in super-resolution.
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.pose_weight` | float | `1.1` | Weight applied to the driving pose signal during motion module conditioning |
+| `params.face_weight` | float | `1.1` | Weight applied to the driving face signal during motion module conditioning |
+| `params.lip_weight` | float | `1.1` | Weight applied to the driving lip signal during motion module conditioning |
+| `params.face_expand_ratio` | float | `1.2` | Face crop expansion ratio around the detected face box |
+| `params.inference_steps` | int | `40` | Number of diffusion inference steps per denoising loop |
+| `params.cfg_scale` | float | `3.5` | Classifier-free guidance scale |
+| `params.motion_module_frames` | int | `16` | Number of frames processed per motion module window |
+| `params.long_video` | bool | `true` | Enable long-video mode (chunk-and-blend) for audio longer than one window |
+| `params.high_resolution` | bool | `false` | Run the built-in super-resolution pass to produce a higher-resolution output |
+
+#### Family: `hallo3`
+
+fudan-generative-vision/hallo3 — newer DiT-based portrait video generator with optional text prompt guidance.
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.prompt` | string/array | `null` | Optional text prompt guiding scene, style, or motion |
+| `params.negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `params.inference_steps` | int | `50` | Number of DiT inference steps |
+| `params.guidance_scale` | float | `6.0` | Classifier-free guidance scale for text conditioning |
+| `params.audio_guidance_scale` | float | `3.0` | Guidance scale applied to the audio conditioning branch |
+| `params.resolution` | int | `480` | Output frame resolution (short-side length in pixels) |
+| `params.num_frames` | int | `97` | Number of frames generated per DiT window |
+| `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
+| `params.long_video` | bool | `true` | Enable long-video mode (window-and-blend) for audio longer than one DiT window |
+
+#### Family: `sonic`
+
+LeonJoe13/Sonic — SVD-XT backbone with whisper-tiny audio embedding; produces expressive head motion. Downloads the SVD-XT and whisper-tiny snapshots into the installed package on first pipeline load.
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.dynamic_scale` | float | `1.0` | Motion-dynamics scale; larger values produce more expressive head/facial motion |
+| `params.inference_steps` | int | `25` | Number of diffusion inference steps |
+| `params.min_resolution` | int | `512` | Minimum short-side resolution the face crop is resized to before rendering |
+| `params.keep_resolution` | bool | `false` | Preserve the input portrait's original resolution instead of resizing to `min_resolution` |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: sonic
+  model: LeonJoe13/Sonic
+  device: cuda:0
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      dynamic_scale: 1.0
+      inference_steps: 25
+```
+
+#### Family: `echomimic`
+
+AntGroup EchoMimic — v1 for portrait framing, v2 for half-body with optional motion-sync reference video.
+
+**Component-level fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `preset` | string | `v1` | EchoMimic release: `v1` (portrait) or `v2` (half-body) |
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.pose` | string/array | `null` | Optional reference video/pose sequence driving head or half-body motion (v2 uses this for half-body) |
+| `params.width` | int | `512` | Output frame width in pixels |
+| `params.height` | int | `512` | Output frame height in pixels |
+| `params.inference_steps` | int | `30` | Number of diffusion inference steps |
+| `params.cfg_scale` | float | `2.5` | Classifier-free guidance scale |
+| `params.context_frames` | int | `12` | Number of frames processed per temporal context window |
+| `params.context_overlap` | int | `3` | Frame overlap between consecutive temporal windows |
+| `params.motion_sync` | bool | `false` | Enable motion-sync mode which extracts motion cues from the reference `pose` video |
+| `params.sample_rate` | int | `16000` | Audio sample rate the model expects; resampling is applied if the input differs |
+
+#### Family: `float`
+
+Flow-matching portrait animator with per-emotion conditioning; the fastest of the diffusion-family options at 10 default steps.
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.emotion` | string | `null` | Optional emotion label conditioning the output (e.g. `happy`, `sad`, `angry`) |
+| `params.emotion_scale` | float | `1.0` | Multiplier applied to the emotion conditioning strength |
+| `params.inference_steps` | int | `10` | Number of flow-matching inference steps |
+| `params.cfg_scale` | float | `2.0` | Classifier-free guidance scale |
+| `params.a_cfg_scale` | float | `2.0` | Guidance scale applied to the audio conditioning branch |
+| `params.e_cfg_scale` | float | `1.0` | Guidance scale applied to the emotion conditioning branch |
+| `params.crop` | bool | `true` | Crop the source portrait to the detected face before rendering; disable to render the full frame |
+
+**Result Shape:**
+
+Every family returns a single mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate.
+
+### Lip Sync
+
+Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth region is regenerated; identity, expression, head pose, and background come straight from the source video. Uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `lip-sync` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family: `wav2lip`, `musetalk`, or `latentsync` |
+| `preset` | string | family default | Checkpoint variant — see per-family tables below |
+| `model` | string/object | (from preset) | Model identifier. Leave unset to auto-fetch the preset's checkpoint |
+
+**Common Action Fields** (available on every family):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `video` | video/array | **required** | Source face video (or list/stream of videos) whose mouth region is re-synced |
+| `audio` | audio/array | **required** | Driving audio clip (or list of clips) whose speech the mouth follows |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of `(video, audio)` pairs processed per batch |
+| `params.fps` | int | source fps | Output video frame rate; defaults to the source video's frame rate when unset |
+
+#### Family: `wav2lip`
+
+Classical GAN-based lip-sync (Rudrabha/Wav2Lip, justinjohn0306 fork). Smallest VRAM footprint, fastest inference, most permissive with awkward footage. Auto-fetches the preset checkpoint from the Easy-Wav2Lip release mirror on first run; the S3FD face detector weights are dropped into the installed package on first pipeline load.
+
+**Presets:**
+
+| Preset | Notes |
+|--------|-------|
+| `wav2lip` | Accuracy-tuned generator; smoother mouth shape, slightly softer |
+| `wav2lip-gan` | GAN-tuned generator (default); sharper faces at the cost of occasional artefacts |
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.face_bounding_box` | box | `null` | Fixed face box `(left, top, right, bottom)` in pixels; bypasses face detection |
+| `params.face_bounding_box_padding` | box | `[0, 0, 0, 10]` | Pixel padding `(left, top, right, bottom)` added around each detected face box |
+| `params.frame_crop_box` | box | `null` | Manual crop rectangle applied to input frames; `null` on any edge keeps the frame edge |
+| `params.resize_factor` | int | `1` | Downscale factor applied to input frames before inference; higher trades quality for speed |
+| `params.face_smoothing` | bool | `true` | Whether to apply temporal smoothing to face detections across frames |
+| `params.face_detection_batch_size` | int | `16` | Number of frames processed per S3FD face-detection batch |
+| `params.generator_batch_size` | int | `128` | Number of samples processed per Wav2Lip generator batch |
+| `params.static` | bool | `false` | Reuse the first frame as a still image for the entire audio |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: wav2lip
+  preset: wav2lip-gan
+  device: cuda:0
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      face_bounding_box_padding: [0, 0, 0, 10]
+      resize_factor: 1
+      face_smoothing: true
+```
+
+If audio outlasts the video, source frames are forward-repeated to fill the timeline.
+
+#### Family: `musetalk`
+
+TMElyralab/MuseTalk latent VAE+UNet with InsightFace + Whisper front-end. Higher quality than Wav2Lip at moderate VRAM cost. Auto-fetches the MuseTalk UNet from `TMElyralab/MuseTalk`; sd-vae-ft-mse, whisper-tiny, DWPose, and face-parse-bisent snapshots are downloaded into the installed package's `models/` directory on first pipeline load.
+
+**Presets:**
+
+| Preset | Notes |
+|--------|-------|
+| `v1` | Original release; exposes `bbox_shift` for manual mouth region tuning |
+| `v15` | Default; parsing-mask blending for softer edges, `extra_margin`/`parsing_mode`/`cheek_width` params |
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.bbox_shift` | int | `0` | Vertical shift (pixels) applied to the detected face bounding box (v1 only) |
+| `params.extra_margin` | int | `10` | Extra chin margin (pixels) added to the face region before blending (v15 only) |
+| `params.parsing_mode` | string | `jaw` | Face parsing region: `jaw` (tight), `neck` (widest), `raw` (default face region) (v15 only) |
+| `params.left_cheek_width` | int | `90` | Left cheek width in pixels used by the parsing mask (v15 only) |
+| `params.right_cheek_width` | int | `90` | Right cheek width in pixels used by the parsing mask (v15 only) |
+| `params.audio_padding_length_left` | int | `2` | Number of audio feature frames padded before each window |
+| `params.audio_padding_length_right` | int | `2` | Number of audio feature frames padded after each window |
+| `params.generator_batch_size` | int | `8` | Number of samples processed per MuseTalk generator batch |
+| `params.use_float16` | bool | `false` | Run the generator in float16 for a memory and latency win |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: musetalk
+  preset: v15
+  device: cuda:0
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      parsing_mode: jaw
+      extra_margin: 10
+      use_float16: true
+```
+
+If audio outlasts the video, source frames are ping-ponged (forward, then reversed, ...) to fill the timeline.
+
+#### Family: `latentsync`
+
+ByteDance/LatentSync diffusion-based lip-sync. Uses InsightFace `buffalo_l` for detection + landmark alignment, a Stable Diffusion VAE, and a 3D UNet trained on LatentSync data. Highest quality of the three families at the cost of longer inference (20-50 DDIM steps). Auto-fetches the preset UNet from `ByteDance/LatentSync-<preset>`; sd-vae-ft-mse and InsightFace weights are auto-downloaded on first pipeline load.
+
+**Presets:**
+
+| Preset | Resolution | Notes |
+|--------|-----------|-------|
+| `1.5` | 256×256 | Older release; ~6 GB VRAM at fp16 |
+| `1.6` | 512×512 | Default; ~12 GB VRAM at fp16 |
+
+**Family-specific Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.inference_steps` | int | `20` | Number of DDIM denoising steps; upstream recommends 20-50 |
+| `params.guidance_scale` | float | `1.5` | Classifier-free guidance scale; upstream recommends 1.0-3.0 |
+| `params.enable_deepcache` | bool | `false` | Enable DeepCache for a ~2x speedup at a small quality cost |
+| `params.use_float16` | bool | `true` | Run the pipeline in float16 for a memory and latency win |
+
+`seed` defaults to `1247` (upstream's fixed seed) when unset. `num_frames` and resolution are fixed by the preset's config yaml and not exposed at the DSL level.
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: latentsync
+  preset: "1.6"
+  device: cuda:0
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      inference_steps: 20
+      guidance_scale: 1.5
+      use_float16: true
+```
+
+LatentSync produces exactly the audio-length duration; the source video is trimmed to match rather than looped.
+
+**Result Shape:**
+
+Every family returns a single mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate.
 
 ## Multiple Actions
 

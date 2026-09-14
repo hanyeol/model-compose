@@ -273,6 +273,8 @@ model-compose supports the following task types:
 | `music-generation` | Music generation | Audio/music synthesis |
 | `music-source-separation` | Music source separation | Split a mix into vocals / drums / bass / other stems |
 | `music-transcription` | Music transcription | Convert audio recordings into MIDI + note events |
+| `talking-head` | Portrait-to-video lip-sync | Animate a still portrait with driving audio (identity synthesis) |
+| `lip-sync` | Video-to-video lip-sync | Re-sync a face video's mouth movements to a new audio track |
 
 ### 10.3.1 text-generation
 
@@ -1473,6 +1475,96 @@ component:
 The action returns a dict with two fields per input: `midi` (a MIDI file) and `notes` (a JSON list of `{start_time, end_time, pitch, velocity}` objects with times in seconds and pitch as MIDI note number). Basic Pitch adds a per-note `pitch_bends` array when `return_pitch_bends` is enabled. Piano Transcription bakes pedal events into the MIDI directly.
 
 Chain with `music-source-separation` to transcribe each stem of a mix independently (e.g. transcribe the vocal line and the accompaniment as separate parts). See the [Model Component reference](../reference/compose/components/model.md#music-transcription) for the full per-family field list.
+
+### 10.3.28 talking-head
+
+Animates a still portrait so it lip-syncs (and moves the head) to a driving audio clip. In contrast to `lip-sync` — which edits the mouth of an existing video — `talking-head` synthesises head motion and expression from a single image. Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: talking-head
+  driver: custom
+  family: sadtalker
+  preset: v0.0.2-256
+  preprocessor: full
+  model: vinthony/SadTalker
+  device: cuda:0
+  action:
+    image: ${input.image as image}
+    audio: ${input.audio as audio}
+    params:
+      still: true
+      expression_scale: 1.0
+      pose_style: 0
+```
+
+**Supported families:**
+
+| Family | Presets | Notes |
+|--------|---------|-------|
+| `sadtalker` | `v0.0.2-256`, `v0.0.2-512` | Classical Audio2Coeff + face renderer; 256 preset needs ~6 GB VRAM, 512 needs ~12 GB. Exposes reference-video motion transfer and manual yaw/pitch/roll keyframes. |
+| `hallo2` | (single build) | Diffusion-based portrait animator with long-video chunk-and-blend mode. Exposes per-signal weights (pose/face/lip) and optional built-in super-resolution. |
+| `hallo3` | (single build) | Newer DiT-based portrait video generator; accepts an optional text prompt. Higher quality at the cost of longer inference. |
+| `sonic` | (single build) | LeonJoe13/Sonic with SVD-XT backbone and whisper-tiny audio embedding; produces expressive head motion. |
+| `echomimic` | `v1`, `v2` | AntGroup EchoMimic: v1 for portrait framing, v2 for half-body with optional motion-sync reference video. |
+| `float` | (single build) | Flow-matching portrait animator with per-emotion conditioning; the fastest of the diffusion-family options. |
+
+**Key action fields** (family-dependent — see the reference for the full list):
+
+- `image`, `audio` — required inputs; both can be single values, lists, or streams.
+- `params.fps` — output frame rate (default 25).
+- `params.inference_steps` — number of denoising / flow-matching steps (families that expose it).
+- `params.cfg_scale`, `params.guidance_scale` — classifier-free guidance controls.
+- `params.still` (SadTalker), `params.crop` (Float) — keep the head/body still while only the mouth animates.
+- `params.enhancer` — optional face enhancer (`gfpgan`, `RestoreFormer`) applied per frame (SadTalker).
+- `params.long_video` — enable window-and-blend for audio longer than the model's context window (Hallo2, Hallo3).
+
+The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate. See the [Model Component reference](../reference/compose/components/model.md#talking-head) for the full per-family field list.
+
+### 10.3.29 lip-sync
+
+Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth region is regenerated; identity, expression, head pose, and background come straight from the source video. Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: wav2lip
+  preset: wav2lip-gan
+  device: cuda:0
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      face_bounding_box_padding: [0, 0, 0, 10]
+      resize_factor: 1
+      face_smoothing: true
+```
+
+**Supported families:**
+
+| Family | Presets | Notes |
+|--------|---------|-------|
+| `wav2lip` | `wav2lip`, `wav2lip-gan` | Classical GAN-based lip-sync; smallest VRAM footprint, fastest inference. Auto-fetches the preset checkpoint from the Easy-Wav2Lip release mirror. |
+| `musetalk` | `v1`, `v15` | Diffusion-latent VAE+UNet with InsightFace + Whisper front-end. Higher quality than Wav2Lip; v1.5 uses parsing-based blending. Auto-fetches `TMElyralab/MuseTalk`. |
+| `latentsync` | `1.5`, `1.6` | ByteDance diffusion-based lip-sync; sharpest output at 512×512 (v1.6). Requires ~12GB VRAM for v1.6, ~6GB for v1.5. Auto-fetches `ByteDance/LatentSync-<preset>`. |
+
+**Key action fields** (family-dependent — see the reference table for the full list):
+
+- `video`, `audio` — required inputs; both can be single values, lists, or streams.
+- `params.fps` — output frame rate; defaults to the source video's frame rate when unset.
+- `params.face_bounding_box` — LTRB pixel tuple that bypasses face detection (Wav2Lip). Provide when the source video's automatic detection fails.
+- `params.face_bounding_box_padding` — LTRB pixel padding added around the detected face (Wav2Lip). Extend `bottom` to keep the chin from getting clipped on close-up shots.
+- `params.parsing_mode` — face parsing region used for blending: `jaw`, `neck`, or `raw` (MuseTalk v1.5).
+- `params.inference_steps`, `params.guidance_scale` — diffusion sampling controls (LatentSync).
+- `params.generator_batch_size` — UNet inference batch (Wav2Lip, MuseTalk).
+- `params.use_float16` — fp16 inference for a memory and latency win (MuseTalk, LatentSync).
+
+If the audio is longer than the video, Wav2Lip and MuseTalk loop the source frames (ping-pong for MuseTalk, forward-repeat for Wav2Lip) to fill the timeline. LatentSync produces exactly the audio-length duration and trims the source video to match.
+
+The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate. See the [Model Component reference](../reference/compose/components/model.md#lip-sync) for the full per-family field list.
 
 ---
 

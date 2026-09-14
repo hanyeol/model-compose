@@ -227,7 +227,6 @@ class LatentSyncLipSyncTaskService(ModelTaskService):
             unet_config = OmegaConf.load(str(repo_root / _DEFAULT_UNET_CONFIGS[self.config.preset]))
 
             scheduler = DDIMScheduler.from_pretrained(str(repo_root / "configs"))
-
             audio_encoder = Audio2Feature(
                 model_path=str(repo_root / "checkpoints" / "whisper" / "tiny.pt"),
                 device=str(device),

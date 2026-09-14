@@ -1,0 +1,50 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Lip Sync Video Generation
+  description: Re-sync a face video's mouth movements to a driving audio clip using Wav2Lip.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: wav2lip
+  # `wav2lip-gan` produces sharper faces via the GAN generator; `wav2lip` is
+  # the accuracy-tuned variant with a smoother mouth shape. Selecting a preset
+  # auto-fills the `model` field with the corresponding checkpoint URL — set
+  # `model` explicitly to point at a private mirror or a pre-downloaded file.
+  preset: wav2lip-gan
+  max_concurrent_count: 1
+  # Wav2Lip pins ancient librosa/numba versions; run the model worker in a
+  # dedicated venv so those pins don't clash with the controller's own
+  # site-packages.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/wav2lip
+    start_timeout: 900s   # first run installs upstream deps + downloads S3FD
+    stop_timeout: 15s
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      # Padding around the detected face box; the default extends the box
+      # downward by 10 px so chin motion isn't clipped. Left/top/right/bottom
+      # in pixels.
+      face_bounding_box_padding: ${input.face_bounding_box_padding | [ 0, 0, 0, 10 ]}
+      # Downscale factor applied to input frames before inference; higher
+      # values trade quality for speed.
+      resize_factor: ${input.resize_factor as integer | 1}
+      # Temporal smoothing of face detections across frames; disable when the
+      # subject moves quickly or the video is short.
+      face_smoothing: ${input.face_smoothing as boolean | true}

@@ -1,0 +1,51 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Lip Sync Video Generation (MuseTalk)
+  description: Re-sync a face video's mouth movements to a driving audio clip using MuseTalk.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: musetalk
+  # `v15` renders at 256×256 with parsing-based blending (default); `v1` is
+  # the earlier release exposing `bbox_shift` for manual mouth region tuning.
+  # Selecting a preset auto-fills the `model` field with the matching subdir
+  # of `TMElyralab/MuseTalk` — set `model` explicitly to point at a private
+  # mirror or a pre-downloaded snapshot.
+  preset: v15
+  max_concurrent_count: 1
+  # MuseTalk pins older diffusers/transformers versions; run the model worker
+  # in a dedicated venv so those pins don't clash with the controller's own
+  # site-packages.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/musetalk
+    start_timeout: 900s   # first run installs upstream deps + downloads checkpoints
+    stop_timeout: 15s
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      # Face parsing region used for blending (v15 only): `jaw`, `neck`, or `raw`.
+      parsing_mode: ${input.parsing_mode | jaw}
+      # Extra chin margin added to the face region before blending (v15 only).
+      extra_margin: ${input.extra_margin as integer | 10}
+      # Vertical shift applied to the detected face bounding box (v1 only).
+      bbox_shift: ${input.bbox_shift as integer | 0}
+      # Number of samples processed per MuseTalk generator batch.
+      generator_batch_size: ${input.generator_batch_size as integer | 8}
+      # Run the generator in float16 for a memory and latency win.
+      use_float16: ${input.use_float16 as boolean | false}

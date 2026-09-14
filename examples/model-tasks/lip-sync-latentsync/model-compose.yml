@@ -1,0 +1,48 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Lip Sync Video Generation (LatentSync)
+  description: Re-sync a face video's mouth movements to a driving audio clip using LatentSync.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: lip-sync
+  driver: custom
+  family: latentsync
+  # `1.6` renders at 512×512 (default, higher quality); `1.5` renders at 256×256
+  # for faster inference on lighter hardware. Selecting a preset auto-fills the
+  # `model` field with the matching `ByteDance/LatentSync-*` HuggingFace repo —
+  # set `model` explicitly to point at a private mirror or a pre-downloaded snapshot.
+  preset: "1.6"
+  max_concurrent_count: 1
+  # LatentSync pins torch 2.5.1 and older diffusers versions; run the model
+  # worker in a dedicated venv so those pins don't clash with the controller's
+  # own site-packages.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/latentsync
+    start_timeout: 900s   # first run installs upstream deps + downloads checkpoints
+    stop_timeout: 15s
+  action:
+    video: ${input.video as video}
+    audio: ${input.audio as audio}
+    params:
+      # Number of diffusion denoising steps; upstream recommends 20–50.
+      inference_steps: ${input.inference_steps as integer | 20}
+      # Classifier-free guidance scale; upstream recommends 1.0–3.0.
+      guidance_scale: ${input.guidance_scale as number | 1.5}
+      # DeepCache trades a small quality loss for a ~2x speedup.
+      enable_deepcache: ${input.enable_deepcache as boolean | false}
+      # Run the pipeline in float16 for a memory and latency win.
+      use_float16: ${input.use_float16 as boolean | true}

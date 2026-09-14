@@ -126,7 +126,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         waveform, _ = load_pcm_samples(audio_path, sample_rate=16000)
 
         mel_step_size = 16
-        img_size = 96
+        image_size = 96
 
         frames = self._read_frames(video_path, params["resize_factor"], params["frame_crop_box"], params["static"])
         mel = w2l_audio.melspectrogram(waveform)
@@ -176,7 +176,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
                     mel_batch_np = np.asarray(mel_batch)
 
                     img_masked = img_batch_np.copy()
-                    img_masked[:, img_size // 2:] = 0
+                    img_masked[:, image_size // 2:] = 0
                     img_batch_np = np.concatenate((img_masked, img_batch_np), axis=3) / 255.0
                     mel_batch_np = np.reshape(mel_batch_np, [mel_batch_np.shape[0], mel_batch_np.shape[1], mel_batch_np.shape[2], 1])
 
@@ -221,13 +221,12 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         import cv2
         import face_detection  # from justinjohn0306/Wav2Lip
 
-        img_size = 96
         # The vendored `face_detection` is a fork of the pre-MPS `face-alignment`
         # release; its `FaceAlignment.__init__` only understands `"cpu"` and
         # `"cuda*"`, so on Apple Silicon we run the detector on CPU regardless
         # of where the generator lives. The generator batch on MPS still gets
         # a 2-4x speedup over pure CPU.
-        detector_device = "cpu" if self.device.type == "mps" else str(self.device)
+        detector_device = "cpu" if self.device.type in [ "mps" ] else str(self.device)
         detector = face_detection.FaceAlignment(
             face_detection.LandmarksType._2D,
             flip_input=False,
@@ -244,6 +243,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         try:
             predictions: List[Optional[Any]] = []
             batch_size = params["face_detection_batch_size"]
+            image_size = 96
 
             while True:
                 try:
@@ -278,7 +278,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
 
             for frame, (x1, y1, x2, y2) in zip(frames, results):
                 face_crop = frame[y1:y2, x1:x2]
-                face_crop = cv2.resize(face_crop, (img_size, img_size))
+                face_crop = cv2.resize(face_crop, (image_size, image_size))
                 batches.append((face_crop, (x1, y1, x2, y2)))
 
             return batches
@@ -343,12 +343,12 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         if any(element is None for element in box):
             raise ValueError(f"'face_bounding_box' requires all four edges; got {box!r}")
 
-        img_size = 96
+        image_size = 96
         x1, y1, x2, y2 = box
         batches: List[Tuple[Any, Tuple[int, int, int, int]]] = []
 
         for frame in frames:
-            face_crop = cv2.resize(frame[y1:y2, x1:x2], (img_size, img_size))
+            face_crop = cv2.resize(frame[y1:y2, x1:x2], (image_size, image_size))
             batches.append((face_crop, (x1, y1, x2, y2)))
 
         return batches

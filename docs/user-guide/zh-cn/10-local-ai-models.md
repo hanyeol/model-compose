@@ -790,7 +790,7 @@ component:
 
 ### 10.3.25 music-generation
 
-生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 还需要 `preset` 字段来选择检查点变体。
+生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `offload_ar`。
 
 ```yaml
 component:
@@ -823,7 +823,8 @@ component:
 | `rewrite` | 重新生成指定 `[start_time, end_time]` 区间 | `source`、`start_time`、`end_time`、`prompt`（可选：`lyrics`） |
 | `extend` | 将源音频延续到自然结尾之后 | `source`、`prompt`（可选：`lyrics`） |
 | `layer` | 在源音频上叠加新乐器/声部 | `source`、`track_class`（可选：`prompt`、`lyrics`） |
-| `accompany` | 为纯人声源生成伴奏 | `vocal`、`track_classes`（可选：`prompt`） |
+| `accompany` | 为纯人声源生成伴奏（仅 `ace-step`） | `vocal`、`track_classes`（可选：`prompt`） |
+| `score` | 规划可编辑的 ABC 乐谱（仅 `yue2`；不渲染音频） | `style`、`lyrics` |
 
 **支持的 family 和 preset：**
 - `ace-step`
@@ -832,10 +833,14 @@ component:
   - `acestep-v15-sft` — SFT 变体（推荐 `inference_steps: 50`）。
 - `midi-ddsp`
   - 使用特定 URMP 乐器音色（violin、viola、cello、double-bass、flute、oboe、clarinet、saxophone、bassoon、trumpet、horn、trombone、tuba）合成单声部 MIDI 文件。`method: generate` 搭配 `midi` 和 `instrument` 字段使用。多声部 MIDI 会被拒绝。
+- `yue2`
+  - 具备可编辑 ABC 乐谱规划的完整歌曲生成。`generate` 从 `style` + `lyrics` 创作，`cover` 重新演绎提供的 ABC 乐谱，`score` 仅返回规划后的 ABC。`params.cot_mode` 选择思维链风格（`full` 含和弦符号、`melody` 用于翻唱、`off` 直接生成）。渲染 48 kHz 立体声音频。
 
-两个 family 均不支持 HuggingFace Hub 标识符，`model` 必须是本地检查点目录。
+`ace-step` 和 `midi-ddsp` 均不支持 HuggingFace Hub 标识符，`model` 必须是本地检查点目录。`yue2` 同时接受 HuggingFace 仓库 ID（例如 `m-a-p/YuE2-3B`）和本地路径。
 
 MIDI-DDSP 固定依赖 TensorFlow 2.11 且无法与宿主 mindor 栈共存，因此组件必须在隔离运行时（`virtualenv`、`docker` 或 `apple-container`）下运行；`native` / `embedded` / `process` 运行时会在加载时被拒绝。
+
+YuE2 的非量化预设需要支持 BF16 的 CUDA GPU 和 ≥24 GB VRAM。请通过 `quantization.type: fp8`、`offload_ar: true` 以及较小的 `vae.tile_size` 适配更小的预算。
 
 ```yaml
 component:
@@ -854,7 +859,23 @@ component:
     instrument: violin
 ```
 
-结果为每个输入的 PCM 音频流（批处理输入则返回流列表）。每个 method 的完整字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-generation)。
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: yue2
+  model: m-a-p/YuE2-3B
+  device: cuda
+  action:
+    method: generate
+    style: ${input.style as text}
+    lyrics: ${input.lyrics as text}
+    params:
+      cot_mode: full
+```
+
+生成音频的方法返回每个输入的 PCM 音频流（批处理输入则返回流列表）；YuE2 的 `score` 则返回 `{ abc, truncated }`。每个 method 的完整字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-generation)。
 
 ### 10.3.26 music-source-separation
 

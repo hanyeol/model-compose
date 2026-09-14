@@ -2404,10 +2404,16 @@ Generate or edit music audio. The action selects an operation via the `method` f
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `music-generation` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (`ace-step`, `midi-ddsp`) |
+| `family` | string | **required** | Model family (`ace-step`, `midi-ddsp`, `yue2`) |
 | `preset` | string | `acestep-v15-turbo` | Checkpoint preset (`ace-step` only: `acestep-v15-turbo`, `acestep-v15-base`, `acestep-v15-sft`) |
 | `expression_generator_weights` | string | `<model>/expression_generator/5000` | Path to the expression generator checkpoint (`midi-ddsp` only) |
-| `model` | string | **required** | Local checkpoint directory. Neither family accepts HuggingFace Hub identifiers |
+| `vae` | string/object | family-specific | VAE decoder model (`yue2` only). See the YuE2 family section |
+| `backend` | string | `torch` | Inference backend for the AR model (`yue2` only: `torch`, `torch-eager`, `vllm`) |
+| `quantization` | object | `null` | AR-model quantization (`yue2` only: `type: fp8`) |
+| `memory_budget_gib` | float | `24` | GPU memory budget in GiB reserved for generation (`yue2` only) |
+| `offload_ar` | bool | `false` | Offload the AR model to CPU during NAR synthesis (`yue2` only) |
+| `verify_hashes` | bool | `true` | Verify model file checksums on load (`yue2` only) |
+| `model` | string | **required** | Local checkpoint directory (`ace-step`, `midi-ddsp`) or HuggingFace repo / local path (`yue2`) |
 
 **Common Action Fields:**
 
@@ -2415,7 +2421,7 @@ Every method shares these fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Operation: `generate` (all families), `cover`, `rewrite`, `extend`, `layer`, `accompany` (`ace-step` only) |
+| `method` | string | **required** | Operation: `generate` (all families), `cover` (`ace-step`, `yue2`), `rewrite`, `extend`, `layer`, `accompany` (`ace-step` only), `score` (`yue2` only) |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.duration` | int | `30` | Duration of the generated music in seconds |
@@ -2575,6 +2581,7 @@ component:
 | `ace-step` | `acestep-v15-base` | Base variant; recommended `inference_steps: 32`. |
 | `ace-step` | `acestep-v15-sft` | SFT variant; recommended `inference_steps: 50`. |
 | `midi-ddsp` | — | Google Magenta MIDI-DDSP. Synthesizes a monophonic MIDI file with a specific URMP instrument voice. |
+| `yue2` | — | M·A·P YuE2. Full-song generation with editable ABC score planning; renders 48 kHz stereo audio. |
 
 #### `family: midi-ddsp`
 
@@ -2619,9 +2626,122 @@ component:
       brightness: 0.7
 ```
 
+#### `family: yue2`
+
+M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–NAR Mixture-of-Transformers plans an editable ABC score, generates semantic tokens, and hands off to a flow-matching NAR + VAE decoder that renders 48 kHz stereo audio. `model` accepts either a HuggingFace repo ID (e.g. `m-a-p/YuE2-3B`) or a local checkpoint directory.
+
+**Runtime requirement:** the unquantized preset needs a CUDA GPU with BF16 support and ≥24 GB VRAM. Reduce the footprint with `quantization.type: fp8`, `offload_ar: true`, and a smaller `vae.tile_size`.
+
+**Component Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `vae` | string/object | `m-a-p/YuE2-Vae` | VAE decoder model. String shorthand expands to `{ model: <value> }` |
+| `vae.model` | string/object | `m-a-p/YuE2-Vae` | VAE model identifier — HuggingFace repo ID or local path |
+| `vae.tile_size` | int | family-default | VAE decode tile size in frames; `512` for ≤12 GiB budgets, `1024` otherwise |
+| `backend` | string | `torch` | AR backend (`torch`, `torch-eager`, `vllm`). `vllm` requires the model's optional `[fast]` extras |
+| `quantization.type` | string | — | Only `fp8` is supported; halves AR VRAM at a small quality cost |
+| `memory_budget_gib` | float | `24` | GPU memory budget reserved for generation |
+| `offload_ar` | bool | `false` | Move the AR model to CPU during NAR synthesis to free VRAM |
+| `verify_hashes` | bool | `true` | Verify model file checksums on load |
+
+**Common Action Fields:**
+
+Every YuE2 method shares these fields (in addition to the top-level `seed` and `batch_size`):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.cot_mode` | string | `full` | Chain-of-thought mode: `full` (score with chord symbols), `melody` (melody-only score, best for covers), `off` (direct generation) |
+| `params.cfg_scale` | float | model default | Classifier-free guidance scale in `[0, 20]` |
+| `params.abc_sampling` | object | `null` | Sampling overrides for ABC score generation (`temperature`, `top_p`, `top_k`, `repetition_penalty`, `penalty_window`, `min_tokens`, `max_tokens`) |
+| `params.semantic_sampling` | object | `null` | Sampling overrides for semantic-token generation (same fields as `abc_sampling`) |
+
+##### `method: generate`
+
+Compose a new song from a style description and lyrics.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `style` | string | **required** | Text description of the music style, genre, mood, and instrumentation |
+| `lyrics` | string | **required** | Song lyrics used for vocal generation |
+
+```yaml
+action:
+  method: generate
+  style: ${input.style as text}
+  lyrics: ${input.lyrics as text}
+  params:
+    cot_mode: full
+    cfg_scale: 1.5
+```
+
+##### `method: cover`
+
+Reinterpret a supplied ABC score in a new style. Requires `cot_mode` to be `melody` or `full`; `off` is rejected because it cannot consume an external score.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `style` | string | **required** | Text description of the target cover style |
+| `lyrics` | string | **required** | Lyrics to sing over the covered score |
+| `abc` | string | **required** | ABC score conditioning the cover (typically a melody transcription without chord symbols) |
+
+```yaml
+action:
+  method: cover
+  style: "English, jazz-funk, warm lead vocal, Rhodes, bass and drums"
+  lyrics: ${input.lyrics as text}
+  abc: ${input.abc as text}
+  params:
+    cot_mode: melody
+```
+
+##### `method: score`
+
+Plan an editable ABC score without rendering audio. Returns `{ abc: string, truncated: bool }`. Requires `cot_mode: melody` or `full`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `style` | string | **required** | Style description used to plan the score |
+| `lyrics` | string | **required** | Lyrics that shape the planned score |
+
+```yaml
+action:
+  method: score
+  style: ${input.style as text}
+  lyrics: ${input.lyrics as text}
+  params:
+    cot_mode: full
+```
+
+**Full Example:**
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: yue2
+  model: m-a-p/YuE2-3B
+  device: cuda
+  quantization:
+    type: fp8
+  offload_ar: true
+  vae:
+    model: m-a-p/YuE2-Vae
+    tile_size: 512
+  actions:
+    - id: generate
+      method: generate
+      style: ${input.style as text}
+      lyrics: ${input.lyrics as text}
+      seed: 831001
+      params:
+        cot_mode: full
+```
+
 **Result Shape:**
 
-Returns a single PCM audio stream (or a list of streams for batched inputs). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes.
+Audio-producing methods (`generate`, `cover` on all families; `layer`, `accompany`, `rewrite`, `extend` on `ace-step`) return a single PCM audio stream (or a list of streams for batched inputs). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes. `yue2`'s `score` method returns `{ abc: string, truncated: bool }` instead.
 
 ### Music Source Separation
 

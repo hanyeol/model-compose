@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
-from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, VaeConfig
+from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, DiffusionVaeConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -297,7 +297,7 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
 
         return submodules
 
-    async def _load_pretrained_vae_model(self, vae: VaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
+    async def _load_pretrained_vae_model(self, vae: DiffusionVaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
         model_cls = self._get_vae_model_class()
         model_path = await self._provision_model(vae.model)
 

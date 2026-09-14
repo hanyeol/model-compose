@@ -74,6 +74,7 @@ class ModelPrecision(str, Enum):
 class ModelQuantizationType(str, Enum):
     INT8 = "int8"
     INT4 = "int4"
+    FP8  = "fp8"
     FP4  = "fp4"
     NF4  = "nf4"
 
@@ -219,7 +220,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     device: str = Field(default="auto", description="Compute device the model runs on (e.g., cpu, cuda, cuda:0, mps); \"auto\" selects the best available.")
     runtime_spec: Optional[ModelRuntimeSpec] = Field(default=None, description="Runtime resource hints used for scheduling.")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for model weights and computation.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to model weights.")
+    quantization: Optional[ModelQuantizationConfig] = Field(default=None, description="Quantization applied to model weights.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the model with reduced CPU RAM usage.")
     peft_adapters: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapters loaded on top of the base model.")
     preload: bool = Field(default=True, description="Whether to load the model at controller startup.")

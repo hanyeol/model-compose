@@ -101,6 +101,7 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
             for (midi_path,) in inputs:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 results.append(self._synthesize(midi_path, params))
 
             return results
@@ -108,15 +109,15 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
         return await self._run_in_executor(_generate)
 
     def _synthesize(self, midi_path: str, params: Dict[str, Any]) -> PcmStreamResource:
-        import numpy as np
-        import pretty_midi
-        import tensorflow as tf
         from midi_ddsp.data_handling.instrument_name_utils import INST_NAME_TO_ID_DICT
         from midi_ddsp.utils.midi_synthesis_utils import (
             note_list_to_sequence,
             expression_generator_output_to_conditioning_df,
             batch_conditioning_df_to_audio,
         )
+        import numpy as np
+        import tensorflow as tf
+        import pretty_midi
 
         instrument_name = params["instrument"]
 

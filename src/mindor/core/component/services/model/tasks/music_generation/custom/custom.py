@@ -12,4 +12,8 @@ class CustomMusicGenerationTaskService:
             from .midi_ddsp import MidiDdspMusicGenerationTaskService
             return MidiDdspMusicGenerationTaskService(id, config, daemon)
 
+        if config.family == MusicGenerationModelFamily.YUE2:
+            from .yue2 import Yue2MusicGenerationTaskService
+            return Yue2MusicGenerationTaskService(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

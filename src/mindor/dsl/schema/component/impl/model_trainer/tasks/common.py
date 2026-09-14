@@ -20,7 +20,7 @@ class CommonModelTrainerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TRAINER]
     task: ModelTrainerTaskType = Field(..., description="Training task the trainer performs.")
     lora: Optional[ModelTrainerLoraConfig] = Field(default=None, description="LoRA adapter settings used during training.")
-    quantization: Optional[Union[str, ModelQuantizationConfig]] = Field(default=None, description="Quantization applied to the base model during training.")
+    quantization: Optional[ModelQuantizationConfig] = Field(default=None, description="Quantization applied to the base model during training.")
 
     @model_validator(mode="before")
     def inflate_quantization(cls, values: Dict[str, Any]):

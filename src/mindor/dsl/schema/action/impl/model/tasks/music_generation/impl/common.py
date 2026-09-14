@@ -10,6 +10,7 @@ class MusicGenerationActionMethod(str, Enum):
     EXTEND    = "extend"
     LAYER     = "layer"
     ACCOMPANY = "accompany"
+    SCORE     = "score"
 
 class CommonMusicGenerationParamsConfig(BaseModel):
     pass

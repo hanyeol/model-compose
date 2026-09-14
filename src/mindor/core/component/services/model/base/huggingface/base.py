@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import (
     ModelComponentConfig,
     CommonModelComponentConfig,
     PeftAdapterConfig,
-    VaeConfig,
+    DiffusionVaeConfig,
     ModelConfig,
     HuggingfaceModelConfig,
     ModelPrecision,
@@ -168,7 +168,7 @@ class HuggingfaceModelTaskService(ModelTaskService):
 
     def _get_model_options(
         self,
-        config: Union[CommonModelComponentConfig, PeftAdapterConfig, VaeConfig],
+        config: Union[CommonModelComponentConfig, PeftAdapterConfig, DiffusionVaeConfig],
         default_dtype: Optional[torch.dtype] = None
     ) -> Dict[str, Any]:
         import torch

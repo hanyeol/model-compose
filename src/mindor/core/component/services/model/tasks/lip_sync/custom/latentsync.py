@@ -217,10 +217,10 @@ class LatentSyncLipSyncTaskService(ModelTaskService):
             # `checkpoints/whisper/tiny.pt` relative to the repo root; the
             # provisioned HF snapshot already lays those out inside `model_path`,
             # so mount the snapshot as `<repo_root>/checkpoints`.
-            checkpoints_target = repo_root / "checkpoints"
+            checkpoints_dir = repo_root / "checkpoints"
 
-            if not checkpoints_target.exists():
-                os.symlink(model_path, checkpoints_target, target_is_directory=True)
+            if not checkpoints_dir.exists():
+                os.symlink(model_path, checkpoints_dir, target_is_directory=True)
 
             # Load the unet yaml by its canonical relative path so any
             # `${...}` interpolations resolve to sibling files as upstream expects.

@@ -216,6 +216,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         )
 
     def _face_detect_batches(self, frames: List[Any], params: Dict[str, Any]) -> List[Tuple[Any, Tuple[int, int, int, int]]]:
+        from face_detection.detection.sfd.sfd_detector import SFDDetector
         import numpy as np
         import cv2
         import face_detection  # from justinjohn0306/Wav2Lip
@@ -232,6 +233,13 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
             flip_input=False,
             device=detector_device,
         )
+
+        # `FaceAlignment.__init__` constructs an `SFDDetector` but never calls
+        # its classmethod `load_model`, leaving `SFDDetector.face_detector`
+        # unassigned — every downstream `detect_from_batch` call would then
+        # blow up with `AttributeError`. Populate it explicitly so upstream's
+        # own dead-code path becomes usable.
+        SFDDetector.load_model(detector_device)
 
         try:
             predictions: List[Optional[Any]] = []

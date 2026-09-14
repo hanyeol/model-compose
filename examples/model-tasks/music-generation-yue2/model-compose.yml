@@ -61,8 +61,8 @@ component:
       lyrics: ${input.lyrics as text}
       seed: ${input.seed as integer | 831001}
       params:
-        cot_mode: ${input.cot_mode as text | "full"}   # full | melody | off
-        cfg_scale: ${input.cfg_scale as number | null} # null lets the checkpoint default apply
+        cot_mode: ${input.cot_mode as text | full}   # full | melody | off
+        cfg_scale: ${input.cfg_scale as number} # null lets the checkpoint default apply
 
     - id: cover
       method: cover
@@ -71,7 +71,7 @@ component:
       abc: ${input.abc as text}
       seed: ${input.seed as integer | 831001}
       params:
-        cot_mode: ${input.cot_mode as text | "melody"} # melody recommended for covers
+        cot_mode: ${input.cot_mode as text | melody} # melody recommended for covers
 
     - id: score
       method: score
@@ -79,4 +79,4 @@ component:
       lyrics: ${input.lyrics as text}
       seed: ${input.seed as integer | 831001}
       params:
-        cot_mode: ${input.cot_mode as text | "full"}
+        cot_mode: ${input.cot_mode as text | full}

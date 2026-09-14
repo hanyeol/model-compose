@@ -1,0 +1,82 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: generate
+    default: true
+    title: Generate a Song
+    description: Compose a new song from a style description and lyrics using YuE2.
+    job:
+      component: yue2
+      action: generate
+      input: ${input}
+      output: ${output as audio/wav}
+
+  - id: cover
+    title: Cover an Existing Score
+    description: Reinterpret a supplied ABC score in a new style using YuE2.
+    job:
+      component: yue2
+      action: cover
+      input: ${input}
+      output: ${output as audio/wav}
+
+  - id: score
+    title: Plan a Score Only
+    description: Produce only the editable ABC score without rendering audio.
+    job:
+      component: yue2
+      action: score
+      input: ${input}
+      output: ${output}
+
+component:
+  id: yue2
+  type: model
+  task: music-generation
+  driver: custom
+  family: yue2
+  # HuggingFace repository ID (downloaded on first use) or a local model directory.
+  model: m-a-p/YuE2-3B
+  device: cuda
+  # backend: torch  # torch | torch-eager | vllm ; vllm needs the optional [fast] extras.
+  # quantization:   # fp8 halves AR memory at a small quality cost; omit for full precision.
+  #   type: fp8
+  # memory_budget_gib: 24  # Total VRAM reserved for generation; keep >=24 for the unquantized preset.
+  # offload_ar: false      # Offload the AR model to CPU during NAR synthesis to free VRAM.
+  # vae:
+  #   model: m-a-p/YuE2-Vae   # Default; override to point at a local decoder directory.
+  #   tile_size: 1024         # Decode tile size in frames; 512 for tight memory budgets.
+  max_concurrent_count: 1
+  actions:
+    - id: generate
+      method: generate
+      style: ${input.style as text}
+      lyrics: ${input.lyrics as text}
+      seed: ${input.seed as integer | 831001}
+      params:
+        cot_mode: ${input.cot_mode as text | "full"}   # full | melody | off
+        cfg_scale: ${input.cfg_scale as number | null} # null lets the checkpoint default apply
+
+    - id: cover
+      method: cover
+      style: ${input.style as text}
+      lyrics: ${input.lyrics as text}
+      abc: ${input.abc as text}
+      seed: ${input.seed as integer | 831001}
+      params:
+        cot_mode: ${input.cot_mode as text | "melody"} # melody recommended for covers
+
+    - id: score
+      method: score
+      style: ${input.style as text}
+      lyrics: ${input.lyrics as text}
+      seed: ${input.seed as integer | 831001}
+      params:
+        cot_mode: ${input.cot_mode as text | "full"}

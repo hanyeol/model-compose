@@ -61,8 +61,8 @@ component:
       lyrics: ${input.lyrics as text}
       seed: ${input.seed as integer | 831001}
       params:
-        cot_mode: ${input.cot_mode as text | full}   # full | melody | off
-        cfg_scale: ${input.cfg_scale as number} # null lets the checkpoint default apply
+        cot_mode: ${input.cot_mode as select/full,melody,off | full}
+        cfg_scale: ${input.cfg_scale as number} # omit to keep the checkpoint default
 
     - id: cover
       method: cover
@@ -71,7 +71,8 @@ component:
       abc: ${input.abc as text}
       seed: ${input.seed as integer | 831001}
       params:
-        cot_mode: ${input.cot_mode as text | melody} # melody recommended for covers
+        # 'off' is rejected for cover because it cannot consume an external ABC score.
+        cot_mode: ${input.cot_mode as select/melody,full | melody}
 
     - id: score
       method: score
@@ -79,4 +80,5 @@ component:
       lyrics: ${input.lyrics as text}
       seed: ${input.seed as integer | 831001}
       params:
-        cot_mode: ${input.cot_mode as text | full}
+        # 'off' is rejected for score because it does not produce an ABC score.
+        cot_mode: ${input.cot_mode as select/full,melody | full}

@@ -188,26 +188,25 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
         # FreeNoise reuses noise across sliding context windows so AnimateDiff
         # (trained on ~16-frame clips) can render inputs of arbitrary length
         # without a visible seam. Diffusers' defaults (context_length=16,
-        # context_stride=4) match the original paper.
+        # context_stride=4) match the original paper. Split inference chunks
+        # the UNet forward pass along spatial/temporal axes so long clips fit
+        # into 24 GB even under the SDPA attention processor (where the older
+        # `enable_attention_slicing` is a no-op).
         for pipeline in self.pipelines.values():
             if hasattr(pipeline, "enable_free_noise"):
                 pipeline.enable_free_noise()
+            if hasattr(pipeline, "enable_free_noise_split_inference"):
+                pipeline.enable_free_noise_split_inference(spatial_split_size=256, temporal_split_size=16)
 
     def _enable_memory_saving(self) -> None:
-        # Long inputs blow past 24 GB VRAM even with FreeNoise because the full
-        # latent tensor still lives on the GPU. VAE slicing/tiling decodes in
-        # chunks and attention slicing splits UNet attention across passes —
-        # both trade a small amount of throughput for a large VRAM drop and
-        # coexist with IP-Adapter (unlike full CPU offload).
+        # VAE slicing/tiling decode latents in chunks — small throughput cost,
+        # large VRAM drop, coexists with IP-Adapter (unlike full CPU offload).
         for pipeline in self.pipelines.values():
             if hasattr(pipeline, "vae"):
                 if hasattr(pipeline.vae, "enable_slicing"):
                     pipeline.vae.enable_slicing()
                 if hasattr(pipeline.vae, "enable_tiling"):
                     pipeline.vae.enable_tiling()
-
-            if hasattr(pipeline, "enable_attention_slicing"):
-                pipeline.enable_attention_slicing()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:

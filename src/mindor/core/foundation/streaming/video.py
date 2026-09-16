@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable, Union, Optional, Dict, Any, List
 from collections.abc import AsyncIterator
 from mindor.core.utils.ffmpeg.executable import is_ffmpeg_available
+from mindor.core.utils.files import get_file_extension
 from mindor.core.utils.pyav import is_available as is_pyav_available
 from .resources import StreamResource, TeeStreamResource, AsyncIterableStreamResource
 from .bytes import BytesStreamResource
@@ -135,10 +136,16 @@ def create_video_source(value: Any) -> MediaSource:
         return MediaSource(value.source, value.format, value.attrs)
 
     if isinstance(value, StreamResource):
-        return MediaSource(value)
+        if getattr(value, "filename", None):
+            return MediaSource(value, format=get_file_extension(getattr(value, "filename")))
+        else:
+            return MediaSource(value)
 
     if isinstance(value, UploadFile):
-        return MediaSource(UploadFileStreamResource(value))
+        if value.filename:
+            return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
+        else:
+            return MediaSource(UploadFileStreamResource(value))
 
     if isinstance(value, (bytes, bytearray)):
         return MediaSource(BytesStreamResource(bytes(value)))

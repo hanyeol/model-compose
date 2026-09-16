@@ -10,6 +10,7 @@ from .file import FileStreamResource, UploadFileStreamResource
 from .media import MediaSource
 from .iterators import StreamChunkIterator
 from ...utils.ffmpeg.executable import resolve_ffmpeg_executable, is_ffmpeg_available
+from ...utils.files import get_file_extension
 from ...utils.shell import stream_subprocess
 from ...utils.audio import (
     AudioBuffer,
@@ -942,10 +943,16 @@ def create_audio_source(value: Any) -> MediaSource:
         return MediaSource(value.source, value.format, value.attrs)
 
     if isinstance(value, StreamResource):
-        return MediaSource(value)
+        if getattr(value, "filename", None):
+            return MediaSource(value, format=get_file_extension(getattr(value, "filename")))
+        else:
+            return MediaSource(value)
 
     if isinstance(value, UploadFile):
-        return MediaSource(UploadFileStreamResource(value))
+        if value.filename:
+            return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
+        else:
+            return MediaSource(UploadFileStreamResource(value))
 
     if isinstance(value, (bytes, bytearray)):
         return MediaSource(BytesStreamResource(bytes(value)))

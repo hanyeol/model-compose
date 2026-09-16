@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from mindor.core.utils.files import get_file_extension
 from .resources import StreamResource
 from .bytes import BytesStreamResource
-from .file import FileStreamResource, UploadFileStreamResource
+from .file import UploadFileStreamResource
 from starlette.datastructures import UploadFile
 
 @dataclass
@@ -44,8 +44,5 @@ def create_media_source(value: Any) -> MediaSource:
 
     if isinstance(value, (bytes, bytearray)):
         return MediaSource(BytesStreamResource(bytes(value)))
-
-    if isinstance(value, str):
-        return MediaSource(FileStreamResource(value), format=get_file_extension(value))
 
     raise TypeError(f"Unsupported media source: {value.__class__.__name__}")

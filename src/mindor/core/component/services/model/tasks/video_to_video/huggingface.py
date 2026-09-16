@@ -182,6 +182,7 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
             await self._attach_ip_adapters()
 
         self._enable_free_noise()
+        self._enable_memory_saving()
 
     def _enable_free_noise(self) -> None:
         # FreeNoise reuses noise across sliding context windows so AnimateDiff
@@ -191,6 +192,22 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
         for pipeline in self.pipelines.values():
             if hasattr(pipeline, "enable_free_noise"):
                 pipeline.enable_free_noise()
+
+    def _enable_memory_saving(self) -> None:
+        # Long inputs blow past 24 GB VRAM even with FreeNoise because the full
+        # latent tensor still lives on the GPU. VAE slicing/tiling decodes in
+        # chunks and attention slicing splits UNet attention across passes —
+        # both trade a small amount of throughput for a large VRAM drop and
+        # coexist with IP-Adapter (unlike full CPU offload).
+        for pipeline in self.pipelines.values():
+            if hasattr(pipeline, "vae"):
+                if hasattr(pipeline.vae, "enable_slicing"):
+                    pipeline.vae.enable_slicing()
+                if hasattr(pipeline.vae, "enable_tiling"):
+                    pipeline.vae.enable_tiling()
+
+            if hasattr(pipeline, "enable_attention_slicing"):
+                pipeline.enable_attention_slicing()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:

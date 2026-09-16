@@ -16,7 +16,7 @@ This workflow provides local motion-preserving video restyling that:
 ### Prerequisites
 
 - model-compose installed and available in your PATH.
-- A CUDA-capable GPU with **at least 12 GB VRAM** for 16 frames at 512×512. Apple Silicon (MPS) is untested and likely too slow. Pure CPU inference is impractical.
+- A CUDA-capable GPU with **at least 8 GB VRAM** for 16 frames at 512×512 in `float16`. Apple Silicon (MPS) is untested and likely too slow. Pure CPU inference is impractical.
 - A Python environment where `torch` and `diffusers` can be installed — the first run installs them automatically.
 
 ### Why Local Video-to-Video
@@ -30,7 +30,7 @@ Compared to cloud-hosted video restyling services:
 - **Pipeline Friendly**: Composes with other model-compose tasks (video-clipper upstream, video-processor downstream) for end-to-end restyling pipelines.
 
 **Trade-offs:**
-- **Hardware Requirements**: Comfortable at 12 GB VRAM for short clips; longer clips or higher resolutions scale VRAM linearly with frame count.
+- **Hardware Requirements**: Comfortable at 8 GB VRAM for short clips; longer clips or higher resolutions scale VRAM linearly with frame count.
 - **Motion Scope**: AnimateDiff's motion adapter was trained on short clips; expect coherent motion for ~16 frames and degradation beyond ~32 frames.
 - **License**: Check the individual base-model and motion-adapter licenses before commercial use.
 
@@ -87,7 +87,7 @@ Compared to cloud-hosted video restyling services:
 |------------------|------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
 | `task`           | Must be `video-to-video`.                                                                                                    | —                                                    |
 | `driver`         | Must be `huggingface`.                                                                                                       | —                                                    |
-| `architecture`   | Base diffusion architecture the motion adapter targets. Only `sd15` is wired up today.                                       | `sd15`                                               |
+| `architecture`   | Video-to-video architecture. Only `animatediff` is wired up today.                                                           | —                                                    |
 | `model`          | Base SD 1.5 style checkpoint (HuggingFace repo or local path). Any SD 1.5 fine-tune works.                                   | —                                                    |
 | `motion_adapter` | AnimateDiff motion adapter matching the base architecture.                                                                    | —                                                    |
 | `device`         | Compute device (`cuda`, `cuda:0`, etc.). `auto` selects the best available.                                                  | `auto`                                               |

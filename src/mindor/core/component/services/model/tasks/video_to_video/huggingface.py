@@ -102,7 +102,9 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
                     pipeline_params["height"] = params["height"]
 
                 if reference_image is not None:
-                    if not hasattr(self.pipeline, "encoder_hid_proj"):
+                    # `load_ip_adapter` attaches the projection onto `unet.encoder_hid_proj`;
+                    # if it's still None, the component didn't declare `ip_adapter`.
+                    if getattr(self.pipeline.unet, "encoder_hid_proj", None) is None:
                         raise ValueError("`reference_image` was supplied but no `ip_adapter` is configured on the component.")
 
                     pipeline_params["ip_adapter_image"] = reference_image

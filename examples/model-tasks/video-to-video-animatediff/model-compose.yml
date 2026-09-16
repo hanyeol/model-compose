@@ -51,8 +51,8 @@ component:
       # Number of diffusion inference steps per frame.
       inference_steps: ${input.inference_steps as integer | 25}
       # Classifier-free guidance scale.
-      guidance_scale: ${input.guidance_scale as decimal | 7.5}
+      guidance_scale: ${input.guidance_scale as number | 7.5}
       # Denoising strength. Higher values follow the prompt more strongly;
       # lower values preserve the input video's appearance. Typical range
       # 0.4 - 0.7 for style transfer.
-      denoise_strength: ${input.denoise_strength as decimal | 0.5}
+      denoise_strength: ${input.denoise_strength as number | 0.5}

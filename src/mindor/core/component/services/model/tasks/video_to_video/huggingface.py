@@ -191,22 +191,31 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
         # context_stride=4) match the original paper. Split inference chunks
         # the UNet forward pass along spatial/temporal axes so long clips fit
         # into 24 GB even under the SDPA attention processor (where the older
-        # `enable_attention_slicing` is a no-op).
+        # `enable_attention_slicing` is a no-op). Skip split inference when
+        # IP-Adapter is attached: its image-embedding batch is not chunked
+        # alongside the split axes and shape errors surface in attn2.
         for pipeline in self.pipelines.values():
             if hasattr(pipeline, "enable_free_noise"):
                 pipeline.enable_free_noise()
-            if hasattr(pipeline, "enable_free_noise_split_inference"):
+
+            if self.config.ip_adapter is None and hasattr(pipeline, "enable_free_noise_split_inference"):
                 pipeline.enable_free_noise_split_inference(spatial_split_size=256, temporal_split_size=16)
 
     def _enable_memory_saving(self) -> None:
         # VAE slicing/tiling decode latents in chunks — small throughput cost,
-        # large VRAM drop, coexists with IP-Adapter (unlike full CPU offload).
+        # large VRAM drop. IP-Adapter installs an image encoder that split
+        # inference can't chunk, so fall back to CPU offload when it's present
+        # to keep long clips within budget.
         for pipeline in self.pipelines.values():
             if hasattr(pipeline, "vae"):
                 if hasattr(pipeline.vae, "enable_slicing"):
                     pipeline.vae.enable_slicing()
+
                 if hasattr(pipeline.vae, "enable_tiling"):
                     pipeline.vae.enable_tiling()
+
+            if self.config.ip_adapter is not None and hasattr(pipeline, "enable_model_cpu_offload"):
+                pipeline.enable_model_cpu_offload()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:

@@ -109,8 +109,8 @@ Compared to cloud-hosted video restyling services:
 | `negative_prompt`            | Text describing content to avoid.                                                                                      | `"bad quality, worst quality, low resolution"`         |
 | `reference_image`            | Reference image passed to the IP-Adapter for appearance conditioning. Requires the component's `ip_adapter` to be set. | (none)                                                 |
 | `seed`                       | Random seed for reproducibility. Leave unset for a fresh sample each call.                                             | (none)                                                 |
-| `params.num_frames`          | Frames sampled from the input video (and produced in the output). Longer clips degrade beyond ~32 frames.              | `16`                                                   |
-| `params.fps`                 | Output video frame rate.                                                                                               | `8`                                                    |
+| `params.num_frames`          | Frames sampled from the input video (and produced in the output). Unset consumes every input frame; FreeNoise handles long clips via sliding context windows. | (all input frames)                                     |
+| `params.fps`                 | Output video frame rate. Unset inherits the input clip's native fps so the output preserves the source playback duration. | (source fps)                                           |
 | `params.height` / `.width`   | Output video resolution. Defaults to the input video's dimensions when unset.                                          | (source dimensions)                                    |
 | `params.denoise_strength`    | Denoising strength. `0.4-0.5` preserves motion strongly; `0.6-0.7` follows the prompt more aggressively.               | `0.5`                                                  |
 | `params.guidance_scale`      | Classifier-free guidance scale.                                                                                        | `7.5`                                                  |
@@ -121,7 +121,7 @@ Compared to cloud-hosted video restyling services:
 ## Notes
 
 - **First run is slow**: The controller has to fetch both the base checkpoint and the motion adapter. Subsequent runs reuse the cached files.
-- **Frame count matters**: AnimateDiff was trained on ~16-frame windows. Going beyond ~32 frames tends to introduce visible drift and motion inconsistencies.
+- **Frame count matters**: AnimateDiff was trained on ~16-frame windows. FreeNoise is always enabled here so long inputs still render, but expect gradual drift and softer motion the further you push past the training window — trim with `video-clipper` upstream when the source clip is very long.
 - **Strength sweet spot**: Values below `0.4` barely change the input; values above `0.7` often break coherent motion. Start at `0.5` and adjust from there.
 - **Aesthetic swap**: To move from realistic to anime style, change `model.repository` to an SD 1.5 anime fine-tune (e.g. `Meina/MeinaMix_V11` or similar). The motion adapter stays the same.
 - **Prompt weight**: Descriptive, style-heavy prompts work better than object-focused prompts — AnimateDiff can't restructure the scene, only recolor and restyle it.

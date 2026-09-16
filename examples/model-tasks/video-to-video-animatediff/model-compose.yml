@@ -48,11 +48,13 @@ component:
     reference_image: ${input.reference_image as image}
     seed: ${input.seed as integer}
     params:
-      # Number of frames to sample from the input video; leave unset to
-      # consume all input frames (capped by GPU memory).
-      num_frames: ${input.num_frames as integer | 16}
-      # Output frame rate — set independently from the input video's fps.
-      fps: ${input.fps as integer | 8}
+      # Number of frames to sample from the input video. Leave unset to
+      # consume every input frame — FreeNoise (always on for AnimateDiff
+      # here) processes long clips through sliding context windows.
+      num_frames: ${input.num_frames as integer}
+      # Output frame rate. Leave unset to inherit the input video's fps so
+      # the output preserves the source playback duration.
+      fps: ${input.fps as integer}
       # Output resolution. Leave unset to inherit the input video's dimensions.
       # SD 1.5 is trained around 512×512, so odd aspect ratios may degrade quality.
       # width: ${input.width as integer | 512}

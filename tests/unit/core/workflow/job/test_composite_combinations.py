@@ -134,7 +134,7 @@ def _cfg(raw: dict):
 
 
 def _install_component_lookup(
-    job_cls, cfg, components_by_id: Dict[str, FakeComponent], monkeypatch: pytest.MonkeyPatch
+    job_class, cfg, components_by_id: Dict[str, FakeComponent], monkeypatch: pytest.MonkeyPatch
 ):
     """Build an outer composite job whose `_create_component` — and that of
     every inline sub-job created via `create_job` at runtime — is stubbed
@@ -161,8 +161,8 @@ def _install_component_lookup(
 
     monkeypatch.setattr(impl_common, "create_job", wrapped_create_job)
 
-    outer = job_cls.__new__(job_cls)
-    outer.id = f"outer-{job_cls.__name__.lower()}"
+    outer = job_class.__new__(job_class)
+    outer.id = f"outer-{job_class.__name__.lower()}"
     outer.config = cfg
     outer.global_configs = None
     outer._create_component = _fake_create_component  # type: ignore[assignment]

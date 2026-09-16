@@ -44,13 +44,13 @@ def _build_component_config() -> Any:
             {
                 "prompt": "a serene mountain lake at sunrise, photorealistic",
                 "batch_size": 1,
+                "width": 512,
+                "height": 512,
+                "num_return_images": 1,
+                "seed": 42,
                 "params": {
-                    "num_inference_steps": 2,
+                    "inference_steps": 2,
                     "guidance_scale": 5.0,
-                    "width": 512,
-                    "height": 512,
-                    "num_images_per_prompt": 1,
-                    "seed": 42,
                 },
             }
         ],
@@ -74,7 +74,7 @@ async def _run() -> None:
     assert service.device is not None, "device must be resolved"
     print(f"[load] pipeline class: {type(service.pipeline).__name__}, device: {service.device}")
 
-    print(f"[run]  generating 1 image (num_inference_steps=2)")
+    print(f"[run]  generating 1 image (inference_steps=2)")
     t0 = time.perf_counter()
     ctx = ComponentActionContext("r-sdxl-1", {})
     loop = asyncio.get_running_loop()

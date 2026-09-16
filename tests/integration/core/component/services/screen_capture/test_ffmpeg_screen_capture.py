@@ -391,7 +391,7 @@ async def test_video_only_returns_video_stream_resource(monkeypatch):
 
     # Only one ffmpeg was spawned (the video one).
     assert len(seen) == 1
-    assert seen[0][0] == "ffmpeg"
+    assert os.path.basename(seen[0][0]) == "ffmpeg"
     assert seen[0][1:5] == ["-hide_banner", "-nostats", "-loglevel", "warning"]
 
     # Draining consumes the canned chunks and closes cleanly.
@@ -982,9 +982,12 @@ class TestMacosSystemAudio:
             "mindor.core.component.services.screen_capture.drivers.ffmpeg.platform.system",
             lambda: "Darwin",
         )
+        # `shutil.which` is a single global — the driver uses it for audiotee
+        # and `resolve_ffmpeg_executable` uses it for ffmpeg. Return sensible
+        # fakes for both so the audiotee|ffmpeg pipeline can be constructed.
         monkeypatch.setattr(
             "mindor.core.component.services.screen_capture.drivers.ffmpeg.shutil.which",
-            lambda name: "/fake/audiotee" if name == "audiotee" else None,
+            lambda name: {"audiotee": "/fake/audiotee", "ffmpeg": "/fake/ffmpeg"}.get(name),
         )
 
         action = FFmpegScreenCaptureAction(
@@ -999,7 +1002,7 @@ class TestMacosSystemAudio:
         # Two spawns: audiotee then ffmpeg.
         assert len(seen) == 2
         assert seen[0][0] == "/fake/audiotee"
-        assert seen[1][0] == "ffmpeg"
+        assert os.path.basename(seen[1][0]) == "ffmpeg"
 
         # ffmpeg has to be told the audiotee output format up front (f32le/48k/mono).
         ff_argv = seen[1]

@@ -84,7 +84,7 @@ class TestArchitectureDefaults:
             "actions": [{"prompt": "a cat"}],
         }))
         action = cfg.actions[0]
-        assert action.params.num_inference_steps == 30
+        assert action.params.inference_steps == 30
         assert action.params.guidance_scale == 7.5
         assert action.width == 1024
         assert action.height == 1024
@@ -96,7 +96,7 @@ class TestArchitectureDefaults:
             "actions": [{"prompt": "a cat"}],
         }))
         p = cfg.actions[0].params
-        assert p.num_inference_steps == 28
+        assert p.inference_steps == 28
         assert p.guidance_scale == 3.5
         assert p.max_sequence_length == 512
 
@@ -106,18 +106,18 @@ class TestArchitectureDefaults:
             "actions": [{"prompt": "a cat"}],
         }))
         p = cfg.actions[0].params
-        assert p.num_inference_steps == 50
+        assert p.inference_steps == 50
         assert p.distilled_guidance_scale == 3.25
 
     def test_user_override_wins_over_default(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl", {
             "actions": [{
                 "prompt": "a cat",
-                "params": {"num_inference_steps": 40, "guidance_scale": 9.0},
+                "params": {"inference_steps": 40, "guidance_scale": 9.0},
             }],
         }))
         p = cfg.actions[0].params
-        assert p.num_inference_steps == 40
+        assert p.inference_steps == 40
         assert p.guidance_scale == 9.0
 
 

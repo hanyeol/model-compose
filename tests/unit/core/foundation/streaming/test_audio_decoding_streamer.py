@@ -255,7 +255,7 @@ class TestTorchaudioFallback:
     async def test_decode_wav_via_torchaudio(self, monkeypatch):
         # Force torchaudio path by pretending ffmpeg is missing.
         import mindor.core.foundation.streaming.audio as audio_module
-        monkeypatch.setattr(audio_module.shutil, "which", lambda name: None)
+        monkeypatch.setattr(audio_module, "is_ffmpeg_available", lambda: False)
 
         samples = make_sine_int16(440.0, 16000, 0.1)
         wav = build_wav_bytes(samples, sample_rate=16000, channels=1)
@@ -273,7 +273,7 @@ class TestTorchaudioFallback:
     @pytest.mark.anyio
     async def test_no_decoder_raises(self, monkeypatch):
         import mindor.core.foundation.streaming.audio as audio_module
-        monkeypatch.setattr(audio_module.shutil, "which", lambda name: None)
+        monkeypatch.setattr(audio_module, "is_ffmpeg_available", lambda: False)
         monkeypatch.setattr(
             AudioDecodingStreamer, "_is_torchaudio_available", staticmethod(lambda: False)
         )

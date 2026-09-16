@@ -118,7 +118,7 @@ class TestActionRunSignature:
     async def test_service_run_can_be_called_with_just_action_and_context(self, sample_video_path):
         service = FFmpegAudioExtractorService(id="t", config=MagicMock(), daemon=False)
         action_config = AudioExtractorActionConfig(source="${input.file}", format="mp3")
-        context = make_action_context(input={"file": sample_video_path})
+        context = make_action_context(input={"file": FileStreamResource(sample_video_path)})
 
         # No TypeError — the important assertion.
         result = await service._run(action_config, context)
@@ -138,7 +138,7 @@ class TestNonBlockingBehavior:
         action_config = AudioExtractorActionConfig(
             source="${input.file}", format="m4a",
         )
-        context = make_action_context(input={"file": sample_video_path})
+        context = make_action_context(input={"file": FileStreamResource(sample_video_path)})
 
         result = await assert_does_not_block(
             FFmpegAudioExtractorAction(action_config).run(context),
@@ -157,7 +157,7 @@ class TestNonBlockingBehavior:
         action_config = AudioExtractorActionConfig(
             source="${input.file}", format="mp3",
         )
-        context = make_action_context(input={"file": sample_video_path})
+        context = make_action_context(input={"file": FileStreamResource(sample_video_path)})
 
         result = await assert_does_not_block(
             FFmpegAudioExtractorAction(action_config).run(context),
@@ -185,7 +185,7 @@ class TestBatchInput:
             source="${input.files}", format="mp3",
         )
         context = make_action_context(
-            input={"files": [sample_video_path, sample_video_path, sample_video_path]},
+            input={"files": [FileStreamResource(sample_video_path) for _ in range(3)]},
         )
 
         result = await FFmpegAudioExtractorAction(action_config).run(context)
@@ -206,7 +206,7 @@ class TestStreamingInput:
         # Build an AsyncIterator of paths and feed it via the input renderer.
         async def _paths():
             for _ in range(2):
-                yield sample_video_path
+                yield FileStreamResource(sample_video_path)
 
         action_config = AudioExtractorActionConfig(
             source="${input.stream}", format="mp3",
@@ -265,7 +265,7 @@ class TestCancellation:
             action_config = AudioExtractorActionConfig(
                 source="${input.file}", format="m4a", encoding={"bitrate": "320k"},
             )
-            context = make_action_context(input={"file": long_path})
+            context = make_action_context(input={"file": FileStreamResource(long_path)})
             _attach_cancellation(context, token)
 
             async def _fire_soon():

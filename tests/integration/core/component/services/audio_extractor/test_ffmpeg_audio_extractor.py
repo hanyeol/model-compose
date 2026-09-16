@@ -117,6 +117,8 @@ def _make_context(source_value: Any) -> ComponentActionContext:
     def resolve_one(value):
         if isinstance(value, MediaSource):
             return value
+        if isinstance(value, str):
+            return create_media_source(FileStreamResource(value))
         return create_media_source(value)
 
     async def render_media(_value):

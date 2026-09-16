@@ -2,6 +2,7 @@ from typing import Optional, Tuple, List, Dict, Union
 from pathlib import Path
 from packaging.requirements import Requirement, SpecifierSet
 from packaging.utils import canonicalize_name
+from packaging.version import Version, InvalidVersion
 from importlib.metadata import version, metadata, PackageNotFoundError
 from mindor.core.utils.github import download_github_tarball
 import mindor
@@ -140,12 +141,19 @@ def parse_requirement(package_spec: str) -> Optional[Requirement]:
     except Exception:
         return None
 
-def is_requirement_satisfied(requirement: Requirement) -> bool:
+def is_requirement_satisfied(requirement: Requirement, repository: Optional[str] = None) -> bool:
     """Check whether the installed distribution satisfies `requirement`.
 
     Returns False when the package is not installed at all, when its version
     falls outside the specifier, or when any of the requested extras are
     themselves unsatisfied.
+
+    When `repository` names a PyTorch wheel channel (e.g. `.../whl/cu126`),
+    the installed distribution's local version segment (e.g. `2.11.0+cu128`)
+    is also compared against the channel. A mismatch marks the requirement
+    unsatisfied so the caller reinstalls from the requested channel — this
+    catches the case where torch and its siblings were installed from
+    different CUDA channels and are now ABI-incompatible.
     """
     distribution_name = canonicalize_name(requirement.name)
 
@@ -162,7 +170,42 @@ def is_requirement_satisfied(requirement: Requirement) -> bool:
     if requirement.extras and not is_extra_requirement_satisfied(requirement):
         return False
 
+    if not _is_local_version_compatible(installed_version, repository):
+        return False
+
     return True
+
+def _is_local_version_compatible(installed_version: str, repository: Optional[str]) -> bool:
+    """Return False when the installed local segment names a different CUDA channel.
+
+    Wheels from `.../whl/cu126/` embed `+cu126` in their version. If the caller
+    routes to a different channel (e.g. cu128), reinstalling is the only way to
+    swap the CUDA build — pip won't touch a same-version distribution otherwise.
+    Falls through (returns True) when either side lacks a channel token, so
+    non-torch packages and CPU wheels don't trigger spurious reinstalls.
+    """
+    if repository is None:
+        return True
+
+    requested_channel = _extract_channel(repository)
+
+    if requested_channel is None:
+        return True
+
+    try:
+        installed_local = Version(installed_version).local
+    except InvalidVersion:
+        return True
+
+    if not installed_local:
+        return True
+
+    return installed_local == requested_channel
+
+def _extract_channel(repository: str) -> Optional[str]:
+    """Pull the wheel-index channel token (`cu126`, `cpu`, ...) out of a URL."""
+    match = re.search(r"/whl/([^/]+)/?$", repository)
+    return match.group(1) if match else None
 
 def is_extra_requirement_satisfied(requirement: Requirement) -> bool:
     """Check whether the extras listed on `requirement` have their dependencies installed.

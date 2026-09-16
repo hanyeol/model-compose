@@ -1,0 +1,54 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: AnimateDiff Video-to-Video
+  description: Restyle an existing video with a text prompt while preserving motion.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: video-to-video
+  driver: huggingface
+  # Video-to-video family. AnimateDiff pairs an SD 1.5 checkpoint with a
+  # motion adapter; SDXL motion adapters (e.g. animatediff-motion-adapter-sdxl-beta)
+  # would need a different pipeline class and are not wired up yet.
+  architecture: animatediff
+  device: cuda
+  # Base SD 1.5 style model. Any SD 1.5 fine-tune works — pick one whose
+  # aesthetic you want the output to inherit (realistic / anime / etc.).
+  model:
+    provider: huggingface
+    repository: SG161222/Realistic_Vision_V5.1_noVAE
+  # AnimateDiff motion adapter. v1-5-3 targets SD 1.5 checkpoints.
+  motion_adapter:
+    provider: huggingface
+    repository: guoyww/animatediff-motion-adapter-v1-5-3
+  max_concurrent_count: 1
+  action:
+    video: ${input.video as video}
+    prompt: ${input.prompt}
+    negative_prompt: ${input.negative_prompt | "bad quality, worst quality, low resolution"}
+    seed: ${input.seed as integer | null}
+    params:
+      # Number of frames to sample from the input video; leave unset to
+      # consume all input frames (capped by GPU memory).
+      num_frames: ${input.num_frames as integer | 16}
+      # Output frame rate — set independently from the input video's fps.
+      fps: ${input.fps as integer | 8}
+      # Number of diffusion inference steps per frame.
+      inference_steps: ${input.inference_steps as integer | 25}
+      # Classifier-free guidance scale.
+      guidance_scale: ${input.guidance_scale as decimal | 7.5}
+      # Denoising strength. Higher values follow the prompt more strongly;
+      # lower values preserve the input video's appearance. Typical range
+      # 0.4 - 0.7 for style transfer.
+      denoise_strength: ${input.denoise_strength as decimal | 0.5}

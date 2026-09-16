@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Union, Any
+from typing import Type, Optional, Dict, List, Tuple, Union, Any
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceVideoToVideoModelArchitecture
 from mindor.core.foundation.cancellation import CancellationToken
@@ -64,7 +64,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
-        batch_frames: List[List[PILImage.Image]] = await self._collect_frames(sources, params)
+        batch_frames, batch_fps = await self._collect_frames(sources, params)
         prompts = prompts if prompts is not None else [ None ] * len(batch_frames)
         negative_prompts = negative_prompts if negative_prompts is not None else [ None ] * len(batch_frames)
         reference_images = reference_images if reference_images is not None else [ None ] * len(batch_frames)
@@ -74,8 +74,8 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
             results: List[VideoStreamResource] = []
 
-            for input_frames, prompt, negative_prompt, reference_image in zip(batch_frames, prompts, negative_prompts, reference_images):
-                if not input_frames:
+            for frames, fps, prompt, negative_prompt, reference_image in zip(batch_frames, batch_fps, prompts, negative_prompts, reference_images):
+                if not frames:
                     raise ValueError("AnimateDiff received an empty frame batch.")
 
                 generator: Optional[torch.Generator] = None
@@ -84,7 +84,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
                     generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
                 pipeline_params: Dict[str, Any] = {
-                    "video":               input_frames,
+                    "video":               frames,
                     "prompt":              prompt or "",
                     "strength":            params["denoise_strength"],
                     "guidance_scale":      params["guidance_scale"],
@@ -124,9 +124,10 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
                 except PipelineCancelled:
                     raise asyncio.CancelledError()
 
-                output_frames: List[PILImage.Image] = result.frames[0]
-                width, height = output_frames[0].size # AnimateDiff guarantees uniform frame size
-                results.append(encode_frames_to_mp4(output_frames, width, height, params["fps"]))
+                frames: List[PILImage.Image] = result.frames[0]
+                width, height = frames[0].size # AnimateDiff guarantees uniform frame size
+                fps = params["fps"] if params["fps"] is not None else (int(round(fps)) if fps else 8)
+                results.append(encode_frames_to_mp4(frames, width, height, fps))
 
             return results
 
@@ -136,20 +137,30 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         self,
         sources: List[Union[MediaSource, ImageArrayValue]],
         params: Dict[str, Any],
-    ) -> List[List[PILImage.Image]]:
+    ) -> Tuple[List[List[PILImage.Image]], List[Optional[float]]]:
+        """Collect batch frames along with each clip's detected native fps.
+
+        Video sources report their native fps via imageio metadata; image_array
+        inputs can't, so their slot is left None and callers fall back to the
+        action's `fps` (or a default) when encoding.
+        """
         num_frames = params.get("num_frames")
         width      = params.get("width")
         height     = params.get("height")
 
-        frames: List[List[PILImage.Image]] = []
+        batch_frames: List[List[PILImage.Image]] = []
+        batch_fps: List[Optional[float]] = []
 
         for source in sources:
             if isinstance(source, MediaSource):
-                frames.append(await self._collect_frames_from_video(source, num_frames, width, height))
+                frames, fps = await self._collect_frames_from_video(source, num_frames, width, height)
+                batch_frames.append(frames)
+                batch_fps.append(fps)
             else:
-                frames.append(await self._collect_frames_from_image_array(source, num_frames, width, height))
+                batch_frames.append(await self._collect_frames_from_image_array(source, num_frames, width, height))
+                batch_fps.append(None)
 
-        return frames
+        return batch_frames, batch_fps
 
 @register_model_task_service(ModelTaskType.VIDEO_TO_VIDEO, ModelDriver.HUGGINGFACE)
 class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService[None]):
@@ -169,6 +180,17 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
 
         if self.config.ip_adapter is not None:
             await self._attach_ip_adapters()
+
+        self._enable_free_noise()
+
+    def _enable_free_noise(self) -> None:
+        # FreeNoise reuses noise across sliding context windows so AnimateDiff
+        # (trained on ~16-frame clips) can render inputs of arbitrary length
+        # without a visible seam. Diffusers' defaults (context_length=16,
+        # context_stride=4) match the original paper.
+        for pipeline in self.pipelines.values():
+            if hasattr(pipeline, "enable_free_noise"):
+                pipeline.enable_free_noise()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:

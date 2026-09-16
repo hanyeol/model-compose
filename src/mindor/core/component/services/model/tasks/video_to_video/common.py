@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Union, Any
+from typing import Optional, Dict, List, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoToVideoModelActionConfig
@@ -85,7 +85,12 @@ class VideoToVideoTaskAction(ComponentAction):
         num_frames: Optional[int],
         width: Optional[int],
         height: Optional[int],
-    ) -> List[PILImage.Image]:
+    ) -> Tuple[List[PILImage.Image], Optional[float]]:
+        """Return the sampled frames plus the source's native fps (when detectable).
+
+        Callers use the fps hint to preserve the input clip's playback duration
+        when the action doesn't specify one explicitly.
+        """
         import imageio.v3 as iio
 
         # imageio picks its backend by extension, so probe the container when
@@ -96,6 +101,8 @@ class VideoToVideoTaskAction(ComponentAction):
             raise ValueError("Input video must resolve to a filesystem path.")
 
         try:
+            metadata = iio.immeta(path)
+            fps: Optional[float] = metadata.get("fps") if isinstance(metadata, dict) else None
             frames: List[PILImage.Image] = []
 
             for index, array in enumerate(iio.imiter(path)):
@@ -104,7 +111,7 @@ class VideoToVideoTaskAction(ComponentAction):
 
                 frames.append(self._normalize_frame(PILImage.fromarray(array), width, height))
 
-            return frames
+            return frames, fps
         finally:
             if spooled and path and os.path.exists(path):
                 try:

@@ -5,11 +5,13 @@ from packaging.specifiers import SpecifierSet
 from mindor.core.logger import logging
 from .cuda import get_cuda_driver_version
 
-# torch → paired sibling versions. Keep both tables in sync with
-# pytorch.org/get-started/previous-versions/ — each PyTorch release publishes
-# one triple. torchaudio's version currently mirrors torch exactly, but we keep
-# a separate map so a future release that breaks that convention shows up as an
-# obvious edit rather than a silent bug.
+# torch → paired sibling versions. Keep in sync with pytorch.org/get-started/
+# previous-versions/. When a torch version has no explicit entry, sibling
+# resolution falls back to the highest tabled version that is <= the requested
+# torch (see `_resolve_sibling_version`) — this covers packages that stopped
+# releasing paired versions and instead declared forward compatibility, such
+# as torchaudio 2.11.0 which is ABI-stable with later torch releases.
+
 _TORCHAUDIO_FOR_TORCH: Dict[str, str] = {
     "2.11.0": "2.11.0",
     "2.10.0": "2.10.0",
@@ -171,7 +173,7 @@ def _resolve_torch_and_channel(
     cuda_version: Tuple[int, int],
 ) -> Optional[Tuple[str, str]]:
     for version in _candidate_torch_versions(torch_specifier):
-        if not all(version in _TORCH_SIBLING_TABLES[sibling] for sibling in torch_siblings):
+        if not all(_resolve_sibling_version(sibling, version) is not None for sibling in torch_siblings):
             continue
 
         channel = _pick_channel_for_driver(version, cuda_version)
@@ -180,6 +182,29 @@ def _resolve_torch_and_channel(
             return version, channel
 
     return None
+
+def _resolve_sibling_version(sibling: str, torch_version: str) -> Optional[str]:
+    """Return the sibling release paired with `torch_version`.
+
+    Prefers an exact entry in the sibling table; otherwise falls back to the
+    highest tabled version whose paired torch is <= `torch_version`. The
+    fallback covers packages that stopped shipping same-cadence releases and
+    declared forward compatibility instead (e.g. torchaudio 2.11.0), so a new
+    torch release doesn't require editing the sibling table.
+    """
+    table = _TORCH_SIBLING_TABLES[sibling]
+    exact = table.get(torch_version)
+
+    if exact is not None:
+        return exact
+
+    torch_key = Version(torch_version)
+    candidates = [ tabled for tabled in table if Version(tabled) <= torch_key ]
+
+    if not candidates:
+        return None
+
+    return table[max(candidates, key=Version)]
 
 def _candidate_torch_versions(torch_specifier: Optional[SpecifierSet]) -> List[str]:
     if torch_specifier is None:
@@ -226,7 +251,7 @@ def _rewrite_specs(specs: Iterable[str], torch_version: Optional[str], channel: 
             rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
             continue
 
-        sibling_version = _TORCH_SIBLING_TABLES[requirement.name].get(torch_version) if torch_version else None
+        sibling_version = _resolve_sibling_version(requirement.name, torch_version) if torch_version else None
 
         if caller_specifier:
             if sibling_version is not None and not requirement.specifier.contains(sibling_version, prereleases=True):

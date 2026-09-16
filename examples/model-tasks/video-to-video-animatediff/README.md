@@ -97,7 +97,7 @@ Compared to cloud-hosted video restyling services:
 | `architecture`   | Video-to-video architecture. Only `animatediff` is wired up today.                                                           | —                                                    |
 | `model`          | Base SD 1.5 style checkpoint (HuggingFace repo or local path). Any SD 1.5 fine-tune works.                                   | —                                                    |
 | `motion_adapter` | AnimateDiff motion adapter matching the base architecture.                                                                    | —                                                    |
-| `ip_adapter`     | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<subfolder>/<weight_name>`.      | —                                                    |
+| `ip_adapter`     | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<sub_dir>/<weight_name>`.        | —                                                    |
 | `device`         | Compute device (`cuda`, `cuda:0`, etc.). `auto` selects the best available.                                                  | `auto`                                               |
 
 ### Action Fields

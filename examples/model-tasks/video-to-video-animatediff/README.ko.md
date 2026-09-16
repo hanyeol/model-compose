@@ -97,7 +97,7 @@
 | `architecture`   | Video-to-video 아키텍처. 현재는 `animatediff`만 지원됩니다.                                                                   | —                                                     |
 | `model`          | 베이스 SD 1.5 스타일 체크포인트(HuggingFace 저장소 또는 로컬 경로). 어떤 SD 1.5 파인튜닝이든 동작합니다.                       | —                                                     |
 | `motion_adapter` | 베이스 아키텍처에 대응하는 AnimateDiff 모션 어댑터.                                                                           | —                                                     |
-| `ip_adapter`     | 액션에서 `reference_image`를 사용할 때 로드되는 IP-Adapter 가중치. `filename`을 `<subfolder>/<weight_name>` 형식으로 지정.    | —                                                     |
+| `ip_adapter`     | 액션에서 `reference_image`를 사용할 때 로드되는 IP-Adapter 가중치. `filename`을 `<sub_dir>/<weight_name>` 형식으로 지정.      | —                                                     |
 | `device`         | 연산 디바이스(`cuda`, `cuda:0` 등). `auto`는 사용 가능한 최적 디바이스를 선택합니다.                                          | `auto`                                                |
 
 ### 액션 필드

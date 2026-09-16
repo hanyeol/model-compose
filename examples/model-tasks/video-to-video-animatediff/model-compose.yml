@@ -33,7 +33,7 @@ component:
     provider: huggingface
     repository: guoyww/animatediff-motion-adapter-v1-5-3
   # Optional IP-Adapter used when an action supplies `reference_image`.
-  # `filename` combines the adapter's subfolder and weight name — pick the
+  # `filename` combines the adapter's sub-directory and weight name — pick the
   # SD 1.5 checkpoint since the base model is SD 1.5.
   ip_adapter:
     provider: huggingface

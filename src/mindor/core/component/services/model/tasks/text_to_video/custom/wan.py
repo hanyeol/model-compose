@@ -116,8 +116,8 @@ class WanTextToVideoTaskService(ModelTaskService):
             "transformers",
             "accelerate",
             "sentencepiece",
-            "imageio-ffmpeg",
             "imageio",
+            "imageio-ffmpeg",
             "wan@git+https://github.com/Wan-Video/Wan2.2.git",
         ]
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from typing import Union, Optional, Dict, Any, List
+from typing import Iterable, Union, Optional, Dict, Any, List
 from collections.abc import AsyncIterator
-from .resources import StreamResource, TeeStreamResource
+from mindor.core.utils.ffmpeg.executable import is_ffmpeg_available
+from mindor.core.utils.pyav import is_available as is_pyav_available
+from .resources import StreamResource, TeeStreamResource, AsyncIterableStreamResource
 from .bytes import BytesStreamResource
 from .file import UploadFileStreamResource
 from .media import MediaSource
 from starlette.datastructures import UploadFile
+from PIL import Image as PILImage
 
 _VIDEO_CONTENT_TYPE_MAP: Dict[str, str] = {
     "mp4":  "video/mp4",
@@ -76,6 +79,56 @@ class VideoStreamResource(StreamResource):
     @staticmethod
     def _resolve_size(source: Union[StreamResource, bytes]) -> Optional[int]:
         return source.size if isinstance(source, StreamResource) else len(source)
+
+def encode_frames_to_mp4(
+    frames: Iterable[PILImage.Image],
+    width: int,
+    height: int,
+    fps: int,
+    codec: str = "libx264",
+    pixel_format: str = "yuv420p",
+    attrs: Optional[Dict[str, Any]] = None,
+    filename: Optional[str] = None,
+) -> VideoStreamResource:
+    """Encode PIL frames to a fragmented MP4 `VideoStreamResource`.
+
+    Frames are consumed lazily; encoded bytes flow to the consumer as soon as
+    the muxer emits each fragment. No raw-frame or full-mp4 buffer is held.
+
+    Backend selection: prefers an ffmpeg subprocess (via `resolve_ffmpeg_executable()`);
+    falls back to PyAV (`av`) when neither the system nor imageio-ffmpeg's bundled
+    binary is available.
+    """
+    attrs = { "fps": str(fps), "width": str(width), "height": str(height), **(attrs or {}) }
+
+    async def _stream_mp4_chunks() -> AsyncIterator[bytes]:
+        if is_ffmpeg_available():
+            from mindor.core.utils.ffmpeg.video import encode_video_from_frames
+
+            async for chunk in encode_video_from_frames(frames, width, height, fps, codec=codec, pixel_format=pixel_format):
+                yield chunk
+
+            return
+
+        if is_pyav_available():
+            from mindor.core.utils.pyav import encode_video_from_frames
+
+            async for chunk in encode_video_from_frames(frames, width, height, fps, codec=codec, pixel_format=pixel_format):
+                yield chunk
+
+            return
+
+        raise RuntimeError(
+            "No MP4 encoder available. Install one of: ffmpeg (system), "
+            "`pip install imageio-ffmpeg`, or `pip install av`."
+        )
+
+    return VideoStreamResource(
+        source=AsyncIterableStreamResource(_stream_mp4_chunks()),
+        format="mp4",
+        attrs=attrs,
+        filename=filename,
+    )
 
 def create_video_source(value: Any) -> MediaSource:
     if isinstance(value, VideoStreamResource):

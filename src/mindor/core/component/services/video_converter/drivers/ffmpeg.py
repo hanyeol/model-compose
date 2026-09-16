@@ -10,10 +10,11 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
+from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
-from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
 from ..base import VideoConverterService, VideoConverterDriver, register_video_converter_service
@@ -46,7 +47,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "video" ])
         is_streamable_output = is_streamable_video_format(format.lower())
 
-        command = [ "ffmpeg", "-hide_banner" ]
+        command = [ resolve_ffmpeg_executable(), "-hide_banner" ]
 
         if source.format and input_path is None:
             command.extend([ "-f", source.format ])

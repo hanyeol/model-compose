@@ -5,6 +5,7 @@ from mindor.dsl.schema.component import AudioAnalyzerComponentConfig, AudioAnaly
 from mindor.dsl.schema.action import AudioAnalyzerActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
 from ....action.media import MediaInputPathResolver
@@ -184,7 +185,7 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
     ) -> str:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
-        command = [ "ffmpeg", "-hide_banner", "-nostats" ]
+        command = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats" ]
 
         if source.format and input_path is None:
             command.extend([ "-f", source.format ])

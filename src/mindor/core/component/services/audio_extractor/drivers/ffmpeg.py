@@ -10,8 +10,9 @@ from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.audio import is_streamable_audio_format
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.codecs import get_audio_codec_for_format
+from mindor.core.utils.audio import is_streamable_audio_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
@@ -49,7 +50,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
     ) -> AudioStreamResource:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
-        command = [ "ffmpeg", "-hide_banner" ]
+        command = [ resolve_ffmpeg_executable(), "-hide_banner" ]
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
         command.extend([ "-vn" ])
 

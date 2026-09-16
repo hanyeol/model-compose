@@ -29,16 +29,16 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        num_inference_steps = await context.render_scalar(self.config.params.num_inference_steps, int)
-        eta                 = await context.render_scalar(self.config.params.eta, float)
-        downsample_method   = await context.render_variable(self.config.params.downsample_method)
-        seed                = await context.render_scalar(self.config.params.seed, int)
+        inference_steps   = await context.render_scalar(self.config.params.inference_steps, int)
+        eta               = await context.render_scalar(self.config.params.eta, float)
+        downsample_method = await context.render_variable(self.config.params.downsample_method)
+        seed              = await context.render_scalar(self.config.params.seed, int)
 
         params.update({
-            "num_inference_steps": num_inference_steps,
-            "eta":                 eta,
-            "downsample_method":   downsample_method,
-            "seed":                seed,
+            "inference_steps":   inference_steps,
+            "eta":               eta,
+            "downsample_method": downsample_method,
+            "seed":              seed,
         })
 
         return params
@@ -66,7 +66,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
             for image in _images:
                 result = self.pipeline(
                     image=image,
-                    num_inference_steps=params["num_inference_steps"],
+                    num_inference_steps=params["inference_steps"],
                     eta=params["eta"],
                     generator=generator,
                 )

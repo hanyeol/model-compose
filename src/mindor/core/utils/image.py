@@ -1,5 +1,20 @@
 from PIL import Image as PILImage
 
+def convert(
+    image: PILImage.Image,
+    width: int,
+    height: int,
+    mode: str = "RGB",
+    resample: int = PILImage.LANCZOS,
+) -> PILImage.Image:
+    """Return `image` in the given color mode, resized to (width, height) if needed."""
+    image = image.convert(mode)
+
+    if image.size != (width, height):
+        image = image.resize((width, height), resample)
+
+    return image
+
 def compose_with_alpha(image: PILImage.Image, alpha: PILImage.Image) -> PILImage.Image:
     if alpha.size != image.size:
         alpha = alpha.resize(image.size, PILImage.Resampling.LANCZOS)

@@ -15,6 +15,7 @@ from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, get_mindor_install_root
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.probe import probe_video
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import LipSyncTaskAction
@@ -156,9 +157,9 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
             frames = (frames * repeats)[:len(mel_chunks)]
 
         if params["face_bounding_box"] is None:
-            face_batches = self._face_detect_batches(frames, params)
+            face_crops = self._detect_face_crops(frames, params)
         else:
-            face_batches = self._fixed_box_batches(frames, params["face_bounding_box"])
+            face_crops = self._crop_fixed_box(frames, params["face_bounding_box"])
 
         fd, silent_video_path = tempfile.mkstemp(suffix=".mp4")
         os.close(fd)
@@ -170,9 +171,9 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
             with torch.no_grad():
                 for batch_start in range(0, len(mel_chunks), batch_size):
                     mel_batch = mel_chunks[batch_start:batch_start + batch_size]
-                    face_batch = face_batches[batch_start:batch_start + batch_size]
+                    face_crop_batch = face_crops[batch_start:batch_start + batch_size]
 
-                    img_batch_np = np.asarray([ face_crop for face_crop, _ in face_batch ])
+                    img_batch_np = np.asarray([ face_crop for face_crop, _ in face_crop_batch ])
                     mel_batch_np = np.asarray(mel_batch)
 
                     img_masked = img_batch_np.copy()
@@ -186,7 +187,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
                     predictions = self.model(mel_batch_t, img_batch_t)
                     predictions = predictions.cpu().numpy().transpose(0, 2, 3, 1) * 255.0
 
-                    for prediction, (_, coords), source_index in zip(predictions, face_batch, range(batch_start, batch_start + len(predictions))):
+                    for prediction, (_, coords), source_index in zip(predictions, face_crop_batch, range(batch_start, batch_start + len(predictions))):
                         x1, y1, x2, y2 = coords
                         frame = frames[source_index].copy()
                         resized = cv2.resize(prediction.astype(np.uint8), (x2 - x1, y2 - y1))
@@ -215,11 +216,11 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
             attrs={ "fps": str(fps) },
         )
 
-    def _face_detect_batches(self, frames: List[Any], params: Dict[str, Any]) -> List[Tuple[Any, Tuple[int, int, int, int]]]:
+    def _detect_face_crops(self, frames: List[Any], params: Dict[str, Any]) -> List[Tuple[Any, Tuple[int, int, int, int]]]:
         from face_detection.detection.sfd.sfd_detector import SFDDetector
+        import face_detection  # from justinjohn0306/Wav2Lip
         import numpy as np
         import cv2
-        import face_detection  # from justinjohn0306/Wav2Lip
 
         # The vendored `face_detection` is a fork of the pre-MPS `face-alignment`
         # release; its `FaceAlignment.__init__` only understands `"cpu"` and
@@ -274,14 +275,14 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
             if params["face_smoothing"]:
                 results = self._smooth_boxes(results)
 
-            batches: List[Tuple[Any, Tuple[int, int, int, int]]] = []
+            face_crops: List[Tuple[Any, Tuple[int, int, int, int]]] = []
 
             for frame, (x1, y1, x2, y2) in zip(frames, results):
                 face_crop = frame[y1:y2, x1:x2]
                 face_crop = cv2.resize(face_crop, (image_size, image_size))
-                batches.append((face_crop, (x1, y1, x2, y2)))
+                face_crops.append((face_crop, (x1, y1, x2, y2)))
 
-            return batches
+            return face_crops
         finally:
             del detector
 
@@ -337,7 +338,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         return frame[y1:y2, x1:x2]
 
     @staticmethod
-    def _fixed_box_batches(frames: List[Any], box: Box) -> List[Tuple[Any, Tuple[int, int, int, int]]]:
+    def _crop_fixed_box(frames: List[Any], box: Box) -> List[Tuple[Any, Tuple[int, int, int, int]]]:
         import cv2
 
         if any(element is None for element in box):
@@ -345,33 +346,35 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
 
         image_size = 96
         x1, y1, x2, y2 = box
-        batches: List[Tuple[Any, Tuple[int, int, int, int]]] = []
+        face_crops: List[Tuple[Any, Tuple[int, int, int, int]]] = []
 
         for frame in frames:
             face_crop = cv2.resize(frame[y1:y2, x1:x2], (image_size, image_size))
-            batches.append((face_crop, (x1, y1, x2, y2)))
+            face_crops.append((face_crop, (x1, y1, x2, y2)))
 
-        return batches
+        return face_crops
 
     @staticmethod
     def _smooth_boxes(boxes: List[Tuple[int, int, int, int]]) -> List[Tuple[int, int, int, int]]:
         import numpy as np
 
-        window = 5
-        arr = np.array(boxes, dtype=np.float32)
-        for i in range(len(arr)):
-            if i + window > len(arr):
-                w = arr[len(arr) - window:]
+        window_size = 5
+        array = np.array(boxes, dtype=np.float32)
+
+        for index in range(len(array)):
+            if index + window_size > len(array):
+                window = array[len(array) - window_size:]
             else:
-                w = arr[i:i + window]
-            arr[i] = np.mean(w, axis=0)
-        return [ (int(row[0]), int(row[1]), int(row[2]), int(row[3])) for row in arr ]
+                window = array[index:index + window_size]
+            array[index] = np.mean(window, axis=0)
+
+        return [ (int(row[0]), int(row[1]), int(row[2]), int(row[3])) for row in array ]
 
     @staticmethod
     def _mux_audio(video_path: str, audio_path: str, output_path: str) -> None:
         subprocess.run(
             [
-                "ffmpeg", "-y",
+                resolve_ffmpeg_executable(), "-y",
                 "-i", video_path,
                 "-i", audio_path,
                 "-c:v", "copy",

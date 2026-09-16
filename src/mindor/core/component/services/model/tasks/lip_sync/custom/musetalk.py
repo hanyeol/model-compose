@@ -12,6 +12,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from mindor.core.foundation.streaming.url import download_to_file
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskService
 from ..common import LipSyncTaskAction
@@ -291,7 +292,7 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
     def _mux_audio(video_path: str, audio_path: str, output_path: str) -> None:
         subprocess.run(
             [
-                "ffmpeg", "-y",
+                resolve_ffmpeg_executable(), "-y",
                 "-i", video_path,
                 "-i", audio_path,
                 "-c:v", "copy",

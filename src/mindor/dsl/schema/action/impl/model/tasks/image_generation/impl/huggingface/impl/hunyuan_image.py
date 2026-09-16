@@ -4,7 +4,7 @@ from ...common import ImageGenerationActionMethod
 from .common import CommonHuggingfaceImageGenerationModelActionConfig, CommonHuggingfaceImageGenerationParamsConfig
 
 class HunyuanImageHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
-    num_inference_steps: Union[int, str] = Field(default=50, description="Number of denoising steps run during sampling.")
+    inference_steps: Union[int, str] = Field(default=50, description="Number of denoising steps run during sampling.")
     distilled_guidance_scale: Union[float, str] = Field(default=3.25, description="Distilled guidance scale used by Hunyuan-Image's adaptive projected mix guidance.")
 
 class HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):

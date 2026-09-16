@@ -10,10 +10,11 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.files import get_temporary_path
-from mindor.core.utils.video import is_streamable_video_format
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer
+from mindor.core.utils.video import is_streamable_video_format
+from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
@@ -91,7 +92,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 # to the nearest keyframe at/before start_time; both video and audio
                 # streams are copied without re-encoding.
                 command = [
-                    "ffmpeg", "-hide_banner",
+                    resolve_ffmpeg_executable(), "-hide_banner",
                     "-ss", f"{start_time:.6f}",
                     "-to", f"{end_time:.6f}",
                     "-i", input_path,
@@ -181,7 +182,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                     f.write(f"file '{escaped}'\n")
 
             concat_command = [
-                "ffmpeg", "-hide_banner",
+                resolve_ffmpeg_executable(), "-hide_banner",
                 "-f", "concat", "-safe", "0",
                 "-i", concat_list_path,
                 "-c", "copy",

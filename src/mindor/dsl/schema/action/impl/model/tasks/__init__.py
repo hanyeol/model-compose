@@ -15,6 +15,7 @@ from .image_background_removal import *
 from .image_segmentation import *
 from .text_to_video import *
 from .image_to_video import *
+from .video_to_video import *
 from .talking_head import *
 from .lip_sync import *
 from .object_detection import *

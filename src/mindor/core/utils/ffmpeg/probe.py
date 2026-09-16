@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Sequence, Tuple
 from ..files import get_file_extension
 from ..shell import run_command
+from .executable import resolve_ffprobe_executable
 import json
 
 # Requested field name → (section, ffprobe key). section is "format" or "stream".
@@ -68,7 +69,7 @@ async def _probe(
 
     sections = { field_map[field][0] for field in fields }
 
-    command = [ "ffprobe", "-v", "quiet", "-print_format", "json" ]
+    command = [ resolve_ffprobe_executable(), "-v", "quiet", "-print_format", "json" ]
 
     if "stream" in sections:
         command.extend([ "-select_streams", stream_selector, "-show_streams" ])

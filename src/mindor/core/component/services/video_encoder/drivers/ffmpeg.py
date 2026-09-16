@@ -12,6 +12,7 @@ from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
@@ -63,7 +64,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         video_input, stdin_owner = self._resolve_input_source(video, video_path, stdin_owner, fd_channels)
         audio_input, stdin_owner = self._resolve_input_source(audio, audio_path, stdin_owner, fd_channels) if audio is not None else (None, stdin_owner)
 
-        command = [ "ffmpeg", "-hide_banner", "-y" ]
+        command = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
 
         if video.attrs.get("resolution"):
             command.extend([ "-s", str(video.attrs["resolution"]) ])
@@ -139,7 +140,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 fd_channels.append(channel)
                 audio_input = f"pipe:{channel.read_fd}"
 
-        command = [ "ffmpeg", "-hide_banner", "-y" ]
+        command = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         command.extend([ "-f", "image2pipe", "-framerate", str(frame_rate), "-i", "pipe:0" ])
 
         if audio_input is not None:

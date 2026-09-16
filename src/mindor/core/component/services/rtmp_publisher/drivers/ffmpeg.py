@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_subprocess
@@ -161,7 +162,7 @@ class FFmpegRtmpPublisher:
         has_video = video_input is not None
         has_audio = audio_input is not None
 
-        command = [ "ffmpeg", "-hide_banner", "-y" ]
+        command = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
 
         if has_video:
             if video_attrs and video_attrs.get("resolution"):

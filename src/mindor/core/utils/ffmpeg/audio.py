@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from ..audio import AudioStream, is_pcm_format
 from ..shell import run_subprocess
+from .executable import resolve_ffmpeg_executable
 
 async def _load_pcm(
     sample_rate: int,
@@ -14,7 +15,7 @@ async def _load_pcm(
     if not is_pcm_format(format):
         raise ValueError(f"Not a raw PCM format: {format!r}")
 
-    command = [ "ffmpeg", "-hide_banner", "-loglevel", "error" ]
+    command = [ resolve_ffmpeg_executable(), "-hide_banner", "-loglevel", "error" ]
 
     if stream is not None and stream.format:
         command.extend([ "-f", stream.format ])

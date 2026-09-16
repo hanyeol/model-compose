@@ -14,6 +14,7 @@ from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.utils.audio import is_audio_only_format
 from mindor.core.utils.shell import kill_process
 from mindor.core.utils.screen.window import WindowSelector, find_window
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.logger import logging
 from ..base import ScreenCaptureService, ScreenCaptureDriver, register_screen_capture_service
 from ..base import ComponentActionContext
@@ -111,7 +112,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         video_bitrate = encoding.video.bitrate if encoding and encoding.video and encoding.video.bitrate else None
         video_quality = encoding.video.quality if encoding and encoding.video and encoding.video.quality is not None else None
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_video_input_args(system, display, framerate, region, window_title))
         command.extend([
             "-c:v", video_codec,
@@ -210,7 +211,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
                 audio_format, audio_codec, audio_bitrate, params["duration"]
             )
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_audio_input_args(system, audio_source))
         command.extend([ "-c:a", audio_codec, "-flush_packets", "1" ])
 
@@ -380,7 +381,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
 
         audiotee_command = [ audiotee_path, "--chunk-duration", "0.1" ]
         ffmpeg_command: List[str] = [
-            "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning",
+            resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning",
             "-f", "f32le",
             "-ar", str(sample_rate),
             "-ac", str(channels),

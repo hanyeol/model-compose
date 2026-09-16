@@ -9,6 +9,8 @@ from .bytes import BytesStreamResource
 from .file import FileStreamResource, UploadFileStreamResource
 from .media import MediaSource
 from .iterators import StreamChunkIterator
+from ...utils.ffmpeg.executable import resolve_ffmpeg_executable, is_ffmpeg_available
+from ...utils.shell import stream_subprocess
 from ...utils.audio import (
     AudioBuffer,
     is_pcm_format,
@@ -19,10 +21,9 @@ from ...utils.audio import (
     parse_wav_header,
     parse_flac_header,
 )
-from ...utils.shell import stream_subprocess
 from ...logger import logging
 from starlette.datastructures import UploadFile
-import asyncio, struct, shutil
+import asyncio, struct
 
 if TYPE_CHECKING:
     import numpy as np
@@ -355,7 +356,7 @@ class AudioDecodingStreamer:
             if stream is not None:
                 return stream
 
-        if shutil.which("ffmpeg") is not None:
+        if is_ffmpeg_available():
             return self._decode_with_ffmpeg(source)
 
         if self._is_torchaudio_available():
@@ -368,7 +369,7 @@ class AudioDecodingStreamer:
         sample_rate = self._sample_rate or int(source.attrs.get("sample_rate") or 0) or None
         channels = self._channels or int(source.attrs.get("channels") or 0) or None
 
-        command: list = [ "ffmpeg", "-hide_banner", "-loglevel", "error" ]
+        command: list = [ resolve_ffmpeg_executable(), "-hide_banner", "-loglevel", "error" ]
         input_path: Optional[str] = None
 
         if isinstance(source.stream, FileStreamResource):

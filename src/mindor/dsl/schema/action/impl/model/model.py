@@ -17,6 +17,7 @@ ModelActionConfig = Union[
     ImageSegmentationModelActionConfig,
     TextToVideoModelActionConfig,
     ImageToVideoModelActionConfig,
+    VideoToVideoModelActionConfig,
     TalkingHeadModelActionConfig,
     LipSyncModelActionConfig,
     ObjectDetectionModelActionConfig,

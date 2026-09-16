@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import VideoCaptureActionConfig, VideoCaptureSourc
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.shell import kill_process
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.logger import logging
 from ..base import VideoCaptureService, VideoCaptureDriver, register_video_capture_service
 from ..base import ComponentActionContext
@@ -80,7 +81,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         video_bitrate = encoding.video.bitrate if encoding and encoding.video and encoding.video.bitrate else None
         video_quality = encoding.video.quality if encoding and encoding.video and encoding.video.quality is not None else None
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_video_input_args(system, device, framerate, resolution, pixel_format))
         command.extend([ "-c:v", video_codec ])
 

@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.foundation.media.filename import format_filename
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
@@ -58,7 +59,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await MediaInputPathResolver().resolve(video, streamable_media=[ "video" ])
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "info" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "info" ]
 
         if video.format and input_path is None:
             command.extend([ "-f", video.format ])

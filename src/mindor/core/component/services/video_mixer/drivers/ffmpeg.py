@@ -17,6 +17,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.video import is_streamable_video_format
@@ -69,7 +70,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             if spooled:
                 spooled_paths.append(path)
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         for path in input_paths:
             command.extend([ "-i", path ])
 
@@ -142,7 +143,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         elif params["duration_mode"] == VideoMixerOverlayDurationMode.BASE:
             (output_duration,) = await probe_video(base_path, [ "duration" ])
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         command.extend([ "-i", base_path ])
 
         for path in overlay_paths:

@@ -9,6 +9,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.utils.time import format_timecode
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
 from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
@@ -52,7 +53,7 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
         input_path, spooled = await MediaInputPathResolver().resolve(video)
         resolved_threshold = threshold if threshold is not None else 0.3
 
-        command: List[str] = [ "ffmpeg", "-hide_banner" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner" ]
 
         if start_time is not None:
             command.extend([ "-ss", str(start_time) ])

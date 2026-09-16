@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInsp
 from mindor.dsl.schema.action import MediaInspectorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.utils.ffmpeg.executable import resolve_ffprobe_executable
 from mindor.core.utils.shell import run_command, run_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
@@ -71,7 +72,7 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
         # class's _resolve_input_path); mp4/mov/mkv still get spooled to a
         # file so ffprobe can seek their moov/cues.
         command = [
-            "ffprobe", "-v", "quiet", "-print_format", "json",
+            resolve_ffprobe_executable(), "-v", "quiet", "-print_format", "json",
             "-show_format", "-show_streams",
             input_path if input_path is not None else "pipe:0",
         ]

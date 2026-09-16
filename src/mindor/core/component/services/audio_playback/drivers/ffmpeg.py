@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlayb
 from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSink
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
@@ -34,7 +35,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         system = platform.system()
         audio_path, audio_spooled = await MediaInputPathResolver().resolve(audio, streamable_media=[ "audio", "video" ])
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
 
         if params["duration"] is not None:
             command.extend([ "-t", str(params["duration"]) ])

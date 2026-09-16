@@ -49,16 +49,16 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         return params
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_inference_steps   = await context.render_scalar(self.config.params.num_inference_steps, int)
-        width                 = await context.render_scalar(self.config.width, int)
-        height                = await context.render_scalar(self.config.height, int)
-        num_images_per_prompt = await context.render_scalar(self.config.num_images_per_prompt, int)
+        inference_steps   = await context.render_scalar(self.config.params.inference_steps, int)
+        width             = await context.render_scalar(self.config.width, int)
+        height            = await context.render_scalar(self.config.height, int)
+        num_return_images = await context.render_scalar(self.config.num_return_images, int)
 
         return {
-            "num_inference_steps":   num_inference_steps,
+            "num_inference_steps":   inference_steps,
             "width":                 width,
             "height":                height,
-            "num_images_per_prompt": num_images_per_prompt,
+            "num_images_per_prompt": num_return_images,
         }
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
@@ -156,18 +156,18 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
         return params
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_inference_steps   = await context.render_scalar(self.config.params.num_inference_steps, int)
-        width                 = await context.render_scalar(self.config.width, int)
-        height                = await context.render_scalar(self.config.height, int)
-        num_images_per_prompt = await context.render_scalar(self.config.num_images_per_prompt, int)
-        strength              = await context.render_scalar(self.config.params.strength, float)
+        inference_steps   = await context.render_scalar(self.config.params.inference_steps, int)
+        width             = await context.render_scalar(self.config.width, int)
+        height            = await context.render_scalar(self.config.height, int)
+        num_return_images = await context.render_scalar(self.config.num_return_images, int)
+        denoise_strength  = await context.render_scalar(self.config.params.denoise_strength, float)
 
         return {
-            "num_inference_steps":   num_inference_steps,
+            "num_inference_steps":   inference_steps,
             "width":                 width,
             "height":                height,
-            "num_images_per_prompt": num_images_per_prompt,
-            "strength":              strength,
+            "num_images_per_prompt": num_return_images,
+            "strength":              denoise_strength,
         }
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
@@ -239,6 +239,30 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
             "sentencepiece"
         ]
 
+    async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
+        submodules: Dict[str, Any] = {}
+
+        if self.config.vae is not None:
+            submodules["vae"] = await self._load_pretrained_vae_model(self.config.vae, device, dtype)
+
+        return submodules
+
+    async def _load_pretrained_vae_model(self, vae: DiffusionVaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
+        model_cls = self._get_vae_model_class()
+        model_path = await self._provision_model(vae.model)
+
+        logging.info(f"Component '{self.id}': loading {model_cls.__name__} from {model_path}")
+
+        def _load() -> Any:
+            params: Dict[str, Any] = {
+                **self._get_model_params(vae.model),
+                **self._get_model_options(vae, default_dtype=dtype),
+            }
+
+            return model_cls.from_pretrained(model_path, **params).to(device)
+
+        return await self._run_in_executor(_load)
+
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
         if method is None or method == ImageGenerationActionMethod.GENERATE:
             if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
@@ -288,30 +312,6 @@ class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskServ
             return [ "transformer", "text_encoder" ]
 
         return []
-
-    async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
-        submodules: Dict[str, Any] = {}
-
-        if self.config.vae is not None:
-            submodules["vae"] = await self._load_pretrained_vae_model(self.config.vae, device, dtype)
-
-        return submodules
-
-    async def _load_pretrained_vae_model(self, vae: DiffusionVaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
-        model_cls = self._get_vae_model_class()
-        model_path = await self._provision_model(vae.model)
-
-        logging.info(f"Component '{self.id}': loading {model_cls.__name__} from {model_path}")
-
-        def _load() -> Any:
-            params: Dict[str, Any] = {
-                **self._get_model_params(vae.model),
-                **self._get_model_options(vae, default_dtype=dtype),
-            }
-
-            return model_cls.from_pretrained(model_path, **params).to(device)
-
-        return await self._run_in_executor(_load)
 
     def _get_vae_model_class(self) -> Type[Any]:
         if self.config.architecture in (

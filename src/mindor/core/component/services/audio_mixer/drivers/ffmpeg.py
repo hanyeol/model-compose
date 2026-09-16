@@ -3,11 +3,7 @@ from __future__ import annotations
 from typing import Optional, Tuple, List, Dict, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioMixerComponentConfig, AudioMixerDriver
-from mindor.dsl.schema.action import (
-    AudioMixerActionConfig,
-    AudioMixerOverlayDurationMode,
-    AudioOverlayPlacement,
-)
+from mindor.dsl.schema.action import AudioMixerActionConfig, AudioMixerOverlayDurationMode, AudioOverlayPlacement
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
 from mindor.core.foundation.streaming.audio import AudioStreamResource
@@ -15,6 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_audio
 from mindor.core.utils.ffmpeg.codecs import get_audio_codec_for_format
 from mindor.core.utils.audio import is_streamable_audio_format
@@ -49,10 +46,12 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         for audio in audios:
             path, spooled = await MediaInputPathResolver().resolve(audio)
             input_paths.append(path)
+
             if spooled:
                 spooled_paths.append(path)
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
+
         for path in input_paths:
             command.extend([ "-i", path ])
 
@@ -113,7 +112,7 @@ class FFmpegAudioMixerAction(AudioMixerAction):
         if params["duration_mode"] == AudioMixerOverlayDurationMode.BASE:
             (output_duration,) = await probe_audio(base_path, [ "duration" ])
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-y" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         command.extend([ "-i", base_path ])
 
         for path in overlay_paths:

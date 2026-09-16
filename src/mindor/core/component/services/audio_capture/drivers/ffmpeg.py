@@ -6,12 +6,13 @@ from mindor.dsl.schema.component import AudioCaptureComponentConfig
 from mindor.dsl.schema.action import AudioCaptureActionConfig, AudioCaptureSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.audio import AudioStreamResource
+from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
+from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.audio import is_audio_only_format
 from mindor.core.utils.shell import kill_process
 from mindor.core.logger import logging
 from ..base import AudioCaptureService, AudioCaptureDriver, register_audio_capture_service
 from ..base import ComponentActionContext
-from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from .common import AudioCaptureAction
 import asyncio, os, platform, shutil, time
 
@@ -57,7 +58,7 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
                 audio_format, audio_codec, audio_bitrate, sample_rate, channels, params["duration"]
             )
 
-        command: List[str] = [ "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_audio_input_args(system, source, params["device"]))
         command.extend([ "-c:a", audio_codec, "-flush_packets", "1" ])
 
@@ -180,7 +181,7 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
 
         audiotee_command = [ audiotee_path, "--chunk-duration", "0.1" ]
         ffmpeg_command: List[str] = [
-            "ffmpeg", "-hide_banner", "-nostats", "-loglevel", "warning",
+            resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning",
             "-f", "f32le",
             "-ar", str(tap_sample_rate),
             "-ac", str(tap_channels),

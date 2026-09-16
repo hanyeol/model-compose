@@ -3,10 +3,10 @@ from pydantic import BaseModel, Field
 from ...common import CommonImageGenerationModelActionConfig, CommonImageGenerationModelInpaintActionConfig
 
 class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
-    num_inference_steps: Union[int, str] = Field(default=30, description="Number of denoising steps run during sampling.")
+    inference_steps: Union[int, str] = Field(default=30, description="Number of denoising steps run during sampling.")
 
 class CommonHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
-    strength: Union[float, str] = Field(default=1.0, description="Noise strength applied to the input image before denoising.")
+    denoise_strength: Union[float, str] = Field(default=1.0, description="Noise strength applied to the input image before denoising.")
 
 class CommonHuggingfaceImageGenerationModelActionConfig(CommonImageGenerationModelActionConfig):
     params: CommonHuggingfaceImageGenerationParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationParamsConfig, description="Sampling parameters used for image generation.")

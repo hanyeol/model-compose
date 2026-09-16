@@ -215,7 +215,10 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
                     pipeline.vae.enable_tiling()
 
             if self.config.ip_adapter is not None and hasattr(pipeline, "enable_model_cpu_offload"):
-                pipeline.enable_model_cpu_offload()
+                # Pass the resolved device explicitly — otherwise diffusers
+                # onloads submodules onto cuda:0 regardless of the pipeline's
+                # actual device, which crashes on multi-GPU hosts.
+                pipeline.enable_model_cpu_offload(device=self.device)
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:

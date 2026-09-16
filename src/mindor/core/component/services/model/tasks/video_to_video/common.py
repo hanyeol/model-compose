@@ -88,7 +88,9 @@ class VideoToVideoTaskAction(ComponentAction):
     ) -> List[PILImage.Image]:
         import imageio.v3 as iio
 
-        path, spooled = await MediaInputPathResolver().resolve(video)
+        # imageio picks its backend by extension, so probe the container when
+        # the upstream source didn't carry one (e.g. Gradio uploads).
+        path, spooled = await MediaInputPathResolver().resolve(video, detect_format=True)
 
         if path is None:
             raise ValueError("Input video must resolve to a filesystem path.")

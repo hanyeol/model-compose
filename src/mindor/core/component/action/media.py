@@ -7,9 +7,11 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.audio import is_streamable_audio_format
+from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.logger import logging
 from ..context import ComponentActionContext
+import os
 
 class MediaInputPathResolver:
     """Resolve a MediaSource to a filesystem path (or None for pipe:0).
@@ -24,6 +26,7 @@ class MediaInputPathResolver:
         source: MediaSource,
         streamable_media: Optional[List[Literal[ "video", "audio" ]]] = None,
         default_format: Optional[str] = None,
+        detect_format: bool = False,
     ) -> Tuple[Optional[str], bool]:
         """Return ``(path, spooled)`` for the given source.
 
@@ -33,7 +36,10 @@ class MediaInputPathResolver:
           (None, False).
         - Otherwise: spools to a temp file and returns (path, True); the caller
           owns the cleanup. ``default_format`` sets the spool file extension
-          when ``source.format`` is missing.
+          when ``source.format`` is missing. When ``detect_format`` is True and
+          neither is available, ffprobe inspects the spooled bytes and the file
+          is renamed to carry the detected extension so extension-driven
+          backends (e.g. imageio) can pick a decoder.
         """
         if isinstance(source.stream, FileStreamResource):
             return source.stream.path, False
@@ -47,9 +53,40 @@ class MediaInputPathResolver:
 
         logging.debug("Spooling non-streamable input (format=%s) to a temp file", source.format)
 
-        spooled_path = await save_stream_to_temporary_file(source.stream, source.format or default_format)
+        format = source.format or default_format
+        spooled_path = await save_stream_to_temporary_file(source.stream, format)
+
+        if format is None and detect_format:
+            spooled_path = await self._rename_with_detected_format(spooled_path)
 
         return spooled_path, True
+
+    async def _rename_with_detected_format(self, path: str) -> str:
+        """Probe the spooled file and rename it with the detected container extension.
+
+        Callers that lack ``source.format`` (e.g. Gradio uploads spooled without
+        their original extension) still get a path suffixed with the actual
+        container name, so extension-driven backends can pick a decoder.
+        Falls through with the original path when probing fails.
+        """
+        try:
+            (format,) = await probe_video(path, [ "format" ])
+        except Exception as error:
+            logging.debug("ffprobe failed on spooled input %s: %s", path, error)
+            return path
+
+        if not format:
+            return path
+
+        renamed_path = f"{path}.{format}"
+
+        try:
+            os.rename(path, renamed_path)
+        except OSError as error:
+            logging.debug("Rename %s -> %s failed: %s", path, renamed_path, error)
+            return path
+
+        return renamed_path
 
 class VideoAudioEncodingResolver:
     """Turn DSL VideoAudioEncodingConfig into normalized VideoAudioEncodingParams."""

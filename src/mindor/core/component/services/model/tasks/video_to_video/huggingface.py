@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource, encode_frames_to_mp4
 from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriver, register_model_task_service
 from ...base import ComponentActionContext
@@ -142,8 +143,10 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
     def _get_setup_requirements(self) -> List[str]:
         return [
             *super()._get_setup_requirements(),
-            "transformers",
-            "accelerate",
+            # transformers imports torchaudio at runtime; pin it to the same torch
+            # wheel channel so pip doesn't resolve it via PyPI's default index and
+            # produce an ABI-incompatible build.
+            *torch_requirements("torchaudio"),
             "imageio",
             "imageio-ffmpeg",
         ]

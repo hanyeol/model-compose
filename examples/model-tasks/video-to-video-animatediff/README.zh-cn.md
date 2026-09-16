@@ -9,7 +9,8 @@
 1. **本地 AnimateDiff 流水线**: 通过 HuggingFace diffusers 端到端运行 Stable Diffusion 1.5 与 AnimateDiff 运动适配器 — 无需外部 API。
 2. **源视频保留运动**: 输入视频同时提供构图和时间运动；提示词仅引导外观和风格。
 3. **逐帧可调风格**: 单一 `denoise_strength` 参数在"更贴合提示词"与"更接近源视频"之间进行权衡。
-4. **自动模型管理**: 基础检查点和运动适配器在首次运行时从 HuggingFace Hub 下载并在本地缓存。
+4. **可选参考图像**: 通过 IP-Adapter 提供 `reference_image`，将其外观（色彩、纹理、主体）迁移到重绘视频上。
+5. **自动模型管理**: 基础检查点、运动适配器与 IP-Adapter 权重在首次运行时从 HuggingFace Hub 下载并在本地缓存。
 
 ## 准备工作
 
@@ -41,7 +42,7 @@
    cd examples/model-tasks/video-to-video-animatediff
    ```
 
-2. 无需额外的环境配置 — 基础检查点（`Realistic_Vision_V5.1_noVAE`）和运动适配器（`animatediff-motion-adapter-v1-5-3`）在首次运行时从 HuggingFace Hub 下载，并缓存到 `~/.cache/huggingface/` 下。
+2. 无需额外的环境配置 — 基础检查点（`Realistic_Vision_V5.1_noVAE`）、运动适配器（`animatediff-motion-adapter-v1-5-3`）与 IP-Adapter（`h94/IP-Adapter`）在首次运行时从 HuggingFace Hub 下载，并缓存到 `~/.cache/huggingface/` 下。
 
 3. 若想更换美学风格，可编辑 `model-compose.yml` 中的 `model.repository`。只要运动适配器面向相同的基础架构，任何 SD 1.5 微调（例如动漫或插画模型）均可使用。
 
@@ -71,6 +72,12 @@
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "clip=@/path/to/source.mp4" \
      -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "fps": 12}'
+
+   # 基于参考图像的风格迁移 (IP-Adapter)
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -F "clip=@/path/to/source.mp4" \
+     -F "ref=@/path/to/reference.jpg" \
+     -F 'input={"video": "@clip", "reference_image": "@ref", "prompt": "in the style of the reference image", "ip_adapter_scale": 0.7}'
    ```
 
    **使用 Web UI：**
@@ -90,6 +97,7 @@
 | `architecture`   | Video-to-video 架构。目前仅支持 `animatediff`。                                                                               | —                                                     |
 | `model`          | 基础 SD 1.5 风格检查点（HuggingFace 仓库或本地路径）。任何 SD 1.5 微调均可使用。                                              | —                                                     |
 | `motion_adapter` | 与基础架构匹配的 AnimateDiff 运动适配器。                                                                                     | —                                                     |
+| `ip_adapter`     | 当动作提供 `reference_image` 时加载的 IP-Adapter 权重。将 `filename` 设为 `<subfolder>/<weight_name>`。                       | —                                                     |
 | `device`         | 计算设备（`cuda`、`cuda:0` 等）。`auto` 会选择最优可用设备。                                                                  | `auto`                                                |
 
 ### 动作字段
@@ -99,6 +107,7 @@
 | `video`                       | 保留运动的源视频（或视频列表/流）。                                                                                     | —                                                        |
 | `prompt`                      | 引导重绘外观的文本提示词。                                                                                              | （无）                                                   |
 | `negative_prompt`             | 描述生成结果中应避免的内容的文本。                                                                                       | `"bad quality, worst quality, low resolution"`           |
+| `reference_image`             | 传给 IP-Adapter 用于外观条件化的参考图像。需要组件的 `ip_adapter` 已配置。                                              | （无）                                                   |
 | `seed`                        | 用于可复现性的随机种子。留空则每次调用都产生新的样本。                                                                  | （无）                                                   |
 | `params.num_frames`           | 从输入视频中采样并输出的帧数。超过 ~32 帧后质量会下降。                                                                 | `16`                                                     |
 | `params.fps`                  | 输出视频帧率。                                                                                                          | `8`                                                      |
@@ -106,6 +115,7 @@
 | `params.denoise_strength`     | 去噪强度。`0.4-0.5` 强力保留运动；`0.6-0.7` 更强地遵循提示词。                                                          | `0.5`                                                    |
 | `params.guidance_scale`       | Classifier-free guidance 缩放。                                                                                         | `7.5`                                                    |
 | `params.inference_steps`      | 每帧的 diffusion 推理步数。步数越多质量越好，但速度越慢。                                                               | `25`                                                     |
+| `params.ip_adapter_scale`     | 提供 `reference_image` 时 IP-Adapter 的影响强度；未提供时忽略。0 禁用，1 完全依赖参考图像。                              | `0.6`                                                    |
 | `batch_size`                  | 当输入为列表或流时每批处理的 `(video, prompt)` 对数量。                                                                 | `1`                                                      |
 
 ## 注意事项
@@ -115,5 +125,6 @@
 - **强度甜蜜区**: `0.4` 以下几乎不改变输入；`0.7` 以上常常破坏运动连贯性。建议从 `0.5` 开始并进行调整。
 - **美学切换**: 从写实切换到动漫风格时，将 `model.repository` 换成 SD 1.5 动漫微调（例如 `Meina/MeinaMix_V11` 等）。运动适配器保持不变。
 - **提示词权重**: 描述性、以风格为主的提示词比以物体为主的提示词效果更好 — AnimateDiff 不能重构场景，只能重新上色和重新风格化。
+- **参考图像提示**: IP-Adapter 将 `reference_image` 的色彩、纹理与主体线索迁移过来 — 选择构图与输入片段相似的静态图。从 `ip_adapter_scale: 0.6` 开始；若参考图压过运动可降到 `0.3` 左右，若效果不明显可升到 `0.8` 左右。
 - **VRAM 规划**: 16 帧 512×512 `float16` 大约需要 8-10 GB VRAM；24 帧约为 ~1.6 倍。遇到 OOM 时请减少 `num_frames` 或分辨率。
 - **流水线搭配**: 上游搭配 `video-clipper` 在重绘前裁剪特定片段，或下游搭配 `video-processor` 将重绘后的片段合成回更长的剪辑中。

@@ -32,11 +32,20 @@ component:
   motion_adapter:
     provider: huggingface
     repository: guoyww/animatediff-motion-adapter-v1-5-3
+  # Optional IP-Adapter used when an action supplies `reference_image`.
+  # `filename` combines the adapter's subfolder and weight name — pick the
+  # SD 1.5 checkpoint since the base model is SD 1.5.
+  ip_adapter:
+    provider: huggingface
+    repository: h94/IP-Adapter
+    filename: models/ip-adapter_sd15.bin
   max_concurrent_count: 1
   action:
     video: ${input.video as video}
     prompt: ${input.prompt}
     negative_prompt: ${input.negative_prompt | "bad quality, worst quality, low resolution"}
+    # Reference image passed to the IP-Adapter. Omit to disable image conditioning.
+    reference_image: ${input.reference_image as image}
     seed: ${input.seed as integer}
     params:
       # Number of frames to sample from the input video; leave unset to
@@ -56,3 +65,6 @@ component:
       # lower values preserve the input video's appearance. Typical range
       # 0.4 - 0.7 for style transfer.
       denoise_strength: ${input.denoise_strength as number | 0.5}
+      # IP-Adapter influence when `reference_image` is provided; ignored otherwise.
+      # 0 disables reference conditioning, 1 relies fully on the reference.
+      ip_adapter_scale: ${input.ip_adapter_scale as number | 0.6}

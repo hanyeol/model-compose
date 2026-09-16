@@ -9,7 +9,8 @@ This workflow provides local motion-preserving video restyling that:
 1. **Local AnimateDiff Pipeline**: Runs Stable Diffusion 1.5 with an AnimateDiff motion adapter end-to-end via HuggingFace diffusers — no external API.
 2. **Motion Preserved From Source**: The input video supplies both the composition and the temporal motion; the prompt only steers appearance and style.
 3. **Style Adjustable Per Frame**: A single `denoise_strength` parameter trades off between "follow the prompt more" and "stay close to the source video".
-4. **Automatic Model Management**: Base checkpoint and motion adapter are downloaded from HuggingFace Hub on first run and cached locally.
+4. **Optional Reference Image**: An IP-Adapter lets you supply a `reference_image` whose look (colors, texture, subject) is transferred onto the restyled video.
+5. **Automatic Model Management**: Base checkpoint, motion adapter, and IP-Adapter weights are downloaded from HuggingFace Hub on first run and cached locally.
 
 ## Preparation
 
@@ -41,7 +42,7 @@ Compared to cloud-hosted video restyling services:
    cd examples/model-tasks/video-to-video-animatediff
    ```
 
-2. No additional environment configuration required — the base checkpoint (`Realistic_Vision_V5.1_noVAE`) and motion adapter (`animatediff-motion-adapter-v1-5-3`) are downloaded from HuggingFace Hub and cached under `~/.cache/huggingface/` on first run.
+2. No additional environment configuration required — the base checkpoint (`Realistic_Vision_V5.1_noVAE`), motion adapter (`animatediff-motion-adapter-v1-5-3`), and IP-Adapter (`h94/IP-Adapter`) are downloaded from HuggingFace Hub and cached under `~/.cache/huggingface/` on first run.
 
 3. To use a different aesthetic, edit `model.repository` in `model-compose.yml`. Any SD 1.5 fine-tune works — for example an anime or illustration model — as long as the motion adapter targets the same base architecture.
 
@@ -71,6 +72,12 @@ Compared to cloud-hosted video restyling services:
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "clip=@/path/to/source.mp4" \
      -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "fps": 12}'
+
+   # Style transfer conditioned on a reference image (IP-Adapter)
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -F "clip=@/path/to/source.mp4" \
+     -F "ref=@/path/to/reference.jpg" \
+     -F 'input={"video": "@clip", "reference_image": "@ref", "prompt": "in the style of the reference image", "ip_adapter_scale": 0.7}'
    ```
 
    **Using Web UI:**
@@ -90,6 +97,7 @@ Compared to cloud-hosted video restyling services:
 | `architecture`   | Video-to-video architecture. Only `animatediff` is wired up today.                                                           | —                                                    |
 | `model`          | Base SD 1.5 style checkpoint (HuggingFace repo or local path). Any SD 1.5 fine-tune works.                                   | —                                                    |
 | `motion_adapter` | AnimateDiff motion adapter matching the base architecture.                                                                    | —                                                    |
+| `ip_adapter`     | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<subfolder>/<weight_name>`.      | —                                                    |
 | `device`         | Compute device (`cuda`, `cuda:0`, etc.). `auto` selects the best available.                                                  | `auto`                                               |
 
 ### Action Fields
@@ -99,6 +107,7 @@ Compared to cloud-hosted video restyling services:
 | `video`                      | Source video (or list/stream of videos) whose motion is preserved.                                                     | —                                                      |
 | `prompt`                     | Text prompt steering the restyled appearance.                                                                          | (none)                                                 |
 | `negative_prompt`            | Text describing content to avoid.                                                                                      | `"bad quality, worst quality, low resolution"`         |
+| `reference_image`            | Reference image passed to the IP-Adapter for appearance conditioning. Requires the component's `ip_adapter` to be set. | (none)                                                 |
 | `seed`                       | Random seed for reproducibility. Leave unset for a fresh sample each call.                                             | (none)                                                 |
 | `params.num_frames`          | Frames sampled from the input video (and produced in the output). Longer clips degrade beyond ~32 frames.              | `16`                                                   |
 | `params.fps`                 | Output video frame rate.                                                                                               | `8`                                                    |
@@ -106,6 +115,7 @@ Compared to cloud-hosted video restyling services:
 | `params.denoise_strength`    | Denoising strength. `0.4-0.5` preserves motion strongly; `0.6-0.7` follows the prompt more aggressively.               | `0.5`                                                  |
 | `params.guidance_scale`      | Classifier-free guidance scale.                                                                                        | `7.5`                                                  |
 | `params.inference_steps`     | Diffusion inference steps per frame. More steps = better quality, slower.                                              | `25`                                                   |
+| `params.ip_adapter_scale`    | IP-Adapter influence when `reference_image` is provided; ignored otherwise. `0` disables, `1` fully follows the image. | `0.6`                                                  |
 | `batch_size`                 | Number of `(video, prompt)` pairs processed per batch when inputs are lists or streams.                                | `1`                                                    |
 
 ## Notes
@@ -115,5 +125,6 @@ Compared to cloud-hosted video restyling services:
 - **Strength sweet spot**: Values below `0.4` barely change the input; values above `0.7` often break coherent motion. Start at `0.5` and adjust from there.
 - **Aesthetic swap**: To move from realistic to anime style, change `model.repository` to an SD 1.5 anime fine-tune (e.g. `Meina/MeinaMix_V11` or similar). The motion adapter stays the same.
 - **Prompt weight**: Descriptive, style-heavy prompts work better than object-focused prompts — AnimateDiff can't restructure the scene, only recolor and restyle it.
+- **Reference image tips**: The IP-Adapter transfers colors, textures, and subject cues from `reference_image` — pick a still that already shares composition with the input clip. Start at `ip_adapter_scale: 0.6` and drop toward `0.3` if the reference overwhelms the motion, or raise toward `0.8` if it isn't showing up.
 - **VRAM planning**: Roughly 8-10 GB VRAM for 16 frames at 512×512 with `float16`; multiply by ~1.6× for 24 frames. Reduce `num_frames` or resolution if you hit OOM.
 - **Pipeline pairing**: Pair with `video-clipper` upstream to trim a specific segment before restyling, or `video-processor` downstream to composite the restyled clip back into a longer edit.

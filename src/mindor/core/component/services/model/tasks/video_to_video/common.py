@@ -26,6 +26,7 @@ class VideoToVideoTaskAction(ComponentAction):
         source, is_single_input = await self._prepare_input(context)
         prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
         negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
+        reference_image = await context.render_image(self.config.reference_image) if self.config.reference_image is not None else None
         batch_size      = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
@@ -34,16 +35,16 @@ class VideoToVideoTaskAction(ComponentAction):
 
         if isinstance(source, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_sources, batch_prompts, batch_negatives in BatchSourceIterator((source, prompt, negative_prompt), batch_size=batch_size or 1):
-                    batch_results = await self._generate_batch(batch_sources, batch_prompts, batch_negatives, params, context.cancellation_token)
+                async for batch_sources, batch_prompts, batch_negatives, batch_references in BatchSourceIterator((source, prompt, negative_prompt, reference_image), batch_size=batch_size or 1):
+                    batch_results = await self._generate_batch(batch_sources, batch_prompts, batch_negatives, batch_references, params, context.cancellation_token)
                     for result in batch_results:
                         yield result
 
             return _stream_output_generator()
         else:
             results: List[VideoStreamResource] = []
-            async for batch_sources, batch_prompts, batch_negatives in BatchSourceIterator((source, prompt, negative_prompt), batch_size=batch_size or 1):
-                batch_results = await self._generate_batch(batch_sources, batch_prompts, batch_negatives, params, context.cancellation_token)
+            async for batch_sources, batch_prompts, batch_negatives, batch_references in BatchSourceIterator((source, prompt, negative_prompt, reference_image), batch_size=batch_size or 1):
+                batch_results = await self._generate_batch(batch_sources, batch_prompts, batch_negatives, batch_references, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -146,6 +147,7 @@ class VideoToVideoTaskAction(ComponentAction):
         sources: List[Union[MediaSource, ImageArrayValue]],
         prompts: Optional[List[Optional[str]]],
         negative_prompts: Optional[List[Optional[str]]],
+        reference_images: Optional[List[Optional[PILImage.Image]]],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:

@@ -97,7 +97,7 @@
 | `architecture`   | Video-to-video 架构。目前仅支持 `animatediff`。                                                                               | —                                                     |
 | `model`          | 基础 SD 1.5 风格检查点（HuggingFace 仓库或本地路径）。任何 SD 1.5 微调均可使用。                                              | —                                                     |
 | `motion_adapter` | 与基础架构匹配的 AnimateDiff 运动适配器。                                                                                     | —                                                     |
-| `ip_adapter`     | 当动作提供 `reference_image` 时加载的 IP-Adapter 权重。将 `filename` 设为 `<sub_dir>/<weight_name>`。                         | —                                                     |
+| `ip_adapter`     | 当动作提供 `reference_image` 时加载的 IP-Adapter 权重。将 `filename` 设为 `<subfolder>/<weight_name>`。                       | —                                                     |
 | `device`         | 计算设备（`cuda`、`cuda:0` 等）。`auto` 会选择最优可用设备。                                                                  | `auto`                                                |
 
 ### 动作字段

@@ -229,6 +229,7 @@ def _pick_channel_for_driver(
 
 def _rewrite_specs(specs: Iterable[str], torch_version: Optional[str], channel: str) -> List[str]:
     index_url = f"{_WHEEL_INDEX_BASE}/{channel}"
+    local_tag = channel if channel != _CPU_CHANNEL else None
     rewritten_specs: List[str] = []
 
     for spec in specs:
@@ -248,6 +249,7 @@ def _rewrite_specs(specs: Iterable[str], torch_version: Optional[str], channel: 
 
         if requirement.name == "torch":
             resolved_specifier = caller_specifier or (f"=={torch_version}" if torch_version else "")
+            resolved_specifier = _attach_local_tag(resolved_specifier, local_tag)
             rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
             continue
 
@@ -260,13 +262,32 @@ def _rewrite_specs(specs: Iterable[str], torch_version: Optional[str], channel: 
                     f"paired release for torch=={torch_version} "
                     f"({requirement.name}=={sibling_version}); keeping the caller's pin."
                 )
-            rewritten_specs.append(f"{name_with_extras}{caller_specifier}{marker_suffix}@{index_url}")
+            resolved_specifier = _attach_local_tag(caller_specifier, local_tag)
+            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
             continue
 
         resolved_specifier = f"=={sibling_version}" if sibling_version else ""
+        resolved_specifier = _attach_local_tag(resolved_specifier, local_tag)
         rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
 
     return rewritten_specs
+
+def _attach_local_tag(specifier: str, local_tag: Optional[str]) -> str:
+    """Append `+local_tag` to a single `==X.Y.Z` pin when not already present.
+
+    Pins the CUDA build so pip picks the intended `2.13.0+cu126` even when
+    another local tag (e.g. `+cu130`) is available in the same index. Skips
+    non-exact specifiers, ranges, or pins that already carry a local segment.
+    """
+    if local_tag is None or not specifier.startswith("=="):
+        return specifier
+
+    version_spec = specifier[2:]
+
+    if "," in version_spec or "+" in version_spec:
+        return specifier
+
+    return f"=={version_spec}+{local_tag}"
 
 def _parse_requirement(spec: str) -> Optional[Requirement]:
     try:

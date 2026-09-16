@@ -244,15 +244,16 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         #   embedding produces per-beat labels; segment boundaries are the
         #   points where the label sequence changes.
         try:
-            beat_frames, sync_chroma, sync_mfcc = self._beat_synchronize_features(
-                samples, sample_rate, chroma,
-            )
+            beat_frames, sync_chroma, sync_mfcc = self._beat_synchronize_features(samples, sample_rate, chroma)
         except Exception:
             # Beat tracking can fail on very short or extreme inputs; fall back
-            # to per-frame analysis rather than crashing.
-            beat_frames = np.arange(chroma.shape[1], dtype=int)
-            sync_chroma = chroma
-            sync_mfcc = self._compute_mfcc(samples, sample_rate)
+            # to per-frame analysis. Route the features through librosa.util.sync
+            # so this path shares the "column i covers [beat_frames[i-1], beat_frames[i])"
+            # convention with the beat-synchronised path below.
+            beat_frames = np.arange(1, chroma.shape[1], dtype=int)
+            mfcc = self._compute_mfcc(samples, sample_rate)
+            sync_chroma = librosa.util.sync(chroma, beat_frames, aggregate=np.median)
+            sync_mfcc   = librosa.util.sync(mfcc,   beat_frames, aggregate=np.mean)
 
         if sync_chroma.shape[1] < 2:
             return np.array([ 0, chroma.shape[1] ], dtype=int), np.array([ 0 ])
@@ -268,16 +269,20 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         # Convert per-beat labels back to chroma-frame boundaries. Consecutive
         # beats with the same label collapse into one segment; the boundary
         # frame is the chroma frame index at the start of each label run.
+        # librosa.util.sync (with pad=True) prepends and appends boundary
+        # points, so sync_chroma has len(beat_frames) + 1 columns and column i
+        # covers [beat_frames[i-1], beat_frames[i]). Index beat_frames with i-1
+        # to hit the actual start frame of column i.
         # Force the first boundary to frame 0 so the leading gap before the
         # first detected beat (if any) is absorbed into the opening segment
         # rather than becoming an unlabeled segment downstream.
         boundaries_list: List[int] = [ 0 ]
         segment_labels: List[int] = [ int(beat_labels[0]) ]
 
-        for i in range(1, len(beat_labels)):
-            if int(beat_labels[i]) != segment_labels[-1]:
-                boundaries_list.append(int(beat_frames[i]))
-                segment_labels.append(int(beat_labels[i]))
+        for index in range(1, len(beat_labels)):
+            if int(beat_labels[index]) != segment_labels[-1]:
+                boundaries_list.append(int(beat_frames[index - 1]))
+                segment_labels.append(int(beat_labels[index]))
 
         boundaries_list.append(chroma.shape[1])
         boundaries = np.array(boundaries_list, dtype=int)
@@ -412,20 +417,20 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
         """
         import numpy as np
 
-        n = len(labels)
+        beat_count = len(labels)
 
-        if n <= 1 or window <= 1:
+        if beat_count <= 1 or window <= 1:
             return labels
 
         half = window // 2
         smoothed = np.empty_like(labels)
 
-        for i in range(n):
-            lo = max(0, i - half)
-            hi = min(n, i + half + 1)
+        for index in range(beat_count):
+            lo = max(0, index - half)
+            hi = min(beat_count, index + half + 1)
             window_slice = labels[lo:hi]
             values, counts = np.unique(window_slice, return_counts=True)
-            smoothed[i] = int(values[int(np.argmax(counts))])
+            smoothed[index] = int(values[int(np.argmax(counts))])
 
         return smoothed
 

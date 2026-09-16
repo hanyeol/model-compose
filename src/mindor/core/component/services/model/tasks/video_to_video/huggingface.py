@@ -243,14 +243,14 @@ class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService
         adapter_filename = self.config.ip_adapter.filename if hasattr(self.config.ip_adapter, "filename") else None
 
         if not adapter_filename:
-            raise ValueError("`ip_adapter.filename` must specify `<subfolder>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`).")
+            raise ValueError("`ip_adapter.filename` must specify `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`).")
 
-        subfolder, _, weight_name = adapter_filename.rpartition("/")
+        sub_dir, _, weight_name = adapter_filename.rpartition("/")
         logging.info(f"Component '{self.id}': loading IP-Adapter weights '{weight_name}' from {adapter_path}")
 
         def _load() -> None:
             for pipeline in self.pipelines.values():
-                pipeline.load_ip_adapter(adapter_path, subfolder=subfolder or None, weight_name=weight_name)
+                pipeline.load_ip_adapter(adapter_path, subfolder=sub_dir or None, weight_name=weight_name)
 
         await self._run_in_executor(_load)
 

@@ -131,11 +131,14 @@ def is_posix_path_within(base: str, path: str) -> bool:
     prefix = root if root.endswith("/") else root + "/"
     return path.startswith(prefix)
 
-def get_file_extension(path: str) -> Optional[str]:
+def get_file_extension(path: str, to_lower: bool = True) -> Optional[str]:
     _, extension = os.path.splitext(path)
 
     if extension:
         extension = extension.lstrip(".")
+
+        if to_lower:
+            extension = extension.lower()
 
     return extension or None
 

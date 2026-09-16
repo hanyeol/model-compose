@@ -88,7 +88,7 @@ async def _probe(
     streams = result.get("streams") or []
     stream = streams[0] if streams else {}
 
-    hint = (get_file_extension(path) or "").lower() or None
+    hint = get_file_extension(path)
 
     values = []
     for field in fields:

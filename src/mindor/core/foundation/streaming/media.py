@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 from dataclasses import dataclass, field
+from mindor.core.utils.files import get_file_extension
 from .resources import StreamResource
 from .bytes import BytesStreamResource
 from .file import FileStreamResource, UploadFileStreamResource
@@ -30,15 +31,21 @@ def create_media_source(value: Any) -> MediaSource:
         return MediaSource(value.source, value.format, value.attrs)
 
     if isinstance(value, StreamResource):
-        return MediaSource(value)
+        if getattr(value, "filename", None):
+            return MediaSource(value, format=get_file_extension(getattr(value, "filename")))
+        else:
+            return MediaSource(value)
 
     if isinstance(value, UploadFile):
-        return MediaSource(UploadFileStreamResource(value))
+        if value.filename:
+            return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
+        else:
+            return MediaSource(value)
 
     if isinstance(value, (bytes, bytearray)):
         return MediaSource(BytesStreamResource(bytes(value)))
 
     if isinstance(value, str):
-        return MediaSource(FileStreamResource(value))
+        return MediaSource(FileStreamResource(value), format=get_file_extension(value))
 
     raise TypeError(f"Unsupported media source: {value.__class__.__name__}")

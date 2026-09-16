@@ -30,13 +30,14 @@ class VllmModelTaskService(ModelTaskService):
         return [ "vllm" ]
 
     async def _load_model(self) -> None:
+        from vllm import AsyncEngineArgs, AsyncLLMEngine
+        from transformers import AutoTokenizer
+
         model_path = await self._provision_model(self.config.model)
 
         logging.info(f"Component '{self.id}': loading vLLM model from '{model_path}'")
 
         def _load() -> AsyncLLMEngine:
-            from vllm import AsyncEngineArgs, AsyncLLMEngine
-
             params: Dict[str, Any] = {
                 **self._get_model_params(self.config.model),
                 **self._get_model_options(self.config),
@@ -45,15 +46,13 @@ class VllmModelTaskService(ModelTaskService):
             engine_args = AsyncEngineArgs(model=model_path, **params)
             engine = AsyncLLMEngine.from_engine_args(engine_args)
 
-            self._load_tokenizer(model_path, params)
+            self._load_tokenizer(AutoTokenizer, model_path, params)
 
             return engine
 
         self.engine = await self._run_in_executor(_load)
 
-    def _load_tokenizer(self, model_path: str, params: Dict[str, Any]) -> None:
-        from transformers import AutoTokenizer
-
+    def _load_tokenizer(self, tokenizer_class: Type[PreTrainedTokenizerBase], model_path: str, params: Dict[str, Any]) -> None:
         tokenizer_path = params.get("tokenizer") or model_path
         tokenizer_params: Dict[str, Any] = {}
 
@@ -65,7 +64,7 @@ class VllmModelTaskService(ModelTaskService):
         elif params.get("revision"):
             tokenizer_params["revision"] = params["revision"]
 
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, **tokenizer_params)
+        self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_params)
 
     async def _unload_model(self) -> None:
         if self.engine is not None:

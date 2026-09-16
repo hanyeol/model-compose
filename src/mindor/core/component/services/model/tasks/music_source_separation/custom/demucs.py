@@ -38,6 +38,10 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from demucs.apply import apply_model
+        import numpy as np
+        import torch
+
         # Demucs models expect stereo audio at their native sample rate.
         waveforms = await self._preprocess_audio(audios)
 
@@ -148,11 +152,11 @@ class DemucsMusicSourceSeparationTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, List[str], torch.device]:
+        from demucs.pretrained import get_model
+
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[Any, int, List[str]]:
-            from demucs.pretrained import get_model
-
             model = get_model(self.config.model.name)
 
             if model is None:

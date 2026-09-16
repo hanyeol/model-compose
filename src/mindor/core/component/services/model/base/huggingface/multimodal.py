@@ -35,13 +35,13 @@ class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
         self.device = None
 
     async def _load_pretrained_processor(self, model_path: str) -> Optional[ProcessorMixin]:
-        processor_cls = self._get_processor_class()
+        processor_class = self._get_processor_class()
 
-        if not processor_cls:
+        if not processor_class:
             return None
 
         def _load() -> ProcessorMixin:
-            return processor_cls.from_pretrained(
+            return processor_class.from_pretrained(
                 model_path,
                 **self._get_processor_params(self.config.model)
             )

@@ -130,11 +130,11 @@ class KokoroTextToSpeechTaskService(ModelTaskService):
         ]
 
     async def _load_model(self) -> None:
+        from kokoro import KPipeline
+
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from kokoro import KPipeline
-
             return KPipeline(
                 lang_code=_KOKORO_DEFAULT_LANG_CODE,
                 device=str(device)

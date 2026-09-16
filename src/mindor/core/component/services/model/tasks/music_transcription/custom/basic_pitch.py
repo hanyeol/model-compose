@@ -60,6 +60,10 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from basic_pitch.inference import predict
+        import soundfile as sf
+        import numpy as np
+
         waveforms = await self._preprocess_audio(audios)
 
         def _transcribe() -> List[Any]:
@@ -196,22 +200,17 @@ class BasicPitchMusicTranscriptionTaskService(ModelTaskService):
         return [ "basic-pitch", "onnxruntime", "soundfile", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.model_path, self.device = await self._resolve_model()
-
-    async def _unload_model(self) -> None:
-        self.model_path = None
-        self.device = None
-
-    async def _resolve_model(self) -> Tuple[str, torch.device]:
         from basic_pitch import build_icassp_2022_model_path, FilenameSuffix
 
         # basic_pitch dispatches to the runtime backend based on the file
         # extension. Force the ONNX variant so we don't accidentally depend on
         # TensorFlow (heavy, version-sensitive) or CoreML (macOS-only).
-        model_path = build_icassp_2022_model_path(FilenameSuffix.onnx)
-        device = self._resolve_device(self.config.device)
+        self.model_path = str(build_icassp_2022_model_path(FilenameSuffix.onnx))
+        self.device = self._resolve_device(self.config.device)
 
-        return str(model_path), device
+    async def _unload_model(self) -> None:
+        self.model_path = None
+        self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await BasicPitchMusicTranscriptionTaskAction(

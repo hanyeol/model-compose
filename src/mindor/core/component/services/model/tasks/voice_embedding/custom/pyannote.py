@@ -92,12 +92,12 @@ class PyannoteVoiceEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_inference(self) -> Tuple[Any, torch.device]:
+        from pyannote.audio import Model, Inference
+
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from pyannote.audio import Model, Inference
-
             token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
             model = Model.from_pretrained(model_path, token=token)
 

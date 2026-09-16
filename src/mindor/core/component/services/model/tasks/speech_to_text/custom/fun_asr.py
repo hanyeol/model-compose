@@ -208,12 +208,12 @@ class FunAsrSpeechToTextTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
+        from funasr import AutoModel
+
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from funasr import AutoModel
-
             params: Dict[str, Any] = {
                 "model": model_path,
                 "hub": "hf",

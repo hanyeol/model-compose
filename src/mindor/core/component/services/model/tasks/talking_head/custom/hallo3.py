@@ -164,22 +164,22 @@ class Hallo3TalkingHeadTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, str, torch.device]:
+        import hallo3
+
+        # Hallo3's internal modules import each other as top-level names
+        # (`from diffusion_video import ...`) rather than `from hallo3.…`,
+        # so the `hallo3/` package directory must be on sys.path itself.
+        hallo3_dir = hallo3.__path__[0]
+
+        if hallo3_dir not in sys.path:
+            sys.path.insert(0, hallo3_dir)
+
+        from hallo3.app import VideoGenerator
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[Any, str]:
-            import hallo3
-
-            # Hallo3's internal modules import each other as top-level names
-            # (`from diffusion_video import ...`) rather than `from hallo3.…`,
-            # so the `hallo3/` package directory must be on sys.path itself.
-            hallo3_dir = hallo3.__path__[0]
-
-            if hallo3_dir not in sys.path:
-                sys.path.insert(0, hallo3_dir)
-
-            from hallo3.app import VideoGenerator
-
             # Hallo3's configs reference `./pretrained_models/<subdir>` for six
             # different checkpoints (hallo3, t5-v1_1-xxl, cogvideox-5b-i2v-sat,
             # wav2vec, audio_separator, face_analysis). The fudan-generative-ai/

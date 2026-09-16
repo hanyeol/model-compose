@@ -49,16 +49,15 @@ class HuggingfaceModelTaskService(ModelTaskService):
         device = self._resolve_device(self.config.device) if self.config.device_mode == DeviceMode.SINGLE else None
         dtype = self._get_model_dtype()
 
-        # from_pretrained downloads/mmaps checkpoint shards and instantiates
-        # the model on-device — blocking work that would freeze the loop.
-        def _load() -> Tuple[PreTrainedModel, Optional[Any], bool]:
+        model_class = self._get_model_class()
+        quantization_config = self._resolve_model_quantization_config(self.config, device, dtype)
+        is_prequantized = is_checkpoint_prequantized(model_path)
+
+        def _load() -> PreTrainedModel:
             params: Dict[str, Any] = {
                 **self._get_model_params(self.config.model),
                 **self._get_model_options(self.config)
             }
-
-            quantization_config = self._resolve_model_quantization_config(self.config, device, dtype)
-            is_prequantized = is_checkpoint_prequantized(model_path)
 
             if quantization_config is not None:
                 params["quantization_config"] = quantization_config
@@ -72,11 +71,9 @@ class HuggingfaceModelTaskService(ModelTaskService):
             else:
                 params["device_map"] = self.config.device_mode.value
 
-            model = self._get_model_class().from_pretrained(model_path, **params)
+            return model_class.from_pretrained(model_path, **params)
 
-            return model, quantization_config, is_prequantized
-
-        model, quantization_config, is_prequantized = await self._run_in_executor(_load)
+        model = await self._run_in_executor(_load)
 
         if len(self.config.peft_adapters or []) > 0:
             model = await self._load_peft_adapters(model, self.config.peft_adapters)
@@ -91,13 +88,13 @@ class HuggingfaceModelTaskService(ModelTaskService):
         base_model: PreTrainedModel,
         adapter_configs: List[PeftAdapterConfig]
     ) -> PreTrainedModel:
+        from peft import PeftModel
+
         peft_model_paths = await asyncio.gather(*[
             self._provision_model(config.model) for config in adapter_configs
         ])
 
         def _load() -> PreTrainedModel:
-            from peft import PeftModel
-
             names, weights = self._build_peft_adapter_lists(adapter_configs)
             multiple_adapters = len(adapter_configs) > 1
             has_non_unit_weight = any(abs(weight - 1.0) > 1e-12 for weight in weights)

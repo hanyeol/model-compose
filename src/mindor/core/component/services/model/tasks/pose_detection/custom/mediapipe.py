@@ -27,10 +27,11 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
+        from mediapipe import Image as MPImage, ImageFormat
+        from mediapipe.tasks.python import vision
+        from mediapipe.tasks.python.core.base_options import BaseOptions
+
         def _detect() -> List[Dict[str, Any]]:
-            from mediapipe import Image as MPImage, ImageFormat
-            from mediapipe.tasks.python import vision
-            from mediapipe.tasks.python.core.base_options import BaseOptions
             import numpy as np
 
             options = vision.PoseLandmarkerOptions(

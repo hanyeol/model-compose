@@ -205,13 +205,13 @@ class FloatTalkingHeadTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, torch.device]:
+        from float_talker.generate import InferenceAgent
+        from float_talker.options.base_options import BaseOptions
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from float_talker.generate import InferenceAgent
-            from float_talker.options.base_options import BaseOptions
-
             # BaseOptions parses argparse from sys.argv, so hand it a synthetic
             # argv that points every checkpoint path at the user-provided dir.
             parser = BaseOptions().initialize(argparse.ArgumentParser())

@@ -95,6 +95,16 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from midi_ddsp.data_handling.instrument_name_utils import INST_NAME_TO_ID_DICT
+        from midi_ddsp.utils.midi_synthesis_utils import (
+            note_list_to_sequence,
+            expression_generator_output_to_conditioning_df,
+            batch_conditioning_df_to_audio,
+        )
+        import numpy as np
+        import tensorflow as tf
+        import pretty_midi
+
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
@@ -238,20 +248,20 @@ class MidiDdspMusicGenerationTaskService(ModelTaskService):
         self.expression_generator = None
 
     async def _load_generators(self) -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
+        from midi_ddsp.hparams_synthesis_generator import hparams as hp
+        from midi_ddsp.modules.get_synthesis_generator import (
+            get_synthesis_generator,
+            get_fake_data_synthesis_generator,
+        )
+        from midi_ddsp.modules.expression_generator import (
+            ExpressionGenerator,
+            get_fake_data_expression_generator,
+        )
+        from midi_ddsp.utils.training_utils import get_hp
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         def _load() -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
-            from midi_ddsp.hparams_synthesis_generator import hparams as hp
-            from midi_ddsp.modules.get_synthesis_generator import (
-                get_synthesis_generator,
-                get_fake_data_synthesis_generator,
-            )
-            from midi_ddsp.modules.expression_generator import (
-                ExpressionGenerator,
-                get_fake_data_expression_generator,
-            )
-            from midi_ddsp.utils.training_utils import get_hp
-
             synthesis_generator_path, expression_generator_path = self._resolve_checkpoint_paths(model_path)
 
             # Upstream stores training hyperparameters next to the checkpoint as

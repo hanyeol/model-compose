@@ -316,16 +316,16 @@ class SadTalkerTalkingHeadTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Dict[str, Any], torch.device]:
+        from sadtalker.utils.preprocess import CropAndExtract
+        from sadtalker.test_audio2coeff import Audio2Coeff
+        from sadtalker.facerender.animate import AnimateFromCoeff
+        from sadtalker.utils.init_path import init_path
+        import sadtalker
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Dict[str, Any]:
-            from sadtalker.utils.preprocess import CropAndExtract
-            from sadtalker.test_audio2coeff import Audio2Coeff
-            from sadtalker.facerender.animate import AnimateFromCoeff
-            from sadtalker.utils.init_path import init_path
-            import sadtalker
-
             config_dir = os.path.join(sadtalker.__path__[0], "config")
             sadtalker_paths = init_path(
                 model_path,

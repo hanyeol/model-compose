@@ -207,12 +207,12 @@ class Hallo2TalkingHeadTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[str, str, torch.device]:
+        import hallo
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[str, str]:
-            import hallo
-
             # Config yaml lives inside the repo tree we installed above; `hallo`
             # is a namespace package so `__file__` may be None — use __path__.
             repo_root = os.path.dirname(hallo.__path__[0])

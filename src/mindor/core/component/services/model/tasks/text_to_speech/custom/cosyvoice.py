@@ -284,6 +284,8 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
+        from cosyvoice.cli.cosyvoice import AutoModel
+
         # CosyVoice's AutoModel selects CosyVoice / CosyVoice2 / CosyVoice3 based on
         # yaml files inside model_dir, and its upstream snapshot_download is
         # ModelScope-only — so we resolve to a local dir via _provision_model() and
@@ -292,8 +294,6 @@ class CosyvoiceTextToSpeechTaskService(ModelTaskService):
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[Any, int]:
-            from cosyvoice.cli.cosyvoice import AutoModel
-
             # jit/trt/vllm/fp16 are CUDA-only upstream: CosyVoice's AutoModel gates
             # them behind torch.cuda.is_available() and silently disables them on
             # any other backend (mps included). We filter here so the intent is

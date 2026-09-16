@@ -157,12 +157,11 @@ class InsightfaceFaceDetectionTaskService(ModelTaskService):
         from insightface.app import FaceAnalysis
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
+        providers = self._resolve_onnx_providers()
+
+        logging.debug(f"InsightFace providers: {providers}")
 
         def _load() -> FaceAnalysis:
-            providers = self._resolve_onnx_providers()
-
-            logging.debug(f"InsightFace providers: {providers}")
-
             model = FaceAnalysis(name=name, root=root, providers=providers)
             model.prepare(ctx_id=self._get_device_id())
 

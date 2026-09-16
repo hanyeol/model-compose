@@ -41,13 +41,13 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
+        import numpy as np
+        import torch
+        import torch.nn.functional as F
+
         waveforms = await self._preprocess_audio(audios)
 
         def _embed() -> List[List[float]]:
-            import numpy as np
-            import torch
-            import torch.nn.functional as F
-
             # sampleid expects (batch, samples). Waveforms may differ in length
             # across the batch — pad on the right with zeros so we can stack.
             max_len = max(waveform.shape[-1] for waveform in waveforms)
@@ -112,11 +112,11 @@ class SampleidMusicEmbeddingTaskService(ModelTaskService):
         self.device = None
 
     async def _load_sampleid(self) -> Tuple[SampleID, torch.device]:
+        from sampleid import SampleID
+
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[SampleID, torch.device]:
-            from sampleid import SampleID
-
             # sampleid.SampleID.load_checkpoint auto-downloads the Zenodo weights
             # when ckpt_path is None. The schema stamps a sentinel name for the
             # discriminator, so we only forward the name as a checkpoint path when

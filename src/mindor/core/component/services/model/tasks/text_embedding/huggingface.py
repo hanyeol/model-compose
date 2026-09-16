@@ -60,11 +60,12 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[List[float]]:
+        import torch
+        import torch.nn.functional as F
+
         def _embed() -> List[List[float]]:
             if self.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
                 return self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist()
-
-            import torch, torch.nn.functional as F
 
             inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
             inputs = { key: value.to(self.device) for key, value in inputs.items() }
@@ -126,17 +127,16 @@ class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
 
     async def _load_model(self) -> None:
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
+            from sentence_transformers import SentenceTransformer
+
             model_path = await self._provision_model(self.config.model)
             device = self._resolve_device(self.config.device) if self.config.device_mode == DeviceMode.SINGLE else None
             dtype = self._get_model_dtype()
+            quantization_config = self._resolve_model_quantization_config(self.config, device, dtype)
 
             def _load() -> SentenceTransformer:
-                from sentence_transformers import SentenceTransformer
-
                 params: Dict[str, Any] = {}
                 model_kwargs: Dict[str, Any] = {}
-
-                quantization_config = self._resolve_model_quantization_config(self.config, device, dtype)
 
                 if quantization_config is not None:
                     # SentenceTransformer forwards model_kwargs to the underlying

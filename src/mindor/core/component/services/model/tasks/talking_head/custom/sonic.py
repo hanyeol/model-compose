@@ -203,6 +203,9 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, torch.device]:
+        from huggingface_hub import snapshot_download
+        import sonic  # our installed package
+
         # LeonJoe13/Sonic ships only Sonic/RIFE/yoloface — the pipeline also
         # needs the SVD-XT base and whisper-tiny at fixed subdirs. Materialise
         # `checkpoints/` next to the installed package: Sonic's own weights
@@ -212,9 +215,6 @@ class SonicTalkingHeadTaskService(ModelTaskService):
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from huggingface_hub import snapshot_download
-            import sonic  # our installed package
-
             checkpoints_dir = os.path.join(os.path.dirname(sonic.__file__), "checkpoints")
             device_index = device.index if device.index is not None else 0
 

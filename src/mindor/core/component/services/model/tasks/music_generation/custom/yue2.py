@@ -252,9 +252,9 @@ class Yue2MusicGenerationTaskService(ModelTaskService):
             self.pipeline = None
 
     async def _load_pipeline(self, model_path: str, vae_model_path: str) -> "YuE2Pipeline":
-        def _load() -> "YuE2Pipeline":
-            from yue2 import YuE2Pipeline
+        from yue2 import YuE2Pipeline
 
+        def _load() -> "YuE2Pipeline":
             memory_budget_gib = float(self.config.memory_budget_gib)
             vae_core_frames = int(self.config.vae.tile_size) if self.config.vae.tile_size is not None else None
 

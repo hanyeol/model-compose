@@ -277,12 +277,14 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, torch.device]:
+        from omegaconf import OmegaConf
+        from diffusers import AutoencoderKL, DDIMScheduler
+        import torch
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from omegaconf import OmegaConf
-
             module_name = _ECHOMIMIC_MODULES[self.config.preset]
             module = importlib.import_module(module_name)
             repo_root = os.path.dirname(os.path.dirname(module.__file__))
@@ -300,18 +302,18 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
 
             if self.config.preset == EchoMimicPreset.V1:
                 pipeline_module = importlib.import_module(f"{module_name}.pipelines.pipeline_echo_mimic")
-                pipeline_cls = pipeline_module.Audio2VideoPipeline
+                pipeline_class = pipeline_module.Audio2VideoPipeline
             else:
                 pipeline_module = importlib.import_module(f"{module_name}.pipelines.pipeline_echomimicv2")
-                pipeline_cls = pipeline_module.EchoMimicV2Pipeline
+                pipeline_class = pipeline_module.EchoMimicV2Pipeline
 
-            return self._build_pipeline(pipeline_cls, config, inference_config, module_name, device)
+            return self._build_pipeline(pipeline_class, config, inference_config, module_name, device)
 
         pipeline = await self._run_in_executor(_load)
 
         return pipeline, device
 
-    def _build_pipeline(self, pipeline_cls: type, config: Any, inference_config: Any, module_name: str, device: torch.device) -> Any:
+    def _build_pipeline(self, pipeline_class: type, config: Any, inference_config: Any, module_name: str, device: torch.device) -> Any:
         # Mirrors upstream infer_audio2vid.py (v1) / infer.py (v2) sub-model wiring.
         # Both variants share VAE + reference UNet + audio processor + DDIM scheduler;
         # they diverge on the denoising UNet class (Echo vs EMO) and the spatial
@@ -320,17 +322,17 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         from diffusers import AutoencoderKL, DDIMScheduler
         import torch
 
-        unet_2d_cls = importlib.import_module(f"{module_name}.models.unet_2d_condition").UNet2DConditionModel
+        unet_2d_class = importlib.import_module(f"{module_name}.models.unet_2d_condition").UNet2DConditionModel
         audio_loader = importlib.import_module(f"{module_name}.models.whisper.audio2feature").load_audio_model
 
         if self.config.preset == EchoMimicPreset.V1:
-            denoising_unet_cls = importlib.import_module(f"{module_name}.models.unet_3d_echo").EchoUNet3DConditionModel
-            conditioner_cls = importlib.import_module(f"{module_name}.models.face_locator").FaceLocator
+            denoising_unet_class = importlib.import_module(f"{module_name}.models.unet_3d_echo").EchoUNet3DConditionModel
+            conditioner_class = importlib.import_module(f"{module_name}.models.face_locator").FaceLocator
             conditioner_channels = 1
             conditioner_ckpt_key = "face_locator_path"
         else:
-            denoising_unet_cls = importlib.import_module(f"{module_name}.models.unet_3d_emo").EMOUNet3DConditionModel
-            conditioner_cls = importlib.import_module(f"{module_name}.models.pose_encoder").PoseEncoder
+            denoising_unet_class = importlib.import_module(f"{module_name}.models.unet_3d_emo").EMOUNet3DConditionModel
+            conditioner_class = importlib.import_module(f"{module_name}.models.pose_encoder").PoseEncoder
             conditioner_channels = 3
             conditioner_ckpt_key = "pose_encoder_path"
 
@@ -338,13 +340,13 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
 
         vae = AutoencoderKL.from_pretrained(config.pretrained_vae_path).to(device, dtype=weight_dtype)
 
-        reference_unet = unet_2d_cls.from_pretrained(
+        reference_unet = unet_2d_class.from_pretrained(
             config.pretrained_base_model_path,
             subfolder="unet",
         ).to(dtype=weight_dtype, device=device)
         reference_unet.load_state_dict(torch.load(config.reference_unet_path, map_location="cpu"))
 
-        denoising_unet = denoising_unet_cls.from_pretrained_2d(
+        denoising_unet = denoising_unet_class.from_pretrained_2d(
             config.pretrained_base_model_path,
             config.motion_module_path,
             subfolder="unet",
@@ -358,7 +360,7 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         # FaceLocator (v1) / PoseEncoder (v2) share the (320, conditioning_channels,
         # block_out_channels=(16, 32, 96, 256)) construction signature — only the
         # conditioning channel count differs.
-        conditioner = conditioner_cls(
+        conditioner = conditioner_class(
             320,
             conditioning_channels=conditioner_channels,
             block_out_channels=(16, 32, 96, 256),
@@ -382,7 +384,7 @@ class EchoMimicTalkingHeadTaskService(ModelTaskService):
         else:
             pipeline_params["pose_encoder"] = conditioner
 
-        return pipeline_cls(**pipeline_params).to(device, dtype=weight_dtype)
+        return pipeline_class(**pipeline_params).to(device, dtype=weight_dtype)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await EchoMimicTalkingHeadTaskAction(

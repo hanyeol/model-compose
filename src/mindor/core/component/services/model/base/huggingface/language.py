@@ -36,13 +36,13 @@ class HuggingfaceLanguageModelTaskService(HuggingfaceModelTaskService):
         self.device = None
 
     async def _load_pretrained_tokenizer(self, model_path: str) -> Optional[PreTrainedTokenizer]:
-        tokenizer_cls = self._get_tokenizer_class()
+        tokenizer_class = self._get_tokenizer_class()
 
-        if not tokenizer_cls:
+        if not tokenizer_class:
             return None
 
         def _load() -> PreTrainedTokenizer:
-            tokenizer = tokenizer_cls.from_pretrained(
+            tokenizer = tokenizer_class.from_pretrained(
                 model_path, 
                 **self._get_tokenizer_params()
             )

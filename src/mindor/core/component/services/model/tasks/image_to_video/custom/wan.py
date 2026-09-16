@@ -136,6 +136,9 @@ class WanImageToVideoTaskService(ModelTaskService):
         self.pipeline = None
 
     async def _load_pipeline(self) -> Any:
+        from wan.configs import WAN_CONFIGS
+        import wan
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         # Wan2.2's WanI2V / WanTI2V hardcode `self.device = torch.device(f"cuda:{device_id}")`
@@ -153,9 +156,6 @@ class WanImageToVideoTaskService(ModelTaskService):
         task = _WAN_I2V_TASKS[self.config.preset]
 
         def _load() -> Any:
-            from wan.configs import WAN_CONFIGS
-            import wan
-
             if self.config.preset == WanImageToVideoPreset.I2V_A14B:
                 return wan.WanI2V(config=WAN_CONFIGS[task], checkpoint_dir=model_path, device_id=device_id)
 

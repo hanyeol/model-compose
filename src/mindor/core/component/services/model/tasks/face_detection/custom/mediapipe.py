@@ -25,12 +25,12 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        def _detect() -> List[Dict[str, Any]]:
-            from mediapipe import Image as MPImage, ImageFormat
-            from mediapipe.tasks.python import vision
-            from mediapipe.tasks.python.core.base_options import BaseOptions
-            import numpy as np
+        from mediapipe import Image as MPImage, ImageFormat
+        from mediapipe.tasks.python import vision
+        from mediapipe.tasks.python.core.base_options import BaseOptions
+        import numpy as np
 
+        def _detect() -> List[Dict[str, Any]]:
             options = vision.FaceDetectorOptions(
                 base_options=BaseOptions(model_asset_path=self.model_path),
                 min_detection_confidence=params["min_confidence"],

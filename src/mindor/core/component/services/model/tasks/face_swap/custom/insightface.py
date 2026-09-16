@@ -48,10 +48,10 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Face:
-        def _prepare_source_face() -> Face:
-            import numpy as np
-            import cv2
+        import numpy as np
+        import cv2
 
+        def _prepare_source_face() -> Face:
             self.detector.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
 
             image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
@@ -132,9 +132,9 @@ class InsightfaceFaceSwapTaskService(ModelTaskService):
         from insightface.model_zoo import get_model
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
+        providers = self._resolve_onnx_providers()
 
         def _load() -> Tuple[INSwapper, FaceAnalysis]:
-            providers = self._resolve_onnx_providers()
             model = get_model(os.path.join(root, name), download=False, download_zip=False)
             detector = FaceAnalysis(name=self.config.detector_model, root=root, providers=providers)
             detector.prepare(ctx_id=self._get_device_id(), det_size=(640, 640))

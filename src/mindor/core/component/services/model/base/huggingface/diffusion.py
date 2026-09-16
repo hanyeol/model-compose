@@ -43,6 +43,10 @@ class HuggingfaceDiffusionPipelineTaskService(HuggingfaceModelTaskService, Gener
         device = self._resolve_device(self.config.device)
         dtype = self._get_pipeline_dtype(device)
 
+        base_pipeline_class = self._get_pipeline_class(None)
+        method_pipeline_classes: Dict[Optional[TMethod], Type[DiffusionPipeline]] = { method: self._get_pipeline_class(method) for method in methods }
+        quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
+
         submodules = await self._load_pipeline_submodules(device, dtype)
 
         def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
@@ -52,28 +56,23 @@ class HuggingfaceDiffusionPipelineTaskService(HuggingfaceModelTaskService, Gener
                 "torch_dtype": dtype,
             }
 
-            quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
-
             if quantization_config is not None:
                 params["quantization_config"] = quantization_config
 
-            base_pipeline_cls = self._get_pipeline_class(None)
-            logging.info(f"Component '{self.id}': loading {base_pipeline_cls.__name__} from {model_path}")
+            logging.info(f"Component '{self.id}': loading {base_pipeline_class.__name__} from {model_path}")
 
             # Pipeline-level `.to(device)` is safe even for quantized pipelines
             # (diffusers docs), unlike transformers' Linear4bit which rejects it.
-            base_pipeline = base_pipeline_cls.from_pretrained(model_path, **params).to(device)
+            base_pipeline = base_pipeline_class.from_pretrained(model_path, **params).to(device)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
 
-            for method in methods:
-                pipeline_cls = self._get_pipeline_class(method)
-
-                if pipeline_cls is base_pipeline_cls:
+            for method, pipeline_class in method_pipeline_classes.items():
+                if pipeline_class is base_pipeline_class:
                     pipelines[method] = base_pipeline
                 else:
-                    logging.info(f"Component '{self.id}': deriving {pipeline_cls.__name__} from {base_pipeline_cls.__name__}")
-                    pipelines[method] = pipeline_cls.from_pipe(base_pipeline)
+                    logging.info(f"Component '{self.id}': deriving {pipeline_class.__name__} from {base_pipeline_class.__name__}")
+                    pipelines[method] = pipeline_class.from_pipe(base_pipeline)
 
             return pipelines
 

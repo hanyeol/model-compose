@@ -94,9 +94,9 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
     ) -> Union[List[str], List[List[Dict[str, Any]]], List[AsyncIterator[Any]]]:
-        def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]]]:
-            import torch
+        import torch
 
+        def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]]]:
             # Waveforms are already resampled to _SAMPLE_RATE by AudioBufferStreamer;
             # the processor's numpy path uses target_sample_rate as-is (no resample).
             inputs = self.processor(
@@ -171,9 +171,9 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
         params: Dict[str, Any],
         streaming: bool,
     ) -> Union[List[str], List[AsyncIterator[str]]]:
-        def _transcribe(waveform: np.ndarray) -> Iterator[str]:
-            import torch
+        import torch
 
+        def _transcribe(waveform: np.ndarray) -> Iterator[str]:
             audio_tensor = torch.from_numpy(waveform)
             max_new_tokens = params["generation"]["max_output_length"] or _DEFAULT_MAX_TOKENS_PER_CHUNK
 
@@ -312,14 +312,14 @@ class VibeVoiceSpeechToTextTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, Any, Optional[Dict[str, float]], torch.device]:
+        from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+        from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
         dtype = self._resolve_torch_dtype(device)
 
         def _load() -> Tuple[Any, Any, Optional[Dict[str, float]]]:
-            from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
-            from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
-
             processor = VibeVoiceASRProcessor.from_pretrained(model_path)
             is_prequantized = is_checkpoint_prequantized(model_path)
             streaming_info = self._load_streaming_info(model_path)

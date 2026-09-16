@@ -54,10 +54,10 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        def _embed() -> List[Dict[str, Any]]:
-            import numpy as np
-            import cv2
+        import numpy as np
+        import cv2
 
+        def _embed() -> List[Dict[str, Any]]:
             if not self._prepared:
                 self.model.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
                 self._prepared = True
@@ -158,10 +158,9 @@ class InsightfaceFaceEmbeddingTaskService(ModelTaskService):
         from insightface.app import FaceAnalysis
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
+        providers = self._resolve_onnx_providers()
 
         def _load() -> FaceAnalysis:
-            providers = self._resolve_onnx_providers()
-
             logging.debug(f"InsightFace providers: {providers}")
 
             model = FaceAnalysis(name=name, root=root, providers=providers)

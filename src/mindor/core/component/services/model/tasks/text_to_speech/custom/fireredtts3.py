@@ -321,15 +321,15 @@ class FireRedTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, Any]:
+        if self.config.preset == FireRedTextToSpeechPreset.INSTRUCT:
+            from fireredtts3.core import FireRedTTS3Instruct as FireRedTTS3Model
+        else:
+            from fireredtts3.core import FireRedTTS3 as FireRedTTS3Model
+
         model_dir = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            if self.config.preset == FireRedTextToSpeechPreset.INSTRUCT:
-                from fireredtts3.core import FireRedTTS3Instruct as FireRedTTS3Model
-            else:
-                from fireredtts3.core import FireRedTTS3 as FireRedTTS3Model
-
             # LLM TN needs an external API key via .env; keep it off by default.
             # wetext covers zh/en and does basic cleaning for other languages.
             return FireRedTTS3Model(

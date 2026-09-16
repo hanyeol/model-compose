@@ -353,19 +353,19 @@ class MuseTalkLipSyncTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Dict[str, Any], torch.device]:
+        import musetalk  # our installed package
+        from transformers import WhisperModel
+        from musetalk.utils.utils import load_all_model
+        from musetalk.utils.audio_processor import AudioProcessor
+        from musetalk.utils.face_parsing import FaceParsing
+        import torch
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         await self._provision_extra_checkpoints()
 
         def _load() -> Dict[str, Any]:
-            import musetalk  # our installed package
-            from transformers import WhisperModel
-            from musetalk.utils.utils import load_all_model
-            from musetalk.utils.audio_processor import AudioProcessor
-            from musetalk.utils.face_parsing import FaceParsing
-            import torch
-
             models_dir = Path(musetalk.__path__[0]).parent / "models"
 
             # Symlink the user's MuseTalk snapshot (containing musetalk/ or
@@ -421,13 +421,12 @@ class MuseTalkLipSyncTaskService(ModelTaskService):
         # installed MuseTalk package's `models/` directory. Mirrors Sonic's
         # pattern of feeding upstream code its own expected relative paths.
         import musetalk  # requires _setup to have run first
+        from huggingface_hub import snapshot_download
 
         models_dir = Path(musetalk.__path__[0]).parent / "models"
         models_dir.mkdir(parents=True, exist_ok=True)
 
         def _download_checkpoints() -> None:
-            from huggingface_hub import snapshot_download
-
             for subdir, repo_id in _EXTRA_HF_SNAPSHOTS.items():
                 model_dir = models_dir / subdir
 

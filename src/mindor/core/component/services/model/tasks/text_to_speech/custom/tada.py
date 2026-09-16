@@ -128,6 +128,11 @@ class TadaTextToSpeechTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, Any, Any]:
+        from tada.modules.aligner import AlignerConfig
+        from tada.modules.encoder import Encoder
+        from tada.modules.tada import TadaForCausalLM, TadaConfig
+        import torch
+
         # LM weights: for HF sources the schema's default allow_patterns keeps
         # the download to relevant files; local paths are used as-is.
         model_path = await self._provision_model(self.config.model, prefetch=True)
@@ -143,11 +148,6 @@ class TadaTextToSpeechTaskService(ModelTaskService):
         )
 
         def _load() -> Tuple[Any, Any]:
-            from tada.modules.aligner import AlignerConfig
-            from tada.modules.encoder import Encoder
-            from tada.modules.tada import TadaForCausalLM, TadaConfig
-            import torch
-
             AlignerConfig.tokenizer_name = tokenizer_path
             encoder = Encoder.from_pretrained(_TADA_CODEC_REPO, subfolder="encoder").to(device).eval()
 

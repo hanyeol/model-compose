@@ -430,22 +430,22 @@ class Wav2LipLipSyncTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, torch.device]:
+        import wav2lip  # the installed package
+        import torch
+
+        repo_root = wav2lip.__path__[0]
+
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
+
+        from models import Wav2Lip
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         await self._provision_s3fd_checkpoint()
 
         def _load() -> Any:
-            import wav2lip  # the installed package
-            import torch
-
-            repo_root = wav2lip.__path__[0]
-
-            if repo_root not in sys.path:
-                sys.path.insert(0, repo_root)
-
-            from models import Wav2Lip
-
             if os.path.isdir(model_path):
                 checkpoint_path = os.path.join(model_path, _CHECKPOINT_FILENAMES[self.config.preset])
             else:

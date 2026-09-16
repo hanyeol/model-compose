@@ -101,6 +101,7 @@ class LatentSyncLipSyncTaskAction(LipSyncTaskAction):
         # duration; disable on exit so subsequent calls with a different
         # config don't inherit the cached branch.
         deepcache_helper = None
+
         if params["enable_deepcache"]:
             from DeepCache import DeepCacheSDHelper
             deepcache_helper = DeepCacheSDHelper(pipe=self.pipeline)
@@ -190,18 +191,18 @@ class LatentSyncLipSyncTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, Any, torch.device]:
+        import torch
+        import latentsync
+        from omegaconf import OmegaConf
+        from diffusers import AutoencoderKL, DDIMScheduler
+        from latentsync.models.unet import UNet3DConditionModel
+        from latentsync.pipelines.lipsync_pipeline import LipsyncPipeline
+        from latentsync.whisper.audio2feature import Audio2Feature
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[Any, Any]:
-            import torch
-            import latentsync
-            from omegaconf import OmegaConf
-            from diffusers import AutoencoderKL, DDIMScheduler
-            from latentsync.models.unet import UNet3DConditionModel
-            from latentsync.pipelines.lipsync_pipeline import LipsyncPipeline
-            from latentsync.whisper.audio2feature import Audio2Feature
-
             repo_root = Path(latentsync.__path__[0]).parent
             configs_root = get_mindor_install_root() / "latentsync_configs"
 

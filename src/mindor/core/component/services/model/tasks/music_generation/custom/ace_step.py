@@ -184,6 +184,8 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from acestep.inference import GenerationParams, generate_music, GenerationConfig
+
         def _generate() -> List[Any]:
             results: List[PcmStreamResource] = []
 
@@ -230,6 +232,8 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from acestep.inference import GenerationParams, generate_music, GenerationConfig
+
         sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
@@ -291,6 +295,8 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from acestep.inference import GenerationParams, generate_music, GenerationConfig
+
         sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
@@ -348,6 +354,8 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from acestep.inference import GenerationParams, generate_music, GenerationConfig
+
         sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
@@ -415,6 +423,8 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from acestep.inference import GenerationParams, generate_music, GenerationConfig
+
         sources: List[MediaSource] = [ source for source, _, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(sources)
 
@@ -486,6 +496,8 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
+        from acestep.inference import GenerationParams, generate_music, GenerationConfig
+
         vocals: List[MediaSource] = [ vocal for vocal, _, _ in inputs ]
         source_paths = await self._resolve_source_paths(vocals)
 
@@ -573,10 +585,10 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         self.handler = None
 
     async def _load_generation_handler(self, model_path: str) -> AceStepHandler:
-        def _load() -> AceStepHandler:
-            from acestep.handler import AceStepHandler
-            import torch
+        from acestep.handler import AceStepHandler
+        import torch
 
+        def _load() -> AceStepHandler:
             handler = AceStepHandler()
             handler.initialize_service(
                 project_root=model_path,
@@ -592,10 +604,10 @@ class AceStepMusicGenerationTaskService(ModelTaskService):
         return await self._run_in_executor(_load)
 
     async def _load_llm_handler(self, model_path: str) -> LLMHandler:
-        def _load() -> LLMHandler:
-            from acestep.llm_inference import LLMHandler
-            import torch
+        from acestep.llm_inference import LLMHandler
+        import torch
 
+        def _load() -> LLMHandler:
             dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else None
 
             handler = LLMHandler()

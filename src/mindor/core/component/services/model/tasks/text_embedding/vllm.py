@@ -65,13 +65,14 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 @register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.VLLM)
 class VllmTextEmbeddingTaskService(VllmModelTaskService):
     async def _load_model(self) -> None:
+        from vllm import AsyncEngineArgs, AsyncLLMEngine
+        from transformers import AutoTokenizer
+
         model_path = await self._provision_model(self.config.model)
 
         logging.info(f"Component '{self.id}': loading vLLM embedding model from '{model_path}'")
 
         def _load():
-            from vllm import AsyncEngineArgs, AsyncLLMEngine
-
             params: Dict[str, Any] = {
                 "task": "embed",
                 **self._get_model_params(self.config.model),
@@ -81,7 +82,7 @@ class VllmTextEmbeddingTaskService(VllmModelTaskService):
             engine_args = AsyncEngineArgs(model=model_path, **params)
             engine = AsyncLLMEngine.from_engine_args(engine_args)
 
-            self._load_tokenizer(model_path, params)
+            self._load_tokenizer(AutoTokenizer, model_path, params)
 
             return engine
 

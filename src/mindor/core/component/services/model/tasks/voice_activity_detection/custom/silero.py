@@ -38,6 +38,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], List[AsyncIterator[Dict[str, Any]]]]:
+        from silero_vad import get_speech_timestamps
         import numpy as np
 
         sample_rate = int(params["sample_rate"])
@@ -259,11 +260,11 @@ class SileroVoiceActivityDetectionTaskService(ModelTaskService):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, torch.device]:
+        from silero_vad import load_silero_vad
+
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
-            from silero_vad import load_silero_vad
-
             return load_silero_vad()
 
         model = await self._run_in_executor(_load)

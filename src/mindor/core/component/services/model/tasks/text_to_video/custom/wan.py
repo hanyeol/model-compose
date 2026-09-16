@@ -129,14 +129,14 @@ class WanTextToVideoTaskService(ModelTaskService):
         self.pipeline = None
 
     async def _load_pipeline(self) -> Any:
+        from wan.configs import WAN_CONFIGS
+        import wan
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device_id = self.device.index if self.device.type == "cuda" and self.device.index is not None else 0
         task = _WAN_T2V_TASKS[self.config.preset]
 
         def _load() -> Any:
-            from wan.configs import WAN_CONFIGS
-            import wan
-
             if self.config.preset == WanTextToVideoPreset.T2V_A14B:
                 return wan.WanT2V(config=WAN_CONFIGS[task], checkpoint_dir=model_path, device_id=device_id)
 

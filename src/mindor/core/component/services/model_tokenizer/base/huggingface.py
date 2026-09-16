@@ -17,10 +17,11 @@ class HuggingfaceModelTokenizerTaskService(ModelTokenizerTaskService):
         self.tokenizer = await self._load_pretrained_tokenizer()
 
     async def _load_pretrained_tokenizer(self) -> Any:
+        tokenizer_class = self._get_tokenizer_class()
         model_path = await self._provision_model(self.config.model)
 
         def _load() -> Any:
-            tokenizer = self._get_tokenizer_class().from_pretrained(
+            tokenizer = tokenizer_class.from_pretrained(
                 model_path,
                 **self._get_tokenizer_params()
             )

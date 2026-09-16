@@ -32,11 +32,11 @@ class UnslothModelTaskService(ModelTaskService):
         self.tokenizer = None
 
     async def _load_pretrained_model(self) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+        from unsloth import FastLanguageModel
+
         model_path = await self._provision_model(self.config.model)
 
         def _load() -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
-            from unsloth import FastLanguageModel
-
             params: Dict[str, Any] = {
                 **self._get_model_params(self.config.model),
                 **self._get_model_options(self.config),

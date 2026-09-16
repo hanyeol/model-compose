@@ -243,12 +243,12 @@ class MdxNetMusicSourceSeparationTaskService(ModelTaskService):
         self.device = None
 
     async def _load_onnx_session(self) -> Tuple[Any, str, torch.device]:
+        import onnxruntime as ort
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[Any, str]:
-            import onnxruntime as ort
-
             providers: List[str] = []
 
             if device.type == "cuda":

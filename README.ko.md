@@ -37,16 +37,16 @@ AI 시스템은 단일 프로바이더, 런타임, 클라우드에 종속되어�
 
 ## Quick Start
 
-pip로 설치:
-
-```bash
-pip install model-compose
-```
-
-또는 [uv](https://docs.astral.sh/uv/)로 설치:
+[uv](https://docs.astral.sh/uv/)로 설치:
 
 ```bash
 uv pip install model-compose
+```
+
+또는 pip로 설치:
+
+```bash
+pip install model-compose
 ```
 
 `model-compose.yml` 작성:

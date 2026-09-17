@@ -37,16 +37,16 @@ AI 系统不应被锁定在单一提供商、运行时或云平台中。model-co
 
 ## Quick Start
 
-使用 pip 安装：
-
-```bash
-pip install model-compose
-```
-
-或使用 [uv](https://docs.astral.sh/uv/)：
+使用 [uv](https://docs.astral.sh/uv/) 安装：
 
 ```bash
 uv pip install model-compose
+```
+
+或使用 pip：
+
+```bash
+pip install model-compose
 ```
 
 创建 `model-compose.yml`：

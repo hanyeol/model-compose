@@ -37,16 +37,16 @@ AI systems should not be locked into a single provider, runtime, or cloud. model
 
 ## Quick Start
 
-Install with pip:
-
-```bash
-pip install model-compose
-```
-
-Or with [uv](https://docs.astral.sh/uv/):
+Install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv pip install model-compose
+```
+
+Or with pip:
+
+```bash
+pip install model-compose
 ```
 
 Create `model-compose.yml`:

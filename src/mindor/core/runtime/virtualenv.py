@@ -62,9 +62,12 @@ class VirtualEnvRuntime:
         """Create the venv (if missing) and install runtime + user requirements.
         Idempotent — safe to call repeatedly. Separated from `start()` so
         callers can prepare the interpreter before opening any IPC channel."""
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._ensure_venv)
-        await loop.run_in_executor(None, self._install_dependencies)
+
+        def _bootstrap() -> None:
+            self._bootstrap_venv()
+            self._install_dependencies()
+
+        await asyncio.get_event_loop().run_in_executor(None, _bootstrap)
 
     async def start(
         self,
@@ -113,41 +116,7 @@ class VirtualEnvRuntime:
     def subprocess(self) -> Optional[subprocess.Popen]:
         return self._subprocess
 
-    def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
-        env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }
-        env.update(self.config.env or {})
-        env["PYTHONUNBUFFERED"] = "1"
-        if overrides:
-            env.update(overrides)
-        return env
-
-    def _resolve_venv_path(self) -> Path:
-        path = self.config.path
-        if path:
-            return (Path.cwd() / path).resolve()
-        return (Path.cwd() / ".runtime" / "components" / self.worker_id / "venv").resolve()
-
-    def _venv_python(self) -> Path:
-        if os.name == "nt":  # Windows
-            return self._venv_path / "Scripts" / "python.exe"
-        return self._venv_path / "bin" / "python"
-
-    def _venv_pip(self) -> Path:
-        if os.name == "nt":
-            return self._venv_path / "Scripts" / "pip.exe"
-        return self._venv_path / "bin" / "pip"
-
-    def _venv_site_packages(self) -> Path:
-        # Resolve site-packages by asking the venv's python directly. The only reliable
-        # way to handle platform/python-version differences.
-        python = self._venv_python()
-        out = subprocess.check_output(
-            [str(python), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
-            text=True,
-        ).strip()
-        return Path(out)
-
-    def _ensure_venv(self) -> None:
+    def _bootstrap_venv(self) -> None:
         if self._venv_path.exists() and self._venv_python().exists():
             return
 
@@ -157,10 +126,12 @@ class VirtualEnvRuntime:
             logging.info(f"Creating virtualenv at {self._venv_path} (python driver)")
             builder = venv.EnvBuilder(with_pip=True, clear=False, upgrade_deps=False)
             builder.create(str(self._venv_path))
+
             return
 
         if self.config.driver == VirtualEnvDriver.PYENV:
             version = self.config.python
+
             if not version:
                 raise ValueError("VirtualEnvRuntimeConfig.python must be set when driver is 'pyenv'.")
 
@@ -168,6 +139,7 @@ class VirtualEnvRuntime:
 
             python_path = self._resolve_pyenv_python(version)
             subprocess.run([str(python_path), "-m", "venv", str(self._venv_path)], check=True)
+
             return
 
         raise ValueError(f"Unknown virtualenv driver: {self.config.driver}")
@@ -189,8 +161,10 @@ class VirtualEnvRuntime:
             raise RuntimeError(f"Failed to resolve pyenv root: {e}") from e
 
         python_path = Path(pyenv_root) / "versions" / version / "bin" / "python"
+
         if not python_path.exists():
             raise RuntimeError(f"pyenv reports {version} as installed but {python_path} does not exist.")
+
         return python_path
 
     def _install_dependencies(self) -> None:
@@ -213,21 +187,67 @@ class VirtualEnvRuntime:
                     shutil.rmtree(target_mindor)
 
                 staging = site_packages / f".mindor.staging.{os.getpid()}"
+
                 if staging.exists():
                     shutil.rmtree(staging)
+
                 shutil.copytree(host_mindor_root, staging, ignore=_PACKAGE_IGNORE_PATTERNS)
                 os.replace(staging, target_mindor)
 
                 version_path.write_text(current_version)
 
-            # pip skips already-satisfied requirements, so always run cheaply
-            pip = str(self._venv_pip())
-            subprocess.run(
-                [ pip, "install", "--disable-pip-version-check", "-r", str(runtime_requirements_path) ],
-                check=True,
-            )
+            # Prefer uv when available: `--link-mode=hardlink` shares wheel
+            # bytes across venvs on the same filesystem (torch/CUDA installs
+            # cost ~one copy total), and falls back to copy on cross-fs targets.
+            uv_path = shutil.which("uv")
+
+            if uv_path:
+                command = [ uv_path, "pip", "install", "--python", str(self._venv_python()), "--link-mode=hardlink" ]
+            else:
+                command = [ str(self._venv_pip()), "install", "--disable-pip-version-check" ]
+
+            subprocess.run(command + [ "-r", str(runtime_requirements_path) ], check=True)
+
             if user_requirements_path.exists():
-                subprocess.run(
-                    [ pip, "install", "--disable-pip-version-check", "-r", str(user_requirements_path) ],
-                    check=True,
-                )
+                subprocess.run(command + [ "-r", str(user_requirements_path) ], check=True)
+
+    def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
+        env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }
+        env.update(self.config.env or {})
+        env["PYTHONUNBUFFERED"] = "1"
+
+        if overrides:
+            env.update(overrides)
+
+        return env
+
+    def _resolve_venv_path(self) -> Path:
+        path = self.config.path
+
+        if path:
+            return (Path.cwd() / path).resolve()
+
+        return (Path.cwd() / ".runtime" / "components" / self.worker_id / "venv").resolve()
+
+    def _venv_python(self) -> Path:
+        if os.name == "nt":  # Windows
+            return self._venv_path / "Scripts" / "python.exe"
+
+        return self._venv_path / "bin" / "python"
+
+    def _venv_pip(self) -> Path:
+        if os.name == "nt":
+            return self._venv_path / "Scripts" / "pip.exe"
+
+        return self._venv_path / "bin" / "pip"
+
+    def _venv_site_packages(self) -> Path:
+        # Resolve site-packages by asking the venv's python directly. The only reliable
+        # way to handle platform/python-version differences.
+        python = self._venv_python()
+        out = subprocess.check_output(
+            [str(python), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+            text=True,
+        ).strip()
+
+        return Path(out)

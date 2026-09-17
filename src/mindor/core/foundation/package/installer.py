@@ -6,7 +6,7 @@ from packaging.version import Version, InvalidVersion
 from importlib.metadata import version, metadata, PackageNotFoundError
 from mindor.core.utils.github import download_github_tarball
 import mindor
-import sys, subprocess, shutil, importlib, importlib.util, tempfile
+import sys, subprocess, shutil, importlib, tempfile
 import asyncio, re
 
 # The directory that hosts the running `mindor` package — site-packages root
@@ -17,22 +17,23 @@ import asyncio, re
 _MINDOR_INSTALL_ROOT: Path = Path(mindor.__file__).resolve().parent.parent
 
 async def install_package(package_spec: str, pip_options: Optional[List[str]] = None) -> None:
-    """Install `package_spec` into the running interpreter via pip or uv.
+    """Install `package_spec` into the running interpreter via uv or pip.
 
     `package_spec` follows pip syntax — a versioned requirement
     (`"torch>=2.0.0"`), a direct URL (`"git+https://github.com/..."`), a local
     path, or any other spec pip accepts. `pip_options` appends extra flags
     such as `["--index-url", "https://download.pytorch.org/whl/cu128"]`.
 
-    Prefers uv when the current interpreter has no `pip` module available
-    (uv installs are faster and skip the pip bootstrap); otherwise falls back
-    to `python -m pip install`. Either way, the install targets
-    `sys.executable`, so the package is importable in the same process.
+    Prefers uv when available (faster resolves, and `--link-mode=hardlink`
+    shares wheel bytes across venvs on the same filesystem — a large deal
+    for torch/CUDA installs). Falls back to `python -m pip install` when
+    uv isn't on PATH. Either way, the install targets `sys.executable`, so
+    the package is importable in the same process.
     """
-    uv_path = shutil.which("uv") if importlib.util.find_spec("pip") is None else None
+    uv_path = shutil.which("uv")
 
     if uv_path:
-        command = [ uv_path, "pip", "install", "--python", sys.executable, package_spec ] + (pip_options or [])
+        command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", package_spec ] + (pip_options or [])
     else:
         command = [ sys.executable, "-m", "pip", "install", package_spec ] + (pip_options or [])
 

@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict, Iterable
+from typing import Optional, List, Tuple, Dict
 from packaging.requirements import Requirement
 from packaging.version import Version
 from packaging.specifiers import SpecifierSet
@@ -43,14 +43,14 @@ _SUPPORTED_PYTHON_MINORS: Dict[str, List[int]] = {
 
 _FLASH_ATTN_PACKAGE_NAME = "flash-attn"
 
-def flash_attn_requirements(*specs: str) -> List[str]:
+def flash_attn_requirements(torch_spec: str, *specs: str) -> List[str]:
     """Attach a pre-built GitHub wheel URL to each flash-attn spec.
 
-    Reads the intended torch version from the same `specs` iterable (i.e. the
-    caller passes both the `torch` spec and the `flash-attn` spec together),
-    so the wheel URL matches the torch build that will be installed alongside
-    it. Callers usually chain this after `torch_requirements(...)` and hand
-    the concatenated list to the installer.
+    `torch_spec` names the torch build that flash-attn must match (e.g.
+    `"torch==2.8.*"` or `"torch>=2.9,<2.10"`) — the wheel URL is picked so
+    the flash-attn ABI aligns with that torch. Callers typically chain this
+    after (or alongside) `torch_requirements(torch_spec)` and hand the
+    concatenated list to the installer.
 
     Returns specs unchanged when the host isn't Linux x86_64 with a working
     NVIDIA driver, or when the requested (torch minor, python minor) combo
@@ -63,8 +63,7 @@ def flash_attn_requirements(*specs: str) -> List[str]:
     if not is_cuda_installed():
         return list(specs)
 
-    torch_specifier = _get_torch_specifier(specs)
-    torch_minor = _resolve_torch_minor(torch_specifier)
+    torch_minor = _resolve_torch_minor(_get_torch_specifier(torch_spec))
 
     if torch_minor is None:
         return list(specs)
@@ -84,11 +83,7 @@ def flash_attn_requirements(*specs: str) -> List[str]:
     for spec in specs:
         requirement = _parse_requirement(spec)
 
-        if requirement is None or requirement.name != _FLASH_ATTN_PACKAGE_NAME:
-            rewritten_specs.append(spec)
-            continue
-
-        if requirement.url is not None:
+        if requirement is None or requirement.name != _FLASH_ATTN_PACKAGE_NAME or requirement.url is not None:
             rewritten_specs.append(spec)
             continue
 
@@ -100,15 +95,6 @@ def flash_attn_requirements(*specs: str) -> List[str]:
         rewritten_specs.append(f"{spec}@{wheel_url}")
 
     return rewritten_specs
-
-def _get_torch_specifier(specs: Iterable[str]) -> Optional[SpecifierSet]:
-    for spec in specs:
-        requirement = _parse_requirement(spec)
-
-        if requirement is not None and requirement.name == "torch":
-            return requirement.specifier if str(requirement.specifier) else None
-
-    return None
 
 def _resolve_torch_minor(torch_specifier: Optional[SpecifierSet]) -> Optional[str]:
     """Pick the highest torch minor in our matrix that satisfies the specifier."""
@@ -125,6 +111,20 @@ def _resolve_torch_minor(torch_specifier: Optional[SpecifierSet]) -> Optional[st
             return minor
 
     return None
+
+def _get_torch_specifier(torch_spec: str) -> Optional[SpecifierSet]:
+    """Extract the SpecifierSet from `torch_spec` (e.g. `"torch==2.8.*"` → `==2.8.*`).
+
+    Returns None when `torch_spec` carries no version constraint (`"torch"`
+    on its own) or cannot be parsed, so `_resolve_torch_minor` treats it as
+    "any tabled minor".
+    """
+    requirement = _parse_requirement(torch_spec)
+
+    if requirement is None:
+        return None
+
+    return requirement.specifier if str(requirement.specifier) else None
 
 def _parse_requirement(spec: str) -> Optional[Requirement]:
     try:

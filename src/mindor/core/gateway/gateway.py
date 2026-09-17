@@ -4,15 +4,18 @@ from .base import GatewayService, GatewayRegistry
 
 GatewayInstances: Dict[str, GatewayService] = {}
 
-def create_gateway(id: str, config: GatewayConfig, daemon: bool) -> GatewayService:
+def create_gateway(id: str, config: GatewayConfig, daemon: bool, cache: bool = True) -> GatewayService:
     try:
-        gateway = GatewayInstances[id] if id in GatewayInstances else None
+        gateway = GatewayInstances[id] if cache and id in GatewayInstances else None
 
         if not gateway:
             if not GatewayRegistry:
                 from . import services
+
             gateway = GatewayRegistry[config.type](id, config, daemon)
-            GatewayInstances[id] = gateway
+
+            if cache:
+                GatewayInstances[id] = gateway
 
         return gateway
     except KeyError:

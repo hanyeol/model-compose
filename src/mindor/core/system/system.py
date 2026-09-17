@@ -4,15 +4,18 @@ from .base import SystemService, SystemRegistry
 
 SystemInstances: Dict[str, SystemService] = {}
 
-def create_system(id: str, config: SystemConfig, daemon: bool) -> SystemService:
+def create_system(id: str, config: SystemConfig, daemon: bool, cache: bool = True) -> SystemService:
     try:
-        system = SystemInstances[id] if id in SystemInstances else None
+        system = SystemInstances[id] if cache and id in SystemInstances else None
 
         if not system:
             if not SystemRegistry:
                 from . import services
+
             system = SystemRegistry[config.type](id, config, daemon)
-            SystemInstances[id] = system
+
+            if cache:
+                SystemInstances[id] = system
 
         return system
     except KeyError:

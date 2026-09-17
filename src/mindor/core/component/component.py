@@ -24,15 +24,24 @@ class ComponentResolver:
 
         return component.id, component
 
-def create_component(id: str, config: ComponentConfig, global_configs: ComponentGlobalConfigs, daemon: bool) -> ComponentService:
+def create_component(
+    id: str,
+    config: ComponentConfig,
+    global_configs: ComponentGlobalConfigs,
+    daemon: bool,
+    cache: bool = True,
+) -> ComponentService:
     try:
-        component = ComponentInstances[id] if id in ComponentInstances else None
+        component = ComponentInstances[id] if cache and id in ComponentInstances else None
 
         if not component:
             if config.type not in ComponentRegistry:
                 _load_component_module(config.type)
+
             component = ComponentRegistry[config.type](id, config, global_configs, daemon)
-            ComponentInstances[id] = component
+
+            if cache:
+                ComponentInstances[id] = component
 
         return component
     except KeyError:

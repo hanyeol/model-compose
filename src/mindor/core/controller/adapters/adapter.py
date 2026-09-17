@@ -9,15 +9,18 @@ if TYPE_CHECKING:
 
 AdapterInstances: Dict[str, ControllerAdapterService] = {}
 
-def create_controller_adapter(config: ControllerAdapterConfig, controller: ControllerService, daemon: bool) -> ControllerAdapterService:
+def create_controller_adapter(config: ControllerAdapterConfig, controller: ControllerService, daemon: bool, cache: bool = True) -> ControllerAdapterService:
     try:
-        adapter = AdapterInstances.get(config.type)
+        adapter = AdapterInstances.get(config.type) if cache else None
 
         if not adapter:
             if not ControllerAdapterRegistry:
                 from . import services
+
             adapter = ControllerAdapterRegistry[config.type](config, controller, daemon)
-            AdapterInstances[config.type] = adapter
+
+            if cache:
+                AdapterInstances[config.type] = adapter
 
         return adapter
     except KeyError:

@@ -360,16 +360,24 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "cumesh",
                 "https://github.com/JeffreyXiang/CuMesh.git",
+                revision="12289e1062f0",
                 source_path=".",
                 pip_options=no_build_isolation,
             )
 
-        if importlib.util.find_spec("flex_gemm") is None:
+        # MoGe's pyproject.toml hard-pins flex_gemm to a `dev/all_triton` commit
+        # that reorganises `ops.grid_sample` under `ops.sample`, but Pixal3D
+        # imports the pre-rename layout (`flex_gemm.ops.grid_sample`). Detect the
+        # wrong install by probing for that module and reinstall from FlexGEMM's
+        # main branch when it's missing — pip's own upgrade heuristics won't
+        # touch an already-satisfied `flex_gemm` requirement.
+        if importlib.util.find_spec("flex_gemm.ops.grid_sample") is None:
             await install_package_from_github(
                 "flex_gemm",
                 "https://github.com/JeffreyXiang/FlexGEMM.git",
+                revision="6dd94a859c26",
                 source_path=".",
-                pip_options=no_build_isolation,
+                pip_options=no_build_isolation + [ "--force-reinstall", "--no-deps" ],
             )
 
         if importlib.util.find_spec("o_voxel") is None:
@@ -379,6 +387,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "trellis2",
                 "https://github.com/microsoft/TRELLIS.2.git",
+                revision="75fbf0183001",
                 source_path="o-voxel",
                 pip_options=no_build_isolation,
             )
@@ -389,6 +398,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "pixal3d",
                 "https://github.com/TencentARC/Pixal3D.git",
+                revision="f7cf38429b0b",
                 subdirs=[ "pixal3d" ],
             )
 

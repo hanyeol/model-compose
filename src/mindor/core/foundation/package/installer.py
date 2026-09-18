@@ -5,6 +5,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import Version, InvalidVersion
 from importlib.metadata import version, metadata, PackageNotFoundError
 from mindor.core.utils.github import download_github_tarball
+from mindor.core.utils.shell import run_command
 import mindor
 import sys, subprocess, shutil, importlib, tempfile
 import asyncio, re
@@ -90,36 +91,33 @@ async def install_package_from_github(
     if not clone_dir.exists():
         clone_dir.parent.mkdir(parents=True, exist_ok=True)
 
-        # Prefer `git clone --recursive` when the `git` binary is available —
-        # repos with submodules or LFS content need it. Fall back to a tarball
-        # otherwise; submodule-bearing repos silently lose their submodules on
-        # this path and will surface as import/build failures further down.
+        # Prefer git when the binary is on PATH — needed for repos with
+        # submodules or LFS content. Fall back to a tarball otherwise;
+        # submodule-bearing repos silently lose their submodules on the tarball
+        # path and will surface as import/build failures further down.
         if shutil.which("git"):
-            command: List[str] = [ "git", "clone", "--recursive" ]
+            # Two-step clone-then-checkout so `revision` can be a branch, tag,
+            # or commit SHA. `git clone --branch` refuses SHAs, and the rest of
+            # this repo already pins upstreams by short SHA (see musetalk,
+            # latentsync, hallo3, ...), so a SHA-friendly path is mandatory.
+            command = [ "git", "clone", "--recursive", repo_url, str(clone_dir) ]
+            _, stderr, returncode = await run_command(command)
+
+            if returncode != 0:
+                raise subprocess.CalledProcessError(returncode, command, stderr=stderr)
 
             if revision is not None:
-                # `git clone --branch` accepts both branch names and tag names,
-                # so a caller who pinned to a tag (e.g. `v0.4.0`) gets a ready
-                # tree without a follow-up `git checkout`.
-                command.extend([ "--branch", revision ])
+                command = [ "git", "checkout", revision ]
+                _, stderr, returncode = await run_command(command, working_dir=str(clone_dir))
 
-            command.extend([ repo_url, str(clone_dir) ])
+                if returncode != 0:
+                    raise subprocess.CalledProcessError(returncode, command, stderr=stderr)
 
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
+                command = [ "git", "submodule", "update", "--init", "--recursive" ]
+                _, stderr, returncode = await run_command(command, working_dir=str(clone_dir))
 
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    process.returncode,
-                    command,
-                    output=stdout,
-                    stderr=stderr,
-                )
+                if returncode != 0:
+                    raise subprocess.CalledProcessError(returncode, command, stderr=stderr)
         else:
             await download_github_tarball(repo_url, revision, clone_dir)
 

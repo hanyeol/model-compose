@@ -119,8 +119,10 @@ class AsyncService(ABC):
         # currently pinned outside the caller's specifier is present and needs
         # to be replaced. pip's default (`install`) refuses to touch an
         # already-installed package, so pass `--upgrade` to force resolution
-        # against the requested spec.
-        pip_options: List[str] = [ "--upgrade" ]
+        # against the requested spec; pin `only-if-needed` (pip 21+ default,
+        # nailed here in case the default drifts) so unrelated dependencies
+        # aren't upgraded along the way.
+        pip_options: List[str] = [ "--upgrade", "--upgrade-strategy", "only-if-needed" ]
 
         if repository and repository.startswith("git+"):
             await install_package(repository, pip_options)

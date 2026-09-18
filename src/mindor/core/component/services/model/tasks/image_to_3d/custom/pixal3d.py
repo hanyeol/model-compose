@@ -322,13 +322,6 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             "diffusers==0.37.1",
             "transformers==4.57.3",
             "accelerate==1.13.0",
-            # transformers 4.57.3 hard-caps huggingface_hub at <1.0 in its
-            # runtime dependency check (`transformers/dependency_versions_check.py`)
-            # but its own install-time requirement is unbounded, so pip happily
-            # pulls hf-hub 1.x and every downstream `import transformers` blows
-            # up. Pin the cap here so first-run installs land on a compatible
-            # 0.34+ release.
-            "huggingface_hub>=0.34.0,<1.0",
             "safetensors",
             "sentencepiece",
             "kornia==0.8.2",
@@ -342,7 +335,10 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             "imageio-ffmpeg==0.6.0",
             "pillow==12.0.0",
             "tqdm==4.67.1",
+            "einops",
+            "utils3d@https://github.com/LDYang694/Storages/releases/download/20260430/utils3d-0.0.2-py3-none-any.whl",
             "moge@git+https://github.com/microsoft/MoGe.git",
+            "huggingface_hub>=0.34.0,<1.0",
         ]
 
     async def _setup(self) -> None:

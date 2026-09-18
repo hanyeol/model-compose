@@ -8,6 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.natten import natten_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
@@ -315,12 +316,9 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        # `natten==0.21.0` builds against CUDA nvcc on install — the driver
-        # refuses to load on non-CUDA hosts (see `_load_pipeline`), so requesting
-        # the wheel here is safe even though the build itself may fail on
-        # CPU-only machines.
         return [
-            *torch_requirements("torch", "torchvision"),
+            *torch_requirements("torch==2.7.*", "torchvision"),
+            *natten_requirements("natten==0.21.0"),
             "diffusers==0.37.1",
             "transformers==4.57.3",
             "accelerate==1.13.0",
@@ -338,7 +336,6 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             "imageio-ffmpeg==0.6.0",
             "pillow==12.0.0",
             "tqdm==4.67.1",
-            "natten==0.21.0",
             "moge@git+https://github.com/microsoft/MoGe.git",
         ]
 

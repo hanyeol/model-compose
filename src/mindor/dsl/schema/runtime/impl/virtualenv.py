@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Dict
 from enum import Enum
-from pydantic import Field
+from pydantic import Field, model_validator
 from .common import RuntimeType, CommonRuntimeConfig
 
 class VirtualEnvDriver(str, Enum):
@@ -16,3 +16,9 @@ class VirtualEnvRuntimeConfig(CommonRuntimeConfig):
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables passed to the worker subprocess.")
     start_timeout: Union[str, int, float] = Field(default="60s", description="Maximum time to wait for the worker to start and report ready.")
     stop_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for the worker to stop gracefully before being killed.")
+
+    @model_validator(mode="after")
+    def validate_python_for_pyenv(self):
+        if self.driver == VirtualEnvDriver.PYENV and not self.python:
+            raise ValueError("`python` must be set when `driver` is 'pyenv'.")
+        return self

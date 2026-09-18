@@ -132,8 +132,6 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
         self.channel: Any = channel
 
     async def _start(self) -> None:
-        self._loop = asyncio.get_event_loop()
-
         await self._send_start_message()
         await self._wait_for_ready()
 
@@ -223,9 +221,6 @@ class ComponentRuntimeManager:
         input_data: Dict[str, Any],
         on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
     ) -> Any:
-        if self._proxy is None:
-            raise RuntimeError(f"Manager '{self.worker_id}' is not started")
-
         return await self._proxy.run(action_id, run_id, input_data, on_event=on_event)
 
     async def _teardown(self) -> None:

@@ -48,15 +48,13 @@ class IpcRuntimeProxy(ABC):
         self._closed_error: Optional[ConnectionError] = None
 
     async def start(self) -> None:
+        self._loop = asyncio.get_event_loop()
         await self._start()
 
     async def stop(self) -> None:
         await self._stop()
 
     async def request(self, payload: Dict[str, Any], on_event: Optional[IpcEventCallback] = None) -> Any:
-        if self._loop is None:
-            raise RuntimeError(f"{type(self).__name__} '{self.worker_id}' is not started")
-
         if self._closed_error is not None:
             raise self._closed_error
 
@@ -66,12 +64,6 @@ class IpcRuntimeProxy(ABC):
         )
 
         request_id = ulid.ulid()
-        message = IpcMessage(
-            type=IpcMessageType.RUN,
-            request_id=request_id,
-            payload=encoded_payload,
-        )
-
         future: asyncio.Future = self._loop.create_future()
         self._pending_requests[request_id] = future
 
@@ -79,14 +71,20 @@ class IpcRuntimeProxy(ABC):
             self._event_callbacks[request_id] = on_event
 
         try:
-            await self._send_message(message.serialize())
+            await self._send_message(IpcMessage(
+                type=IpcMessageType.RUN,
+                request_id=request_id,
+                payload=encoded_payload,
+            ).serialize())
         except Exception as e:
             # The transport tore down between our entry check and the send —
             # normalize so callers always see ConnectionError on a dead worker.
             self._pending_requests.pop(request_id, None)
             self._event_callbacks.pop(request_id, None)
+
             if self._closed_error is not None:
                 raise self._closed_error from e
+
             raise ConnectionError(f"send failed on worker '{self.worker_id}': {e}") from e
 
         try:

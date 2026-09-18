@@ -56,7 +56,6 @@ class VirtualEnvRuntime:
 
         self._venv_path: Path = self._resolve_venv_path()
         self._subprocess: Optional[subprocess.Popen] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def bootstrap(self) -> None:
         """Create the venv (if missing) and install runtime + user requirements.
@@ -67,6 +66,7 @@ class VirtualEnvRuntime:
             self._bootstrap_venv()
 
             with FileLock(self._venv_path / ".mindor.lock"):
+                self._install_mindor_package()
                 self._install_dependencies()
 
         await asyncio.get_event_loop().run_in_executor(None, _bootstrap)
@@ -82,8 +82,6 @@ class VirtualEnvRuntime:
         `pass_fds` and `env` let the caller propagate transport handles
         (e.g., pipe read/write fds) without this lifecycle class knowing about them.
         """
-        self._loop = asyncio.get_event_loop()
-
         self._subprocess = subprocess.Popen(
             [ str(self._venv_python()), "-m", self.worker_module ],
             pass_fds=pass_fds,
@@ -99,7 +97,7 @@ class VirtualEnvRuntime:
             stop_timeout = parse_time(self.config.stop_timeout)
 
             try:
-                await self._loop.run_in_executor(None, lambda: self._subprocess.wait(timeout=stop_timeout))
+                await asyncio.get_event_loop().run_in_executor(None, lambda: self._subprocess.wait(timeout=stop_timeout))
             except subprocess.TimeoutExpired:
                 self._subprocess.terminate()
 
@@ -126,20 +124,16 @@ class VirtualEnvRuntime:
 
         if self.config.driver == VirtualEnvDriver.PYTHON:
             logging.info(f"Creating virtualenv at {self._venv_path} (python driver)")
+
             builder = venv.EnvBuilder(with_pip=True, clear=False, upgrade_deps=False)
             builder.create(str(self._venv_path))
 
             return
 
         if self.config.driver == VirtualEnvDriver.PYENV:
-            version = self.config.python
+            logging.info(f"Creating virtualenv at {self._venv_path} (pyenv driver, python {self.config.python})")
 
-            if not version:
-                raise ValueError("VirtualEnvRuntimeConfig.python must be set when driver is 'pyenv'.")
-
-            logging.info(f"Creating virtualenv at {self._venv_path} (pyenv driver, python {version})")
-
-            python_path = self._resolve_pyenv_python(version)
+            python_path = self._resolve_pyenv_python(self.config.python)
             subprocess.run([ str(python_path), "-m", "venv", str(self._venv_path) ], check=True)
 
             return
@@ -148,13 +142,13 @@ class VirtualEnvRuntime:
 
     def _resolve_pyenv_python(self, version: str) -> Path:
         try:
-            installed = subprocess.check_output([ "pyenv", "versions", "--bare" ], text=True).splitlines()
+            installed_versions = subprocess.check_output([ "pyenv", "versions", "--bare" ], text=True).splitlines()
         except FileNotFoundError as e:
             raise RuntimeError("pyenv command not found. Install pyenv or switch to driver: python.") from e
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to list pyenv versions: {e}") from e
 
-        if version not in [ v.strip() for v in installed ]:
+        if version not in [ version.strip() for version in installed_versions ]:
             raise RuntimeError(f"Python version '{version}' is not installed in pyenv. Run `pyenv install {version}` first.")
 
         try:
@@ -169,33 +163,35 @@ class VirtualEnvRuntime:
 
         return python_path
 
-    def _install_dependencies(self) -> None:
+    def _install_mindor_package(self) -> None:
         site_packages = self._venv_site_packages()
         site_packages.mkdir(parents=True, exist_ok=True)
-        target_mindor = site_packages / "mindor"
-        version_path = target_mindor / ".version"
 
-        host_mindor_root = Path(mindor.__file__).resolve().parent
+        venv_mindor_root = site_packages / "mindor"
+        venv_version_path = venv_mindor_root / ".version"
+
+        host_mindor_version = mindor.version.__version__
+        venv_mindor_version = venv_version_path.read_text().strip() if venv_version_path.exists() else None
+
+        if venv_mindor_version != host_mindor_version:
+            host_mindor_root = Path(mindor.__file__).resolve().parent
+
+            if venv_mindor_root.exists():
+                shutil.rmtree(venv_mindor_root)
+
+            venv_mindor_staging_root = site_packages / f".mindor.staging.{os.getpid()}"
+
+            if venv_mindor_staging_root.exists():
+                shutil.rmtree(venv_mindor_staging_root)
+
+            shutil.copytree(host_mindor_root, venv_mindor_staging_root, ignore=_PACKAGE_IGNORE_PATTERNS)
+            os.replace(venv_mindor_staging_root, venv_mindor_root)
+
+            venv_version_path.write_text(host_mindor_version)
+
+    def _install_dependencies(self) -> None:
         runtime_requirements_path = Path(str(files("mindor.core.runtime.bootstrap") / "requirements.txt"))
         user_requirements_path = (Path.cwd() / "requirements.txt").resolve()
-
-        current_version = mindor.version.__version__
-        existing_version = version_path.read_text().strip() if version_path.exists() else None
-        needs_mindor_copy = existing_version != current_version
-
-        if needs_mindor_copy:
-            if target_mindor.exists():
-                shutil.rmtree(target_mindor)
-
-            staging = site_packages / f".mindor.staging.{os.getpid()}"
-
-            if staging.exists():
-                shutil.rmtree(staging)
-
-            shutil.copytree(host_mindor_root, staging, ignore=_PACKAGE_IGNORE_PATTERNS)
-            os.replace(staging, target_mindor)
-
-            version_path.write_text(current_version)
 
         # Prefer uv when available: `--link-mode=hardlink` shares wheel
         # bytes across venvs on the same filesystem (torch/CUDA installs

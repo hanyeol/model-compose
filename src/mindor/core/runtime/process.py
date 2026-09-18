@@ -38,11 +38,8 @@ class ProcessRuntime:
         self.verbose = verbose
 
         self._subprocess: Optional[Process] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def start(self) -> None:
-        self._loop = asyncio.get_event_loop()
-
         if self.config.env:
             for key, value in self.config.env.items():
                 os.environ[key] = value
@@ -60,7 +57,7 @@ class ProcessRuntime:
 
         stop_timeout = parse_time(self.config.stop_timeout)
         try:
-            await self._loop.run_in_executor(
+            await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: self._subprocess.join(timeout=stop_timeout),
             )

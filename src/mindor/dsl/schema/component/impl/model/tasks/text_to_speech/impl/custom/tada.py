@@ -3,7 +3,7 @@ from pydantic import Field
 from mindor.dsl.schema.action import TadaTextToSpeechModelActionConfig
 from ..common import CommonTextToSpeechModelComponentConfig
 from .common import TextToSpeechModelFamily
-from ....common import ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
 
 _DEFAULT_ALLOW_PATTERNS = [ "*.safetensors", "*.json", "*.txt", "*.bin", "*.model" ]
 
@@ -19,7 +19,7 @@ TadaTextToSpeechModelConfig = Annotated[
 ]
 
 class TadaTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TextToSpeechModelFamily.TADA]
     model: TadaTextToSpeechModelConfig = Field(..., description="TADA model identifier — a HuggingFace repo ID or a local path.")
     tokenizer: str = Field(default="unsloth/Llama-3.2-1B", description="HuggingFace repository ID of the Llama tokenizer used by TADA.")

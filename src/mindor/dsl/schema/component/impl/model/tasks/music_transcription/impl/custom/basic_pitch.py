@@ -3,12 +3,12 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import BasicPitchMusicTranscriptionModelActionConfig
 from ..common import CommonMusicTranscriptionModelComponentConfig
 from .common import MusicTranscriptionModelFamily
-from ....common import ModelDriver, ModelProvider, NamedModelConfig
+from ....common import ModelDriverType, ModelProvider, NamedModelConfig
 
 _DEFAULT_MODEL = "icassp-2022"
 
 class BasicPitchMusicTranscriptionModelComponentConfig(CommonMusicTranscriptionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicTranscriptionModelFamily.BASIC_PITCH]
     model: NamedModelConfig = Field(..., description="Basic Pitch pretrained model name (e.g., icassp-2022).")
     actions: List[BasicPitchMusicTranscriptionModelActionConfig] = Field(default_factory=list, description="Actions this music transcription component exposes to workflows.")

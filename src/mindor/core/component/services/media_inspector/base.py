@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInspectorDriver
+from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInspectorDriverType
 from mindor.dsl.schema.action import MediaInspectorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class MediaInspectorService(AsyncService):
+class MediaInspectorDriver(ComponentDriver):
     def __init__(self, id: str, config: MediaInspectorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class MediaInspectorService(AsyncService):
     async def _run(self, action: MediaInspectorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_media_inspector_service(driver: MediaInspectorDriver):
-    def decorator(cls: Type[MediaInspectorService]) -> Type[MediaInspectorService]:
-        MediaInspectorServiceRegistry[driver] = cls
+def register_media_inspector_driver(driver: MediaInspectorDriverType):
+    def decorator(cls: Type[MediaInspectorDriver]) -> Type[MediaInspectorDriver]:
+        MediaInspectorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-MediaInspectorServiceRegistry: Dict[MediaInspectorDriver, Type[MediaInspectorService]] = {}
+MediaInspectorDriverRegistry: Dict[MediaInspectorDriverType, Type[MediaInspectorDriver]] = {}

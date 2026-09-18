@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional, List, Dict, Any
-from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriver
+from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriverType
 from mindor.dsl.schema.action import ImageAnalyzerActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import ImageAnalyzerService, register_image_analyzer_service
+from ..base import ImageAnalyzerDriver, register_image_analyzer_driver
 from ..base import ComponentActionContext
 from .common import ImageAnalyzerAction
 
@@ -138,8 +138,8 @@ class NativeImageAnalyzerAction(ImageAnalyzerAction):
 
         return await self._run_in_executor(_analyze_exposure)
 
-@register_image_analyzer_service(ImageAnalyzerDriver.NATIVE)
-class NativeImageAnalyzerService(ImageAnalyzerService):
+@register_image_analyzer_driver(ImageAnalyzerDriverType.NATIVE)
+class NativeImageAnalyzerService(ImageAnalyzerDriver):
     def __init__(self, id: str, config: ImageAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -3,10 +3,10 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import MusicGenerationModelActionConfig
 from ..common import CommonMusicGenerationModelComponentConfig
 from .common import MusicGenerationModelFamily
-from ....common import ModelDriver
+from ....common import ModelDriverType
 
 class AceStepMusicGenerationModelComponentConfig(CommonMusicGenerationModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicGenerationModelFamily.ACE_STEP]
     preset: str = Field(default="acestep-v15-turbo", description="ACE-Step preset selecting the model variant (e.g., acestep-v15-turbo, acestep-v15-base, acestep-v15-sft).")
     thinking_model: Optional[str] = Field(default=None, description="ACE-Step 5Hz LM used for thinking (e.g., acestep-5Hz-lm-0.6B, acestep-5Hz-lm-1.7B, acestep-5Hz-lm-4B); when unset, thinking is disabled.")

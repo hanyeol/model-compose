@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, List, Dict, Any
 from collections.abc import AsyncIterable
-from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlaybackDriver
+from mindor.dsl.schema.component import AudioPlaybackComponentConfig, AudioPlaybackDriverType
 from mindor.dsl.schema.action import AudioPlaybackActionConfig, AudioPlaybackSink
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
@@ -11,7 +11,7 @@ from mindor.core.utils.audio import is_pcm_format
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import AudioPlaybackService, register_audio_playback_service
+from ..base import AudioPlaybackDriver, register_audio_playback_driver
 from ..base import ComponentActionContext
 from .common import AudioPlaybackAction
 import asyncio, os, platform
@@ -178,8 +178,8 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
 
         raise NotImplementedError(f"Audio playback is not supported on platform: {system}")
 
-@register_audio_playback_service(AudioPlaybackDriver.FFMPEG)
-class FFmpegAudioPlaybackService(AudioPlaybackService):
+@register_audio_playback_driver(AudioPlaybackDriverType.FFMPEG)
+class FFmpegAudioPlaybackService(AudioPlaybackDriver):
     def __init__(self, id: str, config: AudioPlaybackComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

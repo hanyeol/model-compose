@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceEmbedding
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import FaceEmbeddingTaskAction, FaceEmbedding
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 import os, shutil
 
@@ -139,7 +139,7 @@ class InsightfaceFaceEmbeddingTaskAction(FaceEmbeddingTaskAction):
     def _gender_to_label(self, gender: int) -> str:
         return "male" if gender == 1 else "female"
 
-class InsightfaceFaceEmbeddingTaskService(ModelTaskService):
+class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

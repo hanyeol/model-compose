@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
+from ..base import VideoSceneDetectorDriver, VideoSceneDetectorDriverType, register_video_scene_detector_driver
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
 import os
@@ -165,8 +165,8 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
 
         raise ValueError(f"Unsupported detector type: {detector}")
 
-@register_video_scene_detector_service(VideoSceneDetectorDriver.PYSCENEDETECT)
-class PySceneVideoSceneDetectorService(VideoSceneDetectorService):
+@register_video_scene_detector_driver(VideoSceneDetectorDriverType.PYSCENEDETECT)
+class PySceneVideoSceneDetectorService(VideoSceneDetectorDriver):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

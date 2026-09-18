@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.files import get_temporary_path
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import MusicTranscriptionTaskAction, MusicTranscriptNotes
 import os, io
 
@@ -184,7 +184,7 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
 
         return buffer.getvalue()
 
-class BasicPitchMusicTranscriptionTaskService(ModelTaskService):
+class BasicPitchMusicTranscriptionTaskDriver(ModelTaskDriver):
     config: BasicPitchMusicTranscriptionModelComponentConfig
 
     def __init__(self, id: str, config: BasicPitchMusicTranscriptionModelComponentConfig, daemon: bool):

@@ -11,6 +11,7 @@ class ControllerRunner:
         from mindor.core.controller.base import ControllerService
 
         service = ControllerService.get_shared_instance()
+
         if service is None:
             raise RuntimeError("ControllerService is not running")
 

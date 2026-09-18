@@ -19,7 +19,7 @@ from mindor.core.utils.transport.ssh_client import (
     SshKeyfileAuthParams,
     SshPasswordAuthParams,
 )
-from ..base import FileStoreService, FileStoreDriver, register_file_store_service
+from ..base import FileStoreDriver, FileStoreDriverType, register_file_store_driver
 from ..base import ComponentActionContext
 from .common import FileStoreAction
 import asyncio, os, sys
@@ -329,8 +329,8 @@ class SftpFileStoreAction(FileStoreAction):
 
         return f"sftp://{username}@{host}{port}{path}"
 
-@register_file_store_service(FileStoreDriver.SFTP)
-class SftpFileStoreService(FileStoreService):
+@register_file_store_driver(FileStoreDriverType.SFTP)
+class SftpFileStoreService(FileStoreDriver):
     config: SftpFileStoreComponentConfig
 
     def __init__(self, id: str, config: SftpFileStoreComponentConfig, daemon: bool):

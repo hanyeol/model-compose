@@ -2,13 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Any, Dict, List, Optional
-from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriver
+from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriverType
 from mindor.core.foundation.variable.codec import VariableCodec
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.variable.size import parse_size
 from mindor.core.utils.compat.asyncio import async_timeout
 from mindor.core.logger import logging
-from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_service
+from ..base import CommonControllerQueueService, InterruptCallback, register_controller_queue_driver
 from ..codec import QueueCodec, RedisStreamMeta
 from ..stream import RedisInboundStream, RedisOutboundStream
 import asyncio, json, ulid
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 _PROTOCOL_VERSION = "queue.v2"
 
-@register_controller_queue_service(ControllerQueueDriver.REDIS)
+@register_controller_queue_driver(ControllerQueueDriverType.REDIS)
 class RedisControllerQueueService(CommonControllerQueueService):
     def __init__(self, config: RedisControllerQueueConfig):
         super().__init__(config)

@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import Field
 from ...common import CommonComponentConfig, ComponentType
 
-class RtmpPublisherDriver(str, Enum):
+class RtmpPublisherDriverType(str, Enum):
     FFMPEG = "ffmpeg"
 
 class CommonRtmpPublisherComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.RTMP_PUBLISHER]
-    driver: RtmpPublisherDriver = Field(..., description="Backend implementation used to publish RTMP streams.")
+    driver: RtmpPublisherDriverType = Field(..., description="Backend implementation used to publish RTMP streams.")

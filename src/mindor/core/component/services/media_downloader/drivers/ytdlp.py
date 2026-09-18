@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Union, Tuple, Dict, List, Any
-from mindor.dsl.schema.component import MediaDownloaderComponentConfig, MediaDownloaderDriver
+from mindor.dsl.schema.component import MediaDownloaderComponentConfig, MediaDownloaderDriverType
 from mindor.dsl.schema.action import MediaDownloaderActionConfig
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import get_temporary_path, get_file_extension
 from mindor.core.logger import logging
-from ..base import MediaDownloaderService, register_media_downloader_service
+from ..base import MediaDownloaderDriver, register_media_downloader_driver
 from ..base import ComponentActionContext
 from .common import MediaDownloaderAction, DownloadResult
 import asyncio, os
@@ -379,8 +379,8 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         with YoutubeDL(options) as ydl:
             return ydl.prepare_filename(info)
 
-@register_media_downloader_service(MediaDownloaderDriver.YTDLP)
-class YtdlpMediaDownloaderService(MediaDownloaderService):
+@register_media_downloader_driver(MediaDownloaderDriverType.YTDLP)
+class YtdlpMediaDownloaderService(MediaDownloaderDriver):
     def __init__(self, id: str, config: MediaDownloaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

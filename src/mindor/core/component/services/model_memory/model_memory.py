@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from mindor.dsl.schema.component import ModelMemoryComponentConfig
 from mindor.dsl.schema.component import ModelMemoryWindowConfig, ModelMemorySummaryConfig
-from mindor.dsl.schema.component import ModelMemoryBufferDriver, ModelMemoryStorageDriver
+from mindor.dsl.schema.component import ModelMemoryBufferDriverType, ModelMemoryStorageDriverType
 from mindor.dsl.schema.action import ActionConfig, ModelMemoryActionConfig, ModelMemoryActionMethod
 from mindor.core.logger import logging
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -250,10 +250,10 @@ class ModelMemoryComponent(ComponentService):
         except KeyError:
             raise ValueError(f"Unsupported model memory storage driver: {driver}")
 
-    def _load_buffer_driver_module(self, driver: ModelMemoryBufferDriver) -> None:
+    def _load_buffer_driver_module(self, driver: ModelMemoryBufferDriverType) -> None:
         """Import the module that registers the given model memory buffer driver.
 
-        Convention: a driver "foo-bar" (ModelMemoryBufferDriver.value) maps to
+        Convention: a driver "foo-bar" (ModelMemoryBufferDriverType.value) maps to
         mindor.core.component.services.model_memory.buffer.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
         Importing the module triggers its @register_model_memory_buffer decorator,
@@ -266,10 +266,10 @@ class ModelMemoryComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported model memory buffer driver: {driver}") from e
 
-    def _load_storage_driver_module(self, driver: ModelMemoryStorageDriver) -> None:
+    def _load_storage_driver_module(self, driver: ModelMemoryStorageDriverType) -> None:
         """Import the module that registers the given model memory storage driver.
 
-        Convention: a driver "foo-bar" (ModelMemoryStorageDriver.value) maps to
+        Convention: a driver "foo-bar" (ModelMemoryStorageDriverType.value) maps to
         mindor.core.component.services.model_memory.storage.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
         Importing the module triggers its @register_model_memory_storage decorator,

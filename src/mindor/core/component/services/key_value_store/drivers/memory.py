@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import MemoryKeyValueStoreComponentConfig
 from mindor.dsl.schema.action import KeyValueStoreActionConfig, MemoryKeyValueStoreActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import KeyValueStoreService, KeyValueStoreDriver, register_kv_store_service
+from ..base import KeyValueStoreDriver, KeyValueStoreDriverType, register_kv_store_service
 from ..base import ComponentActionContext
 from .common import KeyValueStoreAction
 import asyncio, time
@@ -98,8 +98,8 @@ class MemoryKeyValueStoreAction(KeyValueStoreAction):
 
         return value
 
-@register_kv_store_service(KeyValueStoreDriver.MEMORY)
-class MemoryKeyValueStoreService(KeyValueStoreService):
+@register_kv_store_service(KeyValueStoreDriverType.MEMORY)
+class MemoryKeyValueStoreService(KeyValueStoreDriver):
     def __init__(self, id: str, config: MemoryKeyValueStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

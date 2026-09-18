@@ -9,7 +9,7 @@ from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilt
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
+from ..base import VectorStoreDriver, VectorStoreDriverType, register_vector_store_driver
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
 import ulid, os
@@ -205,8 +205,8 @@ class ChromaVectorStoreAction(VectorStoreAction):
 
         return await self._run_in_executor(_delete)
 
-@register_vector_store_service(VectorStoreDriver.CHROMA)
-class ChromaVectorStoreService(VectorStoreService):
+@register_vector_store_driver(VectorStoreDriverType.CHROMA)
+class ChromaVectorStoreService(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

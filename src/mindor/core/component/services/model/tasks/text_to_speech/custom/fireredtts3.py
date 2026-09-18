@@ -18,7 +18,7 @@ from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
 import importlib.util
 
@@ -275,7 +275,7 @@ class FireRedTextToSpeechEditTaskAction(FireRedTextToSpeechTaskAction):
 
         return waveform.detach().cpu().squeeze(0), int(sample_rate)
 
-class FireRedTextToSpeechTaskService(ModelTaskService):
+class FireRedTextToSpeechTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

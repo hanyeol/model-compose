@@ -13,4 +13,4 @@ ScreenCaptureComponentConfig = Annotated[
 @component_validator(ComponentType.SCREEN_CAPTURE, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = ScreenCaptureDriver.FFMPEG
+        values["driver"] = ScreenCaptureDriverType.FFMPEG

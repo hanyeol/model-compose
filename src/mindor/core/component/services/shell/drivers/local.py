@@ -5,7 +5,7 @@ from mindor.dsl.schema.action import LocalShellActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.shell import run_command_foreground, run_command, stream_subprocess
 from mindor.core.logger import logging
-from ..base import ShellService, ShellDriver, register_shell_service
+from ..base import ShellDriver, ShellDriverType, register_shell_driver
 from ..base import ComponentActionContext
 from .common import ShellAction
 import asyncio
@@ -80,8 +80,8 @@ class LocalShellAction(ShellAction):
 
             logging.debug("[shell] Streaming command exited with code %d", process.returncode)
 
-@register_shell_service(ShellDriver.LOCAL)
-class LocalShellService(ShellService):
+@register_shell_driver(ShellDriverType.LOCAL)
+class LocalShellService(ShellDriver):
     def __init__(self, id: str, config: LocalShellComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

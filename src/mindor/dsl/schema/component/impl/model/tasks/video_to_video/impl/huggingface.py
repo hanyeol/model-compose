@@ -5,13 +5,13 @@ from typing import Dict, Any
 from mindor.dsl.utils.path import is_local_path
 from mindor.dsl.schema.action import AnimateDiffHuggingfaceVideoToVideoModelActionConfig
 from .common import CommonVideoToVideoModelComponentConfig
-from ...common import ModelDriver, ModelConfig, ModelProvider
+from ...common import ModelDriverType, ModelConfig, ModelProvider
 
 class HuggingfaceVideoToVideoModelArchitecture(str, Enum):
     ANIMATEDIFF = "animatediff"
 
 class CommonHuggingfaceVideoToVideoModelComponentConfig(CommonVideoToVideoModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
 
 class AnimateDiffHuggingfaceVideoToVideoModelComponentConfig(CommonHuggingfaceVideoToVideoModelComponentConfig):
     architecture: Literal[HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF]

@@ -3,10 +3,11 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Mapping, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriver, ModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
 from ....context import ComponentActionContext
 from ..utils.provision import ModelProvisioner
@@ -16,7 +17,7 @@ import asyncio
 if TYPE_CHECKING:
     import torch
 
-class ModelTaskService(AsyncService):
+class ModelTaskDriver(ComponentDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -104,12 +105,12 @@ class ModelTaskService(AsyncService):
                 f"got runtime.type = '{runtime_type.value}'."
             )
 
-def register_model_task_service(type: ModelTaskType, driver: ModelDriver):
-    def decorator(cls: Type[ModelTaskService]) -> Type[ModelTaskService]:
-        if type not in ModelTaskServiceRegistry:
-            ModelTaskServiceRegistry[type] = {}
-        ModelTaskServiceRegistry[type][driver] = cls
+def register_model_task_driver(type: ModelTaskType, driver: ModelDriverType):
+    def decorator(cls: Type[ModelTaskDriver]) -> Type[ModelTaskDriver]:
+        if type not in ModelTaskDriverRegistry:
+            ModelTaskDriverRegistry[type] = {}
+        ModelTaskDriverRegistry[type][driver] = cls
         return cls
     return decorator
 
-ModelTaskServiceRegistry: Dict[ModelTaskType, Dict[ModelDriver, Type[ModelTaskService]]] = {}
+ModelTaskDriverRegistry: Dict[ModelTaskType, Dict[ModelDriverType, Type[ModelTaskDriver]]] = {}

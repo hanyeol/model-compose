@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceModelConfig, ModelQuantizationType
 from mindor.dsl.schema.component.impl.model.tasks.base.vllm import VllmEngineOptionsConfig
 from mindor.core.logger import logging
-from .common import ModelTaskService
+from .common import ModelTaskDriver
 
 if TYPE_CHECKING:
     from vllm import AsyncLLMEngine
@@ -19,7 +19,7 @@ _BITSANDBYTES_QUANT_TYPES = {
     ModelQuantizationType.NF4,
 }
 
-class VllmModelTaskService(ModelTaskService):
+class VllmModelTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import GraphStoreComponentConfig, GraphStoreDriver
+from mindor.dsl.schema.component import GraphStoreComponentConfig, GraphStoreDriverType
 from mindor.dsl.schema.action import GraphStoreActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class GraphStoreService(AsyncService):
+class GraphStoreDriver(ComponentDriver):
     def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class GraphStoreService(AsyncService):
     async def _run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_graph_store_service(driver: GraphStoreDriver):
-    def decorator(cls: Type[GraphStoreService]) -> Type[GraphStoreService]:
-        GraphStoreServiceRegistry[driver] = cls
+def register_graph_store_driver(driver: GraphStoreDriverType):
+    def decorator(cls: Type[GraphStoreDriver]) -> Type[GraphStoreDriver]:
+        GraphStoreDriverRegistry[driver] = cls
         return cls
     return decorator
 
-GraphStoreServiceRegistry: Dict[GraphStoreDriver, Type[GraphStoreService]] = {}
+GraphStoreDriverRegistry: Dict[GraphStoreDriverType, Type[GraphStoreDriver]] = {}

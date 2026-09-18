@@ -14,4 +14,4 @@ VideoFrameExtractorComponentConfig = Annotated[
 @component_validator(ComponentType.VIDEO_FRAME_EXTRACTOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = VideoFrameExtractorDriver.FFMPEG
+        values["driver"] = VideoFrameExtractorDriverType.FFMPEG

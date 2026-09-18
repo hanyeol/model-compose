@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import VideoCaptureComponentConfig, VideoCaptureDriver
+from mindor.dsl.schema.component import VideoCaptureComponentConfig, VideoCaptureDriverType
 from mindor.dsl.schema.action import VideoCaptureActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VideoCaptureService(AsyncService):
+class VideoCaptureDriver(ComponentDriver):
     def __init__(self, id: str, config: VideoCaptureComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VideoCaptureService(AsyncService):
     async def _run(self, action: VideoCaptureActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_video_capture_service(driver: VideoCaptureDriver):
-    def decorator(cls: Type[VideoCaptureService]) -> Type[VideoCaptureService]:
-        VideoCaptureServiceRegistry[driver] = cls
+def register_video_capture_driver(driver: VideoCaptureDriverType):
+    def decorator(cls: Type[VideoCaptureDriver]) -> Type[VideoCaptureDriver]:
+        VideoCaptureDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VideoCaptureServiceRegistry: Dict[VideoCaptureDriver, Type[VideoCaptureService]] = {}
+VideoCaptureDriverRegistry: Dict[VideoCaptureDriverType, Type[VideoCaptureDriver]] = {}

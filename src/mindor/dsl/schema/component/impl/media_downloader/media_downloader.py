@@ -13,4 +13,4 @@ MediaDownloaderComponentConfig = Annotated[
 @component_validator(ComponentType.MEDIA_DOWNLOADER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = MediaDownloaderDriver.YTDLP
+        values["driver"] = MediaDownloaderDriverType.YTDLP

@@ -2,6 +2,7 @@ from typing import Optional, List, Dict, Iterable, Sequence, Set, FrozenSet
 from typing_extensions import Self
 from enum import Enum
 from dataclasses import dataclass, field
+from mindor.dsl.schema.compose import ComposeConfig
 from pathlib import Path
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -109,6 +110,7 @@ class RuntimeEnvironment:
                 resolved = (Path.cwd() / runtime_path).resolve()
             else:
                 resolved = (Path.cwd() / ".runtime" / "components" / component_id / "venv").resolve()
+
             return cls("venv", str(resolved))
 
         if runtime_type in ("docker", "apple-container"):
@@ -345,12 +347,12 @@ class RequirementCollector:
     environment they will share at runtime.
 
     Instantiates each component service (with `cache=False` so the throwaway
-    instance does not pollute `ComponentInstances`) and reads what it declares
-    via `_get_setup_requirements`. `ModelComponent` delegates its requirements
-    to a task service exposed as `self.service`, so the collector reads both.
+    instance does not pollute `ComponentInstances`) and asks it what it
+    declares via ``get_declared_requirements``. Components that delegate to
+    inner services override that method to include the delegates' specs.
     """
-    def __init__(self, config):  # ComposeConfig
-        self.config = config
+    def __init__(self, config: ComposeConfig):
+        self.config: ComposeConfig = config
 
     def collect(self) -> Dict[RuntimeEnvironment, List[PackageRequirement]]:
         from mindor.core.component.component import create_component
@@ -367,13 +369,11 @@ class RequirementCollector:
 
         for component_config in self.config.components:
             try:
-                component = create_component(
-                    component_config.id, component_config, global_configs, daemon=False, cache=False,
-                )
+                component = create_component(component_config.id, component_config, global_configs, daemon=False, cache=False)
             except ValueError:
                 continue  # unresolvable component type
 
-            specs = self._collect_specs(component)
+            specs = component.get_declared_requirements()
 
             if not specs:
                 continue
@@ -389,13 +389,3 @@ class RequirementCollector:
             environments.setdefault(environment, []).extend(PackageRequirement(spec, component_config.id) for spec in specs)
 
         return environments
-
-    @staticmethod
-    def _collect_specs(component) -> List[str]:
-        specs = list(component._get_setup_requirements() or [])
-        inner = getattr(component, "service", None)
-
-        if inner is not None:
-            specs.extend(inner._get_setup_requirements() or [])
-
-        return specs

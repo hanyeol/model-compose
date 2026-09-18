@@ -5,7 +5,7 @@ from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, LdsrImageUpscaleModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ....base import ComponentActionContext
-from ....base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
+from ....base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskDriver
 from ..common import ImageUpscaleTaskAction
 from PIL import Image as PILImage
 
@@ -76,7 +76,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return await self._run_in_executor(_upscale)
 
-class LdsrImageUpscaleTaskService(HuggingfaceDiffusionPipelineTaskService[None]):
+class LdsrImageUpscaleTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[None]):
     def _get_setup_requirements(self) -> List[str]:
         return super()._get_setup_requirements()
 

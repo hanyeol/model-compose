@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, List, Dict, Any
-from mindor.dsl.schema.component import AudioAnalyzerComponentConfig, AudioAnalyzerDriver
+from mindor.dsl.schema.component import AudioAnalyzerComponentConfig, AudioAnalyzerDriverType
 from mindor.dsl.schema.action import AudioAnalyzerActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -9,7 +9,7 @@ from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
 from ....action.media import MediaInputPathResolver
-from ..base import AudioAnalyzerService, register_audio_analyzer_service
+from ..base import AudioAnalyzerDriver, register_audio_analyzer_driver
 from ..base import ComponentActionContext
 from .common import AudioAnalyzerAction
 import os, re
@@ -420,8 +420,8 @@ class FFmpegAudioAnalyzerAction(AudioAnalyzerAction):
             "average_loudness": best_average,
         }
 
-@register_audio_analyzer_service(AudioAnalyzerDriver.FFMPEG)
-class FFmpegAudioAnalyzerService(AudioAnalyzerService):
+@register_audio_analyzer_driver(AudioAnalyzerDriverType.FFMPEG)
+class FFmpegAudioAnalyzerService(AudioAnalyzerDriver):
     def __init__(self, id: str, config: AudioAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

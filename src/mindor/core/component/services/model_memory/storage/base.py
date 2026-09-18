@@ -1,6 +1,6 @@
 from typing import Type, Tuple, Optional, Dict, List, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelMemoryStorageDriver
+from mindor.dsl.schema.component import ModelMemoryStorageDriverType
 
 class ModelMemoryStorage(ABC):
     def get_setup_requirements(self) -> Optional[List[str]]:
@@ -31,10 +31,10 @@ class ModelMemoryStorage(ABC):
         """Delete session data."""
         pass
 
-def register_model_memory_storage(driver: ModelMemoryStorageDriver):
+def register_model_memory_storage(driver: ModelMemoryStorageDriverType):
     def decorator(cls: Type[ModelMemoryStorage]) -> Type[ModelMemoryStorage]:
         ModelMemoryStorageRegistry[driver] = cls
         return cls
     return decorator
 
-ModelMemoryStorageRegistry: Dict[ModelMemoryStorageDriver, Type[ModelMemoryStorage]] = {}
+ModelMemoryStorageRegistry: Dict[ModelMemoryStorageDriverType, Type[ModelMemoryStorage]] = {}

@@ -1,8 +1,8 @@
 from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import VideoPlaybackActionConfig
-from .common import CommonVideoPlaybackComponentConfig, VideoPlaybackDriver
+from .common import CommonVideoPlaybackComponentConfig, VideoPlaybackDriverType
 
 class FFplayVideoPlaybackComponentConfig(CommonVideoPlaybackComponentConfig):
-    driver: Literal[VideoPlaybackDriver.FFPLAY]
+    driver: Literal[VideoPlaybackDriverType.FFPLAY]
     actions: List[VideoPlaybackActionConfig] = Field(default_factory=list)

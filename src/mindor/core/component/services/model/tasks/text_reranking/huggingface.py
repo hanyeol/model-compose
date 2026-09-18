@@ -5,9 +5,9 @@ from typing import Type, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import HuggingfaceTextRerankingModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextRerankingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskDriver
 from .common import TextRerankingTaskAction
 
 if TYPE_CHECKING:
@@ -81,8 +81,8 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
 
         return await self._run_in_executor(_rerank)
 
-@register_model_task_service(ModelTaskType.TEXT_RERANKING, ModelDriver.HUGGINGFACE)
-class HuggingfaceTextRerankingTaskService(HuggingfaceLanguageModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_RERANKING, ModelDriverType.HUGGINGFACE)
+class HuggingfaceTextRerankingTaskDriver(HuggingfaceLanguageModelTaskDriver):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSequenceClassification
         return AutoModelForSequenceClassification

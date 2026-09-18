@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig, MusicSegmentDetectorDriver
+from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig, MusicSegmentDetectorDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import MusicSegmentDetectorService, MusicSegmentDetectorServiceRegistry
+from .base import MusicSegmentDetectorDriver, MusicSegmentDetectorDriverRegistry
 import importlib
 
 @register_component(ComponentType.MUSIC_SEGMENT_DETECTOR)
@@ -17,24 +17,24 @@ class MusicSegmentDetectorComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: MusicSegmentDetectorService = self._create_service(self.config.driver)
+        self.driver: MusicSegmentDetectorDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: MusicSegmentDetectorDriver) -> MusicSegmentDetectorService:
+    def _create_driver(self, driver: MusicSegmentDetectorDriverType) -> MusicSegmentDetectorDriver:
         try:
-            if driver not in MusicSegmentDetectorServiceRegistry:
+            if driver not in MusicSegmentDetectorDriverRegistry:
                 self._load_driver_module(driver)
-            return MusicSegmentDetectorServiceRegistry[driver](self.id, self.config, self.daemon)
+            return MusicSegmentDetectorDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported audio segment detector driver: {driver}")
 
-    def _load_driver_module(self, driver: MusicSegmentDetectorDriver) -> None:
+    def _load_driver_module(self, driver: MusicSegmentDetectorDriverType) -> None:
         """Import the module that registers the given audio segment detector driver.
 
-        Convention: a driver "foo-bar" (MusicSegmentDetectorDriver.value) maps to
+        Convention: a driver "foo-bar" (MusicSegmentDetectorDriverType.value) maps to
         mindor.core.component.services.music_segment_detector.drivers.foo_bar —
         either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_music_segment_detector_service
-        decorator, populating MusicSegmentDetectorServiceRegistry.
+        Importing the module triggers its @register_music_segment_detector_driver
+        decorator, populating MusicSegmentDetectorDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -44,20 +44,20 @@ class MusicSegmentDetectorComponent(ComponentService):
             raise ValueError(f"Unsupported audio segment detector driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

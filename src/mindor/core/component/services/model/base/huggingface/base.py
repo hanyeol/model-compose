@@ -16,7 +16,7 @@ from mindor.dsl.schema.component import (
 )
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
-from ..common import ModelTaskService
+from ..common import ModelTaskDriver
 from ...utils.huggingface import is_checkpoint_prequantized
 import asyncio
 
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from transformers import PreTrainedModel
     import torch
 
-class HuggingfaceModelTaskService(ModelTaskService):
+class HuggingfaceModelTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

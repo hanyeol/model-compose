@@ -3,10 +3,10 @@ from enum import Enum
 from pydantic import Field
 from ...common import CommonComponentConfig, ComponentType
 
-class MediaInspectorDriver(str, Enum):
+class MediaInspectorDriverType(str, Enum):
     FFMPEG   = "ffmpeg"
     EXIFTOOL = "exiftool"
 
 class CommonMediaInspectorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MEDIA_INSPECTOR]
-    driver: MediaInspectorDriver = Field(..., description="Backend implementation used to inspect media files.")
+    driver: MediaInspectorDriverType = Field(..., description="Backend implementation used to inspect media files.")

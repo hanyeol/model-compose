@@ -2,7 +2,7 @@ from typing import Union, Annotated, Dict, Any
 from pydantic import Field
 from ..common import component_validator, ComponentType
 from .impl import *
-from .impl.common import DataQueueDriver
+from .impl.common import DataQueueDriverType
 
 DataQueueComponentConfig = Annotated[
     Union[
@@ -14,5 +14,5 @@ DataQueueComponentConfig = Annotated[
 @component_validator(ComponentType.DATA_QUEUE, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> Dict[str, Any]:
     if "driver" not in values:
-        values["driver"] = DataQueueDriver.MEMORY
+        values["driver"] = DataQueueDriverType.MEMORY
     return values

@@ -12,7 +12,7 @@ from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
 from ....utils.provision import HuggingfaceModelDownloader
 
@@ -100,7 +100,7 @@ class TadaTextToSpeechCloneTaskAction(TextToSpeechTaskAction):
 
         return await self._run_in_executor(_generate)
 
-class TadaTextToSpeechTaskService(ModelTaskService):
+class TadaTextToSpeechTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

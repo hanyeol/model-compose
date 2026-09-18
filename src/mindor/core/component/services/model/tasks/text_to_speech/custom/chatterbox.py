@@ -13,7 +13,7 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
 
 if TYPE_CHECKING:
@@ -95,7 +95,7 @@ class ChatterboxTextToSpeechCloneTaskAction(ChatterboxTextToSpeechTaskAction):
 
         return params
 
-class ChatterboxTextToSpeechTaskService(ModelTaskService):
+class ChatterboxTextToSpeechTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

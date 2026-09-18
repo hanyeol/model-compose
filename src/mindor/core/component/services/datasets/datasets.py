@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import DatasetsComponentConfig, DatasetsDriver
+from mindor.dsl.schema.component import DatasetsComponentConfig, DatasetsDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import DatasetsService, DatasetsServiceRegistry
+from .base import DatasetsDriver, DatasetsDriverRegistry
 import importlib
 
 @register_component(ComponentType.DATASETS)
@@ -17,24 +17,24 @@ class DatasetsComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: DatasetsService = self._create_service(self.config.driver)
+        self.driver: DatasetsDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: DatasetsDriver) -> DatasetsService:
+    def _create_driver(self, driver: DatasetsDriverType) -> DatasetsDriver:
         try:
-            if driver not in DatasetsServiceRegistry:
+            if driver not in DatasetsDriverRegistry:
                 self._load_driver_module(driver)
-            return DatasetsServiceRegistry[driver](self.id, self.config, self.daemon)
+            return DatasetsDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported datasets driver: {driver}")
 
-    def _load_driver_module(self, driver: DatasetsDriver) -> None:
+    def _load_driver_module(self, driver: DatasetsDriverType) -> None:
         """Import the module that registers the given datasets driver.
 
-        Convention: a driver "foo-bar" (DatasetsDriver.value) maps to
+        Convention: a driver "foo-bar" (DatasetsDriverType.value) maps to
         mindor.core.component.services.datasets.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_datasets_service decorator,
-        populating DatasetsServiceRegistry.
+        Importing the module triggers its @register_datasets_driver decorator,
+        populating DatasetsDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -44,20 +44,20 @@ class DatasetsComponent(ComponentService):
             raise ValueError(f"Unsupported datasets driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

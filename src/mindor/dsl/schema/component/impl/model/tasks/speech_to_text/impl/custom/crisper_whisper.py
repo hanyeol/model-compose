@@ -3,12 +3,12 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import CrisperWhisperSpeechToTextModelActionConfig
 from ..common import CommonSpeechToTextModelComponentConfig
 from .common import SpeechToTextModelFamily
-from ....common import ModelDriver, ModelConfig
+from ....common import ModelDriverType, ModelConfig
 
 _DEFAULT_MODEL = "large"
 
 class CrisperWhisperSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[SpeechToTextModelFamily.CRISPER_WHISPER]
     model: ModelConfig = Field(..., description="Model identifier — a size shorthand, a HuggingFace repo ID, or a local path.")
     backend: Literal[ "auto", "ct2", "transformers" ] = Field(default="auto", description="Inference backend used to run the model.")

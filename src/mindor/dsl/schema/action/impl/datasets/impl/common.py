@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
-class DatasetsDriver(str, Enum):
+class DatasetsDriverType(str, Enum):
     HUGGINGFACE = "huggingface"
 
 class DatasetsActionMethod(str, Enum):

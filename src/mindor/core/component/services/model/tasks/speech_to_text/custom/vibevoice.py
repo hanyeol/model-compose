@@ -13,7 +13,7 @@ from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ....utils.huggingface import is_checkpoint_prequantized
 from ..common import SpeechToTextTaskAction
 import os, asyncio, json
@@ -280,7 +280,7 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return parse_timecode(value)
 
-class VibeVoiceSpeechToTextTaskService(ModelTaskService):
+class VibeVoiceSpeechToTextTaskDriver(ModelTaskDriver):
     config: VibeVoiceSpeechToTextModelComponentConfig
 
     def __init__(self, id: str, config: VibeVoiceSpeechToTextModelComponentConfig, daemon: bool):

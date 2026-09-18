@@ -3,7 +3,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import YoloObjectDetectionModelActionConfig
 from ..common import CommonObjectDetectionModelComponentConfig
 from .common import ObjectDetectionModelFamily
-from ....common import ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
 from pathlib import PurePosixPath
 
 _ULTRALYTICS_RELEASE_BASEURL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
@@ -38,7 +38,7 @@ YoloObjectDetectionModelConfig = Annotated[
 ]
 
 class YoloObjectDetectionModelComponentConfig(CommonObjectDetectionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[ObjectDetectionModelFamily.YOLO]
     model: YoloObjectDetectionModelConfig = Field(..., description="YOLO detection model identifier — a HuggingFace repo ID or a local path.")
     actions: List[YoloObjectDetectionModelActionConfig] = Field(default_factory=list, description="Actions this object detection component exposes to workflows.")

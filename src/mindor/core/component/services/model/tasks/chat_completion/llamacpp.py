@@ -8,8 +8,8 @@ from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.llamacpp 
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import LlamaCppModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import LlamaCppModelTaskDriver, ComponentActionContext
 from ..text_generation.llamacpp import LlamaCppTextGenerationTaskAction
 from .common import ChatChoicesBuilder, ToolCallParser, ReasoningParser
 from .huggingface import HuggingfaceToolBuilder
@@ -105,8 +105,8 @@ class LlamaCppChatCompletionTaskAction(LlamaCppTextGenerationTaskAction):
             bos_token=bos_token,
         )
 
-@register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.LLAMACPP)
-class LlamaCppChatCompletionTaskService(LlamaCppModelTaskService):
+@register_model_task_driver(ModelTaskType.CHAT_COMPLETION, ModelDriverType.LLAMACPP)
+class LlamaCppChatCompletionTaskDriver(LlamaCppModelTaskDriver):
     config: LlamaCppChatCompletionModelComponentConfig
 
     async def _run(

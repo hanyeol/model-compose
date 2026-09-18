@@ -83,6 +83,7 @@ class QueueCodec:
         self.result_ttl = result_ttl
         self.inline_bytes_threshold = inline_bytes_threshold
         self.max_blob_size = max_blob_size
+
         self._stream_factory = stream_factory
         self._codec = VariableCodec()
 

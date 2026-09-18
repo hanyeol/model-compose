@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import AudioConverterComponentConfig, AudioConverterDriver
+from mindor.dsl.schema.component import AudioConverterComponentConfig, AudioConverterDriverType
 from mindor.dsl.schema.action import AudioConverterActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class AudioConverterService(AsyncService):
+class AudioConverterDriver(ComponentDriver):
     def __init__(self, id: str, config: AudioConverterComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class AudioConverterService(AsyncService):
     async def _run(self, action: AudioConverterActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_audio_converter_service(driver: AudioConverterDriver):
-    def decorator(cls: Type[AudioConverterService]) -> Type[AudioConverterService]:
-        AudioConverterServiceRegistry[driver] = cls
+def register_audio_converter_driver(driver: AudioConverterDriverType):
+    def decorator(cls: Type[AudioConverterDriver]) -> Type[AudioConverterDriver]:
+        AudioConverterDriverRegistry[driver] = cls
         return cls
     return decorator
 
-AudioConverterServiceRegistry: Dict[AudioConverterDriver, Type[AudioConverterService]] = {}
+AudioConverterDriverRegistry: Dict[AudioConverterDriverType, Type[AudioConverterDriver]] = {}

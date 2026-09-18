@@ -7,7 +7,7 @@ from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import GraphStoreService, GraphStoreDriver, register_graph_store_service
+from ..base import GraphStoreDriver, GraphStoreDriverType, register_graph_store_driver
 from ..base import ComponentActionContext
 from .common import GraphStoreAction
 
@@ -262,8 +262,8 @@ class Neo4jGraphStoreAction(GraphStoreAction):
 
         return records
 
-@register_graph_store_service(GraphStoreDriver.NEO4J)
-class Neo4jGraphStoreService(GraphStoreService):
+@register_graph_store_driver(GraphStoreDriverType.NEO4J)
+class Neo4jGraphStoreService(GraphStoreDriver):
     def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

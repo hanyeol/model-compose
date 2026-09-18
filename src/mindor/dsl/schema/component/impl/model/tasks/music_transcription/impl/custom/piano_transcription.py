@@ -3,12 +3,12 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import PianoTranscriptionMusicTranscriptionModelActionConfig
 from ..common import CommonMusicTranscriptionModelComponentConfig
 from .common import MusicTranscriptionModelFamily
-from ....common import ModelDriver, ModelProvider, NamedModelConfig
+from ....common import ModelDriverType, ModelProvider, NamedModelConfig
 
 _DEFAULT_MODEL = "note_F1=0.9677_pedal_F1=0.9186.pth"
 
 class PianoTranscriptionMusicTranscriptionModelComponentConfig(CommonMusicTranscriptionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicTranscriptionModelFamily.PIANO_TRANSCRIPTION]
     model: NamedModelConfig = Field(..., description="ByteDance Piano Transcription checkpoint name; downloaded on first use.")
     actions: List[PianoTranscriptionMusicTranscriptionModelActionConfig] = Field(default_factory=list, description="Actions this music transcription component exposes to workflows.")

@@ -14,4 +14,4 @@ MediaInspectorComponentConfig = Annotated[
 @component_validator(ComponentType.MEDIA_INSPECTOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = MediaInspectorDriver.FFMPEG
+        values["driver"] = MediaInspectorDriverType.FFMPEG

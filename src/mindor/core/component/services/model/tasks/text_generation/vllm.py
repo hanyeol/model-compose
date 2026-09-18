@@ -6,8 +6,8 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import VllmModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import VllmModelTaskDriver, ComponentActionContext
 from .common import TextGenerationTaskAction
 import asyncio, ulid
 
@@ -170,7 +170,7 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         return [ _stream(index, queue) for index, queue in enumerate(queues) ]
 
-@register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.VLLM)
-class VllmTextGenerationTaskService(VllmModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_GENERATION, ModelDriverType.VLLM)
+class VllmTextGenerationTaskDriver(VllmModelTaskDriver):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await VllmTextGenerationTaskAction(action, self.engine).run(context)

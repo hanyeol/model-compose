@@ -2,8 +2,8 @@ from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import TextRerankingModelActionConfig
 from .common import CommonTextRerankingModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceTextRerankingModelComponentConfig(CommonTextRerankingModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
     actions: List[TextRerankingModelActionConfig] = Field(default_factory=list, description="Actions this text reranking component exposes to workflows.")

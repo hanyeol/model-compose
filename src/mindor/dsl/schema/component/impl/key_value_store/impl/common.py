@@ -4,11 +4,11 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
 
-class KeyValueStoreDriver(str, Enum):
+class KeyValueStoreDriverType(str, Enum):
     MEMORY = "memory"
     REDIS  = "redis"
     SQLITE = "sqlite"
 
 class CommonKeyValueStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.KEY_VALUE_STORE]
-    driver: KeyValueStoreDriver = Field(..., description="Backend implementation used for the key-value store.")
+    driver: KeyValueStoreDriverType = Field(..., description="Backend implementation used for the key-value store.")

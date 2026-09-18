@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, List, Dict, Callable, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import VideoMixerComponentConfig, VideoMixerDriver
+from mindor.dsl.schema.component import VideoMixerComponentConfig, VideoMixerDriverType
 from mindor.dsl.schema.action import (
     VideoMixerActionConfig,
     VideoMixerOverlayAudioMode,
@@ -25,7 +25,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoMixerService, register_video_mixer_service
+from ..base import VideoMixerDriver, register_video_mixer_driver
 from ..base import ComponentActionContext
 from .common import VideoMixerAction
 import asyncio, os
@@ -510,8 +510,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
         return audio_codec
 
-@register_video_mixer_service(VideoMixerDriver.FFMPEG)
-class FFmpegVideoMixerService(VideoMixerService):
+@register_video_mixer_driver(VideoMixerDriverType.FFMPEG)
+class FFmpegVideoMixerService(VideoMixerDriver):
     def __init__(self, id: str, config: VideoMixerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

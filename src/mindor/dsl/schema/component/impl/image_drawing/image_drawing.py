@@ -13,4 +13,4 @@ ImageDrawingComponentConfig = Annotated[
 @component_validator(ComponentType.IMAGE_DRAWING, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = ImageDrawingDriver.NATIVE
+        values["driver"] = ImageDrawingDriverType.NATIVE

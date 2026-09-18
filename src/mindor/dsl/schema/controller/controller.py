@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator, field_validator
 from mindor.dsl.schema.runtime import RuntimeConfig, RuntimeType
 from .adapter import ControllerAdapterConfig
-from .queue import ControllerQueueConfig, ControllerQueueDriver, RedisControllerQueueConfig
-from .webui import ControllerWebUIConfig, ControllerWebUIDriver
+from .queue import ControllerQueueConfig
+from .webui import ControllerWebUIConfig, ControllerWebUIDriverType
 
 class ControllerConfig(BaseModel):
     name: Optional[str] = Field(default=None, description="Name of controller.")
@@ -20,9 +20,9 @@ class ControllerConfig(BaseModel):
     @model_validator(mode="before")
     def inflate_single_adapter(cls, values: Dict[str, Any]):
         if "adapters" not in values:
-            adapter_values = values.pop("adapter", None)
-            if adapter_values:
-                values["adapters"] = [ adapter_values ]
+            adapter = values.pop("adapter", None)
+            if adapter:
+                values["adapters"] = [ adapter ]
         return values
 
     @model_validator(mode="before")
@@ -36,7 +36,7 @@ class ControllerConfig(BaseModel):
     def fill_missing_webui_driver(cls, values: Dict[str, Any]):
         webui = values.get("webui")
         if isinstance(webui, dict) and "driver" not in webui:
-            webui["driver"] = ControllerWebUIDriver.GRADIO
+            webui["driver"] = ControllerWebUIDriverType.GRADIO
         return values
 
     @model_validator(mode="after")

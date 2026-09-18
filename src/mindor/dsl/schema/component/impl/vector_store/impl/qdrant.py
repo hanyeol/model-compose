@@ -1,10 +1,10 @@
 from typing import Union, Literal, Optional, Dict, List, Any
 from pydantic import Field, model_validator
 from mindor.dsl.schema.action import QdrantVectorStoreActionConfig
-from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
+from .common import CommonVectorStoreComponentConfig, VectorStoreDriverType
 
 class QdrantVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
-    driver: Literal[VectorStoreDriver.QDRANT]
+    driver: Literal[VectorStoreDriverType.QDRANT]
     url: Optional[str] = Field(default=None, description="Full Qdrant URL (e.g., http://host:port). Mutually exclusive with `host`.")
     host: str = Field(default="localhost", description="Hostname or IP address of the Qdrant server.")
     port: int = Field(default=6333, ge=1, le=65535, description="TCP port the Qdrant REST API listens on.")

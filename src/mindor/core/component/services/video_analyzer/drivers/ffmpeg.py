@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, List, Dict, Any
-from mindor.dsl.schema.component import VideoAnalyzerComponentConfig, VideoAnalyzerDriver
+from mindor.dsl.schema.component import VideoAnalyzerComponentConfig, VideoAnalyzerDriverType
 from mindor.dsl.schema.action import VideoAnalyzerActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -9,7 +9,7 @@ from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
 from ....action.media import MediaInputPathResolver
-from ..base import VideoAnalyzerService, register_video_analyzer_service
+from ..base import VideoAnalyzerDriver, register_video_analyzer_driver
 from ..base import ComponentActionContext
 from .common import VideoAnalyzerAction
 import os, re
@@ -275,8 +275,8 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
             "std":  variance ** 0.5,
         }
 
-@register_video_analyzer_service(VideoAnalyzerDriver.FFMPEG)
-class FFmpegVideoAnalyzerService(VideoAnalyzerService):
+@register_video_analyzer_driver(VideoAnalyzerDriverType.FFMPEG)
+class FFmpegVideoAnalyzerService(VideoAnalyzerDriver):
     def __init__(self, id: str, config: VideoAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -3,9 +3,10 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Dict, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import WebBrowserComponentConfig, WebBrowserDriver
+from mindor.dsl.schema.component import WebBrowserComponentConfig, WebBrowserDriverType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
 from ...context import ComponentActionContext
 from .drivers.common import WebBrowserAction
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
 _DEFAULT_SESSION_KEY = "__default__"
 
-class WebBrowserService(AsyncService):
+class WebBrowserDriver(ComponentDriver):
     def __init__(self, id: str, config: WebBrowserComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -69,10 +70,10 @@ class WebBrowserService(AsyncService):
 
         return _DEFAULT_SESSION_KEY
 
-def register_web_browser_service(driver: WebBrowserDriver):
-    def decorator(cls: Type[WebBrowserService]) -> Type[WebBrowserService]:
-        WebBrowserServiceRegistry[driver] = cls
+def register_web_browser_driver(driver: WebBrowserDriverType):
+    def decorator(cls: Type[WebBrowserDriver]) -> Type[WebBrowserDriver]:
+        WebBrowserDriverRegistry[driver] = cls
         return cls
     return decorator
 
-WebBrowserServiceRegistry: Dict[WebBrowserDriver, Type[WebBrowserService]] = {}
+WebBrowserDriverRegistry: Dict[WebBrowserDriverType, Type[WebBrowserDriver]] = {}

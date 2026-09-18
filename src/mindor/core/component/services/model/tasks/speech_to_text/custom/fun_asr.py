@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import SpeechToTextTaskAction
 
 if TYPE_CHECKING:
@@ -183,7 +183,7 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
             }
         ]
 
-class FunAsrSpeechToTextTaskService(ModelTaskService):
+class FunAsrSpeechToTextTaskDriver(ModelTaskDriver):
     config: FunAsrSpeechToTextModelComponentConfig
 
     def __init__(self, id: str, config: FunAsrSpeechToTextModelComponentConfig, daemon: bool):

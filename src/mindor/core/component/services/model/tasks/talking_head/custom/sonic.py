@@ -13,7 +13,7 @@ from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, rewrite_python_imports
 from mindor.core.utils.github import download_github_tarball
 from ......action.media import MediaInputPathResolver
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
 import os, tempfile, shutil, importlib.util, asyncio
@@ -117,7 +117,7 @@ class SonicTalkingHeadTaskAction(TalkingHeadTaskAction):
 
         return path
 
-class SonicTalkingHeadTaskService(ModelTaskService):
+class SonicTalkingHeadTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

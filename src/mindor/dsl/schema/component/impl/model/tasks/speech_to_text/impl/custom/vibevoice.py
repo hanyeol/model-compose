@@ -3,12 +3,12 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import VibeVoiceSpeechToTextModelActionConfig
 from ..common import CommonSpeechToTextModelComponentConfig
 from .common import SpeechToTextModelFamily
-from ....common import ModelDriver, ModelConfig
+from ....common import ModelDriverType, ModelConfig
 
 _DEFAULT_REPOSITORY = "microsoft/VibeVoice-ASR-Streaming-1.5B"
 
 class VibeVoiceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[SpeechToTextModelFamily.VIBEVOICE]
     model: ModelConfig = Field(..., description="Model identifier — a HuggingFace repo ID or a local path; must be a VibeVoice ASR streaming checkpoint.")
     attn_implementation: Literal[ "sdpa", "flash_attention_2", "eager" ] = Field(default="sdpa", description="Attention kernel used by the underlying transformer.")

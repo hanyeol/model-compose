@@ -13,4 +13,4 @@ VideoCaptureComponentConfig = Annotated[
 @component_validator(ComponentType.VIDEO_CAPTURE, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = VideoCaptureDriver.FFMPEG
+        values["driver"] = VideoCaptureDriverType.FFMPEG

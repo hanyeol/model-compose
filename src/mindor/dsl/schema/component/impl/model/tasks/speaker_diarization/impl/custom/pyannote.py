@@ -3,12 +3,12 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import SpeakerDiarizationModelActionConfig
 from ..common import CommonSpeakerDiarizationModelComponentConfig
 from .common import SpeakerDiarizationModelFamily
-from ....common import ModelDriver, ModelConfig
+from ....common import ModelDriverType, ModelConfig
 
 _DEFAULT_REPOSITORY = "pyannote/speaker-diarization-3.1"
 
 class PyannoteSpeakerDiarizationModelComponentConfig(CommonSpeakerDiarizationModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[SpeakerDiarizationModelFamily.PYANNOTE]
     model: ModelConfig = Field(..., description="Pyannote diarization model identifier — a HuggingFace repo ID or a local path.")
     actions: List[SpeakerDiarizationModelActionConfig] = Field(default_factory=list, description="Actions this speaker diarization component exposes to workflows.")

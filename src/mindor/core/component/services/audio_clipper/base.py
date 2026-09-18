@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import AudioClipperComponentConfig, AudioClipperDriver
+from mindor.dsl.schema.component import AudioClipperComponentConfig, AudioClipperDriverType
 from mindor.dsl.schema.action import AudioClipperActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class AudioClipperService(AsyncService):
+class AudioClipperDriver(ComponentDriver):
     def __init__(self, id: str, config: AudioClipperComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class AudioClipperService(AsyncService):
     async def _run(self, action: AudioClipperActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_audio_clipper_service(driver: AudioClipperDriver):
-    def decorator(cls: Type[AudioClipperService]) -> Type[AudioClipperService]:
-        AudioClipperServiceRegistry[driver] = cls
+def register_audio_clipper_driver(driver: AudioClipperDriverType):
+    def decorator(cls: Type[AudioClipperDriver]) -> Type[AudioClipperDriver]:
+        AudioClipperDriverRegistry[driver] = cls
         return cls
     return decorator
 
-AudioClipperServiceRegistry: Dict[AudioClipperDriver, Type[AudioClipperService]] = {}
+AudioClipperDriverRegistry: Dict[AudioClipperDriverType, Type[AudioClipperDriver]] = {}

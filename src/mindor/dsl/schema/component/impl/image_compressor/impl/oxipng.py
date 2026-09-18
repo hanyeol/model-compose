@@ -1,8 +1,8 @@
 from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import OxipngImageCompressorActionConfig
-from .common import CommonImageCompressorComponentConfig, ImageCompressorDriver
+from .common import CommonImageCompressorComponentConfig, ImageCompressorDriverType
 
 class OxipngImageCompressorComponentConfig(CommonImageCompressorComponentConfig):
-    driver: Literal[ImageCompressorDriver.OXIPNG]
+    driver: Literal[ImageCompressorDriverType.OXIPNG]
     actions: List[OxipngImageCompressorActionConfig] = Field(default_factory=list)

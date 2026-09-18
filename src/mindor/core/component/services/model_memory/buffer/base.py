@@ -1,6 +1,6 @@
 from typing import Type, Optional, Dict, List, Any, Tuple
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelMemoryBufferDriver
+from mindor.dsl.schema.component import ModelMemoryBufferDriverType
 
 class SessionBuffer:
     """Per-session in-memory data: turns, summary, snapshot."""
@@ -147,10 +147,10 @@ class ModelMemoryBuffer(ABC):
     def _get_session(self, session_id: str) -> Optional[SessionBuffer]:
         return self._sessions.get(session_id)
 
-def register_model_memory_buffer(driver: ModelMemoryBufferDriver):
+def register_model_memory_buffer(driver: ModelMemoryBufferDriverType):
     def decorator(cls: Type[ModelMemoryBuffer]) -> Type[ModelMemoryBuffer]:
         ModelMemoryBufferRegistry[driver] = cls
         return cls
     return decorator
 
-ModelMemoryBufferRegistry: Dict[ModelMemoryBufferDriver, Type[ModelMemoryBuffer]] = {}
+ModelMemoryBufferRegistry: Dict[ModelMemoryBufferDriverType, Type[ModelMemoryBuffer]] = {}

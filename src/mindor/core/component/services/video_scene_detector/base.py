@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig, VideoSceneDetectorDriver
+from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig, VideoSceneDetectorDriverType
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VideoSceneDetectorService(AsyncService):
+class VideoSceneDetectorDriver(ComponentDriver):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VideoSceneDetectorService(AsyncService):
     async def _run(self, action: VideoSceneDetectorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_video_scene_detector_service(driver: VideoSceneDetectorDriver):
-    def decorator(cls: Type[VideoSceneDetectorService]) -> Type[VideoSceneDetectorService]:
-        VideoSceneDetectorServiceRegistry[driver] = cls
+def register_video_scene_detector_driver(driver: VideoSceneDetectorDriverType):
+    def decorator(cls: Type[VideoSceneDetectorDriver]) -> Type[VideoSceneDetectorDriver]:
+        VideoSceneDetectorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VideoSceneDetectorServiceRegistry: Dict[VideoSceneDetectorDriver, Type[VideoSceneDetectorService]] = {}
+VideoSceneDetectorDriverRegistry: Dict[VideoSceneDetectorDriverType, Type[VideoSceneDetectorDriver]] = {}

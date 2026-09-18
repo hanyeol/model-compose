@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ImageProcessorComponentConfig, ImageProcessorDriver
+from mindor.dsl.schema.component import ImageProcessorComponentConfig, ImageProcessorDriverType
 from mindor.dsl.schema.action import ImageProcessorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class ImageProcessorService(AsyncService):
+class ImageProcessorDriver(ComponentDriver):
     def __init__(self, id: str, config: ImageProcessorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class ImageProcessorService(AsyncService):
     async def _run(self, action: ImageProcessorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_image_processor_service(driver: ImageProcessorDriver):
-    def decorator(cls: Type[ImageProcessorService]) -> Type[ImageProcessorService]:
-        ImageProcessorServiceRegistry[driver] = cls
+def register_image_processor_driver(driver: ImageProcessorDriverType):
+    def decorator(cls: Type[ImageProcessorDriver]) -> Type[ImageProcessorDriver]:
+        ImageProcessorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-ImageProcessorServiceRegistry: Dict[ImageProcessorDriver, Type[ImageProcessorService]] = {}
+ImageProcessorDriverRegistry: Dict[ImageProcessorDriverType, Type[ImageProcessorDriver]] = {}

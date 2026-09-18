@@ -3,10 +3,10 @@ from pydantic import Field
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelActionConfig
 from ..common import CommonTextToSpeechModelComponentConfig
 from .common import TextToSpeechModelFamily
-from ....common import ModelDriver
+from ....common import ModelDriverType
 
 class CosyvoiceTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TextToSpeechModelFamily.COSYVOICE]
     actions: List[CosyvoiceTextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")
     load_jit: bool = Field(default=False, description="Whether to load JIT-compiled modules; supported only on CUDA.")

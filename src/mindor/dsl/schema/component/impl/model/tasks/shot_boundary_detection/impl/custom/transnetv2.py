@@ -3,7 +3,7 @@ from pydantic import Field
 from mindor.dsl.schema.action import TransNetV2ShotBoundaryDetectionModelActionConfig
 from ..common import CommonShotBoundaryDetectionModelComponentConfig
 from .common import ShotBoundaryDetectionModelFamily
-from ....common import ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
 
 class TransNetV2ShotBoundaryDetectionLocalModelConfig(LocalModelConfig):
     def _cache_subdir(self) -> str:
@@ -18,7 +18,7 @@ TransNetV2ShotBoundaryDetectionModelConfig = Annotated[
 ]
 
 class TransNetV2ShotBoundaryDetectionModelComponentConfig(CommonShotBoundaryDetectionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[ShotBoundaryDetectionModelFamily.TRANSNETV2]
     model: TransNetV2ShotBoundaryDetectionModelConfig = Field(..., description="TransNetV2 model directory — a local path to the SavedModel folder containing saved_model.pb and variables/.")
     actions: List[TransNetV2ShotBoundaryDetectionModelActionConfig] = Field(default_factory=list, description="Actions this shot boundary detection component exposes to workflows.")

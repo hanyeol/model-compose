@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import (
     HunyuanImageHuggingfaceImageGenerationModelActionConfig,
 )
 from .common import CommonImageGenerationModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceImageGenerationModelArchitecture(str, Enum):
     SDXL          = "sdxl"
@@ -15,7 +15,7 @@ class HuggingfaceImageGenerationModelArchitecture(str, Enum):
     HUNYUAN_IMAGE = "hunyuan-image"
 
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
 
 class SdxlHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.SDXL]

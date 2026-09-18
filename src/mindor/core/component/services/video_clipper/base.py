@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import VideoClipperComponentConfig, VideoClipperDriver
+from mindor.dsl.schema.component import VideoClipperComponentConfig, VideoClipperDriverType
 from mindor.dsl.schema.action import VideoClipperActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VideoClipperService(AsyncService):
+class VideoClipperDriver(ComponentDriver):
     def __init__(self, id: str, config: VideoClipperComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VideoClipperService(AsyncService):
     async def _run(self, action: VideoClipperActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_video_clipper_service(driver: VideoClipperDriver):
-    def decorator(cls: Type[VideoClipperService]) -> Type[VideoClipperService]:
-        VideoClipperServiceRegistry[driver] = cls
+def register_video_clipper_driver(driver: VideoClipperDriverType):
+    def decorator(cls: Type[VideoClipperDriver]) -> Type[VideoClipperDriver]:
+        VideoClipperDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VideoClipperServiceRegistry: Dict[VideoClipperDriver, Type[VideoClipperService]] = {}
+VideoClipperDriverRegistry: Dict[VideoClipperDriverType, Type[VideoClipperDriver]] = {}

@@ -10,7 +10,7 @@ from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import ObjectTrackingTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -836,7 +836,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
         return min(x2 - x1, y2 - y1) >= min_size
 
-class YoloObjectTrackingTaskService(ModelTaskService):
+class YoloObjectTrackingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

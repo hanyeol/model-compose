@@ -10,7 +10,7 @@ from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import FaceTrackingTaskAction, FaceEmbedding
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 import os, shutil
 
@@ -1028,7 +1028,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     def _gender_to_label(gender: int) -> str:
         return "male" if gender == 1 else "female"
 
-class InsightfaceFaceTrackingTaskService(ModelTaskService):
+class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

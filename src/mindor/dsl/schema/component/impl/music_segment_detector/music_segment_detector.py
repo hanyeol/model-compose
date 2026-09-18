@@ -13,4 +13,4 @@ MusicSegmentDetectorComponentConfig = Annotated[
 @component_validator(ComponentType.MUSIC_SEGMENT_DETECTOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = MusicSegmentDetectorDriver.NATIVE
+        values["driver"] = MusicSegmentDetectorDriverType.NATIVE

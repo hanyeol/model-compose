@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, BlazePosePoseDetectionMo
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import PoseDetectionTaskAction
 from ..utils import openpose, blazepose, topology
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -143,7 +143,7 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
         array = np.squeeze(image.numpy_view())  # float32 [0, 1]
         return PILImage.fromarray((array * 255).astype(np.uint8), mode="L")
 
-class BlazePosePoseDetectionTaskService(ModelTaskService):
+class BlazePosePoseDetectionTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

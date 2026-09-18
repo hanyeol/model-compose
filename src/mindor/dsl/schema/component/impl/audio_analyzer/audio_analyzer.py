@@ -13,4 +13,4 @@ AudioAnalyzerComponentConfig = Annotated[
 @component_validator(ComponentType.AUDIO_ANALYZER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = AudioAnalyzerDriver.FFMPEG
+        values["driver"] = AudioAnalyzerDriverType.FFMPEG

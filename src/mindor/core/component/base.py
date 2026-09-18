@@ -58,6 +58,16 @@ class ComponentGlobalConfigs(BaseModel):
             workflows=workflows,
         )
 
+class ComponentDriver(AsyncService):
+    """Base for a component's backend implementation selected by ``config.driver``.
+
+    Every driver lives inside a wrapping ``ComponentService`` and is created
+    from the DSL's ``<Name>DriverType`` enum. Splitting driver from service
+    lets ``ComponentService`` consolidate lifecycle and requirement forwarding
+    for the common single-driver case.
+    """
+    pass
+
 class ComponentService(AsyncService):
     def __init__(
         self,
@@ -72,12 +82,21 @@ class ComponentService(AsyncService):
         self.config: ComponentConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.work_queue: Optional[WorkQueue] = None
+        self.driver: Optional[ComponentDriver] = None
 
         self._runtime_manager = None
         self._active_counter: ActiveCounter = ActiveCounter()
 
         if self.config.max_concurrent_count > 0:
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
+
+    def get_declared_requirements(self) -> List[str]:
+        requirements = list(self._get_setup_requirements() or [])
+
+        if self.driver is not None:
+            requirements.extend(self.driver.get_declared_requirements())
+
+        return requirements
 
     async def setup(self) -> None:
         # Only in-process runtimes install dependencies on the host. Isolated runtimes

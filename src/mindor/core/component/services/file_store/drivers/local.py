@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.resolver import resolve_stream_resource
 from mindor.core.utils.files import list_directory, walk_directory, is_glob_match, is_path_within, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import FileStoreService, FileStoreDriver, register_file_store_service
+from ..base import FileStoreDriver, FileStoreDriverType, register_file_store_driver
 from ..base import ComponentActionContext
 from .common import FileStoreAction
 import aiofiles, os, pathlib, stat as stat_module, sys
@@ -260,8 +260,8 @@ class LocalFileStoreAction(FileStoreAction):
     def _build_file_url(self, absolute_path: str) -> str:
         return pathlib.Path(absolute_path).as_uri()
 
-@register_file_store_service(FileStoreDriver.LOCAL)
-class LocalFileStoreService(FileStoreService):
+@register_file_store_driver(FileStoreDriverType.LOCAL)
+class LocalFileStoreService(FileStoreDriver):
     def __init__(self, id: str, config: LocalFileStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

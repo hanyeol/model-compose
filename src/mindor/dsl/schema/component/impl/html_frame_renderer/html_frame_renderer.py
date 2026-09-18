@@ -13,4 +13,4 @@ HtmlFrameRendererComponentConfig = Annotated[
 @component_validator(ComponentType.HTML_FRAME_RENDERER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = HtmlFrameRendererDriver.PLAYWRIGHT
+        values["driver"] = HtmlFrameRendererDriverType.PLAYWRIGHT

@@ -3,9 +3,9 @@ from pydantic import Field
 from mindor.dsl.schema.action import DlibFaceEmbeddingModelActionConfig
 from ..common import CommonFaceEmbeddingModelComponentConfig
 from .common import FaceEmbeddingModelFamily
-from ....common import ModelDriver
+from ....common import ModelDriverType
 
 class DlibFaceEmbeddingModelComponentConfig(CommonFaceEmbeddingModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[FaceEmbeddingModelFamily.DLIB]
     actions: List[DlibFaceEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this face embedding component exposes to workflows.")

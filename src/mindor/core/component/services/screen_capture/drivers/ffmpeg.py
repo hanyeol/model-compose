@@ -16,7 +16,7 @@ from mindor.core.utils.shell import kill_process
 from mindor.core.utils.screen.window import WindowSelector, find_window
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.logger import logging
-from ..base import ScreenCaptureService, ScreenCaptureDriver, register_screen_capture_service
+from ..base import ScreenCaptureDriver, ScreenCaptureDriverType, register_screen_capture_driver
 from ..base import ComponentActionContext
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from .common import ScreenCaptureAction
@@ -519,8 +519,8 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
 
         return audio_format
 
-@register_screen_capture_service(ScreenCaptureDriver.FFMPEG)
-class FFmpegScreenCaptureService(ScreenCaptureService):
+@register_screen_capture_driver(ScreenCaptureDriverType.FFMPEG)
+class FFmpegScreenCaptureService(ScreenCaptureDriver):
     def __init__(self, id: str, config: ScreenCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

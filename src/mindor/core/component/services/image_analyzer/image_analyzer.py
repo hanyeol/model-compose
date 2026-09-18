@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriver
+from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import ImageAnalyzerService, ImageAnalyzerServiceRegistry
+from .base import ImageAnalyzerDriver, ImageAnalyzerDriverRegistry
 import importlib
 
 @register_component(ComponentType.IMAGE_ANALYZER)
@@ -17,24 +17,24 @@ class ImageAnalyzerComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: ImageAnalyzerService = self._create_service(self.config.driver)
+        self.driver: ImageAnalyzerDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: ImageAnalyzerDriver) -> ImageAnalyzerService:
+    def _create_driver(self, driver: ImageAnalyzerDriverType) -> ImageAnalyzerDriver:
         try:
-            if driver not in ImageAnalyzerServiceRegistry:
+            if driver not in ImageAnalyzerDriverRegistry:
                 self._load_driver_module(driver)
-            return ImageAnalyzerServiceRegistry[driver](self.id, self.config, self.daemon)
+            return ImageAnalyzerDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported image analyzer driver: {driver}")
 
-    def _load_driver_module(self, driver: ImageAnalyzerDriver) -> None:
+    def _load_driver_module(self, driver: ImageAnalyzerDriverType) -> None:
         """Import the module that registers the given image analyzer driver.
 
-        Convention: a driver "foo-bar" (ImageAnalyzerDriver.value) maps to
+        Convention: a driver "foo-bar" (ImageAnalyzerDriverType.value) maps to
         mindor.core.component.services.image_analyzer.drivers.foo_bar —
         either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_image_analyzer_service
-        decorator, populating ImageAnalyzerServiceRegistry.
+        Importing the module triggers its @register_image_analyzer_driver
+        decorator, populating ImageAnalyzerDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -44,20 +44,20 @@ class ImageAnalyzerComponent(ComponentService):
             raise ValueError(f"Unsupported image analyzer driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

@@ -22,7 +22,7 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......action.media import MediaInputPathResolver
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicGenerationTaskAction
 import os, sys, platform
 
@@ -527,7 +527,7 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
         finally:
             self._cleanup_source_paths(source_paths)
 
-class AceStepMusicGenerationTaskService(ModelTaskService):
+class AceStepMusicGenerationTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

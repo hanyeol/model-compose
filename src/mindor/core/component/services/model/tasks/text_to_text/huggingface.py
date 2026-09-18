@@ -7,9 +7,9 @@ from mindor.dsl.schema.action import ModelActionConfig, TextToTextModelActionCon
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskDriver
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from .common import TextToTextTaskAction
 from threading import Thread
@@ -172,8 +172,8 @@ class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
 
         return results
 
-@register_model_task_service(ModelTaskType.TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
-class HuggingfaceTextToTextTaskService(HuggingfaceLanguageModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_TO_TEXT, ModelDriverType.HUGGINGFACE)
+class HuggingfaceTextToTextTaskDriver(HuggingfaceLanguageModelTaskDriver):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForSeq2SeqLM
         return AutoModelForSeq2SeqLM

@@ -6,9 +6,9 @@ from mindor.dsl.schema.action import ModelActionConfig, VideoEmbeddingModelActio
 from mindor.dsl.schema.component import HuggingfaceVideoEmbeddingModelArchitecture
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from .common import VideoEmbeddingTaskAction
 from PIL import Image as PILImage
 
@@ -129,8 +129,8 @@ class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
 
         return [ frames[index] for index in indices ]
 
-@register_model_task_service(ModelTaskType.VIDEO_EMBEDDING, ModelDriver.HUGGINGFACE)
-class HuggingfaceVideoEmbeddingTaskService(HuggingfaceMultimodalModelTaskService):
+@register_model_task_driver(ModelTaskType.VIDEO_EMBEDDING, ModelDriverType.HUGGINGFACE)
+class HuggingfaceVideoEmbeddingTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceVideoEmbeddingModelArchitecture.AUTO:
             from transformers import AutoModel

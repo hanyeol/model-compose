@@ -12,7 +12,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import is_glob_match, guess_content_type
 from mindor.core.utils.time import format_datetime_iso_string
 from mindor.core.foundation.providers.gcp_storage import upload, multipart_upload
-from ..base import FileStoreService, FileStoreDriver, register_file_store_service
+from ..base import FileStoreDriver, FileStoreDriverType, register_file_store_driver
 from ..base import ComponentActionContext
 from .common import FileStoreAction
 import aiohttp, os, urllib.parse
@@ -266,8 +266,8 @@ class GcpStorageFileStoreAction(FileStoreAction):
         host = (self.location.endpoint or "https://storage.googleapis.com").rstrip("/")
         return f"{host}/{self.location.bucket}/{quoted_object_name}"
 
-@register_file_store_service(FileStoreDriver.GCP_STORAGE)
-class GcpStorageFileStoreService(FileStoreService):
+@register_file_store_driver(FileStoreDriverType.GCP_STORAGE)
+class GcpStorageFileStoreService(FileStoreDriver):
     config: GcpStorageFileStoreComponentConfig
 
     def __init__(self, id: str, config: GcpStorageFileStoreComponentConfig, daemon: bool):

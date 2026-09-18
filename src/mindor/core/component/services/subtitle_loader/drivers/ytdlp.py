@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from typing import Union, Optional, Tuple, Dict, List, Any
-from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriver
+from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriverType
 from mindor.dsl.schema.action import SubtitleLoaderActionConfig, YtdlpSubtitleLoaderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import get_temporary_path, get_file_extension
 from mindor.core.logger import logging
-from ..base import SubtitleLoaderService, register_subtitle_loader_service
+from ..base import SubtitleLoaderDriver, register_subtitle_loader_driver
 from ..base import ComponentActionContext
 from .common import SubtitleLoaderAction
 from ...media_downloader.drivers.ytdlp import YtdlpMediaDownloaderAction
@@ -235,8 +235,8 @@ class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
             "format":    subtitles.format,
         }
 
-@register_subtitle_loader_service(SubtitleLoaderDriver.YTDLP)
-class YtdlpSubtitleLoaderService(SubtitleLoaderService):
+@register_subtitle_loader_driver(SubtitleLoaderDriverType.YTDLP)
+class YtdlpSubtitleLoaderService(SubtitleLoaderDriver):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

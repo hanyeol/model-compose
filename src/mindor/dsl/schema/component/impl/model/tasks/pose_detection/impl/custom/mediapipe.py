@@ -3,7 +3,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import BlazePosePoseDetectionModelActionConfig
 from ..common import CommonPoseDetectionModelComponentConfig
 from .common import PoseDetectionModelFamily
-from ....common import ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
 
 _DEFAULT_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
 
@@ -26,7 +26,7 @@ BlazePosePoseDetectionModelConfig = Annotated[
 ]
 
 class BlazePosePoseDetectionModelComponentConfig(CommonPoseDetectionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[PoseDetectionModelFamily.BLAZEPOSE]
     model: BlazePosePoseDetectionModelConfig = Field(..., description="BlazePose landmarker task file identifier — a HuggingFace repo ID or a local path.")
     actions: List[BlazePosePoseDetectionModelActionConfig] = Field(default_factory=list, description="Actions this pose detection component exposes to workflows.")

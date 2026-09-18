@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 from collections.abc import AsyncIterable, AsyncIterator
-from mindor.dsl.schema.component import PlaywrightHtmlFrameRendererComponentConfig, HtmlFrameRendererDriver
+from mindor.dsl.schema.component import PlaywrightHtmlFrameRendererComponentConfig, HtmlFrameRendererDriverType
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.url import UrlResource
 from mindor.core.logger import logging
-from ..base import HtmlFrameRendererService, register_html_frame_renderer_service
+from ..base import HtmlFrameRendererDriver, register_html_frame_renderer_driver
 from ..base import ComponentActionContext
 from .common import HtmlFrameRendererAction, HtmlFrameRendererSession
 import asyncio, json
@@ -205,8 +205,8 @@ class PlaywrightHtmlFrameRendererAction(HtmlFrameRendererAction):
         finally:
             await session.close()
 
-@register_html_frame_renderer_service(HtmlFrameRendererDriver.PLAYWRIGHT)
-class PlaywrightHtmlFrameRendererService(HtmlFrameRendererService):
+@register_html_frame_renderer_driver(HtmlFrameRendererDriverType.PLAYWRIGHT)
+class PlaywrightHtmlFrameRendererService(HtmlFrameRendererDriver):
     config: PlaywrightHtmlFrameRendererComponentConfig
 
     def __init__(self, id: str, config: PlaywrightHtmlFrameRendererComponentConfig, daemon: bool):

@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 from mindor.dsl.schema.component import HuggingfaceDatasetsComponentConfig
 from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import DatasetsService, DatasetsDriver, register_datasets_service
+from ..base import DatasetsDriver, DatasetsDriverType, register_datasets_driver
 from ..base import ComponentActionContext
 from .common import DatasetsAction
 import os
@@ -74,8 +74,8 @@ class HuggingfaceDatasetsAction(DatasetsAction):
 
         return await self._run_in_executor(_fn)
 
-@register_datasets_service(DatasetsDriver.HUGGINGFACE)
-class HuggingfaceDatasetsService(DatasetsService):
+@register_datasets_driver(DatasetsDriverType.HUGGINGFACE)
+class HuggingfaceDatasetsService(DatasetsDriver):
     def __init__(self, id: str, config: HuggingfaceDatasetsComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

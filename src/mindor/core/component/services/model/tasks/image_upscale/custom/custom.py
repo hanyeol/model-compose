@@ -1,23 +1,23 @@
 from mindor.dsl.schema.component import ModelComponentConfig, ImageUpscaleModelFamily
-from ....base import ModelTaskType, ModelDriver, register_model_task_service
+from ....base import ModelTaskType, ModelDriverType, register_model_task_driver
 
-@register_model_task_service(ModelTaskType.IMAGE_UPSCALE, ModelDriver.CUSTOM)
-class CustomImageUpscaleTaskService:
+@register_model_task_driver(ModelTaskType.IMAGE_UPSCALE, ModelDriverType.CUSTOM)
+class CustomImageUpscaleTaskDriver:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == ImageUpscaleModelFamily.ESRGAN:
-            from .esrgan import EsrganImageUpscaleTaskService
-            return EsrganImageUpscaleTaskService(id, config, daemon)
+            from .esrgan import EsrganImageUpscaleTaskDriver
+            return EsrganImageUpscaleTaskDriver(id, config, daemon)
 
         if config.family == ImageUpscaleModelFamily.REAL_ESRGAN:
-            from .real_esrgan import RealEsrganImageUpscaleTaskService
-            return RealEsrganImageUpscaleTaskService(id, config, daemon)
+            from .real_esrgan import RealEsrganImageUpscaleTaskDriver
+            return RealEsrganImageUpscaleTaskDriver(id, config, daemon)
 
         if config.family == ImageUpscaleModelFamily.LDSR:
-            from .ldsr import LdsrImageUpscaleTaskService
-            return LdsrImageUpscaleTaskService(id, config, daemon)
+            from .ldsr import LdsrImageUpscaleTaskDriver
+            return LdsrImageUpscaleTaskDriver(id, config, daemon)
 
         if config.family == ImageUpscaleModelFamily.SWINIR:
-            from .swinir import SwinIRImageUpscaleTaskService
-            return SwinIRImageUpscaleTaskService(id, config, daemon)
+            from .swinir import SwinIRImageUpscaleTaskDriver
+            return SwinIRImageUpscaleTaskDriver(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

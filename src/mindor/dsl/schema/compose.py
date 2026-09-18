@@ -25,57 +25,57 @@ class ComposeConfig(BaseModel):
     @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):
         if "components" not in values:
-            component_values = values.pop("component", None)
-            if component_values:
-                values["components"] = [ component_values ]
+            component = values.pop("component", None)
+            if component:
+                values["components"] = [ component ]
         return values
 
     @model_validator(mode="before")
     def inflate_single_listener(cls, values: Dict[str, Any]):
         if "listeners" not in values:
-            listener_values = values.pop("listener", None)
-            if listener_values:
-                values["listeners"] = [ listener_values ]
+            listener = values.pop("listener", None)
+            if listener:
+                values["listeners"] = [ listener ]
         return values
 
     @model_validator(mode="before")
     def inflate_single_gateway(cls, values: Dict[str, Any]):
         if "gateways" not in values:
-            gateways_values = values.pop("gateway", None)
-            if gateways_values:
-                values["gateways"] = [ gateways_values ]
+            gateway = values.pop("gateway", None)
+            if gateway:
+                values["gateways"] = [ gateway ]
         return values
 
     @model_validator(mode="before")
     def inflate_single_workflow(cls, values: Dict[str, Any]):
         if "workflows" not in values:
-            workflow_values = values.pop("workflow", None)
-            if workflow_values:
-                values["workflows"] = [ workflow_values ]
+            workflow = values.pop("workflow", None)
+            if workflow:
+                values["workflows"] = [ workflow ]
         return values
 
     @model_validator(mode="before")
     def inflate_single_system(cls, values: Dict[str, Any]):
         if "systems" not in values:
-            system_values = values.pop("system", None)
-            if system_values:
-                values["systems"] = [ system_values ]
+            system = values.pop("system", None)
+            if system:
+                values["systems"] = [ system ]
         return values
 
     @model_validator(mode="before")
     def inflate_single_tracer(cls, values: Dict[str, Any]):
         if "tracers" not in values:
-            tracer_values = values.pop("tracer", None)
-            if tracer_values:
-                values["tracers"] = [ tracer_values ]
+            tracer = values.pop("tracer", None)
+            if tracer:
+                values["tracers"] = [ tracer ]
         return values
 
     @model_validator(mode="before")
     def inflate_single_logger(cls, values: Dict[str, Any]):
         if "loggers" not in values:
-            loggers_values = values.pop("logger", None)
-            if loggers_values:
-                values["loggers"] = [ loggers_values ]
+            logger = values.pop("logger", None)
+            if logger:
+                values["loggers"] = [ logger ]
         return values
 
     @model_validator(mode="before")

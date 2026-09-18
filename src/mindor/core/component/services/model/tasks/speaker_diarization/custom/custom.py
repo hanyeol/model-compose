@@ -1,11 +1,11 @@
 from mindor.dsl.schema.component import ModelComponentConfig, SpeakerDiarizationModelFamily
-from ....base import ModelTaskType, ModelDriver, register_model_task_service
+from ....base import ModelTaskType, ModelDriverType, register_model_task_driver
 
-@register_model_task_service(ModelTaskType.SPEAKER_DIARIZATION, ModelDriver.CUSTOM)
-class CustomSpeakerDiarizationTaskService:
+@register_model_task_driver(ModelTaskType.SPEAKER_DIARIZATION, ModelDriverType.CUSTOM)
+class CustomSpeakerDiarizationTaskDriver:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == SpeakerDiarizationModelFamily.PYANNOTE:
-            from .pyannote import PyannoteSpeakerDiarizationTaskService
-            return PyannoteSpeakerDiarizationTaskService(id, config, daemon)
+            from .pyannote import PyannoteSpeakerDiarizationTaskDriver
+            return PyannoteSpeakerDiarizationTaskDriver(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

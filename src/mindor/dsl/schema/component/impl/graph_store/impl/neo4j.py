@@ -2,10 +2,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.action import Neo4jGraphStoreActionConfig
-from .common import CommonGraphStoreComponentConfig, GraphStoreDriver
+from .common import CommonGraphStoreComponentConfig, GraphStoreDriverType
 
 class Neo4jGraphStoreComponentConfig(CommonGraphStoreComponentConfig):
-    driver: Literal[GraphStoreDriver.NEO4J]
+    driver: Literal[GraphStoreDriverType.NEO4J]
     url: Optional[str] = Field(default=None, description="Full Neo4j connection URL (e.g., bolt://host:port or neo4j://host:port). Mutually exclusive with `host`.")
     host: str = Field(default="localhost", description="Hostname or IP address of the Neo4j server.")
     port: int = Field(default=7687, ge=1, le=65535, description="TCP port the Neo4j server listens on.")

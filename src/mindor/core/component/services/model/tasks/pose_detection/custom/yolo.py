@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, YoloPoseDetectionModelAc
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import PoseDetectionTaskAction
 from ..utils import openpose, coco
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
 
         return { "x": int(x1), "y": int(y1), "width": int(x2 - x1), "height": int(y2 - y1) }
 
-class YoloPoseDetectionTaskService(ModelTaskService):
+class YoloPoseDetectionTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

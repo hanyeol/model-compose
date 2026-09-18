@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriver
+from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriverType
 from mindor.dsl.schema.action import ImageAnalyzerActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class ImageAnalyzerService(AsyncService):
+class ImageAnalyzerDriver(ComponentDriver):
     def __init__(self, id: str, config: ImageAnalyzerComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class ImageAnalyzerService(AsyncService):
     async def _run(self, action: ImageAnalyzerActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_image_analyzer_service(driver: ImageAnalyzerDriver):
-    def decorator(cls: Type[ImageAnalyzerService]) -> Type[ImageAnalyzerService]:
-        ImageAnalyzerServiceRegistry[driver] = cls
+def register_image_analyzer_driver(driver: ImageAnalyzerDriverType):
+    def decorator(cls: Type[ImageAnalyzerDriver]) -> Type[ImageAnalyzerDriver]:
+        ImageAnalyzerDriverRegistry[driver] = cls
         return cls
     return decorator
 
-ImageAnalyzerServiceRegistry: Dict[ImageAnalyzerDriver, Type[ImageAnalyzerService]] = {}
+ImageAnalyzerDriverRegistry: Dict[ImageAnalyzerDriverType, Type[ImageAnalyzerDriver]] = {}

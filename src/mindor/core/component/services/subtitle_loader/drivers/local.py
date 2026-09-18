@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from typing import Optional, Tuple, Dict, List, Any
-from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriver
+from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriverType
 from mindor.dsl.schema.action import SubtitleLoaderActionConfig, LocalSubtitleLoaderActionConfig
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.resolver import resolve_stream_resource
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import SubtitleLoaderService, register_subtitle_loader_service
+from ..base import SubtitleLoaderDriver, register_subtitle_loader_driver
 from ..base import ComponentActionContext
 from .common import SubtitleLoaderAction
 import asyncio, os
@@ -121,8 +121,8 @@ class LocalSubtitleLoaderAction(SubtitleLoaderAction):
             "format":    subtitles.format,
         }
 
-@register_subtitle_loader_service(SubtitleLoaderDriver.LOCAL)
-class LocalSubtitleLoaderService(SubtitleLoaderService):
+@register_subtitle_loader_driver(SubtitleLoaderDriverType.LOCAL)
+class LocalSubtitleLoaderService(SubtitleLoaderDriver):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

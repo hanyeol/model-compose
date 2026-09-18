@@ -4,7 +4,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import MuseTalkLipSyncModelActionConfig
 from ..common import CommonLipSyncModelComponentConfig
 from .common import LipSyncModelFamily
-from ....common import ModelDriver, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
 
 class MuseTalkPreset(str, Enum):
     V1  = "v1"
@@ -29,7 +29,7 @@ MuseTalkLipSyncModelConfig = Annotated[
 ]
 
 class MuseTalkLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[LipSyncModelFamily.MUSETALK]
     preset: MuseTalkPreset = Field(default=MuseTalkPreset.V15, description="MuseTalk release: v1 (bbox_shift tuning) or v15 (default; parsing-based blending).")
     model: MuseTalkLipSyncModelConfig = Field(..., description="MuseTalk UNet checkpoint — a HuggingFace repo ID or a local directory.")

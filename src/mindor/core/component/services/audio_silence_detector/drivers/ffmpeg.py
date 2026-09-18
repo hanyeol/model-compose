@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
-from mindor.dsl.schema.component import AudioSilenceDetectorComponentConfig, AudioSilenceDetectorDriver
+from mindor.dsl.schema.component import AudioSilenceDetectorComponentConfig, AudioSilenceDetectorDriverType
 from mindor.dsl.schema.action import AudioSilenceDetectorActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -9,7 +9,7 @@ from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg import values as ffmpeg_values
 from mindor.core.utils.shell import run_subprocess
 from ....action.media import MediaInputPathResolver
-from ..base import AudioSilenceDetectorService, register_audio_silence_detector_service
+from ..base import AudioSilenceDetectorDriver, register_audio_silence_detector_driver
 from ..base import ComponentActionContext
 from .common import AudioSilenceDetectorAction
 import asyncio, os, re
@@ -127,8 +127,8 @@ class FFmpegAudioSilenceDetectorAction(AudioSilenceDetectorAction):
 
         return regions
 
-@register_audio_silence_detector_service(AudioSilenceDetectorDriver.FFMPEG)
-class FFmpegAudioSilenceDetectorService(AudioSilenceDetectorService):
+@register_audio_silence_detector_driver(AudioSilenceDetectorDriverType.FFMPEG)
+class FFmpegAudioSilenceDetectorService(AudioSilenceDetectorDriver):
     def __init__(self, id: str, config: AudioSilenceDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

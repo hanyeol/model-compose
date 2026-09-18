@@ -6,8 +6,8 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import VllmModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import VllmModelTaskDriver, ComponentActionContext
 from .common import ImageTextToTextTaskAction
 from PIL import Image as PILImage
 import asyncio, ulid
@@ -197,7 +197,7 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return messages
 
-@register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.VLLM)
-class VllmImageTextToTextTaskService(VllmModelTaskService):
+@register_model_task_driver(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriverType.VLLM)
+class VllmImageTextToTextTaskDriver(VllmModelTaskDriver):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await VllmImageTextToTextTaskAction(action, self.engine, self.tokenizer).run(context)

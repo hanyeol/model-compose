@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from ...common import CommonComponentConfig, ComponentType
 
-class ShellDriver(str, Enum):
+class ShellDriverType(str, Enum):
     LOCAL = "local"
     SSH   = "ssh"
 
@@ -32,7 +32,7 @@ class ShellManageConfig(BaseModel):
 
 class CommonShellComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SHELL]
-    driver: ShellDriver = Field(default=ShellDriver.LOCAL, description="Backend implementation used to execute shell commands.")
+    driver: ShellDriverType = Field(default=ShellDriverType.LOCAL, description="Backend implementation used to execute shell commands.")
     manage: ShellManageConfig = Field(default_factory=ShellManageConfig, description="Lifecycle scripts and environment for this shell component.")
     base_dir: Optional[str] = Field(default=None, description="Base working directory for every action in this component.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables exported for every action in this component.")

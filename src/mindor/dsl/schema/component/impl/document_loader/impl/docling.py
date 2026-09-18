@@ -1,10 +1,10 @@
 from typing import Literal, Optional, List
 from pydantic import Field
 from mindor.dsl.schema.action import DoclingDocumentLoaderActionConfig
-from .common import CommonDocumentLoaderComponentConfig, DocumentLoaderDriver
+from .common import CommonDocumentLoaderComponentConfig, DocumentLoaderDriverType
 
 class DoclingDocumentLoaderComponentConfig(CommonDocumentLoaderComponentConfig):
-    driver: Literal[DocumentLoaderDriver.DOCLING]
+    driver: Literal[DocumentLoaderDriverType.DOCLING]
     backend: Optional[Literal[ "pypdfium2" ]] = Field(default=None, description="Override the PDF backend used by docling; 'pypdfium2' is faster on text-layer PDFs but skips OCR.")
     enable_ocr: bool = Field(default=False, description="Whether to run OCR on scanned or image-based pages.")
     ocr_engine: Optional[Literal[ "easyocr", "tesseract", "rapidocr", "ocrmac" ]] = Field(default=None, description="OCR engine identifier; docling default (easyocr) is used when omitted.")

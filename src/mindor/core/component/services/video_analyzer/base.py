@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import VideoAnalyzerComponentConfig, VideoAnalyzerDriver
+from mindor.dsl.schema.component import VideoAnalyzerComponentConfig, VideoAnalyzerDriverType
 from mindor.dsl.schema.action import VideoAnalyzerActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VideoAnalyzerService(AsyncService):
+class VideoAnalyzerDriver(ComponentDriver):
     def __init__(self, id: str, config: VideoAnalyzerComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VideoAnalyzerService(AsyncService):
     async def _run(self, action: VideoAnalyzerActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_video_analyzer_service(driver: VideoAnalyzerDriver):
-    def decorator(cls: Type[VideoAnalyzerService]) -> Type[VideoAnalyzerService]:
-        VideoAnalyzerServiceRegistry[driver] = cls
+def register_video_analyzer_driver(driver: VideoAnalyzerDriverType):
+    def decorator(cls: Type[VideoAnalyzerDriver]) -> Type[VideoAnalyzerDriver]:
+        VideoAnalyzerDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VideoAnalyzerServiceRegistry: Dict[VideoAnalyzerDriver, Type[VideoAnalyzerService]] = {}
+VideoAnalyzerDriverRegistry: Dict[VideoAnalyzerDriverType, Type[VideoAnalyzerDriver]] = {}

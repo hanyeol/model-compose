@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import DataQueueComponentConfig, DataQueueDriver
+from mindor.dsl.schema.component import DataQueueComponentConfig, DataQueueDriverType
 from mindor.dsl.schema.action import DataQueueActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class DataQueueService(AsyncService):
+class DataQueueDriver(ComponentDriver):
     def __init__(self, id: str, config: DataQueueComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class DataQueueService(AsyncService):
     async def _run(self, action: DataQueueActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_data_queue_service(driver: DataQueueDriver):
-    def decorator(cls: Type[DataQueueService]) -> Type[DataQueueService]:
-        DataQueueServiceRegistry[driver] = cls
+def register_data_queue_driver(driver: DataQueueDriverType):
+    def decorator(cls: Type[DataQueueDriver]) -> Type[DataQueueDriver]:
+        DataQueueDriverRegistry[driver] = cls
         return cls
     return decorator
 
-DataQueueServiceRegistry: Dict[DataQueueDriver, Type[DataQueueService]] = {}
+DataQueueDriverRegistry: Dict[DataQueueDriverType, Type[DataQueueDriver]] = {}

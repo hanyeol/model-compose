@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.soundfile.audio import load_pcm_samples
 from ....action.media import MediaInputPathResolver
-from ..base import MusicSegmentDetectorService, MusicSegmentDetectorDriver, register_music_segment_detector_service
+from ..base import MusicSegmentDetectorDriver, MusicSegmentDetectorDriverType, register_music_segment_detector_driver
 from ..base import ComponentActionContext
 from .common import MusicSegmentDetectorAction
 import os
@@ -533,8 +533,8 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
 
         return letters
 
-@register_music_segment_detector_service(MusicSegmentDetectorDriver.NATIVE)
-class NativeMusicSegmentDetectorService(MusicSegmentDetectorService):
+@register_music_segment_detector_driver(MusicSegmentDetectorDriverType.NATIVE)
+class NativeMusicSegmentDetectorService(MusicSegmentDetectorDriver):
     def __init__(self, id: str, config: MusicSegmentDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

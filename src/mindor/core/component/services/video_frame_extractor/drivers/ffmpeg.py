@@ -12,7 +12,7 @@ from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
+from ..base import VideoFrameExtractorDriver, VideoFrameExtractorDriverType, register_video_frame_extractor_driver
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from PIL import Image as PILImage
@@ -366,8 +366,8 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         return await load_image_from_bytes(buffer[start:end]), buffer[end:]
 
-@register_video_frame_extractor_service(VideoFrameExtractorDriver.FFMPEG)
-class FFmpegVideoFrameExtractorService(VideoFrameExtractorService):
+@register_video_frame_extractor_driver(VideoFrameExtractorDriverType.FFMPEG)
+class FFmpegVideoFrameExtractorService(VideoFrameExtractorDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

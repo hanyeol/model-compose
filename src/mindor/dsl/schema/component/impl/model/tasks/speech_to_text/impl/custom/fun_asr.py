@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.action import FunAsrSpeechToTextModelActionConfig
 from ..common import CommonSpeechToTextModelComponentConfig
 from .common import SpeechToTextModelFamily
-from ....common import ModelDriver, ModelConfig
+from ....common import ModelDriverType, ModelConfig
 
 _DEFAULT_REPOSITORY         = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
 _DEFAULT_VAD_MODEL          = "fsmn-vad"
@@ -17,7 +17,7 @@ class FunAsrPunctuationConfig(BaseModel):
     model: str = Field(default=_DEFAULT_PUNCTUATION_MODEL, description="Punctuation model identifier recognized by FunASR (e.g., ct-punc).")
 
 class FunAsrSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[SpeechToTextModelFamily.FUN_ASR]
     model: ModelConfig = Field(..., description="Model identifier — a HuggingFace repo ID or a local path.")
     inverse_text_normalization: bool = Field(default=True, description="Whether to convert spoken forms to written forms (e.g., \"twenty five\" -> \"25\").")

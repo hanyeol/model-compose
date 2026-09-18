@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Optional, List, Dict, Tuple, Any
 from collections.abc import AsyncIterable
-from mindor.dsl.schema.component import VideoPlaybackComponentConfig, VideoPlaybackDriver
+from mindor.dsl.schema.component import VideoPlaybackComponentConfig, VideoPlaybackDriverType
 from mindor.dsl.schema.action import VideoPlaybackActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoPlaybackService, register_video_playback_service
+from ..base import VideoPlaybackDriver, register_video_playback_driver
 from ..base import ComponentActionContext
 from .common import VideoPlaybackAction
 import asyncio, os
@@ -156,8 +156,8 @@ class FFplayVideoPlaybackAction(VideoPlaybackAction):
         except (ValueError, AttributeError) as e:
             raise ValueError(f"Invalid window_size {size!r}; expected 'WIDTHxHEIGHT' (e.g. '1280x720')") from e
 
-@register_video_playback_service(VideoPlaybackDriver.FFPLAY)
-class FFplayVideoPlaybackService(VideoPlaybackService):
+@register_video_playback_driver(VideoPlaybackDriverType.FFPLAY)
+class FFplayVideoPlaybackService(VideoPlaybackDriver):
     def __init__(self, id: str, config: VideoPlaybackComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

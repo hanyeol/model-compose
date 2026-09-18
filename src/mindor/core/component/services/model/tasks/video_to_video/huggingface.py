@@ -10,9 +10,9 @@ from mindor.core.foundation.streaming.video import VideoStreamResource, encode_f
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
+from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskDriver
 from .common import VideoToVideoTaskAction
 from PIL import Image as PILImage
 import asyncio
@@ -162,8 +162,8 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         return batch_frames, batch_fps
 
-@register_model_task_service(ModelTaskType.VIDEO_TO_VIDEO, ModelDriver.HUGGINGFACE)
-class HuggingfaceVideoToVideoTaskService(HuggingfaceDiffusionPipelineTaskService[None]):
+@register_model_task_driver(ModelTaskType.VIDEO_TO_VIDEO, ModelDriverType.HUGGINGFACE)
+class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[None]):
     def _get_setup_requirements(self) -> List[str]:
         return [
             *super()._get_setup_requirements(),

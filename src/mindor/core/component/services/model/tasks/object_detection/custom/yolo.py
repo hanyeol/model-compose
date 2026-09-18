@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloObjectDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import ObjectDetectionTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -114,7 +114,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
 
         return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
-class YoloObjectDetectionTaskService(ModelTaskService):
+class YoloObjectDetectionTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

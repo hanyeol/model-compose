@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, HuggingfaceModelConfig
 from mindor.core.logger import logging
-from .common import ModelTokenizerTaskService
+from .common import ModelTokenizerTaskDriver
 
-class HuggingfaceModelTokenizerTaskService(ModelTokenizerTaskService):
+class HuggingfaceModelTokenizerTaskDriver(ModelTokenizerTaskDriver):
     def __init__(self, id: str, config: ModelTokenizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

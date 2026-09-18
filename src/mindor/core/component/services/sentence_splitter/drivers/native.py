@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import Optional, Iterator, Tuple, Any
-from mindor.dsl.schema.component import SentenceSplitterComponentConfig, SentenceSplitterDriver
+from mindor.dsl.schema.component import SentenceSplitterComponentConfig, SentenceSplitterDriverType
 from mindor.dsl.schema.action import SentenceSplitterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import SentenceSplitterService, register_sentence_splitter_service
+from ..base import SentenceSplitterDriver, register_sentence_splitter_driver
 from ..base import ComponentActionContext
 from .common import SentenceSplitterAction, StreamingSentenceSplitter
 
@@ -163,8 +163,8 @@ class NativeSentenceSplitterAction(SentenceSplitterAction):
 
         return await self._run_in_executor(_create)
 
-@register_sentence_splitter_service(SentenceSplitterDriver.NATIVE)
-class NativeSentenceSplitterService(SentenceSplitterService):
+@register_sentence_splitter_driver(SentenceSplitterDriverType.NATIVE)
+class NativeSentenceSplitterService(SentenceSplitterDriver):
     def __init__(self, id: str, config: SentenceSplitterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

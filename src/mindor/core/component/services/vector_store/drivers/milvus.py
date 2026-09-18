@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionM
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import VectorStoreService, VectorStoreDriver, register_vector_store_service
+from ..base import VectorStoreDriver, VectorStoreDriverType, register_vector_store_driver
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
 
@@ -290,8 +290,8 @@ class MilvusVectorStoreAction(VectorStoreAction):
 
         return params
 
-@register_vector_store_service(VectorStoreDriver.MILVUS)
-class MilvusVectorStoreService(VectorStoreService):
+@register_vector_store_driver(VectorStoreDriverType.MILVUS)
+class MilvusVectorStoreService(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

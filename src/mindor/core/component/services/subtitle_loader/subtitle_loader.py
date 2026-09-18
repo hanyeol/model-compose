@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriver
+from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import SubtitleLoaderService, SubtitleLoaderServiceRegistry
+from .base import SubtitleLoaderDriver, SubtitleLoaderDriverRegistry
 import importlib
 
 @register_component(ComponentType.SUBTITLE_LOADER)
@@ -17,24 +17,24 @@ class SubtitleLoaderComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: SubtitleLoaderService = self._create_service(self.config.driver)
+        self.driver: SubtitleLoaderDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: SubtitleLoaderDriver) -> SubtitleLoaderService:
+    def _create_driver(self, driver: SubtitleLoaderDriverType) -> SubtitleLoaderDriver:
         try:
-            if driver not in SubtitleLoaderServiceRegistry:
+            if driver not in SubtitleLoaderDriverRegistry:
                 self._load_driver_module(driver)
-            return SubtitleLoaderServiceRegistry[driver](self.id, self.config, self.daemon)
+            return SubtitleLoaderDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported subtitle loader driver: {driver}")
 
-    def _load_driver_module(self, driver: SubtitleLoaderDriver) -> None:
+    def _load_driver_module(self, driver: SubtitleLoaderDriverType) -> None:
         """Import the module that registers the given subtitle loader driver.
 
-        Convention: a driver "foo-bar" (SubtitleLoaderDriver.value) maps to
+        Convention: a driver "foo-bar" (SubtitleLoaderDriverType.value) maps to
         mindor.core.component.services.subtitle_loader.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_subtitle_loader_service
-        decorator, populating SubtitleLoaderServiceRegistry.
+        Importing the module triggers its @register_subtitle_loader_driver
+        decorator, populating SubtitleLoaderDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -44,20 +44,20 @@ class SubtitleLoaderComponent(ComponentService):
             raise ValueError(f"Unsupported subtitle loader driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

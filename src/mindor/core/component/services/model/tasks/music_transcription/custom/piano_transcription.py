@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.files import get_temporary_path
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import MusicTranscriptionTaskAction, MusicTranscriptNotes
 import os
 
@@ -158,7 +158,7 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
 
         return result
 
-class PianoTranscriptionMusicTranscriptionTaskService(ModelTaskService):
+class PianoTranscriptionMusicTranscriptionTaskDriver(ModelTaskDriver):
     config: PianoTranscriptionMusicTranscriptionModelComponentConfig
 
     def __init__(self, id: str, config: PianoTranscriptionMusicTranscriptionModelComponentConfig, daemon: bool):

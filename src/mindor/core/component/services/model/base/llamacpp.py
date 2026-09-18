@@ -6,12 +6,12 @@ from pydantic import BaseModel
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.component.impl.model.tasks.base.llamacpp import LlamaCppEngineOptionsConfig
 from mindor.core.logger import logging
-from .common import ModelTaskService
+from .common import ModelTaskDriver
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
 
-class LlamaCppModelTaskService(ModelTaskService):
+class LlamaCppModelTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

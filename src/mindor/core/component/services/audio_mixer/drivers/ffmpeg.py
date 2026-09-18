@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, List, Dict, Callable, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import AudioMixerComponentConfig, AudioMixerDriver
+from mindor.dsl.schema.component import AudioMixerComponentConfig, AudioMixerDriverType
 from mindor.dsl.schema.action import AudioMixerActionConfig, AudioMixerOverlayDurationMode, AudioOverlayPlacement
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import AudioEncoderParams
@@ -19,7 +19,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import AudioMixerService, register_audio_mixer_service
+from ..base import AudioMixerDriver, register_audio_mixer_driver
 from ..base import ComponentActionContext
 from .common import AudioMixerAction
 import asyncio, os
@@ -416,8 +416,8 @@ class FFmpegAudioMixerAction(AudioMixerAction):
 
         return get_audio_codec_for_format(format)
 
-@register_audio_mixer_service(AudioMixerDriver.FFMPEG)
-class FFmpegAudioMixerService(AudioMixerService):
+@register_audio_mixer_driver(AudioMixerDriverType.FFMPEG)
+class FFmpegAudioMixerService(AudioMixerDriver):
     def __init__(self, id: str, config: AudioMixerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

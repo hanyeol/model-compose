@@ -13,6 +13,15 @@ class AsyncService(ABC):
         self.daemon_loop: Optional[asyncio.AbstractEventLoop] = None
         self.daemon_task: Optional[asyncio.Task] = None
 
+    def get_declared_requirements(self) -> List[str]:
+        """Package specs this service declares for static analysis.
+
+        Distinct from ``_get_setup_requirements`` (which the setup pipeline
+        consumes to install packages). Subclasses that delegate to inner
+        services should override this to include the delegates' requirements.
+        """
+        return list(self._get_setup_requirements() or [])
+
     async def setup(self) -> None:
         dependencies = self._get_setup_requirements()
 

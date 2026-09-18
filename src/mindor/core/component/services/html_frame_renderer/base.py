@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING
 from typing import Type, Dict, Any
 from abc import abstractmethod
 from pathlib import Path
-from mindor.dsl.schema.component import HtmlFrameRendererComponentConfig, HtmlFrameRendererDriver
+from mindor.dsl.schema.component import HtmlFrameRendererComponentConfig, HtmlFrameRendererDriverType
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from mindor.core.utils.files import save_string_to_temporary_file
 from mindor.core.utils.url import UrlResource, is_http_url
 from ...context import ComponentActionContext
@@ -14,7 +15,7 @@ from ...context import ComponentActionContext
 if TYPE_CHECKING:
     from .drivers.common import HtmlFrameRendererSession
 
-class HtmlFrameRendererService(AsyncService):
+class HtmlFrameRendererDriver(ComponentDriver):
     def __init__(self, id: str, config: HtmlFrameRendererComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -79,10 +80,10 @@ class HtmlFrameRendererService(AsyncService):
 
         return UrlResource(source)
 
-def register_html_frame_renderer_service(driver: HtmlFrameRendererDriver):
-    def decorator(cls: Type[HtmlFrameRendererService]) -> Type[HtmlFrameRendererService]:
-        HtmlFrameRendererServiceRegistry[driver] = cls
+def register_html_frame_renderer_driver(driver: HtmlFrameRendererDriverType):
+    def decorator(cls: Type[HtmlFrameRendererDriver]) -> Type[HtmlFrameRendererDriver]:
+        HtmlFrameRendererDriverRegistry[driver] = cls
         return cls
     return decorator
 
-HtmlFrameRendererServiceRegistry: Dict[HtmlFrameRendererDriver, Type[HtmlFrameRendererService]] = {}
+HtmlFrameRendererDriverRegistry: Dict[HtmlFrameRendererDriverType, Type[HtmlFrameRendererDriver]] = {}

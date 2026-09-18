@@ -10,9 +10,9 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from ...base.huggingface.cancellation import create_cancellation_criteria
 from .common import SpeechToTextTaskAction
@@ -270,8 +270,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return StoppingCriteriaList(criteria) if criteria else None
 
-@register_model_task_service(ModelTaskType.SPEECH_TO_TEXT, ModelDriver.HUGGINGFACE)
-class HuggingfaceSpeechToTextTaskService(HuggingfaceMultimodalModelTaskService):
+@register_model_task_driver(ModelTaskType.SPEECH_TO_TEXT, ModelDriverType.HUGGINGFACE)
+class HuggingfaceSpeechToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch", "torchaudio"),

@@ -13,7 +13,7 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicGenerationTaskAction
 import os
 
@@ -219,7 +219,7 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
             if value is not None and key in conditioning_df.columns:
                 conditioning_df[key] = float(value)
 
-class MidiDdspMusicGenerationTaskService(ModelTaskService):
+class MidiDdspMusicGenerationTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

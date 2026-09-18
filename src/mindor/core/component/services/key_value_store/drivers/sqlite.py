@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import SqliteKeyValueStoreComponentConfig
 from mindor.dsl.schema.action import KeyValueStoreActionConfig, SqliteKeyValueStoreActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.sql import validate_identifier
-from ..base import KeyValueStoreService, KeyValueStoreDriver, register_kv_store_service
+from ..base import KeyValueStoreDriver, KeyValueStoreDriverType, register_kv_store_service
 from ..base import ComponentActionContext
 from .common import KeyValueStoreAction
 import json, os, time
@@ -153,8 +153,8 @@ class SqliteKeyValueStoreAction(KeyValueStoreAction):
         except (json.JSONDecodeError, TypeError):
             return value
 
-@register_kv_store_service(KeyValueStoreDriver.SQLITE)
-class SqliteKeyValueStoreService(KeyValueStoreService):
+@register_kv_store_service(KeyValueStoreDriverType.SQLITE)
+class SqliteKeyValueStoreService(KeyValueStoreDriver):
     def __init__(self, id: str, config: SqliteKeyValueStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

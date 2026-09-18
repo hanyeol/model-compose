@@ -1,11 +1,11 @@
 from typing import Optional, Dict, List, Callable, Awaitable, Any
 from .common import VideoAudioEncodingParams
-from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriver
+from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriverType
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.utils.transport.cdp_client import CdpClient
-from ..base import WebBrowserService, register_web_browser_service
+from ..base import WebBrowserDriver, register_web_browser_driver
 from .common import WebBrowserSession
 from .utils.chrome import VideoRecorder, PageAdapter
 from PIL import Image as PILImage
@@ -433,8 +433,8 @@ class ChromeBrowserSession(WebBrowserSession):
 
         return f"window.scrollBy({x or 0}, {y or 0})"
 
-@register_web_browser_service(WebBrowserDriver.CHROME)
-class ChromeWebBrowserService(WebBrowserService):
+@register_web_browser_driver(WebBrowserDriverType.CHROME)
+class ChromeWebBrowserService(WebBrowserDriver):
     config: ChromeWebBrowserComponentConfig
 
     def __init__(self, id: str, config: ChromeWebBrowserComponentConfig, daemon: bool):

@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import SearchEngineComponentConfig, SearchEngineDriver
+from mindor.dsl.schema.component import SearchEngineComponentConfig, SearchEngineDriverType
 from mindor.dsl.schema.action import SearchEngineActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class SearchEngineService(AsyncService):
+class SearchEngineDriver(ComponentDriver):
     def __init__(self, id: str, config: SearchEngineComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class SearchEngineService(AsyncService):
     async def _run(self, action: SearchEngineActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_search_engine_service(driver: SearchEngineDriver):
-    def decorator(cls: Type[SearchEngineService]) -> Type[SearchEngineService]:
-        SearchEngineServiceRegistry[driver] = cls
+def register_search_engine_driver(driver: SearchEngineDriverType):
+    def decorator(cls: Type[SearchEngineDriver]) -> Type[SearchEngineDriver]:
+        SearchEngineDriverRegistry[driver] = cls
         return cls
     return decorator
 
-SearchEngineServiceRegistry: Dict[SearchEngineDriver, Type[SearchEngineService]] = {}
+SearchEngineDriverRegistry: Dict[SearchEngineDriverType, Type[SearchEngineDriver]] = {}

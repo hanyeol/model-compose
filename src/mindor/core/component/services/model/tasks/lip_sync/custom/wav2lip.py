@@ -17,7 +17,7 @@ from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import LipSyncTaskAction
 import os, sys, tempfile, importlib, importlib.util, subprocess
 
@@ -387,7 +387,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
             stderr=subprocess.DEVNULL,
         )
 
-class Wav2LipLipSyncTaskService(ModelTaskService):
+class Wav2LipLipSyncTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

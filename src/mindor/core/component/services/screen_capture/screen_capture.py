@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import ScreenCaptureComponentConfig, ScreenCaptureDriver
+from mindor.dsl.schema.component import ScreenCaptureComponentConfig, ScreenCaptureDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import ScreenCaptureService, ScreenCaptureServiceRegistry
+from .base import ScreenCaptureDriver, ScreenCaptureDriverRegistry
 import importlib
 
 @register_component(ComponentType.SCREEN_CAPTURE)
@@ -17,24 +17,24 @@ class ScreenCaptureComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: ScreenCaptureService = self._create_service(self.config.driver)
+        self.driver: ScreenCaptureDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: ScreenCaptureDriver) -> ScreenCaptureService:
+    def _create_driver(self, driver: ScreenCaptureDriverType) -> ScreenCaptureDriver:
         try:
-            if driver not in ScreenCaptureServiceRegistry:
+            if driver not in ScreenCaptureDriverRegistry:
                 self._load_driver_module(driver)
-            return ScreenCaptureServiceRegistry[driver](self.id, self.config, self.daemon)
+            return ScreenCaptureDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported screen capture driver: {driver}")
 
-    def _load_driver_module(self, driver: ScreenCaptureDriver) -> None:
+    def _load_driver_module(self, driver: ScreenCaptureDriverType) -> None:
         """Import the module that registers the given screen capture driver.
 
-        Convention: a driver "foo-bar" (ScreenCaptureDriver.value) maps to
+        Convention: a driver "foo-bar" (ScreenCaptureDriverType.value) maps to
         mindor.core.component.services.screen_capture.drivers.foo_bar —
         either a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_screen_capture_service
-        decorator, populating ScreenCaptureServiceRegistry.
+        Importing the module triggers its @register_screen_capture_driver
+        decorator, populating ScreenCaptureDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -44,20 +44,20 @@ class ScreenCaptureComponent(ComponentService):
             raise ValueError(f"Unsupported screen capture driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

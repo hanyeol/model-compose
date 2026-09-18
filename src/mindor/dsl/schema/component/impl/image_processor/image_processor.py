@@ -13,4 +13,4 @@ ImageProcessorComponentConfig = Annotated[
 @component_validator(ComponentType.IMAGE_PROCESSOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = ImageProcessorDriver.NATIVE
+        values["driver"] = ImageProcessorDriverType.NATIVE

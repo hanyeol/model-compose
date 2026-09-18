@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import Field
 from ...common import CommonComponentConfig, ComponentType
 
-class ScreenCaptureDriver(str, Enum):
+class ScreenCaptureDriverType(str, Enum):
     FFMPEG = "ffmpeg"
 
 class CommonScreenCaptureComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SCREEN_CAPTURE]
-    driver: ScreenCaptureDriver = Field(..., description="Backend implementation used to capture screen frames.")
+    driver: ScreenCaptureDriverType = Field(..., description="Backend implementation used to capture screen frames.")

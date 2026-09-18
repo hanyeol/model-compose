@@ -14,4 +14,4 @@ AudioFeatureExtractorComponentConfig = Annotated[
 @component_validator(ComponentType.AUDIO_FEATURE_EXTRACTOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = AudioFeatureExtractorDriver.NATIVE
+        values["driver"] = AudioFeatureExtractorDriverType.NATIVE

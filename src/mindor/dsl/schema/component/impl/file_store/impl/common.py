@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
-class FileStoreDriver(str, Enum):
+class FileStoreDriverType(str, Enum):
     LOCAL       = "local"
     AWS_S3      = "aws-s3"
     GCP_STORAGE = "gcp-storage"
@@ -12,5 +12,5 @@ class FileStoreDriver(str, Enum):
 
 class CommonFileStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.FILE_STORE]
-    driver: FileStoreDriver = Field(default=FileStoreDriver.LOCAL, description="Backend implementation used for the file store.")
+    driver: FileStoreDriverType = Field(default=FileStoreDriverType.LOCAL, description="Backend implementation used for the file store.")
     base_path: Optional[str] = Field(default=None, description="Path or key prefix prepended to every action's target path.")

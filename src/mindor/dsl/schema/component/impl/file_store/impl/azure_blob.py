@@ -1,10 +1,10 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.action import AzureBlobFileStoreActionConfig
-from .common import CommonFileStoreComponentConfig, FileStoreDriver
+from .common import CommonFileStoreComponentConfig, FileStoreDriverType
 
 class AzureBlobFileStoreComponentConfig(CommonFileStoreComponentConfig):
-    driver: Literal[FileStoreDriver.AZURE_BLOB]
+    driver: Literal[FileStoreDriverType.AZURE_BLOB]
     container: str = Field(..., description="Name of the Azure Blob container that backs this store.")
     connection_string: Optional[str] = Field(default=None, description="Azure Storage connection string. Mutually exclusive with `account_name` and `account_key`.")
     account_name: Optional[str] = Field(default=None, description="Azure Storage account name. Used when `connection_string` is unset.")

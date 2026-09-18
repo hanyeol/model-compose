@@ -13,4 +13,4 @@ VectorProcessorComponentConfig = Annotated[
 @component_validator(ComponentType.VECTOR_PROCESSOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = VectorProcessorDriver.NATIVE
+        values["driver"] = VectorProcessorDriverType.NATIVE

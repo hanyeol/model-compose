@@ -8,9 +8,9 @@ from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActi
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.installer import remove_requirement
 from mindor.core.utils.streamer import SyncGeneratorStreamer
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from .common import ImageTextToTextTaskAction
 from PIL import Image as PILImage
@@ -210,8 +210,8 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return messages
 
-@register_model_task_service(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriver.HUGGINGFACE)
-class HuggingfaceImageTextToTextTaskService(HuggingfaceMultimodalModelTaskService):
+@register_model_task_driver(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriverType.HUGGINGFACE)
+class HuggingfaceImageTextToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_setup_requirements(self) -> List[str]:
         requirements = super()._get_setup_requirements()
 

@@ -7,7 +7,7 @@ from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig, GraphStoreActionMethod
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import GraphStoreService, GraphStoreDriver, register_graph_store_service
+from ..base import GraphStoreDriver, GraphStoreDriverType, register_graph_store_driver
 from ..base import ComponentActionContext
 from .common import GraphStoreAction
 
@@ -284,8 +284,8 @@ class ArangoDBGraphStoreAction(GraphStoreAction):
 
         return await self._run_in_executor(_traverse)
 
-@register_graph_store_service(GraphStoreDriver.ARANGODB)
-class ArangoDBGraphStoreService(GraphStoreService):
+@register_graph_store_driver(GraphStoreDriverType.ARANGODB)
+class ArangoDBGraphStoreService(GraphStoreDriver):
     def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

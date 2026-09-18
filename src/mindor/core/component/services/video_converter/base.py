@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import VideoConverterComponentConfig, VideoConverterDriver
+from mindor.dsl.schema.component import VideoConverterComponentConfig, VideoConverterDriverType
 from mindor.dsl.schema.action import VideoConverterActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VideoConverterService(AsyncService):
+class VideoConverterDriver(ComponentDriver):
     def __init__(self, id: str, config: VideoConverterComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VideoConverterService(AsyncService):
     async def _run(self, action: VideoConverterActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_video_converter_service(driver: VideoConverterDriver):
-    def decorator(cls: Type[VideoConverterService]) -> Type[VideoConverterService]:
-        VideoConverterServiceRegistry[driver] = cls
+def register_video_converter_driver(driver: VideoConverterDriverType):
+    def decorator(cls: Type[VideoConverterDriver]) -> Type[VideoConverterDriver]:
+        VideoConverterDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VideoConverterServiceRegistry: Dict[VideoConverterDriver, Type[VideoConverterService]] = {}
+VideoConverterDriverRegistry: Dict[VideoConverterDriverType, Type[VideoConverterDriver]] = {}

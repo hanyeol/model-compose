@@ -2,10 +2,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from pydantic import BaseModel, Field
 from pydantic import model_validator
 from mindor.dsl.schema.action import MilvusVectorStoreActionConfig
-from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
+from .common import CommonVectorStoreComponentConfig, VectorStoreDriverType
 
 class MilvusVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
-    driver: Literal[VectorStoreDriver.MILVUS]
+    driver: Literal[VectorStoreDriverType.MILVUS]
     endpoint: Optional[str] = Field(default=None, description="Full Milvus endpoint URL. Mutually exclusive with `host`.")
     host: str = Field(default="localhost", description="Hostname or IP address of the Milvus server.")
     port: int = Field(default=19530, ge=1, le=65535, description="TCP port the Milvus server listens on.")

@@ -4,7 +4,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import Wav2LipLipSyncModelActionConfig
 from ..common import CommonLipSyncModelComponentConfig
 from .common import LipSyncModelFamily
-from ....common import ModelDriver, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
 
 class Wav2LipPreset(str, Enum):
     WAV2LIP     = "wav2lip"
@@ -32,7 +32,7 @@ Wav2LipLipSyncModelConfig = Annotated[
 ]
 
 class Wav2LipLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[LipSyncModelFamily.WAV2LIP]
     preset: Wav2LipPreset = Field(default=Wav2LipPreset.WAV2LIP_GAN, description="Wav2Lip checkpoint variant to load.")
     model: Wav2LipLipSyncModelConfig = Field(..., description="Wav2Lip generator checkpoint — a local path or a HuggingFace repo ID.")

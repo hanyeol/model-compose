@@ -7,7 +7,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.audio import AudioStream, decode_pcm_to_waveform
 from mindor.core.utils.ffmpeg.audio import load_pcm_from_file, load_pcm_from_stream
 from ....action.media import MediaInputPathResolver
-from ..base import AudioSynchronizerService, AudioSynchronizerDriver, register_audio_synchronizer_service
+from ..base import AudioSynchronizerDriver, AudioSynchronizerDriverType, register_audio_synchronizer_driver
 from ..base import ComponentActionContext
 from .native import NativeAudioSynchronizerAction
 import os
@@ -35,8 +35,8 @@ class FFmpegAudioSynchronizerAction(NativeAudioSynchronizerAction):
                 except FileNotFoundError:
                     pass
 
-@register_audio_synchronizer_service(AudioSynchronizerDriver.FFMPEG)
-class FFmpegAudioSynchronizerService(AudioSynchronizerService):
+@register_audio_synchronizer_driver(AudioSynchronizerDriverType.FFMPEG)
+class FFmpegAudioSynchronizerService(AudioSynchronizerDriver):
     def __init__(self, id: str, config: AudioSynchronizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

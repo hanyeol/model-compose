@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from mindor.dsl.schema.component import ImageCompressorComponentConfig
 from mindor.dsl.schema.action import ImageCompressorActionConfig
 from mindor.core.utils.shell import run_command
-from ..base import ImageCompressorService, ImageCompressorDriver, register_image_compressor_service
+from ..base import ImageCompressorDriver, ImageCompressorDriverType, register_image_compressor_driver
 from ..base import ComponentActionContext
 from .common import ImageCompressorAction
 from PIL import Image as PILImage
@@ -52,8 +52,8 @@ class PngquantImageCompressorAction(ImageCompressorAction):
 
         return f"{min_quality if min_quality is not None else 0}-{max_quality if max_quality is not None else 100}"
 
-@register_image_compressor_service(ImageCompressorDriver.PNGQUANT)
-class PngquantImageCompressorService(ImageCompressorService):
+@register_image_compressor_driver(ImageCompressorDriverType.PNGQUANT)
+class PngquantImageCompressorService(ImageCompressorDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

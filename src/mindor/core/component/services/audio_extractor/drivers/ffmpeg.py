@@ -17,7 +17,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import AudioExtractorService, AudioExtractorDriver, register_audio_extractor_service
+from ..base import AudioExtractorDriver, AudioExtractorDriverType, register_audio_extractor_driver
 from ..base import ComponentActionContext
 from .common import AudioExtractorAction
 import asyncio, os
@@ -214,8 +214,8 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
 
         return get_audio_codec_for_format(format)
 
-@register_audio_extractor_service(AudioExtractorDriver.FFMPEG)
-class FFmpegAudioExtractorService(AudioExtractorService):
+@register_audio_extractor_driver(AudioExtractorDriverType.FFMPEG)
+class FFmpegAudioExtractorService(AudioExtractorDriver):
     def __init__(self, id: str, config: AudioExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

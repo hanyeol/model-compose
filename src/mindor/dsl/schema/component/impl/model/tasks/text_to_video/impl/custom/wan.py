@@ -3,10 +3,10 @@ from pydantic import Field
 from mindor.dsl.schema.action import TextToVideoModelActionConfig
 from ..common import CommonTextToVideoModelComponentConfig
 from .common import TextToVideoModelFamily, WanTextToVideoPreset
-from ....common import ModelDriver
+from ....common import ModelDriverType
 
 class WanTextToVideoModelComponentConfig(CommonTextToVideoModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TextToVideoModelFamily.WAN]
     preset: WanTextToVideoPreset = Field(default=WanTextToVideoPreset.T2V_A14B, description="Wan model preset selecting the checkpoint variant.")
     actions: List[TextToVideoModelActionConfig] = Field(default_factory=list, description="Actions this text-to-video component exposes to workflows.")

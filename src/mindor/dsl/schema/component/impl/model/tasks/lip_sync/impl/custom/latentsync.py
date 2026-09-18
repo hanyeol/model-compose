@@ -4,7 +4,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import LatentSyncLipSyncModelActionConfig
 from ..common import CommonLipSyncModelComponentConfig
 from .common import LipSyncModelFamily
-from ....common import ModelDriver, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
 
 class LatentSyncPreset(str, Enum):
     V15 = "1.5"
@@ -27,7 +27,7 @@ LatentSyncLipSyncModelConfig = Annotated[
 ]
 
 class LatentSyncLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[LipSyncModelFamily.LATENTSYNC]
     preset: LatentSyncPreset = Field(default=LatentSyncPreset.V16, description="LatentSync release: 1.5 (256×256) or 1.6 (512×512).")
     model: LatentSyncLipSyncModelConfig = Field(..., description="LatentSync UNet checkpoint — a HuggingFace repo ID or a local directory.")

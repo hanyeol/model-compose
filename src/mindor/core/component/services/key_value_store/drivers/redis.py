@@ -5,7 +5,7 @@ from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import RedisKeyValueStoreComponentConfig
 from mindor.dsl.schema.action import KeyValueStoreActionConfig, RedisKeyValueStoreActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import KeyValueStoreService, KeyValueStoreDriver, register_kv_store_service
+from ..base import KeyValueStoreDriver, KeyValueStoreDriverType, register_kv_store_service
 from ..base import ComponentActionContext
 from .common import KeyValueStoreAction
 import json
@@ -103,8 +103,8 @@ class RedisKeyValueStoreAction(KeyValueStoreAction):
 
         return value
 
-@register_kv_store_service(KeyValueStoreDriver.REDIS)
-class RedisKeyValueStoreService(KeyValueStoreService):
+@register_kv_store_service(KeyValueStoreDriverType.REDIS)
+class RedisKeyValueStoreService(KeyValueStoreDriver):
     def __init__(self, id: str, config: RedisKeyValueStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

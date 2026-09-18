@@ -3,13 +3,13 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
-from .base import HuggingfaceModelTaskService
+from .base import HuggingfaceModelTaskDriver
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, ProcessorMixin
     import torch
 
-class HuggingfaceMultimodalModelTaskService(HuggingfaceModelTaskService):
+class HuggingfaceMultimodalModelTaskDriver(HuggingfaceModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -1,8 +1,8 @@
 from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import MusicSegmentDetectorActionConfig
-from .common import CommonMusicSegmentDetectorComponentConfig, MusicSegmentDetectorDriver
+from .common import CommonMusicSegmentDetectorComponentConfig, MusicSegmentDetectorDriverType
 
 class NativeMusicSegmentDetectorComponentConfig(CommonMusicSegmentDetectorComponentConfig):
-    driver: Literal[MusicSegmentDetectorDriver.NATIVE]
+    driver: Literal[MusicSegmentDetectorDriverType.NATIVE]
     actions: List[MusicSegmentDetectorActionConfig] = Field(default_factory=list)

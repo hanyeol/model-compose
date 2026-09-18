@@ -1,8 +1,8 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from mindor.dsl.schema.action import LocalShellActionConfig
-from .common import CommonShellComponentConfig, ShellDriver
+from .common import CommonShellComponentConfig, ShellDriverType
 
 class LocalShellComponentConfig(CommonShellComponentConfig):
-    driver: Literal[ShellDriver.LOCAL]
+    driver: Literal[ShellDriverType.LOCAL]
     actions: List[LocalShellActionConfig] = Field(default_factory=list)

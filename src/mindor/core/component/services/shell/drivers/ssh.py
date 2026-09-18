@@ -13,7 +13,7 @@ from mindor.core.utils.transport.ssh_client import (
     SshPasswordAuthParams,
 )
 from mindor.core.logger import logging
-from ..base import ShellService, ShellDriver, register_shell_service
+from ..base import ShellDriver, ShellDriverType, register_shell_driver
 from ..base import ComponentActionContext
 from .common import ShellAction
 
@@ -83,8 +83,8 @@ class SshShellAction(ShellAction):
         ):
             yield line
 
-@register_shell_service(ShellDriver.SSH)
-class SshShellService(ShellService):
+@register_shell_driver(ShellDriverType.SSH)
+class SshShellService(ShellDriver):
     config: SshShellComponentConfig
 
     def __init__(self, id: str, config: SshShellComponentConfig, daemon: bool):

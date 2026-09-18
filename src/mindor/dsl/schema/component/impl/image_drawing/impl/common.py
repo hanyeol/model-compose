@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
-class ImageDrawingDriver(str, Enum):
+class ImageDrawingDriverType(str, Enum):
     NATIVE = "native"
 
 class CommonImageDrawingComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.IMAGE_DRAWING]
-    driver: ImageDrawingDriver = Field(..., description="Backend implementation used for image drawing.")
+    driver: ImageDrawingDriverType = Field(..., description="Backend implementation used for image drawing.")

@@ -9,13 +9,13 @@ from ...model.tasks.common import ModelConfig, ModelProvider
 class ModelTokenizerTaskType(str, Enum):
     TEXT = "text"
 
-class ModelTokenizerDriver(str, Enum):
+class ModelTokenizerDriverType(str, Enum):
     HUGGINGFACE = "huggingface"
 
 class CommonModelTokenizerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_TOKENIZER]
     task: ModelTokenizerTaskType = Field(..., description="Task the tokenizer performs.")
-    driver: ModelTokenizerDriver = Field(default=ModelTokenizerDriver.HUGGINGFACE, description="Backend used to load and run the tokenizer.")
+    driver: ModelTokenizerDriverType = Field(default=ModelTokenizerDriverType.HUGGINGFACE, description="Backend used to load and run the tokenizer.")
     model: ModelConfig = Field(..., description="Tokenizer model identifier — a HuggingFace repo ID or a local path.")
     use_fast: Union[bool, str] = Field(default=True, description="Whether to use the fast Rust-backed tokenizer when available.")
 

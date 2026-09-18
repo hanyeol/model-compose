@@ -6,9 +6,9 @@ from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelAction
 from mindor.dsl.schema.component import DeviceMode, HuggingfaceTextEmbeddingModelArchitecture
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskDriver
 from .common import TextEmbeddingTaskAction
 
 if TYPE_CHECKING:
@@ -115,8 +115,8 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         raise ValueError(f"Unsupported pooling type: {pooling}")
 
-@register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.HUGGINGFACE)
-class HuggingfaceTextEmbeddingTaskService(HuggingfaceLanguageModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_EMBEDDING, ModelDriverType.HUGGINGFACE)
+class HuggingfaceTextEmbeddingTaskDriver(HuggingfaceLanguageModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         requirements = super()._get_setup_requirements() or []
 

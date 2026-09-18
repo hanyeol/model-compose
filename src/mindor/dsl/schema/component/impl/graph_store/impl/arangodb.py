@@ -2,10 +2,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.action import ArangoDBGraphStoreActionConfig
-from .common import CommonGraphStoreComponentConfig, GraphStoreDriver
+from .common import CommonGraphStoreComponentConfig, GraphStoreDriverType
 
 class ArangoDBGraphStoreComponentConfig(CommonGraphStoreComponentConfig):
-    driver: Literal[GraphStoreDriver.ARANGODB]
+    driver: Literal[GraphStoreDriverType.ARANGODB]
     url: Optional[str] = Field(default=None, description="Full ArangoDB connection URL (e.g., http://host:port). Mutually exclusive with `host`.")
     host: str = Field(default="localhost", description="Hostname or IP address of the ArangoDB server.")
     port: int = Field(default=8529, ge=1, le=65535, description="TCP port the ArangoDB server listens on.")

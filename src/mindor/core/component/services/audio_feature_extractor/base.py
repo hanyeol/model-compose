@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig, AudioFeatureExtractorDriver
+from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig, AudioFeatureExtractorDriverType
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class AudioFeatureExtractorService(AsyncService):
+class AudioFeatureExtractorDriver(ComponentDriver):
     def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class AudioFeatureExtractorService(AsyncService):
     async def _run(self, action: AudioFeatureExtractorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_audio_feature_extractor_service(driver: AudioFeatureExtractorDriver):
-    def decorator(cls: Type[AudioFeatureExtractorService]) -> Type[AudioFeatureExtractorService]:
-        AudioFeatureExtractorServiceRegistry[driver] = cls
+def register_audio_feature_extractor_driver(driver: AudioFeatureExtractorDriverType):
+    def decorator(cls: Type[AudioFeatureExtractorDriver]) -> Type[AudioFeatureExtractorDriver]:
+        AudioFeatureExtractorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-AudioFeatureExtractorServiceRegistry: Dict[AudioFeatureExtractorDriver, Type[AudioFeatureExtractorService]] = {}
+AudioFeatureExtractorDriverRegistry: Dict[AudioFeatureExtractorDriverType, Type[AudioFeatureExtractorDriver]] = {}

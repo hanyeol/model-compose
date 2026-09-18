@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Optional, Dict, Any, Callable, Awaitable
 from abc import abstractmethod
-from mindor.dsl.schema.controller import ControllerQueueDriver
+from mindor.dsl.schema.controller import ControllerQueueDriverType
 from mindor.dsl.schema.controller.queue.impl.common import CommonControllerQueueConfig
 from mindor.core.foundation import AsyncService
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
@@ -56,10 +56,10 @@ class CommonControllerQueueService(AsyncService):
     async def _cancel(self, task_id: str) -> None:
         pass
 
-def register_controller_queue_service(driver: ControllerQueueDriver):
+def register_controller_queue_driver(driver: ControllerQueueDriverType):
     def decorator(cls: Type[CommonControllerQueueService]) -> Type[CommonControllerQueueService]:
-        ControllerQueueServiceRegistry[driver] = cls
+        ControllerQueueDriverRegistry[driver] = cls
         return cls
     return decorator
 
-ControllerQueueServiceRegistry: Dict[ControllerQueueDriver, Type[CommonControllerQueueService]] = {}
+ControllerQueueDriverRegistry: Dict[ControllerQueueDriverType, Type[CommonControllerQueueService]] = {}

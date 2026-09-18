@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import VectorStoreComponentConfig, VectorStoreDriver
+from mindor.dsl.schema.component import VectorStoreComponentConfig, VectorStoreDriverType
 from mindor.dsl.schema.action import VectorStoreActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VectorStoreService(AsyncService):
+class VectorStoreDriver(ComponentDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VectorStoreService(AsyncService):
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_vector_store_service(driver: VectorStoreDriver):
-    def decorator(cls: Type[VectorStoreService]) -> Type[VectorStoreService]:
-        VectorStoreServiceRegistry[driver] = cls
+def register_vector_store_driver(driver: VectorStoreDriverType):
+    def decorator(cls: Type[VectorStoreDriver]) -> Type[VectorStoreDriver]:
+        VectorStoreDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VectorStoreServiceRegistry: Dict[VectorStoreDriver, Type[VectorStoreService]] = {}
+VectorStoreDriverRegistry: Dict[VectorStoreDriverType, Type[VectorStoreDriver]] = {}

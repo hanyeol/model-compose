@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import TextToTextModelActionConfig
 from .common import CommonTextToTextModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceTextToTextModelArchitecture(str, Enum):
     AUTO    = "auto"
@@ -14,6 +14,6 @@ class HuggingfaceTextToTextModelArchitecture(str, Enum):
     MBART   = "mbart"
 
 class HuggingfaceTextToTextModelComponentConfig(CommonTextToTextModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
     architecture: HuggingfaceTextToTextModelArchitecture = Field(default=HuggingfaceTextToTextModelArchitecture.AUTO, description="Model architecture family; \"auto\" infers from the model config.")
     actions: List[TextToTextModelActionConfig] = Field(default_factory=list, description="Actions this text-to-text component exposes to workflows.")

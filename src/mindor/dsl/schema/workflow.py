@@ -93,9 +93,9 @@ class WorkflowConfig(BaseModel):
     @classmethod
     def inflate_single_job(cls, values: Dict[str, Any]):
         if "jobs" not in values:
-            job_values = values.pop("job", None)
-            if job_values:
-                values["jobs"] = [ job_values ]
+            job = values.pop("job", None)
+            if job:
+                values["jobs"] = [ job ]
         return values
 
     @classmethod

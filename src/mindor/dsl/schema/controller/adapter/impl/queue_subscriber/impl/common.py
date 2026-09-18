@@ -3,12 +3,12 @@ from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from ...types import ControllerAdapterType
 
-class QueueSubscriberDriver(str, Enum):
+class QueueSubscriberDriverType(str, Enum):
     REDIS = "redis"
 
 class CommonQueueSubscriberControllerAdapterConfig(BaseModel):
     type: Literal[ControllerAdapterType.QUEUE_SUBSCRIBER]
-    driver: QueueSubscriberDriver = Field(..., description="Backend implementation used for the subscriber queue.")
+    driver: QueueSubscriberDriverType = Field(..., description="Backend implementation used for the subscriber queue.")
     name: str = Field(default="controller-queue", description="Name of the queue to consume tasks from.")
     result_ttl: str = Field(default="1h", description="Time-to-live for result entries (e.g., '1h', '30m'); '0s' means no expiry.")
     max_concurrent_count: int = Field(default=1, ge=1, description="Maximum concurrent tasks this worker processes.")

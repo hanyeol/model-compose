@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, List, Any
-from mindor.dsl.schema.component import RedisModelMemoryBufferConfig, ModelMemoryBufferDriver
+from mindor.dsl.schema.component import RedisModelMemoryBufferConfig, ModelMemoryBufferDriverType
 from ..base import ModelMemoryBuffer, register_model_memory_buffer
 import asyncio
 import json
@@ -11,7 +11,7 @@ import ulid
 if TYPE_CHECKING:
     import redis.asyncio as aioredis
 
-@register_model_memory_buffer(ModelMemoryBufferDriver.REDIS)
+@register_model_memory_buffer(ModelMemoryBufferDriverType.REDIS)
 class RedisModelMemoryBuffer(ModelMemoryBuffer):
 
     def __init__(self, config: RedisModelMemoryBufferConfig):

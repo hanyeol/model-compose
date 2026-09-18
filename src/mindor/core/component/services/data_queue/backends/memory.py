@@ -8,7 +8,7 @@ from mindor.dsl.schema.action import (
     MemoryDataQueueDequeueActionConfig,
 )
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from ..base import DataQueueService, DataQueueDriver, register_data_queue_service
+from ..base import DataQueueDriver, DataQueueDriverType, register_data_queue_driver
 from ..base import ComponentActionContext
 import asyncio
 
@@ -23,8 +23,8 @@ class MemoryDataQueueDequeueIterator(StreamIterator):
         while True:
             yield await self.queue.get()
 
-@register_data_queue_service(DataQueueDriver.MEMORY)
-class MemoryDataQueueService(DataQueueService):
+@register_data_queue_driver(DataQueueDriverType.MEMORY)
+class MemoryDataQueueService(DataQueueDriver):
     def __init__(self, id: str, config: MemoryDataQueueComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

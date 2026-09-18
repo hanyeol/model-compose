@@ -16,7 +16,7 @@ from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
 import os, importlib.util
 
@@ -208,7 +208,7 @@ class CosyvoiceTextToSpeechDesignTaskAction(CosyvoiceTextToSpeechTaskAction):
             text_frontend=params["text_frontend"],
         )
 
-class CosyvoiceTextToSpeechTaskService(ModelTaskService):
+class CosyvoiceTextToSpeechTaskDriver(ModelTaskDriver):
     config: CosyvoiceTextToSpeechModelComponentConfig
 
     def __init__(self, id: str, config: CosyvoiceTextToSpeechModelComponentConfig, daemon: bool):

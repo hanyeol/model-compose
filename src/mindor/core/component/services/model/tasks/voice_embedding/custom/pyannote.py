@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import VoiceEmbeddingTaskAction
 
 if TYPE_CHECKING:
@@ -72,7 +72,7 @@ class PyannoteVoiceEmbeddingTaskAction(VoiceEmbeddingTaskAction):
 
         return waveforms
 
-class PyannoteVoiceEmbeddingTaskService(ModelTaskService):
+class PyannoteVoiceEmbeddingTaskDriver(ModelTaskDriver):
     config: PyannoteVoiceEmbeddingModelComponentConfig
 
     def __init__(self, id: str, config: PyannoteVoiceEmbeddingModelComponentConfig, daemon: bool):

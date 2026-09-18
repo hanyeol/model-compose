@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import ImageDrawingComponentConfig, ImageDrawingDriver
+from mindor.dsl.schema.component import ImageDrawingComponentConfig, ImageDrawingDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import ImageDrawingService, ImageDrawingServiceRegistry
+from .base import ImageDrawingDriver, ImageDrawingDriverRegistry
 import importlib
 
 @register_component(ComponentType.IMAGE_DRAWING)
@@ -17,17 +17,17 @@ class ImageDrawingComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: ImageDrawingService = self._create_service(self.config.driver)
+        self.driver: ImageDrawingDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: ImageDrawingDriver) -> ImageDrawingService:
+    def _create_driver(self, driver: ImageDrawingDriverType) -> ImageDrawingDriver:
         try:
-            if driver not in ImageDrawingServiceRegistry:
+            if driver not in ImageDrawingDriverRegistry:
                 self._load_driver_module(driver)
-            return ImageDrawingServiceRegistry[driver](self.id, self.config, self.daemon)
+            return ImageDrawingDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported image drawing driver: {driver}")
 
-    def _load_driver_module(self, driver: ImageDrawingDriver) -> None:
+    def _load_driver_module(self, driver: ImageDrawingDriverType) -> None:
         driver_module = driver.value.replace("-", "_")
 
         try:
@@ -36,20 +36,20 @@ class ImageDrawingComponent(ComponentService):
             raise ValueError(f"Unsupported image drawing driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

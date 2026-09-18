@@ -14,4 +14,4 @@ SubtitleLoaderComponentConfig = Annotated[
 @component_validator(ComponentType.SUBTITLE_LOADER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = SubtitleLoaderDriver.LOCAL
+        values["driver"] = SubtitleLoaderDriverType.LOCAL

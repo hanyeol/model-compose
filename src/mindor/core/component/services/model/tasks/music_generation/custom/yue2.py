@@ -17,7 +17,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicGenerationTaskAction
 
 if TYPE_CHECKING:
@@ -226,7 +226,7 @@ class Yue2MusicGenerationModelScoreAction(Yue2MusicGenerationTaskAction):
 
         return await self._run_in_executor(_generate)
 
-class Yue2MusicGenerationTaskService(ModelTaskService):
+class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

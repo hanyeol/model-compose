@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.soundfile.audio import load_pcm_samples
 from ....action.media import MediaInputPathResolver
-from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
+from ..base import AudioFeatureExtractorDriver, AudioFeatureExtractorDriverType, register_audio_feature_extractor_driver
 from ..base import ComponentActionContext
 from .common import AudioFeatureExtractorAction, AudioSpectrum, AudioWaveform
 import os
@@ -197,8 +197,8 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
 
         return bands
 
-@register_audio_feature_extractor_service(AudioFeatureExtractorDriver.NATIVE)
-class NativeAudioFeatureExtractorService(AudioFeatureExtractorService):
+@register_audio_feature_extractor_driver(AudioFeatureExtractorDriverType.NATIVE)
+class NativeAudioFeatureExtractorService(AudioFeatureExtractorDriver):
     def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

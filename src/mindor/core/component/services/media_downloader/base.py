@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import MediaDownloaderComponentConfig, MediaDownloaderDriver
+from mindor.dsl.schema.component import MediaDownloaderComponentConfig, MediaDownloaderDriverType
 from mindor.dsl.schema.action import MediaDownloaderActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class MediaDownloaderService(AsyncService):
+class MediaDownloaderDriver(ComponentDriver):
     def __init__(self, id: str, config: MediaDownloaderComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class MediaDownloaderService(AsyncService):
     async def _run(self, action: MediaDownloaderActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_media_downloader_service(driver: MediaDownloaderDriver):
-    def decorator(cls: Type[MediaDownloaderService]) -> Type[MediaDownloaderService]:
-        MediaDownloaderServiceRegistry[driver] = cls
+def register_media_downloader_driver(driver: MediaDownloaderDriverType):
+    def decorator(cls: Type[MediaDownloaderDriver]) -> Type[MediaDownloaderDriver]:
+        MediaDownloaderDriverRegistry[driver] = cls
         return cls
     return decorator
 
-MediaDownloaderServiceRegistry: Dict[MediaDownloaderDriver, Type[MediaDownloaderService]] = {}
+MediaDownloaderDriverRegistry: Dict[MediaDownloaderDriverType, Type[MediaDownloaderDriver]] = {}

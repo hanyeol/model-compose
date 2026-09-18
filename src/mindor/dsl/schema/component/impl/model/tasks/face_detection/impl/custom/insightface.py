@@ -3,7 +3,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import InsightfaceFaceDetectionModelActionConfig
 from ..common import CommonFaceDetectionModelComponentConfig
 from .common import FaceDetectionModelFamily
-from ....common import ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
 
 _DEFAULT_MODEL_URL = "https://github.com/deepinsight/insightface/releases/download/v0.7/antelopev2.zip"
 
@@ -29,7 +29,7 @@ InsightfaceFaceDetectionModelConfig = Annotated[
 ]
 
 class InsightfaceFaceDetectionModelComponentConfig(CommonFaceDetectionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[FaceDetectionModelFamily.INSIGHTFACE]
     model: InsightfaceFaceDetectionModelConfig = Field(..., description="InsightFace detection pack identifier — a HuggingFace repo ID or a local pack path.")
     actions: List[InsightfaceFaceDetectionModelActionConfig] = Field(default_factory=list, description="Actions this face detection component exposes to workflows.")

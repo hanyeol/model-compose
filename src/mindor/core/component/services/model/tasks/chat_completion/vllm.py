@@ -8,8 +8,8 @@ from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.vllm impo
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import VllmModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import VllmModelTaskDriver, ComponentActionContext
 from ..text_generation.vllm import VllmTextGenerationTaskAction
 from .common import ChatChoicesBuilder, ToolCallParser, ReasoningParser
 from .huggingface import HuggingfaceToolBuilder
@@ -85,8 +85,8 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
 
         return builder.build(sequences)
 
-@register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.VLLM)
-class VllmChatCompletionTaskService(VllmModelTaskService):
+@register_model_task_driver(ModelTaskType.CHAT_COMPLETION, ModelDriverType.VLLM)
+class VllmChatCompletionTaskDriver(VllmModelTaskDriver):
     config: VllmChatCompletionModelComponentConfig
 
     async def _run(

@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceSwapModel
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import FaceSwapTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 import os, shutil
 
@@ -107,7 +107,7 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
 
         return await self._run_in_executor(_swap)
 
-class InsightfaceFaceSwapTaskService(ModelTaskService):
+class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

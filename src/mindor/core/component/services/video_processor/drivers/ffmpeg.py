@@ -21,7 +21,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoProcessorService, VideoProcessorDriver, register_video_processor_service
+from ..base import VideoProcessorDriver, VideoProcessorDriverType, register_video_processor_driver
 from ..base import ComponentActionContext
 from .common import VideoProcessorAction
 import asyncio, os
@@ -416,8 +416,8 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         return "black@0"
 
-@register_video_processor_service(VideoProcessorDriver.FFMPEG)
-class FFmpegVideoProcessorService(VideoProcessorService):
+@register_video_processor_driver(VideoProcessorDriverType.FFMPEG)
+class FFmpegVideoProcessorService(VideoProcessorDriver):
     def __init__(self, id: str, config: VideoProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

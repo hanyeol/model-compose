@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from mindor.core.foundation.variable.codec import VariableCodec
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.variable.size import parse_size
-from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriver
+from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriverType
 from mindor.core.controller.base import TaskState, TaskStatus
 from mindor.core.controller.queue.codec import QueueCodec, RedisStreamMeta
 from mindor.core.controller.queue.stream import RedisInboundStream, RedisOutboundStream
@@ -16,7 +16,7 @@ from mindor.core.controller.queue.errors import (
     UnsupportedProtocolError,
 )
 from mindor.core.logger import logging
-from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_service
+from ..base import CommonQueueSubscriberControllerAdapterService, register_queue_subscriber_controller_adapter_driver
 import asyncio, json, ulid
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 _PROTOCOL_VERSION = "queue.v2"
 
-@register_queue_subscriber_controller_adapter_service(QueueSubscriberDriver.REDIS)
+@register_queue_subscriber_controller_adapter_driver(QueueSubscriberDriverType.REDIS)
 class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberControllerAdapterService):
     def __init__(
         self,

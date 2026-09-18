@@ -13,4 +13,4 @@ RtmpPublisherComponentConfig = Annotated[
 @component_validator(ComponentType.RTMP_PUBLISHER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = RtmpPublisherDriver.FFMPEG
+        values["driver"] = RtmpPublisherDriverType.FFMPEG

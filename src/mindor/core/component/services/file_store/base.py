@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import FileStoreComponentConfig, FileStoreDriver
+from mindor.dsl.schema.component import FileStoreComponentConfig, FileStoreDriverType
 from mindor.dsl.schema.action import FileStoreActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class FileStoreService(AsyncService):
+class FileStoreDriver(ComponentDriver):
     def __init__(self, id: str, config: FileStoreComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class FileStoreService(AsyncService):
     async def _run(self, action: FileStoreActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_file_store_service(driver: FileStoreDriver):
-    def decorator(cls: Type[FileStoreService]) -> Type[FileStoreService]:
-        FileStoreServiceRegistry[driver] = cls
+def register_file_store_driver(driver: FileStoreDriverType):
+    def decorator(cls: Type[FileStoreDriver]) -> Type[FileStoreDriver]:
+        FileStoreDriverRegistry[driver] = cls
         return cls
     return decorator
 
-FileStoreServiceRegistry: Dict[FileStoreDriver, Type[FileStoreService]] = {}
+FileStoreDriverRegistry: Dict[FileStoreDriverType, Type[FileStoreDriver]] = {}

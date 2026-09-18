@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import VoiceActivityDetectionTaskAction, VoiceSegmenter
 
 if TYPE_CHECKING:
@@ -240,7 +240,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
 
         return float(sum(probs) / len(probs)) if probs else 0.0
 
-class SileroVoiceActivityDetectionTaskService(ModelTaskService):
+class SileroVoiceActivityDetectionTaskDriver(ModelTaskDriver):
     config: SileroVoiceActivityDetectionModelComponentConfig
 
     def __init__(self, id: str, config: SileroVoiceActivityDetectionModelComponentConfig, daemon: bool):

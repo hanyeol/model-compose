@@ -1,8 +1,8 @@
 from typing import Literal, List
 from pydantic import Field
 from mindor.dsl.schema.action import AudioMixerActionConfig
-from .common import CommonAudioMixerComponentConfig, AudioMixerDriver
+from .common import CommonAudioMixerComponentConfig, AudioMixerDriverType
 
 class FFmpegAudioMixerComponentConfig(CommonAudioMixerComponentConfig):
-    driver: Literal[AudioMixerDriver.FFMPEG]
+    driver: Literal[AudioMixerDriverType.FFMPEG]
     actions: List[AudioMixerActionConfig] = Field(default_factory=list)

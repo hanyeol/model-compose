@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import VllmModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import VllmModelTaskDriver, ComponentActionContext
 from .common import TextEmbeddingTaskAction
 import math, ulid
 
@@ -62,8 +62,8 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         return embeddings
 
-@register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.VLLM)
-class VllmTextEmbeddingTaskService(VllmModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_EMBEDDING, ModelDriverType.VLLM)
+class VllmTextEmbeddingTaskDriver(VllmModelTaskDriver):
     async def _load_model(self) -> None:
         from vllm import AsyncEngineArgs, AsyncLLMEngine
         from transformers import AutoTokenizer

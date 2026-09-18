@@ -3,9 +3,9 @@ from pydantic import Field
 from mindor.dsl.schema.action import TextGenerationModelActionConfig
 from ..common import CommonTextGenerationModelComponentConfig
 from .common import TextGenerationModelFamily
-from ....common import ModelDriver
+from ....common import ModelDriverType
 
 class CustomTextGenerationModelComponentConfig(CommonTextGenerationModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: TextGenerationModelFamily = Field(..., description="Model family selecting the custom text generation implementation.")
     actions: List[TextGenerationModelActionConfig] = Field(default_factory=list, description="Actions this text generation component exposes to workflows.")

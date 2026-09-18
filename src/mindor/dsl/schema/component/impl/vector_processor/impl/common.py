@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
-class VectorProcessorDriver(str, Enum):
+class VectorProcessorDriverType(str, Enum):
     NATIVE = "native"
 
 class CommonVectorProcessorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_PROCESSOR]
-    driver: VectorProcessorDriver = Field(..., description="Backend implementation used for vector processing.")
+    driver: VectorProcessorDriverType = Field(..., description="Backend implementation used for vector processing.")

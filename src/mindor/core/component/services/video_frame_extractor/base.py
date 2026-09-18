@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriver
+from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriverType
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VideoFrameExtractorService(AsyncService):
+class VideoFrameExtractorDriver(ComponentDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VideoFrameExtractorService(AsyncService):
     async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_video_frame_extractor_service(driver: VideoFrameExtractorDriver):
-    def decorator(cls: Type[VideoFrameExtractorService]) -> Type[VideoFrameExtractorService]:
-        VideoFrameExtractorServiceRegistry[driver] = cls
+def register_video_frame_extractor_driver(driver: VideoFrameExtractorDriverType):
+    def decorator(cls: Type[VideoFrameExtractorDriver]) -> Type[VideoFrameExtractorDriver]:
+        VideoFrameExtractorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VideoFrameExtractorServiceRegistry: Dict[VideoFrameExtractorDriver, Type[VideoFrameExtractorService]] = {}
+VideoFrameExtractorDriverRegistry: Dict[VideoFrameExtractorDriverType, Type[VideoFrameExtractorDriver]] = {}

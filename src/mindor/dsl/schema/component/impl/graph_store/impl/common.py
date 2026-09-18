@@ -4,10 +4,10 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
 
-class GraphStoreDriver(str, Enum):
+class GraphStoreDriverType(str, Enum):
     NEO4J    = "neo4j"
     ARANGODB = "arangodb"
 
 class CommonGraphStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.GRAPH_STORE]
-    driver: GraphStoreDriver = Field(..., description="Backend implementation used for the graph store.")
+    driver: GraphStoreDriverType = Field(..., description="Backend implementation used for the graph store.")

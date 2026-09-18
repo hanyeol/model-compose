@@ -2,14 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Tuple, Optional, List, Any
-from mindor.dsl.schema.component import SqliteModelMemoryStorageConfig, ModelMemoryStorageDriver
+from mindor.dsl.schema.component import SqliteModelMemoryStorageConfig, ModelMemoryStorageDriverType
 from ..base import ModelMemoryStorage, register_model_memory_storage
 import json, os
 
 if TYPE_CHECKING:
     import aiosqlite
 
-@register_model_memory_storage(ModelMemoryStorageDriver.SQLITE)
+@register_model_memory_storage(ModelMemoryStorageDriverType.SQLITE)
 class SqliteModelMemoryStorage(ModelMemoryStorage):
     def __init__(self, config: SqliteModelMemoryStorageConfig):
         self.config: SqliteModelMemoryStorageConfig = config

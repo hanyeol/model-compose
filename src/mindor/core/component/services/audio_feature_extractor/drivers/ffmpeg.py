@@ -7,7 +7,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.audio import AudioStream, decode_pcm_to_waveform
 from mindor.core.utils.ffmpeg.audio import load_pcm_from_file, load_pcm_from_stream
 from ....action.media import MediaInputPathResolver
-from ..base import AudioFeatureExtractorService, AudioFeatureExtractorDriver, register_audio_feature_extractor_service
+from ..base import AudioFeatureExtractorDriver, AudioFeatureExtractorDriverType, register_audio_feature_extractor_driver
 from ..base import ComponentActionContext
 from .native import NativeAudioFeatureExtractorAction
 import os
@@ -35,8 +35,8 @@ class FFmpegAudioFeatureExtractorAction(NativeAudioFeatureExtractorAction):
                 except FileNotFoundError:
                     pass
 
-@register_audio_feature_extractor_service(AudioFeatureExtractorDriver.FFMPEG)
-class FFmpegAudioFeatureExtractorService(AudioFeatureExtractorService):
+@register_audio_feature_extractor_driver(AudioFeatureExtractorDriverType.FFMPEG)
+class FFmpegAudioFeatureExtractorService(AudioFeatureExtractorDriver):
     def __init__(self, id: str, config: AudioFeatureExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

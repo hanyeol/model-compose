@@ -12,7 +12,7 @@ from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import ShotBoundaryDetectionTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 import os
 
 if TYPE_CHECKING:
@@ -173,7 +173,7 @@ class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction)
 
         return scenes
 
-class TransNetV2ShotBoundaryDetectionTaskService(ModelTaskService):
+class TransNetV2ShotBoundaryDetectionTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -3,12 +3,12 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import MusicSourceSeparationModelActionConfig
 from ..common import CommonMusicSourceSeparationModelComponentConfig
 from .common import MusicSourceSeparationModelFamily
-from ....common import ModelDriver, ModelProvider, NamedModelConfig
+from ....common import ModelDriverType, ModelProvider, NamedModelConfig
 
 _DEFAULT_MODEL = "htdemucs_ft"
 
 class DemucsMusicSourceSeparationModelComponentConfig(CommonMusicSourceSeparationModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicSourceSeparationModelFamily.DEMUCS]
     model: NamedModelConfig = Field(..., description="Demucs pretrained model name (e.g., htdemucs_ft, htdemucs, mdx_extra).")
     actions: List[MusicSourceSeparationModelActionConfig] = Field(default_factory=list, description="Actions this music source separation component exposes to workflows.")

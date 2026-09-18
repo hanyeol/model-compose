@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageProcessorComponentConfig
 from mindor.dsl.schema.action import ImageProcessorActionConfig, ImageScaleMode, FlipDirection, ImageConcatMode, ImagePositionAnchor, MosaicMode
-from ..base import ImageProcessorService, ImageProcessorDriver, register_image_processor_service
+from ..base import ImageProcessorDriver, ImageProcessorDriverType, register_image_processor_driver
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
 from PIL import Image as PILImage, ImageFilter, ImageEnhance, ImageDraw
@@ -366,8 +366,8 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return (left, top, right, bottom)
 
-@register_image_processor_service(ImageProcessorDriver.NATIVE)
-class NativeImageProcessorService(ImageProcessorService):
+@register_image_processor_driver(ImageProcessorDriverType.NATIVE)
+class NativeImageProcessorService(ImageProcessorDriver):
     def __init__(self, id: str, config: ImageProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

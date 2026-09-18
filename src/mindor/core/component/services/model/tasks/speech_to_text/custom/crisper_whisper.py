@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import SpeechToTextTaskAction
 
 if TYPE_CHECKING:
@@ -231,7 +231,7 @@ class CrisperWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         return segment
 
-class CrisperWhisperSpeechToTextTaskService(ModelTaskService):
+class CrisperWhisperSpeechToTextTaskDriver(ModelTaskDriver):
     config: CrisperWhisperSpeechToTextModelComponentConfig
 
     def __init__(self, id: str, config: CrisperWhisperSpeechToTextModelComponentConfig, daemon: bool):

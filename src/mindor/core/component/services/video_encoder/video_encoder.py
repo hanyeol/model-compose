@@ -1,10 +1,10 @@
 from typing import Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriver
+from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import VideoEncoderService, VideoEncoderServiceRegistry
+from .base import VideoEncoderDriver, VideoEncoderDriverRegistry
 import importlib
 
 @register_component(ComponentType.VIDEO_ENCODER)
@@ -18,24 +18,24 @@ class VideoEncoderComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: VideoEncoderService = self._create_service(self.config.driver)
+        self.driver: VideoEncoderDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: VideoEncoderDriver) -> VideoEncoderService:
+    def _create_driver(self, driver: VideoEncoderDriverType) -> VideoEncoderDriver:
         try:
-            if driver not in VideoEncoderServiceRegistry:
+            if driver not in VideoEncoderDriverRegistry:
                 self._load_driver_module(driver)
-            return VideoEncoderServiceRegistry[driver](self.id, self.config, self.daemon)
+            return VideoEncoderDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported video encoder driver: {driver}")
 
-    def _load_driver_module(self, driver: VideoEncoderDriver) -> None:
+    def _load_driver_module(self, driver: VideoEncoderDriverType) -> None:
         """Import the module that registers the given video encoder driver.
 
-        Convention: a driver "foo-bar" (VideoEncoderDriver.value) maps to
+        Convention: a driver "foo-bar" (VideoEncoderDriverType.value) maps to
         mindor.core.component.services.video_encoder.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_video_encoder_service
-        decorator, populating VideoEncoderServiceRegistry.
+        Importing the module triggers its @register_video_encoder_driver
+        decorator, populating VideoEncoderDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -45,20 +45,20 @@ class VideoEncoderComponent(ComponentService):
             raise ValueError(f"Unsupported video encoder driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

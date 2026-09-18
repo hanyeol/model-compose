@@ -6,12 +6,12 @@ from pydantic import BaseModel
 from mindor.dsl.schema.component import (
     DocumentLoaderComponentConfig,
     DoclingDocumentLoaderComponentConfig,
-    DocumentLoaderDriver,
+    DocumentLoaderDriverType,
 )
 from mindor.dsl.schema.action import DocumentLoaderActionConfig, DoclingDocumentLoaderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ..base import DocumentLoaderService, register_document_loader_service
+from ..base import DocumentLoaderDriver, register_document_loader_driver
 from ..base import ComponentActionContext
 from .common import DocumentLoaderAction
 import asyncio, os
@@ -302,8 +302,8 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
 
         return result
 
-@register_document_loader_service(DocumentLoaderDriver.DOCLING)
-class DoclingDocumentLoaderService(DocumentLoaderService):
+@register_document_loader_driver(DocumentLoaderDriverType.DOCLING)
+class DoclingDocumentLoaderService(DocumentLoaderDriver):
     def __init__(self, id: str, config: DoclingDocumentLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

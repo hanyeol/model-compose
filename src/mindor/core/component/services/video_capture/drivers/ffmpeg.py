@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.shell import kill_process
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.logger import logging
-from ..base import VideoCaptureService, VideoCaptureDriver, register_video_capture_service
+from ..base import VideoCaptureDriver, VideoCaptureDriverType, register_video_capture_driver
 from ..base import ComponentActionContext
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from .common import VideoCaptureAction
@@ -271,8 +271,8 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
 
         return video_format
 
-@register_video_capture_service(VideoCaptureDriver.FFMPEG)
-class FFmpegVideoCaptureService(VideoCaptureService):
+@register_video_capture_driver(VideoCaptureDriverType.FFMPEG)
+class FFmpegVideoCaptureService(VideoCaptureDriver):
     def __init__(self, id: str, config: VideoCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

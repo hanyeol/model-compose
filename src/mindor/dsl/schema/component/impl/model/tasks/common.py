@@ -47,7 +47,7 @@ class ModelTaskType(str, Enum):
     MUSIC_EMBEDDING          = "music-embedding"
     VOICE_EMBEDDING          = "voice-embedding"
 
-class ModelDriver(str, Enum):
+class ModelDriverType(str, Enum):
     HUGGINGFACE = "huggingface"
     UNSLOTH     = "unsloth"
     VLLM        = "vllm"
@@ -215,7 +215,7 @@ class OnDemandConfig(BaseModel):
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]
     task: ModelTaskType = Field(..., description="Task the model performs.")
-    driver: ModelDriver = Field(..., description="Inference backend used to run the model.")
+    driver: ModelDriverType = Field(..., description="Inference backend used to run the model.")
     model: ModelConfig = Field(..., description="Model identifier — a HuggingFace repo ID or a local path.")
     device_mode: DeviceMode = Field(default=DeviceMode.AUTO, description="Strategy for allocating the model across available devices.")
     device: str = Field(default="auto", description="Compute device the model runs on (e.g., cpu, cuda, cuda:0, mps); \"auto\" selects the best available.")

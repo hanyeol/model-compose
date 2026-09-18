@@ -9,8 +9,8 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
-from ...base import ModelTokenizerTaskType, ModelTokenizerDriver, register_model_tokenizer_task_service
-from ...base import HuggingfaceModelTokenizerTaskService, ComponentActionContext
+from ...base import ModelTokenizerTaskType, ModelTokenizerDriverType, register_model_tokenizer_task_driver
+from ...base import HuggingfaceModelTokenizerTaskDriver, ComponentActionContext
 
 class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
     def __init__(self, config: ModelTokenizerActionConfig, tokenizer: Any):
@@ -146,7 +146,7 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
 
         return await self._run_in_executor(_count)
 
-@register_model_tokenizer_task_service(ModelTokenizerTaskType.TEXT, ModelTokenizerDriver.HUGGINGFACE)
-class HuggingfaceTextModelTokenizerTaskService(HuggingfaceModelTokenizerTaskService):
+@register_model_tokenizer_task_driver(ModelTokenizerTaskType.TEXT, ModelTokenizerDriverType.HUGGINGFACE)
+class HuggingfaceTextModelTokenizerTaskDriver(HuggingfaceModelTokenizerTaskDriver):
     async def run(self, action: ModelTokenizerActionConfig, context: ComponentActionContext) -> Any:
         return await HuggingfaceTextModelTokenizerTaskAction(action, self.tokenizer).run(context)

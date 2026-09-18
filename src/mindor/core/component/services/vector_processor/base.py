@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import VectorProcessorComponentConfig, VectorProcessorDriver
+from mindor.dsl.schema.component import VectorProcessorComponentConfig, VectorProcessorDriverType
 from mindor.dsl.schema.action import VectorProcessorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class VectorProcessorService(AsyncService):
+class VectorProcessorDriver(ComponentDriver):
     def __init__(self, id: str, config: VectorProcessorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class VectorProcessorService(AsyncService):
     async def _run(self, action: VectorProcessorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_vector_processor_service(driver: VectorProcessorDriver):
-    def decorator(cls: Type[VectorProcessorService]) -> Type[VectorProcessorService]:
-        VectorProcessorServiceRegistry[driver] = cls
+def register_vector_processor_driver(driver: VectorProcessorDriverType):
+    def decorator(cls: Type[VectorProcessorDriver]) -> Type[VectorProcessorDriver]:
+        VectorProcessorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-VectorProcessorServiceRegistry: Dict[VectorProcessorDriver, Type[VectorProcessorService]] = {}
+VectorProcessorDriverRegistry: Dict[VectorProcessorDriverType, Type[VectorProcessorDriver]] = {}

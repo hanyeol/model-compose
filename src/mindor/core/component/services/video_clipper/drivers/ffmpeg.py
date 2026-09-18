@@ -18,7 +18,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoClipperService, VideoClipperDriver, register_video_clipper_service
+from ..base import VideoClipperDriver, VideoClipperDriverType, register_video_clipper_driver
 from ..base import ComponentActionContext
 from .common import VideoClipperAction
 import asyncio, os
@@ -342,8 +342,8 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
         return (await probe_video(input_path, ("format",)))[0]
 
-@register_video_clipper_service(VideoClipperDriver.FFMPEG)
-class FFmpegVideoClipperService(VideoClipperService):
+@register_video_clipper_driver(VideoClipperDriverType.FFMPEG)
+class FFmpegVideoClipperService(VideoClipperDriver):
     def __init__(self, id: str, config: VideoClipperComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

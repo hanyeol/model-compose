@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Union, List, Dict, Tuple, Any
 from collections.abc import AsyncIterable
-from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriver
+from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriverType
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
@@ -14,7 +14,7 @@ from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.shell import run_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import RtmpPublisherService, register_rtmp_publisher_service
+from ..base import RtmpPublisherDriver, register_rtmp_publisher_driver
 from ..base import ComponentActionContext
 from .common import RtmpPublisherAction
 import asyncio, os
@@ -316,8 +316,8 @@ class FFmpegRtmpPublisherAction(RtmpPublisherAction):
                 except FileNotFoundError:
                     pass
 
-@register_rtmp_publisher_service(RtmpPublisherDriver.FFMPEG)
-class FFmpegRtmpPublisherService(RtmpPublisherService):
+@register_rtmp_publisher_driver(RtmpPublisherDriverType.FFMPEG)
+class FFmpegRtmpPublisherService(RtmpPublisherDriver):
     def __init__(self, id: str, config: RtmpPublisherComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

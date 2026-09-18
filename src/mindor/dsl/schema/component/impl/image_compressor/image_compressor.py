@@ -15,4 +15,4 @@ ImageCompressorComponentConfig = Annotated[
 @component_validator(ComponentType.IMAGE_COMPRESSOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = ImageCompressorDriver.NATIVE
+        values["driver"] = ImageCompressorDriverType.NATIVE

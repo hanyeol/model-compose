@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Set, Iterator, Tuple, Any
-from mindor.dsl.schema.component import TranscriptCorrectorComponentConfig, TranscriptCorrectorDriver
+from mindor.dsl.schema.component import TranscriptCorrectorComponentConfig, TranscriptCorrectorDriverType
 from mindor.dsl.schema.action import TranscriptCorrectorActionConfig
 from mindor.dsl.schema.action.impl.transcript_corrector.impl.common import TranscriptGranularity
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import TranscriptCorrectorService, register_transcript_corrector_service
+from ..base import TranscriptCorrectorDriver, register_transcript_corrector_driver
 from ..base import ComponentActionContext
 from .common import StreamingTranscriptCorrector, TranscriptCorrectorAction
 import regex, unicodedata
@@ -363,8 +363,8 @@ class NativeStreamingTranscriptCorrector(StreamingTranscriptCorrector):
 
         return best
 
-@register_transcript_corrector_service(TranscriptCorrectorDriver.NATIVE)
-class NativeTranscriptCorrectorService(TranscriptCorrectorService):
+@register_transcript_corrector_driver(TranscriptCorrectorDriverType.NATIVE)
+class NativeTranscriptCorrectorService(TranscriptCorrectorDriver):
     def __init__(self, id: str, config: TranscriptCorrectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

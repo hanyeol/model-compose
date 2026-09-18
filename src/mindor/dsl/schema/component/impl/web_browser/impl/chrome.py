@@ -1,7 +1,7 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.action import WebBrowserActionConfig
-from .common import CommonWebBrowserComponentConfig, WebBrowserDriver
+from .common import CommonWebBrowserComponentConfig, WebBrowserDriverType
 
 class ChromeWebBrowserDebuggerConfig(BaseModel):
     url: Optional[str] = Field(default=None, description="Full Chrome DevTools endpoint URL (e.g., http://host:port). Mutually exclusive with `host`.")
@@ -17,6 +17,6 @@ class ChromeWebBrowserDebuggerConfig(BaseModel):
         return values
 
 class ChromeWebBrowserComponentConfig(CommonWebBrowserComponentConfig):
-    driver: Literal[WebBrowserDriver.CHROME] = WebBrowserDriver.CHROME
+    driver: Literal[WebBrowserDriverType.CHROME] = WebBrowserDriverType.CHROME
     debugger: ChromeWebBrowserDebuggerConfig = Field(default_factory=ChromeWebBrowserDebuggerConfig, description="Connection settings for the Chrome DevTools debugger.")
     actions: List[WebBrowserActionConfig] = Field(default_factory=list)

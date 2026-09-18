@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, WanTextToVideoModelActio
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TextToVideoTaskAction
 import io
 
@@ -102,7 +102,7 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
 
         return VideoStreamResource(buffer.getvalue(), format="mp4", attrs={ "fps": str(fps) })
 
-class WanTextToVideoTaskService(ModelTaskService):
+class WanTextToVideoTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

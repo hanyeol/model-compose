@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import MusicSourceSeparationTaskAction
 
 if TYPE_CHECKING:
@@ -221,7 +221,7 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         return np.stack(channels, axis=0)
 
-class MdxNetMusicSourceSeparationTaskService(ModelTaskService):
+class MdxNetMusicSourceSeparationTaskDriver(ModelTaskDriver):
     config: MdxNetMusicSourceSeparationModelComponentConfig
 
     def __init__(self, id: str, config: MdxNetMusicSourceSeparationModelComponentConfig, daemon: bool):

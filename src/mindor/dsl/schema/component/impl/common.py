@@ -19,9 +19,9 @@ class CommonComponentConfig(BaseModel):
     @model_validator(mode="before")
     def inflate_single_action(cls, values: Dict[str, Any]):
         if "actions" not in values:
-            action_values = values.pop("action", None)
-            if action_values:
-                values["actions"] = [ action_values ]
+            action = values.pop("action", None)
+            if action:
+                values["actions"] = [ action ]
         return values
 
     @model_validator(mode="before")

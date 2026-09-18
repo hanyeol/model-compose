@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from ......action.media import MediaInputPathResolver
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
 import os, sys, tempfile, shutil, importlib.util
@@ -108,7 +108,7 @@ class Hallo3TalkingHeadTaskAction(TalkingHeadTaskAction):
             attrs={ "fps": str(params["fps"] or 25) },
         )
 
-class Hallo3TalkingHeadTaskService(ModelTaskService):
+class Hallo3TalkingHeadTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

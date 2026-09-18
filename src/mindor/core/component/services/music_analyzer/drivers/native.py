@@ -7,7 +7,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.soundfile.audio import load_pcm_samples
 from ....action.media import MediaInputPathResolver
-from ..base import MusicAnalyzerService, MusicAnalyzerDriver, register_music_analyzer_service
+from ..base import MusicAnalyzerDriver, MusicAnalyzerDriverType, register_music_analyzer_driver
 from ..base import ComponentActionContext
 from .common import (
     MusicAnalyzerAction,
@@ -584,8 +584,8 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             "sample_rate": int(sample_rate),
         }
 
-@register_music_analyzer_service(MusicAnalyzerDriver.NATIVE)
-class NativeMusicAnalyzerService(MusicAnalyzerService):
+@register_music_analyzer_driver(MusicAnalyzerDriverType.NATIVE)
+class NativeMusicAnalyzerService(MusicAnalyzerDriver):
     def __init__(self, id: str, config: MusicAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

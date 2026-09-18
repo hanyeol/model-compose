@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import SearchEngineActionConfig, SearchEngineField
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.sql import validate_identifier, quote_identifier, serialize_value
 from mindor.core.utils.sqlite import escape_fts_term
-from ..base import SearchEngineService, SearchEngineDriver, register_search_engine_service
+from ..base import SearchEngineDriver, SearchEngineDriverType, register_search_engine_driver
 from ..base import ComponentActionContext
 from .common import SearchEngineAction
 import sqlite3, os, json, asyncio
@@ -253,8 +253,8 @@ class SQLiteSearchEngineAction(SearchEngineAction):
 
         return meta
 
-@register_search_engine_service(SearchEngineDriver.SQLITE)
-class SQLiteSearchEngineService(SearchEngineService):
+@register_search_engine_driver(SearchEngineDriverType.SQLITE)
+class SQLiteSearchEngineService(SearchEngineDriver):
     def __init__(self, id: str, config: SQLiteSearchEngineComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

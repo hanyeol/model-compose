@@ -65,7 +65,9 @@ class VirtualEnvRuntime:
 
         def _bootstrap() -> None:
             self._bootstrap_venv()
-            self._install_dependencies()
+
+            with FileLock(self._venv_path / ".mindor.lock"):
+                self._install_dependencies()
 
         await asyncio.get_event_loop().run_in_executor(None, _bootstrap)
 
@@ -95,17 +97,17 @@ class VirtualEnvRuntime:
     async def stop(self) -> None:
         if self._subprocess:
             stop_timeout = parse_time(self.config.stop_timeout)
+
             try:
-                await self._loop.run_in_executor(
-                    None,
-                    lambda: self._subprocess.wait(timeout=stop_timeout),
-                )
+                await self._loop.run_in_executor(None, lambda: self._subprocess.wait(timeout=stop_timeout))
             except subprocess.TimeoutExpired:
                 self._subprocess.terminate()
+
                 try:
                     self._subprocess.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     self._subprocess.kill()
+
             self._subprocess = None
 
     @property
@@ -138,7 +140,7 @@ class VirtualEnvRuntime:
             logging.info(f"Creating virtualenv at {self._venv_path} (pyenv driver, python {version})")
 
             python_path = self._resolve_pyenv_python(version)
-            subprocess.run([str(python_path), "-m", "venv", str(self._venv_path)], check=True)
+            subprocess.run([ str(python_path), "-m", "venv", str(self._venv_path) ], check=True)
 
             return
 
@@ -181,35 +183,34 @@ class VirtualEnvRuntime:
         existing_version = version_path.read_text().strip() if version_path.exists() else None
         needs_mindor_copy = existing_version != current_version
 
-        with FileLock(self._venv_path / ".lock"):
-            if needs_mindor_copy:
-                if target_mindor.exists():
-                    shutil.rmtree(target_mindor)
+        if needs_mindor_copy:
+            if target_mindor.exists():
+                shutil.rmtree(target_mindor)
 
-                staging = site_packages / f".mindor.staging.{os.getpid()}"
+            staging = site_packages / f".mindor.staging.{os.getpid()}"
 
-                if staging.exists():
-                    shutil.rmtree(staging)
+            if staging.exists():
+                shutil.rmtree(staging)
 
-                shutil.copytree(host_mindor_root, staging, ignore=_PACKAGE_IGNORE_PATTERNS)
-                os.replace(staging, target_mindor)
+            shutil.copytree(host_mindor_root, staging, ignore=_PACKAGE_IGNORE_PATTERNS)
+            os.replace(staging, target_mindor)
 
-                version_path.write_text(current_version)
+            version_path.write_text(current_version)
 
-            # Prefer uv when available: `--link-mode=hardlink` shares wheel
-            # bytes across venvs on the same filesystem (torch/CUDA installs
-            # cost ~one copy total), and falls back to copy on cross-fs targets.
-            uv_path = shutil.which("uv")
+        # Prefer uv when available: `--link-mode=hardlink` shares wheel
+        # bytes across venvs on the same filesystem (torch/CUDA installs
+        # cost ~one copy total), and falls back to copy on cross-fs targets.
+        uv_path = shutil.which("uv")
 
-            if uv_path:
-                command = [ uv_path, "pip", "install", "--python", str(self._venv_python()), "--link-mode=hardlink" ]
-            else:
-                command = [ str(self._venv_pip()), "install", "--disable-pip-version-check" ]
+        if uv_path:
+            command = [ uv_path, "pip", "install", "--python", str(self._venv_python()), "--link-mode=hardlink" ]
+        else:
+            command = [ str(self._venv_pip()), "install", "--disable-pip-version-check" ]
 
-            subprocess.run(command + [ "-r", str(runtime_requirements_path) ], check=True)
+        subprocess.run(command + [ "-r", str(runtime_requirements_path) ], check=True)
 
-            if user_requirements_path.exists():
-                subprocess.run(command + [ "-r", str(user_requirements_path) ], check=True)
+        if user_requirements_path.exists():
+            subprocess.run(command + [ "-r", str(user_requirements_path) ], check=True)
 
     def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
         env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }

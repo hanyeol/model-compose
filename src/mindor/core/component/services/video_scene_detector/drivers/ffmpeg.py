@@ -12,7 +12,7 @@ from mindor.core.utils.time import format_timecode
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoSceneDetectorService, VideoSceneDetectorDriver, register_video_scene_detector_service
+from ..base import VideoSceneDetectorDriver, VideoSceneDetectorDriverType, register_video_scene_detector_driver
 from ..base import ComponentActionContext
 from .common import VideoSceneDetectorAction
 import asyncio, os, re
@@ -251,8 +251,8 @@ class FFmpegVideoSceneDetectorAction(VideoSceneDetectorAction):
 
             cleanup()
 
-@register_video_scene_detector_service(VideoSceneDetectorDriver.FFMPEG)
-class FFmpegVideoSceneDetectorService(VideoSceneDetectorService):
+@register_video_scene_detector_driver(VideoSceneDetectorDriverType.FFMPEG)
+class FFmpegVideoSceneDetectorService(VideoSceneDetectorDriver):
     def __init__(self, id: str, config: VideoSceneDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

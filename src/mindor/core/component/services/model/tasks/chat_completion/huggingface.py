@@ -8,9 +8,9 @@ from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.huggingfa
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.language import HuggingfaceLanguageModelTaskService
+from ...base.huggingface.language import HuggingfaceLanguageModelTaskDriver
 from ..text_generation.huggingface import HuggingfaceTextGenerationTaskAction
 from .common import ChatToolBuilder, ChatChoicesBuilder, ToolCallParser, ReasoningParser
 
@@ -92,8 +92,8 @@ class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
 
         return builder.build(sequences)
 
-@register_model_task_service(ModelTaskType.CHAT_COMPLETION, ModelDriver.HUGGINGFACE)
-class HuggingfaceChatCompletionTaskService(HuggingfaceLanguageModelTaskService):
+@register_model_task_driver(ModelTaskType.CHAT_COMPLETION, ModelDriverType.HUGGINGFACE)
+class HuggingfaceChatCompletionTaskDriver(HuggingfaceLanguageModelTaskDriver):
     config: HuggingfaceChatCompletionModelComponentConfig
 
     async def _run(

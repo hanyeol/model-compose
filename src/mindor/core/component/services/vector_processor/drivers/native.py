@@ -5,7 +5,7 @@ from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorProcessorComponentConfig
 from mindor.dsl.schema.action import VectorProcessorActionConfig, SimilarityMetric, DistanceMetric, RankingMetric
 from mindor.core.foundation.variable.vector import VectorValue, VectorArrayValue
-from ..base import VectorProcessorService, VectorProcessorDriver, register_vector_processor_service
+from ..base import VectorProcessorDriver, VectorProcessorDriverType, register_vector_processor_driver
 from ..base import ComponentActionContext
 from .common import VectorProcessorAction
 
@@ -199,8 +199,8 @@ class NativeVectorProcessorAction(VectorProcessorAction):
 
         raise ValueError(f"Unsupported ranking metric: {metric}")
 
-@register_vector_processor_service(VectorProcessorDriver.NATIVE)
-class NativeVectorProcessorService(VectorProcessorService):
+@register_vector_processor_driver(VectorProcessorDriverType.NATIVE)
+class NativeVectorProcessorService(VectorProcessorDriver):
     def __init__(self, id: str, config: VectorProcessorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

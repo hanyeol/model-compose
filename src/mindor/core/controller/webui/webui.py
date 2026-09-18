@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated
-from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, ControllerWebUIDriver
+from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, ControllerWebUIDriverType
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
@@ -28,7 +28,7 @@ class ControllerWebUI(AsyncService):
         self.driver: Optional[WebUIDriver] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        if self.config.driver == ControllerWebUIDriver.GRADIO:
+        if self.config.driver == ControllerWebUIDriverType.GRADIO:
             return [ "gradio>=6.0.0" ]
 
         return None
@@ -37,12 +37,12 @@ class ControllerWebUI(AsyncService):
         self._configure_driver()
 
     def _configure_driver(self) -> None:
-        if self.config.driver == ControllerWebUIDriver.GRADIO:
+        if self.config.driver == ControllerWebUIDriverType.GRADIO:
             from .gradio import GradioDriver
             self.driver = GradioDriver(self.config, self.workflow_schemas, self.workflows, self.components)
             return
 
-        if self.config.driver == ControllerWebUIDriver.STATIC:
+        if self.config.driver == ControllerWebUIDriverType.STATIC:
             from .static import StaticDriver
             self.driver = StaticDriver(self.config, self.workflow_schemas, self.workflows, self.components)
             return

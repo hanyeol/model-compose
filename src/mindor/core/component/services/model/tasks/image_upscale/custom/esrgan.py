@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, EsrganImageUpscaleModelA
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageUpscaleTaskAction
 from PIL import Image as PILImage
 
@@ -147,7 +147,7 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return output
 
-class EsrganImageUpscaleTaskService(ModelTaskService):
+class EsrganImageUpscaleTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

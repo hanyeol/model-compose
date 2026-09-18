@@ -13,4 +13,4 @@ AudioSilenceDetectorComponentConfig = Annotated[
 @component_validator(ComponentType.AUDIO_SILENCE_DETECTOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = AudioSilenceDetectorDriver.FFMPEG
+        values["driver"] = AudioSilenceDetectorDriverType.FFMPEG

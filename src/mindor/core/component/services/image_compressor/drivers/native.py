@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, Any
 from mindor.dsl.schema.component import ImageCompressorComponentConfig
 from mindor.dsl.schema.action import ImageCompressorActionConfig
-from ..base import ImageCompressorService, ImageCompressorDriver, register_image_compressor_service
+from ..base import ImageCompressorDriver, ImageCompressorDriverType, register_image_compressor_driver
 from ..base import ComponentActionContext
 from .common import ImageCompressorAction
 from PIL import Image as PILImage
@@ -24,8 +24,8 @@ class NativeImageCompressorAction(ImageCompressorAction):
 
         return await self._run_in_executor(_compress)
 
-@register_image_compressor_service(ImageCompressorDriver.NATIVE)
-class NativeImageCompressorService(ImageCompressorService):
+@register_image_compressor_driver(ImageCompressorDriverType.NATIVE)
+class NativeImageCompressorService(ImageCompressorDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

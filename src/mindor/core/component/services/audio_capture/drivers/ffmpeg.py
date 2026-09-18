@@ -11,7 +11,7 @@ from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.audio import is_audio_only_format
 from mindor.core.utils.shell import kill_process
 from mindor.core.logger import logging
-from ..base import AudioCaptureService, AudioCaptureDriver, register_audio_capture_service
+from ..base import AudioCaptureDriver, AudioCaptureDriverType, register_audio_capture_driver
 from ..base import ComponentActionContext
 from .common import AudioCaptureAction
 import asyncio, os, platform, shutil, time
@@ -291,8 +291,8 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
 
         return audio_format
 
-@register_audio_capture_service(AudioCaptureDriver.FFMPEG)
-class FFmpegAudioCaptureService(AudioCaptureService):
+@register_audio_capture_driver(AudioCaptureDriverType.FFMPEG)
+class FFmpegAudioCaptureService(AudioCaptureDriver):
     def __init__(self, id: str, config: AudioCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -5,12 +5,12 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from pydantic import BaseModel
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, DeviceMode
 from mindor.core.foundation.package.torch import torch_requirements
-from .common import ModelTaskService
+from .common import ModelTaskDriver
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
 
-class UnslothModelTaskService(ModelTaskService):
+class UnslothModelTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

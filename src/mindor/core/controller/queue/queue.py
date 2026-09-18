@@ -1,29 +1,32 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Dict, Any
-from mindor.dsl.schema.controller import ControllerQueueConfig, ControllerQueueDriver
+from typing import Dict, List, Any
+from mindor.dsl.schema.controller import ControllerQueueConfig, ControllerQueueDriverType
 from mindor.core.workflow.interrupt import InterruptHandler
-from .base import CommonControllerQueueService, ControllerQueueServiceRegistry
+from .base import CommonControllerQueueService, ControllerQueueDriverRegistry
 
 class ControllerQueueService:
     def __init__(self, config: ControllerQueueConfig):
         self.config = config
-        self.service: CommonControllerQueueService = self._create_service(config.driver)
+        self.driver: CommonControllerQueueService = self._create_driver(config.driver)
 
-    def _create_service(self, driver: ControllerQueueDriver) -> CommonControllerQueueService:
-        if not ControllerQueueServiceRegistry:
+    def _create_driver(self, driver: ControllerQueueDriverType) -> CommonControllerQueueService:
+        if not ControllerQueueDriverRegistry:
             from . import drivers
         try:
-            return ControllerQueueServiceRegistry[driver](self.config)
+            return ControllerQueueDriverRegistry[driver](self.config)
         except KeyError:
             raise ValueError(f"Unsupported controller queue driver: {driver}")
 
+    def get_declared_requirements(self) -> List[str]:
+        return list(self.driver.get_declared_requirements())
+
     async def start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
     async def stop(self) -> None:
-        await self.service.stop()
+        await self.driver.stop()
 
     async def dispatch(
         self,
@@ -32,4 +35,4 @@ class ControllerQueueService:
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler
     ) -> Any:
-        return await self.service.dispatch(task_id, workflow_id, input, interrupt_handler)
+        return await self.driver.dispatch(task_id, workflow_id, input, interrupt_handler)

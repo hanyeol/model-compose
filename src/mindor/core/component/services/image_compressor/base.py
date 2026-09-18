@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ImageCompressorComponentConfig, ImageCompressorDriver
+from mindor.dsl.schema.component import ImageCompressorComponentConfig, ImageCompressorDriverType
 from mindor.dsl.schema.action import ImageCompressorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class ImageCompressorService(AsyncService):
+class ImageCompressorDriver(ComponentDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class ImageCompressorService(AsyncService):
     async def _run(self, action: ImageCompressorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_image_compressor_service(driver: ImageCompressorDriver):
-    def decorator(cls: Type[ImageCompressorService]) -> Type[ImageCompressorService]:
-        ImageCompressorServiceRegistry[driver] = cls
+def register_image_compressor_driver(driver: ImageCompressorDriverType):
+    def decorator(cls: Type[ImageCompressorDriver]) -> Type[ImageCompressorDriver]:
+        ImageCompressorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-ImageCompressorServiceRegistry: Dict[ImageCompressorDriver, Type[ImageCompressorService]] = {}
+ImageCompressorDriverRegistry: Dict[ImageCompressorDriverType, Type[ImageCompressorDriver]] = {}

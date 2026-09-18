@@ -17,7 +17,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import AudioConverterService, AudioConverterDriver, register_audio_converter_service
+from ..base import AudioConverterDriver, AudioConverterDriverType, register_audio_converter_driver
 from ..base import ComponentActionContext
 from .common import AudioConverterAction
 import asyncio, os
@@ -221,8 +221,8 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         return get_audio_codec_for_format(format)
 
-@register_audio_converter_service(AudioConverterDriver.FFMPEG)
-class FFmpegAudioConverterService(AudioConverterService):
+@register_audio_converter_driver(AudioConverterDriverType.FFMPEG)
+class FFmpegAudioConverterService(AudioConverterDriver):
     def __init__(self, id: str, config: AudioConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

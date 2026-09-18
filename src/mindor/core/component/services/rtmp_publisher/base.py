@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriver
+from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriverType
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class RtmpPublisherService(AsyncService):
+class RtmpPublisherDriver(ComponentDriver):
     def __init__(self, id: str, config: RtmpPublisherComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class RtmpPublisherService(AsyncService):
     async def _run(self, action: RtmpPublisherActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_rtmp_publisher_service(driver: RtmpPublisherDriver):
-    def decorator(cls: Type[RtmpPublisherService]) -> Type[RtmpPublisherService]:
-        RtmpPublisherServiceRegistry[driver] = cls
+def register_rtmp_publisher_driver(driver: RtmpPublisherDriverType):
+    def decorator(cls: Type[RtmpPublisherDriver]) -> Type[RtmpPublisherDriver]:
+        RtmpPublisherDriverRegistry[driver] = cls
         return cls
     return decorator
 
-RtmpPublisherServiceRegistry: Dict[RtmpPublisherDriver, Type[RtmpPublisherService]] = {}
+RtmpPublisherDriverRegistry: Dict[RtmpPublisherDriverType, Type[RtmpPublisherDriver]] = {}

@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import Field
 from ...common import CommonComponentConfig, ComponentType
 
-class AudioExtractorDriver(str, Enum):
+class AudioExtractorDriverType(str, Enum):
     FFMPEG = "ffmpeg"
 
 class CommonAudioExtractorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.AUDIO_EXTRACTOR]
-    driver: AudioExtractorDriver = Field(..., description="Backend implementation used for audio extraction.")
+    driver: AudioExtractorDriverType = Field(..., description="Backend implementation used for audio extraction.")

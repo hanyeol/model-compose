@@ -8,7 +8,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.media import MediaArrayValue
 from mindor.core.utils.soundfile.audio import load_pcm_samples
 from ....action.media import MediaInputPathResolver
-from ..base import AudioSynchronizerService, AudioSynchronizerDriver, register_audio_synchronizer_service
+from ..base import AudioSynchronizerDriver, AudioSynchronizerDriverType, register_audio_synchronizer_driver
 from ..base import ComponentActionContext
 from .common import AudioSynchronizerAction
 import asyncio, os
@@ -137,8 +137,8 @@ class NativeAudioSynchronizerAction(AudioSynchronizerAction):
 
         return float(offset), confidence
 
-@register_audio_synchronizer_service(AudioSynchronizerDriver.NATIVE)
-class NativeAudioSynchronizerService(AudioSynchronizerService):
+@register_audio_synchronizer_driver(AudioSynchronizerDriverType.NATIVE)
+class NativeAudioSynchronizerService(AudioSynchronizerDriver):
     def __init__(self, id: str, config: AudioSynchronizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

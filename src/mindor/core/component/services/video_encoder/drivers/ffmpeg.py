@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Tuple, List, Dict, Callable, Any
 from collections.abc import AsyncIterator, AsyncIterable
-from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriver
+from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriverType
 from mindor.dsl.schema.action import VideoEncoderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
@@ -19,7 +19,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import VideoEncoderService, register_video_encoder_service
+from ..base import VideoEncoderDriver, register_video_encoder_driver
 from ..base import ComponentActionContext
 from .common import VideoEncoderAction
 import asyncio, os
@@ -415,8 +415,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
         return audio_codec
 
-@register_video_encoder_service(VideoEncoderDriver.FFMPEG)
-class FFmpegVideoEncoderService(VideoEncoderService):
+@register_video_encoder_driver(VideoEncoderDriverType.FFMPEG)
+class FFmpegVideoEncoderService(VideoEncoderDriver):
     def __init__(self, id: str, config: VideoEncoderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import DocumentLoaderComponentConfig, DocumentLoaderDriver
+from mindor.dsl.schema.component import DocumentLoaderComponentConfig, DocumentLoaderDriverType
 from mindor.dsl.schema.action import DocumentLoaderActionConfig, PypdfDocumentLoaderActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ..base import DocumentLoaderService, register_document_loader_service
+from ..base import DocumentLoaderDriver, register_document_loader_driver
 from ..base import ComponentActionContext
 from .common import DocumentLoaderAction
 import asyncio, os
@@ -156,8 +156,8 @@ class PypdfDocumentLoaderAction(DocumentLoaderAction):
 
         return indices
 
-@register_document_loader_service(DocumentLoaderDriver.PYPDF)
-class PypdfDocumentLoaderService(DocumentLoaderService):
+@register_document_loader_driver(DocumentLoaderDriverType.PYPDF)
+class PypdfDocumentLoaderService(DocumentLoaderDriver):
     def __init__(self, id: str, config: DocumentLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import SpeakerDiarizationTaskAction
 import asyncio
 
@@ -155,7 +155,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
 
         return segments
 
-class PyannoteSpeakerDiarizationTaskService(ModelTaskService):
+class PyannoteSpeakerDiarizationTaskDriver(ModelTaskDriver):
     config: PyannoteSpeakerDiarizationModelComponentConfig
 
     def __init__(self, id: str, config: PyannoteSpeakerDiarizationModelComponentConfig, daemon: bool):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ImageDrawingComponentConfig
 from mindor.dsl.schema.action import ImageDrawingActionConfig
-from ..base import ImageDrawingService, ImageDrawingDriver, register_image_drawing_service
+from ..base import ImageDrawingDriver, ImageDrawingDriverType, register_image_drawing_driver
 from ..base import ComponentActionContext
 from .common import ImageDrawingAction
 from PIL import Image as PILImage, ImageDraw, ImageFont
@@ -242,8 +242,8 @@ class NativeImageDrawingAction(ImageDrawingAction):
     def _bbox(self, params: Dict[str, Any]) -> Tuple[float, float, float, float]:
         return (params["x"], params["y"], params["x"] + params["width"], params["y"] + params["height"])
 
-@register_image_drawing_service(ImageDrawingDriver.NATIVE)
-class NativeImageDrawingService(ImageDrawingService):
+@register_image_drawing_driver(ImageDrawingDriverType.NATIVE)
+class NativeImageDrawingService(ImageDrawingDriver):
     def __init__(self, id: str, config: ImageDrawingComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

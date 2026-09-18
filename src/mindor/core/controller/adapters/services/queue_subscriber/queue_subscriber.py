@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from mindor.dsl.schema.controller import QueueSubscriberControllerAdapterConfig, QueueSubscriberDriver, ControllerAdapterType
+from typing import List
+from mindor.dsl.schema.controller import QueueSubscriberControllerAdapterConfig, QueueSubscriberDriverType, ControllerAdapterType
 from ...base import ControllerAdapterService, register_controller_adapter
-from .base import CommonQueueSubscriberControllerAdapterService, QueueSubscriberControllerAdapterServiceRegistry
+from .base import CommonQueueSubscriberControllerAdapterService, QueueSubscriberControllerAdapterDriverRegistry
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
@@ -18,19 +19,25 @@ class QueueSubscriberControllerAdapterService(ControllerAdapterService):
     ):
         super().__init__(config, controller, daemon)
 
-        self.service: CommonQueueSubscriberControllerAdapterService = self._create_service(config.driver)
+        self.driver: CommonQueueSubscriberControllerAdapterService = self._create_driver(config.driver)
 
-    def _create_service(self, driver: QueueSubscriberDriver) -> CommonQueueSubscriberControllerAdapterService:
-        if not QueueSubscriberControllerAdapterServiceRegistry:
+    def get_declared_requirements(self) -> List[str]:
+        requirements = list(self._get_setup_requirements() or [])
+        requirements.extend(self.driver.get_declared_requirements())
+
+        return requirements
+
+    def _create_driver(self, driver: QueueSubscriberDriverType) -> CommonQueueSubscriberControllerAdapterService:
+        if not QueueSubscriberControllerAdapterDriverRegistry:
             from . import drivers
         try:
-            return QueueSubscriberControllerAdapterServiceRegistry[driver](self.config, self.controller, self.daemon)
+            return QueueSubscriberControllerAdapterDriverRegistry[driver](self.config, self.controller, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported queue subscriber driver: {driver}")
 
     async def _serve(self) -> None:
-        await self.service.start()
-        await self.service.wait_until_stopped()
+        await self.driver.start()
+        await self.driver.wait_until_stopped()
 
     async def _shutdown(self) -> None:
-        await self.service.stop()
+        await self.driver.stop()

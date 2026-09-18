@@ -40,6 +40,7 @@ class RedisOutboundStream:
     ):
         self.client = client
         self.meta = meta
+
         self._codec = codec
         self._inline_bytes_threshold = inline_bytes_threshold
         self._blob_ttl = blob_ttl

@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import ImageToTextModelActionConfig
 from .common import CommonImageToTextModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceImageToTextModelArchitecture(str, Enum):
     AUTO       = "auto"
@@ -15,6 +15,6 @@ class HuggingfaceImageToTextModelArchitecture(str, Enum):
     KOSMOS2    = "kosmos2"
 
 class HuggingfaceImageToTextModelComponentConfig(CommonImageToTextModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
     architecture: HuggingfaceImageToTextModelArchitecture = Field(default=HuggingfaceImageToTextModelArchitecture.AUTO, description="Model architecture family; \"auto\" infers from the model config.")
     actions: List[ImageToTextModelActionConfig] = Field(default_factory=list, description="Actions this image-to-text component exposes to workflows.")

@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import LlamaCppModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import LlamaCppModelTaskDriver, ComponentActionContext
 from .common import TextEmbeddingTaskAction
 
 if TYPE_CHECKING:
@@ -47,8 +47,8 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
         return await self._run_in_executor(_embed)
 
-@register_model_task_service(ModelTaskType.TEXT_EMBEDDING, ModelDriver.LLAMACPP)
-class LlamaCppTextEmbeddingTaskService(LlamaCppModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_EMBEDDING, ModelDriverType.LLAMACPP)
+class LlamaCppTextEmbeddingTaskDriver(LlamaCppModelTaskDriver):
     async def _load_model(self) -> None:
         from llama_cpp import Llama
 

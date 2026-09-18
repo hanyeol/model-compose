@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
-class ImageProcessorDriver(str, Enum):
+class ImageProcessorDriverType(str, Enum):
     NATIVE = "native"
 
 class CommonImageProcessorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.IMAGE_PROCESSOR]
-    driver: ImageProcessorDriver = Field(..., description="Backend implementation used for image processing.")
+    driver: ImageProcessorDriverType = Field(..., description="Backend implementation used for image processing.")

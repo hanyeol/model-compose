@@ -3,7 +3,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import YoloPoseTrackingModelActionConfig
 from ..common import CommonPoseTrackingModelComponentConfig
 from .common import PoseTrackingModelFamily
-from ....common import ModelDriver, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
 from pathlib import PurePosixPath
 
 _ULTRALYTICS_RELEASE_BASEURL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
@@ -38,7 +38,7 @@ YoloPoseTrackingModelConfig = Annotated[
 ]
 
 class YoloPoseTrackingModelComponentConfig(CommonPoseTrackingModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[PoseTrackingModelFamily.YOLO]
     model: YoloPoseTrackingModelConfig = Field(..., description="YOLO pose model identifier — a HuggingFace repo ID or a local path.")
     actions: List[YoloPoseTrackingModelActionConfig] = Field(default_factory=list, description="Actions this pose tracking component exposes to workflows.")

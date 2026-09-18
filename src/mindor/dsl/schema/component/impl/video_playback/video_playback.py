@@ -13,4 +13,4 @@ VideoPlaybackComponentConfig = Annotated[
 @component_validator(ComponentType.VIDEO_PLAYBACK, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = VideoPlaybackDriver.FFPLAY
+        values["driver"] = VideoPlaybackDriverType.FFPLAY

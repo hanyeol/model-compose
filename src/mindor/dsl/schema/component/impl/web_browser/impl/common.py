@@ -3,11 +3,11 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
-class WebBrowserDriver(str, Enum):
+class WebBrowserDriverType(str, Enum):
     CHROME     = "chrome"
     PLAYWRIGHT = "playwright"
 
 class CommonWebBrowserComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.WEB_BROWSER]
-    driver: WebBrowserDriver = Field(default=WebBrowserDriver.CHROME, description="Backend implementation used to drive the browser.")
+    driver: WebBrowserDriverType = Field(default=WebBrowserDriverType.CHROME, description="Backend implementation used to drive the browser.")
     timeout: Optional[Union[str, int, float]] = Field(default="30s", description="Maximum seconds to wait for a browser action before failing.")

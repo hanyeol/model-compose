@@ -1,10 +1,10 @@
 from typing import Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import AudioExtractorComponentConfig, AudioExtractorDriver
+from mindor.dsl.schema.component import AudioExtractorComponentConfig, AudioExtractorDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import AudioExtractorService, AudioExtractorServiceRegistry
+from .base import AudioExtractorDriver, AudioExtractorDriverRegistry
 import importlib
 
 @register_component(ComponentType.AUDIO_EXTRACTOR)
@@ -18,24 +18,24 @@ class AudioExtractorComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: AudioExtractorService = self._create_service(self.config.driver)
+        self.driver: AudioExtractorDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: AudioExtractorDriver) -> AudioExtractorService:
+    def _create_driver(self, driver: AudioExtractorDriverType) -> AudioExtractorDriver:
         try:
-            if driver not in AudioExtractorServiceRegistry:
+            if driver not in AudioExtractorDriverRegistry:
                 self._load_driver_module(driver)
-            return AudioExtractorServiceRegistry[driver](self.id, self.config, self.daemon)
+            return AudioExtractorDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported audio extractor driver: {driver}")
 
-    def _load_driver_module(self, driver: AudioExtractorDriver) -> None:
+    def _load_driver_module(self, driver: AudioExtractorDriverType) -> None:
         """Import the module that registers the given audio extractor driver.
 
-        Convention: a driver "foo-bar" (AudioExtractorDriver.value) maps to
+        Convention: a driver "foo-bar" (AudioExtractorDriverType.value) maps to
         mindor.core.component.services.audio_extractor.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_audio_extractor_service
-        decorator, populating AudioExtractorServiceRegistry.
+        Importing the module triggers its @register_audio_extractor_driver
+        decorator, populating AudioExtractorDriverRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
@@ -45,20 +45,20 @@ class AudioExtractorComponent(ComponentService):
             raise ValueError(f"Unsupported audio extractor driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import ImageEmbeddingModelActionConfig
 from .common import CommonImageEmbeddingModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceImageEmbeddingModelArchitecture(str, Enum):
     AUTO   = "auto"
@@ -12,6 +12,6 @@ class HuggingfaceImageEmbeddingModelArchitecture(str, Enum):
     DINOV2 = "dinov2"
 
 class HuggingfaceImageEmbeddingModelComponentConfig(CommonImageEmbeddingModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
     architecture: HuggingfaceImageEmbeddingModelArchitecture = Field(default=HuggingfaceImageEmbeddingModelArchitecture.AUTO, description="Image embedding model architecture; \"auto\" infers from the model config.")
     actions: List[ImageEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this image embedding component exposes to workflows.")

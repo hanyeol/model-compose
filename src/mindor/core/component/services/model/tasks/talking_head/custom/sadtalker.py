@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from ......action.media import MediaInputPathResolver
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
 import os, tempfile, shutil, importlib.util
@@ -237,7 +237,7 @@ class SadTalkerTalkingHeadTaskAction(TalkingHeadTaskAction):
 
         return path
 
-class SadTalkerTalkingHeadTaskService(ModelTaskService):
+class SadTalkerTalkingHeadTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

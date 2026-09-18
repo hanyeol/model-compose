@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import TranscriptCorrectorComponentConfig, TranscriptCorrectorDriver
+from mindor.dsl.schema.component import TranscriptCorrectorComponentConfig, TranscriptCorrectorDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import TranscriptCorrectorService, TranscriptCorrectorServiceRegistry
+from .base import TranscriptCorrectorDriver, TranscriptCorrectorDriverRegistry
 import importlib
 
 @register_component(ComponentType.TRANSCRIPT_CORRECTOR)
@@ -17,17 +17,17 @@ class TranscriptCorrectorComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: TranscriptCorrectorService = self._create_service(self.config.driver)
+        self.driver: TranscriptCorrectorDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: TranscriptCorrectorDriver) -> TranscriptCorrectorService:
+    def _create_driver(self, driver: TranscriptCorrectorDriverType) -> TranscriptCorrectorDriver:
         try:
-            if driver not in TranscriptCorrectorServiceRegistry:
+            if driver not in TranscriptCorrectorDriverRegistry:
                 self._load_driver_module(driver)
-            return TranscriptCorrectorServiceRegistry[driver](self.id, self.config, self.daemon)
+            return TranscriptCorrectorDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported transcript corrector driver: {driver}")
 
-    def _load_driver_module(self, driver: TranscriptCorrectorDriver) -> None:
+    def _load_driver_module(self, driver: TranscriptCorrectorDriverType) -> None:
         driver_module = driver.value.replace("-", "_")
 
         try:
@@ -36,20 +36,20 @@ class TranscriptCorrectorComponent(ComponentService):
             raise ValueError(f"Unsupported transcript corrector driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

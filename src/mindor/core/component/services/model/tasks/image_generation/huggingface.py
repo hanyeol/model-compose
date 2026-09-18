@@ -5,9 +5,9 @@ from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
 from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, DiffusionVaeConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskService
+from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskDriver
 from .common import ImageGenerationGenerateTaskAction, ImageGenerationInpaintTaskAction
 from mindor.core.logger import logging
 from PIL import Image as PILImage
@@ -231,8 +231,8 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 
         return await self._run_in_executor(_inpaint)
 
-@register_model_task_service(ModelTaskType.IMAGE_GENERATION, ModelDriver.HUGGINGFACE)
-class HuggingfaceImageGenerationTaskService(HuggingfaceDiffusionPipelineTaskService[ImageGenerationActionMethod]):
+@register_model_task_driver(ModelTaskType.IMAGE_GENERATION, ModelDriverType.HUGGINGFACE)
+class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[ImageGenerationActionMethod]):
     def _get_setup_requirements(self) -> List[str]:
         return [
             *super()._get_setup_requirements(),

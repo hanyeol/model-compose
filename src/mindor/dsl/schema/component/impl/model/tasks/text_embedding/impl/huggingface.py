@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import TextEmbeddingModelActionConfig
 from .common import CommonTextEmbeddingModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceTextEmbeddingModelArchitecture(str, Enum):
     AUTO   = "auto"
@@ -14,6 +14,6 @@ class HuggingfaceTextEmbeddingModelArchitecture(str, Enum):
     XCLIP  = "xclip"
 
 class HuggingfaceTextEmbeddingModelComponentConfig(CommonTextEmbeddingModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
     architecture: HuggingfaceTextEmbeddingModelArchitecture = Field(default=HuggingfaceTextEmbeddingModelArchitecture.AUTO, description="Embedding model architecture; \"auto\" infers from the model config.")
     actions: List[TextEmbeddingModelActionConfig] = Field(default_factory=list, description="Actions this text embedding component exposes to workflows.")

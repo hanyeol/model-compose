@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import AudioMixerComponentConfig, AudioMixerDriver
+from mindor.dsl.schema.component import AudioMixerComponentConfig, AudioMixerDriverType
 from mindor.dsl.schema.action import AudioMixerActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class AudioMixerService(AsyncService):
+class AudioMixerDriver(ComponentDriver):
     def __init__(self, id: str, config: AudioMixerComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class AudioMixerService(AsyncService):
     async def _run(self, action: AudioMixerActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_audio_mixer_service(driver: AudioMixerDriver):
-    def decorator(cls: Type[AudioMixerService]) -> Type[AudioMixerService]:
-        AudioMixerServiceRegistry[driver] = cls
+def register_audio_mixer_driver(driver: AudioMixerDriverType):
+    def decorator(cls: Type[AudioMixerDriver]) -> Type[AudioMixerDriver]:
+        AudioMixerDriverRegistry[driver] = cls
         return cls
     return decorator
 
-AudioMixerServiceRegistry: Dict[AudioMixerDriver, Type[AudioMixerService]] = {}
+AudioMixerDriverRegistry: Dict[AudioMixerDriverType, Type[AudioMixerDriver]] = {}

@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import ImageTextToTextModelActionConfig
 from .common import CommonImageTextToTextModelComponentConfig
-from ...common import ModelDriver
+from ...common import ModelDriverType
 
 class HuggingfaceImageTextToTextModelArchitecture(str, Enum):
     AUTO        = "auto"
@@ -16,6 +16,6 @@ class HuggingfaceImageTextToTextModelArchitecture(str, Enum):
     LIGHTON_OCR = "lighton-ocr"
 
 class HuggingfaceImageTextToTextModelComponentConfig(CommonImageTextToTextModelComponentConfig):
-    driver: Literal[ModelDriver.HUGGINGFACE]
+    driver: Literal[ModelDriverType.HUGGINGFACE]
     architecture: HuggingfaceImageTextToTextModelArchitecture = Field(default=HuggingfaceImageTextToTextModelArchitecture.AUTO, description="Vision-language model architecture; \"auto\" infers from the model config.")
     actions: List[ImageTextToTextModelActionConfig] = Field(default_factory=list, description="Actions this image-text-to-text component exposes to workflows.")

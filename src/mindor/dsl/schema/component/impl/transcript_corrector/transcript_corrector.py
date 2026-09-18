@@ -13,4 +13,4 @@ TranscriptCorrectorComponentConfig = Annotated[
 @component_validator(ComponentType.TRANSCRIPT_CORRECTOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = TranscriptCorrectorDriver.NATIVE
+        values["driver"] = TranscriptCorrectorDriverType.NATIVE

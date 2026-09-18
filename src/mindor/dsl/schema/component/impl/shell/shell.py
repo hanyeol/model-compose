@@ -14,4 +14,4 @@ ShellComponentConfig = Annotated[
 @component_validator(ComponentType.SHELL, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = ShellDriver.LOCAL
+        values["driver"] = ShellDriverType.LOCAL

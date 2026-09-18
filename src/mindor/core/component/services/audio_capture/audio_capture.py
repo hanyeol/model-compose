@@ -1,9 +1,9 @@
 from typing import Any
-from mindor.dsl.schema.component import AudioCaptureComponentConfig, AudioCaptureDriver
+from mindor.dsl.schema.component import AudioCaptureComponentConfig, AudioCaptureDriverType
 from mindor.dsl.schema.action import ActionConfig
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .base import AudioCaptureService, AudioCaptureServiceRegistry
+from .base import AudioCaptureDriver, AudioCaptureDriverRegistry
 import importlib
 
 @register_component(ComponentType.AUDIO_CAPTURE)
@@ -17,20 +17,20 @@ class AudioCaptureComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.service: AudioCaptureService = self._create_service(self.config.driver)
+        self.driver: AudioCaptureDriver = self._create_driver(self.config.driver)
 
-    def _create_service(self, driver: AudioCaptureDriver) -> AudioCaptureService:
+    def _create_driver(self, driver: AudioCaptureDriverType) -> AudioCaptureDriver:
         try:
-            if driver not in AudioCaptureServiceRegistry:
+            if driver not in AudioCaptureDriverRegistry:
                 self._load_driver_module(driver)
-            return AudioCaptureServiceRegistry[driver](self.id, self.config, self.daemon)
+            return AudioCaptureDriverRegistry[driver](self.id, self.config, self.daemon)
         except KeyError:
             raise ValueError(f"Unsupported audio capture driver: {driver}")
 
-    def _load_driver_module(self, driver: AudioCaptureDriver) -> None:
+    def _load_driver_module(self, driver: AudioCaptureDriverType) -> None:
         """Import the module that registers the given audio capture driver.
 
-        Convention: a driver "foo-bar" (AudioCaptureDriver.value) maps to
+        Convention: a driver "foo-bar" (AudioCaptureDriverType.value) maps to
         mindor.core.component.services.audio_capture.drivers.foo_bar.
         """
         driver_module = driver.value.replace("-", "_")
@@ -41,20 +41,20 @@ class AudioCaptureComponent(ComponentService):
             raise ValueError(f"Unsupported audio capture driver: {driver}") from e
 
     async def _setup(self) -> None:
-        await self.service.setup()
+        await self.driver.setup()
 
     async def _teardown(self) -> None:
-        await self.service.teardown()
+        await self.driver.teardown()
 
     async def _start(self) -> None:
-        await self.service.start()
+        await self.driver.start()
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        await self.service.stop()
+        await self.driver.stop()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await self.service.run(action, context)
+        return await self.driver.run(action, context)

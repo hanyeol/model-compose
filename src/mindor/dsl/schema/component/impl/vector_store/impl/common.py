@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
 
-class VectorStoreDriver(str, Enum):
+class VectorStoreDriverType(str, Enum):
     MILVUS = "milvus"
     QDRANT = "qdrant"
     FAISS  = "faiss"
@@ -12,4 +12,4 @@ class VectorStoreDriver(str, Enum):
 
 class CommonVectorStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_STORE]
-    driver: VectorStoreDriver = Field(..., description="Backend implementation used for the vector store.")
+    driver: VectorStoreDriverType = Field(..., description="Backend implementation used for the vector store.")

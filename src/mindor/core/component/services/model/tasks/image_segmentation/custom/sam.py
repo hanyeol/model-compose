@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SamImageSegmentationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import ImageSegmentationTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -130,7 +130,7 @@ class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
     def _mask_to_pil_image(self, mask: np.ndarray) -> PILImage.Image:
         return PILImage.fromarray((mask.astype("uint8") * 255), mode="L")
 
-class SamImageSegmentationTaskService(ModelTaskService):
+class SamImageSegmentationTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

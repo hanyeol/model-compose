@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import AudioAnalyzerComponentConfig, AudioAnalyzerDriver
+from mindor.dsl.schema.component import AudioAnalyzerComponentConfig, AudioAnalyzerDriverType
 from mindor.dsl.schema.action import AudioAnalyzerActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class AudioAnalyzerService(AsyncService):
+class AudioAnalyzerDriver(ComponentDriver):
     def __init__(self, id: str, config: AudioAnalyzerComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class AudioAnalyzerService(AsyncService):
     async def _run(self, action: AudioAnalyzerActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_audio_analyzer_service(driver: AudioAnalyzerDriver):
-    def decorator(cls: Type[AudioAnalyzerService]) -> Type[AudioAnalyzerService]:
-        AudioAnalyzerServiceRegistry[driver] = cls
+def register_audio_analyzer_driver(driver: AudioAnalyzerDriverType):
+    def decorator(cls: Type[AudioAnalyzerDriver]) -> Type[AudioAnalyzerDriver]:
+        AudioAnalyzerDriverRegistry[driver] = cls
         return cls
     return decorator
 
-AudioAnalyzerServiceRegistry: Dict[AudioAnalyzerDriver, Type[AudioAnalyzerService]] = {}
+AudioAnalyzerDriverRegistry: Dict[AudioAnalyzerDriverType, Type[AudioAnalyzerDriver]] = {}

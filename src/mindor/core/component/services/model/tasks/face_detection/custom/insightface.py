@@ -7,7 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceDetection
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import FaceDetectionTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 import os, shutil
 
@@ -138,7 +138,7 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         return []
 
-class InsightfaceFaceDetectionTaskService(ModelTaskService):
+class InsightfaceFaceDetectionTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

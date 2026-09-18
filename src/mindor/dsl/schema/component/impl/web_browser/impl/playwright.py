@@ -1,10 +1,10 @@
 from typing import Literal, Optional, List, Dict, Any
 from pydantic import Field, model_validator
 from mindor.dsl.schema.action import WebBrowserActionConfig
-from .common import CommonWebBrowserComponentConfig, WebBrowserDriver
+from .common import CommonWebBrowserComponentConfig, WebBrowserDriverType
 
 class PlaywrightWebBrowserComponentConfig(CommonWebBrowserComponentConfig):
-    driver: Literal[WebBrowserDriver.PLAYWRIGHT]
+    driver: Literal[WebBrowserDriverType.PLAYWRIGHT]
     browser: Literal[ "chromium", "firefox", "webkit" ] = Field(default="chromium", description="Playwright browser engine to launch.")
     channel: Optional[str] = Field(default=None, description="System browser channel (e.g., 'chrome', 'msedge'). Chromium only.")
     headless: bool = Field(default=True, description="Whether to run the browser in headless mode.")

@@ -1,16 +1,16 @@
 from enum import Enum
 from pydantic import BaseModel
 
-class ModelMemoryStorageDriver(str, Enum):
+class ModelMemoryStorageDriverType(str, Enum):
     SQLITE = "sqlite"
     REDIS  = "redis"
 
 class CommonModelMemoryStorageConfig(BaseModel):
-    driver: ModelMemoryStorageDriver
+    driver: ModelMemoryStorageDriverType
 
-class ModelMemoryBufferDriver(str, Enum):
+class ModelMemoryBufferDriverType(str, Enum):
     MEMORY = "memory"
     REDIS  = "redis"
 
 class CommonModelMemoryBufferConfig(BaseModel):
-    driver: ModelMemoryBufferDriver
+    driver: ModelMemoryBufferDriverType

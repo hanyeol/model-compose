@@ -1,9 +1,9 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field, model_validator
-from .common import CommonControllerQueueConfig, ControllerQueueDriver
+from .common import CommonControllerQueueConfig, ControllerQueueDriverType
 
 class RedisControllerQueueConfig(CommonControllerQueueConfig):
-    driver: Literal[ControllerQueueDriver.REDIS]
+    driver: Literal[ControllerQueueDriverType.REDIS]
     url: Optional[str] = Field(default=None, description="Full connection URL for the Redis server. Mutually exclusive with `host`.")
     host: str = Field(default="localhost", description="Hostname or IP address of the Redis server.")
     port: int = Field(default=6379, ge=1, le=65535, description="TCP port the Redis server listens on.")

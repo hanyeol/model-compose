@@ -3,10 +3,10 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import VoiceActivityDetectionModelActionConfig
 from ..common import CommonVoiceActivityDetectionModelComponentConfig
 from .common import VoiceActivityDetectionModelFamily
-from ....common import ModelDriver, ModelConfig
+from ....common import ModelDriverType, ModelConfig
 
 class SileroVoiceActivityDetectionModelComponentConfig(CommonVoiceActivityDetectionModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[VoiceActivityDetectionModelFamily.SILERO]
     model: Optional[ModelConfig] = Field(default=None, description="Not configurable; the model ships bundled with the silero-vad package.")
     actions: List[VoiceActivityDetectionModelActionConfig] = Field(default_factory=list, description="Actions this voice activity detection component exposes to workflows.")

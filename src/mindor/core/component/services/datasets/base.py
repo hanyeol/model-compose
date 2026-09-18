@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import DatasetsComponentConfig, DatasetsDriver
+from mindor.dsl.schema.component import DatasetsComponentConfig, DatasetsDriverType
 from mindor.dsl.schema.action import DatasetsActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class DatasetsService(AsyncService):
+class DatasetsDriver(ComponentDriver):
     def __init__(self, id: str, config: DatasetsComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class DatasetsService(AsyncService):
     async def _run(self, action: DatasetsActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_datasets_service(driver: DatasetsDriver):
-    def decorator(cls: Type[DatasetsService]) -> Type[DatasetsService]:
-        DatasetsServiceRegistry[driver] = cls
+def register_datasets_driver(driver: DatasetsDriverType):
+    def decorator(cls: Type[DatasetsDriver]) -> Type[DatasetsDriver]:
+        DatasetsDriverRegistry[driver] = cls
         return cls
     return decorator
 
-DatasetsServiceRegistry: Dict[DatasetsDriver, Type[DatasetsService]] = {}
+DatasetsDriverRegistry: Dict[DatasetsDriverType, Type[DatasetsDriver]] = {}

@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import SentenceSplitterComponentConfig, SentenceSplitterDriver
+from mindor.dsl.schema.component import SentenceSplitterComponentConfig, SentenceSplitterDriverType
 from mindor.dsl.schema.action import SentenceSplitterActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class SentenceSplitterService(AsyncService):
+class SentenceSplitterDriver(ComponentDriver):
     def __init__(self, id: str, config: SentenceSplitterComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class SentenceSplitterService(AsyncService):
     async def _run(self, action: SentenceSplitterActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_sentence_splitter_service(driver: SentenceSplitterDriver):
-    def decorator(cls: Type[SentenceSplitterService]) -> Type[SentenceSplitterService]:
-        SentenceSplitterServiceRegistry[driver] = cls
+def register_sentence_splitter_driver(driver: SentenceSplitterDriverType):
+    def decorator(cls: Type[SentenceSplitterDriver]) -> Type[SentenceSplitterDriver]:
+        SentenceSplitterDriverRegistry[driver] = cls
         return cls
     return decorator
 
-SentenceSplitterServiceRegistry: Dict[SentenceSplitterDriver, Type[SentenceSplitterService]] = {}
+SentenceSplitterDriverRegistry: Dict[SentenceSplitterDriverType, Type[SentenceSplitterDriver]] = {}

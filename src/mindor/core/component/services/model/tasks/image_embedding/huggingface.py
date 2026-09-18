@@ -5,9 +5,9 @@ from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, ImageEmbeddingModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageEmbeddingModelArchitecture
 from mindor.core.foundation.cancellation import CancellationToken
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from .common import ImageEmbeddingTaskAction
 from PIL import Image as PILImage
 
@@ -107,8 +107,8 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
 
         raise ValueError(f"Unsupported pooling type: {pooling}")
 
-@register_model_task_service(ModelTaskType.IMAGE_EMBEDDING, ModelDriver.HUGGINGFACE)
-class HuggingfaceImageEmbeddingTaskService(HuggingfaceMultimodalModelTaskService):
+@register_model_task_driver(ModelTaskType.IMAGE_EMBEDDING, ModelDriverType.HUGGINGFACE)
+class HuggingfaceImageEmbeddingTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageEmbeddingModelArchitecture.AUTO:
             from transformers import AutoModel

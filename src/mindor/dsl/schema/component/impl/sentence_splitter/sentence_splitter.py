@@ -13,4 +13,4 @@ SentenceSplitterComponentConfig = Annotated[
 @component_validator(ComponentType.SENTENCE_SPLITTER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = SentenceSplitterDriver.NATIVE
+        values["driver"] = SentenceSplitterDriverType.NATIVE

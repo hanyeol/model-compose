@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import ScreenCaptureComponentConfig, ScreenCaptureDriver
+from mindor.dsl.schema.component import ScreenCaptureComponentConfig, ScreenCaptureDriverType
 from mindor.dsl.schema.action import ScreenCaptureActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class ScreenCaptureService(AsyncService):
+class ScreenCaptureDriver(ComponentDriver):
     def __init__(self, id: str, config: ScreenCaptureComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class ScreenCaptureService(AsyncService):
     async def _run(self, action: ScreenCaptureActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_screen_capture_service(driver: ScreenCaptureDriver):
-    def decorator(cls: Type[ScreenCaptureService]) -> Type[ScreenCaptureService]:
-        ScreenCaptureServiceRegistry[driver] = cls
+def register_screen_capture_driver(driver: ScreenCaptureDriverType):
+    def decorator(cls: Type[ScreenCaptureDriver]) -> Type[ScreenCaptureDriver]:
+        ScreenCaptureDriverRegistry[driver] = cls
         return cls
     return decorator
 
-ScreenCaptureServiceRegistry: Dict[ScreenCaptureDriver, Type[ScreenCaptureService]] = {}
+ScreenCaptureDriverRegistry: Dict[ScreenCaptureDriverType, Type[ScreenCaptureDriver]] = {}

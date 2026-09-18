@@ -6,9 +6,9 @@ from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageBackgrou
 from mindor.dsl.schema.component import HuggingfaceImageBackgroundRemovalModelArchitecture, ModelConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from .common import ImageBackgroundRemovalTaskAction
 from PIL import Image as PILImage
 
@@ -79,8 +79,8 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 
         return await self._run_in_executor(_predict_masks)
 
-@register_model_task_service(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriver.HUGGINGFACE)
-class HuggingfaceImageBackgroundRemovalTaskService(HuggingfaceMultimodalModelTaskService):
+@register_model_task_driver(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriverType.HUGGINGFACE)
+class HuggingfaceImageBackgroundRemovalTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch", "torchvision"), "transformers", "accelerate", "timm", "kornia" ]
 

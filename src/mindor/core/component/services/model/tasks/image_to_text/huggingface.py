@@ -8,9 +8,9 @@ from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionCo
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskService
+from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
 from ...base.huggingface.cancellation import create_cancellation_criteria
 from .common import ImageToTextTaskAction
@@ -191,8 +191,8 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
 
         return StoppingCriteriaList(criteria) if criteria else None
 
-@register_model_task_service(ModelTaskType.IMAGE_TO_TEXT, ModelDriver.HUGGINGFACE)
-class HuggingfaceImageToTextTaskService(HuggingfaceMultimodalModelTaskService):
+@register_model_task_driver(ModelTaskType.IMAGE_TO_TEXT, ModelDriverType.HUGGINGFACE)
+class HuggingfaceImageToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageToTextModelArchitecture.AUTO:
             from transformers import AutoModelForVision2Seq

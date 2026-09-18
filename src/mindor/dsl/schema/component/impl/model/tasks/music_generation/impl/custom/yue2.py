@@ -5,7 +5,7 @@ from mindor.dsl.utils.path import is_local_path
 from mindor.dsl.schema.action import MusicGenerationModelActionConfig
 from ..common import CommonMusicGenerationModelComponentConfig
 from .common import MusicGenerationModelFamily
-from ....common import ModelDriver, ModelConfig, ModelProvider, ModelQuantizationConfig, ModelQuantizationType
+from ....common import ModelDriverType, ModelConfig, ModelProvider, ModelQuantizationConfig, ModelQuantizationType
 
 _DEFAULT_YUE2_VAE_REPOSITORY = "m-a-p/YuE2-Vae"
 
@@ -52,7 +52,7 @@ class Yue2VaeConfig(BaseModel):
         return values
 
 class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicGenerationModelFamily.YUE2]
     vae: Yue2VaeConfig = Field(default_factory=lambda: Yue2VaeConfig(model=_DEFAULT_YUE2_VAE_REPOSITORY), description="VAE decoder used to render audio; defaults to the m-a-p/YuE2-Vae Hub repository.")
     backend: Yue2Backend = Field(default=Yue2Backend.TORCH, description="Inference backend for autoregressive generation (torch, torch-eager, vllm).")

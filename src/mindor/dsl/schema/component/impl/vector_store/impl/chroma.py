@@ -2,10 +2,10 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from enum import Enum
 from pydantic import BaseModel, Field
 from mindor.dsl.schema.action import ChromaVectorStoreActionConfig
-from .common import CommonVectorStoreComponentConfig, VectorStoreDriver
+from .common import CommonVectorStoreComponentConfig, VectorStoreDriverType
 
 class ChromaVectorStoreComponentConfig(CommonVectorStoreComponentConfig):
-    driver: Literal[VectorStoreDriver.CHROMA]
+    driver: Literal[VectorStoreDriverType.CHROMA]
     mode: Literal[ "local", "server" ] = Field(default="local", description="Whether Chroma runs embedded locally or connects to a remote server.")
     storage_dir: str = Field(default="./chroma", description="Directory where Chroma persists data when running in local mode.")
     host: str = Field(default="localhost", description="Hostname or IP address of the Chroma server.")

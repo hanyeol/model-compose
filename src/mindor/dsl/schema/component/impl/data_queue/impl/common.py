@@ -3,10 +3,10 @@ from enum import Enum
 from pydantic import Field
 from ...common import CommonComponentConfig, ComponentType
 
-class DataQueueDriver(str, Enum):
+class DataQueueDriverType(str, Enum):
     MEMORY = "memory"
 
 class CommonDataQueueComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.DATA_QUEUE]
-    driver: DataQueueDriver = Field(..., description="Backend implementation used for the data queue.")
+    driver: DataQueueDriverType = Field(..., description="Backend implementation used for the data queue.")
     max_size: int = Field(default=0, ge=0, description="Maximum number of items the queue can hold; 0 means unbounded.")

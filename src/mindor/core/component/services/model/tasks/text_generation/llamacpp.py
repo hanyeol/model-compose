@@ -7,8 +7,8 @@ from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActio
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriver, register_model_task_service
-from ...base import LlamaCppModelTaskService, ComponentActionContext
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import LlamaCppModelTaskDriver, ComponentActionContext
 from .common import TextGenerationTaskAction
 import asyncio
 
@@ -117,7 +117,7 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
             if text:
                 yield text
 
-@register_model_task_service(ModelTaskType.TEXT_GENERATION, ModelDriver.LLAMACPP)
-class LlamaCppTextGenerationTaskService(LlamaCppModelTaskService):
+@register_model_task_driver(ModelTaskType.TEXT_GENERATION, ModelDriverType.LLAMACPP)
+class LlamaCppTextGenerationTaskDriver(LlamaCppModelTaskDriver):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await LlamaCppTextGenerationTaskAction(action, self.model).run(context)

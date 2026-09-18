@@ -13,4 +13,4 @@ VideoAnalyzerComponentConfig = Annotated[
 @component_validator(ComponentType.VIDEO_ANALYZER, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = VideoAnalyzerDriver.FFMPEG
+        values["driver"] = VideoAnalyzerDriverType.FFMPEG

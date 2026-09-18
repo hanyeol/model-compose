@@ -6,7 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BlazeFaceFaceDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import FaceDetectionTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -99,7 +99,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         return landmarks
 
-class BlazeFaceFaceDetectionTaskService(ModelTaskService):
+class BlazeFaceFaceDetectionTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

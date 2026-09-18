@@ -3,9 +3,9 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonComponentConfig, ComponentType
 
-class SearchEngineDriver(str, Enum):
+class SearchEngineDriverType(str, Enum):
     SQLITE = "sqlite"
 
 class CommonSearchEngineComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.SEARCH_ENGINE]
-    driver: SearchEngineDriver = Field(..., description="Backend implementation used for the search engine.")
+    driver: SearchEngineDriverType = Field(..., description="Backend implementation used for the search engine.")

@@ -1,11 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ShellComponentConfig, ShellDriver
+from mindor.dsl.schema.component import ShellComponentConfig, ShellDriverType
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class ShellService(AsyncService):
+class ShellDriver(ComponentDriver):
     def __init__(self, id: str, config: ShellComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class ShellService(AsyncService):
     async def _run(self, action: ShellActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_shell_service(driver: ShellDriver):
-    def decorator(cls: Type[ShellService]) -> Type[ShellService]:
-        ShellServiceRegistry[driver] = cls
+def register_shell_driver(driver: ShellDriverType):
+    def decorator(cls: Type[ShellDriver]) -> Type[ShellDriver]:
+        ShellDriverRegistry[driver] = cls
         return cls
     return decorator
 
-ShellServiceRegistry: Dict[ShellDriver, Type[ShellService]] = {}
+ShellDriverRegistry: Dict[ShellDriverType, Type[ShellDriver]] = {}

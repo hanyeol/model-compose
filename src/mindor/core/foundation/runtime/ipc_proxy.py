@@ -113,6 +113,7 @@ class IpcRuntimeProxy(ABC):
 
         while True:
             time_left = deadline - time.monotonic()
+
             if time_left <= 0:
                 raise TimeoutError(f"Worker '{self.worker_id}' did not start within {self._start_timeout}s")
 

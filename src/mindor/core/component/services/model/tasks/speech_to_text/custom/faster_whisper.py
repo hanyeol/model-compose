@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import SpeechToTextTaskAction
 import asyncio
 
@@ -157,7 +157,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             ] if words else None,
         }
 
-class FasterWhisperSpeechToTextTaskService(ModelTaskService):
+class FasterWhisperSpeechToTextTaskDriver(ModelTaskDriver):
     config: FasterWhisperSpeechToTextModelComponentConfig
 
     def __init__(self, id: str, config: FasterWhisperSpeechToTextModelComponentConfig, daemon: bool):

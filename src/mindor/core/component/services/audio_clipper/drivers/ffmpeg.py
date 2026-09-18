@@ -18,7 +18,7 @@ from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import AudioClipperService, AudioClipperDriver, register_audio_clipper_service
+from ..base import AudioClipperDriver, AudioClipperDriverType, register_audio_clipper_driver
 from ..base import ComponentActionContext
 from .common import AudioClipperAction
 import asyncio, os
@@ -337,8 +337,8 @@ class FFmpegAudioClipperAction(AudioClipperAction):
 
         return (await probe_audio(input_path, ("format",)))[0]
 
-@register_audio_clipper_service(AudioClipperDriver.FFMPEG)
-class FFmpegAudioClipperService(AudioClipperService):
+@register_audio_clipper_driver(AudioClipperDriverType.FFMPEG)
+class FFmpegAudioClipperService(AudioClipperDriver):
     def __init__(self, id: str, config: AudioClipperComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

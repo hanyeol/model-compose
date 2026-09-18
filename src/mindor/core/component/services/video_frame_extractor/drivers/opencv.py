@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.media.filename import format_filename
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ....action.media import MediaInputPathResolver
-from ..base import VideoFrameExtractorService, VideoFrameExtractorDriver, register_video_frame_extractor_service
+from ..base import VideoFrameExtractorDriver, VideoFrameExtractorDriverType, register_video_frame_extractor_driver
 from ..base import ComponentActionContext
 from .common import VideoFrameExtractorAction
 from PIL import Image as PILImage
@@ -214,8 +214,8 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         finally:
             capture.release()
 
-@register_video_frame_extractor_service(VideoFrameExtractorDriver.OPENCV)
-class OpenCVVideoFrameExtractorService(VideoFrameExtractorService):
+@register_video_frame_extractor_driver(VideoFrameExtractorDriverType.OPENCV)
+class OpenCVVideoFrameExtractorService(VideoFrameExtractorDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

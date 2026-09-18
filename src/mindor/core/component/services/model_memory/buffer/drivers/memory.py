@@ -1,8 +1,8 @@
 from typing import Dict, List, Any
-from mindor.dsl.schema.component import MemoryModelMemoryBufferConfig, ModelMemoryBufferDriver
+from mindor.dsl.schema.component import MemoryModelMemoryBufferConfig, ModelMemoryBufferDriverType
 from ..base import ModelMemoryBuffer, register_model_memory_buffer
 
-@register_model_memory_buffer(ModelMemoryBufferDriver.MEMORY)
+@register_model_memory_buffer(ModelMemoryBufferDriverType.MEMORY)
 class MemoryModelMemoryBuffer(ModelMemoryBuffer):
     def __init__(self, config: MemoryModelMemoryBufferConfig):
         super().__init__()

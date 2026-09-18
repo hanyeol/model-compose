@@ -4,14 +4,14 @@ from pydantic import Field
 from mindor.dsl.schema.action import FireRedTextToSpeechModelActionConfig
 from ..common import CommonTextToSpeechModelComponentConfig
 from .common import TextToSpeechModelFamily
-from ....common import ModelDriver
+from ....common import ModelDriverType
 
 class FireRedTextToSpeechPreset(str, Enum):
     BASE     = "base"
     INSTRUCT = "instruct"
 
 class FireRedTextToSpeechModelComponentConfig(CommonTextToSpeechModelComponentConfig):
-    driver: Literal[ModelDriver.CUSTOM] = Field(default=ModelDriver.CUSTOM)
+    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TextToSpeechModelFamily.FIREREDTTS3]
     preset: FireRedTextToSpeechPreset = Field(default=FireRedTextToSpeechPreset.BASE, description="FireRedTTS3 model preset selecting the Base or Instruct checkpoint.")
     actions: List[FireRedTextToSpeechModelActionConfig] = Field(default_factory=list, description="Actions this text-to-speech component exposes to workflows.")

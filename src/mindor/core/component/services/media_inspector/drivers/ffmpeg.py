@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
 from fractions import Fraction
-from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInspectorDriver
+from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInspectorDriverType
 from mindor.dsl.schema.action import MediaInspectorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
@@ -10,7 +10,7 @@ from mindor.core.utils.ffmpeg.executable import resolve_ffprobe_executable
 from mindor.core.utils.shell import run_command, run_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import MediaInspectorService, register_media_inspector_service
+from ..base import MediaInspectorDriver, register_media_inspector_driver
 from ..base import ComponentActionContext
 from .common import MediaInspectorAction
 import asyncio, json, os
@@ -183,8 +183,8 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
 
         return None
 
-@register_media_inspector_service(MediaInspectorDriver.FFMPEG)
-class FFmpegMediaInspectorService(MediaInspectorService):
+@register_media_inspector_driver(MediaInspectorDriverType.FFMPEG)
+class FFmpegMediaInspectorService(MediaInspectorDriver):
     def __init__(self, id: str, config: MediaInspectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

@@ -11,7 +11,7 @@ from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import PoseTrackingTaskAction
 from ...pose_detection.utils import openpose, coco
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -863,7 +863,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         return min(x2 - x1, y2 - y1) >= min_size
 
-class YoloPoseTrackingTaskService(ModelTaskService):
+class YoloPoseTrackingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

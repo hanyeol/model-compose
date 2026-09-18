@@ -17,4 +17,4 @@ FileStoreComponentConfig = Annotated[
 @component_validator(ComponentType.FILE_STORE, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = FileStoreDriver.LOCAL
+        values["driver"] = FileStoreDriverType.LOCAL

@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ..common import ImageUpscaleTaskAction
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -167,7 +167,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return output
 
-class SwinIRImageUpscaleTaskService(ModelTaskService):
+class SwinIRImageUpscaleTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

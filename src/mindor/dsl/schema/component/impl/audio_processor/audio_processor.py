@@ -13,4 +13,4 @@ AudioProcessorComponentConfig = Annotated[
 @component_validator(ComponentType.AUDIO_PROCESSOR, mode="before")
 def inflate_default_driver(values: Dict[str, Any]) -> None:
     if "driver" not in values:
-        values["driver"] = AudioProcessorDriver.NATIVE
+        values["driver"] = AudioProcessorDriverType.NATIVE

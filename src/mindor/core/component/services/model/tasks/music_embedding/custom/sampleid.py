@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import MusicEmbeddingTaskAction
 import os
 
@@ -88,7 +88,7 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
 
         return waveforms
 
-class SampleidMusicEmbeddingTaskService(ModelTaskService):
+class SampleidMusicEmbeddingTaskDriver(ModelTaskDriver):
     config: SampleidMusicEmbeddingModelComponentConfig
 
     def __init__(self, id: str, config: SampleidMusicEmbeddingModelComponentConfig, daemon: bool):

@@ -14,7 +14,7 @@ from mindor.core.foundation.package.installer import install_package_from_github
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
-from ....base import ComponentActionContext, ModelTaskService
+from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import LipSyncTaskAction
 import os, sys, tempfile, subprocess, importlib, importlib.util
 
@@ -305,7 +305,7 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
             stderr=subprocess.DEVNULL,
         )
 
-class MuseTalkLipSyncTaskService(ModelTaskService):
+class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

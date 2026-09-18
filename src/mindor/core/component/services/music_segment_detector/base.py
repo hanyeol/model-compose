@@ -1,11 +1,12 @@
 from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig, MusicSegmentDetectorDriver
+from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig, MusicSegmentDetectorDriverType
 from mindor.dsl.schema.action import MusicSegmentDetectorActionConfig
 from mindor.core.foundation import AsyncService
+from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
-class MusicSegmentDetectorService(AsyncService):
+class MusicSegmentDetectorDriver(ComponentDriver):
     def __init__(self, id: str, config: MusicSegmentDetectorComponentConfig, daemon: bool):
         super().__init__(daemon)
 
@@ -22,10 +23,10 @@ class MusicSegmentDetectorService(AsyncService):
     async def _run(self, action: MusicSegmentDetectorActionConfig, context: ComponentActionContext) -> Any:
         pass
 
-def register_music_segment_detector_service(driver: MusicSegmentDetectorDriver):
-    def decorator(cls: Type[MusicSegmentDetectorService]) -> Type[MusicSegmentDetectorService]:
-        MusicSegmentDetectorServiceRegistry[driver] = cls
+def register_music_segment_detector_driver(driver: MusicSegmentDetectorDriverType):
+    def decorator(cls: Type[MusicSegmentDetectorDriver]) -> Type[MusicSegmentDetectorDriver]:
+        MusicSegmentDetectorDriverRegistry[driver] = cls
         return cls
     return decorator
 
-MusicSegmentDetectorServiceRegistry: Dict[MusicSegmentDetectorDriver, Type[MusicSegmentDetectorService]] = {}
+MusicSegmentDetectorDriverRegistry: Dict[MusicSegmentDetectorDriverType, Type[MusicSegmentDetectorDriver]] = {}

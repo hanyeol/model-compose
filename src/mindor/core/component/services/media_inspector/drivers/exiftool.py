@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInspectorDriver
+from mindor.dsl.schema.component import MediaInspectorComponentConfig, MediaInspectorDriverType
 from mindor.dsl.schema.action import MediaInspectorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
@@ -9,7 +9,7 @@ from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.shell import run_command, run_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
-from ..base import MediaInspectorService, register_media_inspector_service
+from ..base import MediaInspectorDriver, register_media_inspector_driver
 from ..base import ComponentActionContext
 from .common import MediaInspectorAction
 import asyncio, json, os
@@ -193,8 +193,8 @@ class ExiftoolMediaInspectorAction(MediaInspectorAction):
 
         return result
 
-@register_media_inspector_service(MediaInspectorDriver.EXIFTOOL)
-class ExiftoolMediaInspectorService(MediaInspectorService):
+@register_media_inspector_driver(MediaInspectorDriverType.EXIFTOOL)
+class ExiftoolMediaInspectorService(MediaInspectorDriver):
     def __init__(self, id: str, config: MediaInspectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

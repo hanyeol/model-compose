@@ -9,7 +9,7 @@ from mindor.dsl.schema.component import (
     ModelQuantizationType,
 )
 from mindor.core.logger import logging
-from .base import HuggingfaceModelTaskService
+from .base import HuggingfaceModelTaskDriver
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 TMethod = TypeVar("TMethod")
 
-class HuggingfaceDiffusionPipelineTaskService(HuggingfaceModelTaskService, Generic[TMethod]):
+class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic[TMethod]):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

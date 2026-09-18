@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
-from ....base import ModelTaskService
+from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
 import os
 
@@ -94,7 +94,7 @@ class LuxttsTextToSpeechCloneTaskAction(TextToSpeechTaskAction):
 
         return await self._run_in_executor(_generate)
 
-class LuxttsTextToSpeechTaskService(ModelTaskService):
+class LuxttsTextToSpeechTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 

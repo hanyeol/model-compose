@@ -410,14 +410,17 @@ def _attach_local_tag(specifier: str, local_tag: Optional[str]) -> str:
 
     Pins the CUDA build so pip picks the intended `2.13.0+cu126` even when
     another local tag (e.g. `+cu130`) is available in the same index. Skips
-    non-exact specifiers, ranges, or pins that already carry a local segment.
+    non-exact specifiers, ranges, wildcard pins (PEP 440 forbids combining
+    `==X.Y.*` with a local version), or pins that already carry a local
+    segment. The caller's intent is preserved verbatim in every skipped case
+    so pip's own resolver can pick a wheel from the index.
     """
     if local_tag is None or not specifier.startswith("=="):
         return specifier
 
     version_spec = specifier[2:]
 
-    if "," in version_spec or "+" in version_spec:
+    if "," in version_spec or "+" in version_spec or "*" in version_spec:
         return specifier
 
     return f"=={version_spec}+{local_tag}"

@@ -219,10 +219,8 @@ class VirtualEnvRuntime:
         return env
 
     def _resolve_venv_path(self) -> Path:
-        path = self.config.path
-
-        if path:
-            return (Path.cwd() / path).resolve()
+        if self.config.path:
+            return (Path.cwd() / self.config.path).resolve()
 
         return (Path.cwd() / ".runtime" / "components" / self.worker_id / "venv").resolve()
 

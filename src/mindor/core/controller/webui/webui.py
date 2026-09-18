@@ -29,7 +29,7 @@ class ControllerWebUI(AsyncService):
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         if self.config.driver == ControllerWebUIDriverType.GRADIO:
-            return [ "gradio>=6.0.0" ]
+            return [ "gradio>=6.26.0" ]
 
         return None
 

@@ -9,6 +9,7 @@ from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.natten import natten_requirements
+from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.package.installer import install_package_from_github
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
@@ -318,6 +319,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
             *torch_requirements("torch==2.7.*", "torchvision"),
+            *flash_attn_requirements("torch==2.7.*", "flash-attn==2.8.3.post1"),
             *natten_requirements("natten==0.21.0"),
             "diffusers==0.37.1",
             "transformers==4.57.3",

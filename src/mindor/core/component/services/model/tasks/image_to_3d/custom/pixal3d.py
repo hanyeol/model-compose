@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.natten import natten_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, install_package_from_git_clone
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
 from PIL import Image as PILImage
@@ -322,7 +322,13 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             "diffusers==0.37.1",
             "transformers==4.57.3",
             "accelerate==1.13.0",
-            "huggingface_hub",
+            # transformers 4.57.3 hard-caps huggingface_hub at <1.0 in its
+            # runtime dependency check (`transformers/dependency_versions_check.py`)
+            # but its own install-time requirement is unbounded, so pip happily
+            # pulls hf-hub 1.x and every downstream `import transformers` blows
+            # up. Pin the cap here so first-run installs land on a compatible
+            # 0.34+ release.
+            "huggingface_hub>=0.34.0,<1.0",
             "safetensors",
             "sentencepiece",
             "kornia==0.8.2",
@@ -340,19 +346,46 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        # `o_voxel` and `pixal3d` are not published to PyPI — install them by
-        # copying the relevant subdirectories out of their GitHub source trees
-        # into the mindor site-packages root. TRELLIS.2 stores the `o_voxel`
-        # package one level down (`o-voxel/o_voxel/`), so pass the source path
-        # explicitly. Pixal3D's `pixal3d/` package sits at the repo root.
+        # Pixal3D leans on three CUDA-extension packages that are not on PyPI
+        # and whose `setup.py` imports torch during the build (pip's isolated
+        # build env has no torch, so `--no-build-isolation` is mandatory).
+        # Install order matches TRELLIS.2's setup.sh: cuMesh + FlexGEMM +
+        # o_voxel (all as buildable source trees), then the pure-Python pixal3d
+        # package on top.
+        no_build_isolation: List[str] = [ "--no-build-isolation" ]
+
+        if importlib.util.find_spec("cumesh") is None:
+            # CuMesh vendors `third_party/cubvh` as a git submodule; a plain
+            # tarball would strip it, so clone recursively.
+            await install_package_from_git_clone(
+                "cumesh",
+                "https://github.com/JeffreyXiang/CuMesh.git",
+                recursive=True,
+                pip_options=no_build_isolation,
+            )
+
+        if importlib.util.find_spec("flex_gemm") is None:
+            await install_package_from_git_clone(
+                "flex_gemm",
+                "https://github.com/JeffreyXiang/FlexGEMM.git",
+                recursive=True,
+                pip_options=no_build_isolation,
+            )
+
         if importlib.util.find_spec("o_voxel") is None:
-            await install_package_from_github(
-                "o_voxel",
+            # TRELLIS.2's o-voxel lives one level down (`o-voxel/`) and needs a
+            # full pip build for its CUDA kernels — the earlier tree-copy path
+            # dropped a pure-Python shell that crashed at import time.
+            await install_package_from_git_clone(
+                "trellis2",
                 "https://github.com/microsoft/TRELLIS.2.git",
-                subdirs=[ ("o_voxel", "o-voxel/o_voxel") ],
+                source_path="o-voxel",
+                pip_options=no_build_isolation,
             )
 
         if importlib.util.find_spec("pixal3d") is None:
+            # Pixal3D's `pixal3d/` is pure Python — keep the tree-copy path so
+            # its top-level module lands next to `mindor` without invoking pip.
             await install_package_from_github(
                 "pixal3d",
                 "https://github.com/TencentARC/Pixal3D.git",

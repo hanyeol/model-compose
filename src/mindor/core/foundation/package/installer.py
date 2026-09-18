@@ -53,6 +53,68 @@ async def install_package(package_spec: str, pip_options: Optional[List[str]] = 
             stderr=stderr
         )
 
+async def install_package_from_git_clone(
+    module_name: str,
+    repo_url: str,
+    revision: Optional[str] = None,
+    source_path: Optional[str] = None,
+    recursive: bool = False,
+    pip_options: Optional[List[str]] = None,
+) -> None:
+    """Clone a git repository and `pip install` a source tree from it.
+
+    Sibling to :func:`install_package_from_github` for packages whose build
+    step must actually run (C/CUDA extensions, custom ``setup.py``). Uses a
+    real ``git clone`` (optionally ``--recursive``; tarballs strip submodules)
+    then hands the working tree to :func:`install_package`; ``pip_options``
+    is forwarded verbatim (typically ``["--no-build-isolation"]``). The clone
+    caches under ``$TMPDIR/mindor-git-sources/<module_name>``; ``source_path``
+    picks the buildable package when it isn't the repo root (same field name
+    as the tuple form of :func:`install_package_from_github`'s ``subdirs``).
+    """
+    clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / module_name
+
+    if not clone_dir.exists():
+        clone_dir.parent.mkdir(parents=True, exist_ok=True)
+
+        command: List[str] = [ "git", "clone" ]
+
+        if recursive:
+            command.append("--recursive")
+
+        if revision is not None:
+            # `git clone --branch` accepts both branch names and tag names, so
+            # a caller who pinned to a tag (e.g. `v0.4.0`) gets a shallow, ready
+            # tree without a follow-up `git checkout`.
+            command.extend([ "--branch", revision ])
+
+        command.extend([ repo_url, str(clone_dir) ])
+
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(
+                process.returncode,
+                command,
+                output=stdout,
+                stderr=stderr,
+            )
+
+    package_root = clone_dir / source_path if source_path else clone_dir
+
+    if not package_root.exists():
+        raise FileNotFoundError(f"Package source '{source_path}' not found in cloned repo at {clone_dir}")
+
+    await install_package(str(package_root), pip_options)
+
+    importlib.invalidate_caches()
+
 async def install_package_from_github(
     module_name: str,
     repo_url: str,

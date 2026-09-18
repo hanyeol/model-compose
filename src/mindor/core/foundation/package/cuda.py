@@ -1,13 +1,6 @@
 from typing import Optional, Tuple
 import functools, platform, re, shutil, subprocess, sys
 
-def is_cuda_installed() -> bool:
-    """True when `nvidia-smi` is on PATH (proxy for a usable NVIDIA driver)."""
-    if sys.platform != "linux" or platform.machine() not in ("x86_64", "aarch64"):
-        return False
-
-    return shutil.which("nvidia-smi") is not None
-
 @functools.lru_cache(maxsize=1)
 def get_cuda_driver_version() -> Optional[Tuple[int, int]]:
     """Detect the host NVIDIA driver's CUDA runtime version via `nvidia-smi`.
@@ -20,6 +13,13 @@ def get_cuda_driver_version() -> Optional[Tuple[int, int]]:
         return None
 
     return _probe_cuda_driver_version()
+
+def is_cuda_installed() -> bool:
+    """True when `nvidia-smi` is on PATH (proxy for a usable NVIDIA driver)."""
+    if sys.platform != "linux" or platform.machine() not in ("x86_64", "aarch64"):
+        return False
+
+    return shutil.which("nvidia-smi") is not None
 
 def _probe_cuda_driver_version() -> Optional[Tuple[int, int]]:
     nvidia_smi = shutil.which("nvidia-smi")

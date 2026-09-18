@@ -125,8 +125,8 @@ def torch_requirements(*specs: str) -> List[str]:
     the CPU wheel index while preserving the caller's constraints (pip
     resolves the final version against the CPU index).
 
-    Returns specs unchanged on non-Linux/x86_64 hosts or when no NVIDIA
-    driver is detected.
+    Returns specs unchanged on hosts other than Linux x86_64/aarch64 or when
+    no NVIDIA driver is detected.
     """
     cuda_version = get_cuda_driver_version()
 

@@ -12,10 +12,11 @@ def is_cuda_installed() -> bool:
 def get_cuda_driver_version() -> Optional[Tuple[int, int]]:
     """Detect the host NVIDIA driver's CUDA runtime version via `nvidia-smi`.
 
-    Returns (major, minor) on Linux x86_64 when a working driver is present,
-    None otherwise (non-Linux, non-x86_64, no nvidia-smi, or probe failure).
+    Returns (major, minor) on Linux x86_64 or aarch64 when a working driver is
+    present, None otherwise (non-Linux, other architectures, no nvidia-smi, or
+    probe failure).
     """
-    if sys.platform != "linux" or platform.machine() != "x86_64":
+    if sys.platform != "linux" or platform.machine() not in ("x86_64", "aarch64"):
         return None
 
     return _probe_cuda_driver_version()

@@ -20,6 +20,7 @@ This workflow provides local single-image 3D asset generation that:
 - A CUDA-capable GPU. Peak VRAM is roughly **18 GB** at 1536 resolution, or **10-12 GB** with `low_vram: true` at 1024 resolution. Apple Silicon (MPS) and CPU-only inference are not supported — Pixal3D's kernels are CUDA-only.
 - A Linux host with the CUDA toolkit installed. The first run compiles neighbourhood attention kernels (natten) against nvcc, which requires the toolkit rather than just the runtime.
 - A Python environment where `torch`, `natten`, and Pixal3D's ancillary packages can be installed — the first run installs them automatically.
+- A HuggingFace access token accepted for the gated `briaai/RMBG-2.0` background-removal model (used by Pixal3D's rembg step). Set it via the `HF_TOKEN` environment variable before starting model-compose.
 
 ### Why Local Image-to-3D
 
@@ -43,9 +44,16 @@ Compared to cloud-hosted 3D generation services:
    cd examples/model-tasks/image-to-3d-pixal3d
    ```
 
-2. No additional environment configuration required — the Pixal3D checkpoint (`TencentARC/Pixal3D`), the MoGe-2 depth model (`Ruicheng/moge-2-vitl`), and the DINOv3 conditioning weights (`camenduru/dinov3-vitl16-pretrain-lvd1689m`) are downloaded from HuggingFace Hub and cached under `~/.cache/huggingface/` on first run.
+2. Accept the license for `briaai/RMBG-2.0` at https://huggingface.co/briaai/RMBG-2.0 (a gated repo used by Pixal3D's background-removal step), then create `.env` from the sample and paste in a HuggingFace access token that has access to it:
+   ```bash
+   cp .env.sample .env
+   # edit .env and set HF_TOKEN=hf_xxx
+   ```
+   The token also authenticates the Pixal3D and DINOv3 downloads, so setting it once covers every HF repo the pipeline touches.
 
-3. To reduce peak VRAM at the cost of slower inference, set `low_vram: true` in `model-compose.yml`. To trade texture fidelity for speed, set `resolution: 1024`.
+3. Other weights load without a token — the Pixal3D checkpoint (`TencentARC/Pixal3D`), the MoGe-2 depth model (`Ruicheng/moge-2-vitl`), and the DINOv3 conditioning weights (`camenduru/dinov3-vitl16-pretrain-lvd1689m`) are downloaded from HuggingFace Hub and cached under `~/.cache/huggingface/` on first run.
+
+4. To reduce peak VRAM at the cost of slower inference, set `low_vram: true` in `model-compose.yml`. To trade texture fidelity for speed, set `resolution: 1024`.
 
 ## How to Run
 
@@ -135,6 +143,7 @@ Compared to cloud-hosted 3D generation services:
 - **First run is slow**: The controller creates the `.venv/pixal3d` isolated environment, installs Pixal3D's pinned dependencies, compiles neighbourhood-attention CUDA kernels (natten), and downloads ~15 GB of weights on first startup. Expect 20-30 minutes before the controller reports ready. Subsequent runs reuse the cached venv and artefacts.
 - **Isolated runtime**: The model worker runs in a dedicated virtualenv (`runtime.type: virtualenv`, `path: .venv/pixal3d`) so Pixal3D's hard-pinned transformers / diffusers / kornia versions don't clash with the controller's own site-packages. The driver refuses to run in the controller's native environment.
 - **CUDA is required**: Pixal3D hardcodes CUDA device placement and CUDA-only kernels; the driver refuses to load on non-CUDA hosts rather than silently falling back to a broken path.
+- **Gated `briaai/RMBG-2.0`**: Pixal3D's rembg preprocessing step downloads this model on first use. If startup fails with a `401 Client Error: Cannot access gated repo` message, accept the license at https://huggingface.co/briaai/RMBG-2.0 and ensure the `HF_TOKEN` in `.env` belongs to an account with access.
 - **VRAM planning**: `low_vram: true` swaps peak VRAM (~10-12 GB) for latency (~2-3× slower). At `resolution: 1536` in standard mode, peak VRAM is ~18 GB — an A100 40GB or an RTX 6000 Ada handles it comfortably.
 - **Camera FOV matters**: If the auto-estimated perspective looks off (subject unusually stretched or flattened), set `manual_fov` — start at `0.2` (narrow lens, ~11.5°) and adjust in `~0.05` increments.
 - **Background robustness**: Pixal3D removes the background automatically as a preprocessing step, but a subject touching the frame edges or heavily occluded may still produce distorted geometry. Consider running `image-background-removal` upstream if the auto-preprocess isn't clean.

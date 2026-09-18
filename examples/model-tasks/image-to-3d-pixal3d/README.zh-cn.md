@@ -20,6 +20,7 @@
 - 支持 CUDA 的 GPU。在 1536 分辨率下峰值 VRAM 约 **18 GB**，若使用 `low_vram: true` + 1024 分辨率则约 **10-12 GB**。Apple Silicon（MPS）和纯 CPU 推理不受支持 —— Pixal3D 的算子只支持 CUDA。
 - 装有 CUDA 工具链的 Linux 主机。首次运行会用 nvcc 编译 neighborhood attention 算子（natten），仅有运行时并不足够。
 - 一个能安装 `torch`、`natten` 以及 Pixal3D 附属包的 Python 环境 —— 首次运行会自动安装。
+- 已接受受门控的 `briaai/RMBG-2.0` 背景移除模型条款的 HuggingFace 访问令牌（Pixal3D 的 rembg 步骤需要）。启动 model-compose 前，请通过 `HF_TOKEN` 环境变量设置。
 
 ### 本地图像转 3D 的价值
 
@@ -43,9 +44,16 @@
    cd examples/model-tasks/image-to-3d-pixal3d
    ```
 
-2. 无需额外环境配置 —— Pixal3D 检查点（`TencentARC/Pixal3D`）、MoGe-2 深度模型（`Ruicheng/moge-2-vitl`）以及 DINOv3 条件权重（`camenduru/dinov3-vitl16-pretrain-lvd1689m`）会在首次运行时从 HuggingFace Hub 下载并缓存到 `~/.cache/huggingface/`。
+2. 在 https://huggingface.co/briaai/RMBG-2.0 接受 Pixal3D 背景移除步骤使用的门控仓库 `briaai/RMBG-2.0` 的许可条款，然后从模板复制 `.env` 并填入具有访问权限的 HuggingFace 令牌：
+   ```bash
+   cp .env.sample .env
+   # 编辑 .env 并设置 HF_TOKEN=hf_xxx
+   ```
+   同一个令牌也会用于 Pixal3D 与 DINOv3 权重的下载，因此一次设置即可覆盖整条管线访问的所有 HF 仓库。
 
-3. 想以推理速度换取更低 VRAM，可在 `model-compose.yml` 中设置 `low_vram: true`。想以纹理保真度换取速度，可设置 `resolution: 1024`。
+3. 其他权重无需令牌 —— Pixal3D 检查点（`TencentARC/Pixal3D`）、MoGe-2 深度模型（`Ruicheng/moge-2-vitl`）以及 DINOv3 条件权重（`camenduru/dinov3-vitl16-pretrain-lvd1689m`）会在首次运行时从 HuggingFace Hub 下载并缓存到 `~/.cache/huggingface/`。
+
+4. 想以推理速度换取更低 VRAM，可在 `model-compose.yml` 中设置 `low_vram: true`。想以纹理保真度换取速度，可设置 `resolution: 1024`。
 
 ## 运行方式
 
@@ -135,6 +143,7 @@
 - **首次运行较慢**：首次启动会创建 `.venv/pixal3d` 隔离环境，安装 Pixal3D 的固定依赖，编译 neighborhood attention CUDA 算子（natten），并下载约 15 GB 权重。控制器就绪前需要 20-30 分钟。后续运行会复用缓存的 venv 与产物。
 - **隔离运行时**：模型 worker 运行在独立的 virtualenv（`runtime.type: virtualenv`，`path: .venv/pixal3d`）中，避免 Pixal3D 硬固定的 transformers / diffusers / kornia 版本与控制器的 site-packages 冲突。若在控制器的 native 环境中运行，驱动会拒绝加载。
 - **必须使用 CUDA**：Pixal3D 硬编码了 CUDA 设备放置与 CUDA 专用算子；驱动在非 CUDA 主机上会直接拒绝加载，而不是沉默地回退到损坏的路径。
+- **门控仓库 `briaai/RMBG-2.0`**：Pixal3D 的 rembg 预处理步骤会在首次运行时下载该模型。若启动时出现 `401 Client Error: Cannot access gated repo` 错误，请在 https://huggingface.co/briaai/RMBG-2.0 接受许可，并确认 `.env` 中的 `HF_TOKEN` 属于具有访问权限的账户。
 - **VRAM 规划**：`low_vram: true` 用延迟（约 2-3 倍慢）换取更低峰值 VRAM（约 10-12 GB）。`resolution: 1536` 标准模式的峰值 VRAM 约为 18 GB，A100 40GB 或 RTX 6000 Ada 可轻松运行。
 - **相机 FOV**：若自动估计的透视看起来失真（主体过度拉伸或压扁），设置 `manual_fov`。从 `0.2`（窄镜头，约 11.5°）开始，每次调整约 `0.05`。
 - **背景鲁棒性**：Pixal3D 在预处理阶段会自动去背景，但如果主体贴到画框或严重遮挡，几何仍可能扭曲。若自动预处理不干净，可在上游加入 `image-background-removal`。

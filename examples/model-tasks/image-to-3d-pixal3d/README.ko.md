@@ -20,6 +20,7 @@
 - CUDA GPU가 필요합니다. 최대 VRAM은 1536 해상도에서 약 **18 GB**, `low_vram: true` + 1024 해상도에서 약 **10-12 GB** 입니다. Apple Silicon(MPS)과 CPU는 지원하지 않습니다 — Pixal3D의 커널은 CUDA 전용입니다.
 - CUDA 툴킷이 설치된 Linux 호스트가 필요합니다. 첫 실행 시 neighborhood attention 커널(natten)을 nvcc로 컴파일하므로 런타임만으로는 부족합니다.
 - `torch`, `natten`, Pixal3D의 부수 패키지를 설치할 수 있는 파이썬 환경이 필요합니다 — 첫 실행 시 자동으로 설치됩니다.
+- Pixal3D의 rembg 단계가 사용하는 게이트된 `briaai/RMBG-2.0` 배경 제거 모델의 이용 약관을 수락한 HuggingFace 액세스 토큰이 필요합니다. model-compose 실행 전 `HF_TOKEN` 환경 변수로 설정하세요.
 
 ### 로컬 이미지-3D의 장점
 
@@ -43,9 +44,16 @@
    cd examples/model-tasks/image-to-3d-pixal3d
    ```
 
-2. 추가 환경 설정이 필요하지 않습니다 — Pixal3D 체크포인트(`TencentARC/Pixal3D`), MoGe-2 depth 모델(`Ruicheng/moge-2-vitl`), DINOv3 conditioning 가중치(`camenduru/dinov3-vitl16-pretrain-lvd1689m`)는 첫 실행 시 HuggingFace Hub에서 다운로드되어 `~/.cache/huggingface/`에 캐시됩니다.
+2. Pixal3D의 배경 제거 단계에서 사용하는 게이트 저장소 `briaai/RMBG-2.0`의 라이선스를 https://huggingface.co/briaai/RMBG-2.0 에서 수락하고, `.env.sample`을 복사해 접근 가능한 HuggingFace 토큰을 입력하세요:
+   ```bash
+   cp .env.sample .env
+   # .env 파일에서 HF_TOKEN=hf_xxx 로 수정
+   ```
+   같은 토큰이 Pixal3D 및 DINOv3 가중치 다운로드도 인증하므로 한 번만 설정하면 파이프라인이 접근하는 모든 HF 저장소가 커버됩니다.
 
-3. 추론 속도를 희생하고 VRAM을 줄이려면 `model-compose.yml`에서 `low_vram: true`로 설정하세요. 텍스처 품질을 낮추고 속도를 얻으려면 `resolution: 1024`로 설정합니다.
+3. 나머지 가중치는 토큰 없이 로드됩니다 — Pixal3D 체크포인트(`TencentARC/Pixal3D`), MoGe-2 depth 모델(`Ruicheng/moge-2-vitl`), DINOv3 conditioning 가중치(`camenduru/dinov3-vitl16-pretrain-lvd1689m`)는 첫 실행 시 HuggingFace Hub에서 다운로드되어 `~/.cache/huggingface/`에 캐시됩니다.
+
+4. 추론 속도를 희생하고 VRAM을 줄이려면 `model-compose.yml`에서 `low_vram: true`로 설정하세요. 텍스처 품질을 낮추고 속도를 얻으려면 `resolution: 1024`로 설정합니다.
 
 ## 실행 방법
 
@@ -135,6 +143,7 @@
 - **첫 실행이 느립니다**: 최초 시작 시 격리된 `.venv/pixal3d` 환경을 만들고, Pixal3D의 고정된 의존성을 설치하고, neighborhood attention CUDA 커널(natten)을 컴파일하고, 약 15 GB의 가중치를 내려받습니다. 컨트롤러 준비까지 20-30분 정도 걸립니다. 이후 실행은 캐시된 venv와 산출물을 재사용합니다.
 - **격리된 런타임**: 모델 워커는 전용 virtualenv(`runtime.type: virtualenv`, `path: .venv/pixal3d`)에서 실행됩니다. Pixal3D가 하드핀한 transformers / diffusers / kornia 버전이 컨트롤러의 site-packages와 충돌하지 않도록 하기 위해서입니다. 컨트롤러의 native 환경에서는 드라이버가 로딩을 거부합니다.
 - **CUDA 필수**: Pixal3D는 CUDA 디바이스 배치와 CUDA 전용 커널을 하드코딩합니다. 드라이버는 CUDA가 아닌 호스트에서는 무너진 경로로 폴백하지 않고 즉시 로딩을 거부합니다.
+- **게이트 저장소 `briaai/RMBG-2.0`**: Pixal3D의 rembg 전처리 단계가 첫 실행 시 이 모델을 다운로드합니다. 시작 시 `401 Client Error: Cannot access gated repo` 메시지로 실패하면 https://huggingface.co/briaai/RMBG-2.0 에서 라이선스를 수락하고, `.env`의 `HF_TOKEN`이 접근 권한을 가진 계정의 토큰인지 확인하세요.
 - **VRAM 계획**: `low_vram: true`는 최대 VRAM(~10-12 GB)을 대기 시간(약 2-3배 느림)과 맞바꿉니다. `resolution: 1536` 표준 모드에서는 최대 VRAM이 약 18 GB로, A100 40GB나 RTX 6000 Ada가 편안하게 처리합니다.
 - **카메라 FOV**: 자동 추정 결과가 이상해 보이면(피사체가 유난히 늘어지거나 눌린 느낌) `manual_fov`로 직접 지정하세요. `0.2`(좁은 렌즈, 약 11.5°)에서 시작해 `~0.05`씩 조정합니다.
 - **배경 견고성**: Pixal3D는 배경을 자동으로 제거하는 전처리 단계를 포함하지만, 피사체가 프레임 가장자리에 붙거나 심하게 가려진 경우 지오메트리가 왜곡될 수 있습니다. 자동 전처리가 깔끔하지 않으면 `image-background-removal`을 상류에 배치하는 것도 방법입니다.

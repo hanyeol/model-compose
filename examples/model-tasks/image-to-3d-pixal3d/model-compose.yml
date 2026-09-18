@@ -21,10 +21,13 @@ component:
   family: pixal3d
   device: cuda
   # `TencentARC/Pixal3D` bundles the sparse-structure, shape, and texture
-  # flow-matching checkpoints as a single HuggingFace repository.
+  # flow-matching checkpoints as a single HuggingFace repository. The token
+  # also authenticates the pipeline's rembg step against `briaai/RMBG-2.0`
+  # (a gated HF repo); export `HF_TOKEN` after accepting the license.
   model:
     provider: huggingface
     repository: TencentARC/Pixal3D
+    token: ${env.HF_TOKEN}
   # Pipeline resolution: 1024 or 1536. Unset defaults to 1024 in low-VRAM mode,
   # else 1536. Lower resolution trades detail for speed and peak VRAM.
   # resolution: 1024

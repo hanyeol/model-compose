@@ -3,7 +3,7 @@ import functools, platform, re, shutil, subprocess, sys
 
 def is_cuda_installed() -> bool:
     """True when `nvidia-smi` is on PATH (proxy for a usable NVIDIA driver)."""
-    if sys.platform != "linux" or platform.machine() != "x86_64":
+    if sys.platform != "linux" or platform.machine() not in ("x86_64", "aarch64"):
         return False
 
     return shutil.which("nvidia-smi") is not None

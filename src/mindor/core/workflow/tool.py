@@ -15,6 +15,7 @@ _MODEL_TOOL_TYPE_MAP: Dict[WorkflowVariableType, str] = {
     WorkflowVariableType.IMAGE:    "string",
     WorkflowVariableType.AUDIO:    "string",
     WorkflowVariableType.VIDEO:    "string",
+    WorkflowVariableType.MODEL_3D: "string",
     WorkflowVariableType.FILE:     "string",
     WorkflowVariableType.SELECT:   "string",
     WorkflowVariableType.INTEGER:  "integer",

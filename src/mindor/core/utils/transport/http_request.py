@@ -115,8 +115,8 @@ def create_upload_file(path: str, type: Optional[str], subtype: Optional[str]) -
 
 def guess_file_content_type(filename: str, type: Optional[str], subtype: Optional[str]) -> str:
     subtype = filename.split(".")[-1] if not subtype else subtype
-    
-    if type in [ "image", "audio", "video" ] and subtype:
+
+    if type in [ "image", "audio", "video", "model" ] and subtype:
         return f"{type}/{subtype}"
 
     return "application/octet-stream"

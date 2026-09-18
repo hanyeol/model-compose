@@ -14,6 +14,7 @@ from mindor.core.foundation.streaming.url import DataUriStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource, load_image_from_stream
 from mindor.core.foundation.streaming.audio import AudioStreamResource, PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.foundation.streaming.model_3d import Model3DStreamResource, get_model_3d_file_extensions, resolve_model_3d_content_type
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.utils.transport.http_request import create_upload_file
@@ -643,8 +644,13 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.VIDEO:
             if variable.is_list:
-                return gr.File(label=label, file_count="multiple", file_types=["video"])
+                return gr.File(label=label, file_count="multiple", file_types=[ "video" ])
             return gr.Video(label=label)
+
+        if variable.type == WorkflowVariableType.MODEL_3D:
+            if variable.is_list:
+                return gr.File(label=label, file_count="multiple", file_types=get_model_3d_file_extensions())
+            return gr.Model3D(label=label)
 
         if variable.type == WorkflowVariableType.FILE:
             if variable.is_list:
@@ -668,9 +674,16 @@ class GradioWebUIBuilder:
 
     async def _convert_input_value(self, value: Any, variable: WorkflowVariableConfig) -> Any:
         if self._is_media_variable(variable) and variable.format is None:
+            # `create_upload_file` builds Content-Type as `<type>/<subtype>`, which
+            # matches image/audio/video verbatim but diverges for `model-3d`
+            # (canonical MIME is `model/gltf-binary`, not `model-3d/glb`). Resolve
+            # the upload-facing top-level/subtype pair here so this layer owns the
+            # 3D-specific mapping.
+            upload_type, upload_subtype = self._resolve_upload_content_type(variable)
+
             if variable.is_list:
-                return [ create_upload_file(v, variable.type.value, variable.subtype) for v in value ] if value else None
-            return create_upload_file(value, variable.type.value, variable.subtype) if value is not None else None
+                return [ create_upload_file(v, upload_type, upload_subtype) for v in value ] if value else None
+            return create_upload_file(value, upload_type, upload_subtype) if value is not None else None
 
         if variable.type == WorkflowVariableType.INTEGER:
             return int(value) if value != "" else None
@@ -751,6 +764,11 @@ class GradioWebUIBuilder:
             if variable.is_list:
                 return gr.Gallery(label=label, interactive=False)
             return gr.Video(label=label, interactive=False)
+
+        if variable.type == WorkflowVariableType.MODEL_3D:
+            if variable.is_list:
+                return gr.File(label=label, interactive=False, file_count="multiple")
+            return gr.Model3D(label=label, interactive=False)
 
         if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label, interactive=False)
@@ -1003,7 +1021,7 @@ class GradioWebUIBuilder:
                 return None
             return await self._load_image_from_value(value, variable.format)
 
-        if variable.type in (WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE):
+        if variable.type in (WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.MODEL_3D, WorkflowVariableType.FILE):
             if variable.is_list:
                 if isinstance(value, list):
                     return [ await self._save_value_to_temporary_file(v, variable.subtype, variable.format) for v in value ]
@@ -1078,7 +1096,7 @@ class GradioWebUIBuilder:
         return None
 
     def _resolve_stream_extension(self, stream: StreamResource) -> Optional[str]:
-        if isinstance(stream, (AudioStreamResource, VideoStreamResource, ImageStreamResource)):
+        if isinstance(stream, (AudioStreamResource, VideoStreamResource, ImageStreamResource, Model3DStreamResource)):
             if stream.format:
                 return stream.format.lower()
 
@@ -1104,16 +1122,41 @@ class GradioWebUIBuilder:
 
         return False
 
+    def _resolve_upload_content_type(self, variable: WorkflowVariableConfig) -> Tuple[Optional[str], Optional[str]]:
+        """Return the ``(top_level, subtype)`` pair `create_upload_file` should
+        stitch into the outgoing ``Content-Type`` header.
+
+        For image/audio/video variables the variable's own ``type``/``subtype``
+        already match the IANA shorthand, so they pass through unchanged. For
+        ``model-3d`` variables the canonical MIME is registered under a different
+        top level (``model/gltf-binary`` etc.), so split the resolved MIME so the
+        transport layer sees the exact top-level/subtype pair it needs.
+        """
+        if variable.type == WorkflowVariableType.MODEL_3D:
+            content_type = resolve_model_3d_content_type(variable.subtype)
+
+            # Only registered `model/*` MIMEs feed the transport layer's
+            # `type/subtype` shorthand. Un-registered 3D formats (ply, splat,
+            # fbx) resolve to `application/octet-stream` here — pass Nones so
+            # `guess_file_content_type` reaches its own octet-stream fallback.
+            if content_type.startswith("model/"):
+                return tuple(content_type.split("/", 1))
+
+            return None, None
+
+        return variable.type.value, variable.subtype
+
     def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
         return variable.type in (
             WorkflowVariableType.IMAGE,
             WorkflowVariableType.AUDIO,
             WorkflowVariableType.VIDEO,
+            WorkflowVariableType.MODEL_3D,
             WorkflowVariableType.FILE
         )
 
     def _is_media_component(self, component: gr.Component) -> bool:
-        return isinstance(component, (gr.Image, gr.Gallery, gr.Audio, gr.Video, gr.File))
+        return isinstance(component, (gr.Image, gr.Gallery, gr.Audio, gr.Video, gr.Model3D, gr.File))
 
     def _log_messages_for_event(self, event: Union[TaskEvent, JobEvent, ComponentEvent]) -> List[Dict]:
         if isinstance(event, TaskEvent):

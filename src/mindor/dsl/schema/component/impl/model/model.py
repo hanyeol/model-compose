@@ -22,6 +22,7 @@ ModelComponentConfig = Annotated[
         TextToVideoModelComponentConfig,
         ImageToVideoModelComponentConfig,
         VideoToVideoModelComponentConfig,
+        ImageTo3DModelComponentConfig,
         TalkingHeadModelComponentConfig,
         LipSyncModelComponentConfig,
         ObjectDetectionModelComponentConfig,

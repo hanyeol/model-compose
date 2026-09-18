@@ -10,6 +10,7 @@ from ..streaming.iterators import StreamEncodingFormat, StreamEncodingIterator, 
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
 from ..streaming.video import VideoStreamResource
+from ..streaming.model_3d import Model3DStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
@@ -561,7 +562,7 @@ class VariableRenderer:
         if type == "base64":
             return await encode_value_to_base64(value)
 
-        if type in [ "image", "audio", "video", "file" ]:
+        if type in [ "image", "audio", "video", "model-3d", "file" ]:
             if isinstance(value, (StreamIterator, AsyncIterator)) and not isinstance(value, StreamResource):
                 return value
 
@@ -597,6 +598,13 @@ class VariableRenderer:
                 if subtype is None and isinstance(value, VideoStreamResource):
                     return value
                 return VideoStreamResource(value, subtype, attrs)
+
+            if type == "model-3d":
+                if not isinstance(value, (StreamResource, bytes)):
+                    raise TypeError(f"`model-3d` requires raw 3D model input, got {value.__class__.__name__}")
+                if subtype is None and isinstance(value, Model3DStreamResource):
+                    return value
+                return Model3DStreamResource(value, subtype, attrs)
 
             if type == "file":
                 if not isinstance(value, (StreamResource, bytes)):

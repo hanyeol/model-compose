@@ -13,6 +13,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.url import UrlStreamResource, DataUriStreamResource
+from mindor.core.foundation.streaming.model_3d import resolve_model_3d_content_type
 from mindor.core.utils.transport.stdout_relay import StdoutRelay
 from ..base import ControllerAdapterService, register_controller_adapter
 from mcp.server.fastmcp.server import FastMCP
@@ -182,7 +183,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         subtype: Optional[str],
         format: Optional[WorkflowVariableFormat]
     ) -> ContentBlock:
-        if type in (WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.FILE):
+        if type in (WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.MODEL_3D, WorkflowVariableType.FILE):
             # Everything else must land as a base64 string (MCP media blocks demand it).
             data = await self._encode_media_value_to_base64(value, format)
 
@@ -198,6 +199,16 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                     resource=BlobResourceContents(
                         uri=f"resource://{task_id}/{name or 'output'}",
                         mimeType=f"video/{subtype or 'mp4'}",
+                        blob=data
+                    )
+                )
+
+            if type == WorkflowVariableType.MODEL_3D:
+                return EmbeddedResource(
+                    type="resource",
+                    resource=BlobResourceContents(
+                        uri=f"resource://{task_id}/{name or 'output'}",
+                        mimeType=resolve_model_3d_content_type(subtype or "glb"),
                         blob=data
                     )
                 )

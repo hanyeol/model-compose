@@ -17,9 +17,7 @@ class MediaSource:
 def create_media_source(value: Any) -> MediaSource:
     from .audio import PcmStreamResource, WavStreamResource, AudioStreamResource
     from .video import VideoStreamResource
-
-    if isinstance(value, VideoStreamResource):
-        return MediaSource(value.source, value.format, value.attrs)
+    from .model_3d import Model3DStreamResource
 
     if isinstance(value, PcmStreamResource):
         return MediaSource(value, value.format, value.attrs)
@@ -28,6 +26,12 @@ def create_media_source(value: Any) -> MediaSource:
         return MediaSource(value, "wav", value.attrs)
 
     if isinstance(value, AudioStreamResource):
+        return MediaSource(value.source, value.format, value.attrs)
+
+    if isinstance(value, VideoStreamResource):
+        return MediaSource(value.source, value.format, value.attrs)
+
+    if isinstance(value, Model3DStreamResource):
         return MediaSource(value.source, value.format, value.attrs)
 
     if isinstance(value, StreamResource):

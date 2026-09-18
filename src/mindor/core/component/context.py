@@ -9,6 +9,7 @@ from mindor.core.foundation.variable.audio import AudioValueRenderer, AudioBuffe
 from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.variable.video import VideoValueRenderer, VideoArrayValue
+from mindor.core.foundation.variable.model_3d import Model3DValueRenderer, Model3DArrayValue
 from mindor.core.foundation.variable.media import MediaValueRenderer, MediaArrayValue
 from mindor.core.foundation.variable.file import FileValueRenderer
 from mindor.core.foundation.variable.text import TextValueRenderer
@@ -197,6 +198,19 @@ class ComponentActionContext:
         single_as_array: bool = False,
     ) -> Optional[Union[VideoArrayValue, List[Optional[VideoArrayValue]], AsyncIterator[Optional[VideoArrayValue]]]]:
         return await VideoValueRenderer().render_array(await self.render_variable(value), single_as_array)
+
+    async def render_model_3d(
+        self,
+        value: Any
+    ) -> Optional[Union[MediaSource, List[Optional[MediaSource]], AsyncIterator[Optional[MediaSource]]]]:
+        return await Model3DValueRenderer().render(await self.render_variable(value))
+
+    async def render_model_3d_array(
+        self,
+        value: Any,
+        single_as_array: bool = False,
+    ) -> Optional[Union[Model3DArrayValue, List[Optional[Model3DArrayValue]], AsyncIterator[Optional[Model3DArrayValue]]]]:
+        return await Model3DValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_media(
         self,

@@ -21,6 +21,7 @@ class WorkflowVariableType(str, Enum):
     IMAGE        = "image"
     AUDIO        = "audio"
     VIDEO        = "video"
+    MODEL_3D     = "model-3d"
     FILE         = "file"
     # Streaming
     STREAM       = "stream"

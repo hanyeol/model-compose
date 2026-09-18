@@ -1,0 +1,64 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Pixal3D Image-to-3D
+  description: Generate a high-fidelity GLB mesh from a single image using Pixal3D.
+  job:
+    input: ${input}
+    output: ${output as model-3d/glb}
+
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: pixal3d
+  device: cuda
+  # `TencentARC/Pixal3D` bundles the sparse-structure, shape, and texture
+  # flow-matching checkpoints as a single HuggingFace repository.
+  model:
+    provider: huggingface
+    repository: TencentARC/Pixal3D
+  # Pipeline resolution: 1024 or 1536. Unset defaults to 1024 in low-VRAM mode,
+  # else 1536. Lower resolution trades detail for speed and peak VRAM.
+  # resolution: 1024
+  # Low-VRAM mode keeps stage models on CPU and moves them to GPU on demand,
+  # reducing peak VRAM from ~18GB to ~10-12GB at the cost of slower inference.
+  low_vram: false
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    params:
+      # Camera FOV in radians. Unset triggers MoGe-based auto-estimation from the
+      # input image. Try ~0.2 rad if you notice perspective distortion.
+      manual_fov: ${input.manual_fov as number}
+      mesh_scale: ${input.mesh_scale as number | 1.0}
+      image_resolution: ${input.image_resolution as integer | 512}
+      # Sparse-structure (SS) sampler — coarse voxel layout.
+      ss_sampling_steps: ${input.ss_sampling_steps as integer | 12}
+      ss_guidance_strength: ${input.ss_guidance_strength as number | 7.5}
+      ss_guidance_rescale: ${input.ss_guidance_rescale as number | 0.7}
+      ss_rescale_t: ${input.ss_rescale_t as number | 5.0}
+      # Shape structured-latent sampler — geometry refinement.
+      shape_slat_sampling_steps: ${input.shape_slat_sampling_steps as integer | 12}
+      shape_slat_guidance_strength: ${input.shape_slat_guidance_strength as number | 7.5}
+      shape_slat_guidance_rescale: ${input.shape_slat_guidance_rescale as number | 0.5}
+      shape_slat_rescale_t: ${input.shape_slat_rescale_t as number | 3.0}
+      # Texture structured-latent sampler — PBR colour / metallic / roughness.
+      tex_slat_sampling_steps: ${input.tex_slat_sampling_steps as integer | 12}
+      tex_slat_guidance_strength: ${input.tex_slat_guidance_strength as number | 1.0}
+      tex_slat_guidance_rescale: ${input.tex_slat_guidance_rescale as number | 0.0}
+      tex_slat_rescale_t: ${input.tex_slat_rescale_t as number | 3.0}
+      # Maximum sparse-token budget per stage. Raise for finer geometry at the
+      # cost of higher VRAM.
+      max_num_tokens: ${input.max_num_tokens as integer | 49152}
+      # Baked texture and target face count applied when exporting the GLB.
+      texture_size: ${input.texture_size as integer | 4096}
+      decimation_target: ${input.decimation_target as integer | 1000000}

@@ -352,7 +352,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
         # Install order matches TRELLIS.2's setup.sh: cuMesh + FlexGEMM +
         # o_voxel (all as buildable source trees), then the pure-Python pixal3d
         # package on top.
-        no_build_isolation: List[str] = [ "--no-build-isolation" ]
+        pip_options: List[str] = [ "--no-build-isolation" ]
 
         if importlib.util.find_spec("cumesh") is None:
             # CuMesh vendors `third_party/cubvh` as a git submodule; the tarball
@@ -362,7 +362,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
                 "https://github.com/JeffreyXiang/CuMesh.git",
                 revision="12289e1062f0",
                 source_path=".",
-                pip_options=no_build_isolation,
+                pip_options=pip_options,
             )
 
         # MoGe's pyproject.toml hard-pins flex_gemm to a `dev/all_triton` commit
@@ -377,7 +377,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
                 "https://github.com/JeffreyXiang/FlexGEMM.git",
                 revision="6dd94a859c26",
                 source_path=".",
-                pip_options=no_build_isolation + [ "--force-reinstall", "--no-deps" ],
+                pip_options=[ *pip_options, "--force-reinstall", "--no-deps" ],
             )
 
         if importlib.util.find_spec("o_voxel") is None:
@@ -389,7 +389,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
                 "https://github.com/microsoft/TRELLIS.2.git",
                 revision="75fbf0183001",
                 source_path="o-voxel",
-                pip_options=no_build_isolation,
+                pip_options=pip_options,
             )
 
         if importlib.util.find_spec("pixal3d") is None:

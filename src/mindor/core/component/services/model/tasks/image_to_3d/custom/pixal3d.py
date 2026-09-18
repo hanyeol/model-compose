@@ -365,19 +365,31 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        # MoGe's pyproject.toml hard-pins flex_gemm to a `dev/all_triton` commit
-        # that reorganises `ops.grid_sample` under `ops.sample`, but Pixal3D
-        # imports the pre-rename layout (`flex_gemm.ops.grid_sample`). Detect the
-        # wrong install by probing for that module and reinstall from FlexGEMM's
-        # main branch when it's missing — pip's own upgrade heuristics won't
-        # touch an already-satisfied `flex_gemm` requirement.
         if importlib.util.find_spec("flex_gemm.ops.grid_sample") is None:
+            # MoGe's pyproject.toml hard-pins flex_gemm to a `dev/all_triton` commit
+            # that reorganises `ops.grid_sample` under `ops.sample`, but Pixal3D
+            # imports the pre-rename layout (`flex_gemm.ops.grid_sample`). Detect the
+            # wrong install by probing for that module and reinstall from FlexGEMM's
+            # main branch when it's missing — pip's own upgrade heuristics won't
+            # touch an already-satisfied `flex_gemm` requirement.
             await install_package_from_github(
                 "flex_gemm",
                 "https://github.com/JeffreyXiang/FlexGEMM.git",
                 revision="6dd94a859c26",
                 source_path=".",
                 pip_options=[ *pip_options, "--force-reinstall", "--no-deps" ],
+            )
+
+        if importlib.util.find_spec("nvdiffrast") is None:
+            # o_voxel's postprocess.py imports `nvdiffrast.torch` — install the
+            # v0.4.0 tag TRELLIS.2's setup.sh validates against, source-built
+            # because upstream ships no wheels.
+            await install_package_from_github(
+                "nvdiffrast",
+                "https://github.com/NVlabs/nvdiffrast.git",
+                revision="v0.4.0",
+                source_path=".",
+                pip_options=pip_options,
             )
 
         if importlib.util.find_spec("o_voxel") is None:

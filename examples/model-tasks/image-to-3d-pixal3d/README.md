@@ -132,7 +132,8 @@ Compared to cloud-hosted 3D generation services:
 
 ## Notes
 
-- **First run is slow**: The controller downloads ~15 GB of weights and compiles neighbourhood-attention CUDA kernels (natten) on first startup. Subsequent runs reuse the cached artefacts.
+- **First run is slow**: The controller creates the `.venv/pixal3d` isolated environment, installs Pixal3D's pinned dependencies, compiles neighbourhood-attention CUDA kernels (natten), and downloads ~15 GB of weights on first startup. Expect 20-30 minutes before the controller reports ready. Subsequent runs reuse the cached venv and artefacts.
+- **Isolated runtime**: The model worker runs in a dedicated virtualenv (`runtime.type: virtualenv`, `path: .venv/pixal3d`) so Pixal3D's hard-pinned transformers / diffusers / kornia versions don't clash with the controller's own site-packages. The driver refuses to run in the controller's native environment.
 - **CUDA is required**: Pixal3D hardcodes CUDA device placement and CUDA-only kernels; the driver refuses to load on non-CUDA hosts rather than silently falling back to a broken path.
 - **VRAM planning**: `low_vram: true` swaps peak VRAM (~10-12 GB) for latency (~2-3× slower). At `resolution: 1536` in standard mode, peak VRAM is ~18 GB — an A100 40GB or an RTX 6000 Ada handles it comfortably.
 - **Camera FOV matters**: If the auto-estimated perspective looks off (subject unusually stretched or flattened), set `manual_fov` — start at `0.2` (narrow lens, ~11.5°) and adjust in `~0.05` increments.

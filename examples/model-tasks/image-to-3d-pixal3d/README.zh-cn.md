@@ -132,7 +132,8 @@
 
 ## 注意事项
 
-- **首次运行较慢**：首次启动会下载约 15 GB 权重并编译 neighborhood attention CUDA 算子（natten）。后续运行会复用缓存。
+- **首次运行较慢**：首次启动会创建 `.venv/pixal3d` 隔离环境，安装 Pixal3D 的固定依赖，编译 neighborhood attention CUDA 算子（natten），并下载约 15 GB 权重。控制器就绪前需要 20-30 分钟。后续运行会复用缓存的 venv 与产物。
+- **隔离运行时**：模型 worker 运行在独立的 virtualenv（`runtime.type: virtualenv`，`path: .venv/pixal3d`）中，避免 Pixal3D 硬固定的 transformers / diffusers / kornia 版本与控制器的 site-packages 冲突。若在控制器的 native 环境中运行，驱动会拒绝加载。
 - **必须使用 CUDA**：Pixal3D 硬编码了 CUDA 设备放置与 CUDA 专用算子；驱动在非 CUDA 主机上会直接拒绝加载，而不是沉默地回退到损坏的路径。
 - **VRAM 规划**：`low_vram: true` 用延迟（约 2-3 倍慢）换取更低峰值 VRAM（约 10-12 GB）。`resolution: 1536` 标准模式的峰值 VRAM 约为 18 GB，A100 40GB 或 RTX 6000 Ada 可轻松运行。
 - **相机 FOV**：若自动估计的透视看起来失真（主体过度拉伸或压扁），设置 `manual_fov`。从 `0.2`（窄镜头，约 11.5°）开始，每次调整约 `0.05`。

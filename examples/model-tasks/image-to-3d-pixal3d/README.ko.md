@@ -132,7 +132,8 @@
 
 ## 참고사항
 
-- **첫 실행이 느립니다**: 최초 시작 시 약 15 GB의 가중치를 내려받고 neighborhood attention CUDA 커널(natten)을 컴파일합니다. 이후 실행은 캐시된 산출물을 재사용합니다.
+- **첫 실행이 느립니다**: 최초 시작 시 격리된 `.venv/pixal3d` 환경을 만들고, Pixal3D의 고정된 의존성을 설치하고, neighborhood attention CUDA 커널(natten)을 컴파일하고, 약 15 GB의 가중치를 내려받습니다. 컨트롤러 준비까지 20-30분 정도 걸립니다. 이후 실행은 캐시된 venv와 산출물을 재사용합니다.
+- **격리된 런타임**: 모델 워커는 전용 virtualenv(`runtime.type: virtualenv`, `path: .venv/pixal3d`)에서 실행됩니다. Pixal3D가 하드핀한 transformers / diffusers / kornia 버전이 컨트롤러의 site-packages와 충돌하지 않도록 하기 위해서입니다. 컨트롤러의 native 환경에서는 드라이버가 로딩을 거부합니다.
 - **CUDA 필수**: Pixal3D는 CUDA 디바이스 배치와 CUDA 전용 커널을 하드코딩합니다. 드라이버는 CUDA가 아닌 호스트에서는 무너진 경로로 폴백하지 않고 즉시 로딩을 거부합니다.
 - **VRAM 계획**: `low_vram: true`는 최대 VRAM(~10-12 GB)을 대기 시간(약 2-3배 느림)과 맞바꿉니다. `resolution: 1536` 표준 모드에서는 최대 VRAM이 약 18 GB로, A100 40GB나 RTX 6000 Ada가 편안하게 처리합니다.
 - **카메라 FOV**: 자동 추정 결과가 이상해 보이면(피사체가 유난히 늘어지거나 눌린 느낌) `manual_fov`로 직접 지정하세요. `0.2`(좁은 렌즈, 약 11.5°)에서 시작해 `~0.05`씩 조정합니다.

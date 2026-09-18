@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, MdxNetMusicSourceSeparationModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, MusicSourceSeparationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, MdxNetMusicSourceSeparationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
@@ -29,9 +29,11 @@ _MDX_INSTRUMENTAL_STEM_NAME = "instrumental"
 _MDX_DEFAULT_STEMS = [ _MDX_STEM_NAME, _MDX_INSTRUMENTAL_STEM_NAME ]
 
 class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
+    config: MdxNetMusicSourceSeparationModelActionConfig
+
     def __init__(
         self,
-        config: MusicSourceSeparationModelActionConfig,
+        config: MdxNetMusicSourceSeparationModelActionConfig,
         session: Any,
         input_name: str,
         device: Optional[torch.device],

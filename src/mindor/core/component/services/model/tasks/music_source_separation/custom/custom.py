@@ -12,4 +12,12 @@ class CustomMusicSourceSeparationTaskDriver:
             from .mdx_net import MdxNetMusicSourceSeparationTaskDriver
             return MdxNetMusicSourceSeparationTaskDriver(id, config, daemon)
 
+        if config.family == MusicSourceSeparationModelFamily.BS_ROFORMER:
+            from .roformer.bs_roformer import BsRoFormerMusicSourceSeparationTaskDriver
+            return BsRoFormerMusicSourceSeparationTaskDriver(id, config, daemon)
+
+        if config.family == MusicSourceSeparationModelFamily.MEL_BAND_ROFORMER:
+            from .roformer.mel_band_roformer import MelBandRoFormerMusicSourceSeparationTaskDriver
+            return MelBandRoFormerMusicSourceSeparationTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

@@ -1,6 +1,6 @@
 from typing import Literal, List, Dict, Any
 from pydantic import Field, model_validator
-from mindor.dsl.schema.action import MusicSourceSeparationModelActionConfig
+from mindor.dsl.schema.action import DemucsMusicSourceSeparationModelActionConfig
 from ..common import CommonMusicSourceSeparationModelComponentConfig
 from .common import MusicSourceSeparationModelFamily
 from ....common import ModelDriverType, ModelProvider, NamedModelConfig
@@ -11,7 +11,7 @@ class DemucsMusicSourceSeparationModelComponentConfig(CommonMusicSourceSeparatio
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicSourceSeparationModelFamily.DEMUCS]
     model: NamedModelConfig = Field(..., description="Demucs pretrained model name (e.g., htdemucs_ft, htdemucs, mdx_extra).")
-    actions: List[MusicSourceSeparationModelActionConfig] = Field(default_factory=list, description="Actions this music source separation component exposes to workflows.")
+    actions: List[DemucsMusicSourceSeparationModelActionConfig] = Field(default_factory=list, description="Actions this music source separation component exposes to workflows.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):

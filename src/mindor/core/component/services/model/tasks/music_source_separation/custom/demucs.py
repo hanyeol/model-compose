@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, DemucsMusicSourceSeparationModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, MusicSourceSeparationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, DemucsMusicSourceSeparationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
@@ -18,9 +18,11 @@ if TYPE_CHECKING:
     import torch
 
 class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
+    config: DemucsMusicSourceSeparationModelActionConfig
+
     def __init__(
         self,
-        config: MusicSourceSeparationModelActionConfig,
+        config: DemucsMusicSourceSeparationModelActionConfig,
         model: Any,
         model_sample_rate: int,
         model_sources: List[str],

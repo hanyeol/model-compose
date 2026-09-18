@@ -1,0 +1,12 @@
+from typing import Union
+from .demucs import DemucsMusicSourceSeparationModelActionConfig
+from .mdx_net import MdxNetMusicSourceSeparationModelActionConfig
+from .bs_roformer import BsRoFormerMusicSourceSeparationModelActionConfig
+from .mel_band_roformer import MelBandRoFormerMusicSourceSeparationModelActionConfig
+
+CustomMusicSourceSeparationModelActionConfig = Union[
+    DemucsMusicSourceSeparationModelActionConfig,
+    MdxNetMusicSourceSeparationModelActionConfig,
+    BsRoFormerMusicSourceSeparationModelActionConfig,
+    MelBandRoFormerMusicSourceSeparationModelActionConfig,
+]

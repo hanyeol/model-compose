@@ -768,7 +768,7 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.MODEL_3D:
             if variable.is_list:
                 return gr.File(label=label, interactive=False, file_count="multiple")
-            return gr.Model3D(label=label, height=480)
+            return gr.Model3D(label=label, interactive=False, height=480)
 
         if variable.type == WorkflowVariableType.FILE:
             return gr.File(label=label, interactive=False)

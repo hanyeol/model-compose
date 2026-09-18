@@ -248,8 +248,6 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
         super().__init__(id, config, daemon)
 
         self.model: Optional[torch.nn.Module] = None
-        self.sample_rate: int = 0
-        self.stem_names: List[str] = []
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
@@ -265,25 +263,22 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.model, self.sample_rate, self.stem_names, self.device = await self._load_pretrained_model()
+        self.model, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
         self.device = None
-        self.stem_names = []
 
-    async def _load_pretrained_model(self) -> Tuple[torch.nn.Module, int, List[str], torch.device]:
+    async def _load_pretrained_model(self) -> Tuple[torch.nn.Module, torch.device]:
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         # exclude_none keeps lucidrains' own defaults for optional fields the
         # user didn't set (e.g. BS-RoFormer's `freqs_per_bands`).
         model_params: Dict[str, Any] = self.config.params.model_dump(exclude_none=True)
-        sample_rate = self._get_sample_rate()
-
         model_class = self._get_model_class()
 
-        def _load() -> Tuple[torch.nn.Module, int, List[str]]:
+        def _load() -> torch.nn.Module:
             model = model_class(**model_params)
 
             self._load_checkpoint(model, model_path)
@@ -291,13 +286,11 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
             model.to(device)
             model.eval()
 
-            stem_names = list(self.config.stems) if self.config.stems else [ f"stem_{i}" for i in range(self.config.params.num_stems) ]
+            return model
 
-            return model, sample_rate, stem_names
+        model = await self._run_in_executor(_load)
 
-        model, sample_rate, stem_names = await self._run_in_executor(_load)
-
-        return model, sample_rate, stem_names, device
+        return model, device
 
     def _load_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
         """Load a .ckpt/.pt/.safetensors state dict into the roformer module.
@@ -319,12 +312,18 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
     def _get_sample_rate(self) -> int:
         raise NotImplementedError
 
+    def _get_stem_names(self) -> List[str]:
+        if self.config.stems:
+            return list(self.config.stems)
+
+        return [ f"stem_{index}" for index in range(self.config.params.num_stems) ]
+
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await RoFormerMusicSourceSeparationTaskAction(
             action,
             self.model,
-            self.sample_rate,
+            self._get_sample_rate(),
             self.config.params.stereo,
-            self.stem_names,
+            self._get_stem_names(),
             self.device,
         ).run(context)

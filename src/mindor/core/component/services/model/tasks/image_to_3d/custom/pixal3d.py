@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.natten import natten_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, install_package_from_git_clone
+from mindor.core.foundation.package.installer import install_package_from_github
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
 from PIL import Image as PILImage
@@ -355,20 +355,20 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
         no_build_isolation: List[str] = [ "--no-build-isolation" ]
 
         if importlib.util.find_spec("cumesh") is None:
-            # CuMesh vendors `third_party/cubvh` as a git submodule; a plain
-            # tarball would strip it, so clone recursively.
-            await install_package_from_git_clone(
+            # CuMesh vendors `third_party/cubvh` as a git submodule; the tarball
+            # fallback strips it, so `git` must be available for this to succeed.
+            await install_package_from_github(
                 "cumesh",
                 "https://github.com/JeffreyXiang/CuMesh.git",
-                recursive=True,
+                source_path=".",
                 pip_options=no_build_isolation,
             )
 
         if importlib.util.find_spec("flex_gemm") is None:
-            await install_package_from_git_clone(
+            await install_package_from_github(
                 "flex_gemm",
                 "https://github.com/JeffreyXiang/FlexGEMM.git",
-                recursive=True,
+                source_path=".",
                 pip_options=no_build_isolation,
             )
 
@@ -376,7 +376,7 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             # TRELLIS.2's o-voxel lives one level down (`o-voxel/`) and needs a
             # full pip build for its CUDA kernels — the earlier tree-copy path
             # dropped a pure-Python shell that crashed at import time.
-            await install_package_from_git_clone(
+            await install_package_from_github(
                 "trellis2",
                 "https://github.com/microsoft/TRELLIS.2.git",
                 source_path="o-voxel",

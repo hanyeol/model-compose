@@ -53,113 +53,111 @@ async def install_package(package_spec: str, pip_options: Optional[List[str]] = 
             stderr=stderr
         )
 
-async def install_package_from_git_clone(
-    module_name: str,
-    repo_url: str,
-    revision: Optional[str] = None,
-    source_path: Optional[str] = None,
-    recursive: bool = False,
-    pip_options: Optional[List[str]] = None,
-) -> None:
-    """Clone a git repository and `pip install` a source tree from it.
-
-    Sibling to :func:`install_package_from_github` for packages whose build
-    step must actually run (C/CUDA extensions, custom ``setup.py``). Uses a
-    real ``git clone`` (optionally ``--recursive``; tarballs strip submodules)
-    then hands the working tree to :func:`install_package`; ``pip_options``
-    is forwarded verbatim (typically ``["--no-build-isolation"]``). The clone
-    caches under ``$TMPDIR/mindor-git-sources/<module_name>``; ``source_path``
-    picks the buildable package when it isn't the repo root (same field name
-    as the tuple form of :func:`install_package_from_github`'s ``subdirs``).
-    """
-    clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / module_name
-
-    if not clone_dir.exists():
-        clone_dir.parent.mkdir(parents=True, exist_ok=True)
-
-        command: List[str] = [ "git", "clone" ]
-
-        if recursive:
-            command.append("--recursive")
-
-        if revision is not None:
-            # `git clone --branch` accepts both branch names and tag names, so
-            # a caller who pinned to a tag (e.g. `v0.4.0`) gets a shallow, ready
-            # tree without a follow-up `git checkout`.
-            command.extend([ "--branch", revision ])
-
-        command.extend([ repo_url, str(clone_dir) ])
-
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        stdout, stderr = await process.communicate()
-
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(
-                process.returncode,
-                command,
-                output=stdout,
-                stderr=stderr,
-            )
-
-    package_root = clone_dir / source_path if source_path else clone_dir
-
-    if not package_root.exists():
-        raise FileNotFoundError(f"Package source '{source_path}' not found in cloned repo at {clone_dir}")
-
-    await install_package(str(package_root), pip_options)
-
-    importlib.invalidate_caches()
-
 async def install_package_from_github(
     module_name: str,
     repo_url: str,
     revision: Optional[str] = None,
+    source_path: Optional[str] = None,
     subdirs: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    pip_options: Optional[List[str]] = None,
 ) -> None:
-    """Download a GitHub repo tarball and install selected subdirs as top-level packages.
+    """Fetch a GitHub repository and install selected pieces of it locally.
 
-    Each `subdirs` entry is either a package name (used as both source and
-    target) or a `(package_name, source_path)` tuple that renames the copied
-    subdirectory. Renamed entries also get their internal `import`/`from`
-    references to the original top rewritten to the new name.
+    Downloads once into ``$TMPDIR/mindor-git-sources/<module_name>``, then
+    processes ``source_path`` and ``subdirs`` against the cached tree. Callers
+    may pass either, both, or neither.
+
+    ``source_path`` names a directory whose ``setup.py`` / ``pyproject.toml``
+    should be built by pip (single build root). Use for upstream packages
+    with C/CUDA extensions; ``pip_options`` is forwarded verbatim (typically
+    ``["--no-build-isolation"]`` when the upstream ``setup.py`` imports torch
+    at build time — pip's isolated build env has none).
+
+    ``subdirs`` lists pure-Python source folders to drop next to ``mindor``
+    without invoking pip. Each entry is either a package name (used as both
+    source and target) or a ``(package_name, source_path)`` tuple that
+    renames the copied subdirectory; renamed entries also get their internal
+    ``import``/``from`` references to the original top rewritten to the new
+    name.
+
+    Downloads via ``git clone --recursive`` when the ``git`` binary is on
+    PATH (needed for repos with submodules or LFS assets); falls back to a
+    tarball otherwise. The tarball fallback silently drops submodules — repos
+    that require them will surface as import/build failures further down.
     """
-    packages = subdirs or [ module_name ]
     clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / module_name
 
     if not clone_dir.exists():
         clone_dir.parent.mkdir(parents=True, exist_ok=True)
-        await download_github_tarball(repo_url, revision, clone_dir)
 
-    for package in packages:
-        if isinstance(package, tuple):
-            package_name, source_path = package
+        # Prefer `git clone --recursive` when the `git` binary is available —
+        # repos with submodules or LFS content need it. Fall back to a tarball
+        # otherwise; submodule-bearing repos silently lose their submodules on
+        # this path and will surface as import/build failures further down.
+        if shutil.which("git"):
+            command: List[str] = [ "git", "clone", "--recursive" ]
+
+            if revision is not None:
+                # `git clone --branch` accepts both branch names and tag names,
+                # so a caller who pinned to a tag (e.g. `v0.4.0`) gets a ready
+                # tree without a follow-up `git checkout`.
+                command.extend([ "--branch", revision ])
+
+            command.extend([ repo_url, str(clone_dir) ])
+
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    process.returncode,
+                    command,
+                    output=stdout,
+                    stderr=stderr,
+                )
         else:
-            package_name, source_path = package, package
+            await download_github_tarball(repo_url, revision, clone_dir)
 
-        source = clone_dir / source_path
-        target = _MINDOR_INSTALL_ROOT / package_name
+    if source_path is not None:
+        package_root = clone_dir / source_path
 
-        if not source.exists():
+        if not package_root.exists():
             raise FileNotFoundError(f"Package source '{source_path}' not found in downloaded repo at {clone_dir}")
 
-        if not target.exists():
-            shutil.copytree(source, target)
+        await install_package(str(package_root), pip_options)
 
-            # `source_path == "."` means the repo root is the package — there
-            # is no original top-level module name to rewrite. Skip the rewrite
-            # in that case; callers that rely on the repo root being on sys.path
-            # (e.g. because upstream uses `from models import ...` style
-            # top-level imports) are expected to insert it themselves at load time.
-            parts = Path(source_path).parts
-            top_module = parts[0] if parts else None
+    if subdirs is not None:
+        for package in subdirs:
+            if isinstance(package, tuple):
+                package_name, package_source_path = package
+            else:
+                package_name, package_source_path = package, package
 
-            if top_module is not None and top_module != package_name:
-                rewrite_python_imports(target, { top_module: package_name })
+            source = clone_dir / package_source_path
+            target = _MINDOR_INSTALL_ROOT / package_name
+
+            if not source.exists():
+                raise FileNotFoundError(f"Package source '{package_source_path}' not found in downloaded repo at {clone_dir}")
+
+            if not target.exists():
+                shutil.copytree(source, target)
+
+                # `package_source_path == "."` means the repo root is the package —
+                # there is no original top-level module name to rewrite. Skip the
+                # rewrite in that case; callers that rely on the repo root being
+                # on sys.path (e.g. because upstream uses `from models import ...`
+                # style top-level imports) are expected to insert it themselves at
+                # load time.
+                parts = Path(package_source_path).parts
+                top_module = parts[0] if parts else None
+
+                if top_module is not None and top_module != package_name:
+                    rewrite_python_imports(target, { top_module: package_name })
 
     importlib.invalidate_caches()
 

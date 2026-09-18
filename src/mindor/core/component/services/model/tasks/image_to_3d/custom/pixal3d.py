@@ -302,6 +302,13 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
+        # Pixal3D pins transformers 4.57.3, diffusers 0.37.1, kornia 0.8.2, timm
+        # 1.0.22, trimesh 4.10.1 and installs two source-tree packages via
+        # `install_package_from_github` (pixal3d, o_voxel). Refuse to run in the
+        # controller's native environment — those pins and copies would either
+        # clash with the mindor stack or leak into it.
+        self._require_isolated_runtime()
+
         self.pipeline: Optional[Any] = None
         self.moge_model: Optional[Any] = None
         self.pipeline_type: Optional[str] = None

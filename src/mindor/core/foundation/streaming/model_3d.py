@@ -23,17 +23,6 @@ _MODEL_3D_CONTENT_TYPE_MAP: Dict[str, str] = {
     "fbx":   "application/octet-stream",
 }
 
-def resolve_model_3d_content_type(format: Optional[str]) -> str:
-    """Return the MIME content type for a 3D asset format (e.g. `glb`, `gltf`)."""
-    if format:
-        return _MODEL_3D_CONTENT_TYPE_MAP.get(format.lower(), "application/octet-stream")
-
-    return "application/octet-stream"
-
-def get_model_3d_file_extensions() -> List[str]:
-    """Return the file extensions (with leading dot) accepted for 3D assets."""
-    return [ f".{format}" for format in _MODEL_3D_CONTENT_TYPE_MAP ]
-
 class Model3DStreamResource(StreamResource):
     def __init__(
         self,
@@ -99,3 +88,14 @@ def create_model_3d_source(value: Any) -> MediaSource:
         return MediaSource(BytesStreamResource(bytes(value)))
 
     raise TypeError(f"Unsupported 3D model source: {value.__class__.__name__}")
+
+def resolve_model_3d_content_type(format: Optional[str]) -> str:
+    """Return the MIME content type for a 3D asset format (e.g. `glb`, `gltf`)."""
+    if format:
+        return _MODEL_3D_CONTENT_TYPE_MAP.get(format.lower(), "application/octet-stream")
+
+    return "application/octet-stream"
+
+def get_model_3d_file_extensions() -> List[str]:
+    """Return the file extensions (with leading dot) accepted for 3D assets."""
+    return [ f".{format}" for format in _MODEL_3D_CONTENT_TYPE_MAP ]

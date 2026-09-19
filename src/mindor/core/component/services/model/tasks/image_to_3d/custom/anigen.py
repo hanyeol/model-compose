@@ -222,17 +222,16 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "pytorch3d",
                 "https://github.com/facebookresearch/pytorch3d.git",
-                revision="75ebeeaea0908c5527e7b1e305fbc7681382db47",
+                revision="75ebeeaea090",
                 source_path=".",
                 pip_options=pip_options,
             )
 
         if importlib.util.find_spec("nvdiffrast") is None:
-            # NVlabs/nvdiffrast v0.3.3 as an immutable SHA.
             await install_package_from_github(
                 "nvdiffrast",
                 "https://github.com/NVlabs/nvdiffrast.git",
-                revision="729261dc64c4241ea36efda84fbf532cc8b425b8",
+                revision="729261dc64c4",
                 source_path=".",
                 pip_options=pip_options,
             )
@@ -244,7 +243,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "anigen",
                 "https://github.com/VAST-AI-Research/AniGen.git",
-                revision="c49db3d6b466537a02ccf2286688903d77af7e4f",
+                revision="c49db3d6b466",
                 subdirs=[ "anigen" ],
             )
 

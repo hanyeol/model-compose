@@ -379,13 +379,12 @@ class Pixal3DImageTo3DTaskDriver(ModelTaskDriver):
             )
 
         if importlib.util.find_spec("nvdiffrast") is None:
-            # o_voxel's postprocess.py imports `nvdiffrast.torch` — install the
-            # v0.4.0 tag TRELLIS.2's setup.sh validates against, source-built
+            # o_voxel's postprocess.py imports `nvdiffrast.torch`; source-built
             # because upstream ships no wheels.
             await install_package_from_github(
                 "nvdiffrast",
                 "https://github.com/NVlabs/nvdiffrast.git",
-                revision="v0.4.0",
+                revision="253ac4fcea7d",
                 source_path=".",
                 pip_options=pip_options,
             )

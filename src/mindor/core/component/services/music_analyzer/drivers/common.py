@@ -94,8 +94,9 @@ class MusicAnalyzerAction(ComponentAction):
             async def _stream_output_generator():
                 async for batch in BatchSourceIterator(source, batch_size=batch_size or 1):
                     batch_results = await self._analyze_batch(batch, self.config.metric, params, context.cancellation_token)
-                    for analysis in batch_results:
-                        yield analysis
+                    for result in batch_results:
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

@@ -29,7 +29,8 @@ class SubtitleLoaderAction(ComponentAction):
                 async for batch_sources in BatchSourceIterator(source, batch_size=batch_size or 1):
                     batch_results = await self._load_batch(batch_sources, params, self.context.cancellation_token)
                     for result in batch_results:
-                        yield result
+                        self.context.register_source("result", result)
+                        yield (await self.context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

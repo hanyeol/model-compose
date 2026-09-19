@@ -9,7 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
-from .common import VideoEmbeddingTaskAction
+from .common import VideoEmbedding, VideoEmbeddingTaskAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -38,14 +38,14 @@ class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
         videos: List[ImageArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[VideoEmbedding]:
         expected_frames = self._get_expected_frame_count()
         sampled_videos: List[List[PILImage.Image]] = []
 
         for video in videos:
             sampled_videos.append(self._sample_frames(await video.collect(), expected_frames))
 
-        def _embed() -> List[List[float]]:
+        def _embed() -> List[VideoEmbedding]:
             import torch, torch.nn.functional as F
 
             if self.architecture == HuggingfaceVideoEmbeddingModelArchitecture.XCLIP:
@@ -82,7 +82,7 @@ class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-            return embeddings.cpu().tolist()
+            return [ VideoEmbedding(vector) for vector in embeddings.cpu().tolist() ]
 
         return await self._run_in_executor(_embed)
 

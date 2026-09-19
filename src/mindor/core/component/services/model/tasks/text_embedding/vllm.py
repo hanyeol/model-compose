@@ -7,7 +7,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import VllmModelTaskDriver, ComponentActionContext
-from .common import TextEmbeddingTaskAction
+from .common import TextEmbedding, TextEmbeddingTaskAction
 import math, ulid
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[TextEmbedding]:
         from vllm import PoolingParams
 
         pooling_params = PoolingParams()
@@ -41,7 +41,7 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
             async for pooled in self.engine.encode(text, pooling_params, request_id=request_id):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     await self.engine.abort(request_id)
-                    return embeddings
+                    return [ TextEmbedding(vector) for vector in embeddings ]
                 final_pooled = pooled
 
             if final_pooled is None:
@@ -58,9 +58,9 @@ class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
                     normalized.append([ x / norm for x in embedding ])
                 else:
                     normalized.append(embedding)
-            return normalized
+            embeddings = normalized
 
-        return embeddings
+        return [ TextEmbedding(vector) for vector in embeddings ]
 
 @register_model_task_driver(ModelTaskType.TEXT_EMBEDDING, ModelDriverType.VLLM)
 class VllmTextEmbeddingTaskDriver(VllmModelTaskDriver):

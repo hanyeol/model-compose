@@ -34,14 +34,15 @@ class TextEmbeddingTaskAction(ComponentAction):
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._embed_batch(batch_texts, params, context.cancellation_token)
                     for result in batch_results:
-                        yield TextEmbedding(result)
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:
             results: List[TextEmbedding] = []
             async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                 batch_results = await self._embed_batch(batch_texts, params, context.cancellation_token)
-                results.extend(TextEmbedding(result) for result in batch_results)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -65,5 +66,5 @@ class TextEmbeddingTaskAction(ComponentAction):
         texts: List[str],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[TextEmbedding]:
         pass

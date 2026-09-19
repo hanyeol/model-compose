@@ -35,14 +35,15 @@ class ImageEmbeddingTaskAction(ComponentAction):
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_results = await self._embed_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
-                        yield ImageEmbedding(result)
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:
             results: List[ImageEmbedding] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                 batch_results = await self._embed_batch(batch_images, params, context.cancellation_token)
-                results.extend(ImageEmbedding(result) for result in batch_results)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -64,5 +65,5 @@ class ImageEmbeddingTaskAction(ComponentAction):
         images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[ImageEmbedding]:
         pass

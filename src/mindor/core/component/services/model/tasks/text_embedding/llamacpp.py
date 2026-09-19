@@ -7,7 +7,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import LlamaCppModelTaskDriver, ComponentActionContext
-from .common import TextEmbeddingTaskAction
+from .common import TextEmbedding, TextEmbeddingTaskAction
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
@@ -27,23 +27,26 @@ class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
-        def _embed() -> List[List[float]]:
+    ) -> List[TextEmbedding]:
+        def _embed() -> List[TextEmbedding]:
             import math
 
             embeddings = self.model.embed(texts)
 
             if params["normalize"]:
                 normalized_embeddings = []
+
                 for embedding in embeddings:
                     norm = math.sqrt(sum(x * x for x in embedding))
+
                     if norm > 1e-12:
                         normalized_embeddings.append([x / norm for x in embedding])
                     else:
                         normalized_embeddings.append(embedding)
-                return normalized_embeddings
 
-            return embeddings
+                embeddings = normalized_embeddings
+
+            return [ TextEmbedding(vector) for vector in embeddings ]
 
         return await self._run_in_executor(_embed)
 

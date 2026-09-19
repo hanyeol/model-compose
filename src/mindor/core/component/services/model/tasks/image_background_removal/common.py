@@ -35,7 +35,9 @@ class ImageBackgroundRemovalTaskAction(ComponentAction):
                     batch_images = [ self._normalize_image(image) for image in batch_images ]
                     batch_masks = await self._predict_masks_batch(batch_images, params, context.cancellation_token)
                     for image_, mask in zip(batch_images, batch_masks):
-                        yield self._render_output(image_, mask, params["output_format"])
+                        result = self._render_output(image_, mask, params["output_format"])
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

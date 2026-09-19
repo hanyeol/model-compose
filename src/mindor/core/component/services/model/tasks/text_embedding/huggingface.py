@@ -9,7 +9,7 @@ from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.language import HuggingfaceLanguageModelTaskDriver
-from .common import TextEmbeddingTaskAction
+from .common import TextEmbedding, TextEmbeddingTaskAction
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -59,13 +59,13 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
         texts: List[str],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[TextEmbedding]:
         import torch
         import torch.nn.functional as F
 
-        def _embed() -> List[List[float]]:
+        def _embed() -> List[TextEmbedding]:
             if self.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:
-                return self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist()
+                return [ TextEmbedding(vector) for vector in self.model.encode(texts, normalize_embeddings=bool(params.get("normalize", True))).tolist() ]
 
             inputs: Dict[str, Tensor] = self.tokenizer(texts, **params["tokenizer"])
             inputs = { key: value.to(self.device) for key, value in inputs.items() }
@@ -88,7 +88,7 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-            return embeddings.cpu().tolist()
+            return [ TextEmbedding(vector) for vector in embeddings.cpu().tolist() ]
 
         return await self._run_in_executor(_embed)
 

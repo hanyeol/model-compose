@@ -35,14 +35,15 @@ class VideoEmbeddingTaskAction(ComponentAction):
                 async for batch_videos in BatchSourceIterator(frames, batch_size=batch_size or 1):
                     batch_results = await self._embed_batch(batch_videos, params, context.cancellation_token)
                     for result in batch_results:
-                        yield VideoEmbedding(result)
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:
             results: List[VideoEmbedding] = []
             async for batch_videos in BatchSourceIterator(frames, batch_size=batch_size or 1):
                 batch_results = await self._embed_batch(batch_videos, params, context.cancellation_token)
-                results.extend(VideoEmbedding(result) for result in batch_results)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -62,5 +63,5 @@ class VideoEmbeddingTaskAction(ComponentAction):
         videos: List[ImageArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[VideoEmbedding]:
         pass

@@ -1,0 +1,46 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Drum Stem Separation (MDX23C)
+  description: Split a drum loop or full-mix track into per-piece stems (kick, snare, toms, hi-hat, ride, crash) using the aufr33/jarredou DrumSep MDX23C checkpoint.
+  jobs:
+    - id: separate
+      component: separator
+      input:
+        audio: ${input.audio as audio}
+        num_overlap: ${input.num_overlap as integer | 4}
+      output:
+        kick:  ${output.Kick as audio/wav}
+        snare: ${output.Snare as audio/wav}
+        toms:  ${output.Toms as audio/wav}
+        hh:    ${output.Hh as audio/wav}
+        ride:  ${output.Ride as audio/wav}
+        crash: ${output.Crash as audio/wav}
+
+components:
+  - id: separator
+    type: model
+    task: music-source-separation
+    driver: custom
+    family: mdx-23c
+    # DrumSep checkpoint by aufr33 & jarredou (438 MB, ~SDR 10.8), mirrored on
+    # the Politrees UVR resources HuggingFace repo. Any MDX23C checkpoint whose
+    # architecture fields match will work in place of this one.
+    model:
+      provider: huggingface
+      repository: Politrees/UVR_resources
+      filename: models/MDX23C/MDX23C-DrumSep-aufr33-jarredou.ckpt
+    instruments: [ Kick, Snare, Toms, Hh, Ride, Crash ]
+    max_concurrent_count: 1
+    action:
+      audio: ${input.audio as audio}
+      params:
+        # Higher num_overlap = better quality at the cost of speed.
+        num_overlap: ${input.num_overlap | 4}

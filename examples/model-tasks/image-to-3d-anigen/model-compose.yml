@@ -46,8 +46,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/anigen
-    start_timeout: 1800s   # first run installs pip deps, builds CUDA extensions, and downloads the AniGen HF snapshot
-    stop_timeout: 15s
   action:
     image: ${input.image as image}
     seed: ${input.seed as integer}

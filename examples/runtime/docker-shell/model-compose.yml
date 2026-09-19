@@ -24,7 +24,5 @@ component:
     type: docker
     # No image / build specified → the standard mindor/component:<version>
     # image is used. First `up` builds or pulls it once, then caches.
-    start_timeout: 90s
-    stop_timeout: 30s
   action:
     command: [ "uname", "-a" ]

@@ -36,8 +36,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/echomimic
-    start_timeout: 900s   # first run downloads EchoMimic source + deps
-    stop_timeout: 15s
   action:
     image: ${input.image as image}
     audio: ${input.audio as audio}

@@ -42,8 +42,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/pixal3d
-    start_timeout: 1800s   # first run installs pip deps, builds natten's CUDA extensions, and downloads ~15 GB of weights
-    stop_timeout: 15s
   action:
     image: ${input.image as image}
     seed: ${input.seed as integer}

@@ -43,7 +43,6 @@ components:
     #   type: docker
     #   # `setup.sh` in this directory installs ffmpeg into the derived
     #   # container image on first `up` (see the file for details).
-    #   start_timeout: 3m   # first cold start pays for the ffmpeg apt install
     action:
       video: ${input.video}
       frame_interval: ${input.frame_interval}

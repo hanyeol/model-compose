@@ -29,8 +29,6 @@ component:
     type: virtualenv
     driver: python           # default; uses `python -m venv`
     path: .venv/classifier   # relative to cwd; will be created if missing
-    start_timeout: 300s      # first run installs deps into the venv
-    stop_timeout: 15s
   action:
     text: ${input.text}
     return_probabilities: true

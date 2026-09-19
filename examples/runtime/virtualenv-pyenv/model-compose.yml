@@ -21,7 +21,5 @@ component:
     driver: pyenv
     python: "3.11.9"        # must already be installed via `pyenv install`
     path: .venv/py311
-    start_timeout: 300s
-    stop_timeout: 15s
   action:
     command: [ "python", "--version" ]

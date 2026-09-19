@@ -32,8 +32,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/latentsync
-    start_timeout: 900s   # first run installs upstream deps + downloads checkpoints
-    stop_timeout: 15s
   action:
     video: ${input.video as video}
     audio: ${input.audio as audio}

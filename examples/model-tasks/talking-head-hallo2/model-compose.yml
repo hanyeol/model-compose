@@ -34,8 +34,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/hallo2
-    start_timeout: 1200s   # first run downloads Hallo2 source + deps
-    stop_timeout: 15s
   action:
     image: ${input.image as image}
     audio: ${input.audio as audio}

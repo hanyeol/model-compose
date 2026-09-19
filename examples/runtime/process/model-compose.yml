@@ -27,8 +27,6 @@ component:
   max_concurrent_count: 1
   runtime:
     type: process
-    start_timeout: 120s   # model download + load on first run
-    stop_timeout: 15s
     env:
       TOKENIZERS_PARALLELISM: "false"
   action:

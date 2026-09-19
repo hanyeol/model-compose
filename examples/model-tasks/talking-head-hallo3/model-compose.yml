@@ -33,8 +33,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/hallo3
-    start_timeout: 1800s   # first run downloads CogVideoX-5B weights (~15 GB)
-    stop_timeout: 15s
   action:
     image: ${input.image as image}
     audio: ${input.audio as audio}

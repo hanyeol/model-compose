@@ -139,8 +139,6 @@ components:
       type: virtualenv
       driver: python
       path: .venv/wav2lip
-      start_timeout: 900s
-      stop_timeout: 15s
     action:
       video: ${input.video}
       audio: ${input.audio}

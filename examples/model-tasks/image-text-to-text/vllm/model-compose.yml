@@ -27,8 +27,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/vllm
-    start_timeout: 600s
-    stop_timeout: 30s
   options:
     max_model_len: 16384
     gpu_memory_utilization: 0.9

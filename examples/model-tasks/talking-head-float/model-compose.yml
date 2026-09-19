@@ -35,8 +35,6 @@ component:
     type: virtualenv
     driver: python
     path: .venv/float
-    start_timeout: 900s   # first run downloads Float source + wav2vec weights
-    stop_timeout: 15s
   action:
     image: ${input.image as image}
     audio: ${input.audio as audio}

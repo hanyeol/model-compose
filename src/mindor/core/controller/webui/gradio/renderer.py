@@ -332,6 +332,7 @@ class WorkflowFlowRenderer:
         })
         compressed = zlib.compress(contents.encode("utf-8"), 9)
         encoded = base64.urlsafe_b64encode(compressed).decode("ascii").rstrip("=")
+
         return f"https://mermaid.live/view#pako:{encoded}"
 
     def _flatten_job_depends_on(self, job: JobConfig) -> List[str]:

@@ -27,7 +27,7 @@ from .error import PrettyGradioError
 from PIL import Image as PILImage
 from collections import deque
 import gradio as gr
-import asyncio, json, re
+import asyncio, json, re, ulid
 
 if TYPE_CHECKING:
     from mindor.core.controller.runner import ControllerRunner
@@ -111,27 +111,15 @@ class GradioWebUIBuilder:
                     with gr.Accordion("📄 Workflow Schema", open=False):
                         gr.Code(value=WorkflowSchemaRenderer().render(workflow), language="json", interactive=False)
                 with gr.Column():
-                    with gr.Accordion("🔀 Workflow Flow", open=False) as flow_diagram_accordion:
+                    with gr.Accordion("🔀 Workflow Flow", open=False):
                         if workflow_config is not None:
-                            # Defer mermaid injection until the accordion is expanded. On hidden
-                            # tabs the markdown container has zero size at mount time, so mermaid's
-                            # initial run produces nothing. Injecting on expand guarantees the
-                            # container is visible when the diagram is first parsed.
-                            flow_diagram_markdown = gr.Markdown(value="")
-                            flow_diagram_value = WorkflowFlowRenderer().render(workflow_config, workflow_configs, component_configs)
-                            flow_diagram_injected = gr.State(value=False)
-
-                            def _inject_flow_diagram(injected: bool):
-                                if injected:
-                                    return gr.update(), True
-                                return gr.update(value=flow_diagram_value), True
-
-                            flow_diagram_accordion.expand(
-                                fn=_inject_flow_diagram,
-                                inputs=[flow_diagram_injected],
-                                outputs=[flow_diagram_markdown, flow_diagram_injected],
-                                concurrency_limit=None,
-                            )
+                            # gradio's built-in Markdown mermaid rendering ships a broken
+                            # dynamic import path in 6.28.x (requests `/mermaid.core-*.js`
+                            # instead of `/assets/mermaid.core-*.js`), so bypass gr.Markdown
+                            # and load mermaid.js directly from a CDN via gr.HTML.
+                            flow_diagram_markdown = WorkflowFlowRenderer().render(workflow_config, workflow_configs, component_configs)
+                            flow_diagram_html, flow_diagram_js = self._render_flow_diagram_html(flow_diagram_markdown)
+                            gr.HTML(value=flow_diagram_html, js_on_load=flow_diagram_js)
                         else:
                             gr.Markdown(value="_Flow information unavailable._")
 
@@ -1041,45 +1029,62 @@ class GradioWebUIBuilder:
     def _log_messages_for_event(self, event: Union[TaskEvent, JobEvent, ComponentEvent]) -> List[Dict]:
         if isinstance(event, TaskEvent):
             return self._log_messages_for_task_event(event)
+
         if isinstance(event, JobEvent):
             return self._log_messages_for_job_event(event)
+
         if isinstance(event, ComponentEvent):
             return self._log_messages_for_component_event(event)
+
         return []
 
     def _log_messages_for_task_event(self, event: TaskEvent) -> List[Dict]:
         title = self._log_format_task_title(event)
+
         if title is None:
             return []
+
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`task_id: {event.task_id}`") ]
+
         if event.event == "started" and event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
+
         if event.event == "completed" and event.output is not None:
             messages.append(self._log_payload_message(event.output, title="Output"))
+
         if event.event == "failed" and event.error:
             messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
+
         return messages
 
     def _log_messages_for_job_event(self, event: JobEvent) -> List[Dict]:
         title = self._log_format_job_title(event)
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`job_type: {event.job_type}`") ]
+
         if event.event == "started" and event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
+
         if event.event == "completed" and event.output is not None:
             messages.append(self._log_payload_message(event.output, title="Output"))
+
         if event.event == "failed" and event.error:
             messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
+
         return messages
 
     def _log_messages_for_component_event(self, event: ComponentEvent) -> List[Dict]:
         title = self._log_format_component_title(event)
         messages: List[Dict] = [ self._log_assistant_message(f"{title}\n`component_type: {event.component_type}`\n`run_id: {event.run_id}`") ]
+
         if event.input is not None:
             messages.append(self._log_payload_message(event.input, title="Input"))
+
         if event.output is not None:
             messages.append(self._log_payload_message(event.output, title="Output"))
+
         if event.error:
             messages.append(self._log_assistant_message(f"```\n{event.error}\n```", title="Error"))
+
         return messages
 
     def _log_assistant_message(self, text: str, title: Optional[str] = None) -> Dict:
@@ -1087,8 +1092,10 @@ class GradioWebUIBuilder:
             "role": "assistant",
             "content": [ {"type": "text", "text": text} ],
         }
+
         if title:
             message["metadata"] = { "title": title }
+
         return message
 
     def _log_payload_message(self, value: Any, title: Optional[str] = None) -> Dict:
@@ -1103,6 +1110,7 @@ class GradioWebUIBuilder:
     def _log_format_task_title(self, event: TaskEvent) -> Optional[str]:
         workflow_id = self._escape_markdown(event.workflow_id)
         elapsed_suffix = f" · {event.elapsed:.2f}s" if event.elapsed is not None else ""
+
         if event.event == "started":
             return f"▶ Workflow '**{workflow_id}**' started"
         if event.event == "resumed":
@@ -1113,39 +1121,53 @@ class GradioWebUIBuilder:
             return f"✓ Workflow '**{workflow_id}**' completed{elapsed_suffix}"
         if event.event == "failed":
             return f"✗ Workflow '**{workflow_id}**' failed{elapsed_suffix}"
+
         if event.event == "cancelled":
             return f"✕ Workflow '**{workflow_id}**' cancelled{elapsed_suffix}"
+
         return None
 
     def _log_format_job_title(self, event: JobEvent) -> str:
         job_id = self._escape_markdown(event.job_id)
+
         if event.event == "started":
             return f"▶ Job '**{job_id}**' started"
+
         if event.event == "completed":
             return f"✓ Job '**{job_id}**' completed · {event.elapsed:.2f}s"
+
         if event.event == "failed":
             return f"✗ Job '**{job_id}**' failed · {event.elapsed:.2f}s"
+
         if event.event == "cancelled":
             elapsed_suffix = f" · {event.elapsed:.2f}s" if event.elapsed is not None else ""
             return f"✕ Job '**{job_id}**' cancelled{elapsed_suffix}"
+
         if event.event == "routed":
             next_job_id = self._escape_markdown(event.next_job_id)
             return f"→ Job '**{job_id}**' routed to '**{next_job_id}**' · {event.elapsed:.2f}s"
+
         return f"• Job '**{job_id}**' {event.event}"
 
     def _log_format_component_title(self, event: ComponentEvent) -> str:
         component_id = self._escape_markdown(event.component_id)
         elapsed_suffix = f" · {event.elapsed:.2f}s" if event.elapsed is not None else ""
+
         if event.event == "started":
             return f"▶ Component '**{component_id}**' started"
+
         if event.event == "completed":
             return f"✓ Component '**{component_id}**' completed{elapsed_suffix}"
+
         if event.event == "failed":
             return f"✗ Component '**{component_id}**' failed{elapsed_suffix}"
+
         if event.event == "cancelled":
             return f"✕ Component '**{component_id}**' cancelled{elapsed_suffix}"
+
         if event.event == "internal":
             return f"└ Component '**{component_id}**' reported" + (f" · [**{event.kind}**]" if event.kind else "")
+
         return f"• Component '**{component_id}**' {event.event}"
 
     def _escape_markdown(self, value: str) -> str:
@@ -1154,19 +1176,25 @@ class GradioWebUIBuilder:
     def _log_format_payload(self, value: Any) -> Optional[str]:
         # Honor __log__ up front so large payloads collapse to their summary.
         log_repr = getattr(value, "__log__", None)
+
         if log_repr is not None:
             return log_repr()
+
         if isinstance(value, bytes):
             return f"_(bytes, {len(value)} bytes)_"
+
         if isinstance(value, str):
             return self._log_format_string(value)
+
         if isinstance(value, (dict, list)):
             return self._log_format_json(value)
+
         return str(value) if value is not None else None
 
     def _log_format_string(self, value: str) -> str:
         if len(value) > 200 or "\n" in value:
             return f"```\n{value}\n```"
+
         return value
 
     def _log_format_json(self, value: Any) -> str:
@@ -1179,23 +1207,82 @@ class GradioWebUIBuilder:
             )
         except Exception:
             text = repr(value)
+
         return f"```json\n{text}\n```"
 
     def _log_json_value(self, value: Any) -> Any:
         # Substitute __log__ nodes ahead of json.dumps — dict/list subclasses skip its default hook.
         log_repr = getattr(value, "__log__", None)
+
         if log_repr is not None:
             return log_repr()
+
         if isinstance(value, dict):
             return { key: self._log_json_value(item) for key, item in value.items() }
+
         if isinstance(value, list):
             return [ self._log_json_value(item) for item in value ]
+
         return value
 
     def _log_json_default(self, obj: Any) -> Any:
         if isinstance(obj, bytes):
             return f"<bytes len={len(obj)}>"
         return repr(obj)
+
+    def _render_flow_diagram_html(self, markdown_value: str) -> Tuple[str, str]:
+        """Render a mermaid workflow diagram as standalone HTML + JS pair.
+
+        `WorkflowFlowRenderer.render()` returns markdown containing a fenced
+        ```mermaid ...``` block plus an "Open in Mermaid Live Viewer" link.
+        gradio 6.28.x's built-in mermaid rendering breaks on non-root deployments
+        (the dynamic import for `mermaid.core-*.js` resolves against the page
+        root instead of `/assets/`, yielding 404), so we embed mermaid.js from a
+        CDN and render the diagram ourselves.
+
+        Returns a `(html, js)` tuple: the HTML is passed to `gr.HTML(value=...)`,
+        and the JS is passed to `gr.HTML(js_on_load=...)` since `<script>` tags
+        embedded inside HTML value are stripped by gradio's sanitizer.
+        """
+        # Extract the mermaid block (between the first ```mermaid fence and the
+        # closing ``` fence). The trailing viewer link is appended verbatim.
+        fence_open = "```mermaid\n"
+        fence_close = "\n```"
+
+        if fence_open in markdown_value and fence_close in markdown_value:
+            start = markdown_value.index(fence_open) + len(fence_open)
+            end = markdown_value.index(fence_close, start)
+            diagram = markdown_value[start:end]
+            trailer = markdown_value[end + len(fence_close):].strip()
+        else:
+            diagram = markdown_value
+            trailer = ""
+
+        # Unique id lets multiple diagrams coexist on one page.
+        container_id = f"mermaid-{ulid.ulid().lower()}"
+
+        # `<pre>` keeps whitespace and prevents mermaid arrows like `-->` from
+        # being parsed as HTML by the sanitizer/DOM. mermaid.run() reads
+        # textContent so the `<pre>` wrapper doesn't affect rendering.
+        html = (
+            f'<pre id="{container_id}" class="mermaid" style="background: transparent;">{diagram}</pre>'
+            + (f'<div style="margin-top: 0.5em;">{trailer}</div>' if trailer else "")
+        )
+
+        # gr.HTML's `js_on_load` is executed as-is with `element` and `trigger`
+        # in scope. Use an async IIFE so we can `await` the dynamic import.
+        js = (
+            "(async () => {"
+            f' const el = document.getElementById("{container_id}");'
+            ' if (!el || el.dataset.rendered) return;'
+            ' el.dataset.rendered = "1";'
+            ' const mermaid = (await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")).default;'
+            ' mermaid.initialize({ startOnLoad: false });'
+            ' await mermaid.run({ nodes: [el] });'
+            "})();"
+        )
+
+        return html, js
 
     def _global_css(self) -> str:
         return """

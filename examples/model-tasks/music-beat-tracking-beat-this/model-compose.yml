@@ -1,0 +1,37 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Music Beat Tracking
+  description: Detect beat and downbeat positions in an audio recording using a local Beat This! model.
+  job:
+    input: ${input}
+    output:
+      beats:    ${output.beats as json}
+      duration: ${output.duration as number}
+
+component:
+  type: model
+  task: music-beat-tracking
+  driver: custom
+  family: beat-this
+  device: auto   # CPU works; CUDA/MPS accelerate longer recordings
+  # Checkpoint name resolved by beat_this. `final0/1/2` are the paper's
+  # main models (~78 MB each); `small0/1/2` are compact variants (~8 MB).
+  model: final0
+  # Enable madmom DBN post-processing for tempo-consistent beat refinement.
+  # Requires madmom installed separately; leave off for the paper's default.
+  dbn: false
+  # Half-precision inference — noticeably faster on CUDA, minor accuracy hit.
+  # Leave unset (or "auto") for float32; set to "float16" to enable fp16.
+  precision: auto
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    return_metadata: ${input.return_metadata as boolean | true}

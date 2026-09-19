@@ -1,0 +1,74 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: AniGen Image-to-Rigged-3D
+  description: Generate a rigged GLB mesh plus a skeleton visualization from a single image using AniGen.
+  job:
+    input: ${input}
+    output:
+      # AniGen produces a rigged mesh (bones + skin weights baked into the GLB)
+      # and, alongside it, a skeleton-only mesh useful for debugging the rig.
+      mesh: ${result.mesh as model-3d/glb}
+      skeleton: ${result.skeleton as model-3d/glb}
+
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: anigen
+  device: cuda
+  # `VAST-AI/AniGen` bundles every SS-Flow, SLAT-Flow, DAE, DINOv2, DSINE, and
+  # VGG checkpoint the pipeline needs as a single HuggingFace repository.
+  # Accept the license on HuggingFace and export `HF_TOKEN` before starting
+  # the controller if the repo becomes gated.
+  model:
+    provider: huggingface
+    repository: VAST-AI/AniGen
+    token: ${env.HF_TOKEN}
+  # SS-Flow variants: solo (accurate geometry, default), epic (balanced), duet
+  # (detailed skeleton including fingers).
+  ss_variant: solo
+  # SLAT-Flow variants: auto (default; the network picks joint count), control
+  # (respects `params.joints_density`; joint count follows the density level).
+  slat_variant: auto
+  max_concurrent_count: 1
+  # AniGen pins torch 2.4/2.5 and installs pytorch3d 0.7.8 + nvdiffrast 0.3.3
+  # from source. Isolate the worker so those pins don't collide with the
+  # controller's stack.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/anigen
+    start_timeout: 1800s   # first run installs pip deps, builds CUDA extensions, and downloads the AniGen HF snapshot
+    stop_timeout: 15s
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    # Toggle which outputs the workflow receives — set any to `false` to skip
+    # that result. At least one must remain true.
+    return_mesh: ${input.return_mesh as boolean | true}
+    return_skeleton: ${input.return_skeleton as boolean | true}
+    return_image: ${input.return_image as boolean | false}
+    params:
+      cfg_scale_ss: ${input.cfg_scale_ss as number | 7.5}
+      cfg_scale_slat: ${input.cfg_scale_slat as number | 3.0}
+      ss_steps: ${input.ss_steps as integer | 25}
+      slat_steps: ${input.slat_steps as integer | 25}
+      # Joint density level (0-4) applied when `slat_variant: control`.
+      # Ignored by `slat_variant: auto`, which picks joint count on its own.
+      joints_density: ${input.joints_density as integer | 1}
+      simplify_ratio: ${input.simplify_ratio as number | 0.95}
+      fill_holes: ${input.fill_holes as boolean | true}
+      no_smooth_skin_weights: ${input.no_smooth_skin_weights as boolean | false}
+      smooth_skin_weights_iters: ${input.smooth_skin_weights_iters as integer | 100}
+      smooth_skin_weights_alpha: ${input.smooth_skin_weights_alpha as number | 1.0}
+      no_filter_skin_weights: ${input.no_filter_skin_weights as boolean | false}
+      # Baked texture size in pixels; set to 0 to disable texture baking.
+      texture_size: ${input.texture_size as integer | 1024}

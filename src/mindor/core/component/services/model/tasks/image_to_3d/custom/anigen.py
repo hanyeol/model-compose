@@ -49,22 +49,21 @@ class AniGenImageTo3DTaskAction(ImageTo3DTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        cfg_scale_ss             = await context.render_variable(self.config.params.cfg_scale_ss)
-        cfg_scale_slat           = await context.render_variable(self.config.params.cfg_scale_slat)
-        ss_steps                 = await context.render_variable(self.config.params.ss_steps)
-        slat_steps               = await context.render_variable(self.config.params.slat_steps)
-        joints_density           = await context.render_variable(self.config.params.joints_density)
-        simplify_ratio           = await context.render_variable(self.config.params.simplify_ratio)
-        fill_holes               = await context.render_scalar(self.config.params.fill_holes, bool)
-        no_smooth_skin_weights   = await context.render_scalar(self.config.params.no_smooth_skin_weights, bool)
+        cfg_scale_ss              = await context.render_variable(self.config.params.cfg_scale_ss)
+        cfg_scale_slat            = await context.render_variable(self.config.params.cfg_scale_slat)
+        ss_steps                  = await context.render_variable(self.config.params.ss_steps)
+        slat_steps                = await context.render_variable(self.config.params.slat_steps)
+        joints_density            = await context.render_variable(self.config.params.joints_density)
+        simplify_ratio            = await context.render_variable(self.config.params.simplify_ratio)
+        fill_holes                = await context.render_scalar(self.config.params.fill_holes, bool)
+        no_smooth_skin_weights    = await context.render_scalar(self.config.params.no_smooth_skin_weights, bool)
         smooth_skin_weights_iters = await context.render_variable(self.config.params.smooth_skin_weights_iters)
         smooth_skin_weights_alpha = await context.render_variable(self.config.params.smooth_skin_weights_alpha)
-        no_filter_skin_weights   = await context.render_scalar(self.config.params.no_filter_skin_weights, bool)
-        texture_size             = await context.render_variable(self.config.params.texture_size)
-
-        return_mesh     = await context.render_scalar(self.config.return_mesh, bool)
-        return_skeleton = await context.render_scalar(self.config.return_skeleton, bool)
-        return_image    = await context.render_scalar(self.config.return_image, bool)
+        no_filter_skin_weights    = await context.render_scalar(self.config.params.no_filter_skin_weights, bool)
+        texture_size              = await context.render_variable(self.config.params.texture_size)
+        return_mesh               = await context.render_scalar(self.config.return_mesh, bool)
+        return_skeleton           = await context.render_scalar(self.config.return_skeleton, bool)
+        return_image              = await context.render_scalar(self.config.return_image, bool)
 
         if return_mesh is False and return_skeleton is False and return_image is False:
             raise ValueError("At least one of 'return_mesh', 'return_skeleton', or 'return_image' must be true.")
@@ -166,7 +165,6 @@ class AniGenImageTo3DTaskAction(ImageTo3DTaskAction):
 
         return result
 
-
 class AniGenImageTo3DTaskDriver(ModelTaskDriver):
     config: AniGenImageTo3DModelComponentConfig
 
@@ -225,16 +223,17 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "pytorch3d",
                 "https://github.com/facebookresearch/pytorch3d.git",
-                revision="v0.7.8",
+                revision="75ebeeaea0908c5527e7b1e305fbc7681382db47",
                 source_path=".",
                 pip_options=pip_options,
             )
 
         if importlib.util.find_spec("nvdiffrast") is None:
+            # NVlabs/nvdiffrast v0.3.3 as an immutable SHA.
             await install_package_from_github(
                 "nvdiffrast",
                 "https://github.com/NVlabs/nvdiffrast.git",
-                revision="v0.3.3",
+                revision="729261dc64c4241ea36efda84fbf532cc8b425b8",
                 source_path=".",
                 pip_options=pip_options,
             )

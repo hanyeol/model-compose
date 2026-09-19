@@ -185,10 +185,10 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         }[name](size).astype(np.float32)
 
     @staticmethod
-    def _normalize_spectrum(bands: np.ndarray, mode: str, percentile: float) -> np.ndarray:
+    def _normalize_spectrum(bands: np.ndarray, mode: Optional[str], percentile: float) -> np.ndarray:
         import numpy as np
 
-        if bands.size == 0 or mode == "none":
+        if bands.size == 0 or mode is None:
             return bands
 
         if mode == "peak-percentile":

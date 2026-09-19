@@ -10,5 +10,5 @@ class SpectrumAudioFeatureExtractorActionConfig(CommonAudioFeatureExtractorActio
     frequency_scale: Union[Literal[ "log", "linear" ], str] = Field(default="log", description="Scale used to distribute frequency bands.")
     window_size: Union[int, str] = Field(default=2048, description="FFT window size in samples.")
     window_type: Union[Literal[ "hann", "hamming", "blackman" ], str] = Field(default="hann", description="Window function applied to samples before the FFT.")
-    normalize_mode: Union[Literal[ "peak-percentile", "none" ], str] = Field(default="peak-percentile", description="Strategy used to normalize band amplitudes.")
+    normalize_mode: Optional[Union[Literal[ "peak-percentile" ], str]] = Field(default=None, description="Strategy used to normalize band amplitudes.")
     percentile: Union[float, int, str] = Field(default=99.0, description="Percentile of amplitudes used as the reference by `peak-percentile` normalization.")

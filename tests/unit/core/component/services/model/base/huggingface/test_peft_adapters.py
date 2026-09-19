@@ -1,4 +1,4 @@
-"""Unit tests for PEFT adapter handling in ``HuggingfaceModelTaskService``.
+"""Unit tests for PEFT adapter handling in ``HuggingfaceModelTaskDriver``.
 
 Covers two layers:
 
@@ -21,7 +21,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from mindor.core.component.services.model.base.huggingface.base import (
-    HuggingfaceModelTaskService,
+    HuggingfaceModelTaskDriver,
 )
 from mindor.dsl.schema.component import (
     ModelComponentConfig,
@@ -36,8 +36,8 @@ _ModelConfigAdapter = TypeAdapter(ModelComponentConfig)
 # ---------------------------------------------------------------------------
 
 
-class _ConcreteService(HuggingfaceModelTaskService):
-    """Concrete subclass: ``HuggingfaceModelTaskService`` and its parents declare
+class _ConcreteService(HuggingfaceModelTaskDriver):
+    """Concrete subclass: ``HuggingfaceModelTaskDriver`` and its parents declare
     abstract ``_load_model`` / ``_unload_model`` / ``_run`` / ``_get_model_class``
     — implement no-op stubs so the class is instantiable for unit tests.
     """

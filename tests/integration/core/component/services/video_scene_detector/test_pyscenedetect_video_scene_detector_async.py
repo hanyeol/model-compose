@@ -34,7 +34,7 @@ from tests.async_helpers import assert_does_not_block
 pytest.importorskip("scenedetect", reason="scenedetect not installed")
 
 from mindor.core.component.services.video_scene_detector.base import (
-    VideoSceneDetectorService,
+    VideoSceneDetectorDriver,
 )
 from mindor.core.component.services.video_scene_detector.drivers.pyscenedetect import (
     PySceneVideoSceneDetectorAction,
@@ -153,7 +153,7 @@ class TestPySceneDetectorAsync:
         )
 
         service = PySceneVideoSceneDetectorService.__new__(PySceneVideoSceneDetectorService)
-        VideoSceneDetectorService.__init__(service, "vsd", MagicMock(), False)
+        VideoSceneDetectorDriver.__init__(service, "vsd", MagicMock(), False)
 
         ctx = _make_context(sample_video)
         result = await service._run(_make_config(), ctx)

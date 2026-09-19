@@ -37,7 +37,7 @@ pytest.importorskip("numpy")
 
 from mindor.core.component.services.model.tasks.pose_detection.custom.yolo import (
     YoloPoseDetectionTaskAction,
-    YoloPoseDetectionTaskService,
+    YoloPoseDetectionTaskDriver,
 )
 from mindor.dsl.schema.action.impl.model.tasks.pose_detection.impl.custom.yolo import (
     YoloPoseDetectionModelActionConfig,
@@ -93,7 +93,7 @@ def _assert_detection_result(result: Any, width: int, height: int) -> None:
 @pytest.fixture(scope="module")
 def yolo_model_path() -> str:
     """Resolve (download if needed) the default YOLO pose weights once per module."""
-    service = YoloPoseDetectionTaskService(id="pose-detection", config=_make_component_config(model="yolov8n-pose"), daemon=False)
+    service = YoloPoseDetectionTaskDriver(id="pose-detection", config=_make_component_config(model="yolov8n-pose"), daemon=False)
     try:
         return asyncio.run(service._provision_model(service.config.model))
     except (URLError, TimeoutError, OSError) as e:
@@ -258,7 +258,7 @@ class TestModelResolution:
         assert yolo_model_path.endswith(".pt")
 
     def test_custom_local_model_path_used_directly(self, yolo_model_path):
-        service = YoloPoseDetectionTaskService(
+        service = YoloPoseDetectionTaskDriver(
             id="pose-detection",
             config=_make_component_config(model=yolo_model_path),
             daemon=False,
@@ -269,7 +269,7 @@ class TestModelResolution:
         # When the local path does not exist, the resolver falls back to the
         # URL-based downloader; an unreachable URL surfaces the download failure.
         target = tmp_path / "pose_model.pt"
-        service = YoloPoseDetectionTaskService(
+        service = YoloPoseDetectionTaskDriver(
             id="pose-detection",
             config=_make_component_config(model={
                 "path": str(target),

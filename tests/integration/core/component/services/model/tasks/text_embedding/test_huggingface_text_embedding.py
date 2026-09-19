@@ -1,4 +1,4 @@
-"""Manual / live test for HuggingfaceTextEmbeddingTaskService.
+"""Manual / live test for HuggingfaceTextEmbeddingTaskDriver.
 
 Loads `sentence-transformers/all-MiniLM-L6-v2` from the local HF cache and
 embeds a small batch of texts.
@@ -18,7 +18,7 @@ from pydantic import TypeAdapter
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_embedding.huggingface import (
-    HuggingfaceTextEmbeddingTaskService,
+    HuggingfaceTextEmbeddingTaskDriver,
 )
 from mindor.dsl.schema.component import TextEmbeddingModelComponentConfig
 
@@ -64,7 +64,7 @@ async def _run() -> None:
     action_config = component_config.actions[0]
 
     print(f"[setup] instantiating service")
-    service = HuggingfaceTextEmbeddingTaskService(COMPONENT_ID, component_config, daemon=False)
+    service = HuggingfaceTextEmbeddingTaskDriver(COMPONENT_ID, component_config, daemon=False)
 
     print(f"[load] loading model")
     t0 = time.perf_counter()
@@ -116,7 +116,7 @@ async def _run() -> None:
     assert service.device is None
     print(f"[unload] done")
 
-    print(f"\n[OK] HuggingfaceTextEmbeddingTaskService end-to-end run succeeded")
+    print(f"\n[OK] HuggingfaceTextEmbeddingTaskDriver end-to-end run succeeded")
 
 
 if __name__ == "__main__":

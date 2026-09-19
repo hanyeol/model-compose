@@ -4,7 +4,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
-from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriver
+from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriverType
 
 _video_frame_extractor_adapter = TypeAdapter(VideoFrameExtractorComponentConfig)
 
@@ -129,7 +129,7 @@ class TestVideoFrameExtractorComponentConfig:
         )
         assert config.id == "extractor"
         assert config.type == "video-frame-extractor"
-        assert config.driver == VideoFrameExtractorDriver.FFMPEG
+        assert config.driver == VideoFrameExtractorDriverType.FFMPEG
         assert config.actions == []
 
     def test_explicit_opencv_driver(self):
@@ -172,12 +172,12 @@ class TestVideoFrameExtractorComponentConfig:
 
 
 class TestVideoFrameExtractorDriver:
-    """Test the VideoFrameExtractorDriver enum."""
+    """Test the VideoFrameExtractorDriverType enum."""
 
     def test_opencv_driver_value(self):
         """Test that OPENCV driver has expected value."""
-        assert VideoFrameExtractorDriver.OPENCV == "opencv"
+        assert VideoFrameExtractorDriverType.OPENCV == "opencv"
 
     def test_driver_enum_membership(self):
         """Test driver enum members."""
-        assert "opencv" in [d.value for d in VideoFrameExtractorDriver]
+        assert "opencv" in [d.value for d in VideoFrameExtractorDriverType]

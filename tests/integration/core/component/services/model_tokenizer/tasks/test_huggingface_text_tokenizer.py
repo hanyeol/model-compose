@@ -1,4 +1,4 @@
-"""Manual / live test for HuggingfaceTextModelTokenizerTaskService.
+"""Manual / live test for HuggingfaceTextModelTokenizerTaskDriver.
 
 Loads the tokenizer for `sentence-transformers/all-MiniLM-L6-v2` from the local
 HF cache and exercises encode / decode / count round-trips.
@@ -17,7 +17,7 @@ from pydantic import TypeAdapter
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model_tokenizer.tasks.text.huggingface import (
-    HuggingfaceTextModelTokenizerTaskService,
+    HuggingfaceTextModelTokenizerTaskDriver,
 )
 from mindor.dsl.schema.component import TextModelTokenizerComponentConfig
 
@@ -80,7 +80,7 @@ async def _run() -> None:
     encode_action, decode_action, count_action = component_config.actions
 
     print(f"[setup] instantiating service")
-    service = HuggingfaceTextModelTokenizerTaskService(COMPONENT_ID, component_config)
+    service = HuggingfaceTextModelTokenizerTaskDriver(COMPONENT_ID, component_config)
 
     print(f"[load] loading tokenizer")
     t0 = time.perf_counter()
@@ -163,7 +163,7 @@ async def _run() -> None:
         )
         print(f"[count] batch[{index}] count={item['count']}")
 
-    print(f"\n[OK] HuggingfaceTextModelTokenizerTaskService end-to-end run succeeded")
+    print(f"\n[OK] HuggingfaceTextModelTokenizerTaskDriver end-to-end run succeeded")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from mindor.dsl.schema.component import (
     AwsS3FileStoreComponentConfig,
     GcpStorageFileStoreComponentConfig,
     AzureBlobFileStoreComponentConfig,
-    FileStoreDriver,
+    FileStoreDriverType,
 )
 from mindor.dsl.schema.action import (
     FileStoreActionConfig,
@@ -46,7 +46,7 @@ class TestFileStoreComponentSchema:
             "actions": [],
         })
         assert isinstance(config, LocalFileStoreComponentConfig)
-        assert config.driver == FileStoreDriver.LOCAL
+        assert config.driver == FileStoreDriverType.LOCAL
         assert config.base_path is None
 
     def test_local_with_base_path(self):

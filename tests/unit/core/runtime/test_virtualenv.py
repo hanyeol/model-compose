@@ -114,4 +114,4 @@ class TestVirtualEnvRuntimeConfigValidation:
             config=_config(driver=VirtualEnvDriver.PYENV, python=None),
         )
         with pytest.raises(ValueError, match="must be set when driver is 'pyenv'"):
-            runtime._ensure_venv()
+            runtime._bootstrap_venv()

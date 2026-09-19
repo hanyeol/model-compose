@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.video_converter.base import VideoConverterService
+from mindor.core.component.services.video_converter.base import VideoConverterDriver
 from mindor.core.component.services.video_converter.drivers.ffmpeg import (
     FFmpegVideoConverterAction,
     FFmpegVideoConverterService,
@@ -179,7 +179,7 @@ class TestFFmpegVideoConverterAsync:
         )
         # Positive-run call: no TypeError should surface.
         service = FFmpegVideoConverterService.__new__(FFmpegVideoConverterService)
-        VideoConverterService.__init__(service, "vc", MagicMock(), False)
+        VideoConverterDriver.__init__(service, "vc", MagicMock(), False)
 
         ctx = _make_context(sample_mp4_path)
         result = await service._run(_make_config(), ctx)

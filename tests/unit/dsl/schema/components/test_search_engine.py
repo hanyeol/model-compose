@@ -7,7 +7,7 @@ from mindor.dsl.schema.component import (
     ComponentConfig,
     SearchEngineComponentConfig,
     SQLiteSearchEngineComponentConfig,
-    SearchEngineDriver,
+    SearchEngineDriverType,
 )
 from mindor.dsl.schema.action import (
     SearchEngineActionConfig,
@@ -42,7 +42,7 @@ class TestSearchEngineComponentSchema:
             "actions": [],
         })
         assert config.type.value == "search-engine"
-        assert config.driver == SearchEngineDriver.SQLITE
+        assert config.driver == SearchEngineDriverType.SQLITE
         assert config.storage_dir == "./sqlite-search"
         assert config.database == "search.db"
         assert config.actions == []

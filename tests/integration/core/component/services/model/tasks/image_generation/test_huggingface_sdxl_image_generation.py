@@ -1,4 +1,4 @@
-"""Manual / live test for HuggingfaceImageGenerationTaskService (SDXL).
+"""Manual / live test for HuggingfaceImageGenerationTaskDriver (SDXL).
 
 Loads `stabilityai/stable-diffusion-xl-base-1.0` from the local HF cache and
 generates a single image with minimal inference steps to keep the run short.
@@ -21,7 +21,7 @@ from pydantic import TypeAdapter
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_generation.huggingface import (
-    HuggingfaceImageGenerationTaskService,
+    HuggingfaceImageGenerationTaskDriver,
 )
 from mindor.dsl.schema.component import ImageGenerationModelComponentConfig
 
@@ -63,7 +63,7 @@ async def _run() -> None:
     action_config = component_config.actions[0]
 
     print(f"[setup] instantiating service")
-    service = HuggingfaceImageGenerationTaskService(COMPONENT_ID, component_config, daemon=False)
+    service = HuggingfaceImageGenerationTaskDriver(COMPONENT_ID, component_config, daemon=False)
 
     print(f"[load] loading pipeline (this may take a while on first run)")
     t0 = time.perf_counter()
@@ -94,7 +94,7 @@ async def _run() -> None:
     assert service.device is None
     print(f"[unload] done")
 
-    print(f"\n[OK] HuggingfaceImageGenerationTaskService (SDXL) end-to-end run succeeded")
+    print(f"\n[OK] HuggingfaceImageGenerationTaskDriver (SDXL) end-to-end run succeeded")
 
 
 if __name__ == "__main__":

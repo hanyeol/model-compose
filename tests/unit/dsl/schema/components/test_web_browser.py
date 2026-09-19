@@ -21,7 +21,7 @@ from mindor.dsl.schema.component import (
     WebBrowserComponentConfig,
     ChromeWebBrowserComponentConfig,
     PlaywrightWebBrowserComponentConfig,
-    WebBrowserDriver,
+    WebBrowserDriverType,
 )
 
 
@@ -446,7 +446,7 @@ class TestChromeWebBrowserComponentConfig:
             type="web-browser",
             driver="chrome"
         )
-        assert config.driver == WebBrowserDriver.CHROME
+        assert config.driver == WebBrowserDriverType.CHROME
         assert config.debugger.host == "localhost"
         assert config.debugger.port == 9222
         assert config.debugger.protocol == "http"
@@ -460,7 +460,7 @@ class TestChromeWebBrowserComponentConfig:
             id="browser",
             type="web-browser"
         )
-        assert config.driver == WebBrowserDriver.CHROME
+        assert config.driver == WebBrowserDriverType.CHROME
 
     def test_custom_host_port(self):
         """Test Chrome configuration with custom debugger host and port."""
@@ -522,7 +522,7 @@ class TestPlaywrightWebBrowserComponentConfig:
             type="web-browser",
             driver="playwright"
         )
-        assert config.driver == WebBrowserDriver.PLAYWRIGHT
+        assert config.driver == WebBrowserDriverType.PLAYWRIGHT
         assert config.browser == "chromium"
         assert config.headless is True
         assert config.args == []
@@ -600,7 +600,7 @@ class TestWebBrowserComponentConfigDiscriminator:
         config = ChromeWebBrowserComponentConfig(
             id="browser", type="web-browser"
         )
-        assert config.driver == WebBrowserDriver.CHROME
+        assert config.driver == WebBrowserDriverType.CHROME
 
 
 class TestWebBrowserIntegration:

@@ -26,7 +26,7 @@ from pydantic import TypeAdapter
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model_tokenizer.tasks.text.huggingface import (
     HuggingfaceTextModelTokenizerTaskAction,
-    HuggingfaceTextModelTokenizerTaskService,
+    HuggingfaceTextModelTokenizerTaskDriver,
 )
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
 
@@ -161,7 +161,7 @@ class TestHuggingfaceTokenizerNonBlocking:
 
 class TestHuggingfaceTokenizerServiceSignature:
     def test_service_run_has_no_loop_kwarg(self):
-        signature = inspect.signature(HuggingfaceTextModelTokenizerTaskService.run)
+        signature = inspect.signature(HuggingfaceTextModelTokenizerTaskDriver.run)
         param_names = list(signature.parameters.keys())
         assert "loop" not in param_names
         assert param_names == ["self", "action", "context"]

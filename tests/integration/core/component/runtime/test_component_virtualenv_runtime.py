@@ -55,12 +55,12 @@ def venv_dir(tmp_path: Path) -> Path:
     """A clean working directory in which the manager will materialize its venv."""
     cwd = tmp_path / "workdir"
     cwd.mkdir()
-    original_cwd = Path.cwd()
+    last_cwd = Path.cwd()
     os.chdir(cwd)
     try:
         yield cwd
     finally:
-        os.chdir(original_cwd)
+        os.chdir(last_cwd)
 
 
 @pytest.mark.anyio

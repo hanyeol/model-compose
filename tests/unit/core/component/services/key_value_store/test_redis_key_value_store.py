@@ -7,7 +7,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from unittest.mock import AsyncMock, MagicMock, call
 
-from mindor.dsl.schema.component import ComponentConfig, KeyValueStoreComponentConfig, KeyValueStoreDriver
+from mindor.dsl.schema.component import ComponentConfig, KeyValueStoreComponentConfig, KeyValueStoreDriverType
 from mindor.dsl.schema.action import (
     KeyValueStoreActionConfig,
     RedisKeyValueStoreActionConfig,
@@ -49,7 +49,7 @@ class TestKeyValueStoreSchema:
             "actions": [],
         })
         assert config.type.value == "key-value-store"
-        assert config.driver == KeyValueStoreDriver.REDIS
+        assert config.driver == KeyValueStoreDriverType.REDIS
         assert config.host == "localhost"
         assert config.port == 6379
 

@@ -24,7 +24,7 @@ import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_scene_detector.base import (
-    VideoSceneDetectorService,
+    VideoSceneDetectorDriver,
 )
 from mindor.core.component.services.video_scene_detector.drivers.ffmpeg import (
     FFmpegVideoSceneDetectorAction,
@@ -153,7 +153,7 @@ class TestFFmpegVideoSceneDetectorAsync:
         )
 
         service = FFmpegVideoSceneDetectorService.__new__(FFmpegVideoSceneDetectorService)
-        VideoSceneDetectorService.__init__(service, "vsd", MagicMock(), False)
+        VideoSceneDetectorDriver.__init__(service, "vsd", MagicMock(), False)
 
         ctx = _make_context(sample_video)
         result = await service._run(_make_config(), ctx)

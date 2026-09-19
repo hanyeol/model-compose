@@ -34,7 +34,7 @@ cv2 = pytest.importorskip("cv2", reason="opencv-python not installed")
 
 # Import driver only after cv2 is confirmed importable.
 from mindor.core.component.services.video_frame_extractor.base import (
-    VideoFrameExtractorService,
+    VideoFrameExtractorDriver,
 )
 from mindor.core.component.services.video_frame_extractor.drivers.opencv import (
     OpenCVVideoFrameExtractorAction,
@@ -172,7 +172,7 @@ class TestOpenCVVideoFrameExtractorAsync:
         )
 
         service = OpenCVVideoFrameExtractorService.__new__(OpenCVVideoFrameExtractorService)
-        VideoFrameExtractorService.__init__(service, "vfe", MagicMock(), False)
+        VideoFrameExtractorDriver.__init__(service, "vfe", MagicMock(), False)
 
         ctx = _make_context()
         config = _make_config(sample_video)

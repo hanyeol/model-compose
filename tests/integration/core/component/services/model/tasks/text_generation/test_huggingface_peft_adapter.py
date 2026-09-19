@@ -1,7 +1,7 @@
 """Live test for PEFT adapter loading on a real HuggingFace text-generation model.
 
 Downloads a small base model (~250 MB) and a published LoRA adapter, attaches
-the adapter via ``HuggingfaceTextGenerationTaskService._load_pretrained_model``,
+the adapter via ``HuggingfaceTextGenerationTaskDriver._load_pretrained_model``,
 and runs a short generation to confirm the merged model is callable end-to-end.
 
 Pair:
@@ -24,7 +24,7 @@ from pydantic import TypeAdapter
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.text_generation.huggingface import (
-    HuggingfaceTextGenerationTaskService,
+    HuggingfaceTextGenerationTaskDriver,
 )
 from mindor.dsl.schema.component import TextGenerationModelComponentConfig
 
@@ -72,7 +72,7 @@ async def _load_and_generate(*, with_adapter: bool, weight: float = 1.0) -> str:
     component_config = _build_component_config(with_adapter=with_adapter, weight=weight)
     action_config = component_config.actions[0]
 
-    service = HuggingfaceTextGenerationTaskService(COMPONENT_ID, component_config, daemon=False)
+    service = HuggingfaceTextGenerationTaskDriver(COMPONENT_ID, component_config, daemon=False)
 
     print(f"[{label}] loading model")
     t0 = time.perf_counter()

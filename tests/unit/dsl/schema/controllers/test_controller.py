@@ -1,7 +1,7 @@
 """Unit tests for ``ControllerConfig`` schema validation."""
 
 from mindor.dsl.schema.controller import ControllerConfig
-from mindor.dsl.schema.controller.webui import ControllerWebUIDriver
+from mindor.dsl.schema.controller.webui import ControllerWebUIDriverType
 from mindor.dsl.schema.runtime import RuntimeType
 
 
@@ -47,11 +47,11 @@ class TestWebUIDefault:
 
     def test_webui_without_driver_defaults_to_gradio(self):
         cfg = ControllerConfig.model_validate({"webui": {"port": 7860}})
-        assert cfg.webui.driver == ControllerWebUIDriver.GRADIO
+        assert cfg.webui.driver == ControllerWebUIDriverType.GRADIO
 
     def test_explicit_driver_pass_through(self):
         cfg = ControllerConfig.model_validate({"webui": {"driver": "gradio", "port": 7860}})
-        assert cfg.webui.driver == ControllerWebUIDriver.GRADIO
+        assert cfg.webui.driver == ControllerWebUIDriverType.GRADIO
 
     def test_omitted_webui_stays_none(self):
         cfg = ControllerConfig.model_validate({})

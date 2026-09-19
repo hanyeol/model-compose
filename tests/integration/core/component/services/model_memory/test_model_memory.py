@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 from mindor.dsl.schema.component import (
     ComponentConfig,
     ModelMemoryComponentConfig,
-    ModelMemoryStorageDriver,
+    ModelMemoryStorageDriverType,
     ModelMemoryWindowConfig,
     MemoryModelMemoryBufferConfig,
     RedisModelMemoryBufferConfig,

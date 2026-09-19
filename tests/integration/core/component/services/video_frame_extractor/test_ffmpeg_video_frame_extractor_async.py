@@ -26,7 +26,7 @@ from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.video_frame_extractor.base import (
-    VideoFrameExtractorService,
+    VideoFrameExtractorDriver,
 )
 from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import (
     FFmpegVideoFrameExtractorAction,
@@ -169,7 +169,7 @@ class TestFFmpegVideoFrameExtractorAsync:
         )
 
         service = FFmpegVideoFrameExtractorService.__new__(FFmpegVideoFrameExtractorService)
-        VideoFrameExtractorService.__init__(service, "vfe", MagicMock(), False)
+        VideoFrameExtractorDriver.__init__(service, "vfe", MagicMock(), False)
 
         ctx = _make_context()
         config = _make_config(sample_video)

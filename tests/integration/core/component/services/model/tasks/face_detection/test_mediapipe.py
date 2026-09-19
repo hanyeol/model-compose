@@ -37,7 +37,7 @@ pytest.importorskip("numpy")
 
 from mindor.core.component.services.model.tasks.face_detection.custom.mediapipe import (
     BlazeFaceFaceDetectionTaskAction,
-    BlazeFaceFaceDetectionTaskService,
+    BlazeFaceFaceDetectionTaskDriver,
 )
 
 
@@ -88,7 +88,7 @@ def _assert_detection_result(result: Any, width: int, height: int) -> None:
 @pytest.fixture(scope="module")
 def mediapipe_model_path() -> str:
     """Resolve (download if needed) the default BlazeFace .tflite model once per module."""
-    service = BlazeFaceFaceDetectionTaskService(id="face-detection", config=_make_component_config(model={}), daemon=False)
+    service = BlazeFaceFaceDetectionTaskDriver(id="face-detection", config=_make_component_config(model={}), daemon=False)
     try:
         return asyncio.run(service._provision_model(service.config.model))
     except (URLError, TimeoutError, OSError) as e:
@@ -240,7 +240,7 @@ class TestModelResolution:
         assert mediapipe_model_path.endswith(".tflite")
 
     def test_custom_local_model_path_used_directly(self, mediapipe_model_path):
-        service = BlazeFaceFaceDetectionTaskService(
+        service = BlazeFaceFaceDetectionTaskDriver(
             id="face-detection",
             config=_make_component_config(model=mediapipe_model_path),
             daemon=False,
@@ -251,7 +251,7 @@ class TestModelResolution:
         # When the local path does not exist, the resolver falls back to the
         # URL-based downloader; an unreachable URL surfaces the download failure.
         target = tmp_path / "model.tflite"
-        service = BlazeFaceFaceDetectionTaskService(
+        service = BlazeFaceFaceDetectionTaskDriver(
             id="face-detection",
             config=_make_component_config(model={
                 "path": str(target),

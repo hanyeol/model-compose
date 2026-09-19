@@ -22,8 +22,8 @@ from mindor.core.controller.adapters.services.queue_subscriber.drivers.redis imp
 from mindor.core.controller.queue.drivers.redis import RedisControllerQueueService
 from mindor.dsl.schema.controller import (
     ControllerAdapterType,
-    ControllerQueueDriver,
-    QueueSubscriberDriver,
+    ControllerQueueDriverType,
+    QueueSubscriberDriverType,
     RedisControllerQueueConfig,
     RedisQueueSubscriberControllerAdapterConfig,
 )
@@ -151,7 +151,7 @@ class DummyController:
 
 async def _start_dispatcher(queue_name: str, **overrides) -> RedisControllerQueueService:
     config = RedisControllerQueueConfig(
-        driver=ControllerQueueDriver.REDIS,
+        driver=ControllerQueueDriverType.REDIS,
         name=queue_name,
         timeout=overrides.pop("timeout", "10s"),
         max_blob_size=overrides.pop("max_blob_size", "50M"),
@@ -170,7 +170,7 @@ async def _start_subscriber(
 ) -> RedisCommonQueueSubscriberControllerAdapterService:
     config = RedisQueueSubscriberControllerAdapterConfig(
         type=ControllerAdapterType.QUEUE_SUBSCRIBER,
-        driver=QueueSubscriberDriver.REDIS,
+        driver=QueueSubscriberDriverType.REDIS,
         name=queue_name,
         workflows=workflows,
         pop_timeout="1s",

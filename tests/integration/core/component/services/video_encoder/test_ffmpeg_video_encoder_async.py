@@ -24,7 +24,7 @@ import pytest
 from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.video_encoder.base import VideoEncoderService
+from mindor.core.component.services.video_encoder.base import VideoEncoderDriver
 from mindor.core.component.services.video_encoder.drivers.ffmpeg import (
     FFmpegVideoEncoderAction,
     FFmpegVideoEncoderService,
@@ -205,7 +205,7 @@ class TestFFmpegVideoEncoderAsync:
         )
 
         service = FFmpegVideoEncoderService.__new__(FFmpegVideoEncoderService)
-        VideoEncoderService.__init__(service, "ve", MagicMock(), False)
+        VideoEncoderDriver.__init__(service, "ve", MagicMock(), False)
 
         frames = _make_frames(count=24)
         config = _make_config(frames="${frames}", frame_rate=12)

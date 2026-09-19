@@ -8,7 +8,7 @@ from mindor.dsl.schema.component import (
     GraphStoreComponentConfig,
     Neo4jGraphStoreComponentConfig,
     ArangoDBGraphStoreComponentConfig,
-    GraphStoreDriver,
+    GraphStoreDriverType,
 )
 from mindor.dsl.schema.action import (
     GraphStoreActionConfig,
@@ -50,7 +50,7 @@ class TestGraphStoreComponentSchema:
             "actions": [],
         })
         assert config.type.value == "graph-store"
-        assert config.driver == GraphStoreDriver.NEO4J
+        assert config.driver == GraphStoreDriverType.NEO4J
         assert config.url is None
         assert config.host == "localhost"
         assert config.port == 7687
@@ -88,7 +88,7 @@ class TestGraphStoreComponentSchema:
             "actions": [],
         })
         assert config.type.value == "graph-store"
-        assert config.driver == GraphStoreDriver.ARANGODB
+        assert config.driver == GraphStoreDriverType.ARANGODB
         assert config.host == "localhost"
         assert config.port == 8529
         assert config.protocol == "http"

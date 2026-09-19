@@ -9,7 +9,7 @@ from mindor.dsl.schema.action.impl.media import (
     VideoAudioEncodingConfig,
     VideoEncoderConfig,
 )
-from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriver
+from mindor.dsl.schema.component import VideoEncoderComponentConfig, VideoEncoderDriverType
 
 _video_encoder_adapter = TypeAdapter(VideoEncoderComponentConfig)
 
@@ -121,7 +121,7 @@ class TestVideoEncoderComponentConfig:
         )
         assert config.id == "encoder"
         assert config.type == "video-encoder"
-        assert config.driver == VideoEncoderDriver.FFMPEG
+        assert config.driver == VideoEncoderDriverType.FFMPEG
         assert config.actions == []
 
     def test_component_with_frames_action(self):
@@ -167,10 +167,10 @@ class TestVideoEncoderComponentConfig:
 
 
 class TestVideoEncoderDriver:
-    """Test the VideoEncoderDriver enum."""
+    """Test the VideoEncoderDriverType enum."""
 
     def test_ffmpeg_driver_value(self):
-        assert VideoEncoderDriver.FFMPEG == "ffmpeg"
+        assert VideoEncoderDriverType.FFMPEG == "ffmpeg"
 
     def test_driver_enum_membership(self):
-        assert "ffmpeg" in [d.value for d in VideoEncoderDriver]
+        assert "ffmpeg" in [d.value for d in VideoEncoderDriverType]

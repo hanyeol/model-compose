@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.rtmp_publisher.base import RtmpPublisherService
+from mindor.core.component.services.rtmp_publisher.base import RtmpPublisherDriver
 from mindor.core.component.services.rtmp_publisher.drivers.ffmpeg import (
     FFmpegRtmpPublisher,
     FFmpegRtmpPublisherAction,
@@ -152,7 +152,7 @@ class TestFFmpegRtmpPublisherAsync:
 
         # Positive-run: dispatch through the service with a file-URL target.
         service = FFmpegRtmpPublisherService.__new__(FFmpegRtmpPublisherService)
-        RtmpPublisherService.__init__(service, "rtmp", MagicMock(), False)
+        RtmpPublisherDriver.__init__(service, "rtmp", MagicMock(), False)
 
         out = tmp_path / "out.flv"
         config = RtmpPublisherActionConfig(

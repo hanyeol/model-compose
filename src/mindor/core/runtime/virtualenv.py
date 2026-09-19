@@ -210,7 +210,11 @@ class VirtualEnvRuntime:
 
     def _build_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
         env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }
+
         env.update(self.config.env or {})
+
+        env["PATH"] = str(self._venv_bin()) + os.pathsep + env.get("PATH", "")
+        env["VIRTUAL_ENV"] = str(self._venv_path)
         env["PYTHONUNBUFFERED"] = "1"
 
         if overrides:
@@ -246,3 +250,9 @@ class VirtualEnvRuntime:
         ).strip()
 
         return Path(output)
+
+    def _venv_bin(self) -> Path:
+        if os.name == "nt":  # Windows
+            return self._venv_path / "Scripts"
+
+        return self._venv_path / "bin"

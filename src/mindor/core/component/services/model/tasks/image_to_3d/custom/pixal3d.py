@@ -116,9 +116,9 @@ class Pixal3DImageTo3DTaskAction(ImageTo3DTaskAction):
         images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Model3DStreamResource]:
-        def _generate() -> List[Model3DStreamResource]:
-            results: List[Model3DStreamResource] = []
+    ) -> List[Any]:
+        def _generate() -> List[Any]:
+            results: List[Any] = []
 
             for image in images:
                 results.append(self._render(image, params))

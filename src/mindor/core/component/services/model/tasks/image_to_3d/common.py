@@ -6,7 +6,6 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import ImageTo3DModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
@@ -36,7 +35,7 @@ class ImageTo3DTaskAction(ComponentAction):
 
             return _stream_output_generator()
         else:
-            results: List[Model3DStreamResource] = []
+            results: List[Any] = []
             async for (batch_images,) in BatchSourceIterator(source, batch_size=batch_size or 1):
                 batch_results = await self._generate_batch(batch_images, params, context.cancellation_token)
                 results.extend(batch_results)
@@ -63,5 +62,5 @@ class ImageTo3DTaskAction(ComponentAction):
         images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[Model3DStreamResource]:
+    ) -> List[Any]:
         pass

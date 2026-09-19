@@ -72,7 +72,7 @@ Note: DrumSep expects the input to already be drum-heavy. For a full-mix song, c
 
 - **Type**: Model component with `music-source-separation` task
 - **Driver**: `custom`
-- **Family**: `mdx-23c`
+- **Family**: `mdx23c`
 - **Purpose**: Split a drum recording into per-piece stems
 - **Features**:
   - Local inference via the `mindor-mdx23c` package (thin wrapper around ZFTurbo's TFC-TDF-Net v3 architecture)
@@ -179,7 +179,7 @@ components:
     type: model
     task: music-source-separation
     driver: custom
-    family: mdx-23c
+    family: mdx23c
     model:
       provider: huggingface
       repository: Politrees/UVR_resources
@@ -198,7 +198,7 @@ component:
   type: model
   task: music-source-separation
   driver: custom
-  family: mdx-23c
+  family: mdx23c
   model:
     provider: huggingface
     repository: <repo-with-checkpoint>

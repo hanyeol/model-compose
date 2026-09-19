@@ -72,7 +72,7 @@
 
 - **类型**：具有 `music-source-separation` 任务的模型组件
 - **驱动**：`custom`
-- **家族**：`mdx-23c`
+- **家族**：`mdx23c`
 - **目的**：将鼓声录音分割为各个打击乐音轨
 - **功能**：
   - 通过 `mindor-mdx23c` 包进行本地推理（ZFTurbo 的 TFC-TDF-Net v3 架构的轻量封装）
@@ -179,7 +179,7 @@ components:
     type: model
     task: music-source-separation
     driver: custom
-    family: mdx-23c
+    family: mdx23c
     model:
       provider: huggingface
       repository: Politrees/UVR_resources
@@ -198,7 +198,7 @@ component:
   type: model
   task: music-source-separation
   driver: custom
-  family: mdx-23c
+  family: mdx23c
   model:
     provider: huggingface
     repository: <repo-with-checkpoint>

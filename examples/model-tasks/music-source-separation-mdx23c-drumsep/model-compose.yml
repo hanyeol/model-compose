@@ -29,7 +29,7 @@ components:
     type: model
     task: music-source-separation
     driver: custom
-    family: mdx-23c
+    family: mdx23c
     # DrumSep checkpoint by aufr33 & jarredou (438 MB, ~SDR 10.8), mirrored on
     # the Politrees UVR resources HuggingFace repo. Any MDX23C checkpoint whose
     # architecture fields match will work in place of this one.

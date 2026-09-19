@@ -72,7 +72,7 @@
 
 - **유형**: `music-source-separation` 태스크를 가진 모델 컴포넌트
 - **드라이버**: `custom`
-- **패밀리**: `mdx-23c`
+- **패밀리**: `mdx23c`
 - **목적**: 드럼 녹음을 개별 조각 스템으로 분할
 - **기능**:
   - `mindor-mdx23c` 패키지를 통한 로컬 추론 (ZFTurbo의 TFC-TDF-Net v3 아키텍처를 얇게 래핑)
@@ -179,7 +179,7 @@ components:
     type: model
     task: music-source-separation
     driver: custom
-    family: mdx-23c
+    family: mdx23c
     model:
       provider: huggingface
       repository: Politrees/UVR_resources
@@ -198,7 +198,7 @@ component:
   type: model
   task: music-source-separation
   driver: custom
-  family: mdx-23c
+  family: mdx23c
   model:
     provider: huggingface
     repository: <repo-with-checkpoint>

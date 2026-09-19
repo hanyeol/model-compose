@@ -185,7 +185,6 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
         return [
             *torch_requirements("torch>=2.4,<2.6", "torchvision"),
             *flash_attn_requirements("torch>=2.4,<2.6", "flash-attn==2.8.3.post1"),
-            "pillow>=10.0",
             "imageio>=2.31",
             "imageio-ffmpeg>=0.5",
             "tqdm>=4.60",

@@ -15,8 +15,8 @@ workflow:
     output:
       # AniGen produces a rigged mesh (bones + skin weights baked into the GLB)
       # and, alongside it, a skeleton-only mesh useful for debugging the rig.
-      mesh: ${result.mesh as model-3d/glb}
-      skeleton: ${result.skeleton as model-3d/glb}
+      mesh: ${output.mesh as model-3d/glb}
+      skeleton: ${output.skeleton as model-3d/glb}
 
 component:
   type: model

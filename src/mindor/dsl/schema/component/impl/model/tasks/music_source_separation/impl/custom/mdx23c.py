@@ -7,7 +7,7 @@ from ....common import ModelDriverType, ModelConfig
 
 class Mdx23cMusicSourceSeparationModelComponentConfig(CommonMusicSourceSeparationModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
-    family: Literal[MusicSourceSeparationModelFamily.MDX_23C]
+    family: Literal[MusicSourceSeparationModelFamily.MDX23C]
     model: ModelConfig = Field(..., description="Model checkpoint (.ckpt) — a HuggingFace repo file, a URL, or a local path.")
     instruments: List[str] = Field(..., description="Output stem names, in the order the checkpoint emits them.")
     target_instrument: Optional[str] = Field(default=None, description="If set, the checkpoint predicts only this single stem instead of all instruments.")

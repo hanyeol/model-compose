@@ -12,7 +12,7 @@ class CustomMusicSourceSeparationTaskDriver:
             from .mdx_net import MdxNetMusicSourceSeparationTaskDriver
             return MdxNetMusicSourceSeparationTaskDriver(id, config, daemon)
 
-        if config.family == MusicSourceSeparationModelFamily.MDX_23C:
+        if config.family == MusicSourceSeparationModelFamily.MDX23C:
             from .mdx23c import Mdx23cMusicSourceSeparationTaskDriver
             return Mdx23cMusicSourceSeparationTaskDriver(id, config, daemon)
 

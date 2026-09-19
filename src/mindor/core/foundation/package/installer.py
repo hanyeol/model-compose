@@ -64,9 +64,13 @@ async def install_package_from_github(
 ) -> None:
     """Fetch a GitHub repository and install selected pieces of it locally.
 
-    Downloads once into ``$TMPDIR/mindor-git-sources/<module_name>``, then
-    processes ``source_path`` and ``subdirs`` against the cached tree. Callers
-    may pass either, both, or neither.
+    Downloads once into ``$TMPDIR/mindor-git-sources/<module_name>/<revision>``
+    (or ``.../<module_name>/HEAD`` when ``revision`` is not pinned), then
+    processes ``source_path`` and ``subdirs`` against the cached tree. Keying
+    the cache by revision keeps two callers that request different revisions
+    of the same module from clobbering each other — the earlier caller's
+    clone stays intact under its own revision directory, and a later caller
+    with a different revision creates a fresh clone next to it.
 
     ``source_path`` names a directory whose ``setup.py`` / ``pyproject.toml``
     should be built by pip (single build root). Use for upstream packages
@@ -86,7 +90,7 @@ async def install_package_from_github(
     tarball otherwise. The tarball fallback silently drops submodules — repos
     that require them will surface as import/build failures further down.
     """
-    clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / module_name
+    clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / module_name / (revision or "HEAD")
 
     if not clone_dir.exists():
         clone_dir.parent.mkdir(parents=True, exist_ok=True)

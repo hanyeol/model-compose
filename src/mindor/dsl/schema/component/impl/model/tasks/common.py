@@ -45,6 +45,7 @@ class ModelTaskType(str, Enum):
     MUSIC_GENERATION         = "music-generation"
     MUSIC_SOURCE_SEPARATION  = "music-source-separation"
     MUSIC_TRANSCRIPTION      = "music-transcription"
+    MUSIC_BEAT_TRACKING      = "music-beat-tracking"
     MUSIC_EMBEDDING          = "music-embedding"
     VOICE_EMBEDDING          = "voice-embedding"
 

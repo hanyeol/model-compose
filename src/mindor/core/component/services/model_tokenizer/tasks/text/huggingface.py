@@ -31,7 +31,8 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
                 async for batch_inputs in BatchSourceIterator(value, batch_size=batch_size or 1):
                     batch_results = await self._process(self.config.method, batch_inputs, params)
                     for result in batch_results:
-                        yield result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

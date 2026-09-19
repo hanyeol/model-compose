@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
-from ..common import VoiceEmbeddingTaskAction
+from ..common import VoiceEmbedding, VoiceEmbeddingTaskAction
 
 if TYPE_CHECKING:
     import numpy as np
@@ -33,15 +33,15 @@ class PyannoteVoiceEmbeddingTaskAction(VoiceEmbeddingTaskAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[VoiceEmbedding]:
         waveforms = await self._preprocess_audio(audios, params["sample_rate"])
 
-        def _embed() -> List[List[float]]:
+        def _embed() -> List[VoiceEmbedding]:
             import numpy as np
             import torch
             import torch.nn.functional as F
 
-            embeddings: List[List[float]] = []
+            embeddings: List[VoiceEmbedding] = []
 
             for waveform, sample_rate in waveforms:
                 tensor = torch.from_numpy(waveform).unsqueeze(0)
@@ -57,7 +57,7 @@ class PyannoteVoiceEmbeddingTaskAction(VoiceEmbeddingTaskAction):
                 if params["normalize"]:
                     vector = F.normalize(vector, p=2, dim=-1, eps=1e-12)
 
-                embeddings.append(vector.cpu().tolist())
+                embeddings.append(VoiceEmbedding(vector.cpu().tolist()))
 
             return embeddings
 

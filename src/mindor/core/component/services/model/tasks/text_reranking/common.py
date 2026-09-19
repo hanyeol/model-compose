@@ -41,7 +41,9 @@ class TextRerankingTaskAction(ComponentAction):
                     batch_texts = self._extract_document_texts(batch_documents, document_field)
                     batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
                     for scores, original_documents in zip(batch_scores, batch_documents):
-                        yield self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
+                        result = self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

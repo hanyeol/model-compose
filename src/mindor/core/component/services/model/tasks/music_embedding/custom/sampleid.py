@@ -10,7 +10,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
-from ..common import MusicEmbeddingTaskAction
+from ..common import MusicEmbedding, MusicEmbeddingTaskAction
 import os
 
 if TYPE_CHECKING:
@@ -40,14 +40,14 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[MusicEmbedding]:
         import numpy as np
         import torch
         import torch.nn.functional as F
 
         waveforms = await self._preprocess_audio(audios)
 
-        def _embed() -> List[List[float]]:
+        def _embed() -> List[MusicEmbedding]:
             # sampleid expects (batch, samples). Waveforms may differ in length
             # across the batch — pad on the right with zeros so we can stack.
             max_len = max(waveform.shape[-1] for waveform in waveforms)
@@ -57,6 +57,7 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
             ])
 
             x = torch.from_numpy(padded).float()
+
             if self.device is not None:
                 x = x.to(self.device)
 
@@ -68,7 +69,7 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=-1, eps=1e-12)
 
-            return embeddings.cpu().tolist()
+            return [ MusicEmbedding(vector) for vector in embeddings.cpu().tolist() ]
 
         return await self._run_in_executor(_embed)
 

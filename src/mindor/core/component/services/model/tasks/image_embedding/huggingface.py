@@ -8,7 +8,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
-from .common import ImageEmbeddingTaskAction
+from .common import ImageEmbedding, ImageEmbeddingTaskAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -38,8 +38,8 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
         images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
-        def _embed() -> List[List[float]]:
+    ) -> List[ImageEmbedding]:
+        def _embed() -> List[ImageEmbedding]:
             import torch, torch.nn.functional as F
 
             inputs: Dict[str, Tensor] = self.processor(images=images, return_tensors="pt")
@@ -51,7 +51,7 @@ class HuggingfaceImageEmbeddingTaskAction(ImageEmbeddingTaskAction):
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=1, eps=1e-12)
 
-            return embeddings.cpu().tolist()
+            return [ ImageEmbedding(vector) for vector in embeddings.cpu().tolist() ]
 
         return await self._run_in_executor(_embed)
 

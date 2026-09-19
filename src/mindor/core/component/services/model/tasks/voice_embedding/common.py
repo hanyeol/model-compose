@@ -35,14 +35,15 @@ class VoiceEmbeddingTaskAction(ComponentAction):
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                     batch_results = await self._embed_batch(batch_audios, params, context.cancellation_token)
                     for result in batch_results:
-                        yield VoiceEmbedding(result)
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:
             results: List[VoiceEmbedding] = []
             async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                 batch_results = await self._embed_batch(batch_audios, params, context.cancellation_token)
-                results.extend(VoiceEmbedding(result) for result in batch_results)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -64,5 +65,5 @@ class VoiceEmbeddingTaskAction(ComponentAction):
         audios: List[MediaSource],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[VoiceEmbedding]:
         pass

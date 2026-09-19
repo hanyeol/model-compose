@@ -31,7 +31,8 @@ class KeyValueStoreAction(ComponentAction):
                     batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
                     for results in batch_results:
                         for result in results:
-                            yield result
+                            context.register_source("result", result)
+                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

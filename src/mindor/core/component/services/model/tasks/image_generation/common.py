@@ -34,7 +34,8 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
                 async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
                     batch_results = await self._generate_batch(batch_prompts, params, context.cancellation_token)
                     for result in batch_results:
-                        yield result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:
@@ -83,7 +84,8 @@ class ImageGenerationInpaintTaskAction(ComponentAction):
                 async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
                     batch_results = await self._inpaint_batch(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
                     for result in batch_results:
-                        yield result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

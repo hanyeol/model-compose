@@ -23,7 +23,8 @@ class AppleContainerRuntime(AppleContainerRunner):
         super().__init__(config, options=options, verbose=verbose)
 
     async def stop(self) -> None:
-        await super().stop(timeout=parse_time(self.config.stop_timeout))
+        stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
+        await super().stop(timeout=stop_timeout)
 
 class AppleContainerRuntimeBackend(ContainerRuntimeBackend):
     """Apple Container-backed `ContainerRuntimeBackend`."""

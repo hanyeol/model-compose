@@ -34,8 +34,8 @@ class IpcRuntimeProxy(ABC):
         self._response_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-        self._start_timeout: float = 60.0
-        self._stop_timeout: float = 30.0
+        self._start_timeout: Optional[float] = None
+        self._stop_timeout: Optional[float] = None
 
         self._codec: VariableCodec = VariableCodec()
         self._inbound_streams: Dict[str, IpcInboundStream] = {}
@@ -107,13 +107,16 @@ class IpcRuntimeProxy(ABC):
 
     async def _wait_for_ready(self) -> None:
         """Block until the worker publishes STATUS=ready, or raise on timeout/error."""
-        deadline = time.monotonic() + self._start_timeout
+        deadline = time.monotonic() + self._start_timeout if self._start_timeout is not None else None
 
         while True:
-            time_left = deadline - time.monotonic()
+            if deadline is not None:
+                time_left = deadline - time.monotonic()
 
-            if time_left <= 0:
-                raise TimeoutError(f"Worker '{self.worker_id}' did not start within {self._start_timeout}s")
+                if time_left <= 0:
+                    raise TimeoutError(f"Worker '{self.worker_id}' did not start within {self._start_timeout}s")
+            else:
+                time_left = None
 
             try:
                 data = await asyncio.wait_for(self._recv_message(), timeout=time_left)

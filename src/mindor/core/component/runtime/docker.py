@@ -174,8 +174,8 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
     ):
         super().__init__(component_id, component_config, global_configs, verbose)
 
-        self._start_timeout = parse_time(component_config.runtime.start_timeout)
-        self._stop_timeout  = parse_time(component_config.runtime.stop_timeout)
+        self._start_timeout = parse_time(component_config.runtime.start_timeout) if component_config.runtime.start_timeout is not None else None
+        self._stop_timeout  = parse_time(component_config.runtime.stop_timeout) if component_config.runtime.stop_timeout is not None else None
 
         self._runtime: Optional[DockerRuntime] = None
 

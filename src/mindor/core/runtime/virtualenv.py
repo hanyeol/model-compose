@@ -94,7 +94,7 @@ class VirtualEnvRuntime:
 
     async def stop(self) -> None:
         if self._subprocess:
-            stop_timeout = parse_time(self.config.stop_timeout)
+            stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
 
             try:
                 await asyncio.get_event_loop().run_in_executor(None, lambda: self._subprocess.wait(timeout=stop_timeout))

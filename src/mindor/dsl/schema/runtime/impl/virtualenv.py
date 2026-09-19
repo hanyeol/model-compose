@@ -14,8 +14,8 @@ class VirtualEnvRuntimeConfig(CommonRuntimeConfig):
     path: Optional[str] = Field(default=None, description="Filesystem path to the virtualenv directory, relative to the working directory.")
     python: Optional[str] = Field(default=None, description="Python version installed into the virtualenv (pyenv driver only, e.g., '3.12.0').")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables passed to the worker subprocess.")
-    start_timeout: Union[str, int, float] = Field(default="60s", description="Maximum time to wait for the worker to start and report ready.")
-    stop_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for the worker to stop gracefully before being killed.")
+    start_timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for the worker to start and report ready.")
+    stop_timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for the worker to stop gracefully before being killed.")
 
     @model_validator(mode="after")
     def validate_python_for_pyenv(self):

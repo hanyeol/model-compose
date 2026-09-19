@@ -83,8 +83,8 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
         super().__init__(component_id, component_config, global_configs)
 
         self._runtime_config: ProcessRuntimeConfig = component_config.runtime
-        self._start_timeout = parse_time(self._runtime_config.start_timeout)
-        self._stop_timeout = parse_time(self._runtime_config.stop_timeout)
+        self._start_timeout = parse_time(self._runtime_config.start_timeout) if self._runtime_config.start_timeout is not None else None
+        self._stop_timeout  = parse_time(self._runtime_config.stop_timeout) if self._runtime_config.stop_timeout is not None else None
 
         self._request_queue: Optional[Queue] = None
         self._response_queue: Optional[Queue] = None

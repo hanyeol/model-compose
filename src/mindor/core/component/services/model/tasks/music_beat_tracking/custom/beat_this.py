@@ -155,4 +155,8 @@ class BeatThisMusicBeatTrackingTaskDriver(ModelTaskDriver):
         return tracker, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await BeatThisMusicBeatTrackingTaskAction(action, self.tracker, self.device).run(context)
+        return await BeatThisMusicBeatTrackingTaskAction(
+            action,
+            self.tracker,
+            self.device,
+        ).run(context)

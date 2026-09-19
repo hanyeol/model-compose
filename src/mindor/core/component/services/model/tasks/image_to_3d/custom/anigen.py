@@ -190,7 +190,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
             "tqdm>=4.60",
             "easydict>=1.10",
             "opencv-python-headless>=4.8",
-            "scipy>=1.11",
+            "scipy>=1.11,<1.14",
             "ninja",
             "rembg>=2.0",
             "onnxruntime>=1.17",

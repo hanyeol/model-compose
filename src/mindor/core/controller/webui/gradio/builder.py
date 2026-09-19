@@ -149,6 +149,18 @@ class GradioWebUIBuilder:
                     flattened_output_components = self._flatten_output_components(output_components)
                     media_components = [ component for component in flattened_output_components if self._is_media_component(component) ]
 
+                    # Model3D components are routed through a separate `.then()` chain because
+                    # gradio 6's async generator functions emit the final yield twice, which
+                    # blanks the Babylon.js viewer (gradio-app/gradio#10652). Every other
+                    # component tolerates the duplicate update, so this workaround stays
+                    # narrow to Model3D.
+                    model_3d_indexes = [
+                        index for index, component in enumerate(flattened_output_components)
+                        if isinstance(component, gr.Model3D)
+                    ]
+                    model_3d_components = [ flattened_output_components[index] for index in model_3d_indexes ]
+                    model_3d_state = gr.State(value=None) if model_3d_indexes else None
+
                 with gr.Column(scale=1):
                     log_panel = WorkflowLogPanel(history=log_message_history, overflow_notice=self._log_overflow_notice)
                     log_components = log_panel.build()
@@ -179,6 +191,39 @@ class GradioWebUIBuilder:
             # Buttons for each phase are passed in so run/resume callers can
             # decide their own resume/cancel/run states while sharing the
             # rest of the yield schema.
+            #
+            # If any Model3D outputs are present, their filepaths are routed
+            # through a trailing `model_3d_state` slot instead of the direct
+            # output slot — a subsequent `.then()` chain applies them to the
+            # Model3D components synchronously. See the gradio#10652 comment
+            # near `model_3d_indexes` for why this workaround exists.
+            def _skip_model_3d_updates(updates: List[Any]) -> Tuple[List[Any], List[Any]]:
+                if not model_3d_indexes:
+                    return updates, []
+
+                paths = [ updates[index] for index in model_3d_indexes ]
+                model_3d_set = set(model_3d_indexes)
+                updates = [
+                    gr.update() if index in model_3d_set else update for index, update in enumerate(updates)
+                ]
+
+                return updates, [ paths ]
+
+            def _keep_model_3d_updates() -> List[Any]:
+                return [ gr.update() ] if model_3d_indexes else []
+
+            def _apply_model_3d_updates(paths: Optional[List[Any]]) -> Any:
+                # Runs synchronously via `.then()`, sidestepping the async
+                # generator yield-twice bug that would otherwise blank the
+                # Model3D viewer canvas.
+                if not paths:
+                    return [ gr.update() for _ in model_3d_components ] if len(model_3d_components) != 1 else gr.update()
+
+                if len(model_3d_components) == 1:
+                    return paths[0] if paths[0] is not None else gr.update()
+
+                return [ path if path is not None else gr.update() for path in paths ]
+
             async def _process_task_updates(
                 *,
                 task_id: str,
@@ -195,6 +240,7 @@ class GradioWebUIBuilder:
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in flattened_output_components),
                             *log_panel.update(self._log_spinner_message("Running...")),
+                            *_keep_model_3d_updates(),
                         ]
 
                 if log_message_history.drain():
@@ -204,6 +250,7 @@ class GradioWebUIBuilder:
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
+                        *_keep_model_3d_updates(),
                     ]
 
                 try:
@@ -215,6 +262,7 @@ class GradioWebUIBuilder:
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
+                        *_keep_model_3d_updates(),
                     ]
                     raise PrettyGradioError(str(e))
 
@@ -225,6 +273,7 @@ class GradioWebUIBuilder:
                         *self._build_interrupt_updates(state),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
+                        *_keep_model_3d_updates(),
                     ]
                     return
 
@@ -235,6 +284,7 @@ class GradioWebUIBuilder:
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
+                        *_keep_model_3d_updates(),
                     ]
                     return
 
@@ -245,6 +295,7 @@ class GradioWebUIBuilder:
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.update(),
+                        *_keep_model_3d_updates(),
                     ]
                     raise PrettyGradioError(str(state.error))
 
@@ -261,18 +312,21 @@ class GradioWebUIBuilder:
                         *clear_interrupt,
                         *(gr.update() for _ in flattened_output_components),
                         *log_done,
+                        *_keep_model_3d_updates(),
                     ]
                     return
 
                 if workflow.output and self._has_output_stream(output, workflow.output):
                     async for updates in self._stream_output_updates(output, workflow.output, output_components):
                         log_message_history.drain()
+                        updates, model_3d_paths = _skip_model_3d_updates(updates)
                         yield [
                             *buttons_running,
                             gr.update(),
                             *clear_interrupt,
                             *updates,
                             *log_panel.update(self._log_spinner_message("Rendering output...")),
+                            *model_3d_paths,
                         ]
 
                     if state.status == TaskStatus.STREAMING:
@@ -286,6 +340,7 @@ class GradioWebUIBuilder:
                         *clear_interrupt,
                         *(gr.update() for _ in flattened_output_components),
                         *log_done,
+                        *_keep_model_3d_updates(),
                     ]
                     return
 
@@ -309,12 +364,15 @@ class GradioWebUIBuilder:
                 if len(flattened_output_components) == 1:
                     updates = [ updates[0] if len(updates) == 1 else updates ]
 
+                updates, model_3d_paths = _skip_model_3d_updates(updates)
+
                 yield [
                     *(buttons_running if wait_for_media else buttons_ready),
                     None,
                     *clear_interrupt,
                     *updates,
                     *(log_rendering if wait_for_media else log_done),
+                    *model_3d_paths,
                 ]
 
             async def _run_workflow(*args):
@@ -328,6 +386,7 @@ class GradioWebUIBuilder:
                     *self._clear_interrupt_updates(),
                     *self._clear_output_updates(flattened_output_components),
                     *log_panel.update(self._log_spinner_message("Running...")),
+                    *([ None ] if model_3d_indexes else []),
                 ]
 
                 input = await self._build_input_value(args, workflow.input)
@@ -353,6 +412,7 @@ class GradioWebUIBuilder:
                     *(gr.update() for _ in interrupt_components),
                     *(gr.update() for _ in flattened_output_components),
                     *log_panel.update(self._log_spinner_message("Running...")),
+                    *_keep_model_3d_updates(),
                 ]
 
                 task_id, job_id, run_id = interrupt_point["task_id"], interrupt_point["job_id"], interrupt_point.get("run_id")
@@ -377,6 +437,7 @@ class GradioWebUIBuilder:
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.ignore(),
+                        *_keep_model_3d_updates(),
                     ]
                     raise PrettyGradioError(str(e))
 
@@ -416,17 +477,44 @@ class GradioWebUIBuilder:
                     *log_panel.update(),
                 ]
 
-            run_button.click(
+            run_outputs = [
+                run_button,
+                resume_button,
+                cancel_button,
+                task_state,
+                *interrupt_components,
+                *flattened_output_components,
+                *log_components
+            ]
+
+            if model_3d_state is not None:
+                run_outputs.append(model_3d_state)
+
+            run_click = run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=[ run_button, resume_button, cancel_button, task_state, *interrupt_components, *flattened_output_components, *log_components ]
+                outputs=run_outputs,
             )
 
-            resume_button.click(
+            if model_3d_components:
+                run_click.then(
+                    fn=_apply_model_3d_updates,
+                    inputs=[model_3d_state],
+                    outputs=model_3d_components if len(model_3d_components) > 1 else model_3d_components[0],
+                )
+
+            resume_click = resume_button.click(
                 fn=_resume_workflow,
                 inputs=[ interrupt_state, interrupt_answer ],
-                outputs=[ run_button, resume_button, cancel_button, task_state, *interrupt_components, *flattened_output_components, *log_components ]
+                outputs=run_outputs,
             )
+
+            if model_3d_components:
+                resume_click.then(
+                    fn=_apply_model_3d_updates,
+                    inputs=[model_3d_state],
+                    outputs=model_3d_components if len(model_3d_components) > 1 else model_3d_components[0],
+                )
 
             cancel_button.click(
                 fn=_cancel_workflow,
@@ -707,9 +795,9 @@ class GradioWebUIBuilder:
         variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
         components: List[Union[gr.Component, List[ComponentGroup]]],
     ) -> AsyncIterator[List[Any]]:
-        # Split top-level slots into streaming vs static. Static slots resolve once
+        # Split top-level components into streaming vs static. Static components resolve once
         # up front and stay put via gr.update() on subsequent chunk yields; streaming
-        # slots are consumed concurrently and merged into the shared updates list.
+        # components are consumed concurrently and merged into the shared updates list.
         updates: List[Any] = [ gr.update() for _ in components ]
         update_sizes: List[int] = [
             len(component) if isinstance(variable, WorkflowVariableGroupConfig) else 1

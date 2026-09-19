@@ -147,6 +147,7 @@ class ContainerRuntimeBackend(ABC):
             "standard-requirements.txt": requirements_path,
         }
         bootstrap_path = assets_dir / "bootstrap.sh"
+
         if bootstrap_path.is_file():
             files["bootstrap.sh"] = bootstrap_path
 
@@ -167,9 +168,11 @@ class ContainerRuntimeBackend(ABC):
 
         if await self._builder.exists(image_tag):
             stored_hash = await self._builder.get_label(image_tag, _REQUIREMENTS_SHA256_LABEL)
+
             if stored_hash == current_hash:
                 logging.debug("Derived image %s already up to date — skipping.", image_tag)
                 return
+
             logging.info("Derived image context changed — rebuilding %s.", image_tag)
             await self._builder.remove(image_tag, force=True)
 
@@ -244,6 +247,7 @@ class ContainerRuntimeBackend(ABC):
     def _has_derived_context(self) -> bool:
         if self._setup_script_path.is_file() or self._is_meaningful_requirements(self._requirements_path):
             return True
+
         return False
 
     def _container_create_params(self) -> Dict[str, Any]:
@@ -305,6 +309,8 @@ class ContainerRuntimeBackend(ABC):
         if path.is_file():
             for line in path.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
+
                 if line and not line.startswith("#"):
                     return True
+
         return False

@@ -240,9 +240,9 @@ class VirtualEnvRuntime:
         # Resolve site-packages by asking the venv's python directly. The only reliable
         # way to handle platform/python-version differences.
         python = self._venv_python()
-        out = subprocess.check_output(
-            [str(python), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+        output = subprocess.check_output(
+            [ str(python), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])" ],
             text=True,
         ).strip()
 
-        return Path(out)
+        return Path(output)

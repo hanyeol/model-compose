@@ -195,6 +195,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
             "rembg>=2.0",
             "onnxruntime>=1.17",
             "trimesh>=4.0",
+            "rtree>=1.0",
             "xatlas>=0.0.9",
             "pyvista>=0.43",
             "pymeshfix>=0.17",

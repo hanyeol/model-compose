@@ -84,7 +84,10 @@ class WorkflowFlowRenderer:
             diagram,
             "```",
             "",
-            f'<a href="{viewer_url}" target="_blank" style="text-decoration: none;">🔍</a> <a href="{viewer_url}" target="_blank">Open in Mermaid Live Viewer</a>',
+            (
+                f'<a href="{viewer_url}" target="_blank" style="text-decoration: none;">🔍</a>'
+                f' <a href="{viewer_url}" target="_blank">Open in Mermaid Live Viewer</a>'
+            ),
         ])
 
     def _render_workflow_graph(

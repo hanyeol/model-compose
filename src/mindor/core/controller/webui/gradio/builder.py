@@ -960,16 +960,19 @@ class GradioWebUIBuilder:
     ) -> Any:
         if isinstance(output, dict) and variable.name:
             m = re.match(_VARIABLE_NAME_REGEX, variable.name)
+
             if not m:
                 return None
 
             name, index = m.group(1, 2)
+
             if name not in output:
                 return None
 
             if isinstance(output[name], list) and index:
                 if int(index) < len(output[name]):
                     return output[name][int(index)]
+
                 return None
 
             return output[name]
@@ -983,13 +986,17 @@ class GradioWebUIBuilder:
     ) -> bool:
         if isinstance(output, (StreamIterator, AsyncIterator)):
             return True
+
         if isinstance(output, dict):
             for variable in variables:
                 if not variable.name:
                     continue
+
                 value = self._resolve_variable_output(output, variable)
+
                 if isinstance(value, (StreamIterator, AsyncIterator)):
                     return True
+
         return False
 
     def _has_pending_media_updates(

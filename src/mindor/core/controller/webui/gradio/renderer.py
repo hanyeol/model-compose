@@ -290,6 +290,7 @@ class WorkflowFlowRenderer:
         if component == "__default__":
             if len(component_configs) == 1:
                 return next(iter(component_configs.values()))
+
             return next((config for config in component_configs.values() if config.default), None)
 
         return component_configs.get(component)

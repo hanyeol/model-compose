@@ -187,28 +187,22 @@ class GradioWebUIBuilder:
                 for message in self._log_messages_for_event(event):
                     log_message_history.put(message)
 
-            async def _run_workflow(*args):
-                log_message_history.reset()
-
-                yield [
-                    _run_button_running(),
-                    _cancel_button_active(),
-                    None,
-                    *self._clear_interrupt_updates(),
-                    *self._clear_output_updates(flattened_output_components),
-                    *log_panel.update(self._log_spinner_message("Running...")),
-                ]
-
-                input = await self._build_input_value(args, workflow.input)
-                state = await runner().run_workflow(workflow_id, input, on_event=_on_workflow_event, wait_for_completion=False)
-                task_id = state.task_id
-                async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
-
+            # Shared task lifecycle: poll → status branching → output render.
+            # Buttons for each phase are passed in so run/resume callers can
+            # decide their own resume/cancel/run states while sharing the
+            # rest of the yield schema.
+            async def _process_task_updates(
+                *,
+                task_id: str,
+                async_task: asyncio.Task,
+                buttons_running: List[Any],
+                buttons_ready: List[Any],
+                buttons_interrupted: List[Any],
+            ) -> AsyncIterator[List[Any]]:
                 while not async_task.done():
                     if await log_message_history.poll(timeout=0.1, linger="adaptive"):
                         yield [
-                            _run_button_running(),
-                            _cancel_button_active(),
+                            *buttons_running,
                             task_id,
                             *(gr.update() for _ in interrupt_components),
                             *(gr.update() for _ in flattened_output_components),
@@ -217,8 +211,7 @@ class GradioWebUIBuilder:
 
                 if log_message_history.drain():
                     yield [
-                        _run_button_running(),
-                        _cancel_button_active(),
+                        *buttons_running,
                         task_id,
                         *(gr.update() for _ in interrupt_components),
                         *(gr.update() for _ in flattened_output_components),
@@ -229,8 +222,7 @@ class GradioWebUIBuilder:
                     state = async_task.result()
                 except Exception as e:
                     yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
+                        *buttons_ready,
                         None,
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
@@ -240,8 +232,7 @@ class GradioWebUIBuilder:
 
                 if state.status == TaskStatus.INTERRUPTED:
                     yield [
-                        _run_button_running(),
-                        _cancel_button_active(),
+                        *buttons_interrupted,
                         state.task_id,
                         *self._build_interrupt_updates(state),
                         *(gr.update() for _ in flattened_output_components),
@@ -251,8 +242,7 @@ class GradioWebUIBuilder:
 
                 if state.status == TaskStatus.CANCELLED:
                     yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
+                        *buttons_ready,
                         None,
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
@@ -262,8 +252,7 @@ class GradioWebUIBuilder:
 
                 if state.status == TaskStatus.FAILED:
                     yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
+                        *buttons_ready,
                         None,
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
@@ -279,8 +268,7 @@ class GradioWebUIBuilder:
                 output = state.output
                 if output is None:
                     yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
+                        *buttons_ready,
                         None,
                         *clear_interrupt,
                         *(gr.update() for _ in flattened_output_components),
@@ -292,8 +280,7 @@ class GradioWebUIBuilder:
                     async for updates in self._stream_output_updates(output, workflow.output, output_components):
                         log_message_history.drain()
                         yield [
-                            _run_button_running(),
-                            _cancel_button_active(),
+                            *buttons_running,
                             gr.update(),
                             *clear_interrupt,
                             *updates,
@@ -306,49 +293,75 @@ class GradioWebUIBuilder:
                         log_done = log_panel.update()
 
                     yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
+                        *buttons_ready,
                         None,
                         *clear_interrupt,
                         *(gr.update() for _ in flattened_output_components),
                         *log_done,
                     ]
+                    return
+
+                if isinstance(output, (StreamIterator, AsyncIterator)):
+                    output = [ chunk async for chunk in output ]
+
+                # Resolve first: consuming a StreamResource fires the lifecycle
+                # callback so wait_for_completion below doesn't deadlock.
+                if workflow.output:
+                    updates = await self._resolve_output_updates(output, workflow.output, output_components)
                 else:
-                    if isinstance(output, (StreamIterator, AsyncIterator)):
-                        output = [ chunk async for chunk in output ]
+                    updates = [ output ]
 
-                    # Resolve first: consuming a StreamResource fires the lifecycle
-                    # callback so wait_for_completion below doesn't deadlock.
-                    if workflow.output:
-                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
-                    else:
-                        updates = [ output ]
+                if state.status == TaskStatus.STREAMING:
+                    state = await runner().wait_for_completion(task_id)
+                    log_message_history.drain()
+                    log_done = log_panel.update()
 
-                    if state.status == TaskStatus.STREAMING:
-                        state = await runner().wait_for_completion(task_id)
-                        log_message_history.drain()
-                        log_done = log_panel.update()
+                wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
 
-                    wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
+                if len(flattened_output_components) == 1:
+                    updates = [ updates[0] if len(updates) == 1 else updates ]
 
-                    if len(flattened_output_components) == 1:
-                        updates = [ updates[0] if len(updates) == 1 else updates ]
+                yield [
+                    *(buttons_running if wait_for_media else buttons_ready),
+                    None,
+                    *clear_interrupt,
+                    *updates,
+                    *(log_rendering if wait_for_media else log_done),
+                ]
 
-                    yield [
-                        _run_button_running() if wait_for_media else _run_button_ready(),
-                        _cancel_button_active() if wait_for_media else _cancel_button_inactive(),
-                        None,
-                        *clear_interrupt,
-                        *updates,
-                        *(log_rendering if wait_for_media else log_done),
-                    ]
+            async def _run_workflow(*args):
+                log_message_history.reset()
+
+                yield [
+                    _run_button_running(),
+                    _resume_button_ready(),
+                    _cancel_button_active(),
+                    None,
+                    *self._clear_interrupt_updates(),
+                    *self._clear_output_updates(flattened_output_components),
+                    *log_panel.update(self._log_spinner_message("Running...")),
+                ]
+
+                input = await self._build_input_value(args, workflow.input)
+                state = await runner().run_workflow(workflow_id, input, on_event=_on_workflow_event, wait_for_completion=False)
+                task_id = state.task_id
+                async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
+
+                async for update in _process_task_updates(
+                    task_id=task_id,
+                    async_task=async_task,
+                    buttons_running=[_run_button_running(), _resume_button_ready(), _cancel_button_active()],
+                    buttons_ready=[_run_button_ready(), _resume_button_ready(), _cancel_button_inactive()],
+                    buttons_interrupted=[_run_button_running(), _resume_button_ready(), _cancel_button_active()],
+                ):
+                    yield update
 
             async def _resume_workflow(interrupt_point: Optional[Dict[str, str]], answer_text: str):
                 yield [
                     _run_button_running(),
+                    _resume_button_running(),
                     _cancel_button_active(),
                     gr.update(),
-                    _resume_button_running(),
                     *(gr.update() for _ in interrupt_components),
                     *(gr.update() for _ in flattened_output_components),
                     *log_panel.update(self._log_spinner_message("Running...")),
@@ -370,170 +383,30 @@ class GradioWebUIBuilder:
                 except Exception as e:
                     yield [
                         _run_button_ready(),
+                        _resume_button_ready(),
                         _cancel_button_inactive(),
                         None,
-                        _resume_button_ready(),
                         *self._clear_interrupt_updates(),
                         *(gr.update() for _ in flattened_output_components),
                         *log_panel.ignore(),
                     ]
                     raise PrettyGradioError(str(e))
 
-                while not async_task.done():
-                    if await log_message_history.poll(timeout=0.1, linger="adaptive"):
-                        yield [
-                            _run_button_running(),
-                            _cancel_button_active(),
-                            task_id,
-                            _resume_button_running(),
-                            *(gr.update() for _ in interrupt_components),
-                            *(gr.update() for _ in flattened_output_components),
-                            *log_panel.update(self._log_spinner_message("Running...")),
-                        ]
-
-                if log_message_history.drain():
-                    yield [
-                        _run_button_running(),
-                        _cancel_button_active(),
-                        task_id,
-                        _resume_button_running(),
-                        *(gr.update() for _ in interrupt_components),
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_panel.update(),
-                    ]
-
-                try:
-                    state = async_task.result()
-                except Exception as e:
-                    yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
-                        None,
-                        _resume_button_ready(),
-                        *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_panel.update(),
-                    ]
-                    raise PrettyGradioError(str(e))
-
-                if state.status == TaskStatus.INTERRUPTED:
-                    yield [
-                        _run_button_running(),
-                        _cancel_button_active(),
-                        state.task_id,
-                        _resume_button_ready(),
-                        *self._build_interrupt_updates(state),
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_panel.update(),
-                    ]
-                    return
-
-                if state.status == TaskStatus.CANCELLED:
-                    yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
-                        None,
-                        _resume_button_ready(),
-                        *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_panel.update(),
-                    ]
-                    return
-
-                if state.status == TaskStatus.FAILED:
-                    yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
-                        None,
-                        _resume_button_ready(),
-                        *self._clear_interrupt_updates(),
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_panel.update(),
-                    ]
-                    raise PrettyGradioError(str(state.error))
-
-                # STREAMING or COMPLETED
-                clear_interrupt = self._clear_interrupt_updates()
-                log_rendering = log_panel.update(self._log_spinner_message("Rendering output..."))
-                log_done = log_panel.update()
-
-                output = state.output
-                if output is None:
-                    yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
-                        None,
-                        _resume_button_ready(),
-                        *clear_interrupt,
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_done,
-                    ]
-                    return
-
-                if workflow.output and self._has_output_stream(output, workflow.output):
-                    async for updates in self._stream_output_updates(output, workflow.output, output_components):
-                        log_message_history.drain()
-                        yield [
-                            _run_button_running(),
-                            _cancel_button_active(),
-                            gr.update(),
-                            _resume_button_ready(),
-                            *clear_interrupt,
-                            *updates,
-                            *log_panel.update(self._log_spinner_message("Rendering output...")),
-                        ]
-
-                    if state.status == TaskStatus.STREAMING:
-                        state = await runner().wait_for_completion(task_id)
-                        log_message_history.drain()
-                        log_done = log_panel.update()
-
-                    yield [
-                        _run_button_ready(),
-                        _cancel_button_inactive(),
-                        None,
-                        _resume_button_ready(),
-                        *clear_interrupt,
-                        *(gr.update() for _ in flattened_output_components),
-                        *log_done,
-                    ]
-                else:
-                    if isinstance(output, (StreamIterator, AsyncIterator)):
-                        output = [ chunk async for chunk in output ]
-
-                    # Resolve first: consuming a StreamResource fires the lifecycle
-                    # callback so wait_for_completion below doesn't deadlock.
-                    if workflow.output:
-                        updates = await self._resolve_output_updates(output, workflow.output, output_components)
-                    else:
-                        updates = [ output ]
-
-                    if state.status == TaskStatus.STREAMING:
-                        state = await runner().wait_for_completion(task_id)
-                        log_message_history.drain()
-                        log_done = log_panel.update()
-
-                    wait_for_media = self._has_pending_media_updates(updates, flattened_output_components, media_components)
-
-                    if len(flattened_output_components) == 1:
-                        updates = [ updates[0] if len(updates) == 1 else updates ]
-
-                    yield [
-                        _run_button_running() if wait_for_media else _run_button_ready(),
-                        _cancel_button_active() if wait_for_media else _cancel_button_inactive(),
-                        None,
-                        _resume_button_ready(),
-                        *clear_interrupt,
-                        *updates,
-                        *(log_rendering if wait_for_media else log_done),
-                    ]
+                async for update in _process_task_updates(
+                    task_id=task_id,
+                    async_task=async_task,
+                    buttons_running=[_run_button_running(), _resume_button_running(), _cancel_button_active()],
+                    buttons_ready=[_run_button_ready(), _resume_button_ready(), _cancel_button_inactive()],
+                    buttons_interrupted=[_run_button_running(), _resume_button_ready(), _cancel_button_active()],
+                ):
+                    yield update
 
             async def _cancel_workflow(task_id: Optional[str]):
                 yield [
                     _run_button_running(),
+                    _resume_button_ready(),
                     _cancel_button_inactive(),
                     None,
-                    _resume_button_ready(),
                     *self._clear_interrupt_updates(),
                     *log_panel.update(self._log_spinner_message("Cancelling...")),
                 ]
@@ -548,9 +421,9 @@ class GradioWebUIBuilder:
 
                 yield [
                     _run_button_ready(),
+                    _resume_button_ready(),
                     _cancel_button_inactive(),
                     None,
-                    _resume_button_ready(),
                     *self._clear_interrupt_updates(),
                     *log_panel.update(),
                 ]
@@ -558,19 +431,19 @@ class GradioWebUIBuilder:
             run_button.click(
                 fn=_run_workflow,
                 inputs=input_components,
-                outputs=[ run_button, cancel_button, task_state, *interrupt_components, *flattened_output_components, *log_components ]
+                outputs=[ run_button, resume_button, cancel_button, task_state, *interrupt_components, *flattened_output_components, *log_components ]
             )
 
             resume_button.click(
                 fn=_resume_workflow,
                 inputs=[ interrupt_state, interrupt_answer ],
-                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *flattened_output_components, *log_components ]
+                outputs=[ run_button, resume_button, cancel_button, task_state, *interrupt_components, *flattened_output_components, *log_components ]
             )
 
             cancel_button.click(
                 fn=_cancel_workflow,
                 inputs=[ task_state ],
-                outputs=[ run_button, cancel_button, task_state, resume_button, *interrupt_components, *log_components ],
+                outputs=[ run_button, resume_button, cancel_button, task_state, *interrupt_components, *log_components ],
                 concurrency_limit=None,
             )
 

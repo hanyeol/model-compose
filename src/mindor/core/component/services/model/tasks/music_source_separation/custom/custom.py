@@ -12,6 +12,10 @@ class CustomMusicSourceSeparationTaskDriver:
             from .mdx_net import MdxNetMusicSourceSeparationTaskDriver
             return MdxNetMusicSourceSeparationTaskDriver(id, config, daemon)
 
+        if config.family == MusicSourceSeparationModelFamily.MDX_23C:
+            from .mdx23c import Mdx23cMusicSourceSeparationTaskDriver
+            return Mdx23cMusicSourceSeparationTaskDriver(id, config, daemon)
+
         if config.family == MusicSourceSeparationModelFamily.BS_ROFORMER:
             from .roformer.bs_roformer import BsRoFormerMusicSourceSeparationTaskDriver
             return BsRoFormerMusicSourceSeparationTaskDriver(id, config, daemon)

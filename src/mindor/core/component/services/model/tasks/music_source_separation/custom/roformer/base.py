@@ -116,6 +116,7 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         # matching whatever `self.stereo` was configured with.
         if tensor.dim() == 1:
             tensor = tensor.unsqueeze(0)
+
         if self.stereo:
             if tensor.shape[0] == 1:
                 tensor = tensor.repeat(2, 1)
@@ -141,10 +142,12 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         # Pad the tail so the last chunk is full-length; the padding is trimmed
         # off the reconstruction at the end.
         pad = 0
+
         if total_samples < chunk_samples:
             pad = chunk_samples - total_samples
         else:
             remainder = (total_samples - chunk_samples) % hop_samples
+
             if remainder != 0:
                 pad = hop_samples - remainder
 
@@ -159,6 +162,7 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         norm: Optional[torch.Tensor] = None
 
         start = 0
+
         with torch.no_grad():
             while start < padded_samples:
                 end = min(start + chunk_samples, padded_samples)
@@ -172,6 +176,7 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
                 # Normalize output shape to (num_stems, channels, samples).
                 if estimate.dim() == 3:      # (batch, channels, samples), num_stems=1
                     estimate = estimate.unsqueeze(1)
+
                 # Now estimate: (batch, num_stems, channels, samples)
                 estimate = estimate[0]        # drop batch → (num_stems, channels, samples)
 
@@ -186,8 +191,6 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
                 if end >= padded_samples:
                     break
                 start += hop_samples
-
-        assert output is not None and norm is not None
 
         norm = torch.where(norm == 0, torch.ones_like(norm), norm)
         output = output / norm

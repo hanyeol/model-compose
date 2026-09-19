@@ -52,7 +52,6 @@ class MusicSourceSeparationTaskAction(ComponentAction):
         stems       = await context.render_variable(self.config.params.stems)
         sample_rate = await context.render_scalar(self.config.params.sample_rate, int)
         overlap     = await context.render_scalar(self.config.params.overlap, float)
-        shifts      = await context.render_scalar(self.config.params.shifts, int)
 
         if isinstance(stems, str):
             stems = [ stem.strip() for stem in stems.split(",") if stem.strip() ]
@@ -63,7 +62,6 @@ class MusicSourceSeparationTaskAction(ComponentAction):
             "stems":       list(stems) if stems else None,
             "sample_rate": sample_rate,
             "overlap":     overlap,
-            "shifts":      shifts,
         }
 
     @abstractmethod

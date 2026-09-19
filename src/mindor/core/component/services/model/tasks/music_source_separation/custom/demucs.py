@@ -24,15 +24,26 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         self,
         config: DemucsMusicSourceSeparationModelActionConfig,
         model: Any,
-        model_sample_rate: int,
-        model_sources: List[str],
+        sample_rate: int,
+        sources: List[str],
         device: Optional[torch.device],
     ):
         super().__init__(config, device)
 
         self.model: Any = model
-        self.model_sample_rate: int = model_sample_rate
-        self.model_sources: List[str] = model_sources
+        self.sample_rate: int = sample_rate
+        self.sources: List[str] = sources
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        shifts = await context.render_scalar(self.config.params.shifts, int)
+
+        params.update({
+            "shifts": shifts,
+        })
+
+        return params
 
     async def _separate_batch(
         self,
@@ -58,7 +69,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         for audio in audios:
             # channel=None keeps the original layout so stereo mixes stay stereo;
             # mono comes back as (samples,) and is expanded in _separate below.
-            audio = await AudioBufferStreamer(audio, sample_rate=self.model_sample_rate).collect()
+            audio = await AudioBufferStreamer(audio, sample_rate=self.sample_rate).collect()
             waveforms.append(audio.waveform)
 
         return waveforms
@@ -72,6 +83,7 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         # (channels, samples) otherwise. Demucs expects stereo, so mono is
         # duplicated to both channels.
         tensor = torch.from_numpy(np.ascontiguousarray(waveform, dtype=np.float32))
+
         if tensor.dim() == 1:
             tensor = tensor.unsqueeze(0).repeat(2, 1)
         elif tensor.shape[0] == 1:
@@ -83,8 +95,10 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
             tensor = tensor.to(self.device)
 
         apply_params: Dict[str, Any] = { "device": self.device }
+
         if params["overlap"] is not None:
             apply_params["overlap"] = params["overlap"]
+
         if params["shifts"] is not None:
             apply_params["shifts"] = params["shifts"]
 
@@ -95,12 +109,12 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         estimates = estimates.squeeze(0).cpu()
 
         stems = self._resolve_selected_stems(params["stems"])
-        sample_rate = params["sample_rate"] or self.model_sample_rate
+        sample_rate = params["sample_rate"] or self.sample_rate
 
         return self._build_separation_result(estimates, stems, sample_rate)
 
     def _resolve_selected_stems(self, wanted_stems: Optional[List[str]]) -> List[Tuple[str, int]]:
-        stem_indices: Dict[str, int] = { name: index for index, name in enumerate(self.model_sources) }
+        stem_indices: Dict[str, int] = { name: index for index, name in enumerate(self.sources) }
 
         if not wanted_stems:
             return list(stem_indices.items())
@@ -109,7 +123,8 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         for name in wanted_stems:
             if name not in stem_indices:
-                raise ValueError(f"Stem '{name}' is not produced by this Demucs model. Available: {self.model_sources}")
+                raise ValueError(f"Stem '{name}' is not produced by this Demucs model. Available: {self.sources}")
+
             stems.append((name, stem_indices[name]))
 
         return stems
@@ -138,19 +153,19 @@ class DemucsMusicSourceSeparationTaskDriver(ModelTaskDriver):
         super().__init__(id, config, daemon)
 
         self.model: Optional[Any] = None
-        self.model_sample_rate: int = 44100
-        self.model_sources: List[str] = []
+        self.sample_rate: int = 44100
+        self.sources: List[str] = []
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ *torch_requirements("torch", "torchaudio"), "demucs", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:
-        self.model, self.model_sample_rate, self.model_sources, self.device = await self._load_pretrained_model()
+        self.model, self.sample_rate, self.sources, self.device = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
-        self.model_sources = []
+        self.sources = []
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[Any, int, List[str], torch.device]:

@@ -265,6 +265,8 @@ model-compose supports the following task types:
 | `image-segmentation` | Image segmentation | Generate per-region binary masks (automatic or box-prompted) |
 | `text-to-video` | Video generation from text | Prompt-driven short video clips |
 | `image-to-video` | Video generation from an image | Animate a still image, optionally guided by a prompt |
+| `video-to-video` | Video restyling from a source clip | Restyle an existing clip with a prompt while preserving its motion |
+| `image-to-3d` | 3D mesh generation from a single image | Turn a reference image into a textured GLB asset |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 | `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
 | `pose-tracking` | Pose tracking | Track people (as poses) across video frames with per-track timecoded segments |
@@ -273,6 +275,7 @@ model-compose supports the following task types:
 | `music-generation` | Music generation | Audio/music synthesis |
 | `music-source-separation` | Music source separation | Split a mix into vocals / drums / bass / other stems |
 | `music-transcription` | Music transcription | Convert audio recordings into MIDI + note events |
+| `music-beat-tracking` | Music beat tracking | Detect beat and downbeat positions in a music recording |
 | `talking-head` | Portrait-to-video lip-sync | Animate a still portrait with driving audio (identity synthesis) |
 | `lip-sync` | Video-to-video lip-sync | Re-sync a face video's mouth movements to a new audio track |
 
@@ -586,7 +589,7 @@ component:
     width: 1024
     height: 1024
     params:
-      num_inference_steps: 50
+      inference_steps: 50
 ```
 
 **Supported architectures:**
@@ -1280,7 +1283,104 @@ component:
 
 `width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
 
-### 10.3.24 shot-boundary-detection
+### 10.3.24 video-to-video
+
+Restyles an existing video clip with a text prompt while preserving the source motion. Currently backed by HuggingFace diffusers' AnimateDiff pipeline layered on a Stable Diffusion 1.5 checkpoint.
+
+```yaml
+component:
+  type: model
+  task: video-to-video
+  driver: huggingface
+  architecture: animatediff
+  model:
+    provider: huggingface
+    repository: SG161222/Realistic_Vision_V5.1_noVAE
+  motion_adapter:
+    provider: huggingface
+    repository: guoyww/animatediff-motion-adapter-v1-5-3
+  # Optional IP-Adapter — supply an action-level `reference_image` to steer appearance.
+  ip_adapter:
+    provider: huggingface
+    repository: h94/IP-Adapter
+    filename: models/ip-adapter_sd15.bin
+  device: cuda
+  action:
+    video: ${input.video as video}
+    prompt: ${input.prompt}
+    negative_prompt: ${input.negative_prompt | "bad quality, worst quality, low resolution"}
+    reference_image: ${input.reference_image as image?}
+    seed: ${input.seed as integer}
+    params:
+      num_frames: ${input.num_frames as integer}
+      fps: ${input.fps as integer}
+      inference_steps: ${input.inference_steps as integer | 25}
+      guidance_scale: ${input.guidance_scale as number | 7.5}
+      denoise_strength: ${input.denoise_strength as number | 0.5}
+      ip_adapter_scale: ${input.ip_adapter_scale as number | 0.6}
+```
+
+**Supported architectures:**
+- `animatediff` — Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Any SD 1.5 fine-tune works as the appearance backbone.
+
+`num_frames`/`fps` are optional; when omitted, every input frame is consumed and the output inherits the source clip's native fps, so the result preserves the input's playback duration. AnimateDiff was trained on ~16-frame windows, so quality degrades on very long clips — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. When `reference_image` is supplied, the IP-Adapter transfers colors/textures/subject cues; keep `ip_adapter_scale` around `0.5-0.7`. The result is an mp4 stream per input (or a list for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#video-to-video) for the full option list.
+
+### 10.3.25 image-to-3d
+
+Generates a 3D GLB asset from a single image. `family: pixal3d` chains sparse-structure, shape, and texture flow-matching stages to produce a mesh with baked PBR maps; `family: anigen` produces a rigged mesh (bones + skin weights baked into a standard glTF skinned-mesh) plus a stand-alone skeleton visualization.
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: pixal3d
+  device: cuda
+  model:
+    provider: huggingface
+    repository: TencentARC/Pixal3D
+  low_vram: false
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    params:
+      texture_size: 4096
+      shape_slat_sampling_steps: 12
+      tex_slat_sampling_steps: 12
+```
+
+For AniGen, pick the SS-Flow and SLAT-Flow variants on the component and toggle which outputs the action returns:
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: anigen
+  device: cuda
+  model:
+    provider: huggingface
+    repository: VAST-AI/AniGen
+  ss_variant: solo      # solo (default, accurate geometry), epic, duet
+  slat_variant: auto    # auto (default, network picks joint count), control
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    return_mesh: true
+    return_skeleton: true
+    params:
+      ss_steps: 25
+      slat_steps: 25
+      texture_size: 1024
+```
+
+**Supported families and presets:**
+- `pixal3d` — Pixal3D single-image to textured GLB. Requires a CUDA GPU with ~18 GB VRAM at 1536 resolution (default), or ~10-12 GB with `low_vram: true` at 1024 resolution.
+- `anigen` — AniGen single-image to rigged GLB plus skeleton visualization. Requires a CUDA GPU with at least 18 GB VRAM (Linux only; CUDA 11.8 or 12.x).
+
+For Pixal3D, `low_vram: true` swaps peak VRAM for latency by keeping stage models on CPU and paging each to GPU on demand; `manual_fov` (in radians) overrides the MoGe-based camera FOV auto-estimation. For AniGen, `slat_variant: control` respects `params.joints_density` (0-4); the default `auto` picks joint count on its own. The output shape depends on the family: `pixal3d` returns a single `.glb` stream per input (`model/gltf-binary`); `anigen` returns a dict per input with `mesh` and `skeleton` GLB streams (and optionally `image` when `return_image: true`). See the [Model Component reference](../reference/compose/components/model.md#image-to-3d) for the full option list.
+
+### 10.3.26 shot-boundary-detection
 
 Detects shot boundaries (hard cuts and transitions) in a video and returns per-shot start/end timecodes and frame indices. Uses a deep learning model to identify precise cut points frame-by-frame. Uses `driver: custom` with a `family` field to select the model family.
 
@@ -1346,7 +1446,7 @@ With `streaming: true`, per-input results are async iterators that yield one sho
 
 Compared with the `video-scene-detector` component (which uses classical CV heuristics via PySceneDetect/FFmpeg to group semantically similar frames), `shot-boundary-detection` runs a neural network trained specifically to localize cut points and is generally more accurate on modern edited content.
 
-### 10.3.25 music-generation
+### 10.3.27 music-generation
 
 Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `backend`, `quantization`, `memory_budget_gib`, and `offload_ar`.
 
@@ -1435,7 +1535,7 @@ component:
 
 Audio-producing methods return a PCM audio stream per input (or a list for batched inputs). YuE2's `score` returns `{ abc, truncated }` instead. See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.
 
-### 10.3.26 music-source-separation
+### 10.3.28 music-source-separation
 
 Splits a mixed recording into individual instrument stems (vocals, drums, bass, other). Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1461,12 +1561,14 @@ component:
 |--------|-------|-------|
 | `demucs` | Four-stem (or six-stem) separation | Meta AI's Hybrid Transformer Demucs. `htdemucs_ft` is a fine-tuned ensemble; `htdemucs_6s` adds `guitar` + `piano` stems |
 | `mdx-net` | Vocal isolation | UVR MDX-Net via ONNX Runtime. Instrumental stem is derived by subtracting vocals from the mix |
+| `bs-roformer` | Configurable stem separation | lucidrains' Band-Split RoFormer. Architecture-only package — point `model` at a pretrained `.ckpt`/`.safetensors` and match `params` to the checkpoint |
+| `mel-band-roformer` | Configurable stem separation | Mel-band variant of BS-RoFormer. Requires `params.sample_rate` to match the checkpoint (mel filter bank is baked in at construction time) |
 
 When one stem is requested, the action returns a single audio stream. When multiple stems are requested (e.g. `stems: [vocals, drums, bass, other]`) — or when `stems` is omitted so every stem the model produces is returned — it returns a `{ "<stem_name>": <stream>, ... }` map. Higher `shifts` and `overlap` trade wall-clock time for cleaner separation.
 
 Chain with `music-transcription` to transcribe each stem into its own MIDI, or with `speech-to-text` on the vocal stem for cleaner lyric transcription. See the [Model Component reference](../reference/compose/components/model.md#music-source-separation) for the full per-family field list.
 
-### 10.3.27 music-transcription
+### 10.3.29 music-transcription
 
 Transcribes recorded audio into a MIDI file and a JSON list of note events (start time, end time, pitch, velocity). Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1497,7 +1599,35 @@ The action returns a dict with two fields per input: `midi` (a MIDI file) and `n
 
 Chain with `music-source-separation` to transcribe each stem of a mix independently (e.g. transcribe the vocal line and the accompaniment as separate parts). See the [Model Component reference](../reference/compose/components/model.md#music-transcription) for the full per-family field list.
 
-### 10.3.28 talking-head
+### 10.3.30 music-beat-tracking
+
+Detects beat and downbeat positions in a music recording. Each detected beat carries its position within the measure — useful for beat-synchronised editing, tempo/meter analysis, DJ-style warping, and structural segmentation. Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: music-beat-tracking
+  driver: custom
+  family: beat-this
+  device: auto
+  model: final0
+  dbn: false
+  action:
+    audio: ${input.audio as audio}
+    return_metadata: true
+```
+
+**Supported families:**
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `beat-this` | CPJKU Beat This! (ISMIR 2024) | Transformer-based joint beat + downbeat estimator; checkpoints auto-download from HuggingFace; optional madmom DBN post-processing via `dbn: true` |
+
+The action returns a dict per input with a `beats` list — each event carries `time` (seconds), `is_downbeat` (`true` at each measure start), and `beat_number` (position within the measure, `1` on downbeats and `2, 3, ...` on subsequent beats; `null` for pickup beats before the first downbeat). When `return_metadata: true`, `duration` is also included.
+
+See the [Model Component reference](../reference/compose/components/model.md#music-beat-tracking) for the full per-family field list.
+
+### 10.3.31 talking-head
 
 Animates a still portrait so it lip-syncs (and moves the head) to a driving audio clip. In contrast to `lip-sync` — which edits the mouth of an existing video — `talking-head` synthesises head motion and expression from a single image. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1543,7 +1673,7 @@ component:
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate. See the [Model Component reference](../reference/compose/components/model.md#talking-head) for the full per-family field list.
 
-### 10.3.29 lip-sync
+### 10.3.32 lip-sync
 
 Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth region is regenerated; identity, expression, head pose, and background come straight from the source video. Uses `driver: custom` with a `family` field to select the model backend.
 

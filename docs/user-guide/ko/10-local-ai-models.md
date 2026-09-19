@@ -260,6 +260,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `pose-detection` | 자세 검출 | 인체 관절 추정 |
 | `object-detection` | 객체 검출 | 클래스 라벨과 바운딩 박스로 객체 검출 |
 | `image-segmentation` | 이미지 세그멘테이션 | 영역별 이진 마스크 생성 (자동 또는 박스 프롬프트) |
+| `image-to-3d` | 단일 이미지 3D 메시 생성 | 참조 이미지에서 텍스처가 입혀진 GLB 자산 생성 |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
 | `face-tracking` | 얼굴 추적 | 비디오 프레임 전반에서 아이덴티티를 추적하고 타임코드 세그먼트로 정리 |
 | `pose-tracking` | 자세 추적 | 비디오 프레임 전반에서 사람(자세)을 트랙별 타임코드 세그먼트로 추적 |
@@ -267,6 +268,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `music-generation` | 음악 생성 | 텍스트→음악 변환 |
 | `music-source-separation` | 음악 소스 분리 | 믹스를 보컬 / 드럼 / 베이스 / 기타 스템으로 분리 |
 | `music-transcription` | 음악 전사 | 오디오 녹음을 MIDI와 노트 이벤트로 변환 |
+| `music-beat-tracking` | 음악 비트 트래킹 | 음악 녹음의 비트와 다운비트 위치를 검출 |
 
 ### 10.3.1 text-generation
 
@@ -446,7 +448,7 @@ component:
     width: 1024
     height: 1024
     params:
-      num_inference_steps: 50
+      inference_steps: 50
 ```
 
 **지원 아키텍처:**
@@ -749,6 +751,61 @@ component:
 
 Ultralytics SAM 체크포인트(`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt` 등) 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../../reference/compose/components/model.md#image-segmentation)를 참고하세요.
 
+### 10.3.17 image-to-3d
+
+단일 이미지에서 3D GLB 자산을 생성합니다. `family: pixal3d`는 sparse-structure / shape / texture flow-matching 단계를 체이닝해 PBR 맵이 구워진 메시를 만들어내고, `family: anigen`은 리그드 메시(뼈 + 스키닝 가중치가 표준 glTF skinned-mesh에 구워짐)와 별도 스켈레톤 시각화를 함께 생성합니다.
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: pixal3d
+  device: cuda
+  model:
+    provider: huggingface
+    repository: TencentARC/Pixal3D
+  low_vram: false
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    params:
+      texture_size: 4096
+      shape_slat_sampling_steps: 12
+      tex_slat_sampling_steps: 12
+```
+
+AniGen의 경우 컴포넌트에서 SS-Flow / SLAT-Flow 변형을 선택하고 액션에서 어떤 결과를 받을지 토글합니다:
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: anigen
+  device: cuda
+  model:
+    provider: huggingface
+    repository: VAST-AI/AniGen
+  ss_variant: solo      # solo(기본, 정확한 지오메트리), epic, duet
+  slat_variant: auto    # auto(기본, 네트워크가 관절 수 결정), control
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    return_mesh: true
+    return_skeleton: true
+    params:
+      ss_steps: 25
+      slat_steps: 25
+      texture_size: 1024
+```
+
+**지원 패밀리와 프리셋:**
+- `pixal3d` — Pixal3D 단일 이미지→텍스처 GLB. CUDA GPU 필요. 1536 해상도(기본)에서는 약 18 GB VRAM, `low_vram: true`와 1024 해상도에서는 약 10-12 GB.
+- `anigen` — AniGen 단일 이미지→리그드 GLB + 스켈레톤 시각화. VRAM 18 GB 이상의 CUDA GPU 필요(Linux 전용, CUDA 11.8 또는 12.x).
+
+Pixal3D의 경우 `low_vram: true`는 스테이지 모델을 CPU에 두고 필요할 때만 GPU로 옮겨 최대 VRAM을 지연 시간과 맞바꾸고, `manual_fov`(라디안)는 MoGe 기반 자동 FOV 추정을 대체합니다. AniGen의 경우 `slat_variant: control`은 `params.joints_density`(0-4)를 따르며, 기본 `auto`는 관절 수를 스스로 결정합니다. 출력 형태는 패밀리마다 다릅니다 — `pixal3d`는 입력당 하나의 `.glb` 스트림(`model/gltf-binary`)을 반환하고, `anigen`은 `mesh`와 `skeleton` GLB 스트림을 담은 dict를 입력당 하나씩 반환합니다(`return_image: true`이면 `image`도 포함). 전체 옵션은 [Model Component 레퍼런스](../../reference/compose/components/model.md#image-to-3d)를 참고하세요.
+
 ### 10.3.25 music-generation
 
 음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `offload_ar`을 사용합니다.
@@ -864,6 +921,8 @@ component:
 |--------|------|------|
 | `demucs` | 4-스템(또는 6-스템) 분리 | Meta AI의 Hybrid Transformer Demucs. `htdemucs_ft`는 파인튜닝된 앙상블이며, `htdemucs_6s`는 `guitar`와 `piano` 스템을 추가로 제공합니다 |
 | `mdx-net` | 보컬 분리 | ONNX Runtime 기반 UVR MDX-Net. 인스트루멘털 스템은 믹스에서 보컬을 뺀 결과로 파생됩니다 |
+| `bs-roformer` | 구성 가능한 스템 분리 | lucidrains의 Band-Split RoFormer. 아키텍처만 제공하는 패키지이므로 `model`에 사전 학습된 `.ckpt`/`.safetensors` 체크포인트를 지정하고 `params`를 그 체크포인트에 맞춰 설정합니다 |
+| `mel-band-roformer` | 구성 가능한 스템 분리 | BS-RoFormer의 mel-band 변형. mel 필터뱅크가 모델 생성 시점에 결정되므로 `params.sample_rate`가 체크포인트와 일치해야 합니다 |
 
 스템 하나만 요청하면 액션이 단일 오디오 스트림을 반환합니다. 여러 스템을 요청하거나(예: `stems: [vocals, drums, bass, other]`), `stems`를 생략해 모델이 제공하는 모든 스템이 반환되는 경우에는 `{ "<stem_name>": <stream>, ... }` 형태의 맵을 반환합니다. `shifts`와 `overlap` 값을 높이면 실행 시간이 길어지는 대신 더 깨끗한 분리 결과를 얻을 수 있습니다.
 
@@ -899,6 +958,34 @@ component:
 액션은 입력마다 두 개의 필드를 가진 딕셔너리를 반환합니다: `midi` (MIDI 파일)와 `notes` (초 단위 시간과 MIDI 노트 번호로 표현된 음높이를 담은 `{start_time, end_time, pitch, velocity}` 객체의 JSON 리스트). Basic Pitch는 `return_pitch_bends`가 활성화되면 노트별 `pitch_bends` 배열을 추가합니다. Piano Transcription은 페달 이벤트를 MIDI에 직접 기록합니다.
 
 `music-source-separation`과 연결하면 믹스의 각 스템을 독립적으로 전사할 수 있습니다(예: 보컬 라인과 반주를 별도 파트로 전사). 전체 family별 필드 목록은 [Model Component 레퍼런스](../../reference/compose/components/model.md#music-transcription)를 참고하세요.
+
+### 10.3.28 music-beat-tracking
+
+음악 녹음에서 비트와 다운비트 위치를 검출합니다. 각 비트는 마디 내에서의 위치를 함께 기록하므로 비트 동기화 편집, 템포/박자 분석, DJ 스타일 워핑, 구조 세그멘테이션 등에 활용할 수 있습니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
+
+```yaml
+component:
+  type: model
+  task: music-beat-tracking
+  driver: custom
+  family: beat-this
+  device: auto
+  model: final0
+  dbn: false
+  action:
+    audio: ${input.audio as audio}
+    return_metadata: true
+```
+
+**지원되는 family:**
+
+| Family | 백엔드 | 비고 |
+|--------|--------|------|
+| `beat-this` | CPJKU Beat This! (ISMIR 2024) | 트랜스포머 기반 비트/다운비트 공동 추정기; 체크포인트는 HuggingFace에서 자동 다운로드; `dbn: true`로 madmom DBN 후처리 선택 가능 |
+
+액션은 입력마다 `beats` 리스트를 담은 딕셔너리를 반환합니다. 각 이벤트는 `time`(초 단위), `is_downbeat`(마디 시작이면 `true`), `beat_number`(마디 내 위치 — 다운비트에서 `1`이 되고 이후 `2, 3, ...`로 이어짐; 첫 다운비트 이전의 pickup 비트는 `null`)를 포함합니다. `return_metadata: true`이면 `duration`도 함께 반환됩니다.
+
+전체 family별 필드 목록은 [Model Component 레퍼런스](../../reference/compose/components/model.md#music-beat-tracking)를 참고하세요.
 
 ---
 

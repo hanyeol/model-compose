@@ -260,6 +260,7 @@ model-compose 支持以下任务类型：
 | `pose-detection` | 姿态检测 | 关键点检测、动作分析 |
 | `object-detection` | 目标检测 | 使用类别标签和边界框检测目标 |
 | `image-segmentation` | 图像分割 | 生成分区二值掩码（自动模式或框提示模式） |
+| `image-to-3d` | 单图 3D 网格生成 | 从参考图像生成带纹理的 GLB 资产 |
 | `face-embedding` | 人脸嵌入 | 人脸识别、比较 |
 | `face-tracking` | 人脸追踪 | 在视频帧中追踪身份并归纳为时间码片段 |
 | `pose-tracking` | 姿态追踪 | 在视频帧中按轨迹追踪人物（姿态），并归纳为时间码片段 |
@@ -267,6 +268,7 @@ model-compose 支持以下任务类型：
 | `music-generation` | 音乐生成 | 音乐创作、配乐 |
 | `music-source-separation` | 音乐源分离 | 将混音拆分为人声 / 鼓 / 贝斯 / 其他音轨 |
 | `music-transcription` | 音乐转录 | 将音频录音转换为 MIDI 和音符事件 |
+| `music-beat-tracking` | 音乐节拍跟踪 | 检测音乐录音中的节拍和强拍位置 |
 
 ### 10.3.1 text-generation
 
@@ -485,7 +487,7 @@ component:
     width: 1024
     height: 1024
     params:
-      num_inference_steps: 50
+      inference_steps: 50
 ```
 
 **支持的架构：**
@@ -788,6 +790,61 @@ component:
 
 支持任意 Ultralytics SAM 检查点（`sam_b.pt`、`sam2_b.pt`、`mobile_sam.pt` 等）。完整选项和结果结构请参见 [Model Component 参考](../../reference/compose/components/model.md#image-segmentation)。
 
+### 10.3.18 image-to-3d
+
+从单张图像生成 3D GLB 资产。`family: pixal3d` 将 sparse-structure / shape / texture flow-matching 各阶段串联起来生成带烘焙 PBR 贴图的网格；`family: anigen` 生成绑定网格（骨骼 + 蒙皮权重烘焙进标准 glTF skinned-mesh）以及独立的骨架可视化。
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: pixal3d
+  device: cuda
+  model:
+    provider: huggingface
+    repository: TencentARC/Pixal3D
+  low_vram: false
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    params:
+      texture_size: 4096
+      shape_slat_sampling_steps: 12
+      tex_slat_sampling_steps: 12
+```
+
+对于 AniGen，在组件上选择 SS-Flow 和 SLAT-Flow 变体，并在动作中切换要返回的输出：
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: anigen
+  device: cuda
+  model:
+    provider: huggingface
+    repository: VAST-AI/AniGen
+  ss_variant: solo      # solo（默认，精准几何）、epic、duet
+  slat_variant: auto    # auto（默认，网络自选关节数）、control
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    return_mesh: true
+    return_skeleton: true
+    params:
+      ss_steps: 25
+      slat_steps: 25
+      texture_size: 1024
+```
+
+**支持的系列与预设：**
+- `pixal3d` — Pixal3D 单图→带纹理的 GLB。需要 CUDA GPU。1536 分辨率（默认）下峰值 VRAM 约 18 GB；`low_vram: true` + 1024 分辨率下约 10-12 GB。
+- `anigen` — AniGen 单图→绑定 GLB 加骨架可视化。需要显存不低于 18 GB 的 CUDA GPU（仅 Linux；CUDA 11.8 或 12.x）。
+
+对 Pixal3D，`low_vram: true` 会将各阶段模型保留在 CPU、按需迁到 GPU，用推理延迟换取更低峰值 VRAM；`manual_fov`（弧度）用于替代基于 MoGe 的自动 FOV 估计。对 AniGen，`slat_variant: control` 遵循 `params.joints_density`（0-4），默认 `auto` 会自选关节数。输出形态取决于系列 —— `pixal3d` 每个输入返回一个 `.glb` 流（`model/gltf-binary`）；`anigen` 每个输入返回一个包含 `mesh` 与 `skeleton` GLB 流的 dict（若 `return_image: true` 还包含 `image`）。完整选项请参见 [Model Component 参考](../../reference/compose/components/model.md#image-to-3d)。
+
 ### 10.3.25 music-generation
 
 生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `offload_ar`。
@@ -903,6 +960,8 @@ component:
 |--------|----------|------|
 | `demucs` | 四音轨（或六音轨）分离 | Meta AI 的 Hybrid Transformer Demucs。`htdemucs_ft` 是微调后的集成模型；`htdemucs_6s` 额外提供 `guitar` 和 `piano` 音轨 |
 | `mdx-net` | 人声分离 | 基于 ONNX Runtime 的 UVR MDX-Net。伴奏音轨通过从混音中减去人声得到 |
+| `bs-roformer` | 可配置的音轨分离 | lucidrains 的 Band-Split RoFormer。该包仅包含架构本身——请将 `model` 指向预训练的 `.ckpt`/`.safetensors`，并将 `params` 与该 checkpoint 匹配 |
+| `mel-band-roformer` | 可配置的音轨分离 | BS-RoFormer 的 mel-band 变体。mel 滤波器组在模型构建时确定，因此 `params.sample_rate` 必须与 checkpoint 保持一致 |
 
 当仅请求一个音轨时，该动作返回单个音频流。当请求多个音轨时（例如 `stems: [vocals, drums, bass, other]`），或当省略 `stems` 从而返回模型可产出的所有音轨时，返回 `{ "<stem_name>": <stream>, ... }` 形式的映射。提高 `shifts` 和 `overlap` 会以更长的运行时间换取更干净的分离效果。
 
@@ -938,6 +997,34 @@ component:
 该动作为每个输入返回包含两个字段的字典：`midi`（MIDI 文件）和 `notes`（`{start_time, end_time, pitch, velocity}` 对象的 JSON 列表，时间以秒为单位，音高为 MIDI 音符编号）。启用 `return_pitch_bends` 时，Basic Pitch 会为每个音符添加 `pitch_bends` 数组。Piano Transcription 会直接将踏板事件写入 MIDI。
 
 与 `music-source-separation` 组合使用，可对混音中的每个音轨独立转录（例如将人声与伴奏作为不同声部分别转录）。完整的 family 字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-transcription)。
+
+### 10.3.28 music-beat-tracking
+
+检测音乐录音中的节拍和强拍位置。每个检测到的节拍都会记录其在小节中的位置——可用于节拍同步剪辑、速度/拍号分析、DJ 风格的时间伸缩以及结构分段。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
+
+```yaml
+component:
+  type: model
+  task: music-beat-tracking
+  driver: custom
+  family: beat-this
+  device: auto
+  model: final0
+  dbn: false
+  action:
+    audio: ${input.audio as audio}
+    return_metadata: true
+```
+
+**支持的 family：**
+
+| Family | 后端 | 说明 |
+|--------|------|------|
+| `beat-this` | CPJKU Beat This! (ISMIR 2024) | 基于 Transformer 的节拍/强拍联合估计器；检查点在首次使用时自动从 HuggingFace 下载；通过 `dbn: true` 可启用 madmom DBN 后处理 |
+
+该动作为每个输入返回包含 `beats` 列表的字典。每个事件包含 `time`（秒）、`is_downbeat`（小节起点时为 `true`）以及 `beat_number`（在小节中的位置——强拍上为 `1`，随后为 `2, 3, ...`；第一个强拍之前的弱起拍为 `null`）。当 `return_metadata: true` 时，还会包含 `duration`。
+
+完整的 family 字段列表请参见 [Model Component 参考](../../reference/compose/components/model.md#music-beat-tracking)。
 
 ---
 

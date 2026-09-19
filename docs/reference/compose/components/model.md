@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -1624,6 +1624,224 @@ component:
 
 Returns a single mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate.
 
+### Image to 3D
+
+Generate a 3D GLB asset from a single image. This task uses `driver: custom` with a `family` field to select the model family — `pixal3d` produces a single textured GLB, while `anigen` produces a rigged mesh plus a separate skeleton visualization.
+
+**Common Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-to-3d` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (`pixal3d` or `anigen`) |
+| `model` | string | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image (or list/stream of images) used as the sole conditioning input |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
+| `params.mesh_scale` | float | `1.0` | Target mesh scale used for camera-distance computation |
+| `params.image_resolution` | int | `512` | Working image resolution used during camera estimation |
+
+#### Family: pixal3d
+
+Chains sparse-structure, shape, and texture flow-matching stages to produce a mesh with baked PBR maps.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `low_vram` | boolean | `false` | Keep stage models on CPU and page each to GPU per stage; reduces peak VRAM at the cost of slower inference |
+| `resolution` | integer | `null` | Pipeline grid resolution (`1024` or `1536`); unset defaults to `1024` in low-VRAM mode, else `1536` |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.manual_fov` | float | `null` | Manual camera horizontal FOV in radians; unset triggers MoGe-based auto-estimation |
+| `params.ss_sampling_steps` | int | `12` | Sparse-structure diffusion sampling steps |
+| `params.ss_guidance_strength` | float | `7.5` | Sparse-structure classifier-free guidance strength |
+| `params.ss_guidance_rescale` | float | `0.7` | Sparse-structure guidance rescale factor |
+| `params.ss_rescale_t` | float | `5.0` | Sparse-structure timestep rescale factor |
+| `params.shape_slat_sampling_steps` | int | `12` | Shape structured-latent sampling steps |
+| `params.shape_slat_guidance_strength` | float | `7.5` | Shape structured-latent classifier-free guidance strength |
+| `params.shape_slat_guidance_rescale` | float | `0.5` | Shape structured-latent guidance rescale factor |
+| `params.shape_slat_rescale_t` | float | `3.0` | Shape structured-latent timestep rescale factor |
+| `params.tex_slat_sampling_steps` | int | `12` | Texture structured-latent sampling steps |
+| `params.tex_slat_guidance_strength` | float | `1.0` | Texture structured-latent classifier-free guidance strength |
+| `params.tex_slat_guidance_rescale` | float | `0.0` | Texture structured-latent guidance rescale factor |
+| `params.tex_slat_rescale_t` | float | `3.0` | Texture structured-latent timestep rescale factor |
+| `params.max_num_tokens` | int | `49152` | Maximum sparse-token budget per stage |
+| `params.texture_size` | int | `4096` | Baked texture size in pixels applied when exporting the GLB |
+| `params.decimation_target` | int | `1000000` | Target face count applied during mesh decimation before GLB export |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: pixal3d
+  device: cuda
+  model:
+    provider: huggingface
+    repository: TencentARC/Pixal3D
+  low_vram: false
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    params:
+      texture_size: 4096
+      shape_slat_sampling_steps: 12
+      tex_slat_sampling_steps: 12
+```
+
+#### Family: anigen
+
+Runs AniGen's SS-Flow and SLAT-Flow stages end-to-end to produce a rigged mesh (bones, hierarchical parents, and per-vertex skin weights baked into a standard glTF skinned-mesh) plus a stand-alone skeleton visualization.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `ss_variant` | string | `solo` | SS-Flow checkpoint variant (`solo`, `epic`, `duet`) |
+| `slat_variant` | string | `auto` | SLAT-Flow checkpoint variant (`auto`, `control`) |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `return_mesh` | bool | `true` | Include the rigged mesh GLB in the result |
+| `return_skeleton` | bool | `true` | Include the skeleton visualization GLB in the result |
+| `return_image` | bool | `false` | Include the background-removed conditioning image in the result |
+| `params.cfg_scale_ss` | float | `7.5` | Sparse-structure classifier-free guidance scale |
+| `params.cfg_scale_slat` | float | `3.0` | Structured-latent classifier-free guidance scale |
+| `params.ss_steps` | int | `25` | Sparse-structure flow-matching sampling steps |
+| `params.slat_steps` | int | `25` | Structured-latent flow-matching sampling steps |
+| `params.joints_density` | int | `1` | Joint density level (0-4) — only used by `slat_variant: control` |
+| `params.simplify_ratio` | float | `0.95` | Mesh simplification ratio applied during postprocessing |
+| `params.fill_holes` | bool | `true` | Fill holes during mesh postprocessing |
+| `params.no_smooth_skin_weights` | bool | `false` | Disable skin-weight smoothing |
+| `params.smooth_skin_weights_iters` | int | `100` | Skin-weight smoothing iterations |
+| `params.smooth_skin_weights_alpha` | float | `1.0` | Skin-weight smoothing alpha |
+| `params.no_filter_skin_weights` | bool | `false` | Disable geodesic filtering of mesh skinning weights |
+| `params.texture_size` | int | `1024` | Baked texture size (pixels); `0` disables texture baking |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: anigen
+  device: cuda
+  model:
+    provider: huggingface
+    repository: VAST-AI/AniGen
+  ss_variant: solo
+  slat_variant: auto
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    params:
+      ss_steps: 25
+      slat_steps: 25
+      texture_size: 1024
+```
+
+#### Supported families
+
+| Family | Notes |
+|--------|-------|
+| `pixal3d` | Pixal3D, single-image to textured GLB. Requires a CUDA GPU (~18 GB VRAM at 1536 resolution, or ~10-12 GB with `low_vram: true` at 1024 resolution). |
+| `anigen` | AniGen, single-image to rigged GLB plus skeleton visualization. Requires a CUDA GPU with at least 18 GB VRAM (Linux only; CUDA 11.8 or 12.x). |
+
+**Result Shape:**
+
+- `pixal3d` returns a single GLB stream (or a list of streams for batched inputs). Each stream carries `format: "glb"` with content type `model/gltf-binary`, so any glTF-compatible viewer can load it directly.
+- `anigen` returns a dict per input with `mesh`, `skeleton`, and optionally `image` fields, gated by the corresponding `return_*` flags. `mesh` and `skeleton` are GLB streams (`model/gltf-binary`); `image` is a PNG of the background-removed conditioning image.
+
+### Video to Video
+
+Restyle an existing video clip with a text prompt while preserving the source motion.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `video-to-video` |
+| `driver` | string | **required** | Model driver — currently `huggingface` |
+| `architecture` | string | **required** | Video-to-video architecture — currently `animatediff` |
+| `model` | model | **required** | Base SD 1.5 style checkpoint (HuggingFace repo or local path); any SD 1.5 fine-tune works |
+| `motion_adapter` | model | **required** | AnimateDiff motion adapter matching the base architecture |
+| `ip_adapter` | model | `null` | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`) |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `video` | video/array | one of `video`/`frames` **required** | Source video (or list/stream of videos) whose motion is preserved |
+| `frames` | image-array | one of `video`/`frames` **required** | Source frames used as the motion source, as an alternative to `video` |
+| `prompt` | string/array | `null` | Text prompt steering the restyled appearance |
+| `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `reference_image` | image | `null` | Reference image passed to the IP-Adapter for appearance conditioning; requires the component's `ip_adapter` to be set |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
+| `params.num_frames` | int | `null` | Frames sampled from the input video and produced in the output; unset consumes every input frame |
+| `params.fps` | int | `null` | Output video frame rate; unset inherits the input clip's native fps so the output preserves the source playback duration |
+| `params.width` | int | `null` | Output video width in pixels; defaults to the input video width |
+| `params.height` | int | `null` | Output video height in pixels; defaults to the input video height |
+| `params.inference_steps` | int | `25` | Number of diffusion inference steps per frame |
+| `params.guidance_scale` | float | `7.5` | Classifier-free guidance scale |
+| `params.denoise_strength` | float | `0.5` | Denoising strength — higher values follow the prompt more, lower values preserve the input video's appearance |
+| `params.ip_adapter_scale` | float | `0.6` | IP-Adapter influence when `reference_image` is supplied; ignored otherwise. `0` disables, `1` fully follows the reference |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: video-to-video
+  driver: huggingface
+  architecture: animatediff
+  model:
+    provider: huggingface
+    repository: SG161222/Realistic_Vision_V5.1_noVAE
+  motion_adapter:
+    provider: huggingface
+    repository: guoyww/animatediff-motion-adapter-v1-5-3
+  ip_adapter:
+    provider: huggingface
+    repository: h94/IP-Adapter
+    filename: models/ip-adapter_sd15.bin
+  device: cuda
+  action:
+    video: ${input.video as video}
+    prompt: ${input.prompt}
+    reference_image: ${input.reference_image as image?}
+    params:
+      denoise_strength: 0.5
+      guidance_scale: 7.5
+      inference_steps: 25
+      ip_adapter_scale: 0.6
+```
+
+#### Supported architectures
+
+| Architecture | Notes |
+|--------------|-------|
+| `animatediff` | Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Trained on ~16-frame windows — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. |
+
+**Result Shape:**
+
+Returns a single mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate.
+
 ### Text to Speech
 
 Generate speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field on the action to select the generation method. Supported families: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`.
@@ -2753,8 +2971,10 @@ Split a mixed music recording into individual stems (vocals, drums, bass, other)
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `music-source-separation` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model backend (`demucs`, `mdx-net`) |
-| `model` | string/object | family-specific | Named checkpoint (Demucs) or a HuggingFace repo / local ONNX path (MDX-Net) |
+| `family` | string | **required** | Model backend (`demucs`, `mdx-net`, `bs-roformer`, `mel-band-roformer`) |
+| `model` | string/object | family-specific | Named checkpoint (Demucs) or a HuggingFace repo / local file (MDX-Net ONNX, RoFormer `.ckpt`/`.safetensors`) |
+| `stems` | array | family-default | Names of the stems this checkpoint produces, in output order (RoFormer families); falls back to `stem_0`, `stem_1`, ... when omitted |
+| `params` | object | family-default | Architecture hyperparameters passed to the model constructor (RoFormer families) — must match the checkpoint |
 
 **Action Fields:**
 
@@ -2766,6 +2986,7 @@ Split a mixed music recording into individual stems (vocals, drums, bass, other)
 | `params.sample_rate` | int | model-native | Sample rate in Hz of the returned stems |
 | `params.overlap` | float | family-default | Overlap ratio between chunks (0.0-0.99); higher = cleaner but slower |
 | `params.shifts` | int | family-default | Number of random shifts for equivariant stabilization (Demucs only); higher = cleaner but slower |
+| `params.chunk_duration` | float | `8.0` | Chunk length in seconds fed to the transformer (RoFormer families only); defaults to ~8 seconds at the model's sample rate |
 
 #### `family: demucs`
 
@@ -2810,12 +3031,75 @@ component:
       stems: [ vocals ]   # or [vocals, instrumental]; omit to return both
 ```
 
+#### `family: bs-roformer`
+
+[lucidrains' BS-RoFormer](https://github.com/lucidrains/BS-RoFormer) — a band-split rotary transformer separator. The Python package only ships the architecture, so you point `model` at a pretrained checkpoint (typically the ZFTurbo `.ckpt`/`.safetensors` releases) and set `params` to the architecture hyperparameters the checkpoint was trained with. `stems` names the model's output channels so you can select them by name from action-side `params.stems`.
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: bs-roformer
+  model:
+    provider: huggingface
+    repository: ZFTurbo/Music-Source-Separation-Training
+    filename: model_bs_roformer_ep_368_sdr_12.9628.ckpt
+  stems: [ vocals ]
+  params:
+    dim: 384
+    depth: 12
+    stereo: true
+    num_stems: 1
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    params:
+      overlap: 0.25
+      chunk_duration: 8.0
+```
+
+`params` fields (all optional except `dim` / `depth`) mirror `bs_roformer.BSRoformer(...)`: `dim`, `depth`, `stereo`, `num_stems`, `time_transformer_depth`, `freq_transformer_depth`, `heads`, `dim_head`, `stft_n_fft`, `stft_hop_length`, `stft_win_length`, `flash_attn`, plus `freqs_per_bands` (tuple summing to the STFT bin count).
+
+#### `family: mel-band-roformer`
+
+[lucidrains' Mel-Band RoFormer](https://github.com/lucidrains/BS-RoFormer) — the mel-band variant that shares the same wrapper as `bs-roformer` but builds its band split from a mel filter bank. `params.sample_rate` is required because the mel filter bank is baked in at construction time; audio is resampled to match.
+
+```yaml
+component:
+  type: model
+  task: music-source-separation
+  driver: custom
+  family: mel-band-roformer
+  model:
+    provider: huggingface
+    repository: ZFTurbo/Music-Source-Separation-Training
+    filename: model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt
+  stems: [ vocals ]
+  params:
+    dim: 384
+    depth: 12
+    stereo: true
+    num_stems: 1
+    num_bands: 60
+    sample_rate: 44100
+  device: auto
+  action:
+    audio: ${input.audio as audio}
+    params:
+      overlap: 0.25
+```
+
+`params` accepts everything from `bs-roformer` plus `num_bands` and `sample_rate`. Match these to the checkpoint — a mismatch in `num_bands` or `sample_rate` produces a shape error at load time.
+
 #### Supported families
 
 | Family | Backend | Notes |
 |--------|---------|-------|
 | `demucs` | [Demucs v4](https://github.com/facebookresearch/demucs) | Hybrid Transformer (spectrogram + waveform). Four-stem or six-stem checkpoints. |
 | `mdx-net` | [UVR MDX-Net](https://github.com/Anjok07/ultimatevocalremovergui) | Vocal-focused; runs on ONNX Runtime. Instrumental stem derived by subtraction. |
+| `bs-roformer` | [lucidrains BS-RoFormer](https://github.com/lucidrains/BS-RoFormer) | Band-split rotary transformer. Architecture-only package; pair with a community checkpoint. |
+| `mel-band-roformer` | [lucidrains BS-RoFormer](https://github.com/lucidrains/BS-RoFormer) | Mel-band variant of BS-RoFormer. `params.sample_rate` must match the checkpoint. |
 
 **Result Shape:**
 
@@ -2911,6 +3195,66 @@ Returns a dict with two fields per input (or a list of dicts for batched inputs)
 
 - `midi` — a MIDI file suitable for saving to `.mid` or feeding into a score renderer.
 - `notes` — a list of `{ "start_time", "end_time", "pitch", "velocity" }` objects (times in seconds, `pitch` as MIDI note number, `velocity` in 0.0-1.0). Basic Pitch adds a `pitch_bends` array on each note when `return_pitch_bends` is enabled.
+
+### Music Beat Tracking
+
+Detect beat and downbeat positions in a music recording. Each detected beat carries its measure-relative position. Uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `music-beat-tracking` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model backend (`beat-this`) |
+| `model` | string | family-specific | Named checkpoint (see the per-family section below) |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | string/array | **required** | Input audio path, URL, or list of audio inputs |
+| `batch_size` | int | `1` | Number of audio inputs processed per batch |
+| `return_metadata` | bool | `true` | Whether processing metadata (`duration`, ...) is included in the result |
+
+#### `family: beat-this`
+
+CPJKU Beat This! — transformer-based joint beat and downbeat estimator (ISMIR 2024). Checkpoints auto-download from HuggingFace on first use.
+
+**Component-level fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `model` | string | `final0` | Beat This! checkpoint name (`final0/1/2`, `small0/1/2`) |
+| `dbn` | bool | `false` | Apply madmom DBN post-processing to refine beats (requires `madmom` installed separately) |
+| `precision` | string | `auto` | Numeric precision (`auto`, `float32`, `float16`); `float16` speeds up CUDA inference |
+
+```yaml
+component:
+  type: model
+  task: music-beat-tracking
+  driver: custom
+  family: beat-this
+  device: auto
+  model: final0
+  dbn: false
+  action:
+    audio: ${input.audio as audio}
+    return_metadata: true
+```
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `beat-this` | [CPJKU Beat This!](https://github.com/CPJKU/beat_this) (ISMIR 2024) | Transformer-based; joint beat + downbeat prediction. Optional madmom DBN post-processing via `dbn: true`. |
+
+**Result Shape:**
+
+Returns a dict per input (or a list of dicts for batched inputs):
+
+- `beats` — a list of `{ "time", "is_downbeat", "beat_number" }` objects. `time` is the beat timestamp in seconds; `is_downbeat` is `true` when the beat starts a new measure; `beat_number` is the beat's position within its measure, 1-indexed from the most recent downbeat (`1` on downbeats, `2`, `3`, ... on subsequent beats). Beats occurring before the first detected downbeat (pickup notes / anacrusis) carry `beat_number: null`.
+- `duration` — the input audio duration in seconds (included when `return_metadata: true`).
 
 ### Talking Head
 

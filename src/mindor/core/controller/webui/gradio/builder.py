@@ -397,9 +397,9 @@ class GradioWebUIBuilder:
                 async for update in _process_task_updates(
                     task_id=task_id,
                     async_task=async_task,
-                    buttons_running=[_run_button_running(), _resume_button_ready(), _cancel_button_active()],
-                    buttons_ready=[_run_button_ready(), _resume_button_ready(), _cancel_button_inactive()],
-                    buttons_interrupted=[_run_button_running(), _resume_button_ready(), _cancel_button_active()],
+                    buttons_running=[ _run_button_running(), _resume_button_ready(), _cancel_button_active() ],
+                    buttons_ready=[ _run_button_ready(), _resume_button_ready(), _cancel_button_inactive() ],
+                    buttons_interrupted=[ _run_button_running(), _resume_button_ready(), _cancel_button_active() ],
                 ):
                     yield update
 
@@ -444,9 +444,9 @@ class GradioWebUIBuilder:
                 async for update in _process_task_updates(
                     task_id=task_id,
                     async_task=async_task,
-                    buttons_running=[_run_button_running(), _resume_button_running(), _cancel_button_active()],
-                    buttons_ready=[_run_button_ready(), _resume_button_ready(), _cancel_button_inactive()],
-                    buttons_interrupted=[_run_button_running(), _resume_button_ready(), _cancel_button_active()],
+                    buttons_running=[ _run_button_running(), _resume_button_running(), _cancel_button_active() ],
+                    buttons_ready=[ _run_button_ready(), _resume_button_ready(), _cancel_button_inactive() ],
+                    buttons_interrupted=[ _run_button_running(), _resume_button_ready(), _cancel_button_active() ],
                 ):
                     yield update
 

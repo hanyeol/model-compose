@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any, Union
-import ulid, os
+from typing import TYPE_CHECKING
 
+from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
@@ -10,132 +10,93 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..base import VectorStoreDriver, VectorStoreDriverType, register_vector_store_driver
 from ..base import ComponentActionContext
 from .common import VectorStoreAction
+import ulid
 
 if TYPE_CHECKING:
     from qdrant_client import AsyncQdrantClient
-    from qdrant_client.http import models as qmodels
-
-
-def _get_qmodels() -> Any:
-    try:
-        from qdrant_client.http import models as qmodels
-        return qmodels
-    except ImportError:
-        return None
-
 
 class QdrantFilterSpecBuilder:
-    """Builds Qdrant filter structures from VectorStoreFilterCondition objects, dicts, or lists."""
+    def build(self, filter: Any) -> Optional[Any]:
+        from qdrant_client.http import models as qmodels
 
-    def build(self, filter: Any) -> Any:
-        qmodels = _get_qmodels()
+        must, must_not = self._build_conditions(filter)
 
-        if not filter:
+        if not must and not must_not:
             return None
 
-        conditions = self._build_conditions(filter, qmodels)
-        if not conditions:
-            return None
+        return qmodels.Filter(
+            must=must or None,
+            must_not=must_not or None
+        )
 
-        if qmodels:
-            must_conditions = []
-            must_not_conditions = []
-            for cond in conditions:
-                if isinstance(cond, dict) and cond.get("_is_must_not"):
-                    must_not_conditions.append(cond["condition"])
-                else:
-                    must_conditions.append(cond)
-            return qmodels.Filter(
-                must=must_conditions if must_conditions else None,
-                must_not=must_not_conditions if must_not_conditions else None,
-            )
-
-        return conditions
-
-    def _build_conditions(self, filter: Any, qmodels: Any) -> List[Any]:
-        conditions: List[Any] = []
+    def _build_conditions(self, filter: Any) -> tuple[List[Any], List[Any]]:
+        must: List[Any] = []
+        must_not: List[Any] = []
 
         if isinstance(filter, (list, tuple, set)):
             for item in filter:
-                conditions.extend(self._build_conditions(item, qmodels))
-            return conditions
+                item_must, item_must_not = self._build_conditions(item)
+                must.extend(item_must)
+                must_not.extend(item_must_not)
+
+            return must, must_not
 
         if isinstance(filter, dict):
             for field, value in filter.items():
-                if qmodels:
-                    if isinstance(value, (list, tuple, set)):
-                        conditions.append(
-                            qmodels.FieldCondition(
-                                key=field,
-                                match=qmodels.MatchAny(any=list(value)),
-                            )
-                        )
-                    else:
-                        conditions.append(
-                            qmodels.FieldCondition(
-                                key=field,
-                                match=qmodels.MatchValue(value=value),
-                            )
-                        )
-                else:
-                    conditions.append({field: value})
-            return conditions
+                must.append(self._build_field_condition(field, value))
+
+            return must, must_not
 
         if isinstance(filter, VectorStoreFilterCondition):
-            cond = self._format_condition(filter, qmodels)
-            if cond is not None:
-                conditions.append(cond)
-            return conditions
+            condition, is_negated = self._build_operator_condition(filter)
 
-        return conditions
+            if condition is not None:
+                (must_not if is_negated else must).append(condition)
 
-    def _format_condition(self, condition: VectorStoreFilterCondition, qmodels: Any) -> Any:
-        field = condition.field
-        op = condition.operator
-        val = condition.value
+            return must, must_not
 
-        if not qmodels:
-            return {field: {op.value: val}}
+        return must, must_not
 
-        if op == VectorStoreFilterOperator.EQ:
-            return qmodels.FieldCondition(key=field, match=qmodels.MatchValue(value=val))
+    def _build_field_condition(self, field: str, value: Any) -> Any:
+        from qdrant_client.http import models as qmodels
 
-        if op == VectorStoreFilterOperator.NEQ:
-            return {
-                "_is_must_not": True,
-                "condition": qmodels.FieldCondition(key=field, match=qmodels.MatchValue(value=val)),
-            }
+        if isinstance(value, (list, tuple, set)):
+            return qmodels.FieldCondition(key=field, match=qmodels.MatchAny(any=list(value)))
 
-        if op == VectorStoreFilterOperator.GT:
-            return qmodels.FieldCondition(key=field, range=qmodels.Range(gt=val))
+        return qmodels.FieldCondition(key=field, match=qmodels.MatchValue(value=value))
 
-        if op == VectorStoreFilterOperator.GTE:
-            return qmodels.FieldCondition(key=field, range=qmodels.Range(gte=val))
+    def _build_operator_condition(self, condition: VectorStoreFilterCondition) -> tuple[Optional[Any], bool]:
+        from qdrant_client.http import models as qmodels
 
-        if op == VectorStoreFilterOperator.LT:
-            return qmodels.FieldCondition(key=field, range=qmodels.Range(lt=val))
+        if condition.operator == VectorStoreFilterOperator.EQ:
+            return qmodels.FieldCondition(key=condition.field, match=qmodels.MatchValue(value=condition.value)), False
 
-        if op == VectorStoreFilterOperator.LTE:
-            return qmodels.FieldCondition(key=field, range=qmodels.Range(lte=val))
+        if condition.operator == VectorStoreFilterOperator.NEQ:
+            return qmodels.FieldCondition(key=condition.field, match=qmodels.MatchValue(value=condition.value)), True
 
-        if op == VectorStoreFilterOperator.IN:
-            val_list = list(val) if isinstance(val, (list, tuple, set)) else [val]
-            return qmodels.FieldCondition(key=field, match=qmodels.MatchAny(any=val_list))
+        if condition.operator == VectorStoreFilterOperator.GT:
+            return qmodels.FieldCondition(key=condition.field, range=qmodels.Range(gt=condition.value)), False
 
-        if op == VectorStoreFilterOperator.NOT_IN:
-            val_list = list(val) if isinstance(val, (list, tuple, set)) else [val]
-            return {
-                "_is_must_not": True,
-                "condition": qmodels.FieldCondition(key=field, match=qmodels.MatchAny(any=val_list)),
-            }
+        if condition.operator == VectorStoreFilterOperator.GTE:
+            return qmodels.FieldCondition(key=condition.field, range=qmodels.Range(gte=condition.value)), False
 
-        return None
+        if condition.operator == VectorStoreFilterOperator.LT:
+            return qmodels.FieldCondition(key=condition.field, range=qmodels.Range(lt=condition.value)), False
 
+        if condition.operator == VectorStoreFilterOperator.LTE:
+            return qmodels.FieldCondition(key=condition.field, range=qmodels.Range(lte=condition.value)), False
+
+        if condition.operator == VectorStoreFilterOperator.IN:
+            values = list(condition.value) if isinstance(condition.value, (list, tuple, set)) else [ condition.value ]
+            return qmodels.FieldCondition(key=condition.field, match=qmodels.MatchAny(any=values)), False
+
+        if condition.operator == VectorStoreFilterOperator.NOT_IN:
+            values = list(condition.value) if isinstance(condition.value, (list, tuple, set)) else [ condition.value ]
+            return qmodels.FieldCondition(key=condition.field, match=qmodels.MatchAny(any=values)), True
+
+        return None, False
 
 class QdrantVectorStoreAction(VectorStoreAction):
-    def __init__(self, config: VectorStoreActionConfig, client: Any):
-        super().__init__(config, client)
-
     async def _insert(
         self,
         collection: Any,
@@ -146,32 +107,22 @@ class QdrantVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        qmodels = _get_qmodels()
+        from qdrant_client.http import models as qmodels
 
-        count = len(vectors)
-        if not vector_ids:
-            vector_ids = [str(ulid.new()) for _ in range(count)]
-        if not metadatas:
-            metadatas = [{} for _ in range(count)]
+        ids = vector_ids if vector_ids is not None else [ str(ulid.new()) for _ in vectors ]
 
-        points = []
-        for vid, vec, meta in zip(vector_ids, vectors, metadatas):
-            if qmodels:
-                point = qmodels.PointStruct(id=vid, vector=vec, payload=meta or {})
-            else:
-                point = {"id": vid, "vector": vec, "payload": meta or {}}
-            points.append(point)
+        points = [
+            qmodels.PointStruct(id=id, vector=vector, payload=metadata or {})
+            for id, vector, metadata in zip(ids, vectors, metadatas or [ {} for _ in vectors ])
+        ]
 
-        res = await self.client.upsert(
+        await self.client.upsert(
             collection_name=collection,
             points=points,
-            wait=True,
+            wait=True
         )
 
-        return {
-            "affected_rows": count,
-            "status": getattr(res, "status", "completed"),
-        }
+        return { "ids": ids, "affected_rows": len(ids) }
 
     async def _update(
         self,
@@ -183,45 +134,33 @@ class QdrantVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        qmodels = _get_qmodels()
+        from qdrant_client.http import models as qmodels
 
-        count = len(vector_ids)
         points = []
 
-        for i, vid in enumerate(vector_ids):
-            vec = vectors[i] if vectors and i < len(vectors) else None
-            meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+        for index, vector_id in enumerate(vector_ids):
+            vector   = vectors[index] if vectors and index < len(vectors) else None
+            metadata = metadatas[index] if metadatas and index < len(metadatas) else {}
 
-            if vec is not None:
-                if qmodels:
-                    point = qmodels.PointStruct(id=vid, vector=vec, payload=meta)
-                else:
-                    point = {"id": vid, "vector": vec, "payload": meta}
-                points.append(point)
+            if vector is not None:
+                points.append(qmodels.PointStruct(id=vector_id, vector=vector, payload=metadata))
 
         if points:
-            res = await self.client.upsert(
+            await self.client.upsert(
                 collection_name=collection,
                 points=points,
-                wait=True,
+                wait=True
             )
-            status = getattr(res, "status", "completed")
         elif metadatas:
-            for vid, meta in zip(vector_ids, metadatas):
+            for vector_id, metadata in zip(vector_ids, metadatas):
                 await self.client.set_payload(
                     collection_name=collection,
-                    payload=meta,
-                    points=[vid],
-                    wait=True,
+                    payload=metadata,
+                    points=[ vector_id ],
+                    wait=True
                 )
-            status = "completed"
-        else:
-            status = "noop"
 
-        return {
-            "affected_rows": count,
-            "status": status,
-        }
+        return { "affected_rows": len(vector_ids) }
 
     async def _search(
         self,
@@ -231,35 +170,36 @@ class QdrantVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> List[List[Dict[str, Any]]]:
-        top_k = int(params.get("top_k") or 10)
-        filter_spec = params.get("filter")
-        output_fields = params.get("output_fields")
+        top_k         = params["top_k"]
+        filter        = params["filter"]
+        output_fields = params["output_fields"]
 
-        qfilter = QdrantFilterSpecBuilder().build(filter_spec)
+        query_filter = QdrantFilterSpecBuilder().build(filter)
 
         results = []
-        for query_vec in queries:
-            search_res = await self.client.search(
+
+        for query_vector in queries:
+            hits_raw = await self.client.search(
                 collection_name=collection,
-                query_vector=query_vec,
-                limit=top_k,
-                query_filter=qfilter,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=int(top_k),
                 with_payload=True,
-                with_vectors=True,
+                with_vectors=True
             )
 
             hits = []
-            for hit in search_res:
-                payload = getattr(hit, "payload", {}) or {}
+            for hit in hits_raw:
+                metadata = hit.payload or {}
+
                 if output_fields:
-                    payload = {k: payload[k] for k in output_fields if k in payload}
+                    metadata = { key: metadata[key] for key in output_fields if key in metadata }
 
                 hits.append({
-                    "id": getattr(hit, "id"),
-                    "score": getattr(hit, "score"),
-                    "vector": getattr(hit, "vector", None),
-                    "metadata": payload,
-                    "payload": payload,
+                    "id":       hit.id,
+                    "score":    hit.score,
+                    "vector":   hit.vector,
+                    "metadata": metadata
                 })
             results.append(hits)
 
@@ -273,50 +213,47 @@ class QdrantVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        qmodels = _get_qmodels()
-        filter_spec = params.get("filter")
+        from qdrant_client.http import models as qmodels
+
+        filter = params["filter"]
 
         if vector_ids:
-            selector = qmodels.PointIdsList(points=vector_ids) if qmodels else vector_ids
-            res = await self.client.delete(
+            await self.client.delete(
                 collection_name=collection,
-                points_selector=selector,
-                wait=True,
+                points_selector=qmodels.PointIdsList(points=vector_ids),
+                wait=True
             )
-            affected = len(vector_ids)
-        elif filter_spec:
-            qfilter = QdrantFilterSpecBuilder().build(filter_spec)
-            selector = qmodels.FilterSelector(filter=qfilter) if qmodels else qfilter
-            res = await self.client.delete(
+            return { "affected_rows": len(vector_ids) }
+
+        if filter:
+            await self.client.delete(
                 collection_name=collection,
-                points_selector=selector,
-                wait=True,
+                points_selector=qmodels.FilterSelector(filter=QdrantFilterSpecBuilder().build(filter)),
+                wait=True
             )
-            affected = getattr(res, "affected_rows", 1)
-        else:
-            affected = 0
 
-        return {"affected_rows": affected}
-
+        return { "affected_rows": 0 }
 
 @register_vector_store_driver(VectorStoreDriverType.QDRANT)
 class QdrantVectorStoreService(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
+
         self.client: Optional[AsyncQdrantClient] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return ["qdrant-client"]
+        return [ "qdrant-client" ]
 
     async def _start(self) -> None:
         from qdrant_client import AsyncQdrantClient
 
-        params = self._resolve_connection_params()
-        self.client = AsyncQdrantClient(**params)
+        self.client = AsyncQdrantClient(**self._resolve_connection_params())
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
         if self.client:
             await self.client.close()
             self.client = None
@@ -327,27 +264,21 @@ class QdrantVectorStoreService(VectorStoreDriver):
     def _resolve_connection_params(self) -> Dict[str, Any]:
         params: Dict[str, Any] = {}
 
-        if getattr(self.config, "url", None):
+        if self.config.url:
             params["url"] = self.config.url
         else:
-            host = getattr(self.config, "host", "localhost")
-            port = getattr(self.config, "port", 6333)
-            grpc_port = getattr(self.config, "grpc_port", 6334)
-            https = getattr(self.config, "https", False)
-            prefer_grpc = getattr(self.config, "prefer_grpc", False)
+            params["host"]         = self.config.host
+            params["port"]         = self.config.grpc_port if self.config.prefer_grpc else self.config.port
+            params["https"]        = self.config.https
+            params["prefer_grpc"]  = self.config.prefer_grpc
 
-            params["host"] = host
-            params["port"] = grpc_port if prefer_grpc else port
-            params["https"] = https
-            params["prefer_grpc"] = prefer_grpc
-
-        if getattr(self.config, "api_key", None):
+        if self.config.api_key:
             params["api_key"] = self.config.api_key
 
-        if getattr(self.config, "prefix", None):
+        if self.config.prefix:
             params["prefix"] = self.config.prefix
 
-        if getattr(self.config, "timeout", None):
+        if self.config.timeout:
             params["timeout"] = parse_time(self.config.timeout)
 
         return params

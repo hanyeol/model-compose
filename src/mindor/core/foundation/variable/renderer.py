@@ -12,6 +12,7 @@ from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamR
 from ..streaming.video import VideoStreamResource
 from ..streaming.model_3d import Model3DStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
+from mindor.core.utils.files import get_file_extension
 from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
 from mindor.core.foundation.condition import evaluate_condition, evaluate_where
@@ -563,7 +564,7 @@ class VariableRenderer:
             return await encode_value_to_base64(value)
 
         if type in [ "image", "audio", "video", "model-3d", "file" ]:
-            if isinstance(value, (StreamIterator, AsyncIterator)) and not isinstance(value, StreamResource):
+            if isinstance(value, (StreamIterator, AsyncIterator)):
                 return value
 
             if format in [ "base64", "path", "url", "data-uri" ] and isinstance(value, str):
@@ -572,14 +573,17 @@ class VariableRenderer:
             if isinstance(value, UploadFile):
                 value = UploadFileStreamResource(value)
 
+            filename = getattr(value, "filename", None) if isinstance(value, StreamResource) else None
+            subtype = subtype or (get_file_extension(filename) if filename else None)
+
             if type == "image":
                 if not isinstance(value, (StreamResource, PILImage.Image)):
                     raise TypeError(f"`image` requires an image or raw image bytes, got {value.__class__.__name__}")
+                if subtype is None and isinstance(value, ImageStreamResource):
+                    return value
                 if isinstance(value, StreamResource):
                     value = await load_image_from_stream(value)
-                if subtype:
-                    value = ImageStreamResource(value, subtype)
-                return value
+                return ImageStreamResource(value, subtype, filename=filename)
 
             if type == "audio":
                 if not isinstance(value, (StreamResource, bytes)):
@@ -590,21 +594,21 @@ class VariableRenderer:
                     return value if isinstance(value, WavStreamResource) else WavStreamResource(value)
                 if subtype is None and isinstance(value, (PcmStreamResource, WavStreamResource, AudioStreamResource)):
                     return value
-                return AudioStreamResource(value, subtype, attrs)
+                return AudioStreamResource(value, subtype, attrs, filename=filename)
 
             if type == "video":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`video` requires raw video input, got {value.__class__.__name__}")
                 if subtype is None and isinstance(value, VideoStreamResource):
                     return value
-                return VideoStreamResource(value, subtype, attrs)
+                return VideoStreamResource(value, subtype, attrs, filename=filename)
 
             if type == "model-3d":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`model-3d` requires raw 3D model input, got {value.__class__.__name__}")
                 if subtype is None and isinstance(value, Model3DStreamResource):
                     return value
-                return Model3DStreamResource(value, subtype, attrs)
+                return Model3DStreamResource(value, subtype, attrs, filename=filename)
 
             if type == "file":
                 if not isinstance(value, (StreamResource, bytes)):

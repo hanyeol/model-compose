@@ -20,6 +20,7 @@ class FileStreamResource(StreamResource):
         self.path = path
         self.chunk_size: int = chunk_size
         self.auto_delete: bool = auto_delete
+
         self._stream: Optional[aiofiles.threadpool.text.AsyncTextIOWrapper] = None
 
     def copyable(self) -> bool:

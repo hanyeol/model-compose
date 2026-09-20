@@ -32,15 +32,16 @@ class ImageStreamResource(StreamResource):
     def __init__(
         self,
         image: Union[PILImage.Image, bytes],
-        format: str = "png",
+        format: Optional[str] = None,
         filename: Optional[str] = None,
         chunk_size: int = 8192,
     ):
         super().__init__(self._resolve_content_type(format), filename)
 
         self.image: Union[PILImage.Image, bytes] = image
-        self.format: str = format
+        self.format: str = format or "png"
         self.chunk_size: int = chunk_size
+
         self._stream: Optional[io.BytesIO] = None
 
     async def as_image(self) -> PILImage.Image:

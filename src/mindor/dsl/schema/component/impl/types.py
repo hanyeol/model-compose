@@ -57,6 +57,7 @@ class ComponentType(str, Enum):
     AUDIO_SYNCHRONIZER      = "audio-synchronizer"
     AUDIO_PLAYBACK          = "audio-playback"
     AUDIO_MIXER             = "audio-mixer"
+    MODEL_3D_CONVERTER      = "model-3d-converter"
     KEY_VALUE_STORE         = "key-value-store"
     GRAPH_STORE             = "graph-store"
     FILE_STORE              = "file-store"

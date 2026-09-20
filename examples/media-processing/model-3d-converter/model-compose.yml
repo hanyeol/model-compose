@@ -1,0 +1,28 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: convert
+    title: 3D Model Converter
+    description: Convert a 3D model file to another format using trimesh
+    job:
+      component: converter
+      input:
+        model_3d: ${input.model_3d as model-3d}
+        format: ${input.format as select/glb,gltf,obj,stl,ply,dae,off,3mf | glb}
+      output:
+        model_3d: ${output as model-3d;path}
+
+components:
+  - id: converter
+    type: model-3d-converter
+    # driver: native   # default; uses trimesh under the hood
+    action:
+      model_3d: ${input.model_3d}
+      format: ${input.format}

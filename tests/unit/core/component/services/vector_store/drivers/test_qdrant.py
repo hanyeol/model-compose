@@ -1,6 +1,9 @@
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+pytest.importorskip("qdrant_client")
+
 from mindor.dsl.schema.component import ComponentType, VectorStoreDriverType
 from mindor.dsl.schema.component.impl.vector_store.impl.qdrant import QdrantVectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
@@ -155,7 +158,7 @@ def test_qdrant_action_delete_mocked():
         config = MagicMock()
         action = QdrantVectorStoreAction(config=config, client=mock_client)
 
-        result = await action._delete("test_coll", vector_ids=["p1", "p2"], params={}, cancellation_token=None)
+        result = await action._delete("test_coll", vector_ids=["p1", "p2"], params={"id_field": None, "filter": None}, cancellation_token=None)
 
         assert result["affected_rows"] == 2
         assert mock_client.delete.called

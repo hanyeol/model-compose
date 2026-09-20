@@ -281,7 +281,7 @@ class Pixal3DImageTo3DTaskAction(ImageTo3DTaskAction):
         gp = grid_point.to(torch.float32) @ rotation_matrix.T
         gp = gp / mesh_scale / 2
         xw, yw = gp[0].item(), gp[1].item()
-        xt, yt = float(target_point[0].item()), float(target_point[1].item())
+        xt = float(target_point[0].item())
 
         focal_length = 16.0 / torch.tan(torch.tensor(camera_angle_x / 2.0))
         f_pixels = float((focal_length * image_resolution / 32.0).item())

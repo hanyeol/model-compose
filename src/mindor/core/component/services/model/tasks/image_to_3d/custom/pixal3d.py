@@ -211,12 +211,10 @@ class Pixal3DImageTo3DTaskAction(ImageTo3DTaskAction):
 
         fd, glb_path = tempfile.mkstemp(suffix=".glb")
         os.close(fd)
+
         glb.export(glb_path, extension_webp=True)
 
-        return Model3DStreamResource(
-            FileStreamResource(glb_path, auto_delete=True),
-            format="glb",
-        )
+        return Model3DStreamResource(FileStreamResource(glb_path, auto_delete=True), format="glb")
 
     def _resolve_camera_params(
         self,

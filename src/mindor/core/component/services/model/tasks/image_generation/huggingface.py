@@ -9,6 +9,7 @@ from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskDriver
 from .common import ImageGenerationGenerateTaskAction, ImageGenerationInpaintTaskAction
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from PIL import Image as PILImage
 import asyncio
@@ -253,9 +254,11 @@ class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDrive
             # tagged release as of 2026-09 (latest v0.40.0). The `>=0.41.0.dev0` pin forces
             # reinstall when an older diffusers is already present (unversioned parent spec
             # would otherwise be considered satisfied) and stays satisfied once 0.41 ships.
-            # Qwen3-VL text encoder requires transformers >= 5.17 per the model card.
+            # Qwen3-VL text encoder requires transformers >= 5.17 per the model card, and its
+            # processor lazily loads Qwen3VLVideoProcessor which pulls in torchvision.
             requirements.append("diffusers>=0.41.0.dev0@git+https://github.com/huggingface/diffusers.git")
             requirements.append("transformers>=5.17")
+            requirements.extend(torch_requirements("torchvision"))
 
         return requirements
 

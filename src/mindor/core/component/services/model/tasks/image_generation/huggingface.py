@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Any
+from typing import Type, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
 from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, DiffusionVaeConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -261,6 +261,66 @@ class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDrive
             requirements.extend(torch_requirements("torchvision"))
 
         return requirements
+
+    async def _load_pretrained_pipelines(self, methods: List[Optional[ImageGenerationActionMethod]]) -> Tuple[Dict[Optional[ImageGenerationActionMethod], "DiffusionPipeline"], "torch.device"]:
+        # Qwen-Image 2.1 keeps two ~7B modules (transformer, Qwen3-VL text encoder) live in
+        # VRAM if fully placed on GPU (~24GB peak at 2048x2048). `enable_model_cpu_offload`
+        # keeps only the currently-active submodule on GPU and swaps siblings out to CPU
+        # between stages, bringing peak VRAM to ~10-12GB with a modest latency cost.
+        # Any other architecture falls through to the base loader (plain `.to(device)`).
+        if self.config.architecture != HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            return await super()._load_pretrained_pipelines(methods)
+
+        model_path = await self._provision_model(self.config.model)
+        device = self._resolve_device(self.config.device)
+        dtype = self._get_pipeline_dtype(device)
+
+        # Model CPU offload only makes sense on CUDA; on CPU/MPS fall back to the base path.
+        if device.type != "cuda":
+            return await super()._load_pretrained_pipelines(methods)
+
+        base_pipeline_class = self._get_pipeline_class(None)
+        method_pipeline_classes: Dict[Optional[ImageGenerationActionMethod], Type[DiffusionPipeline]] = { method: self._get_pipeline_class(method) for method in methods }
+        quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
+
+        submodules = await self._load_pipeline_submodules(device, dtype)
+
+        def _load() -> Dict[Optional[ImageGenerationActionMethod], DiffusionPipeline]:
+            params: Dict[str, Any] = {
+                **self._get_model_params(self.config.model),
+                **submodules,
+                "torch_dtype": dtype,
+            }
+
+            if quantization_config is not None:
+                params["quantization_config"] = quantization_config
+
+            logging.info(f"Component '{self.id}': loading {base_pipeline_class.__name__} from {model_path} (CPU offload enabled, device={device})")
+
+            # Do NOT call `.to(device)` before `enable_model_cpu_offload` — diffusers warns
+            # that moving the pipeline to CUDA first negates most of the memory savings.
+            base_pipeline = base_pipeline_class.from_pretrained(model_path, **params)
+            base_pipeline.enable_model_cpu_offload(device=device)
+
+            pipelines: Dict[Optional[ImageGenerationActionMethod], DiffusionPipeline] = {}
+
+            for method, pipeline_class in method_pipeline_classes.items():
+                if pipeline_class is base_pipeline_class:
+                    pipelines[method] = base_pipeline
+                else:
+                    logging.info(f"Component '{self.id}': deriving {pipeline_class.__name__} from {base_pipeline_class.__name__}")
+                    derived = pipeline_class.from_pipe(base_pipeline)
+                    # Offload hooks installed on the base pipeline don't transfer through
+                    # `from_pipe`; re-arm them on each derived pipeline so every method
+                    # inherits the same low-VRAM behavior.
+                    derived.enable_model_cpu_offload(device=device)
+                    pipelines[method] = derived
+
+            return pipelines
+
+        pipelines = await self._run_in_executor(_load)
+
+        return pipelines, device
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         submodules: Dict[str, Any] = {}

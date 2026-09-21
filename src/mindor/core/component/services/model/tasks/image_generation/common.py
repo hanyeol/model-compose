@@ -31,7 +31,6 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         if is_streaming_input:
             async def _stream_output_generator():
                 async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
-                    batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
                     batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
                         context.register_source("result[]", result)
@@ -41,7 +40,6 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         else:
             results: List[PILImage.Image] = []
             async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
-                batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
                 batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                 results.extend(batch_results)
 

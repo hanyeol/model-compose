@@ -542,28 +542,28 @@ class AceStepMusicGenerationTaskDriver(ModelTaskDriver):
         # here before ace-step itself is processed. torch is pinned to 2.10.0 because
         # nano-vllm and the shipped flash-attn wheel are built against that release.
         if sys.platform == "linux" and platform.machine() == "x86_64":
-            requirements += [
+            requirements.extend([
                 *torch_requirements("torch==2.10.0", "torchaudio==2.10.0", "torchvision==0.25.0"),
                 # The vendored fork (not upstream nano-vllm) is required — it maps the 5Hz
                 # LM checkpoint's flat Qwen3Model weight names onto Qwen3ForCausalLM.
                 # flash-attn is omitted; its wheel is pinned to cu128/torch2.10/cp312/
                 # linux_x86_64 and nano-vllm falls back to SDPA.
                 "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
-            ]
+            ])
 
         # ace-step ships an mlx backend for the 5Hz LM on Apple Silicon; without mlx-lm
         # it silently falls back to PyTorch/MPS, which is much slower for LM inference.
         if sys.platform == "darwin" and platform.machine() == "arm64":
-            requirements += [
+            requirements.extend([
                 "mlx>=0.25.2",
                 "mlx-lm>=0.20.0",
-            ]
+            ])
 
-        requirements += [
+        requirements.extend([
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",
             "numpy",
             "soundfile",
-        ]
+        ])
 
         return requirements
 

@@ -17,7 +17,7 @@ This workflow provides local text-to-image generation that:
 ### Prerequisites
 
 - model-compose installed and available in your PATH.
-- A CUDA-capable GPU. Qwen-Image-2.1 loads in bfloat16 and needs roughly **24 GB** of VRAM without offloading at 2048×2048; smaller resolutions or CPU offload reduce this.
+- A CUDA-capable GPU. This example ships with `cpu_offload: [text_encoder]`, which fits Qwen-Image-2.1 into a single **24 GB** GPU at 2048×2048 in bfloat16. Remove the option if you have more VRAM, or switch to `cpu_offload: model` on smaller cards.
 - A Python environment where `torch`, `diffusers` (main), and `transformers>=5.17` can be installed — the first run installs them automatically into an isolated virtualenv.
 - A HuggingFace access token accepted for `Qwen/Qwen-Image-2.1`. Set it via the `HF_TOKEN` environment variable before starting model-compose.
 
@@ -69,6 +69,12 @@ This workflow provides local text-to-image generation that:
      -H "Content-Type: application/json" \
      -d '{"input": {"prompt": "A vast desert canyon at sunset, ultra-detailed", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
+
+   # Image-conditioned generation — pass one or more reference images
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -F "ref=@/path/to/reference.png" \
+     -F 'input={"prompt": "Same subject in a snowy forest at dusk, cinematic light", "reference_image": "@ref"}' \
+     -o output.png
    ```
 
    **Using Web UI:**
@@ -95,6 +101,7 @@ This workflow provides local text-to-image generation that:
 |--------------------------|-----------------------------------------------------------------------------------------|---------|
 | `prompt`                 | Text prompt (or list/stream of prompts).                                                | —       |
 | `negative_prompt`        | Text describing what to avoid. Only takes effect when `true_cfg_scale > 1.0`.           | (none)  |
+| `reference_image`        | Optional single image or list of images used as vision context. Broadcast across every prompt in a batch. | (none)  |
 | `width`                  | Output image width in pixels.                                                           | `1024`  |
 | `height`                 | Output image height in pixels.                                                          | `1024`  |
 | `num_return_images`      | Number of images returned per prompt.                                                   | `1`     |
@@ -108,7 +115,7 @@ This workflow provides local text-to-image generation that:
 - **First run is slow**: The controller creates the `.venv/qwen-image` environment, installs `diffusers` from GitHub main, and downloads ~20 GB of weights on first startup. Expect 10-15 minutes before the controller reports ready. Subsequent runs reuse the cached venv and weights.
 - **Diffusers pinned to main**: Qwen-Image-2.1 relies on classes (`QwenImage21Pipeline`, `QwenImage21Transformer2DModel`, `AutoencoderKLQwenImage21`) that live on `diffusers` main. When the next tagged release includes them, this example's setup can pin `diffusers>=<release>` instead of the git URL — no compose change is required if you update model-compose.
 - **Qwen Research License**: `Qwen/Qwen-Image-2.1` is released under the Qwen Research License Agreement (non-commercial). Review the terms at https://huggingface.co/Qwen/Qwen-Image-2.1 before production use.
-- **VRAM planning**: The 7B transformer plus the Qwen3-VL text encoder push peak VRAM to ~24 GB at 2048×2048 in bfloat16. Drop resolution or add a `quantization` config to the component to fit on 16 GB cards; the driver marks `transformer` and `text_encoder` as quantizable so 4-bit or 8-bit weights save the most.
+- **VRAM planning**: The 7B transformer plus the Qwen3-VL text encoder would push peak VRAM to ~24 GB at 2048×2048 in bfloat16 with both resident on GPU. This example uses `cpu_offload: [text_encoder]` to keep the text encoder on CPU (loaded to GPU only during encoding), leaving the transformer and VAE fully GPU-resident for peak speed on a 24 GB card. For lower peak VRAM at some latency cost, switch to `cpu_offload: model` (whole-pipeline module-level offload) or `cpu_offload: sequential` (layer-level offload, ~90% VRAM cut but 2–5× slower). Adding a `quantization` config to the component further reduces weights — the driver marks `transformer` and `text_encoder` as quantizable so 4-bit or 8-bit saves the most.
 - **`true_cfg_scale` vs speed**: With `true_cfg_scale > 1.0` the pipeline runs an extra forward pass per step for the negative prompt, roughly doubling inference time. Leave it at `1.0` for the fastest path and only raise it when a negative prompt is actively needed.
 - **Multilingual prompts**: Qwen-Image-2.1's Qwen3-VL text encoder handles Chinese, Korean, Japanese, and English prompts natively; mixed-language prompts also work.
 - **Output**: The result is a single `.png` per input (or a list for batched inputs), decoded from the diffusion VAE.

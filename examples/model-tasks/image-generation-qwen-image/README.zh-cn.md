@@ -17,7 +17,7 @@
 ### 前置条件
 
 - 已安装 model-compose 且在 PATH 中可用。
-- 支持 CUDA 的 GPU。Qwen-Image-2.1 使用 bfloat16 加载，2048×2048 分辨率下无 offload 大约需要 **24 GB** 显存；降低分辨率或使用 CPU offload 可以减少显存占用。
+- 支持 CUDA 的 GPU。该示例通过 `cpu_offload: [text_encoder]` 选项将 Qwen-Image-2.1 装入单张 **24 GB** GPU（2048×2048 bfloat16）。显存更充裕可移除该选项；显存较小的显卡请改用 `cpu_offload: model`。
 - 能够安装 `torch`、`diffusers` (main)、`transformers>=5.17` 的 Python 环境 — 首次运行时会自动安装到隔离的 virtualenv。
 - 已接受 `Qwen/Qwen-Image-2.1` 许可的 HuggingFace 访问令牌。在启动 model-compose 前通过 `HF_TOKEN` 环境变量设置。
 
@@ -69,6 +69,12 @@
      -H "Content-Type: application/json" \
      -d '{"input": {"prompt": "日落时分辽阔的沙漠峡谷，超精细细节", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
+
+   # 图像条件生成 — 传入一张或多张参考图像
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -F "ref=@/path/to/reference.png" \
+     -F 'input={"prompt": "同一主体置于黄昏雪林中，电影感光线", "reference_image": "@ref"}' \
+     -o output.png
    ```
 
    **使用 Web UI:**
@@ -95,6 +101,7 @@
 |--------------------------|--------------------------------------------------------------------------------------------|---------|
 | `prompt`                 | 文本提示词（或列表/流）。                                                                   | —       |
 | `negative_prompt`        | 描述需避免内容的文本。仅在 `true_cfg_scale > 1.0` 时生效。                                  | (无)    |
+| `reference_image`        | 作为视觉上下文的可选单张图像或图像列表。会广播到批次中的所有提示词。                          | (无)    |
 | `width`                  | 输出图像宽度（像素）。                                                                       | `1024`  |
 | `height`                 | 输出图像高度（像素）。                                                                       | `1024`  |
 | `num_return_images`      | 每个提示词返回的图像数量。                                                                    | `1`     |
@@ -108,7 +115,7 @@
 - **首次运行较慢**: 控制器会在首次启动时创建 `.venv/qwen-image` 环境、从 GitHub main 安装 `diffusers`、并下载约 20 GB 权重。控制器 ready 之前需要 10-15 分钟。后续运行会重用缓存的 venv 和权重。
 - **Diffusers 锁定到 main**: Qwen-Image-2.1 依赖仅存在于 `diffusers` main 的类（`QwenImage21Pipeline`、`QwenImage21Transformer2DModel`、`AutoencoderKLQwenImage21`）。当下一个正式发布包含它们时，本示例的 setup 可以改为固定到 `diffusers>=<发布版本>` 而无需 git URL — 只要更新 model-compose，无需修改 compose。
 - **Qwen Research License**: `Qwen/Qwen-Image-2.1` 以 Qwen Research License Agreement（非商业）发布。生产使用前请查看 https://huggingface.co/Qwen/Qwen-Image-2.1 的条款。
-- **显存规划**: 7B transformer 加上 Qwen3-VL 文本编码器使 2048×2048 bfloat16 的峰值显存达到约 24 GB。可通过降低分辨率或为组件添加 `quantization` 配置以适配 16 GB 显卡；驱动将 `transformer` 和 `text_encoder` 标记为可量化，因此 4-bit 或 8-bit 权重节省最多。
+- **显存规划**: 将 7B transformer 和 Qwen3-VL 文本编码器同时驻留 GPU 时，2048×2048 bfloat16 的峰值显存约为 24 GB。本示例使用 `cpu_offload: [text_encoder]` 将文本编码器留在 CPU，只在编码时移入 GPU，从而让 transformer 和 VAE 全程驻留 GPU 并在 24 GB 单卡上以峰值速度运行。若需进一步降低峰值显存（以延迟为代价），可切换为 `cpu_offload: model`（整条管线的模块级 offload）或 `cpu_offload: sequential`（层级 offload，节省约 90% 但慢 2–5 倍）。再叠加 `quantization` 配置可减少权重本身 — 驱动将 `transformer` 和 `text_encoder` 标记为可量化，因此 4-bit 或 8-bit 节省最多。
 - **`true_cfg_scale` 与速度**: 当 `true_cfg_scale > 1.0` 时，管线会在每一步为 negative prompt 运行一次额外的前向计算，推理时间大约翻倍。追求最快路径时保持 `1.0`，仅在确实需要 negative prompt 时调高。
 - **多语言提示词**: Qwen-Image-2.1 的 Qwen3-VL 文本编码器原生支持中文、韩文、日文、英文提示词，混合语言提示也可以工作。
 - **输出**: 结果是每个输入一个 `.png`（批量输入返回列表），由扩散 VAE 解码得到。

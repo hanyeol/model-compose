@@ -17,7 +17,7 @@
 ### 사전 요구사항
 
 - model-compose가 설치되어 PATH에서 실행 가능해야 합니다.
-- CUDA를 지원하는 GPU. Qwen-Image-2.1은 bfloat16으로 로드되며 2048×2048 해상도에서 오프로딩 없이 대략 **24 GB** VRAM을 요구합니다. 해상도를 낮추거나 CPU 오프로드를 사용하면 줄일 수 있습니다.
+- CUDA를 지원하는 GPU. 이 예제는 `cpu_offload: [text_encoder]` 옵션으로 Qwen-Image-2.1을 2048×2048 bfloat16 기준 단일 **24 GB** GPU 한 장에 맞춥니다. VRAM 여유가 더 많으면 해당 옵션을 제거하고, 더 작은 카드에서는 `cpu_offload: model`로 전환하세요.
 - `torch`, `diffusers` (main), `transformers>=5.17`을 설치할 수 있는 Python 환경 — 첫 실행 시 격리된 virtualenv에 자동으로 설치됩니다.
 - `Qwen/Qwen-Image-2.1`에 대한 라이선스를 수락한 HuggingFace 액세스 토큰. model-compose를 시작하기 전에 `HF_TOKEN` 환경 변수로 설정하세요.
 
@@ -69,6 +69,12 @@
      -H "Content-Type: application/json" \
      -d '{"input": {"prompt": "석양의 광활한 사막 협곡, 초정밀 디테일", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
+
+   # 이미지 조건 생성 — 참조 이미지를 한 장 또는 여러 장 전달
+   curl -X POST http://localhost:8080/api/workflows/runs \
+     -F "ref=@/path/to/reference.png" \
+     -F 'input={"prompt": "같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명", "reference_image": "@ref"}' \
+     -o output.png
    ```
 
    **Web UI 사용:**
@@ -95,6 +101,7 @@
 |--------------------------|---------------------------------------------------------------------------------------------|---------|
 | `prompt`                 | 텍스트 프롬프트 (또는 리스트/스트림).                                                        | —       |
 | `negative_prompt`        | 피할 내용에 대한 설명. `true_cfg_scale > 1.0`일 때만 적용됩니다.                             | (없음)  |
+| `reference_image`        | 비전 컨텍스트로 사용할 이미지 한 장 또는 리스트. 배치 내 모든 프롬프트에 브로드캐스트됩니다.  | (없음)  |
 | `width`                  | 출력 이미지 너비 (픽셀).                                                                     | `1024`  |
 | `height`                 | 출력 이미지 높이 (픽셀).                                                                     | `1024`  |
 | `num_return_images`      | 프롬프트당 반환되는 이미지 수.                                                                | `1`     |
@@ -108,7 +115,7 @@
 - **첫 실행은 느립니다**: 컨트롤러가 `.venv/qwen-image` 환경을 만들고, GitHub main에서 `diffusers`를 설치하고, 약 20 GB의 가중치를 첫 시작 시 다운로드합니다. ready 상태까지 10-15분이 걸립니다. 이후 실행은 캐시된 venv와 가중치를 재사용합니다.
 - **Diffusers는 main 고정**: Qwen-Image-2.1은 `diffusers` main에만 있는 클래스(`QwenImage21Pipeline`, `QwenImage21Transformer2DModel`, `AutoencoderKLQwenImage21`)에 의존합니다. 다음 정식 릴리스에 포함되면 이 예제의 setup을 git URL 대신 `diffusers>=<릴리스>`로 고정할 수 있으며, model-compose를 업데이트하면 compose 변경이 필요 없습니다.
 - **Qwen Research License**: `Qwen/Qwen-Image-2.1`은 Qwen Research License Agreement (비상업적)로 배포됩니다. 프로덕션 사용 전에 https://huggingface.co/Qwen/Qwen-Image-2.1 에서 조건을 검토하세요.
-- **VRAM 계획**: 7B transformer와 Qwen3-VL 텍스트 인코더가 함께 있어 2048×2048 bfloat16에서 피크 VRAM이 약 24 GB에 달합니다. 해상도를 낮추거나 컴포넌트에 `quantization` 설정을 추가해 16 GB 카드에도 맞출 수 있습니다. 드라이버는 `transformer`와 `text_encoder`를 양자화 대상으로 표시하므로 4비트/8비트 가중치가 가장 큰 절감을 제공합니다.
+- **VRAM 계획**: 7B transformer와 Qwen3-VL 텍스트 인코더를 모두 GPU에 상주시키면 2048×2048 bfloat16에서 피크 VRAM이 약 24 GB에 달합니다. 이 예제는 `cpu_offload: [text_encoder]`로 텍스트 인코더를 CPU에 두고 인코딩 순간에만 GPU로 이동시켜, transformer와 VAE는 GPU에 상주한 채 24 GB 한 장에서 최대 속도로 동작합니다. 피크 VRAM을 더 낮추고 싶다면 (속도 손실 감수) `cpu_offload: model` (파이프라인 전체 모듈 단위 offload) 또는 `cpu_offload: sequential` (레이어 단위, ~90% 절감이지만 2–5배 느림)로 전환하세요. 여기에 `quantization` 설정을 더하면 가중치 자체도 줄일 수 있으며, 드라이버는 `transformer`와 `text_encoder`를 양자화 대상으로 표시하므로 4비트/8비트가 가장 큰 절감을 제공합니다.
 - **`true_cfg_scale` vs 속도**: `true_cfg_scale > 1.0`이면 파이프라인이 스텝마다 negative prompt에 대한 추가 forward pass를 실행해 추론 시간이 약 두 배가 됩니다. 가장 빠른 경로를 원하면 `1.0`으로 두고, negative prompt가 정말 필요할 때만 올리세요.
 - **다국어 프롬프트**: Qwen-Image-2.1의 Qwen3-VL 텍스트 인코더는 중국어, 한국어, 일본어, 영어 프롬프트를 네이티브로 처리하며, 혼합 언어 프롬프트도 동작합니다.
 - **출력**: 결과는 diffusion VAE로 디코딩된 입력당 하나의 `.png` (배치 입력의 경우 리스트)입니다.

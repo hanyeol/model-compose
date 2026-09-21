@@ -65,7 +65,7 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
             if self.config.reference_image is not None:
                 reference_image = await context.render_image_array(self.config.reference_image, single_as_array=True)
-                reference_image = await reference_image.collect()
+                reference_image = await reference_image.collect() if reference_image is not None else None
 
             return (negative_prompt, reference_image)
 

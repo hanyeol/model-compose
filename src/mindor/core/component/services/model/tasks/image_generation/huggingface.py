@@ -61,13 +61,12 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
             negative_prompt = await context.render_variable(self.config.negative_prompt)
-            reference_image = None
+            image           = await context.render_image_array(self.config.image, single_as_array=True)
 
-            if self.config.reference_image is not None:
-                reference_image = await context.render_image_array(self.config.reference_image, single_as_array=True)
-                reference_image = await reference_image.collect() if reference_image is not None else None
+            if image is not None:
+                image = await image.collect()
 
-            return (negative_prompt, reference_image)
+            return (negative_prompt, image)
 
         raise ValueError(f"Unknown architecture: {architecture}")
 
@@ -192,18 +191,18 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
-            prompts, negative_prompts, reference_images = inputs
+            prompts, negative_prompts, images = inputs
 
             if all(value is None for value in negative_prompts):
                 negative_prompts = None
 
-            if all(value is None for value in reference_images):
-                reference_images = None
+            if all(value is None for value in images):
+                images = None
 
             return {
                 "prompt": list(prompts),
                 **({ "negative_prompt": list(negative_prompts) } if negative_prompts is not None else {}),
-                **({ "image":           list(reference_images) } if reference_images is not None else {}),
+                **({ "image":           list(images)           } if images is not None else {}),
             }
 
         raise ValueError(f"Unknown architecture: {architecture}")

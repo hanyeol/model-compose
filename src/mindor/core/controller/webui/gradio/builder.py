@@ -580,6 +580,9 @@ class GradioWebUIBuilder:
         if variable.type == WorkflowVariableType.BOOLEAN:
             return gr.Checkbox(label=label, value=default or False, info=info)
 
+        if variable.type == WorkflowVariableType.JSON:
+            return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
+
         if variable.type == WorkflowVariableType.LIST:
             return gr.Textbox(label=label, value=json.dumps(default, ensure_ascii=False) if default else "", info=info)
 

@@ -583,8 +583,6 @@ class VariableRenderer:
                     return value
                 if isinstance(value, StreamResource):
                     value = await load_image_from_stream(value)
-                if subtype is None:
-                    return value
                 return ImageStreamResource(value, subtype, filename=filename)
 
             if type == "audio":

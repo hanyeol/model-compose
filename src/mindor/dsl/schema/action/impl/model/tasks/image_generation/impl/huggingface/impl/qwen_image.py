@@ -10,7 +10,7 @@ class QwenImageHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGene
 class QwenImageHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
     negative_prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Negative prompt or prompts describing what to avoid.")
-    reference_image: Optional[Union[str, List[str]]] = Field(default=None, description="Optional reference image(s) used as visual conditioning for Qwen-Image.")
+    image: Optional[Union[str, List[str]]] = Field(default=None, description="Optional input image(s) used as visual context for instruction-based editing.")
     params: QwenImageHuggingfaceImageGenerationParamsConfig = Field(default_factory=QwenImageHuggingfaceImageGenerationParamsConfig, description="Qwen-Image-specific generation parameters.")
 
 QwenImageHuggingfaceImageGenerationModelActionConfig = Annotated[

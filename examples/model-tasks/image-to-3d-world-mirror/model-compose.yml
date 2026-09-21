@@ -1,0 +1,73 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: HunyuanWorld-Mirror 2.0 Reconstruction
+  description: Reconstruct a 3D scene (Gaussian splats + point cloud + cameras) from a set of images using HunyuanWorld-Mirror 2.0.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: world-mirror
+  device: cuda
+  # WorldMirror bundles the WorldMirror-2.0 checkpoint (~1.2 GB) inside the
+  # `tencent/HY-World-2.0` repo; the pipeline picks it up via `subfolder`.
+  model:
+    provider: huggingface
+    repository: tencent/HY-World-2.0
+    token: ${env.HF_TOKEN}
+  # Cast to bfloat16 to reduce VRAM at the cost of some precision on
+  # non-critical layers. Recommended on 24 GB consumer GPUs.
+  enable_bf16: false
+  # Prediction heads to disable and free from memory. Options: camera, depth,
+  # normal, points, gs. GS rendering depends on the camera head so it is
+  # auto-disabled when `camera` is dropped.
+  disable_heads: []
+  max_concurrent_count: 1
+  # WorldMirror pins a custom gsplat variant and vendors CUDA extensions from
+  # source; isolate the model worker so those pins don't collide with the
+  # controller's stack.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/world-mirror
+  action:
+    # Provide either a list of image paths / URLs or a single directory path
+    # containing the views. All images are treated as one scene.
+    image: ${input.image as image[]}
+    priors:
+      # Optional camera prior — a JSON file matching WorldMirror's own
+      # `camera_params.json` schema. Cameras can be provided as extrinsics,
+      # intrinsics, or both.
+      cameras: ${input.prior_cameras}
+      # Optional depth prior — a directory of per-view depth maps
+      # (.npy / .exr / .png) whose filenames match the input images.
+      depths: ${input.prior_depths}
+    # Result dict fields — set to false to skip generating a given output.
+    return_gaussians: ${input.return_gaussians as boolean | true}
+    return_points: ${input.return_points as boolean | true}
+    return_cameras: ${input.return_cameras as boolean | true}
+    return_depth: ${input.return_depth as boolean | false}
+    return_normal: ${input.return_normal as boolean | false}
+    params:
+      # Maximum inference resolution (longest edge). Larger = finer detail,
+      # more VRAM.
+      target_size: ${input.target_size as integer | 952}
+      # Mask / filter controls.
+      apply_sky_mask: ${input.apply_sky_mask as boolean | true}
+      apply_edge_mask: ${input.apply_edge_mask as boolean | true}
+      apply_confidence_mask: ${input.apply_confidence_mask as boolean | false}
+      # Point-cloud compression: voxel merge + subsample.
+      compress_pts: ${input.compress_pts as boolean | true}
+      compress_pts_max_points: ${input.compress_pts_max_points as integer | 2000000}
+      compress_gs_max_points: ${input.compress_gs_max_points as integer | 5000000}

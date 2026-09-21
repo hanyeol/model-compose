@@ -1,0 +1,79 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Pixal3D Multi-View Image-to-3D
+  description: Generate a high-fidelity GLB mesh from a posed multi-view image rig using Pixal3D.
+  job:
+    input: ${input}
+    output: ${output as model-3d/glb}
+
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: pixal3d-mv
+  device: cuda
+  # `TencentARC/Pixal3D` bundles the sparse-structure, shape, and texture
+  # flow-matching checkpoints as a single HuggingFace repository. The MV
+  # branch reuses the same repo but loads `pipeline_mv.json`, which points
+  # at the `ckpts/*_mv` checkpoints. Export `HF_TOKEN` after accepting the
+  # license (rembg model `briaai/RMBG-2.0` is also gated).
+  model:
+    provider: huggingface
+    repository: TencentARC/Pixal3D
+    token: ${env.HF_TOKEN}
+  # Pipeline resolution: 1024 or 1536. Unset defaults to 1024 in low-VRAM mode,
+  # else 1536. Lower resolution trades detail for speed and peak VRAM.
+  # resolution: 1024
+  # Low-VRAM mode keeps stage models on CPU and moves them to GPU on demand,
+  # reducing peak VRAM at the cost of slower inference.
+  low_vram: false
+  max_concurrent_count: 1
+  # Pixal3D pins transformers 4.57.3, diffusers 0.37.1, kornia 0.8.2, and
+  # installs two upstream packages (pixal3d, o_voxel) from GitHub. Isolate the
+  # model worker so those pins don't collide with the controller's stack.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/pixal3d-mv
+  action:
+    # `image` and `transform_matrix` are parallel arrays: element i of one
+    # corresponds to element i of the other. Frame 0 should be the canonical
+    # front view — camera at (0, -d, 0) looking at the origin with world +Z
+    # up — otherwise the mesh is posed in that view's frame.
+    image: ${input.image as image[]}
+    transform_matrix: ${input.transform_matrix}
+    # Horizontal FOV in radians. Scalar shared across views, or a list matching
+    # `image` length for per-view overrides.
+    camera_angle_x: ${input.camera_angle_x as number}
+    mesh_scale: ${input.mesh_scale as number | 1.0}
+    params:
+      image_resolution: ${input.image_resolution as integer | 512}
+      # Sparse-structure (SS) sampler — coarse voxel layout.
+      ss_sampling_steps: ${input.ss_sampling_steps as integer | 12}
+      ss_guidance_strength: ${input.ss_guidance_strength as number | 7.5}
+      ss_guidance_rescale: ${input.ss_guidance_rescale as number | 0.7}
+      ss_rescale_t: ${input.ss_rescale_t as number | 5.0}
+      # Shape structured-latent sampler — geometry refinement.
+      shape_slat_sampling_steps: ${input.shape_slat_sampling_steps as integer | 12}
+      shape_slat_guidance_strength: ${input.shape_slat_guidance_strength as number | 7.5}
+      shape_slat_guidance_rescale: ${input.shape_slat_guidance_rescale as number | 0.5}
+      shape_slat_rescale_t: ${input.shape_slat_rescale_t as number | 3.0}
+      # Texture structured-latent sampler — PBR colour / metallic / roughness.
+      tex_slat_sampling_steps: ${input.tex_slat_sampling_steps as integer | 12}
+      tex_slat_guidance_strength: ${input.tex_slat_guidance_strength as number | 1.0}
+      tex_slat_guidance_rescale: ${input.tex_slat_guidance_rescale as number | 0.0}
+      tex_slat_rescale_t: ${input.tex_slat_rescale_t as number | 3.0}
+      # Maximum sparse-token budget per stage. Raise for finer geometry at the
+      # cost of higher VRAM.
+      max_num_tokens: ${input.max_num_tokens as integer | 49152}
+      # Baked texture and target face count applied when exporting the GLB.
+      texture_size: ${input.texture_size as integer | 4096}
+      decimation_target: ${input.decimation_target as integer | 1000000}

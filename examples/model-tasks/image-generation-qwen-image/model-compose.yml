@@ -43,8 +43,8 @@ component:
     driver: python
     path: .venv/qwen-image
   action:
-    prompt: ${input.prompt as string}
-    negative_prompt: ${input.negative_prompt as string}
+    prompt: ${input.prompt as text}
+    negative_prompt: ${input.negative_prompt as text}
     reference_image: ${input.reference_image as image}
     width: ${input.width as integer | 1024}
     height: ${input.height as integer | 1024}

@@ -1,0 +1,50 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Qwen-Image 2.1 Text-to-Image
+  description: Generate a high-fidelity image from a text prompt using Alibaba's Qwen-Image-2.1.
+  job:
+    input: ${input}
+    output: ${output as image/png}
+
+component:
+  type: model
+  task: image-generation
+  driver: huggingface
+  architecture: qwen-image
+  device: cuda
+  # `Qwen/Qwen-Image-2.1` bundles the transformer, VAE, scheduler, and the
+  # Qwen3-VL text encoder as a single HuggingFace repository. The model is
+  # released under the Qwen Research License (non-commercial); accept the terms
+  # on HuggingFace and export `HF_TOKEN` before running.
+  model:
+    provider: huggingface
+    repository: Qwen/Qwen-Image-2.1
+    token: ${env.HF_TOKEN}
+  max_concurrent_count: 1
+  # QwenImage21Pipeline is only available on `diffusers` main as of 2026-09
+  # (not in v0.40.0). The image-generation driver adds the git URL to this
+  # component's setup requirements, so isolate the worker to keep that
+  # unreleased build from shadowing the controller's `diffusers` install.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/qwen-image
+  action:
+    prompt: ${input.prompt as string}
+    negative_prompt: ${input.negative_prompt as string}
+    width: ${input.width as integer | 2048}
+    height: ${input.height as integer | 2048}
+    seed: ${input.seed as integer}
+    params:
+      inference_steps: ${input.inference_steps as integer | 40}
+      # `true_cfg_scale > 1.0` enables classifier-free guidance with
+      # `negative_prompt`; keep it at 1.0 to skip the extra forward pass.
+      true_cfg_scale: ${input.true_cfg_scale as number | 1.0}

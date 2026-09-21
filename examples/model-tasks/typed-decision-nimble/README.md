@@ -38,7 +38,7 @@ Compared to prompting a general chat model to return JSON, Nimble is purpose-bui
 **Trade-offs:**
 - **Text Only**: Nimble accepts text contexts only; the vision head of the base model is not used
 - **Flat Schemas**: Each field is `enum` (1–26 choices) or `boolean`; nested fields, free-form strings, and cross-field dependencies must be handled by the caller
-- **Prompt Budget**: The full prompt including schema is limited to 2048 tokens
+- **Prompt Budget**: The full prompt including schema is limited to `max_seq_length` tokens (default 4096)
 - **Merge Cost**: The first startup downloads and merges the adapter onto the base; subsequent runs reuse the cached merged folder
 
 ### Environment Configuration
@@ -115,7 +115,7 @@ Compared to prompting a general chat model to return JSON, Nimble is purpose-bui
   - Automatic adapter download, LoRA merge, and merged-checkpoint caching
   - Backend auto-selection between MLX (Apple Silicon) and CUDA (Linux+NVIDIA)
   - Per-field candidate probabilities and optional raw logits
-  - Batched context processing when the caller passes a list of contexts
+  - Batched processing when the caller passes a list of texts
 
 ### Model Information: Bespoke Nimble-9B
 - **Developer**: Bespoke Labs
@@ -129,7 +129,7 @@ Compared to prompting a general chat model to return JSON, Nimble is purpose-bui
 
 ### "Typed Decision (Bespoke Nimble-9B)" Workflow (Default)
 
-**Description**: One-shot typed decisions from a context string and a flat field schema; returns the chosen value plus per-candidate probabilities per field, without generating any free-form text.
+**Description**: One-shot typed decisions from an input text and a flat field schema; returns the chosen value plus per-candidate probabilities per field, without generating any free-form text.
 
 #### Job Flow
 
@@ -156,7 +156,7 @@ graph TD
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `text` | text | Yes | - | The unstructured text the scorer will judge. Combined with the schema, must fit within 2048 tokens. |
+| `text` | text | Yes | - | The unstructured text the scorer will judge. Combined with the schema, must fit within `max_seq_length` tokens (default 4096). |
 | `schema` | json | Yes | - | Flat map of field name to a field spec: `{type: enum, choices: [...], description?, choice_descriptions?}` or `{type: boolean, description?}`. |
 
 #### Output Format
@@ -190,9 +190,9 @@ Example response body:
 
 ### Performance Notes
 - First run downloads the base model (~18 GB) and merges the adapter; the merged folder is reused on subsequent runs
-- MLX runs the shared prompt once per context and scores fields in parallel — best on Apple Silicon
+- MLX runs the shared prompt once per input text and scores fields in parallel — best on Apple Silicon
 - CUDA runs each field with the full prompt — throughput scales with GPU compute
-- Prompt length (context + schema) is capped at 2048 tokens; longer inputs are rejected
+- Prompt length (text + schema) is capped at `max_seq_length` tokens (default 4096); longer inputs are rejected
 
 ## Customization
 
@@ -223,7 +223,7 @@ component:
     return_logits: true
 ```
 
-### Batching Multiple Contexts
+### Batching Multiple Inputs
 
 Pass a list to `text` when you have many independent decisions against the same schema; the driver batches them internally:
 
@@ -242,12 +242,12 @@ component:
 1. **Out of Memory During Merge**: The one-time LoRA merge loads the full base on CPU. Ensure at least 32 GB system RAM; the merged snapshot is cached so this cost is paid once
 2. **Unsupported Platform Error**: The Nimble driver supports Darwin+arm64 (MLX) and Linux+x86_64 with CUDA. Other combinations (Linux ARM, Intel Mac) are not supported by the upstream scorer
 3. **BF16 Not Supported**: Nimble's CUDA scorer requires BF16-capable GPUs (Ampere or newer). Older cards will fail during scorer construction
-4. **Prompt Too Long**: The scorer rejects prompts over 2048 tokens including the schema. Shorten the context, trim field descriptions, or split the decision into multiple calls
+4. **Prompt Too Long**: The scorer rejects prompts over `max_seq_length` tokens (default 4096) including the schema. Shorten the text, trim field descriptions, or split the decision into multiple calls
 5. **Slow First Run**: Downloading the base model (~18 GB) and merging the adapter can take several minutes; subsequent runs reuse the cached merged folder
 
 ### Performance Optimization
 
 - **Backend**: On Apple Silicon, prefer MLX (the default); on Linux, use a BF16-capable GPU
-- **Batching**: Increase `batch_size` when scoring many contexts against the same schema
+- **Batching**: Increase `batch_size` when scoring many texts against the same schema
 - **Schema Design**: Fewer, better-described choices produce sharper probabilities than many overlapping ones
 - **Field Independence**: Nimble scores each field separately; if two fields must agree (e.g. only allow `requires_review: true` when `priority: HIGH`), enforce that in your workflow rather than trusting the model to be consistent

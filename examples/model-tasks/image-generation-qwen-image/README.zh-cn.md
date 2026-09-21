@@ -70,10 +70,10 @@
      -d '{"input": {"prompt": "日落时分辽阔的沙漠峡谷，超精细细节", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
 
-   # 图像条件生成 — 传入一张或多张参考图像
+   # 图像条件生成 — 传入一张或多张输入图像作为指令编辑的对象
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/reference.png" \
-     -F 'input={"prompt": "同一主体置于黄昏雪林中，电影感光线", "reference_image": "@ref"}' \
+     -F "ref=@/path/to/input.png" \
+     -F 'input={"prompt": "同一主体置于黄昏雪林中，电影感光线", "image": "@ref"}' \
      -o output.png
    ```
 
@@ -101,7 +101,7 @@
 |--------------------------|--------------------------------------------------------------------------------------------|---------|
 | `prompt`                 | 文本提示词（或列表/流）。                                                                   | —       |
 | `negative_prompt`        | 描述需避免内容的文本。仅在 `true_cfg_scale > 1.0` 时生效。                                  | (无)    |
-| `reference_image`        | 作为视觉上下文的可选单张图像或图像列表。会广播到批次中的所有提示词。                          | (无)    |
+| `image`                  | 用于指令式编辑的可选单张输入图像或图像列表。会广播到批次中的所有提示词。                       | (无)    |
 | `width`                  | 输出图像宽度（像素）。                                                                       | `1024`  |
 | `height`                 | 输出图像高度（像素）。                                                                       | `1024`  |
 | `num_return_images`      | 每个提示词返回的图像数量。                                                                    | `1`     |

@@ -70,10 +70,10 @@ This workflow provides local text-to-image generation that:
      -d '{"input": {"prompt": "A vast desert canyon at sunset, ultra-detailed", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
 
-   # Image-conditioned generation — pass one or more reference images
+   # Image-conditioned generation — pass one or more input images for instruction-based editing
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/reference.png" \
-     -F 'input={"prompt": "Same subject in a snowy forest at dusk, cinematic light", "reference_image": "@ref"}' \
+     -F "ref=@/path/to/input.png" \
+     -F 'input={"prompt": "Same subject in a snowy forest at dusk, cinematic light", "image": "@ref"}' \
      -o output.png
    ```
 
@@ -101,7 +101,7 @@ This workflow provides local text-to-image generation that:
 |--------------------------|-----------------------------------------------------------------------------------------|---------|
 | `prompt`                 | Text prompt (or list/stream of prompts).                                                | —       |
 | `negative_prompt`        | Text describing what to avoid. Only takes effect when `true_cfg_scale > 1.0`.           | (none)  |
-| `reference_image`        | Optional single image or list of images used as vision context. Broadcast across every prompt in a batch. | (none)  |
+| `image`                  | Optional single image or list of images used as vision context for instruction-based editing. Broadcast across every prompt in a batch. | (none)  |
 | `width`                  | Output image width in pixels.                                                           | `1024`  |
 | `height`                 | Output image height in pixels.                                                          | `1024`  |
 | `num_return_images`      | Number of images returned per prompt.                                                   | `1`     |

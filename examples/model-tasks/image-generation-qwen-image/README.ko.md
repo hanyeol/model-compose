@@ -70,10 +70,10 @@
      -d '{"input": {"prompt": "석양의 광활한 사막 협곡, 초정밀 디테일", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
 
-   # 이미지 조건 생성 — 참조 이미지를 한 장 또는 여러 장 전달
+   # 이미지 조건 생성 — 편집 지시(instruction) 대상이 될 입력 이미지를 한 장 또는 여러 장 전달
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/reference.png" \
-     -F 'input={"prompt": "같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명", "reference_image": "@ref"}' \
+     -F "ref=@/path/to/input.png" \
+     -F 'input={"prompt": "같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명", "image": "@ref"}' \
      -o output.png
    ```
 
@@ -101,7 +101,7 @@
 |--------------------------|---------------------------------------------------------------------------------------------|---------|
 | `prompt`                 | 텍스트 프롬프트 (또는 리스트/스트림).                                                        | —       |
 | `negative_prompt`        | 피할 내용에 대한 설명. `true_cfg_scale > 1.0`일 때만 적용됩니다.                             | (없음)  |
-| `reference_image`        | 비전 컨텍스트로 사용할 이미지 한 장 또는 리스트. 배치 내 모든 프롬프트에 브로드캐스트됩니다.  | (없음)  |
+| `image`                  | 지시(instruction) 기반 편집을 위한 입력 이미지 한 장 또는 리스트. 배치 내 모든 프롬프트에 브로드캐스트됩니다. | (없음)  |
 | `width`                  | 출력 이미지 너비 (픽셀).                                                                     | `1024`  |
 | `height`                 | 출력 이미지 높이 (픽셀).                                                                     | `1024`  |
 | `num_return_images`      | 프롬프트당 반환되는 이미지 수.                                                                | `1`     |

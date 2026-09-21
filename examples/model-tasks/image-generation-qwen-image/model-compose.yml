@@ -32,7 +32,7 @@ component:
   # VRAM. Offloading the text encoder to CPU keeps the transformer resident on
   # GPU at full speed and fits the pipeline into a single 24GB GPU. Swap to
   # `cpu_offload: model` for even lower peak VRAM at some latency cost.
-  cpu_offload: [text_encoder]
+  cpu_offload: model
   max_concurrent_count: 1
   # QwenImage21Pipeline is only available on `diffusers` main as of 2026-09
   # (not in v0.40.0). The image-generation driver adds the git URL to this

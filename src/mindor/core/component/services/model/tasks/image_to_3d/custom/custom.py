@@ -5,8 +5,12 @@ from ....base import ModelTaskType, ModelDriverType, register_model_task_driver
 class CustomImageTo3DTaskDriver:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == ImageTo3DModelFamily.PIXAL3D:
-            from .pixal3d import Pixal3DImageTo3DTaskDriver
+            from .pixal3d.pixal3d import Pixal3DImageTo3DTaskDriver
             return Pixal3DImageTo3DTaskDriver(id, config, daemon)
+
+        if config.family == ImageTo3DModelFamily.PIXAL3D_MV:
+            from .pixal3d.pixal3d_mv import Pixal3DMultiViewImageTo3DTaskDriver
+            return Pixal3DMultiViewImageTo3DTaskDriver(id, config, daemon)
 
         if config.family == ImageTo3DModelFamily.ANIGEN:
             from .anigen import AniGenImageTo3DTaskDriver

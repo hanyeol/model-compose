@@ -38,7 +38,7 @@ class VideoToVideoTaskAction(ComponentAction):
                 async for batch_sources, batch_prompts, batch_negatives, batch_references in BatchSourceIterator((source, prompt, negative_prompt, reference_image), batch_size=batch_size or 1):
                     batch_results = await self._generate_batch(batch_sources, batch_prompts, batch_negatives, batch_references, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result", result)
+                        context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()

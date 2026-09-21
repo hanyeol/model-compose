@@ -15,7 +15,7 @@ class ImageTo3DTaskAction(ComponentAction):
         self.config: ImageTo3DModelActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        source, is_single_input, is_streaming_input = await self._prepare_input(context)
+        input, is_single_input, is_streaming_input = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
@@ -24,15 +24,18 @@ class ImageTo3DTaskAction(ComponentAction):
 
         if is_streaming_input:
             async def _stream_output_generator():
-                async for (batch_inputs,) in BatchSourceIterator((source,), batch_size=batch_size or 1):
+                async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                    batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
                     batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result", result)
+                        context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for (batch_inputs,) in BatchSourceIterator((source,), batch_size=batch_size or 1):
+            async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
                 batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                 results.extend(batch_results)
 
@@ -47,12 +50,12 @@ class ImageTo3DTaskAction(ComponentAction):
         is_single_input    = not isinstance(image, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(image, (StreamIterator, AsyncIterator))
 
-        return image, is_single_input, is_streaming_input
+        return (image,), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        mesh_scale       = await context.render_variable(self.config.params.mesh_scale)
-        image_resolution = await context.render_variable(self.config.params.image_resolution)
-        seed             = await context.render_variable(self.config.seed)
+        mesh_scale       = await context.render_scalar(self.config.params.mesh_scale, float)
+        image_resolution = await context.render_scalar(self.config.params.image_resolution, int)
+        seed             = await context.render_scalar(self.config.seed, int)
 
         return {
             "mesh_scale":       mesh_scale,

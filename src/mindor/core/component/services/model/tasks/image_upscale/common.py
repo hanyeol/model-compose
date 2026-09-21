@@ -41,7 +41,7 @@ class ImageUpscaleTaskAction(ComponentAction):
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_images, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result", result)
+                        context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()

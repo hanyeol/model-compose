@@ -190,6 +190,7 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
                 if end >= padded_samples:
                     break
+
                 start += hop_samples
 
         norm = torch.where(norm == 0, torch.ones_like(norm), norm)

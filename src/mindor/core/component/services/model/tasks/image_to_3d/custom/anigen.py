@@ -49,18 +49,18 @@ class AniGenImageTo3DTaskAction(ImageTo3DTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        cfg_scale_ss              = await context.render_variable(self.config.params.cfg_scale_ss)
-        cfg_scale_slat            = await context.render_variable(self.config.params.cfg_scale_slat)
-        ss_steps                  = await context.render_variable(self.config.params.ss_steps)
-        slat_steps                = await context.render_variable(self.config.params.slat_steps)
-        joints_density            = await context.render_variable(self.config.params.joints_density)
-        simplify_ratio            = await context.render_variable(self.config.params.simplify_ratio)
+        cfg_scale_ss              = await context.render_scalar(self.config.params.cfg_scale_ss, float)
+        cfg_scale_slat            = await context.render_scalar(self.config.params.cfg_scale_slat, float)
+        ss_steps                  = await context.render_scalar(self.config.params.ss_steps, int)
+        slat_steps                = await context.render_scalar(self.config.params.slat_steps, int)
+        joints_density            = await context.render_scalar(self.config.params.joints_density, int)
+        simplify_ratio            = await context.render_scalar(self.config.params.simplify_ratio, float)
         fill_holes                = await context.render_scalar(self.config.params.fill_holes, bool)
         no_smooth_skin_weights    = await context.render_scalar(self.config.params.no_smooth_skin_weights, bool)
-        smooth_skin_weights_iters = await context.render_variable(self.config.params.smooth_skin_weights_iters)
-        smooth_skin_weights_alpha = await context.render_variable(self.config.params.smooth_skin_weights_alpha)
+        smooth_skin_weights_iters = await context.render_scalar(self.config.params.smooth_skin_weights_iters, int)
+        smooth_skin_weights_alpha = await context.render_scalar(self.config.params.smooth_skin_weights_alpha, float)
         no_filter_skin_weights    = await context.render_scalar(self.config.params.no_filter_skin_weights, bool)
-        texture_size              = await context.render_variable(self.config.params.texture_size)
+        texture_size              = await context.render_scalar(self.config.params.texture_size, int)
         return_mesh               = await context.render_scalar(self.config.return_mesh, bool)
         return_skeleton           = await context.render_scalar(self.config.return_skeleton, bool)
         return_image              = await context.render_scalar(self.config.return_image, bool)
@@ -90,19 +90,19 @@ class AniGenImageTo3DTaskAction(ImageTo3DTaskAction):
 
     async def _generate_batch(
         self,
-        images: List[PILImage.Image],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         def _generate() -> List[Any]:
-            return [ self._render(image, params) for image in images ]
+            return [ self._render(image, params) for (image,) in inputs ]
 
         return await self._run_in_executor(_generate)
 
     def _render(self, image: PILImage.Image, params: Dict[str, Any]) -> Dict[str, Any]:
         import torch
 
-        seed = int(params["seed"]) if params["seed"] is not None else 42
+        seed = params["seed"] if params["seed"] is not None else 42
 
         # AniGen's pipeline hardcodes relative paths for `torch.hub.load('./ckpts/dinov2', ...)`
         # inside `from_pretrained` (already loaded), but `run()` also writes
@@ -121,18 +121,18 @@ class AniGenImageTo3DTaskAction(ImageTo3DTaskAction):
             outputs = self.pipeline.run(
                 image,
                 seed=seed,
-                cfg_scale_ss=float(params["cfg_scale_ss"]),
-                cfg_scale_slat=float(params["cfg_scale_slat"]),
-                ss_steps=int(params["ss_steps"]),
-                slat_steps=int(params["slat_steps"]),
-                joints_density=int(params["joints_density"]),
-                simplify_ratio=float(params["simplify_ratio"]),
-                fill_holes=bool(params["fill_holes"]),
-                no_smooth_skin_weights=bool(params["no_smooth_skin_weights"]),
-                no_filter_skin_weights=bool(params["no_filter_skin_weights"]),
-                smooth_skin_weights_iters=int(params["smooth_skin_weights_iters"]),
-                smooth_skin_weights_alpha=float(params["smooth_skin_weights_alpha"]),
-                texture_size=int(params["texture_size"]),
+                cfg_scale_ss=params["cfg_scale_ss"],
+                cfg_scale_slat=params["cfg_scale_slat"],
+                ss_steps=params["ss_steps"],
+                slat_steps=params["slat_steps"],
+                joints_density=params["joints_density"],
+                simplify_ratio=params["simplify_ratio"],
+                fill_holes=params["fill_holes"],
+                no_smooth_skin_weights=params["no_smooth_skin_weights"],
+                no_filter_skin_weights=params["no_filter_skin_weights"],
+                smooth_skin_weights_iters=params["smooth_skin_weights_iters"],
+                smooth_skin_weights_alpha=params["smooth_skin_weights_alpha"],
+                texture_size=params["texture_size"],
                 output_glb=output_glb,
             )
         finally:

@@ -33,7 +33,7 @@ class VectorProcessorAction(ComponentAction):
                 async for batch in BatchSourceIterator(source, batch_size=batch_size or 1):
                     batch_results = await self._process(self.config.method, batch, params)
                     for result in batch_results:
-                        context.register_source("result", result)
+                        context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
             return _stream_output_generator()
         else:

@@ -32,7 +32,7 @@ class SearchEngineAction(ComponentAction):
                     batch_inputs = zip(*batch_inputs) # Transpose per-slot batches into per-request tuples.
                     batch_results = await self._process_batch(self.config.method, index, batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result", result)
+                        context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
             return _stream_output_generator()
         else:

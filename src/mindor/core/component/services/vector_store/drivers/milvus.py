@@ -145,6 +145,7 @@ class MilvusVectorStoreAction(VectorStoreAction):
         vector_field = params["vector_field"]
 
         data = []
+
         for index, vector in enumerate(vectors):
             item = { vector_field: vector }
 
@@ -247,6 +248,7 @@ class MilvusVectorStoreAction(VectorStoreAction):
 
         for query in range(len(result)):
             hits = []
+
             for hit in result[query]:
                 hits.append({
                     "id": hit["id"],
@@ -254,6 +256,7 @@ class MilvusVectorStoreAction(VectorStoreAction):
                     "distance": hit["distance"],
                     "metadata": hit["entity"]
                 })
+
             results.append(hits)
 
         return results

@@ -1,4 +1,4 @@
-from typing import Literal, List, Union, Annotated
+from typing import Literal, List, Optional, Union, Annotated
 from enum import Enum
 from pydantic import Field
 from mindor.dsl.schema.action import (
@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import (
     QwenImageHuggingfaceImageGenerationModelActionConfig,
 )
 from .common import CommonImageGenerationModelComponentConfig
+from ...base.diffusion import DiffusionCpuOffload
 from ...common import ModelDriverType
 
 class HuggingfaceImageGenerationModelArchitecture(str, Enum):
@@ -18,6 +19,7 @@ class HuggingfaceImageGenerationModelArchitecture(str, Enum):
 
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.HUGGINGFACE]
+    cpu_offload: Optional[DiffusionCpuOffload] = Field(default=None, description="CPU offload strategy: 'model'/'sequential' for whole pipeline, or list of submodule names for selective offload.")
 
 class SdxlHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.SDXL]

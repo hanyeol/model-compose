@@ -30,8 +30,8 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> List[str]:
         requirements = [
-            *torch_requirements("torch"),
-            "transformers>=4.52.0",
+            *self._get_torch_requirements(),
+            *self._get_transformer_requirements(),
             "accelerate",
         ]
 
@@ -43,6 +43,12 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
             requirements.append("bitsandbytes>=0.50.0")
 
         return requirements
+
+    def _get_torch_requirements(self) -> List[str]:
+        return torch_requirements("torch")
+
+    def _get_transformer_requirements(self) -> List[str]:
+        return [ "transformers>=4.52.0" ]
 
     async def _load_pretrained_model(self) -> Tuple[PreTrainedModel, str]:
         model_path = await self._provision_model(self.config.model)

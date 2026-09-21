@@ -1,7 +1,19 @@
-from typing import Union, Optional, Dict, Any
+from typing import Literal, Union, Optional, List, Dict, Any
+from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.utils.path import is_local_path
 from ..common import ModelConfig, ModelProvider, ModelPrecision
+
+class DiffusionSubmodule(str, Enum):
+    TEXT_ENCODER   = "text_encoder"
+    TEXT_ENCODER_2 = "text_encoder_2"
+    TEXT_ENCODER_3 = "text_encoder_3"
+    TRANSFORMER    = "transformer"
+    UNET           = "unet"
+    VAE            = "vae"
+    IMAGE_ENCODER  = "image_encoder"
+
+DiffusionCpuOffload = Union[Literal["model", "sequential"], List[DiffusionSubmodule]]
 
 class DiffusionVaeConfig(BaseModel):
     model: ModelConfig = Field(..., description="VAE model identifier — a HuggingFace repo ID or a local path.")

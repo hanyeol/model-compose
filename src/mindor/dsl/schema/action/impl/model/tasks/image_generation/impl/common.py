@@ -14,7 +14,6 @@ class CommonImageGenerationParamsConfig(BaseModel):
 class CommonImageGenerationModelActionConfig(CommonModelActionConfig):
     method: ImageGenerationActionMethod = Field(default=ImageGenerationActionMethod.GENERATE, description="Image generation operation this action performs.")
     prompt: Union[str, List[str]] = Field(..., description="Text prompt or prompts describing the image to generate.")
-    negative_prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Negative prompt or prompts describing what to avoid; ignored by drivers without classifier-free guidance.")
     width: Union[int, str] = Field(default=1024, description="Output image width in pixels.")
     height: Union[int, str] = Field(default=1024, description="Output image height in pixels.")
     num_return_images: Union[int, str] = Field(default=1, description="Number of images returned per input prompt.")

@@ -1,4 +1,4 @@
-from typing import Union, Literal, Annotated
+from typing import Union, Optional, List, Literal, Annotated
 from pydantic import Field
 from ...common import ImageGenerationActionMethod
 from .common import CommonHuggingfaceImageGenerationModelActionConfig, CommonHuggingfaceImageGenerationParamsConfig
@@ -9,6 +9,8 @@ class QwenImageHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGene
 
 class QwenImageHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
+    negative_prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Negative prompt or prompts describing what to avoid.")
+    reference_image: Optional[Union[str, List[str]]] = Field(default=None, description="Optional reference image(s) used as visual conditioning for Qwen-Image.")
     params: QwenImageHuggingfaceImageGenerationParamsConfig = Field(default_factory=QwenImageHuggingfaceImageGenerationParamsConfig, description="Qwen-Image-specific generation parameters.")
 
 QwenImageHuggingfaceImageGenerationModelActionConfig = Annotated[

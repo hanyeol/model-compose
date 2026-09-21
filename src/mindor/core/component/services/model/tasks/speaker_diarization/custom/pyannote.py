@@ -115,6 +115,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
             def _abort_if_cancelled(_step_name, _step_artifact, file=None, total=None, completed=None):
                 if cancellation_token.is_cancelled():
                     raise PipelineCancelled()
+
             pipeline_params = { **pipeline_params, "hook": _abort_if_cancelled }
 
         try:

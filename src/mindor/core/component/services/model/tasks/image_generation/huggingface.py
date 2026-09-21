@@ -1,9 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Tuple, Any
+from typing import Type, Optional, Tuple, Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
-from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, DiffusionVaeConfig
+from mindor.dsl.schema.component import HuggingfaceImageGenerationModelArchitecture, DiffusionVaeConfig, DiffusionCpuOffload
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
@@ -36,6 +38,38 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         self.architecture: HuggingfaceImageGenerationModelArchitecture = architecture
         self.pipeline: DiffusionPipeline = pipeline
 
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt           = await context.render_text(self.config.prompt)
+        additional_input = await self._prepare_architecture_input(self.architecture, context)
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+
+        return (prompt, *additional_input), is_single_input, is_streaming_input
+
+    async def _prepare_architecture_input(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Tuple[Any, ...]:
+        if architecture in (
+            HuggingfaceImageGenerationModelArchitecture.SDXL,
+            HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE
+        ):
+            negative_prompt = await context.render_variable(self.config.negative_prompt)
+
+            return (negative_prompt,)
+
+        if architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
+            return ()
+
+        if architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            negative_prompt = await context.render_variable(self.config.negative_prompt)
+            reference_image = None
+
+            if self.config.reference_image is not None:
+                reference_image = await context.render_image_array(self.config.reference_image, single_as_array=True)
+
+            return (negative_prompt, reference_image)
+
+        raise ValueError(f"Unknown architecture: {architecture}")
+
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
@@ -64,12 +98,10 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
-            negative_prompt = await context.render_variable(self.config.negative_prompt)
-            guidance_scale  = await context.render_scalar(self.config.params.guidance_scale, float)
+            guidance_scale = await context.render_scalar(self.config.params.guidance_scale, float)
 
             return {
-                "negative_prompt": negative_prompt,
-                "guidance_scale":  guidance_scale,
+                "guidance_scale": guidance_scale,
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
@@ -82,28 +114,24 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
-            negative_prompt          = await context.render_variable(self.config.negative_prompt)
             distilled_guidance_scale = await context.render_scalar(self.config.params.distilled_guidance_scale, float)
 
             return {
-                "negative_prompt":          negative_prompt,
                 "distilled_guidance_scale": distilled_guidance_scale,
             }
 
         if architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
-            negative_prompt = await context.render_variable(self.config.negative_prompt)
-            true_cfg_scale  = await context.render_scalar(self.config.params.true_cfg_scale, float)
+            true_cfg_scale = await context.render_scalar(self.config.params.true_cfg_scale, float)
 
             return {
-                "negative_prompt": negative_prompt,
-                "true_cfg_scale":  true_cfg_scale,
+                "true_cfg_scale": true_cfg_scale,
             }
 
         raise ValueError(f"Unknown architecture: {architecture}")
 
     async def _generate_batch(
         self,
-        prompts: List[str],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
@@ -115,18 +143,21 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
             if params["seed"] is not None:
                 generator = torch.Generator(device=self.device).manual_seed(params["seed"])
 
-            pipeline_params = params["pipeline"]
+            pipeline_params = {
+                **params["pipeline"],
+                **self._build_architecture_input_params(self.architecture, inputs)
+            }
 
             if cancellation_token is not None:
                 def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
                     if cancellation_token.is_cancelled():
                         raise PipelineCancelled()
                     return callback_kwargs
-                pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
+
+                pipeline_params["callback_on_step_end"] = _abort_if_cancelled
 
             try:
                 result = self.pipeline(
-                    prompt=prompts,
                     generator=generator,
                     **pipeline_params,
                 )
@@ -136,6 +167,45 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
             return list(result.images)
 
         return await self._run_in_executor(_generate)
+
+    def _build_architecture_input_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, inputs: Any) -> Dict[str, Any]:
+        if architecture in (
+            HuggingfaceImageGenerationModelArchitecture.SDXL,
+            HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE
+        ):
+            prompts, negative_prompts = inputs
+
+            if all(value is None for value in negative_prompts):
+                negative_prompts = None
+
+            return {
+                "prompt": list(prompts),
+                **({ "negative_prompt": list(negative_prompts) } if negative_prompts is not None else {}),
+            }
+
+        if architecture == HuggingfaceImageGenerationModelArchitecture.FLUX:
+            (prompts,) = inputs
+
+            return {
+                "prompt": list(prompts),
+            }
+
+        if architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            prompts, negative_prompts, reference_images = inputs
+
+            if all(value is None for value in negative_prompts):
+                negative_prompts = None
+
+            if all(value is None for value in reference_images):
+                reference_images = None
+
+            return {
+                "prompt": list(prompts),
+                **({ "negative_prompt": list(negative_prompts) } if negative_prompts is not None else {}),
+                **({ "image":           list(reference_images) } if reference_images is not None else {}),
+            }
+
+        raise ValueError(f"Unknown architecture: {architecture}")
 
 class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskAction):
     config: HuggingfaceImageGenerationModelActionConfig
@@ -224,6 +294,7 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
                     if cancellation_token.is_cancelled():
                         raise PipelineCancelled()
                     return callback_kwargs
+
                 pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
 
             try:
@@ -244,83 +315,33 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 @register_model_task_driver(ModelTaskType.IMAGE_GENERATION, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[ImageGenerationActionMethod]):
     def _get_setup_requirements(self) -> List[str]:
-        requirements = [
+        return [
             *super()._get_setup_requirements(),
             "sentencepiece",
         ]
 
+    def _get_torch_requirements(self) -> List[str]:
         if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
-            # QwenImage21Pipeline lives on diffusers main (currently 0.41.0.dev0); not in any
-            # tagged release as of 2026-09 (latest v0.40.0). The `>=0.41.0.dev0` pin forces
-            # reinstall when an older diffusers is already present (unversioned parent spec
-            # would otherwise be considered satisfied) and stays satisfied once 0.41 ships.
-            # Qwen3-VL text encoder requires transformers >= 5.17 per the model card, and its
-            # processor lazily loads Qwen3VLVideoProcessor which pulls in torchvision.
-            requirements.append("diffusers>=0.41.0.dev0@git+https://github.com/huggingface/diffusers.git")
-            requirements.append("transformers>=5.17")
-            requirements.extend(torch_requirements("torchvision"))
+            # Qwen3-VL text encoder's processor lazily loads Qwen3VLVideoProcessor,
+            # which pulls in torchvision.
+            return torch_requirements("torch", "torchvision")
 
-        return requirements
+        return super()._get_torch_requirements()
 
-    async def _load_pretrained_pipelines(self, methods: List[Optional[ImageGenerationActionMethod]]) -> Tuple[Dict[Optional[ImageGenerationActionMethod], "DiffusionPipeline"], "torch.device"]:
-        # Qwen-Image 2.1 keeps two ~7B modules (transformer, Qwen3-VL text encoder) live in
-        # VRAM if fully placed on GPU (~24GB peak at 2048x2048). `enable_model_cpu_offload`
-        # keeps only the currently-active submodule on GPU and swaps siblings out to CPU
-        # between stages, bringing peak VRAM to ~10-12GB with a modest latency cost.
-        # Any other architecture falls through to the base loader (plain `.to(device)`).
-        if self.config.architecture != HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
-            return await super()._load_pretrained_pipelines(methods)
+    def _get_transformer_requirements(self) -> List[str]:
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            # Qwen3-VL text encoder requires transformers >= 5.17 per the model card.
+            return [ "transformers>=5.17" ]
 
-        model_path = await self._provision_model(self.config.model)
-        device = self._resolve_device(self.config.device)
-        dtype = self._get_pipeline_dtype(device)
+        return super()._get_transformer_requirements()
 
-        # Model CPU offload only makes sense on CUDA; on CPU/MPS fall back to the base path.
-        if device.type != "cuda":
-            return await super()._load_pretrained_pipelines(methods)
+    def _get_diffusers_requirements(self) -> List[str]:
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            # QwenImage21Pipeline is only on diffusers main (0.41.0.dev0); pin forces
+            # reinstall over any older release and stays valid once 0.41 ships.
+            return [ "diffusers>=0.41.0.dev0@git+https://github.com/huggingface/diffusers.git" ]
 
-        base_pipeline_class = self._get_pipeline_class(None)
-        method_pipeline_classes: Dict[Optional[ImageGenerationActionMethod], Type[DiffusionPipeline]] = { method: self._get_pipeline_class(method) for method in methods }
-        quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
-
-        submodules = await self._load_pipeline_submodules(device, dtype)
-
-        def _load() -> Dict[Optional[ImageGenerationActionMethod], DiffusionPipeline]:
-            params: Dict[str, Any] = {
-                **self._get_model_params(self.config.model),
-                **submodules,
-                "torch_dtype": dtype,
-            }
-
-            if quantization_config is not None:
-                params["quantization_config"] = quantization_config
-
-            logging.info(f"Component '{self.id}': loading {base_pipeline_class.__name__} from {model_path} (CPU offload enabled, device={device})")
-
-            # Do NOT call `.to(device)` before `enable_model_cpu_offload` — diffusers warns
-            # that moving the pipeline to CUDA first negates most of the memory savings.
-            base_pipeline = base_pipeline_class.from_pretrained(model_path, **params)
-            base_pipeline.enable_model_cpu_offload(device=device)
-
-            pipelines: Dict[Optional[ImageGenerationActionMethod], DiffusionPipeline] = {}
-
-            for method, pipeline_class in method_pipeline_classes.items():
-                if pipeline_class is base_pipeline_class:
-                    pipelines[method] = base_pipeline
-                else:
-                    logging.info(f"Component '{self.id}': deriving {pipeline_class.__name__} from {base_pipeline_class.__name__}")
-                    derived = pipeline_class.from_pipe(base_pipeline)
-                    # Offload hooks installed on the base pipeline don't transfer through
-                    # `from_pipe`; re-arm them on each derived pipeline so every method
-                    # inherits the same low-VRAM behavior.
-                    derived.enable_model_cpu_offload(device=device)
-                    pipelines[method] = derived
-
-            return pipelines
-
-        pipelines = await self._run_in_executor(_load)
-
-        return pipelines, device
+        return super()._get_diffusers_requirements()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         submodules: Dict[str, Any] = {}
@@ -417,6 +438,9 @@ class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDrive
             return AutoencoderKLHunyuanImage
 
         raise ValueError(f"VAE override is not supported for architecture: {self.config.architecture}")
+
+    def _get_cpu_offload(self) -> Optional[DiffusionCpuOffload]:
+        return self.config.cpu_offload
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pipeline = self.pipelines.get(action.method)

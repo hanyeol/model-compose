@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Tuple, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageGenerationModelActionConfig
@@ -21,18 +21,18 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:
-        prompt     = await context.render_text(self.config.prompt)
+        input, is_single_input, is_streaming_input = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(prompt, (StreamIterator, AsyncIterator)):
+        if is_streaming_input:
             async def _stream_output_generator():
-                async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                    batch_results = await self._generate_batch(batch_prompts, params, context.cancellation_token)
+                async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                    batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
+                    batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
@@ -40,8 +40,9 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[PILImage.Image] = []
-            async for batch_prompts in BatchSourceIterator(prompt, batch_size=batch_size or 1):
-                batch_results = await self._generate_batch(batch_prompts, params, context.cancellation_token)
+            async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                batch_inputs = tuple(zip(*batch_inputs))  # Transpose per-slot batches into per-request tuples.
+                batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
@@ -53,9 +54,13 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
         return {}
 
     @abstractmethod
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        pass
+
+    @abstractmethod
     async def _generate_batch(
         self,
-        prompts: List[str],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:

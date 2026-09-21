@@ -7,6 +7,8 @@ from mindor.dsl.schema.component import (
     ModelPrecision,
     ModelQuantizationConfig,
     ModelQuantizationType,
+    DiffusionCpuOffload,
+    DiffusionSubmodule,
 )
 from mindor.core.logger import logging
 from .base import HuggingfaceModelTaskDriver
@@ -27,8 +29,11 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
     def _get_setup_requirements(self) -> List[str]:
         return [
             *super()._get_setup_requirements(),
-            "diffusers"
+            *self._get_diffusers_requirements(),
         ]
+
+    def _get_diffusers_requirements(self) -> List[str]:
+        return [ "diffusers" ]
 
     async def _load_model(self) -> None:
         methods = list({ getattr(action, "method", None) for action in self.config.actions })
@@ -48,6 +53,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
 
         submodules = await self._load_pipeline_submodules(device, dtype)
+        cpu_offload = self._get_cpu_offload()
 
         def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
             params: Dict[str, Any] = {
@@ -63,7 +69,12 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
             # Pipeline-level `.to(device)` is safe even for quantized pipelines
             # (diffusers docs), unlike transformers' Linear4bit which rejects it.
-            base_pipeline = base_pipeline_class.from_pretrained(model_path, **params).to(device)
+            base_pipeline = base_pipeline_class.from_pretrained(model_path, **params)
+
+            if cpu_offload not in ("model", "sequential") or device.type != "cuda":
+                base_pipeline = base_pipeline.to(device)
+
+            self._configure_memory(base_pipeline, device, cpu_offload)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
 
@@ -72,7 +83,9 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
                     pipelines[method] = base_pipeline
                 else:
                     logging.info(f"Component '{self.id}': deriving {pipeline_class.__name__} from {base_pipeline_class.__name__}")
-                    pipelines[method] = pipeline_class.from_pipe(base_pipeline)
+                    derived_pipeline = pipeline_class.from_pipe(base_pipeline)
+                    self._configure_memory(derived_pipeline, device, cpu_offload)
+                    pipelines[method] = derived_pipeline
 
             return pipelines
 
@@ -82,6 +95,50 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         return {}
+
+    def _configure_memory(
+        self,
+        pipeline: DiffusionPipeline,
+        device: torch.device,
+        cpu_offload: Optional[DiffusionCpuOffload],
+    ) -> None:
+        if device.type == "cuda":
+            if isinstance(cpu_offload, list):
+                self._offload_modules_to_cpu(pipeline, device, cpu_offload)
+            elif cpu_offload == "model":
+                pipeline.enable_model_cpu_offload(device=device)
+            elif cpu_offload == "sequential":
+                pipeline.enable_sequential_cpu_offload(device=device)
+        else:
+            if cpu_offload is not None:
+                logging.warning(f"Component '{self.id}': cpu_offload requires CUDA (device={device}); ignoring.")
+
+        # Auto: VAE tiling/slicing — cheap wins with essentially no downside.
+        vae = getattr(pipeline, "vae", None)
+
+        if vae is not None:
+            if hasattr(vae, "enable_tiling"):
+                vae.enable_tiling()
+
+            if hasattr(vae, "enable_slicing"):
+                vae.enable_slicing()
+
+    def _offload_modules_to_cpu(
+        self,
+        pipeline: DiffusionPipeline,
+        device: torch.device,
+        submodules: List[DiffusionSubmodule],
+    ) -> None:
+        from accelerate import cpu_offload as offload_to_cpu
+
+        for submodule in submodules:
+            name = submodule.value if hasattr(submodule, "value") else submodule
+            module = getattr(pipeline, name, None)
+
+            if module is None:
+                raise ValueError(f"cpu_offload: submodule '{name}' not present in pipeline.")
+
+            offload_to_cpu(module, execution_device=device)
 
     def _resolve_pipeline_quantization_config(self, device: torch.device, default_dtype: torch.dtype) -> Optional[Any]:
         import torch
@@ -156,3 +213,6 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         import torch
 
         return torch.bfloat16
+
+    def _get_cpu_offload(self) -> Optional[DiffusionCpuOffload]:
+        return None

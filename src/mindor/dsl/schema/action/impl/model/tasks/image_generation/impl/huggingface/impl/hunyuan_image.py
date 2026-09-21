@@ -1,4 +1,4 @@
-from typing import Union, Literal, Optional, Annotated
+from typing import Union, Literal, Optional, List, Annotated
 from pydantic import Field
 from ...common import ImageGenerationActionMethod
 from .common import CommonHuggingfaceImageGenerationModelActionConfig, CommonHuggingfaceImageGenerationParamsConfig
@@ -9,6 +9,7 @@ class HunyuanImageHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageG
 
 class HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)
+    negative_prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Negative prompt or prompts describing what to avoid.")
     params: HunyuanImageHuggingfaceImageGenerationParamsConfig = Field(default_factory=HunyuanImageHuggingfaceImageGenerationParamsConfig, description="Hunyuan-Image-specific generation parameters.")
 
 HunyuanImageHuggingfaceImageGenerationModelActionConfig = Annotated[

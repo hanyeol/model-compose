@@ -2,9 +2,11 @@ from typing import Union
 from .impl.sdxl import SdxlHuggingfaceImageGenerationModelActionConfig
 from .impl.flux import FluxHuggingfaceImageGenerationModelActionConfig
 from .impl.hunyuan_image import HunyuanImageHuggingfaceImageGenerationModelActionConfig
+from .impl.qwen_image import QwenImageHuggingfaceImageGenerationModelActionConfig
 
 HuggingfaceImageGenerationModelActionConfig = Union[
     SdxlHuggingfaceImageGenerationModelActionConfig,
     FluxHuggingfaceImageGenerationModelActionConfig,
     HunyuanImageHuggingfaceImageGenerationModelActionConfig,
+    QwenImageHuggingfaceImageGenerationModelActionConfig,
 ]

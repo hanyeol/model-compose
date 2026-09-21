@@ -89,6 +89,15 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
                 "distilled_guidance_scale": distilled_guidance_scale,
             }
 
+        if architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            negative_prompt = await context.render_variable(self.config.negative_prompt)
+            true_cfg_scale  = await context.render_scalar(self.config.params.true_cfg_scale, float)
+
+            return {
+                "negative_prompt": negative_prompt,
+                "true_cfg_scale":  true_cfg_scale,
+            }
+
         raise ValueError(f"Unknown architecture: {architecture}")
 
     async def _generate_batch(
@@ -234,10 +243,21 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
 @register_model_task_driver(ModelTaskType.IMAGE_GENERATION, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[ImageGenerationActionMethod]):
     def _get_setup_requirements(self) -> List[str]:
-        return [
+        requirements = [
             *super()._get_setup_requirements(),
-            "sentencepiece"
+            "sentencepiece",
         ]
+
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            # QwenImage21Pipeline lives on diffusers main (currently 0.41.0.dev0); not in any
+            # tagged release as of 2026-09 (latest v0.40.0). The `>=0.41.0.dev0` pin forces
+            # reinstall when an older diffusers is already present (unversioned parent spec
+            # would otherwise be considered satisfied) and stays satisfied once 0.41 ships.
+            # Qwen3-VL text encoder requires transformers >= 5.17 per the model card.
+            requirements.append("diffusers>=0.41.0.dev0@git+https://github.com/huggingface/diffusers.git")
+            requirements.append("transformers>=5.17")
+
+        return requirements
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         submodules: Dict[str, Any] = {}
@@ -277,6 +297,10 @@ class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDrive
                 from diffusers import HunyuanImagePipeline
                 return HunyuanImagePipeline
 
+            if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+                from diffusers import QwenImage21Pipeline
+                return QwenImage21Pipeline
+
         if method == ImageGenerationActionMethod.INPAINT:
             if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
                 from diffusers import StableDiffusionXLInpaintPipeline
@@ -309,6 +333,10 @@ class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDrive
             return [ "transformer", "text_encoder_2" ]
 
         if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
+            return [ "transformer", "text_encoder" ]
+
+        if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
+            # text_encoder is Qwen3-VL (~7B); quantizing it is the biggest single VRAM win after the transformer.
             return [ "transformer", "text_encoder" ]
 
         return []

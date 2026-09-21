@@ -1,0 +1,35 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Typed Decision (Bespoke Nimble-9B)
+  description: One-shot typed decisions from a context string and a flat field schema; returns the chosen value plus per-candidate probabilities per field, without generating any free-form text.
+  job:
+    input: ${input}
+    output:
+      decision: ${output as json}
+
+component:
+  type: model
+  task: typed-decision
+  driver: custom
+  family: nimble
+  model: bespokelabs/Bespoke-Nimble-9B         # LoRA adapter; the driver merges it once onto the base model and caches the result
+  base_model: Qwen/Qwen3.5-9B                  # base the adapter was trained against; omit to accept the driver default (also Qwen/Qwen3.5-9B)
+  precision: bfloat16                          # CUDA scorer requires BF16-capable GPUs; on MLX (Apple Silicon) this hint is ignored
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python                             # default; uses `python -m venv`
+    path: .venv/nimble                         # relative to cwd; created on first run
+  action:
+    text: ${input.text as text}                # unstructured text the scorer judges (up to 2048 tokens including the schema)
+    schema: ${input.schema as json}            # flat map of field -> { type: enum|boolean, choices?, description?, choice_descriptions? }
+    return_probabilities: true                 # include per-candidate scores per field
+    return_logits: false                       # include raw logits per field

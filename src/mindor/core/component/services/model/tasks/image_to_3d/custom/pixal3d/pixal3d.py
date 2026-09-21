@@ -108,19 +108,19 @@ class Pixal3DImageTo3DTaskAction(ImageTo3DTaskAction):
             extend_pixel=params["extend_pixel"],
         )
 
-        ss_sampler_override = {
+        ss_sampler_params = {
             "steps":             params["ss_sampling_steps"],
             "guidance_strength": params["ss_guidance_strength"],
             "guidance_rescale":  params["ss_guidance_rescale"],
             "rescale_t":         params["ss_rescale_t"],
         }
-        shape_sampler_override = {
+        shape_sampler_params = {
             "steps":             params["shape_slat_sampling_steps"],
             "guidance_strength": params["shape_slat_guidance_strength"],
             "guidance_rescale":  params["shape_slat_guidance_rescale"],
             "rescale_t":         params["shape_slat_rescale_t"],
         }
-        tex_sampler_override = {
+        tex_sampler_params = {
             "steps":             params["tex_slat_sampling_steps"],
             "guidance_strength": params["tex_slat_guidance_strength"],
             "guidance_rescale":  params["tex_slat_guidance_rescale"],
@@ -132,9 +132,9 @@ class Pixal3DImageTo3DTaskAction(ImageTo3DTaskAction):
             preprocessed_image,
             camera_params=camera_params,
             seed=seed,
-            sparse_structure_sampler_params=ss_sampler_override,
-            shape_slat_sampler_params=shape_sampler_override,
-            tex_slat_sampler_params=tex_sampler_override,
+            sparse_structure_sampler_params=ss_sampler_params,
+            shape_slat_sampler_params=shape_sampler_params,
+            tex_slat_sampler_params=tex_sampler_params,
             preprocess_image=False,
             return_latent=True,
             pipeline_type=self.pipeline_type,

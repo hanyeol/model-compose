@@ -100,8 +100,6 @@ class AniGenImageTo3DTaskAction(ImageTo3DTaskAction):
         return await self._run_in_executor(_generate)
 
     def _render(self, image: PILImage.Image, params: Dict[str, Any]) -> Dict[str, Any]:
-        import torch
-
         seed = params["seed"] if params["seed"] is not None else 42
 
         # AniGen's pipeline hardcodes relative paths for `torch.hub.load('./ckpts/dinov2', ...)`

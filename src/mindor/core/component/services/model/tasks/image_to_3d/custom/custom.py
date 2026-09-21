@@ -16,4 +16,8 @@ class CustomImageTo3DTaskDriver:
             from .anigen import AniGenImageTo3DTaskDriver
             return AniGenImageTo3DTaskDriver(id, config, daemon)
 
+        if config.family == ImageTo3DModelFamily.WORLD_MIRROR:
+            from .world_mirror import WorldMirrorImageTo3DTaskDriver
+            return WorldMirrorImageTo3DTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

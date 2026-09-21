@@ -60,22 +60,38 @@ class Pixal3DMultiViewImageTo3DTaskAction(ImageTo3DTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        ss_sampling_steps            = await context.render_scalar(self.config.params.ss_sampling_steps, int)
+        ss_guidance_strength         = await context.render_scalar(self.config.params.ss_guidance_strength, float)
+        ss_guidance_rescale          = await context.render_scalar(self.config.params.ss_guidance_rescale, float)
+        ss_rescale_t                 = await context.render_scalar(self.config.params.ss_rescale_t, float)
+        shape_slat_sampling_steps    = await context.render_scalar(self.config.params.shape_slat_sampling_steps, int)
+        shape_slat_guidance_strength = await context.render_scalar(self.config.params.shape_slat_guidance_strength, float)
+        shape_slat_guidance_rescale  = await context.render_scalar(self.config.params.shape_slat_guidance_rescale, float)
+        shape_slat_rescale_t         = await context.render_scalar(self.config.params.shape_slat_rescale_t, float)
+        tex_slat_sampling_steps      = await context.render_scalar(self.config.params.tex_slat_sampling_steps, int)
+        tex_slat_guidance_strength   = await context.render_scalar(self.config.params.tex_slat_guidance_strength, float)
+        tex_slat_guidance_rescale    = await context.render_scalar(self.config.params.tex_slat_guidance_rescale, float)
+        tex_slat_rescale_t           = await context.render_scalar(self.config.params.tex_slat_rescale_t, float)
+        max_num_tokens               = await context.render_scalar(self.config.params.max_num_tokens, int)
+        texture_size                 = await context.render_scalar(self.config.params.texture_size, int)
+        decimation_target            = await context.render_scalar(self.config.params.decimation_target, int)
+
         params.update({
-            "ss_sampling_steps":            await context.render_scalar(self.config.params.ss_sampling_steps, int),
-            "ss_guidance_strength":         await context.render_scalar(self.config.params.ss_guidance_strength, float),
-            "ss_guidance_rescale":          await context.render_scalar(self.config.params.ss_guidance_rescale, float),
-            "ss_rescale_t":                 await context.render_scalar(self.config.params.ss_rescale_t, float),
-            "shape_slat_sampling_steps":    await context.render_scalar(self.config.params.shape_slat_sampling_steps, int),
-            "shape_slat_guidance_strength": await context.render_scalar(self.config.params.shape_slat_guidance_strength, float),
-            "shape_slat_guidance_rescale":  await context.render_scalar(self.config.params.shape_slat_guidance_rescale, float),
-            "shape_slat_rescale_t":         await context.render_scalar(self.config.params.shape_slat_rescale_t, float),
-            "tex_slat_sampling_steps":      await context.render_scalar(self.config.params.tex_slat_sampling_steps, int),
-            "tex_slat_guidance_strength":   await context.render_scalar(self.config.params.tex_slat_guidance_strength, float),
-            "tex_slat_guidance_rescale":    await context.render_scalar(self.config.params.tex_slat_guidance_rescale, float),
-            "tex_slat_rescale_t":           await context.render_scalar(self.config.params.tex_slat_rescale_t, float),
-            "max_num_tokens":               await context.render_scalar(self.config.params.max_num_tokens, int),
-            "texture_size":                 await context.render_scalar(self.config.params.texture_size, int),
-            "decimation_target":            await context.render_scalar(self.config.params.decimation_target, int),
+            "ss_sampling_steps":            ss_sampling_steps,
+            "ss_guidance_strength":         ss_guidance_strength,
+            "ss_guidance_rescale":          ss_guidance_rescale,
+            "ss_rescale_t":                 ss_rescale_t,
+            "shape_slat_sampling_steps":    shape_slat_sampling_steps,
+            "shape_slat_guidance_strength": shape_slat_guidance_strength,
+            "shape_slat_guidance_rescale":  shape_slat_guidance_rescale,
+            "shape_slat_rescale_t":         shape_slat_rescale_t,
+            "tex_slat_sampling_steps":      tex_slat_sampling_steps,
+            "tex_slat_guidance_strength":   tex_slat_guidance_strength,
+            "tex_slat_guidance_rescale":    tex_slat_guidance_rescale,
+            "tex_slat_rescale_t":           tex_slat_rescale_t,
+            "max_num_tokens":               max_num_tokens,
+            "texture_size":                 texture_size,
+            "decimation_target":            decimation_target,
         })
 
         return params
@@ -92,7 +108,7 @@ class Pixal3DMultiViewImageTo3DTaskAction(ImageTo3DTaskAction):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            rig_images     = await self._collect_images(images)
+            rig_images     = await images.collect()
             rig_transforms = await self._collect_transforms(transforms)
             rig_angles     = self._resolve_view_angles(camera_angle_x, view_count=len(rig_images))
             rig_scale      = mesh_scale if mesh_scale is not None else 1.0
@@ -114,23 +130,14 @@ class Pixal3DMultiViewImageTo3DTaskAction(ImageTo3DTaskAction):
 
         return results
 
-    async def _collect_images(self, images: Any) -> List[PILImage.Image]:
-        if isinstance(images, ImageArrayValue):
-            return await images.collect()
-
-        raise ValueError(f"`image` must resolve to an image array; got {type(images).__name__}.")
-
-    async def _collect_transforms(self, transforms: Any) -> List[List[List[float]]]:
-        if not isinstance(transforms, ArrayValue):
-            raise ValueError(f"`transform_matrix` must resolve to an array; got {type(transforms).__name__}.")
-
+    async def _collect_transforms(self, transforms: ArrayValue) -> List[List[List[float]]]:
         matrices: List[List[List[float]]] = []
 
-        async for entry in transforms:
-            if not isinstance(entry, list) or len(entry) != 4:
-                raise ValueError(f"Each `transform_matrix` entry must be a 4x4 nested list; got {entry!r}.")
+        async for transform in transforms:
+            if not isinstance(transform, list) or len(transform) != 4:
+                raise ValueError(f"Each `transform_matrix` entry must be a 4x4 nested list; got {transform!r}.")
 
-            matrices.append([ [ float(v) for v in row ] for row in entry ])
+            matrices.append([ [ float(value) for value in row ] for row in transform ])
 
         return matrices
 
@@ -162,19 +169,19 @@ class Pixal3DMultiViewImageTo3DTaskAction(ImageTo3DTaskAction):
 
         views_bundle = self._build_views_bundle(images, transforms, camera_angles_x, mesh_scale)
 
-        ss_sampler_override = {
+        ss_sampler_params = {
             "steps":             params["ss_sampling_steps"],
             "guidance_strength": params["ss_guidance_strength"],
             "guidance_rescale":  params["ss_guidance_rescale"],
             "rescale_t":         params["ss_rescale_t"],
         }
-        shape_sampler_override = {
+        shape_sampler_params = {
             "steps":             params["shape_slat_sampling_steps"],
             "guidance_strength": params["shape_slat_guidance_strength"],
             "guidance_rescale":  params["shape_slat_guidance_rescale"],
             "rescale_t":         params["shape_slat_rescale_t"],
         }
-        tex_sampler_override = {
+        tex_sampler_params = {
             "steps":             params["tex_slat_sampling_steps"],
             "guidance_strength": params["tex_slat_guidance_strength"],
             "guidance_rescale":  params["tex_slat_guidance_rescale"],
@@ -185,9 +192,9 @@ class Pixal3DMultiViewImageTo3DTaskAction(ImageTo3DTaskAction):
         mesh_list, (_, _, grid_size) = self.pipeline.run_mv(
             views_bundle,
             seed=seed,
-            sparse_structure_sampler_params=ss_sampler_override,
-            shape_slat_sampler_params=shape_sampler_override,
-            tex_slat_sampler_params=tex_sampler_override,
+            sparse_structure_sampler_params=ss_sampler_params,
+            shape_slat_sampler_params=shape_sampler_params,
+            tex_slat_sampler_params=tex_sampler_params,
             return_latent=True,
             pipeline_type=self.pipeline_type,
             max_num_tokens=params["max_num_tokens"],

@@ -6,8 +6,8 @@ from mindor.dsl.schema.runtime.impl.process import ProcessRuntimeConfig
 class TestProcessRuntimeConfig:
     def test_minimal_defaults(self):
         cfg = ProcessRuntimeConfig(type="process")
-        assert cfg.start_timeout == "60s"
-        assert cfg.stop_timeout == "30s"
+        assert cfg.start_timeout is None
+        assert cfg.stop_timeout is None
         assert cfg.env == {}
         assert cfg.working_dir is None
 

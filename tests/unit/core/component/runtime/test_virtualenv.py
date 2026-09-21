@@ -49,8 +49,8 @@ class TestVirtualEnvRuntimeConfig:
         assert config.path is None
         assert config.python is None
         assert config.env == {}
-        assert config.start_timeout == "60s"
-        assert config.stop_timeout == "30s"
+        assert config.start_timeout is None
+        assert config.stop_timeout is None
 
     def test_pyenv_driver_with_python(self):
         config = VirtualEnvRuntimeConfig(
@@ -135,8 +135,8 @@ class TestComponentVirtualEnvRuntimeManager:
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
         manager = ComponentVirtualEnvRuntimeManager("venv-shell", config, global_configs)
-        assert manager._start_timeout == 60.0
-        assert manager._stop_timeout == 30.0
+        assert manager._start_timeout is None
+        assert manager._stop_timeout is None
 
 # ---------------------------------------------------------------------------
 # ComponentVirtualEnvRuntimeWorker

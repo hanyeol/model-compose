@@ -339,9 +339,9 @@ class TestStreamMarkers:
         assert node is not None
         assert node["type"] == "stream"
         assert node["kind"] == "bytes"
-        assert node["content_type"] == "image/png"
+        assert node["content_type"] == "application/octet-stream"
         assert node["id"] in streams
-        assert streams[node["id"]]["content_type"] == "image/png"
+        assert streams[node["id"]]["content_type"] == "application/octet-stream"
 
     @pytest.mark.anyio
     async def test_upload_file_becomes_stream_marker(self):

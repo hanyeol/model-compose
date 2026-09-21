@@ -46,8 +46,8 @@ class TestProcessRuntimeConfig:
         assert config.type == "process"
         assert config.env == {}
         assert config.working_dir is None
-        assert config.start_timeout == "60s"
-        assert config.stop_timeout == "30s"
+        assert config.start_timeout is None
+        assert config.stop_timeout is None
         assert config.max_memory is None
         assert config.cpu_limit is None
 
@@ -125,8 +125,8 @@ class TestComponentProcessRuntimeManager:
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
         manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
-        assert manager._start_timeout == 60.0
-        assert manager._stop_timeout == 30.0
+        assert manager._start_timeout is None
+        assert manager._stop_timeout is None
 
 
 # ---------------------------------------------------------------------------

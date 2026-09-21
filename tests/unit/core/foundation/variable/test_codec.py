@@ -286,7 +286,7 @@ class TestStreamVariable:
         variable = codec.encode(img)["__variable__"]
         assert variable["type"] == "stream"
         assert variable["kind"] == "bytes"
-        assert variable["content_type"].startswith("image/")
+        assert variable["content_type"] == "application/octet-stream"
 
     def test_stream_nested_in_list(self, codec):
         res = BytesStreamResource(b"x")

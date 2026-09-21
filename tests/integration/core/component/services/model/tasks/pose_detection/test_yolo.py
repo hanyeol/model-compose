@@ -35,6 +35,27 @@ from mindor.dsl.schema.component import ModelComponentConfig
 pytest.importorskip("ultralytics")
 pytest.importorskip("numpy")
 
+
+def _torchvision_cpu_nms_available() -> bool:
+    try:
+        import torch
+        import torchvision  # noqa: F401
+
+        boxes = torch.tensor([[0.0, 0.0, 1.0, 1.0]])
+        scores = torch.tensor([0.9])
+        torch.ops.torchvision.nms(boxes, scores, 0.5)
+        return True
+    except Exception:
+        return False
+
+
+if not _torchvision_cpu_nms_available():
+    pytest.skip(
+        "torchvision::nms not available on the CPU backend in this environment",
+        allow_module_level=True,
+    )
+
+
 from mindor.core.component.services.model.tasks.pose_detection.custom.yolo import (
     YoloPoseDetectionTaskAction,
     YoloPoseDetectionTaskDriver,

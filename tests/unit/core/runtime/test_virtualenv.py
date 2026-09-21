@@ -105,13 +105,6 @@ class TestVirtualEnvRuntimeLifecycleState:
 
 
 class TestVirtualEnvRuntimeConfigValidation:
-    @pytest.mark.anyio
-    async def test_pyenv_driver_without_python_raises(self, tmp_path: Path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        runtime = VirtualEnvRuntime(
-            worker_id="comp",
-            worker_module="x",
-            config=_config(driver=VirtualEnvDriver.PYENV, python=None),
-        )
-        with pytest.raises(ValueError, match="must be set when driver is 'pyenv'"):
-            runtime._bootstrap_venv()
+    def test_pyenv_driver_without_python_raises(self):
+        with pytest.raises(ValueError, match="must be set when `driver` is 'pyenv'"):
+            _config(driver=VirtualEnvDriver.PYENV, python=None)

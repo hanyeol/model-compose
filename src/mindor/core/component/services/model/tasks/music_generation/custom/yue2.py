@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, Yue2Backend, Yue2Submodule
 from mindor.dsl.schema.action import (
     ModelActionConfig,
     MusicGenerationActionMethod,
@@ -29,7 +29,7 @@ _YUE2_SAMPLE_RATE = 48000
 class Yue2MusicGenerationTaskAction(MusicGenerationTaskAction):
     config: CommonYue2MusicGenerationModelActionConfig
 
-    def __init__(self, config: CommonYue2MusicGenerationModelActionConfig, pipeline: "YuE2Pipeline"):
+    def __init__(self, config: CommonYue2MusicGenerationModelActionConfig, pipeline: YuE2Pipeline):
         super().__init__(config)
 
         self.pipeline: YuE2Pipeline = pipeline
@@ -235,9 +235,12 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[str]]:
         # YuE2 pins torch==2.10.0 (see YuE/pyproject.toml); install a matching torch
         # ahead of the wheel so uv/pip doesn't drift the resolved version.
+        # The [fast] extra pulls vllm+triton, which are only needed for the vllm backend.
+        extras = "[fast]" if self.config.backend == Yue2Backend.VLLM else ""
+
         return [
-            *torch_requirements("torch==2.10.0"),
-            "yue2-infer@https://github.com/multimodal-art-projection/YuE/releases/download/yue2-v0.1.6/yue2_infer-0.1.6-py3-none-any.whl",
+            *torch_requirements("torch==2.10.0", "torchvision"),
+            f"yue2-infer{extras}@https://github.com/multimodal-art-projection/YuE/releases/download/yue2-v0.1.6/yue2_infer-0.1.6-py3-none-any.whl",
         ]
 
     async def _load_model(self) -> None:
@@ -251,14 +254,16 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
             self.pipeline.close()
             self.pipeline = None
 
-    async def _load_pipeline(self, model_path: str, vae_model_path: str) -> "YuE2Pipeline":
+    async def _load_pipeline(self, model_path: str, vae_model_path: str) -> YuE2Pipeline:
         from yue2 import YuE2Pipeline
 
-        def _load() -> "YuE2Pipeline":
+        cpu_offload = self._resolve_cpu_offload()
+
+        def _load() -> YuE2Pipeline:
             memory_budget_gib = float(self.config.memory_budget_gib)
             vae_core_frames = int(self.config.vae.tile_size) if self.config.vae.tile_size is not None else None
 
-            return YuE2Pipeline.from_pretrained(
+            pipeline = YuE2Pipeline.from_pretrained(
                 model=model_path,
                 vae=vae_model_path,
                 device=str(self._resolve_device(self.config.device)),
@@ -266,12 +271,42 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
                 quantization=self.config.quantization.type.value if self.config.quantization is not None else "none",
                 memory_budget_gib=memory_budget_gib,
                 vae_core_frames=vae_core_frames,
-                offload_ar=bool(self.config.offload_ar),
+                offload_ar=(Yue2Submodule.AR in cpu_offload),
                 verify_hashes=bool(self.config.verify_hashes),
                 progress=False,
             )
 
+            if Yue2Submodule.VAE in cpu_offload:
+                self._force_vae_decode_on_cpu(pipeline)
+
+            return pipeline
+
         return await self._run_in_executor(_load)
+
+    def _resolve_cpu_offload(self) -> List[Yue2Submodule]:
+        cpu_offload = self.config.cpu_offload or []
+
+        if isinstance(cpu_offload, Yue2Submodule):
+            cpu_offload = [ cpu_offload ]
+    
+        return cpu_offload
+
+    def _force_vae_decode_on_cpu(self, pipeline: YuE2Pipeline) -> None:
+        import torch
+
+        pipeline_decode = pipeline.decode
+        gpu_device = pipeline.device
+        cpu_device = torch.device("cpu")
+
+        def decode_on_cpu(latents, *, full=False, vae=None):
+            pipeline.device = cpu_device
+
+            try:
+                return pipeline_decode(latents, full=full, vae=vae)
+            finally:
+                pipeline.device = gpu_device
+
+        pipeline.decode = decode_on_cpu
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == MusicGenerationActionMethod.GENERATE:

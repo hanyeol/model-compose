@@ -14,6 +14,10 @@ class Yue2Backend(str, Enum):
     TORCH_EAGER = "torch-eager"
     VLLM        = "vllm"
 
+class Yue2Submodule(str, Enum):
+    AR  = "ar"
+    VAE = "vae"
+
 class Yue2QuantizationConfig(ModelQuantizationConfig):
     type: Literal[ModelQuantizationType.FP8] = Field(..., description="Quantization scheme applied to the YuE2 AR model; only fp8 is supported.")
 
@@ -58,7 +62,7 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
     backend: Yue2Backend = Field(default=Yue2Backend.TORCH, description="Inference backend for autoregressive generation (torch, torch-eager, vllm).")
     quantization: Optional[Yue2QuantizationConfig] = Field(default=None, description="Weight quantization applied to the AR model; None disables quantization.")
     memory_budget_gib: Union[float, str] = Field(default=24, description="GPU memory budget in GiB reserved for generation.")
-    offload_ar: Union[bool, str] = Field(default=False, description="Whether to offload the AR model to CPU during NAR synthesis to free GPU memory.")
+    cpu_offload: Optional[Union[Yue2Submodule, List[Yue2Submodule]]] = Field(default=None, description="Submodules to run on CPU: 'ar' offloads the AR model during NAR synthesis, 'vae' runs VAE decode on CPU.")
     verify_hashes: Union[bool, str] = Field(default=True, description="Whether to verify model file checksums on load.")
     actions: List[MusicGenerationModelActionConfig] = Field(default_factory=list, description="Actions this YuE2 music generation component exposes to workflows.")
 

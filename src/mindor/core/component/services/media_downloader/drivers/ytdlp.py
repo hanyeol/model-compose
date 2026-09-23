@@ -8,11 +8,12 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import get_temporary_path, get_file_extension
+from mindor.core.utils.ytdlp import detect_js_runtimes, create_cookies_file
 from mindor.core.logger import logging
 from ..base import MediaDownloaderDriver, register_media_downloader_driver
 from ..base import ComponentActionContext
 from .common import MediaDownloaderAction, DownloadResult
-import asyncio, os, shutil
+import asyncio, os
 
 _FORMAT_PRESETS: Dict[str, Tuple[Dict[str, Any], bool]] = {
     "mp3": ({
@@ -73,11 +74,6 @@ _FORMAT_PRESETS: Dict[str, Tuple[Dict[str, Any], bool]] = {
     }, False),
 }
 
-# yt-dlp names for the JS runtimes it will drive for YouTube's EJS solver.
-# quickjs is omitted from auto-detection because it is rarely installed
-# standalone; users who want it should list it explicitly.
-_JS_RUNTIME_CANDIDATES: Tuple[str, ...] = ("deno", "node", "bun")
-
 class YtdlpMediaDownloaderAction(MediaDownloaderAction):
     async def _resolve_params(self) -> Dict[str, Any]:
         params = await super()._resolve_params()
@@ -124,7 +120,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
         format_options, is_audio = self._build_format_options(params["format"])
         js_runtimes_option = self._build_js_runtimes_option(params["js_runtimes"])
-        cookiefile = self._create_cookies_file(params["cookies"]) if params["cookies"] else None
+        cookiefile = create_cookies_file(params["cookies"]) if params["cookies"] else None
 
         options = self._build_ytdlp_options(
             output_dir=output_dir,
@@ -347,15 +343,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         to run instead of falling back to the deprecated path with a warning.
         """
         if not runtimes:
-            detected: Dict[str, Dict[str, Any]] = {}
-
-            for name in _JS_RUNTIME_CANDIDATES:
-                path = shutil.which(name)
-
-                if path:
-                    detected[name] = { "path": path }
-
-            return detected
+            return { name: { "path": path } for name, path in detect_js_runtimes().items() }
 
         if isinstance(runtimes, dict):
             return { str(name): (config or {}) for name, config in runtimes.items() }
@@ -370,51 +358,6 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             option[name] = { "path": path or None }
 
         return option
-
-    @staticmethod
-    def _create_cookies_file(cookies: List[Dict[str, Any]]) -> str:
-        path = get_temporary_path("txt")
-
-        # Python's http.cookiejar refuses to load the file without this magic
-        # header line, and yt-dlp defers to that loader.
-        lines = [ "# Netscape HTTP Cookie File" ]
-
-        for cookie in cookies:
-            name  = cookie.get("name")
-            value = cookie.get("value")
-
-            if name is None or value is None:
-                continue
-
-            domain = str(cookie.get("domain") or "")
-
-            # Netscape's include-subdomains flag is inferred from a leading dot
-            # on the domain — CDP/Playwright follow the same convention.
-            include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
-            cookie_path = str(cookie.get("path") or "/")
-            secure = "TRUE" if cookie.get("secure") else "FALSE"
-
-            # CDP reports session cookies with expires=-1 and Playwright with
-            # expires=-1 or expires=0; the Netscape format only accepts a
-            # non-negative unix timestamp (0 means session cookie). Coerce
-            # any negative or unparseable value to 0.
-            try:
-                expiry = int(float(cookie.get("expires", 0)))
-            except (TypeError, ValueError):
-                expiry = 0
-            expiry_field = str(max(expiry, 0))
-
-            # httpOnly cookies use the `#HttpOnly_` prefix on the domain per
-            # curl/wget convention, which yt-dlp's loader recognizes.
-            if cookie.get("httpOnly"):
-                domain = f"#HttpOnly_{domain}"
-
-            lines.append("\t".join([ domain, include_subdomains, cookie_path, secure, expiry_field, str(name), str(value) ]))
-
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-
-        return path
 
     @staticmethod
     def _run_ytdlp(

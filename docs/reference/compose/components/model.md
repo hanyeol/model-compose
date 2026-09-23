@@ -2629,7 +2629,7 @@ Generate or edit music audio. The action selects an operation via the `method` f
 | `backend` | string | `torch` | Inference backend for the AR model (`yue2` only: `torch`, `torch-eager`, `vllm`) |
 | `quantization` | object | `null` | AR-model quantization (`yue2` only: `type: fp8`) |
 | `memory_budget_gib` | float | `24` | GPU memory budget in GiB reserved for generation (`yue2` only) |
-| `offload_ar` | bool | `false` | Offload the AR model to CPU during NAR synthesis (`yue2` only) |
+| `cpu_offload` | string/array | `null` | Submodules to run on CPU (`yue2` only): `ar` moves the AR model during NAR synthesis, `vae` runs the VAE decoder on CPU. Accepts a single value or a list |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load (`yue2` only) |
 | `model` | string | **required** | Local checkpoint directory (`ace-step`, `midi-ddsp`) or HuggingFace repo / local path (`yue2`) |
 
@@ -2848,7 +2848,7 @@ component:
 
 M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–NAR Mixture-of-Transformers plans an editable ABC score, generates semantic tokens, and hands off to a flow-matching NAR + VAE decoder that renders 48 kHz stereo audio. `model` accepts either a HuggingFace repo ID (e.g. `m-a-p/YuE2-3B`) or a local checkpoint directory.
 
-**Runtime requirement:** the unquantized preset needs a CUDA GPU with BF16 support and ≥24 GB VRAM. Reduce the footprint with `quantization.type: fp8`, `offload_ar: true`, and a smaller `vae.tile_size`.
+**Runtime requirement:** the unquantized preset needs a CUDA GPU with BF16 support and ≥24 GB VRAM. Reduce the footprint with `quantization.type: fp8`, `cpu_offload: ar`, and a smaller `vae.tile_size`. On macOS < 15.1 the MPS backend cannot execute the VAE's oversized Conv1d layers, so set `cpu_offload: vae` (or `cpu_offload: [ar, vae]`) to keep the decoder on CPU. The `vllm` backend additionally requires the model's optional `[fast]` extras, which model-compose installs automatically when `backend: vllm` is selected.
 
 **Component Fields:**
 
@@ -2860,7 +2860,7 @@ M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–
 | `backend` | string | `torch` | AR backend (`torch`, `torch-eager`, `vllm`). `vllm` requires the model's optional `[fast]` extras |
 | `quantization.type` | string | — | Only `fp8` is supported; halves AR VRAM at a small quality cost |
 | `memory_budget_gib` | float | `24` | GPU memory budget reserved for generation |
-| `offload_ar` | bool | `false` | Move the AR model to CPU during NAR synthesis to free VRAM |
+| `cpu_offload` | string/array | `null` | Submodules to run on CPU. `ar` moves the AR model to CPU during NAR synthesis to free VRAM. `vae` wraps the VAE decoder to run on CPU (workaround for MPS Conv1d `out_channels > 65536` on macOS < 15.1). Accepts a single value or a list of both |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load |
 
 **Common Action Fields:**
@@ -2943,7 +2943,7 @@ component:
   device: cuda
   quantization:
     type: fp8
-  offload_ar: true
+  cpu_offload: ar
   vae:
     model: m-a-p/YuE2-Vae
     tile_size: 512

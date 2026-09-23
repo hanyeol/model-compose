@@ -808,7 +808,7 @@ Pixal3D의 경우 `low_vram: true`는 스테이지 모델을 CPU에 두고 필�
 
 ### 10.3.25 music-generation
 
-음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `offload_ar`을 사용합니다.
+음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`를 사용합니다.
 
 ```yaml
 component:
@@ -858,7 +858,7 @@ component:
 
 MIDI-DDSP는 TensorFlow 2.11을 고정 의존하며 호스트 mindor 스택과 함께 실행할 수 없기 때문에, 컴포넌트를 격리된 런타임(`virtualenv`, `docker`, `apple-container`)에서 실행해야 합니다. `native` / `embedded` / `process` 런타임은 로드 시점에 거부됩니다.
 
-YuE2의 비양자화 프리셋은 BF16을 지원하는 CUDA GPU와 24 GB 이상 VRAM이 필요합니다. 더 작은 예산에 맞추려면 `quantization.type: fp8`, `offload_ar: true`, 그리고 더 작은 `vae.tile_size`를 지정하세요.
+YuE2의 비양자화 프리셋은 BF16을 지원하는 CUDA GPU와 24 GB 이상 VRAM이 필요합니다. 더 작은 예산에 맞추려면 `quantization.type: fp8`, `cpu_offload: ar`, 그리고 더 작은 `vae.tile_size`를 지정하세요. macOS 15.1 미만에서는 MPS 백엔드가 VAE의 대형 Conv1d를 실행할 수 없으므로, `cpu_offload: vae`(또는 `cpu_offload: [ar, vae]`)로 디코더를 CPU에서 실행하세요. `backend: vllm`을 선택하면 모델의 `[fast]` 엑스트라(vLLM + Triton)가 자동으로 설치됩니다.
 
 ```yaml
 component:

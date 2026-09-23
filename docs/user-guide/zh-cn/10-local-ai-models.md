@@ -847,7 +847,7 @@ component:
 
 ### 10.3.25 music-generation
 
-生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `offload_ar`。
+生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `cpu_offload`。
 
 ```yaml
 component:
@@ -897,7 +897,7 @@ component:
 
 MIDI-DDSP 固定依赖 TensorFlow 2.11 且无法与宿主 mindor 栈共存，因此组件必须在隔离运行时（`virtualenv`、`docker` 或 `apple-container`）下运行；`native` / `embedded` / `process` 运行时会在加载时被拒绝。
 
-YuE2 的非量化预设需要支持 BF16 的 CUDA GPU 和 ≥24 GB VRAM。请通过 `quantization.type: fp8`、`offload_ar: true` 以及较小的 `vae.tile_size` 适配更小的预算。
+YuE2 的非量化预设需要支持 BF16 的 CUDA GPU 和 ≥24 GB VRAM。请通过 `quantization.type: fp8`、`cpu_offload: ar` 以及较小的 `vae.tile_size` 适配更小的预算。在 macOS 15.1 以下版本，MPS 后端无法执行 VAE 的超大 Conv1d 层，请设置 `cpu_offload: vae`（或 `cpu_offload: [ar, vae]`）让解码器在 CPU 上运行。选择 `backend: vllm` 时会自动安装模型的 `[fast]` 附加依赖（vLLM + Triton）。
 
 ```yaml
 component:

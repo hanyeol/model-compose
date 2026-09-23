@@ -3,4 +3,5 @@ from .impl import *
 
 VideoToVideoModelActionConfig = Union[
     HuggingfaceVideoToVideoModelActionConfig,
+    CustomVideoToVideoModelActionConfig,
 ]

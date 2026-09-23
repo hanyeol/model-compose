@@ -15,7 +15,7 @@ class CommonVideoToVideoModelActionConfig(CommonModelActionConfig):
     frames: Optional[Union[Any, List[Any], List[List[Any]], str]] = Field(default=None, description="Input frames used as the motion source; a single video's frames, a list of frames, a list of per-video frame batches, or a stream of batches.")
     prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text prompt guiding the restyled output.")
     negative_prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
-    reference_image: Optional[Union[Any, List[Any]]] = Field(default=None, description="Reference image passed to the IP-Adapter to condition appearance on.")
+    reference_image: Optional[Union[Any, List[Any]]] = Field(default=None, description="Reference image conditioning appearance.")
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make generation reproducible.")
     batch_size: Union[int, str] = Field(default=1, description="Number of inputs processed per batch.")
     params: CommonVideoToVideoParamsConfig = Field(default_factory=CommonVideoToVideoParamsConfig, description="Frame count, resolution, and sampling parameters applied to generation.")

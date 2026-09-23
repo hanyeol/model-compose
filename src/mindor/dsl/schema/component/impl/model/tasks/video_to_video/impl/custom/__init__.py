@@ -1,3 +1,3 @@
 from .common import *
-from .huggingface import *
+from .wan import *
 from .custom import *

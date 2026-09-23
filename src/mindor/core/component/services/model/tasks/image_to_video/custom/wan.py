@@ -23,11 +23,12 @@ _WAN_I2V_TASKS: Dict[WanImageToVideoPreset, str] = {
 class WanImageToVideoTaskAction(ImageToVideoTaskAction):
     config: WanImageToVideoModelActionConfig
 
-    def __init__(self, config: WanImageToVideoModelActionConfig, pipeline: Any, preset: WanImageToVideoPreset):
+    def __init__(self, config: WanImageToVideoModelActionConfig, pipeline: Any, preset: WanImageToVideoPreset, cpu_offload: bool):
         super().__init__(config)
 
         self.pipeline: Any = pipeline
         self.preset: WanImageToVideoPreset = preset
+        self.cpu_offload: bool = cpu_offload
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -74,7 +75,7 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
                     guide_scale=float(params["guidance_scale"]),
                     n_prompt=negative or "",
                     seed=int(params["seed"]) if params["seed"] is not None else -1,
-                    offload_model=False,
+                    offload_model=bool(self.cpu_offload),
                 )
                 results.append(self._encode_video_tensor_to_mp4(video, fps))
 
@@ -167,4 +168,4 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
         return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await WanImageToVideoTaskAction(action, self.pipeline, self.config.preset).run(context)
+        return await WanImageToVideoTaskAction(action, self.pipeline, self.config.preset, self.config.cpu_offload).run(context)

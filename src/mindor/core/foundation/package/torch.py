@@ -125,15 +125,25 @@ def torch_requirements(*specs: str) -> List[str]:
     the CPU wheel index while preserving the caller's constraints (pip
     resolves the final version against the CPU index).
 
-    Returns specs unchanged on hosts other than Linux x86_64/aarch64 or when
-    no NVIDIA driver is detected.
+    On hosts without a detectable NVIDIA driver (macOS, non-Linux, CPU-only
+    Linux), pins unpinned sibling specs to the release paired with the
+    resolved torch so pip doesn't drift torchvision/torchaudio/torchcodec
+    to a version incompatible with the installed torch. No wheel index is
+    attached; pip resolves against its configured index (PyPI by default).
     """
     cuda_version = get_cuda_driver_version()
+    torch_specifier = _get_torch_specifier(specs)
 
     if cuda_version is None:
-        return list(specs)
+        torch_version = _resolve_torch_without_channel(torch_specifier)
 
-    torch_specifier = _get_torch_specifier(specs)
+        logging.info(
+            f"Resolved torch=={torch_version or 'any'} for sibling pairing on a host "
+            f"without a detectable NVIDIA driver."
+        )
+
+        return _rewrite_specs(specs, torch_version, None, pin_torch=False, pin_siblings=True)
+
     torch_siblings = _get_torch_siblings(specs)
     resolved_torch = _resolve_torch_and_channel(torch_specifier, torch_siblings, cuda_version)
 
@@ -143,31 +153,33 @@ def torch_requirements(*specs: str) -> List[str]:
             f"on driver CUDA {cuda_version[0]}.{cuda_version[1]}; falling back to "
             f"the CPU wheel index while preserving the caller's constraints."
         )
-        return _rewrite_specs(specs, None, _CPU_CHANNEL, use_exact_version=False)
 
-    torch_version, channel, use_exact_version = resolved_torch
+        return _rewrite_specs(specs, None, _CPU_CHANNEL, pin_torch=False, pin_siblings=False)
+
+    torch_version, channel, pin = resolved_torch
+
     logging.info(
-        f"Resolved torch{'==' if use_exact_version else '>='}{torch_version} on channel {channel} "
+        f"Resolved torch{'==' if pin else '>='}{torch_version} on channel {channel} "
         f"for driver CUDA {cuda_version[0]}.{cuda_version[1]}."
     )
 
-    return _rewrite_specs(specs, torch_version, channel, use_exact_version=use_exact_version)
+    return _rewrite_specs(specs, torch_version, channel, pin_torch=pin, pin_siblings=pin)
 
 def _resolve_torch_and_channel(
     torch_specifier: Optional[SpecifierSet],
     torch_siblings: List[str],
     cuda_version: Tuple[int, int],
 ) -> Optional[Tuple[str, str, bool]]:
-    """Pick (torch_version, wheel channel, whether to hard-pin torch).
+    """Pick (torch_version, wheel channel, whether to hard-pin).
 
     Prefers the already-installed torch when it satisfies the caller's
     specifier and its embedded CUDA channel (`+cuXXX`) is compatible with the
     driver — this avoids downgrading a user-managed torch install just because
     the pin table lags behind upstream. When reusing the installed build we
-    return `use_exact_version=False` so `_rewrite_specs` leaves the caller's spec
-    unpinned and pip treats the existing distribution as already-satisfied.
-    Falls through to the tabled resolution (largest matrix version that fits
-    the driver) when no installed torch is reusable.
+    return `pin=False` so `_rewrite_specs` leaves torch and siblings unpinned
+    and pip treats the existing distribution as already-satisfied. Falls
+    through to the tabled resolution (largest matrix version that fits the
+    driver) when no installed torch is reusable.
     """
     reusable_torch = _get_reusable_installed_torch(torch_specifier, cuda_version)
 
@@ -187,6 +199,30 @@ def _resolve_torch_and_channel(
             return version, channel, True
 
     return None
+
+def _resolve_torch_without_channel(torch_specifier: Optional[SpecifierSet]) -> Optional[str]:
+    """Pick the torch version to use for sibling pairing on non-CUDA hosts.
+
+    Prefers the already-installed torch when it satisfies the caller's
+    specifier — mirrors the CUDA path's preference for reusing user-managed
+    installs. Otherwise picks the largest tabled torch that satisfies the
+    specifier. Returns None when nothing matches, in which case sibling
+    specs pass through unchanged.
+    """
+    installed_torch = _get_installed_torch_spec()
+
+    if installed_torch is not None:
+        installed_version, _ = installed_torch
+
+        if torch_specifier is None or torch_specifier.contains(installed_version, prereleases=True):
+            return installed_version
+
+    candidates = _candidate_torch_versions(torch_specifier)
+
+    if not candidates:
+        return None
+
+    return candidates[0]
 
 def _resolve_sibling_version(sibling: str, torch_version: str) -> Optional[str]:
     """Return the sibling release paired with `torch_version`.
@@ -342,20 +378,27 @@ def _min_cuda_driver_for_channel(channel: str) -> Optional[Tuple[int, int]]:
 def _rewrite_specs(
     specs: Iterable[str],
     torch_version: Optional[str],
-    channel: str,
-    use_exact_version: bool,
+    channel: Optional[str],
+    pin_torch: bool,
+    pin_siblings: bool,
 ) -> List[str]:
-    """Attach `@<wheel index>` to every torch-family spec.
+    """Rewrite torch-family specs with the resolved wheel index and version pins.
 
-    When `use_exact_version` is True, unpinned specs are hardened to `==<torch_version>`
-    (or the paired sibling release) so pip installs the exact resolved build.
-    When False, unpinned specs stay unpinned — used when we intentionally
-    reuse an already-installed torch and don't want to trigger a reinstall.
-    Caller-provided pins are always preserved, with a warning on sibling
-    mismatch against the resolved torch.
+    When `channel` is set, appends `@<wheel index>` to every torch-family
+    spec and attaches the channel's local tag (e.g. `+cu128`) to exact pins
+    so pip picks the intended CUDA build. When `channel` is None (non-CUDA
+    hosts), no index or local tag is attached and pip resolves against its
+    configured index (PyPI by default).
+
+    `pin_torch` and `pin_siblings` independently harden unpinned specs to
+    `==<resolved version>` (torch itself, or the paired sibling release).
+    They are False when we intentionally defer to the installed distribution
+    or to pip's own resolver against the CUDA/CPU index. Caller-provided
+    pins are always preserved, with a warning on sibling mismatch against
+    the resolved torch.
     """
-    index_url = f"{_WHEEL_INDEX_BASE}/{channel}"
-    local_tag = channel if channel != _CPU_CHANNEL else None
+    index_suffix = f"@{_WHEEL_INDEX_BASE}/{channel}" if channel is not None else ""
+    local_tag = channel if channel is not None and channel != _CPU_CHANNEL else None
     rewritten_specs: List[str] = []
 
     for spec in specs:
@@ -376,11 +419,11 @@ def _rewrite_specs(
         if requirement.name == "torch":
             if caller_specifier:
                 resolved_specifier = _attach_local_tag(caller_specifier, local_tag)
-            elif use_exact_version and torch_version:
+            elif pin_torch and torch_version:
                 resolved_specifier = _attach_local_tag(f"=={torch_version}", local_tag)
             else:
                 resolved_specifier = ""
-            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
+            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}{index_suffix}")
             continue
 
         sibling_version = _resolve_sibling_version(requirement.name, torch_version) if torch_version else None
@@ -393,15 +436,15 @@ def _rewrite_specs(
                     f"({requirement.name}=={sibling_version}); keeping the caller's pin."
                 )
             resolved_specifier = _attach_local_tag(caller_specifier, local_tag)
-            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
+            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}{index_suffix}")
             continue
 
-        if use_exact_version and sibling_version:
+        if pin_siblings and sibling_version:
             resolved_specifier = _attach_local_tag(f"=={sibling_version}", local_tag)
         else:
             resolved_specifier = ""
 
-        rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}@{index_url}")
+        rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}{index_suffix}")
 
     return rewritten_specs
 

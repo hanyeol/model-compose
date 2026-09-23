@@ -12,7 +12,7 @@ from mindor.core.logger import logging
 from ..base import MediaDownloaderDriver, register_media_downloader_driver
 from ..base import ComponentActionContext
 from .common import MediaDownloaderAction, DownloadResult
-import asyncio, os
+import asyncio, os, shutil
 
 _FORMAT_PRESETS: Dict[str, Tuple[Dict[str, Any], bool]] = {
     "mp3": ({
@@ -301,16 +301,31 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
         return { "format": "best" }, False
 
+    # yt-dlp names for the JS runtimes it will drive for YouTube's EJS solver.
+    # quickjs is omitted from auto-detection because it is rarely installed
+    # standalone; users who want it should list it explicitly.
+    _JS_RUNTIME_CANDIDATES: Tuple[str, ...] = ("deno", "node", "bun")
+
     @staticmethod
     def _build_js_runtimes_option(runtimes: Any) -> Dict[str, Dict[str, Any]]:
         """Accept the YAML-friendly shapes and return yt-dlp's {runtime: {config}} form.
 
         A bare string or a list of `RUNTIME[:PATH]` entries mirrors the
         `--js-runtimes` CLI spelling; a mapping is passed through so a caller
-        can supply the full per-runtime config.
+        can supply the full per-runtime config. When nothing is configured,
+        probe `PATH` for known runtimes so YouTube's EJS solver has something
+        to run instead of falling back to the deprecated path with a warning.
         """
         if not runtimes:
-            return {}
+            detected: Dict[str, Dict[str, Any]] = {}
+
+            for name in YtdlpMediaDownloaderAction._JS_RUNTIME_CANDIDATES:
+                path = shutil.which(name)
+
+                if path:
+                    detected[name] = { "path": path }
+
+            return detected
 
         if isinstance(runtimes, dict):
             return { str(name): (config or {}) for name, config in runtimes.items() }

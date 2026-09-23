@@ -41,7 +41,13 @@ class ComposeManager:
         if not self.controller.started:
             await self.controller.start()
 
-        state = await self.controller.run_workflow(workflow_id, input, session_id=session_id, metadata=metadata)
+        state = await self.controller.run_workflow(
+            workflow_id,
+            input,
+            stop_at_streaming=True,
+            session_id=session_id,
+            metadata=metadata
+        )
 
         if output_path and state.status == TaskStatus.COMPLETED:
             await self._save_output(state.output, output_path)
@@ -51,6 +57,7 @@ class ComposeManager:
 
     async def resume_workflow(self, task_id: str, job_id: str, run_id: Optional[str], answer: Any = None) -> TaskState:
         await self.controller.resume_workflow(task_id, job_id, run_id, answer)
+
         return await self.controller.wait_for_terminal_state(task_id)
 
     async def _save_output(self, output: Any, path: str) -> None:

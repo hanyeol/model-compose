@@ -241,11 +241,37 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
                 if hdr:
                     video_filters.append("dynamic_range=hdr")
 
-                # Match yt-dlp's default merge shape (bestvideo+bestaudio/best) so
-                # separate streams get combined when available.
-                video_filter_str = "".join(f"[{f}]" for f in video_filters)
-                audio_filter_str = "".join(f"[{f}]" for f in filters) if filters else ""
-                selector = f"bestvideo{video_filter_str}+bestaudio{audio_filter_str}/best{video_filter_str}/best"
+                # Relaxed variant drops the container filter so the fallback
+                # branches can match any codec when the requested container
+                # has no compatible stream.
+                relaxed_video_filters = [ filter for filter in video_filters if not filter.startswith("ext=") ]
+
+                # Video containers don't share their `ext` with the paired audio
+                # track (e.g. an mp4 delivery bundles an m4a audio stream, not
+                # `ext=mp4`), so a container filter must be translated to the
+                # audio ext that actually ships in it. mkv accepts any codec,
+                # so no audio ext filter is applied.
+                audio_ext_by_container = { "mp4": "m4a", "webm": "webm" }
+                audio_ext = audio_ext_by_container.get(container) if container else None
+                audio_filters = [ filter for filter in filters if not filter.startswith("ext=") ]
+
+                if audio_ext:
+                    audio_filters.append(f"ext={audio_ext}")
+
+                # YouTube (and most modern sources) no longer offer pre-merged
+                # streams above 360p, so `best[ext=mp4]` alone silently caps at
+                # 360p. Try the requested container end-to-end first, then relax
+                # to any separate video+audio pair, then to pre-merged fallbacks.
+                video_predicate = "".join(f"[{filter}]" for filter in video_filters)
+                audio_predicate = "".join(f"[{filter}]" for filter in audio_filters)
+                relaxed_video_predicate = "".join(f"[{filter}]" for filter in relaxed_video_filters)
+                selector = (
+                    f"bestvideo{video_predicate}+bestaudio{audio_predicate}"
+                    f"/bestvideo{relaxed_video_predicate}+bestaudio"
+                    f"/best{video_predicate}"
+                    f"/best{relaxed_video_predicate}"
+                    f"/best"
+                )
 
             options: Dict[str, Any] = { "format": selector }
 

@@ -9,8 +9,9 @@ from mindor.core.logger import logging
 from ..base import SubtitleLoaderDriver, register_subtitle_loader_driver
 from ..base import ComponentActionContext
 from .common import SubtitleLoaderAction
-from ...media_downloader.drivers.ytdlp import YtdlpMediaDownloaderAction
-import asyncio, os
+import asyncio, os, shutil
+
+_JS_RUNTIME_CANDIDATES: Tuple[str, ...] = ("deno", "node", "bun")
 
 class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
     async def _prepare_input(self) -> Any:
@@ -234,6 +235,86 @@ class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
             "full_text": full_text,
             "format":    subtitles.format,
         }
+
+    @staticmethod
+    def _build_js_runtimes_option(runtimes: Any) -> Dict[str, Dict[str, Any]]:
+        """Accept the YAML-friendly shapes and return yt-dlp's {runtime: {config}} form.
+
+        A bare string or a list of `RUNTIME[:PATH]` entries mirrors the
+        `--js-runtimes` CLI spelling; a mapping is passed through so a caller
+        can supply the full per-runtime config. When nothing is configured,
+        probe `PATH` for known runtimes so YouTube's EJS solver has something
+        to run instead of falling back to the deprecated path with a warning.
+        """
+        if not runtimes:
+            detected: Dict[str, Dict[str, Any]] = {}
+
+            for name in _JS_RUNTIME_CANDIDATES:
+                path = shutil.which(name)
+
+                if path:
+                    detected[name] = { "path": path }
+
+            return detected
+
+        if isinstance(runtimes, dict):
+            return { str(name): (config or {}) for name, config in runtimes.items() }
+
+        if isinstance(runtimes, str):
+            runtimes = [ runtimes ]
+
+        option: Dict[str, Dict[str, Any]] = {}
+
+        for runtime in runtimes:
+            name, _, path = str(runtime).partition(":")
+            option[name] = { "path": path or None }
+
+        return option
+
+    @staticmethod
+    def _create_cookies_file(cookies: List[Dict[str, Any]]) -> str:
+        path = get_temporary_path("txt")
+
+        # Python's http.cookiejar refuses to load the file without this magic
+        # header line, and yt-dlp defers to that loader.
+        lines = [ "# Netscape HTTP Cookie File" ]
+
+        for cookie in cookies:
+            name  = cookie.get("name")
+            value = cookie.get("value")
+
+            if name is None or value is None:
+                continue
+
+            domain = str(cookie.get("domain") or "")
+
+            # Netscape's include-subdomains flag is inferred from a leading dot
+            # on the domain — CDP/Playwright follow the same convention.
+            include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
+            cookie_path = str(cookie.get("path") or "/")
+            secure = "TRUE" if cookie.get("secure") else "FALSE"
+
+            # CDP reports session cookies with expires=-1 and Playwright with
+            # expires=-1 or expires=0; the Netscape format only accepts a
+            # non-negative unix timestamp (0 means session cookie). Coerce
+            # any negative or unparseable value to 0.
+            try:
+                expiry = int(float(cookie.get("expires", 0)))
+            except (TypeError, ValueError):
+                expiry = 0
+            expiry_field = str(max(expiry, 0))
+
+            # httpOnly cookies use the `#HttpOnly_` prefix on the domain per
+            # curl/wget convention, which yt-dlp's loader recognizes.
+            if cookie.get("httpOnly"):
+                domain = f"#HttpOnly_{domain}"
+
+            lines.append("\t".join([ domain, include_subdomains, cookie_path, secure, expiry_field, str(name), str(value) ]))
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+        return path
 
 @register_subtitle_loader_driver(SubtitleLoaderDriverType.YTDLP)
 class YtdlpSubtitleLoaderService(SubtitleLoaderDriver):

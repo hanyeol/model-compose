@@ -73,6 +73,11 @@ _FORMAT_PRESETS: Dict[str, Tuple[Dict[str, Any], bool]] = {
     }, False),
 }
 
+# yt-dlp names for the JS runtimes it will drive for YouTube's EJS solver.
+# quickjs is omitted from auto-detection because it is rarely installed
+# standalone; users who want it should list it explicitly.
+_JS_RUNTIME_CANDIDATES: Tuple[str, ...] = ("deno", "node", "bun")
+
 class YtdlpMediaDownloaderAction(MediaDownloaderAction):
     async def _resolve_params(self) -> Dict[str, Any]:
         params = await super()._resolve_params()
@@ -331,11 +336,6 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
         return options
 
-    # yt-dlp names for the JS runtimes it will drive for YouTube's EJS solver.
-    # quickjs is omitted from auto-detection because it is rarely installed
-    # standalone; users who want it should list it explicitly.
-    _JS_RUNTIME_CANDIDATES: Tuple[str, ...] = ("deno", "node", "bun")
-
     @staticmethod
     def _build_js_runtimes_option(runtimes: Any) -> Dict[str, Dict[str, Any]]:
         """Accept the YAML-friendly shapes and return yt-dlp's {runtime: {config}} form.
@@ -349,7 +349,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         if not runtimes:
             detected: Dict[str, Dict[str, Any]] = {}
 
-            for name in YtdlpMediaDownloaderAction._JS_RUNTIME_CANDIDATES:
+            for name in _JS_RUNTIME_CANDIDATES:
                 path = shutil.which(name)
 
                 if path:

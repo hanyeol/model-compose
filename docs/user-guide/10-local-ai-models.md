@@ -266,7 +266,7 @@ model-compose supports the following task types:
 | `image-segmentation` | Image segmentation | Generate per-region binary masks (automatic or box-prompted) |
 | `text-to-video` | Video generation from text | Prompt-driven short video clips |
 | `image-to-video` | Video generation from an image | Animate a still image, optionally guided by a prompt |
-| `video-to-video` | Video restyling from a source clip | Restyle an existing clip with a prompt while preserving its motion |
+| `video-to-video` | Video transformation from a source clip | Restyle a clip with a prompt (AnimateDiff) or drive a reference character with the input's pose/expression (Wan-Animate) |
 | `image-to-3d` | 3D mesh generation from a single image | Turn a reference image into a textured GLB asset |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 | `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
@@ -1312,9 +1312,13 @@ component:
 
 ### 10.3.25 video-to-video
 
-Restyles an existing video clip with a text prompt while preserving the source motion. Currently backed by HuggingFace diffusers' AnimateDiff pipeline layered on a Stable Diffusion 1.5 checkpoint.
+Transforms an existing video clip. Two driver families are supported:
+
+- **`huggingface` (AnimateDiff)** — restyle the clip with a text prompt while preserving its motion. Backed by HuggingFace diffusers' AnimateDiff pipeline layered on a Stable Diffusion 1.5 checkpoint.
+- **`custom` (Wan-Animate)** — drive a reference character with the pose and expression of the input clip.
 
 ```yaml
+# AnimateDiff — restyle with a prompt while preserving motion
 component:
   type: model
   task: video-to-video
@@ -1347,10 +1351,46 @@ component:
       ip_adapter_scale: ${input.ip_adapter_scale as number | 0.6}
 ```
 
-**Supported architectures:**
-- `animatediff` — Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Any SD 1.5 fine-tune works as the appearance backbone.
+```yaml
+# Wan-Animate — drive a reference character with the input clip's motion
+component:
+  type: model
+  task: video-to-video
+  driver: custom
+  family: wan
+  preset: animate-14b
+  model: Wan-AI/Wan2.2-Animate-14B
+  # Preprocessing checkpoints — pose extraction and person detection are always required.
+  pose2d_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/pose2d/vitpose_h_wholebody.onnx
+  det_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/det/yolov10m.onnx
+  # Optional — needed only for replacement mode and pose retargeting with image editing.
+  sam2_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/sam2/sam2_hiera_large.pt
+  flux_kontext_model: black-forest-labs/FLUX.1-Kontext-dev
+  cpu_offload: false
+  device: cuda:0
+  action:
+    video: ${input.driving_video as video}
+    reference_image: ${input.reference_image as image}
+    prompt: ${input.prompt | ""}
+    params:
+      clip_len: 77
+      inference_steps: 20
+      guidance_scale: 1.0
+      resolution_width: 1280
+      resolution_height: 720
+      preprocess_fps: 30
+```
 
-`num_frames`/`fps` are optional; when omitted, every input frame is consumed and the output inherits the source clip's native fps, so the result preserves the input's playback duration. AnimateDiff was trained on ~16-frame windows, so quality degrades on very long clips — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. When `reference_image` is supplied, the IP-Adapter transfers colors/textures/subject cues; keep `ip_adapter_scale` around `0.5-0.7`. The result is an mp4 stream per input (or a list for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#video-to-video) for the full option list.
+**Supported families / architectures:**
+
+- `huggingface` → `animatediff` — Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Any SD 1.5 fine-tune works as the appearance backbone.
+- `custom` → `wan` (`animate-14b`) — Wan2.2 Animate 14B. Requires CUDA.
+
+**AnimateDiff notes:** `num_frames`/`fps` are optional; when omitted, every input frame is consumed and the output inherits the source clip's native fps, so the result preserves the input's playback duration. AnimateDiff was trained on ~16-frame windows, so quality degrades on very long clips — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. When `reference_image` is supplied, the IP-Adapter transfers colors/textures/subject cues; keep `ip_adapter_scale` around `0.5-0.7`.
+
+**Wan-Animate notes:** `reference_image` is required — it is the target character animated to match the driving clip. The driver runs the Wan preprocessing pipeline (pose extraction, person detection, and — optionally — SAM2 for character replacement and FLUX.1-Kontext for pose retargeting) before the main generation step, so the corresponding checkpoints must be declared on the component. Set `params.replace_flag: true` for character replacement (requires `sam2_model`) or `params.use_flux: true` (with `params.retarget_flag: true`) for editing-based retargeting (requires `flux_kontext_model`). `cpu_offload: true` reduces peak VRAM at the cost of throughput.
+
+The result is an mp4 stream per input (or a list for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#video-to-video) for the full option list.
 
 ### 10.3.26 image-to-3d
 

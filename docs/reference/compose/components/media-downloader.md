@@ -38,6 +38,8 @@ Additional fields for the `ytdlp` driver:
 |-------|------|---------|-------------|
 | `format` | preset \| string \| object | (best) | Download format. See [Format field](#format-field) below. |
 | `cookies` | dict | `{}` | Cookies sent with the download request as name/value pairs. Required for age-gated / member-only content. |
+| `extractor_args` | dict | `{}` | Extractor-specific arguments keyed by extractor name, mirroring yt-dlp's `--extractor-args`. |
+| `js_runtimes` | string \| string[] \| dict | (auto-detect) | JavaScript runtimes yt-dlp may use for player-side challenges. Accepts a runtime name (`deno`, `node`, `bun`, `quickjs`), a `RUNTIME:PATH` entry, a list of either, or a full per-runtime config mapping. When unset, the driver probes `PATH` for `deno`, `node`, and `bun` and passes whichever it finds. |
 
 ## Format field
 
@@ -88,33 +90,45 @@ Raw expressions are always treated as video downloads (the resulting stream is w
 
 ### 3. Structured spec (object)
 
-Declarative fields that compile into a yt-dlp `-f` selector plus any needed postprocessors.
+Declarative fields that compile into a yt-dlp `-f` selector plus any needed postprocessors. The `media` discriminator picks between the video and audio variants; each variant exposes its own fields.
 
-| Field | Type | Applies to | Description |
-|-------|------|------------|-------------|
-| `media` | `audio` \| `video` | **required** | Whether to download an audio-only stream or a merged video stream. |
-| `container` | string | both | Target container/extension (e.g., `mp3`, `m4a`, `opus`, `mp4`, `webm`). For `audio` also sets the `FFmpegExtractAudio` codec; for `video` sets the merge container. |
-| `codec` | string | both | Preferred codec prefix (e.g., `avc1` for video, `opus` for audio); routed to yt-dlp's `vcodec^=` / `acodec^=` filter. |
-| `max_height` | integer \| string | video | Maximum video height in pixels. |
-| `max_fps` | integer \| string | video | Maximum frame rate. |
-| `max_bitrate` | integer \| string | both | Maximum bitrate in kbps (`abr<=` for audio, `vbr<=` for video). |
-| `max_filesize` | integer \| string | both | Maximum filesize; accepts yt-dlp size expressions (e.g., `50M`, `1G`). |
-| `hdr` | boolean | video | Prefer HDR streams when `true`. |
-| `prefer_free_formats` | boolean | both | Prefer patent-free formats (webm/opus/vp9) when `true`. |
+**Video spec (`media: video`)** — returns a `VideoStreamResource`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `media` | `video` | **required** — selects the video variant. |
+| `container` | string | Target video container (`mp4`, `webm`, `mkv`). Sets the merge container and constrains the video/audio stream selection (e.g., `mp4` pairs with `m4a` audio, `webm` with `webm/opus`). |
+| `codec` | string | Preferred video codec prefix (e.g., `avc1`, `vp9`); routed to yt-dlp's `vcodec^=` filter. |
+| `max_height` | integer \| string | Maximum video height in pixels. |
+| `max_fps` | integer \| string | Maximum frame rate. |
+| `max_bitrate` | integer \| string | Maximum video bitrate in kbps (`vbr<=`). |
+| `max_filesize` | integer \| string | Maximum filesize; accepts yt-dlp size expressions (e.g., `50M`, `1G`). |
+| `hdr` | boolean | Prefer HDR streams when `true`. |
+| `prefer_free_formats` | boolean | Prefer patent-free formats (webm/opus/vp9) when `true`. |
+
+**Audio spec (`media: audio`)** — returns an `AudioStreamResource`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `media` | `audio` | **required** — selects the audio variant. |
+| `codec` | string | Target audio codec (`mp3`, `m4a`, `aac`, `opus`, `vorbis`, `flac`, `alac`, `wav`). Passed straight to yt-dlp's `FFmpegExtractAudio.preferredcodec`, which owns the container/codec mapping (e.g., `m4a` → AAC in mp4 container, `vorbis` → Vorbis in ogg). When omitted, the source track is kept as-is with no re-encoding. |
+| `max_bitrate` | integer \| string | Maximum audio bitrate in kbps (`abr<=`). |
+| `max_filesize` | integer \| string | Maximum filesize; accepts yt-dlp size expressions (e.g., `50M`, `1G`). |
+| `prefer_free_formats` | boolean | Prefer patent-free formats (opus, vorbis) when `true`. |
 
 ```yaml
 # audio-only, mp3 at ≤128 kbps
 format:
   media: audio
-  container: mp3
+  codec: mp3
   max_bitrate: 128
 
-# 720p mp4 with avc1 video codec
+# 1080p mp4 with avc1 video codec
 format:
   media: video
   container: mp4
   codec: avc1
-  max_height: 720
+  max_height: 1080
 ```
 
 ## Supported Drivers
@@ -196,7 +210,7 @@ components:
       url: ${input.url}
       format:
         media: audio
-        container: wav
+        codec: wav
 
   - id: normalizer
     type: audio-processor
@@ -235,7 +249,7 @@ components:
       url: ${input.url}
       format:
         media: audio
-        container: wav
+        codec: wav
 ```
 
 ### Batch Download from a List
@@ -274,13 +288,13 @@ components:
       cookies: ${input.cookies}
       format:
         media: audio
-        container: m4a
+        codec: m4a
 ```
 
 ## Best Practices
 
 1. **Pick a lossless format for downstream processing.** If the next step re-encodes (normalize, transcribe, splice), use `wav` or `flac` for the audio container to avoid double-lossy compression. Reserve `mp3` / `m4a` for terminal delivery.
-2. **Start with presets, escalate to structured, escape to raw only when needed.** The preset covers the common "give me mp3" case in one word. Move to `format: { media, container, max_height, ... }` when you need caps or filters. Reach for a raw yt-dlp expression only when the structured spec genuinely can't express it.
+2. **Start with presets, escalate to structured, escape to raw only when needed.** The preset covers the common "give me mp3" case in one word. Move to `format: { media, container, max_height, ... }` for video or `format: { media: audio, codec, max_bitrate }` for audio when you need caps or filters. Reach for a raw yt-dlp expression only when the structured spec genuinely can't express it.
 3. **Cap concurrency for a single site.** `batch_size` runs URLs concurrently, but hitting one site (e.g., YouTube) with too many parallel requests can trigger rate limiting. Keep `batch_size` at 2–4 for same-site batches.
 4. **Cookies are per-request.** The driver writes the `cookies` dict to a temporary Netscape cookie jar for the duration of one download and deletes it after. Nothing is persisted between actions.
 5. **`ffmpeg` is required for audio extraction.** yt-dlp shells out to `ffmpeg` for the `FFmpegExtractAudio` postprocessor and for merging separate video+audio streams. Install it via your OS package manager (`brew install ffmpeg`, `apt install ffmpeg`).

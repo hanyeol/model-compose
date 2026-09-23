@@ -1769,34 +1769,43 @@ component:
 
 ### Video to Video
 
-Restyle an existing video clip with a text prompt while preserving the source motion.
+Transform an existing video clip. Two driver families are supported: `huggingface` layers AnimateDiff over an SD 1.5 checkpoint to restyle the clip with a text prompt while preserving motion, and `custom` runs Wan-Animate to drive a reference character with the pose/expression of the input video.
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `video` | video/array | one of `video`/`frames` **required** | Source video (or list/stream of videos) whose motion is preserved |
+| `frames` | image-array | one of `video`/`frames` **required** | Source frames used as the motion source, as an alternative to `video` |
+| `prompt` | string/array | `null` | Text prompt guiding the output |
+| `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `reference_image` | image | `null` | Reference image; usage depends on the driver — appearance IP-Adapter conditioning for `huggingface`, target character for `custom` (**required** on Wan-Animate) |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
+| `params.num_frames` | int | `null` | Frames sampled from the input; unset consumes every input frame |
+| `params.fps` | int | `null` | Output video frame rate; unset inherits the input clip's native fps |
+| `params.width` | int | `null` | Output video width in pixels; defaults to the input width |
+| `params.height` | int | `null` | Output video height in pixels; defaults to the input height |
+
+#### Driver: huggingface (AnimateDiff)
+
+Restyle the source clip with a text prompt while preserving its motion.
 
 **Component Settings:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `video-to-video` |
-| `driver` | string | **required** | Model driver — currently `huggingface` |
-| `architecture` | string | **required** | Video-to-video architecture — currently `animatediff` |
+| `driver` | string | **required** | Must be `huggingface` |
+| `architecture` | string | **required** | Currently `animatediff` |
 | `model` | model | **required** | Base SD 1.5 style checkpoint (HuggingFace repo or local path); any SD 1.5 fine-tune works |
 | `motion_adapter` | model | **required** | AnimateDiff motion adapter matching the base architecture |
 | `ip_adapter` | model | `null` | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`) |
 
-**Action Fields:**
+**Action Fields (in addition to the common fields):**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `video` | video/array | one of `video`/`frames` **required** | Source video (or list/stream of videos) whose motion is preserved |
-| `frames` | image-array | one of `video`/`frames` **required** | Source frames used as the motion source, as an alternative to `video` |
-| `prompt` | string/array | `null` | Text prompt steering the restyled appearance |
-| `negative_prompt` | string/array | `null` | Text describing content to avoid |
-| `reference_image` | image | `null` | Reference image passed to the IP-Adapter for appearance conditioning; requires the component's `ip_adapter` to be set |
-| `seed` | int | `null` | Random seed for reproducible generation |
-| `batch_size` | int | `1` | Number of inputs processed per batch |
-| `params.num_frames` | int | `null` | Frames sampled from the input video and produced in the output; unset consumes every input frame |
-| `params.fps` | int | `null` | Output video frame rate; unset inherits the input clip's native fps so the output preserves the source playback duration |
-| `params.width` | int | `null` | Output video width in pixels; defaults to the input video width |
-| `params.height` | int | `null` | Output video height in pixels; defaults to the input video height |
 | `params.inference_steps` | int | `25` | Number of diffusion inference steps per frame |
 | `params.guidance_scale` | float | `7.5` | Classifier-free guidance scale |
 | `params.denoise_strength` | float | `0.5` | Denoising strength — higher values follow the prompt more, lower values preserve the input video's appearance |
@@ -1832,11 +1841,89 @@ component:
       ip_adapter_scale: 0.6
 ```
 
-#### Supported architectures
+**Supported architectures:**
 
 | Architecture | Notes |
 |--------------|-------|
 | `animatediff` | Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Trained on ~16-frame windows — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. |
+
+#### Driver: custom (Wan-Animate)
+
+Transfer the pose and expression of a driving video onto a reference character. Requires CUDA and preprocessing checkpoints (pose detection, person detection, and — for the optional replacement and pose-retargeting features — SAM2 and FLUX.1-Kontext).
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `video-to-video` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `wan`) |
+| `preset` | string | `animate-14b` | Checkpoint preset (`animate-14b`) |
+| `model` | model | **required** | Wan-Animate checkpoint (HuggingFace repo or local checkpoint directory) |
+| `pose2d_model` | model | **required** | ViTPose whole-body ONNX checkpoint used to extract driving poses |
+| `det_model` | model | **required** | Person detector ONNX checkpoint (e.g. YOLOv10) used by the pose extractor |
+| `sam2_model` | model | `null` | SAM2 checkpoint; required only when an action uses `params.replace_flag` |
+| `flux_kontext_model` | model | `null` | FLUX.1-Kontext model; required only when an action uses `params.use_flux` with pose retargeting |
+| `cpu_offload` | boolean | `false` | Offload submodules to CPU during generation to save VRAM |
+
+**Action Fields (in addition to the common fields):**
+
+`reference_image` is **required** on this driver — it supplies the target character animated to match the driving video.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.inference_steps` | int | `20` | Number of diffusion sampling steps |
+| `params.guidance_scale` | float | `1.0` | Classifier-free guidance scale used for expression control |
+| `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
+| `params.clip_len` | int | `77` | Frames generated per clip; must satisfy `4n+1` |
+| `params.refert_num` | int | `1` | Frames used as temporal guidance between clips; `1` or `5` |
+| `params.preprocess_fps` | int | `30` | Target fps when sampling the driving video during preprocessing; `-1` keeps the video's native fps |
+| `params.resolution_width` | int | `1280` | Preprocessing resolution width; the driving video is resized to preserve aspect ratio within `width * height` area |
+| `params.resolution_height` | int | `720` | Preprocessing resolution height; paired with `resolution_width` to define the target area |
+| `params.retarget_flag` | boolean | `false` | Enable pose retargeting during preprocessing |
+| `params.use_flux` | boolean | `false` | Use FLUX.1-Kontext image editing during pose retargeting; requires `retarget_flag` and the component's `flux_kontext_model` |
+| `params.replace_flag` | boolean | `false` | Enable character replacement mode; requires the component's `sam2_model` to be configured |
+| `params.mask_iterations` | int | `3` | Mask dilation iterations used in replacement mode |
+| `params.mask_kernel_size` | int | `7` | Mask dilation kernel size used in replacement mode |
+| `params.mask_w_len` | int | `1` | Grid subdivisions along the width axis used to refine the replacement mask contour |
+| `params.mask_h_len` | int | `1` | Grid subdivisions along the height axis used to refine the replacement mask contour |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: video-to-video
+  driver: custom
+  family: wan
+  preset: animate-14b
+  model: Wan-AI/Wan2.2-Animate-14B
+  pose2d_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/pose2d/vitpose_h_wholebody.onnx
+  det_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/det/yolov10m.onnx
+  # Optional — enable replacement mode / pose retargeting with image editing.
+  sam2_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/sam2/sam2_hiera_large.pt
+  flux_kontext_model: black-forest-labs/FLUX.1-Kontext-dev
+  cpu_offload: false
+  device: cuda:0
+  action:
+    video: ${input.driving_video as video}
+    reference_image: ${input.reference_image as image}
+    prompt: ${input.prompt | ""}
+    params:
+      clip_len: 77
+      refert_num: 1
+      inference_steps: 20
+      guidance_scale: 1.0
+      resolution_width: 1280
+      resolution_height: 720
+      preprocess_fps: 30
+```
+
+**Supported families:**
+
+| Family | Preset | Notes |
+|--------|--------|-------|
+| `wan` | `animate-14b` | Wan2.2 Animate 14B. Requires CUDA. Preprocessing pulls in `pose2d`/`det` (always), `sam2` (replacement mode), and `FLUX.1-Kontext` (retargeting with image editing). |
 
 **Result Shape:**
 

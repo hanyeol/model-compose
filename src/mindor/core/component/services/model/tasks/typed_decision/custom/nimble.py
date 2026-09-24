@@ -44,8 +44,9 @@ class NimbleTypedDecisionTaskAction(TypedDecisionTaskAction):
 
     def _build_decision_result(self, scoring: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         # Nimble returns { "output": {...}, "fields": { name: { "scores": {...}, "logits": {...} } } }.
-        # Trim according to the action's return_probabilities / return_logits flags.
-        result: Dict[str, Any] = { "output": scoring.get("output", {}) }
+        # Map to the typed-decision task's common { decision, fields } contract and trim
+        # per-field payloads according to the action's return_probabilities / return_logits flags.
+        result: Dict[str, Any] = { "decision": scoring.get("output", {}) }
         fields: Dict[str, Any] = {}
 
         for name, value in scoring.get("fields", {}).items():

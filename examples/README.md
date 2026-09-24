@@ -132,28 +132,80 @@ Local model execution via HuggingFace, llama.cpp, or vLLM.
 - [translation-stream](./model-tasks/translation-stream/) — Streaming translation
 - [text-classification](./model-tasks/text-classification/) — Classify text
 - [text-reranking](./model-tasks/text-reranking/) — Rerank documents against a query
+- [typed-decision-nimble](./model-tasks/typed-decision-nimble/) — Typed decisions with per-candidate probabilities (Bespoke Nimble-9B)
+- [typed-decision-kev](./model-tasks/typed-decision-kev/) — One-shot typed decisions with per-candidate probabilities (Kev-4B)
 
 #### Embeddings
 - [text-embedding](./model-tasks/text-embedding/) — Text embeddings
 - [text-embedding-llamacpp](./model-tasks/text-embedding-llamacpp/) — Embeddings via llama.cpp
+- [text-embedding-lfm2](./model-tasks/text-embedding-lfm2/) — Multilingual embeddings via LFM2.5-Encoder-350M
 - [face-embedding](./model-tasks/face-embedding/) — Face embeddings (InsightFace)
+- [voice-embedding](./model-tasks/voice-embedding/) — Speaker embeddings (pyannote.audio)
+- [music-embedding-sampleid](./model-tasks/music-embedding-sampleid/) — Music embeddings (Sony Sample ID)
+- [video-embedding](./model-tasks/video-embedding/) — Video-level embeddings (X-CLIP)
 
 #### Vision
 - [image-to-text](./model-tasks/image-to-text/) — Image captioning
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — VLM (Qwen2.5-VL) via HuggingFace
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — VLM OCR (olmOCR) via vLLM
+- [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — Image generation with Qwen-Image 2.1
 - [image-upscale](./model-tasks/image-upscale/) — Upscale images
 - [image-background-removal](./model-tasks/image-background-removal/) — Remove image backgrounds
+- [image-segmentation](./model-tasks/image-segmentation/) — Segmentation masks with SAM
 - [face-swap](./model-tasks/face-swap/) — Face swapping
 - [pose-detection](./model-tasks/pose-detection/) — Human pose detection
+- [object-detection](./model-tasks/object-detection/) — Object detection with YOLO
+
+#### 3D Reconstruction
+- [image-to-3d-anigen](./model-tasks/image-to-3d-anigen/) — Rigged 3D mesh from a single image (AniGen)
+- [image-to-3d-pixal3d](./model-tasks/image-to-3d-pixal3d/) — Textured 3D mesh from a single image (Pixal3D)
+- [image-to-3d-pixal3d-mv](./model-tasks/image-to-3d-pixal3d-mv/) — Textured 3D mesh from multi-view images (Pixal3D MV)
+- [image-to-3d-world-mirror](./model-tasks/image-to-3d-world-mirror/) — 3D scene reconstruction with HunyuanWorld-Mirror 2.0
+
+#### Video
+- [video-to-video-animatediff](./model-tasks/video-to-video-animatediff/) — Restyle a video with a prompt via AnimateDiff (SD 1.5)
+- [shot-boundary-detection](./model-tasks/shot-boundary-detection/) — Detect shot boundaries with TransNetV2
+- [object-tracking](./model-tasks/object-tracking/) — Track objects across video frames (YOLO + ByteTrack/BoT-SORT)
+- [face-tracking](./model-tasks/face-tracking/) — Track faces across video frames (InsightFace)
+- [pose-tracking](./model-tasks/pose-tracking/) — Track human poses across video frames (YOLOv8-pose)
+
+#### Talking Head / Lip Sync
+- [talking-head-sadtalker](./model-tasks/talking-head-sadtalker/) — Portrait talking-head with SadTalker
+- [talking-head-echomimic](./model-tasks/talking-head-echomimic/) — Portrait/half-body talking-head with EchoMimic
+- [talking-head-float](./model-tasks/talking-head-float/) — Emotion-conditioned talking-head with Float
+- [talking-head-hallo2](./model-tasks/talking-head-hallo2/) — High-resolution long-form talking-head with Hallo2
+- [talking-head-hallo3](./model-tasks/talking-head-hallo3/) — DiT-based talking-head with Hallo3 (CogVideoX-5B)
+- [talking-head-sonic](./model-tasks/talking-head-sonic/) — Portrait talking-head with Sonic
+- [lip-sync-wav2lip](./model-tasks/lip-sync-wav2lip/) — Lip sync with Wav2Lip
+- [lip-sync-latentsync](./model-tasks/lip-sync-latentsync/) — Lip sync with LatentSync
+- [lip-sync-musetalk](./model-tasks/lip-sync-musetalk/) — Lip sync with MuseTalk
 
 #### Speech / Audio
 - [speech-to-text](./model-tasks/speech-to-text/) — Speech recognition
+- [speech-to-text-crisper-whisper](./model-tasks/speech-to-text-crisper-whisper/) — Verbatim transcription with CrisperWhisper 2.0
+- [speech-to-text-vibevoice](./model-tasks/speech-to-text-vibevoice/) — Long-form transcription with VibeVoice-ASR
+- [speech-to-text-vibevoice-streaming](./model-tasks/speech-to-text-vibevoice-streaming/) — Streaming transcription with VibeVoice-ASR-Streaming
 - [text-to-speech-generate](./model-tasks/text-to-speech-generate/) — Basic TTS
 - [text-to-speech-design](./model-tasks/text-to-speech-design/) — TTS with voice design
+- [text-to-speech-design-fireredtts3](./model-tasks/text-to-speech-design-fireredtts3/) — Voice design with FireRedTTS3-Instruct
+- [text-to-speech-edit-fireredtts3](./model-tasks/text-to-speech-edit-fireredtts3/) — Speech editing with FireRedTTS3-Instruct
 - [text-to-speech-clone](./model-tasks/text-to-speech-clone/) — Voice cloning TTS
+- [text-to-speech-clone-cosyvoice](./model-tasks/text-to-speech-clone-cosyvoice/) — Zero-shot voice cloning with CosyVoice2
+- [text-to-speech-clone-fireredtts3](./model-tasks/text-to-speech-clone-fireredtts3/) — Zero-shot voice cloning with FireRedTTS3-Base
+- [text-to-speech-clone-luxtts](./model-tasks/text-to-speech-clone-luxtts/) — Zero-shot voice cloning with LuxTTS (ZipVoice)
+- [text-to-speech-clone-tada](./model-tasks/text-to-speech-clone-tada/) — Voice cloning with HumeAI TADA
 - [text-to-speech-to-text](./model-tasks/text-to-speech-to-text/) — TTS → STT round-trip
+- [audio-text-alignment](./model-tasks/audio-text-alignment/) — Word-level forced alignment (Wav2Vec2 CTC)
+- [voice-activity-detection](./model-tasks/voice-activity-detection/) — Detect speech segments with Silero VAD
+- [speaker-diarization](./model-tasks/speaker-diarization/) — "Who spoke when" with pyannote.audio
+
+#### Music
 - [music-generation](./model-tasks/music-generation/) — Music generation
+- [music-generation-yue2](./model-tasks/music-generation-yue2/) — Full-song generation with YuE2 (score + acoustic synthesis)
+- [music-source-separation](./model-tasks/music-source-separation/) — Vocal stem separation with Demucs v4
+- [music-source-separation-mdx23c-drumsep](./model-tasks/music-source-separation-mdx23c-drumsep/) — Per-piece drum stem separation with MDX23C DrumSep
+- [music-transcription](./model-tasks/music-transcription/) — Notes/MIDI transcription with Spotify Basic Pitch
+- [music-beat-tracking-beat-this](./model-tasks/music-beat-tracking-beat-this/) — Detect beats and downbeats with Beat This!
 
 ### Agents
 
@@ -178,18 +230,60 @@ End-to-end pipelines combining multiple components.
 - [make-inspiring-quote-voice](./showcase/make-inspiring-quote-voice/) — Generate a quote → convert to speech
 - [find-person-scenes](./showcase/find-person-scenes/) — Locate a target person's scenes in a video via face embedding
 - [vibevoice-realtime-tts](./showcase/vibevoice-realtime-tts/) — Real-time WebSocket TTS with Microsoft VibeVoice
+- [upscale-video](./showcase/upscale-video/) — Frame-by-frame super-resolution upscaling of a video (preserves audio)
 - [echo-server](./showcase/echo-server/) — Minimal HTTP echo server
 
 ### Media Processing
 
 Audio, video, and image processing components.
 
+#### Audio
 - [audio-extractor](./media-processing/audio-extractor/) — Extract audio from video files
 - [audio-feature-extractor](./media-processing/audio-feature-extractor/) — Extract spectrum/waveform features
+- [audio-analyzer](./media-processing/audio-analyzer/) — Inspect loudness, peak, gain, silence, energy
+- [audio-capture](./media-processing/audio-capture/) — Capture microphone or system loopback as an AAC stream
+- [audio-clipper](./media-processing/audio-clipper/) — Lossless time-range cutting via ffmpeg
+- [audio-mixer](./media-processing/audio-mixer/) — Mix multiple audio sources with ffmpeg
+- [audio-normalizer](./media-processing/audio-normalizer/) — LUFS loudness normalization with true-peak ceiling
+- [audio-processor](./media-processing/audio-processor/) — DSP chain (EQ, dynamics, spatial, effects)
+- [audio-refiner](./media-processing/audio-refiner/) — Drop silence/noise via Silero VAD + clipper
+- [audio-silence-detector](./media-processing/audio-silence-detector/) — Locate silent regions with ffmpeg `silencedetect`
+- [audio-spectrum-to-video](./media-processing/audio-spectrum-to-video/) — Render audio as an equalizer-style MP4
+- [audio-synchronizer](./media-processing/audio-synchronizer/) — Compute time offsets between multi-source recordings
+- [music-analyzer](./media-processing/music-analyzer/) — Extract rhythm/tonality/spectral properties
+- [music-segment-detector](./media-processing/music-segment-detector/) — Find intro/verse/chorus segment boundaries
+- [speech-to-text-with-correction](./media-processing/speech-to-text-with-correction/) — Whisper STT aligned to a reference transcript
+- [speech-to-text-with-vad](./media-processing/speech-to-text-with-vad/) — Whisper STT with Silero VAD pre-segmentation
+
+#### Video
 - [video-converter](./media-processing/video-converter/) — Video format/codec conversion
 - [video-scene-detector](./media-processing/video-scene-detector/) — Detect scene changes in videos
+- [video-scene-splitter](./media-processing/video-scene-splitter/) — Detect and save each scene as its own file
+- [video-capture](./media-processing/video-capture/) — Capture the local camera as a fragmented MP4 stream
+- [video-clipper](./media-processing/video-clipper/) — Lossless time-range cutting via ffmpeg
+- [video-mixer](./media-processing/video-mixer/) — Composite multiple videos with ffmpeg
+- [video-playback](./media-processing/video-playback/) — Play a video in an OS-native window via ffplay
+- [video-processor](./media-processing/video-processor/) — Per-frame resize/crop/pad/flip/rotate
+- [video-refiner](./media-processing/video-refiner/) — VAD-driven speech-only video assembly
+- [video-dubbing](./media-processing/video-dubbing/) — End-to-end dubbing (Whisper → translate → TTS → Wav2Lip)
+- [video-to-gif](./media-processing/video-to-gif/) — Convert a video (or a clip) to an animated GIF
+- [screen-capture](./media-processing/screen-capture/) — Capture the display/region/mic as continuous streams
+- [youtube-downloader](./media-processing/youtube-downloader/) — Download YouTube videos with cookie-based auth
+- [face-mosaic](./media-processing/face-mosaic/) — Pixelate/blur faces in a video (streaming, preserves audio)
+- [pose-skeleton-overlay](./media-processing/pose-skeleton-overlay/) — Overlay YOLOv8-pose skeletons on every video frame
+- [nsfw-mosaic](./media-processing/nsfw-mosaic/) — Pixelate/blur NSFW regions in a video (streaming, preserves audio)
+
+#### Image
 - [image-processor](./media-processing/image-processor/) — Resize, crop, rotate, filter, adjust
 - [image-processor-dual-input](./media-processing/image-processor-dual-input/) — Image processing from URL + upload
+- [face-gender-annotate](./media-processing/face-gender-annotate/) — Draw male/female-colored face bounding boxes
+- [nsfw-annotate](./media-processing/nsfw-annotate/) — Draw labelled bounding boxes over NSFW detections
+- [pose-brightness-sweep](./media-processing/pose-brightness-sweep/) — Compare YOLO-pose across brightness variants
+- [html-animation-to-video](./media-processing/html-animation-to-video/) — Render an HTML animation to MP4
+
+#### Metadata / 3D
+- [media-inspector](./media-processing/media-inspector/) — Read metadata via ffprobe + exiftool
+- [model-3d-converter](./media-processing/model-3d-converter/) — Convert between 3D asset formats
 
 ### Media Broadcast
 
@@ -206,6 +300,7 @@ Live broadcasting pipelines.
 ### Text Processing
 
 - [split-text](./text-processing/split-text/) — Text chunking with configurable overlap
+- [load-document](./text-processing/load-document/) — Load and chunk PDF/DOCX/HTML documents (Docling, pypdf)
 
 ### Data Streaming
 
@@ -214,6 +309,10 @@ Streaming inputs/outputs.
 - [video-to-frames](./data-streaming/video-to-frames/) — Stream video frames
 - [video-to-frames-bulk](./data-streaming/video-to-frames-bulk/) — Stream frames across all videos in a directory
 - [youtube-live-chat](./data-streaming/youtube-live-chat/) — Stream YouTube live chat messages
+- [data-queue-basic](./data-streaming/data-queue-basic/) — Producer/consumer via a shared `data-queue`
+- [data-queue-audio-playback](./data-streaming/data-queue-audio-playback/) — Cross-workflow queued audio playback
+- [sentence-splitter](./data-streaming/sentence-splitter/) — Pipe an OpenAI stream through a sentence splitter
+- [llm-streaming-voice](./data-streaming/llm-streaming-voice/) — End-to-end LLM → sentence-splitter → TTS → queued playback
 
 ### Job Flow
 
@@ -241,6 +340,7 @@ Building MCP (Model Context Protocol) servers with model-compose.
 
 - [korea-dart-mcp](./mcp-servers/korea-dart-mcp/) — MCP server exposing Korea DART filings
 - [slack-bot](./mcp-servers/slack-bot/) — MCP server backing a Slack bot
+- [audio-processor-mcp](./mcp-servers/audio-processor-mcp/) — MCP server exposing DSP audio effects over stdio
 
 ### Integrations
 
@@ -259,6 +359,8 @@ External infrastructure integrations.
 
 #### Key-Value Stores
 - [key-value-store/redis](./integrations/key-value-store/redis/) — Redis
+- [key-value-store/memory](./integrations/key-value-store/memory/) — In-memory key-value store
+- [key-value-store/sqlite](./integrations/key-value-store/sqlite/) — SQLite key-value store
 
 #### Search Engines
 - [search-engine/sqlite](./integrations/search-engine/sqlite/) — SQLite FTS

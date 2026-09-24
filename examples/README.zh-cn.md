@@ -132,28 +132,80 @@ HUGGINGFACE_TOKEN=your-token-here
 - [translation-stream](./model-tasks/translation-stream/) — 流式翻译
 - [text-classification](./model-tasks/text-classification/) — 文本分类
 - [text-reranking](./model-tasks/text-reranking/) — 针对查询对文档进行重排序
+- [typed-decision-nimble](./model-tasks/typed-decision-nimble/) — 带每个候选概率的类型化决策 (Bespoke Nimble-9B)
+- [typed-decision-kev](./model-tasks/typed-decision-kev/) — 带每个候选概率的一次性类型化决策 (Kev-4B)
 
 #### 嵌入
 - [text-embedding](./model-tasks/text-embedding/) — 文本嵌入
 - [text-embedding-llamacpp](./model-tasks/text-embedding-llamacpp/) — 通过 llama.cpp 生成嵌入
+- [text-embedding-lfm2](./model-tasks/text-embedding-lfm2/) — 基于 LFM2.5-Encoder-350M 的多语言嵌入
 - [face-embedding](./model-tasks/face-embedding/) — 基于 InsightFace 的人脸嵌入
+- [voice-embedding](./model-tasks/voice-embedding/) — 基于 pyannote.audio 的说话人嵌入
+- [music-embedding-sampleid](./model-tasks/music-embedding-sampleid/) — 基于 Sony Sample ID 的音乐嵌入
+- [video-embedding](./model-tasks/video-embedding/) — 基于 X-CLIP 的视频级嵌入
 
 #### 视觉
 - [image-to-text](./model-tasks/image-to-text/) — 图像描述
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — HuggingFace VLM (Qwen2.5-VL)
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — 基于 vLLM 的 VLM OCR (olmOCR)
+- [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — 使用 Qwen-Image 2.1 生成图像
 - [image-upscale](./model-tasks/image-upscale/) — 图像放大
 - [image-background-removal](./model-tasks/image-background-removal/) — 去除图像背景
+- [image-segmentation](./model-tasks/image-segmentation/) — 基于 SAM 的分割掩码
 - [face-swap](./model-tasks/face-swap/) — 人脸替换
 - [pose-detection](./model-tasks/pose-detection/) — 人体姿态检测
+- [object-detection](./model-tasks/object-detection/) — 基于 YOLO 的物体检测
+
+#### 3D 重建
+- [image-to-3d-anigen](./model-tasks/image-to-3d-anigen/) — 从单张图像生成绑定骨骼的 3D 网格 (AniGen)
+- [image-to-3d-pixal3d](./model-tasks/image-to-3d-pixal3d/) — 从单张图像生成带纹理的 3D 网格 (Pixal3D)
+- [image-to-3d-pixal3d-mv](./model-tasks/image-to-3d-pixal3d-mv/) — 从多视角图像生成带纹理的 3D 网格 (Pixal3D MV)
+- [image-to-3d-world-mirror](./model-tasks/image-to-3d-world-mirror/) — 基于 HunyuanWorld-Mirror 2.0 的 3D 场景重建
+
+#### 视频
+- [video-to-video-animatediff](./model-tasks/video-to-video-animatediff/) — 通过 AnimateDiff (SD 1.5) 使用提示词对视频进行风格重塑
+- [shot-boundary-detection](./model-tasks/shot-boundary-detection/) — 基于 TransNetV2 的镜头边界检测
+- [object-tracking](./model-tasks/object-tracking/) — 跨视频帧的物体跟踪 (YOLO + ByteTrack/BoT-SORT)
+- [face-tracking](./model-tasks/face-tracking/) — 跨视频帧的人脸跟踪 (InsightFace)
+- [pose-tracking](./model-tasks/pose-tracking/) — 跨视频帧的人体姿态跟踪 (YOLOv8-pose)
+
+#### Talking Head / 唇同步
+- [talking-head-sadtalker](./model-tasks/talking-head-sadtalker/) — 基于 SadTalker 的人像会话头
+- [talking-head-echomimic](./model-tasks/talking-head-echomimic/) — 基于 EchoMimic 的人像/半身会话头
+- [talking-head-float](./model-tasks/talking-head-float/) — 基于 Float 的情感条件会话头
+- [talking-head-hallo2](./model-tasks/talking-head-hallo2/) — 基于 Hallo2 的高分辨率长时会话头
+- [talking-head-hallo3](./model-tasks/talking-head-hallo3/) — 基于 Hallo3 的 DiT 会话头 (CogVideoX-5B)
+- [talking-head-sonic](./model-tasks/talking-head-sonic/) — 基于 Sonic 的人像会话头
+- [lip-sync-wav2lip](./model-tasks/lip-sync-wav2lip/) — 基于 Wav2Lip 的唇同步
+- [lip-sync-latentsync](./model-tasks/lip-sync-latentsync/) — 基于 LatentSync 的唇同步
+- [lip-sync-musetalk](./model-tasks/lip-sync-musetalk/) — 基于 MuseTalk 的唇同步
 
 #### 语音 / 音频
 - [speech-to-text](./model-tasks/speech-to-text/) — 语音识别
+- [speech-to-text-crisper-whisper](./model-tasks/speech-to-text-crisper-whisper/) — 基于 CrisperWhisper 2.0 的逐字转录
+- [speech-to-text-vibevoice](./model-tasks/speech-to-text-vibevoice/) — 基于 VibeVoice-ASR 的长音频转录
+- [speech-to-text-vibevoice-streaming](./model-tasks/speech-to-text-vibevoice-streaming/) — 基于 VibeVoice-ASR-Streaming 的流式转录
 - [text-to-speech-generate](./model-tasks/text-to-speech-generate/) — 基础 TTS
 - [text-to-speech-design](./model-tasks/text-to-speech-design/) — 基于语音设计的 TTS
+- [text-to-speech-design-fireredtts3](./model-tasks/text-to-speech-design-fireredtts3/) — 基于 FireRedTTS3-Instruct 的语音设计
+- [text-to-speech-edit-fireredtts3](./model-tasks/text-to-speech-edit-fireredtts3/) — 基于 FireRedTTS3-Instruct 的语音编辑
 - [text-to-speech-clone](./model-tasks/text-to-speech-clone/) — 语音克隆 TTS
+- [text-to-speech-clone-cosyvoice](./model-tasks/text-to-speech-clone-cosyvoice/) — 基于 CosyVoice2 的零样本语音克隆
+- [text-to-speech-clone-fireredtts3](./model-tasks/text-to-speech-clone-fireredtts3/) — 基于 FireRedTTS3-Base 的零样本语音克隆
+- [text-to-speech-clone-luxtts](./model-tasks/text-to-speech-clone-luxtts/) — 基于 LuxTTS (ZipVoice) 的零样本语音克隆
+- [text-to-speech-clone-tada](./model-tasks/text-to-speech-clone-tada/) — 基于 HumeAI TADA 的语音克隆
 - [text-to-speech-to-text](./model-tasks/text-to-speech-to-text/) — TTS → STT 往返
+- [audio-text-alignment](./model-tasks/audio-text-alignment/) — 词级强制对齐 (Wav2Vec2 CTC)
+- [voice-activity-detection](./model-tasks/voice-activity-detection/) — 基于 Silero VAD 的语音段检测
+- [speaker-diarization](./model-tasks/speaker-diarization/) — 通过 pyannote.audio 分析"谁在何时说话"
+
+#### 音乐
 - [music-generation](./model-tasks/music-generation/) — 音乐生成
+- [music-generation-yue2](./model-tasks/music-generation-yue2/) — 基于 YuE2 的整曲生成（曲谱 + 声学合成）
+- [music-source-separation](./model-tasks/music-source-separation/) — 基于 Demucs v4 的人声分离
+- [music-source-separation-mdx23c-drumsep](./model-tasks/music-source-separation-mdx23c-drumsep/) — 基于 MDX23C DrumSep 的鼓组各部件分离
+- [music-transcription](./model-tasks/music-transcription/) — 基于 Spotify Basic Pitch 的音符/MIDI 转录
+- [music-beat-tracking-beat-this](./model-tasks/music-beat-tracking-beat-this/) — 使用 Beat This! 检测节拍与强拍
 
 ### Agents
 
@@ -178,18 +230,60 @@ HUGGINGFACE_TOKEN=your-token-here
 - [make-inspiring-quote-voice](./showcase/make-inspiring-quote-voice/) — 生成名言 → 转换为语音
 - [find-person-scenes](./showcase/find-person-scenes/) — 通过人脸嵌入定位视频中目标人物出现的场景
 - [vibevoice-realtime-tts](./showcase/vibevoice-realtime-tts/) — 基于 Microsoft VibeVoice 的实时 WebSocket TTS
+- [upscale-video](./showcase/upscale-video/) — 逐帧超分辨率放大视频（保留音轨）
 - [echo-server](./showcase/echo-server/) — 最小 HTTP 回显服务器
 
 ### Media Processing
 
 音频、视频、图像处理组件。
 
+#### 音频
 - [audio-extractor](./media-processing/audio-extractor/) — 从视频中提取音频
 - [audio-feature-extractor](./media-processing/audio-feature-extractor/) — 提取频谱/波形特征
+- [audio-analyzer](./media-processing/audio-analyzer/) — 检查响度、峰值、增益、静音、能量
+- [audio-capture](./media-processing/audio-capture/) — 将麦克风或系统回环捕获为 AAC 流
+- [audio-clipper](./media-processing/audio-clipper/) — 基于 ffmpeg 的无损时间段裁剪
+- [audio-mixer](./media-processing/audio-mixer/) — 使用 ffmpeg 混合多个音频源
+- [audio-normalizer](./media-processing/audio-normalizer/) — 带真实峰值上限的 LUFS 响度归一化
+- [audio-processor](./media-processing/audio-processor/) — DSP 链（EQ、动态、空间、效果）
+- [audio-refiner](./media-processing/audio-refiner/) — 通过 Silero VAD + 裁剪器去除静音/噪声
+- [audio-silence-detector](./media-processing/audio-silence-detector/) — 使用 ffmpeg `silencedetect` 定位静音区
+- [audio-spectrum-to-video](./media-processing/audio-spectrum-to-video/) — 将音频渲染为均衡器风格的 MP4
+- [audio-synchronizer](./media-processing/audio-synchronizer/) — 计算多源录音之间的时间偏移
+- [music-analyzer](./media-processing/music-analyzer/) — 提取节奏/调性/频谱属性
+- [music-segment-detector](./media-processing/music-segment-detector/) — 查找前奏/主歌/副歌段落边界
+- [speech-to-text-with-correction](./media-processing/speech-to-text-with-correction/) — 与参考稿对齐的 Whisper STT
+- [speech-to-text-with-vad](./media-processing/speech-to-text-with-vad/) — Silero VAD 预分段 + Whisper STT
+
+#### 视频
 - [video-converter](./media-processing/video-converter/) — 视频格式/编解码器转换
 - [video-scene-detector](./media-processing/video-scene-detector/) — 检测视频场景变化
+- [video-scene-splitter](./media-processing/video-scene-splitter/) — 检测场景并按文件分割保存
+- [video-capture](./media-processing/video-capture/) — 将本地摄像头捕获为分段 MP4 流
+- [video-clipper](./media-processing/video-clipper/) — 基于 ffmpeg 的无损时间段裁剪
+- [video-mixer](./media-processing/video-mixer/) — 使用 ffmpeg 合成多个视频
+- [video-playback](./media-processing/video-playback/) — 通过 ffplay 在 OS 原生窗口播放视频
+- [video-processor](./media-processing/video-processor/) — 逐帧缩放/裁剪/填充/翻转/旋转
+- [video-refiner](./media-processing/video-refiner/) — 基于 VAD 的仅语音视频重组
+- [video-dubbing](./media-processing/video-dubbing/) — 端到端配音 (Whisper → 翻译 → TTS → Wav2Lip)
+- [video-to-gif](./media-processing/video-to-gif/) — 将视频（或片段）转换为 GIF 动图
+- [screen-capture](./media-processing/screen-capture/) — 将屏幕/区域/麦克风捕获为连续流
+- [youtube-downloader](./media-processing/youtube-downloader/) — 基于 Cookie 认证的 YouTube 下载
+- [face-mosaic](./media-processing/face-mosaic/) — 视频内人脸像素化/模糊（流式，保留音轨）
+- [pose-skeleton-overlay](./media-processing/pose-skeleton-overlay/) — 在每帧视频上叠加 YOLOv8-pose 骨骼
+- [nsfw-mosaic](./media-processing/nsfw-mosaic/) — 视频内 NSFW 区域像素化/模糊（流式，保留音轨）
+
+#### 图像
 - [image-processor](./media-processing/image-processor/) — 缩放、裁剪、旋转、滤镜、调整
 - [image-processor-dual-input](./media-processing/image-processor-dual-input/) — URL + 上传双输入图像处理
+- [face-gender-annotate](./media-processing/face-gender-annotate/) — 按男/女着色绘制人脸边界框
+- [nsfw-annotate](./media-processing/nsfw-annotate/) — 为 NSFW 检测结果绘制带标签的边界框
+- [pose-brightness-sweep](./media-processing/pose-brightness-sweep/) — 跨亮度变体比较 YOLO-pose
+- [html-animation-to-video](./media-processing/html-animation-to-video/) — 将 HTML 动画渲染为 MP4
+
+#### 元数据 / 3D
+- [media-inspector](./media-processing/media-inspector/) — 通过 ffprobe + exiftool 读取元数据
+- [model-3d-converter](./media-processing/model-3d-converter/) — 在 3D 资产格式之间转换
 
 ### Media Broadcast
 
@@ -206,6 +300,7 @@ HUGGINGFACE_TOKEN=your-token-here
 ### Text Processing
 
 - [split-text](./text-processing/split-text/) — 支持重叠配置的文本分块
+- [load-document](./text-processing/load-document/) — 加载并分块 PDF/DOCX/HTML 文档 (Docling, pypdf)
 
 ### Data Streaming
 
@@ -214,6 +309,10 @@ HUGGINGFACE_TOKEN=your-token-here
 - [video-to-frames](./data-streaming/video-to-frames/) — 视频帧流式传输
 - [video-to-frames-bulk](./data-streaming/video-to-frames-bulk/) — 目录内所有视频的帧流式传输
 - [youtube-live-chat](./data-streaming/youtube-live-chat/) — YouTube 实时聊天消息流式传输
+- [data-queue-basic](./data-streaming/data-queue-basic/) — 基于共享 `data-queue` 的生产者/消费者
+- [data-queue-audio-playback](./data-streaming/data-queue-audio-playback/) — 跨工作流的队列音频播放
+- [sentence-splitter](./data-streaming/sentence-splitter/) — 将 OpenAI 流通过句子分割器
+- [llm-streaming-voice](./data-streaming/llm-streaming-voice/) — LLM → 句子分割 → TTS → 队列播放端到端
 
 ### Job Flow
 
@@ -241,6 +340,7 @@ HUGGINGFACE_TOKEN=your-token-here
 
 - [korea-dart-mcp](./mcp-servers/korea-dart-mcp/) — 暴露 Korea DART 披露信息的 MCP 服务器
 - [slack-bot](./mcp-servers/slack-bot/) — 支持 Slack 机器人的 MCP 服务器
+- [audio-processor-mcp](./mcp-servers/audio-processor-mcp/) — 通过 stdio 暴露 DSP 音频效果的 MCP 服务器
 
 ### Integrations
 
@@ -259,6 +359,8 @@ HUGGINGFACE_TOKEN=your-token-here
 
 #### Key-Value Stores
 - [key-value-store/redis](./integrations/key-value-store/redis/) — Redis
+- [key-value-store/memory](./integrations/key-value-store/memory/) — 内存键值存储
+- [key-value-store/sqlite](./integrations/key-value-store/sqlite/) — SQLite 键值存储
 
 #### Search Engines
 - [search-engine/sqlite](./integrations/search-engine/sqlite/) — SQLite FTS

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 from PIL import Image as PILImage
@@ -24,6 +24,7 @@ from PIL import Image as PILImage
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationGenerateTaskAction
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.dsl.schema.action import SdxlHuggingfaceImageGenerationGenerateModelActionConfig
 
 
@@ -59,12 +60,21 @@ class _FakeImageGenerationAction(ImageGenerationGenerateTaskAction):
         super().__init__(config, device=None)
         self.batches_seen: List[List[str]] = []
 
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt = await context.render_text(self.config.prompt)
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+
+        return (prompt,), is_single_input, is_streaming_input
+
     async def _generate_batch(
         self,
-        prompts: List[str],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
+        (prompts,) = inputs
         self.batches_seen.append(list(prompts))
         return [ _fake_image(p) for p in prompts ]
 

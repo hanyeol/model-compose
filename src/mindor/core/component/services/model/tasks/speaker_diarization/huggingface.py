@@ -63,7 +63,7 @@ class HuggingfaceSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         results = await self._run_in_executor(_diarize)
 
         if streaming:
-            # Nemotron diarization needs the full audio; fake streaming by re-emitting segments.
+            # Diarization needs the full audio; fake streaming by re-emitting segments.
             streams: List[AsyncIterator[Dict[str, Any]]] = []
 
             for segments in results:

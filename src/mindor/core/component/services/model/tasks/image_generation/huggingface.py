@@ -328,12 +328,12 @@ class HuggingfaceImageGenerationTaskDriver(HuggingfaceDiffusionPipelineTaskDrive
 
         return super()._get_torch_requirements()
 
-    def _get_transformer_requirements(self) -> List[str]:
+    def _get_transformers_requirements(self) -> List[str]:
         if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:
             # Qwen3-VL text encoder requires transformers >= 5.17 per the model card.
             return [ "transformers>=5.17" ]
 
-        return super()._get_transformer_requirements()
+        return super()._get_transformers_requirements()
 
     def _get_diffusers_requirements(self) -> List[str]:
         if self.config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE:

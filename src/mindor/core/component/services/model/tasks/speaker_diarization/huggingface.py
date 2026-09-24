@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
+from mindor.dsl.schema.component import ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceSpeakerDiarizationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
@@ -146,13 +147,17 @@ class HuggingfaceSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
 
 @register_model_task_driver(ModelTaskType.SPEAKER_DIARIZATION, ModelDriverType.HUGGINGFACE)
 class HuggingfaceSpeakerDiarizationTaskDriver(HuggingfaceMultimodalModelTaskDriver):
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> List[str]:
         return [
-            *torch_requirements("torch", "torchaudio"),
-            "transformers>=4.52.0",
-            "accelerate",
+            *super()._get_setup_requirements(),
             "soxr",
         ]
+
+    def _get_torch_requirements(self) -> List[str]:
+        return torch_requirements("torch", "torchaudio")
+
+    def _get_transformers_requirements(self) -> List[str]:
+        return [ "transformers>=5.18.0.dev0@git+https://github.com/huggingface/transformers.git" ]
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         from transformers import AutoModelForAudioFrameClassification
@@ -161,6 +166,13 @@ class HuggingfaceSpeakerDiarizationTaskDriver(HuggingfaceMultimodalModelTaskDriv
     def _get_processor_class(self) -> Type[ProcessorMixin]:
         from transformers import AutoProcessor
         return AutoProcessor
+
+    def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
+        params = super()._get_model_params(model)
+
+        params["trust_remote_code"] = True
+
+        return params
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await HuggingfaceSpeakerDiarizationTaskAction(action, self.model, self.processor, self.device).run(context)

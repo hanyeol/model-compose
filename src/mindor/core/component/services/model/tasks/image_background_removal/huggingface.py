@@ -82,7 +82,13 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 @register_model_task_driver(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageBackgroundRemovalTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch", "torchvision"), "transformers", "accelerate", "timm", "kornia" ]
+        return [
+            *torch_requirements("torch", "torchvision"),
+            "transformers",
+            "accelerate",
+            "timm",
+            "kornia"
+        ]
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageBackgroundRemovalModelArchitecture.AUTO:

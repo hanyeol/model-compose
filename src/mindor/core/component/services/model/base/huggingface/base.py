@@ -31,7 +31,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> List[str]:
         requirements = [
             *self._get_torch_requirements(),
-            *self._get_transformer_requirements(),
+            *self._get_transformers_requirements(),
             "accelerate",
         ]
 
@@ -47,7 +47,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
     def _get_torch_requirements(self) -> List[str]:
         return torch_requirements("torch")
 
-    def _get_transformer_requirements(self) -> List[str]:
+    def _get_transformers_requirements(self) -> List[str]:
         return [ "transformers>=4.52.0" ]
 
     async def _load_pretrained_model(self) -> Tuple[PreTrainedModel, str]:

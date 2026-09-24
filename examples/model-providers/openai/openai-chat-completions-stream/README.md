@@ -45,13 +45,14 @@ This workflow provides a streaming chat interface that:
 
   **Using API:**
   ```bash
-  curl -X POST http://localhost:8080/api/workflows/runs \
+  curl -N -X POST http://localhost:8080/api/workflows/runs \
     -H "Content-Type: application/json" \
     -d '{
       "input": {
         "prompt": "Explain machine learning in simple terms",
         "temperature": 0.7
-      }
+      },
+      "output_only": true
     }'
   ```
 

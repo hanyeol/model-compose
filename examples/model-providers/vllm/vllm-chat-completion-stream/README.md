@@ -55,13 +55,14 @@ This example uses pyenv to create an isolated Python environment for vLLM to avo
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
          "prompt": "Explain the benefits of local AI models",
          "temperature": 0.7
-       }
+       },
+       "output_only": true
      }'
    ```
 

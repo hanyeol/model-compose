@@ -58,14 +58,16 @@ Streaming ASR trades a slightly different output shape for much lower latency:
    **Using API:**
    ```bash
    # Basic streaming transcription
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/audio.mp3" \
-     -F "input={\"audio\": \"@audio\"}"
+     -F "input={\"audio\": \"@audio\"}" \
+     -F "output_only=true"
 
    # Streaming transcription with hotword biasing
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/talk.wav" \
-     -F "input={\"audio\": \"@audio\", \"context_info\": \"Microsoft,VibeVoice\"}"
+     -F "input={\"audio\": \"@audio\", \"context_info\": \"Microsoft,VibeVoice\"}" \
+     -F "output_only=true"
    ```
 
    **Using Web UI:**

@@ -68,7 +68,8 @@ cd examples/media-processing/speech-to-text-with-vad
    ```bash
    curl -N -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/lecture.mp3" \
-     -F "language=en"
+     -F "language=en" \
+     -F "output_only=true"
    ```
 
 ## 输入参数

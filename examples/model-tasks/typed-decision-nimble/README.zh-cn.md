@@ -163,18 +163,17 @@ graph TD
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
-| `decision` | json | 包含 `output`（每个字段的选中值）以及在 `return_probabilities` 开启时的 `fields[name].scores`（逐候选概率）的对象。 |
+| `decision` | json | 每个字段的选中值。 |
+| `fields` | json | 当 `return_probabilities` 或 `return_logits` 开启时填充的逐字段详情（`fields[name].scores` / `fields[name].logits`）。 |
 
 响应主体示例：
 
 ```json
 {
-  "decision": {
-    "output": {"priority": "HIGH", "requires_review": true},
-    "fields": {
-      "priority": {"scores": {"HIGH": 0.94, "LOW": 0.06}},
-      "requires_review": {"scores": {"true": 0.88, "false": 0.12}}
-    }
+  "decision": {"priority": "HIGH", "requires_review": true},
+  "fields": {
+    "priority": {"scores": {"HIGH": 0.94, "LOW": 0.06}},
+    "requires_review": {"scores": {"true": 0.88, "false": 0.12}}
   }
 }
 ```

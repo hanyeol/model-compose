@@ -163,18 +163,17 @@ graph TD
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `decision` | json | Object with `output` (the chosen values per field) and, when `return_probabilities` is on, `fields[name].scores` (per-candidate probabilities). |
+| `decision` | json | Chosen value per field. |
+| `fields` | json | Per-field detail, populated when `return_probabilities` or `return_logits` is on (`fields[name].scores` / `fields[name].logits`). |
 
 Example response body:
 
 ```json
 {
-  "decision": {
-    "output": {"priority": "HIGH", "requires_review": true},
-    "fields": {
-      "priority": {"scores": {"HIGH": 0.94, "LOW": 0.06}},
-      "requires_review": {"scores": {"true": 0.88, "false": 0.12}}
-    }
+  "decision": {"priority": "HIGH", "requires_review": true},
+  "fields": {
+    "priority": {"scores": {"HIGH": 0.94, "LOW": 0.06}},
+    "requires_review": {"scores": {"true": 0.88, "false": 0.12}}
   }
 }
 ```

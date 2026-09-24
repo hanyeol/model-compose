@@ -163,18 +163,17 @@ graph TD
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `decision` | json | `output`(필드별 선택된 값)과, `return_probabilities`가 켜졌을 때 `fields[name].scores`(후보별 확률)를 담은 객체. |
+| `decision` | json | 필드별로 선택된 값. |
+| `fields` | json | `return_probabilities` 또는 `return_logits`가 켜졌을 때 채워지는 필드별 상세 (`fields[name].scores` / `fields[name].logits`). |
 
 응답 본문 예시:
 
 ```json
 {
-  "decision": {
-    "output": {"priority": "HIGH", "requires_review": true},
-    "fields": {
-      "priority": {"scores": {"HIGH": 0.94, "LOW": 0.06}},
-      "requires_review": {"scores": {"true": 0.88, "false": 0.12}}
-    }
+  "decision": {"priority": "HIGH", "requires_review": true},
+  "fields": {
+    "priority": {"scores": {"HIGH": 0.94, "LOW": 0.06}},
+    "requires_review": {"scores": {"true": 0.88, "false": 0.12}}
   }
 }
 ```

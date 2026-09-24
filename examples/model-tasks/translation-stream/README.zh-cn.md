@@ -58,9 +58,9 @@
 
    **使用 API：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"text": "Hello, how are you today? I hope you are having a wonderful day."}}'
+     -d '{"input": {"text": "Hello, how are you today? I hope you are having a wonderful day."}, "output_only": true}'
    ```
 
    **使用 Web UI：**

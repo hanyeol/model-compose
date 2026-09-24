@@ -43,11 +43,11 @@ class KevTypedDecisionTaskAction(TypedDecisionTaskAction):
             results: List[Dict[str, Any]] = []
 
             for text in texts:
-                req = SystemOneRequest(state=text, model="kev", questions=schema)
-                record, meta = to_record(req)
-                enc = self.model.encode(self.tokenizer, record, max_state=self.max_state, max_branch=self.max_branch)
-                probs = self.model.probs(enc)
-                answers = to_answers([ p.tolist() for p in probs ], meta)
+                request = SystemOneRequest(state=text, model="kev", questions=schema)
+                record, meta = to_record(request)
+                encoding = self.model.encode(self.tokenizer, record, max_state=self.max_state, max_branch=self.max_branch)
+                probabilities = self.model.probs(encoding)
+                answers = to_answers([ probability.tolist() for probability in probabilities ], meta)
                 results.append(self._build_decision_result(answers, params))
 
             return results

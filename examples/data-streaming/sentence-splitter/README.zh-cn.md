@@ -61,7 +61,8 @@
          "prompt": "Give me three interesting facts about the Voyager 1 probe.",
          "temperature": 0.7,
          "min_chunk_length": 0
-       }
+       },
+       "output_only": true
      }'
    ```
    `-N` 标志禁用 curl 的输出缓冲，以便您实时看到句子到达。

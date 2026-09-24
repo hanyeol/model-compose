@@ -63,7 +63,8 @@ finished each one, without waiting for the whole reply.
          "prompt": "Give me three interesting facts about the Voyager 1 probe.",
          "temperature": 0.7,
          "min_chunk_length": 0
-       }
+       },
+       "output_only": true
      }'
    ```
    The `-N` flag disables curl's output buffering so you can watch sentences

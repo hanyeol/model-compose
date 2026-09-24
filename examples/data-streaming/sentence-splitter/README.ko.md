@@ -64,7 +64,8 @@
          "prompt": "Give me three interesting facts about the Voyager 1 probe.",
          "temperature": 0.7,
          "min_chunk_length": 0
-       }
+       },
+       "output_only": true
      }'
    ```
    `-N` 플래그는 curl의 출력 버퍼링을 비활성화하여 문장이 도착하는

@@ -44,7 +44,7 @@ component:
   family: yue2
   # HuggingFace repository ID (downloaded on first use) or a local model directory.
   model: m-a-p/YuE2-3B
-  # backend: torch  # torch | torch-eager | vllm ; vllm needs the optional [fast] extras.
+  # backend: torch  # torch | torch-eager | vllm
   # quantization:   # fp8 halves AR memory at a small quality cost; omit for full precision.
   #   type: fp8
   # memory_budget_gib: 24  # Total VRAM reserved for generation; keep >=24 for the unquantized preset.

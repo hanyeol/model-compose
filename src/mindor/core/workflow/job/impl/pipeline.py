@@ -34,11 +34,11 @@ class PipelineJob(CompositeJob):
         output: Any = None
 
         for index, step in enumerate(self.config.steps):
-            is_last_step = bool(index == last_step_index)
-            output = await self._run_step(step, index, components[index], input, output, context, is_last=is_last_step)
-
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
+
+            is_last_step = bool(index == last_step_index)
+            output = await self._run_step(step, index, components[index], input, output, context, is_last=is_last_step)
 
         output = await self._after_run(context, None, input, output)
 

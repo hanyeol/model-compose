@@ -19,6 +19,7 @@ class IfJob(Job):
         input = await self._before_run(context, None, input)
 
         target: Optional[str] = None
+
         for condition in self.config.conditions:
             value = await context.render_variable(None, condition.value)
 

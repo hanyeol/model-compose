@@ -10,6 +10,7 @@ JobConfig = Annotated[
         SwitchJobConfig,
         RandomRouterJobConfig,
         FilterJobConfig,
+        LoopJobConfig,
         ForEachJobConfig,
         PipelineJobConfig,
         AccumulateJobConfig,

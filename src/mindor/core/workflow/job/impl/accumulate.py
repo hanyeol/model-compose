@@ -34,11 +34,11 @@ class AccumulateJob(CompositeJob):
         index = 0
         async for batch_items in BatchSourceIterator(input, batch_size=1):
             for item in batch_items:
-                accumulator = await self._run_item(item, index, accumulator, component, context)
-                index += 1
-
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
+
+                accumulator = await self._run_item(item, index, accumulator, component, context)
+                index += 1
 
         output = await self._after_run(context, None, input, accumulator)
 

@@ -36,21 +36,21 @@ class ForEachJob(CompositeJob):
         if isinstance(input, (StreamIterator, AsyncIterator)) or (streaming and not is_single_input):
             async def _stream_output_generator(source=input):
                 async for batch_items in BatchSourceIterator(source, batch_size=batch_size or 1):
+                    if cancellation_token is not None and cancellation_token.is_cancelled():
+                        raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
+
                     batch_results = await self._run_batch(batch_items, component, context)
                     for result in batch_results:
                         yield result
-
-                    if cancellation_token is not None and cancellation_token.is_cancelled():
-                        raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
             output = _stream_output_generator()
         else:
             results = []
             async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):
-                results.extend(await self._run_batch(batch_items, component, context))
-
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
+
+                results.extend(await self._run_batch(batch_items, component, context))
 
             output = results[0] if is_single_input else results
 

@@ -1,0 +1,73 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Poll a Long-Running Job with `loop`
+  description: |
+    Polls a fake long-running job status until it reports "ready". Demonstrates
+    the `loop` job type with an `until` predicate, iteration-level logging via
+    hooks, and a fixed `${input}` reference so every iteration hits the same
+    logical job id.
+  jobs:
+    - id: reset-counter
+      component: reset-counter
+      output: ${output}
+
+    - id: wait-ready
+      type: loop
+      depends_on: [ reset-counter ]
+      input: ${input.job_id | job-42}
+      do:
+        component: status-check
+        input:
+          job_id: ${input}
+        hook:
+          after:
+            script: |
+              def hook(input, output, *, task_id, job_id, run_id, phase):
+                  # Runs after each poll; makes the polling loop observable in logs.
+                  print(f"[poll] run={run_id} job_id={input['job_id']} -> status={output['status']} attempt={output['attempt']}")
+                  return output
+      until:
+        input: ${output.status}
+        operator: eq
+        value: ready
+      max_iteration_count: 20
+      output:
+        job_id: ${output.job_id}
+        status: ${output.status}
+        attempts: ${output.attempt}
+
+components:
+  # Truncates a counter file so each workflow run starts from attempt 0.
+  - id: reset-counter
+    type: shell
+    action:
+      command: [ "sh", "-c", "rm -f /tmp/model-compose-loop-polling.count && echo reset" ]
+      output: ${result.stdout}
+
+  # Increments a counter file and returns "pending" for the first two attempts,
+  # then "ready". Simulates an external job that takes a few polls to finish.
+  - id: status-check
+    type: shell
+    action:
+      command:
+        - sh
+        - -c
+        - |
+          COUNTER_FILE=/tmp/model-compose-loop-polling.count
+          n=$(cat "$COUNTER_FILE" 2>/dev/null || echo 0)
+          n=$((n + 1))
+          echo "$n" > "$COUNTER_FILE"
+          if [ "$n" -lt 3 ]; then
+            printf '{"job_id":"%s","status":"pending","attempt":%d}' "${input.job_id}" "$n"
+          else
+            printf '{"job_id":"%s","status":"ready","attempt":%d}' "${input.job_id}" "$n"
+          fi
+      output: ${result.stdout as json}

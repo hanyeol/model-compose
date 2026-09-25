@@ -73,14 +73,17 @@
 
 3. **결과 확인:**
 
-   워크플로우는 재구성 요약을 JSON으로 반환합니다:
+   워크플로우는 `summary` JSON과 함께 `points` GLB(sparse cloud + 카메라 frustum)를 반환합니다. 웹 UI가 활성화되어 있으면 Gradio Model3D 뷰어가 GLB를 그대로 렌더링합니다:
    ```json
    {
-     "workspace_dir": "./data/gerrard-hall/sparse/0",
-     "images_count": 100,
-     "points_count": 15234,
-     "cameras": [ { "id": 1, "model": "OPENCV", "width": 1920, "height": 1080, "params": [...] } ],
-     "poses": [ { "image": "0001.jpg", "camera_id": 1, "quaternion": [qw, qx, qy, qz], "translation": [tx, ty, tz] } ]
+     "summary": {
+       "workspace_dir": "./data/gerrard-hall/sparse/0",
+       "images_count": 100,
+       "points_count": 15234,
+       "cameras": [ { "id": 1, "model": "OPENCV", "width": 1920, "height": 1080, "params": [...] } ],
+       "poses": [ { "image": "0001.jpg", "camera_id": 1, "quaternion": [qw, qx, qy, qz], "translation": [tx, ty, tz] } ]
+     },
+     "points": "<GLB 파일>"
    }
    ```
 
@@ -104,6 +107,12 @@
 - `images`: 하나의 씬(또는 씬들의 배치/스트림)을 구성하는 이미지들. 각 요소는 렌더링된 이미지이며, 일반적으로 업스트림 작업(`${jobs.frame-extractor.output}`)이나 업로드된 이미지 배열에서 전달됩니다.
 - `workspace_dir`: COLMAP 워크스페이스를 담는 디렉토리(`images/`, `database.db`, `sparse/`). 생략 시 `.workspace/<component-id>/<run-id>/`가 사용됩니다. `images`까지 생략된 경우 `workspace_dir/images/`에 이미 있는 이미지들이 재사용됩니다.
 - `images` 또는 `workspace_dir` 중 최소 하나(또는 둘 다)가 반드시 제공되어야 합니다.
+
+### 액션 출력
+
+- `return_cameras` (기본값 `true`): 복원된 카메라 내부 파라미터를 JSON 결과에 포함. 계산 비용이 미미하므로 HTTP 응답을 가볍게 유지할 필요가 있을 때만 끕니다.
+- `return_poses` (기본값 `true`): 이미지별 world-from-camera 포즈를 JSON 결과에 포함. 계산 비용이 미미하므로 HTTP 응답을 가볍게 유지할 필요가 있을 때만 끕니다.
+- `return_points` (기본값 `false`): sparse point cloud + 이미지별 카메라 frustum을 하나의 GLB로 묶어 `result["points"]`로 붙입니다. Gradio `Model3D` 뷰어 등 GLB 소비자에게 결과를 넘길 때 켭니다. 다운스트림 잡이 `workspace_dir`만 읽는 경우(3DGS 트레이너, 메쉬 추출기 등)에는 끄는 편이 좋습니다.
 
 ### 배치 / 스트리밍
 

@@ -73,14 +73,17 @@
 
 3. **检查结果：**
 
-   工作流以 JSON 形式返回重建摘要：
+   工作流返回一个 `summary` JSON 以及 `points` GLB（稀疏点云 + 每张图像的相机 frustum）。当 Web UI 开启时，Gradio Model3D 查看器可直接内嵌渲染该 GLB：
    ```json
    {
-     "workspace_dir": "./data/gerrard-hall/sparse/0",
-     "images_count": 100,
-     "points_count": 15234,
-     "cameras": [ { "id": 1, "model": "OPENCV", "width": 1920, "height": 1080, "params": [...] } ],
-     "poses": [ { "image": "0001.jpg", "camera_id": 1, "quaternion": [qw, qx, qy, qz], "translation": [tx, ty, tz] } ]
+     "summary": {
+       "workspace_dir": "./data/gerrard-hall/sparse/0",
+       "images_count": 100,
+       "points_count": 15234,
+       "cameras": [ { "id": 1, "model": "OPENCV", "width": 1920, "height": 1080, "params": [...] } ],
+       "poses": [ { "image": "0001.jpg", "camera_id": 1, "quaternion": [qw, qx, qy, qz], "translation": [tx, ty, tz] } ]
+     },
+     "points": "<GLB 文件>"
    }
    ```
 
@@ -104,6 +107,12 @@
 - `images`：构成一个场景（或场景批次/流）的图像。每个元素都是已渲染的图像 —— 通常从上游任务（`${jobs.frame-extractor.output}`）或上传的图像数组接入。
 - `workspace_dir`：存放 COLMAP 工作空间（`images/`、`database.db`、`sparse/`）的目录。省略时使用 `.workspace/<component-id>/<run-id>/`。当 `images` 也被省略时，`workspace_dir/images/` 中已有的图像将被复用。
 - `images` 或 `workspace_dir` 必须至少提供其中之一（或同时提供两者）。
+
+### 动作输出
+
+- `return_cameras`（默认 `true`）：将恢复的相机内参加入 JSON 结果。计算成本极低；仅在需要减小 HTTP 响应体积时关闭。
+- `return_poses`（默认 `true`）：将逐图像的 world-from-camera 位姿加入 JSON 结果。计算成本极低；仅在需要减小 HTTP 响应体积时关闭。
+- `return_points`（默认 `false`）：将稀疏点云 + 每张图像的相机 frustum 打包为 GLB 附加为 `result["points"]`。当输出送入 Gradio `Model3D` 查看器或其他 GLB 消费者时启用。若下游任务仅读取 `workspace_dir`（3DGS 训练器、网格提取器等），保持关闭。
 
 ### 批处理 / 流式
 

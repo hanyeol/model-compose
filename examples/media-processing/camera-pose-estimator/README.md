@@ -73,14 +73,17 @@ Two workflows are exposed, one for each input mode:
 
 3. **Inspect the result:**
 
-   The workflow returns a JSON summary of the reconstruction:
+   The workflow returns a `summary` JSON alongside a `points` GLB (sparse cloud + camera frustums, rendered inline by the Gradio Model3D viewer when the web UI is enabled):
    ```json
    {
-     "workspace_dir": "./data/gerrard-hall/sparse/0",
-     "images_count": 100,
-     "points_count": 15234,
-     "cameras": [ { "id": 1, "model": "OPENCV", "width": 1920, "height": 1080, "params": [...] } ],
-     "poses": [ { "image": "0001.jpg", "camera_id": 1, "quaternion": [qw, qx, qy, qz], "translation": [tx, ty, tz] } ]
+     "summary": {
+       "workspace_dir": "./data/gerrard-hall/sparse/0",
+       "images_count": 100,
+       "points_count": 15234,
+       "cameras": [ { "id": 1, "model": "OPENCV", "width": 1920, "height": 1080, "params": [...] } ],
+       "poses": [ { "image": "0001.jpg", "camera_id": 1, "quaternion": [qw, qx, qy, qz], "translation": [tx, ty, tz] } ]
+     },
+     "points": "<GLB file>"
    }
    ```
 
@@ -104,6 +107,12 @@ Key options:
 - `images`: The images that make up one scene (or a batch/stream of scenes). Every element is a rendered image — typically wired from an upstream job (`${jobs.frame-extractor.output}`) or an uploaded image array.
 - `workspace_dir`: Directory holding the COLMAP workspace (`images/`, `database.db`, `sparse/`). When omitted, `.workspace/<component-id>/<run-id>/` is used. When `images` is also omitted, images already present under `workspace_dir/images/` are reused.
 - Exactly one of `images` or `workspace_dir` (or both) must be provided.
+
+### Action outputs
+
+- `return_cameras` (default `true`): Include recovered camera intrinsics in the JSON result. Cheap to compute; turn off only when the HTTP response noise is undesirable.
+- `return_poses` (default `true`): Include per-image world-from-camera poses in the JSON result. Cheap to compute; turn off only when the HTTP response noise is undesirable.
+- `return_points` (default `false`): Build a GLB containing the sparse point cloud plus per-image camera frustums and attach it as `result["points"]`. Enable when the workflow output feeds a Gradio `Model3D` viewer or another GLB consumer. Skip when the downstream job only reads `workspace_dir` (3DGS trainer, mesh extractor, ...).
 
 ### Batch / streaming
 

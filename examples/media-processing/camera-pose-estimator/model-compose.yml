@@ -54,8 +54,12 @@ components:
       - id: from-images
         default: true
         images: ${input.images}
-        return_points: true
+        return_cameras: true        # set false to omit intrinsics from the JSON response
+        return_poses: true          # set false to omit per-image poses from the JSON response
+        return_points: true         # opt-in; packs sparse cloud + camera frustums into a GLB for the Model3D viewer
 
       - id: from-workspace
         workspace_dir: ${input.workspace_dir}
+        return_cameras: true
+        return_poses: true
         return_points: true

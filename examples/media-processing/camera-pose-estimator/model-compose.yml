@@ -19,10 +19,11 @@ workflows:
       component: estimator
       action: from-images
       input:
-        images:         ${input.images as image[]}
-        return_cameras: ${input.return_cameras as boolean | true}
-        return_poses:   ${input.return_poses as boolean | true}
-        return_points:  ${input.return_points as boolean | true}
+        images:          ${input.images as image[]}
+        return_cameras:  ${input.return_cameras as boolean | true}
+        return_poses:    ${input.return_poses as boolean | true}
+        return_points:   ${input.return_points as boolean | true}
+        return_metadata: ${input.return_metadata as boolean | true}
       # `return_points: true` packs the sparse cloud + per-image camera
       # frustums into a single GLB so a Gradio Model3D viewer can render
       # geometry and poses side-by-side with the summary.
@@ -40,10 +41,11 @@ workflows:
       component: estimator
       action: from-workspace
       input:
-        workspace_dir:  ${input.workspace_dir as string}
-        return_cameras: ${input.return_cameras as boolean | true}
-        return_poses:   ${input.return_poses as boolean | true}
-        return_points:  ${input.return_points as boolean | true}
+        workspace_dir:   ${input.workspace_dir as string}
+        return_cameras:  ${input.return_cameras as boolean | true}
+        return_poses:    ${input.return_poses as boolean | true}
+        return_points:   ${input.return_points as boolean | true}
+        return_metadata: ${input.return_metadata as boolean | true}
       output:
         summary: ${output as json}
         points: ${output.points as model-3d/glb}
@@ -59,13 +61,15 @@ components:
     actions:
       - id: from-images
         default: true
-        images:         ${input.images}
-        return_cameras: ${input.return_cameras}
-        return_poses:   ${input.return_poses}
-        return_points:  ${input.return_points}
+        images:          ${input.images}
+        return_cameras:  ${input.return_cameras}
+        return_poses:    ${input.return_poses}
+        return_points:   ${input.return_points}
+        return_metadata: ${input.return_metadata}
 
       - id: from-workspace
-        workspace_dir:  ${input.workspace_dir}
-        return_cameras: ${input.return_cameras}
-        return_poses:   ${input.return_poses}
-        return_points:  ${input.return_points}
+        workspace_dir:   ${input.workspace_dir}
+        return_cameras:  ${input.return_cameras}
+        return_poses:    ${input.return_poses}
+        return_points:   ${input.return_points}
+        return_metadata: ${input.return_metadata}

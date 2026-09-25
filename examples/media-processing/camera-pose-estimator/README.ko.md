@@ -113,6 +113,7 @@
 - `return_cameras` (기본값 `true`): 복원된 카메라 내부 파라미터를 JSON 결과에 포함. 계산 비용이 미미하므로 HTTP 응답을 가볍게 유지할 필요가 있을 때만 끕니다.
 - `return_poses` (기본값 `true`): 이미지별 world-from-camera 포즈를 JSON 결과에 포함. 계산 비용이 미미하므로 HTTP 응답을 가볍게 유지할 필요가 있을 때만 끕니다.
 - `return_points` (기본값 `false`): sparse point cloud + 이미지별 카메라 frustum을 하나의 GLB로 묶어 `result["points"]`로 붙입니다. Gradio `Model3D` 뷰어 등 GLB 소비자에게 결과를 넘길 때 켭니다. 다운스트림 잡이 `workspace_dir`만 읽는 경우(3DGS 트레이너, 메쉬 추출기 등)에는 끄는 편이 좋습니다.
+- `return_metadata` (기본값 `true`): 재구성 요약(`workspace_dir`, `images_count`, `points_count`)을 JSON 결과에 포함. 다운스트림이 워크스페이스 경로를 스스로 조합한다면 끕니다.
 
 ### 배치 / 스트리밍
 

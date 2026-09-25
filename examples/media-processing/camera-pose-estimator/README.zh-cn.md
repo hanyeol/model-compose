@@ -113,6 +113,7 @@
 - `return_cameras`（默认 `true`）：将恢复的相机内参加入 JSON 结果。计算成本极低；仅在需要减小 HTTP 响应体积时关闭。
 - `return_poses`（默认 `true`）：将逐图像的 world-from-camera 位姿加入 JSON 结果。计算成本极低；仅在需要减小 HTTP 响应体积时关闭。
 - `return_points`（默认 `false`）：将稀疏点云 + 每张图像的相机 frustum 打包为 GLB 附加为 `result["points"]`。当输出送入 Gradio `Model3D` 查看器或其他 GLB 消费者时启用。若下游任务仅读取 `workspace_dir`（3DGS 训练器、网格提取器等），保持关闭。
+- `return_metadata`（默认 `true`）：将重建摘要（`workspace_dir`、`images_count`、`points_count`）加入 JSON 结果。若下游任务自行推导工作空间路径，可关闭。
 
 ### 批处理 / 流式
 

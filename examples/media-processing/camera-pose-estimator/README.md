@@ -113,6 +113,7 @@ Key options:
 - `return_cameras` (default `true`): Include recovered camera intrinsics in the JSON result. Cheap to compute; turn off only when the HTTP response noise is undesirable.
 - `return_poses` (default `true`): Include per-image world-from-camera poses in the JSON result. Cheap to compute; turn off only when the HTTP response noise is undesirable.
 - `return_points` (default `false`): Build a GLB containing the sparse point cloud plus per-image camera frustums and attach it as `result["points"]`. Enable when the workflow output feeds a Gradio `Model3D` viewer or another GLB consumer. Skip when the downstream job only reads `workspace_dir` (3DGS trainer, mesh extractor, ...).
+- `return_metadata` (default `true`): Include the reconstruction summary (`workspace_dir`, `images_count`, `points_count`) in the JSON result. Turn off when downstream consumers derive the workspace path themselves.
 
 ### Batch / streaming
 

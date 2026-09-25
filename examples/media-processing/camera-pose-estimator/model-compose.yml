@@ -20,7 +20,12 @@ workflows:
       action: from-images
       input:
         images: ${input.images as image[]}
-      output: ${output as json}
+      # The action packs the sparse point cloud + per-image camera frustums
+      # into a single GLB when `return_points: true`, so a Gradio Model3D
+      # viewer can show geometry and poses side-by-side with the summary.
+      output:
+        summary: ${output as json}
+        points: ${output.points as model-3d/glb}
 
   - id: estimate-from-workspace
     title: Camera Pose Estimation from an Existing Workspace
@@ -33,7 +38,9 @@ workflows:
       action: from-workspace
       input:
         workspace_dir: ${input.workspace_dir as string}
-      output: ${output as json}
+      output:
+        summary: ${output as json}
+        points: ${output.points as model-3d/glb}
 
 components:
   - id: estimator
@@ -47,6 +54,8 @@ components:
       - id: from-images
         default: true
         images: ${input.images}
+        return_points: true
 
       - id: from-workspace
         workspace_dir: ${input.workspace_dir}
+        return_points: true

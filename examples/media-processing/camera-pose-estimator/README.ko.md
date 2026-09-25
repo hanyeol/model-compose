@@ -95,7 +95,7 @@
 주요 옵션:
 
 - `camera_model` (기본값 `opencv`): 입력 이미지에 대해 가정할 COLMAP 카메라 모델. 왜곡이 미미한 사진은 `pinhole`, 어안 렌즈는 `opencv-fisheye` 또는 `radial-fisheye`, 캘리브레이션 정보가 없을 때는 `simple-pinhole` 사용.
-- `matcher` (기본값 `exhaustive`): 이미지 쌍 선택 전략. `sequential`은 비디오에서 추출한 프레임에 훨씬 빠름(인접 프레임만 매칭); `spatial`은 GPS 메타데이터 사용; `vocab-tree`는 매우 큰 이미지 세트에 확장 가능.
+- `matcher` (기본값 `exhaustive`): 이미지 쌍 선택 전략. `sequential`은 비디오에서 추출한 프레임에 훨씬 빠름(인접 프레임만 매칭); `spatial`은 GPS 메타데이터 사용.
 - `single_camera` (기본값 `true`): 모든 입력 이미지가 하나의 물리적 카메라와 하나의 내부 파라미터 세트를 공유한다고 가정. 여러 소스가 섞인 데이터셋에서는 해제.
 - `use_gpu` (기본값 `false`): SIFT 추출 및 매칭을 GPU로 처리. `pycolmap`이 CUDA 지원으로 빌드되어 있어야 함(일반 `pycolmap` wheel은 CPU 전용; Linux에서는 `pycolmap-cuda12` 사용).
 
@@ -114,3 +114,4 @@
 - 재구성 품질은 이미지 겹침에 크게 의존합니다. 인접 사진 간 최소 60% 겹침을 목표로 하고 씬을 여러 각도에서 촬영하세요.
 - 특징이 부족한 표면(하얀 벽, 물, 유리, 균일한 잔디)은 SIFT가 처리하기 어렵고 부분적 또는 완전한 재구성 실패로 이어지기 쉽습니다.
 - CPU 파이프라인은 ~100장 이미지 기준 최신 노트북에서 몇 분 정도 소요됩니다. 비디오 프레임의 경우 매칭 시간을 이미지 수에 선형으로 유지하기 위해 `matcher: sequential`을 사용하세요.
+- 드라이버는 원본 이미지 바이트를 그대로 유지해 EXIF(초점 거리, GPS)를 보존합니다. 단, 이미지가 디코딩되지 않은 스트림 형태로 도착해야 합니다. 업스트림 단계에서 이미 PIL로 디코딩됐다면 드라이버가 받을 때는 이미 EXIF가 사라져 있고, `matcher: spatial`은 정렬할 GPS 정보가 없습니다. GPS 기반 매칭이 중요한 경우 파일을 디스크에 두고 `estimate-from-workspace`를 사용하세요.

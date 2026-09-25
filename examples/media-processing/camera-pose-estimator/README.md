@@ -95,7 +95,7 @@ Runs the COLMAP feature extraction, matching, and incremental mapping pipeline a
 Key options:
 
 - `camera_model` (default `opencv`): COLMAP camera model assumed for the input images. Use `pinhole` for photos with negligible distortion, `opencv-fisheye` or `radial-fisheye` for fisheye lenses, `simple-pinhole` when you have no calibration hints.
-- `matcher` (default `exhaustive`): Pair selection strategy. `sequential` is much faster for frames extracted from a video (only nearby frames are matched); `spatial` uses GPS metadata; `vocab-tree` scales to very large image sets.
+- `matcher` (default `exhaustive`): Pair selection strategy. `sequential` is much faster for frames extracted from a video (only nearby frames are matched); `spatial` uses GPS metadata.
 - `single_camera` (default `true`): Assume all input images share one physical camera and one set of intrinsics. Turn off for mixed-source datasets.
 - `use_gpu` (default `false`): Route SIFT extraction and matching to the GPU. Requires `pycolmap` to be built with CUDA support (the plain `pycolmap` wheel is CPU-only; use `pycolmap-cuda12` on Linux).
 
@@ -114,3 +114,4 @@ If `images` is a list or stream of image arrays, each entry is treated as a sepa
 - Reconstruction quality depends heavily on image overlap. Aim for at least 60% overlap between consecutive photos and cover the scene from many angles.
 - Featureless surfaces (blank walls, water, glass, uniform grass) are hard for SIFT and often cause partial or failed reconstructions.
 - The CPU pipeline on ~100 images typically takes several minutes on a modern laptop. Use `matcher: sequential` for video frames to keep matching time linear in the number of images.
+- The driver keeps original image bytes intact so EXIF (focal length, GPS) survives — but only when images arrive as an unopened stream. If an upstream step already decoded them to PIL, EXIF is gone by the time the driver sees them, and `matcher: spatial` will have no GPS priors to sort by. Keep files on disk and use `estimate-from-workspace` when GPS-based matching matters.

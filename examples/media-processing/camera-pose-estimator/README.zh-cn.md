@@ -95,7 +95,7 @@
 主要选项：
 
 - `camera_model`（默认 `opencv`）：假定的 COLMAP 相机模型。畸变可忽略的照片使用 `pinhole`，鱼眼镜头使用 `opencv-fisheye` 或 `radial-fisheye`，无标定信息时使用 `simple-pinhole`。
-- `matcher`（默认 `exhaustive`）：图像对选择策略。`sequential` 对视频提取的帧要快得多（仅匹配相邻帧）；`spatial` 使用 GPS 元数据；`vocab-tree` 可扩展到非常大的图像集。
+- `matcher`（默认 `exhaustive`）：图像对选择策略。`sequential` 对视频提取的帧要快得多（仅匹配相邻帧）；`spatial` 使用 GPS 元数据。
 - `single_camera`（默认 `true`）：假设所有输入图像共享同一物理相机和同一组内参。对于混合来源的数据集请关闭。
 - `use_gpu`（默认 `false`）：将 SIFT 提取和匹配路由到 GPU。需要 `pycolmap` 以 CUDA 支持构建（普通 `pycolmap` wheel 仅支持 CPU；Linux 上请使用 `pycolmap-cuda12`）。
 
@@ -114,3 +114,4 @@
 - 重建质量在很大程度上取决于图像重叠度。相邻照片之间目标至少 60% 重叠，并从多个角度覆盖场景。
 - 缺乏特征的表面（空白墙、水、玻璃、均匀草地）对 SIFT 而言难以处理，常导致部分或完全重建失败。
 - 大约 100 张图像的 CPU 管线在现代笔记本电脑上通常需要几分钟。对于视频帧，请使用 `matcher: sequential` 使匹配时间与图像数量呈线性关系。
+- 驱动会保留图像的原始字节以保存 EXIF（焦距、GPS），但只有当图像以未解码的流形式到达时才有效。如果上游步骤已经将其解码为 PIL，驱动接收到时 EXIF 已经丢失，`matcher: spatial` 也就没有 GPS 信息可用于排序。当需要基于 GPS 的匹配时，请将文件保留在磁盘上并使用 `estimate-from-workspace`。

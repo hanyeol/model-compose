@@ -347,6 +347,22 @@ components:
       separator: "\n\n"
 ```
 
+**Text Parser**:
+```yaml
+components:
+  - id: text-parser-id
+    type: text-parser
+    action:
+      text: ${input.text}
+      format: json                 # json | yaml | code | xml | list | table | regex
+      strategy: largest            # first | last | all | largest
+      fallback: null               # Returned when no candidate is extracted
+      json_schema: { }             # Optional: validate JSON result (json format only)
+      xml_root: answer             # Optional: filter by root tag (xml format only)
+      regex_pattern: ""            # Required when format: regex
+      regex_flags: ""              # Combination of 'i' (IGNORECASE), 's' (DOTALL), 'm' (MULTILINE)
+```
+
 **Shell Command**:
 ```yaml
 components:

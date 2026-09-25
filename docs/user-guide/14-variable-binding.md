@@ -65,6 +65,7 @@ Different component types use different variable names to reference response dat
 | `vector-store` | `${response}` | - | Vector search/insert result |
 | `datasets` | `${result}` | - | Dataset samples |
 | `text-splitter` | `${result}` | - | Split text chunks |
+| `text-parser` | `${result}` | - | Structured data extracted from free-form text |
 | `image-processor` | `${result}` | - | Processed image |
 | `image-drawing` | `${result}` | - | Image with shapes/text drawn on it |
 | `image-compressor` | `${result}` | - | Compressed PNG bytes |
@@ -73,7 +74,7 @@ Different component types use different variable names to reference response dat
 
 **Key Rules**:
 - HTTP-based components (`http-client`, `http-server`, `vector-store`, `mcp-client`) → `${response}`
-- Local execution components (`model`, `datasets`, `text-splitter`, `image-processor`, `image-drawing`, `image-compressor`) → `${result}`
+- Local execution components (`model`, `datasets`, `text-splitter`, `text-parser`, `image-processor`, `image-drawing`, `image-compressor`) → `${result}`
 - Shell commands → `${stdout}` or `${stderr}`
 - Workflow invocation → `${output}`
 

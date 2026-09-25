@@ -33,6 +33,7 @@ model-compose provides various component types for performing different tasks.
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
+| `text-parser` | Parse structured data | Extract JSON, YAML, XML, tables, lists, or regex matches from noisy free-form text |
 | `image-processor` | Process images | Image transformation, resizing, filters, etc. |
 | `image-drawing` | Draw on images | Shapes, text, and bitmaps via Pillow ImageDraw — bounding boxes, labels, keypoints, masks |
 | `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
@@ -91,6 +92,7 @@ model-compose provides various component types for performing different tasks.
 - Key-value storage → `key-value-store`
 - File/object storage → `file-store`
 - Text splitting → `text-splitter`
+- Structured extraction from free-form text (JSON/YAML/XML/table/list/regex) → `text-parser`
 - Image processing → `image-processor`
 - Image drawing (bounding boxes, labels, keypoints, mask overlays) → `image-drawing`
 - Image compression (PNG) → `image-compressor`

@@ -246,7 +246,6 @@ Audio, video, and image processing components.
 - [audio-mixer](./media-processing/audio-mixer/) — Mix multiple audio sources with ffmpeg
 - [audio-normalizer](./media-processing/audio-normalizer/) — LUFS loudness normalization with true-peak ceiling
 - [audio-processor](./media-processing/audio-processor/) — DSP chain (EQ, dynamics, spatial, effects)
-- [audio-refiner](./media-processing/audio-refiner/) — Drop silence/noise via Silero VAD + clipper
 - [audio-silence-detector](./media-processing/audio-silence-detector/) — Locate silent regions with ffmpeg `silencedetect`
 - [audio-spectrum-to-video](./media-processing/audio-spectrum-to-video/) — Render audio as an equalizer-style MP4
 - [audio-synchronizer](./media-processing/audio-synchronizer/) — Compute time offsets between multi-source recordings
@@ -254,6 +253,7 @@ Audio, video, and image processing components.
 - [music-segment-detector](./media-processing/music-segment-detector/) — Find intro/verse/chorus segment boundaries
 - [speech-to-text-with-correction](./media-processing/speech-to-text-with-correction/) — Whisper STT aligned to a reference transcript
 - [speech-to-text-with-vad](./media-processing/speech-to-text-with-vad/) — Whisper STT with Silero VAD pre-segmentation
+- [voice-silence-remover](./media-processing/voice-silence-remover/) — Drop silence/noise from voice via Silero VAD + clipper
 
 #### Video
 - [video-converter](./media-processing/video-converter/) — Video format/codec conversion

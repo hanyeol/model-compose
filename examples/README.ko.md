@@ -246,7 +246,6 @@ ReAct 루프와 도구 사용을 활용한 자율 에이전트.
 - [audio-mixer](./media-processing/audio-mixer/) — ffmpeg로 여러 오디오 소스 믹싱
 - [audio-normalizer](./media-processing/audio-normalizer/) — 트루피크 상한 적용 LUFS 라우드니스 정규화
 - [audio-processor](./media-processing/audio-processor/) — DSP 체인 (EQ, 다이내믹, 공간, 이펙트)
-- [audio-refiner](./media-processing/audio-refiner/) — Silero VAD + 클리퍼로 무음/노이즈 제거
 - [audio-silence-detector](./media-processing/audio-silence-detector/) — ffmpeg `silencedetect`로 무음 구간 검출
 - [audio-spectrum-to-video](./media-processing/audio-spectrum-to-video/) — 오디오를 이퀄라이저 스타일 MP4로 렌더링
 - [audio-synchronizer](./media-processing/audio-synchronizer/) — 멀티소스 녹음 간 시간 오프셋 계산
@@ -254,6 +253,7 @@ ReAct 루프와 도구 사용을 활용한 자율 에이전트.
 - [music-segment-detector](./media-processing/music-segment-detector/) — 인트로/버스/코러스 구간 경계 검출
 - [speech-to-text-with-correction](./media-processing/speech-to-text-with-correction/) — 참조 스크립트에 정렬한 Whisper STT
 - [speech-to-text-with-vad](./media-processing/speech-to-text-with-vad/) — Silero VAD 프리세그멘테이션 + Whisper STT
+- [voice-silence-remover](./media-processing/voice-silence-remover/) — Silero VAD + 클리퍼로 음성에서 무음/노이즈 제거
 
 #### 비디오
 - [video-converter](./media-processing/video-converter/) — 비디오 포맷/코덱 변환

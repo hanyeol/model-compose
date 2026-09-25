@@ -1,13 +1,13 @@
-# Audio Refiner Example
+# Voice Silence Remover Example
 
-This example chains **Silero VAD** with the **`audio-clipper`** component to produce a refined audio file that contains only detected speech. Silence, breaths, and background-noise regions are dropped, and the remaining speech clips are concatenated into a single output.
+This example chains **Silero VAD** with the **`audio-clipper`** component to remove silence from a voice recording. Silence, breaths, and background-noise regions are dropped, and the remaining speech clips are concatenated into a single output audio.
 
 ## Overview
 
 The workflow runs two jobs:
 
-1. **`detect`** — Runs the Silero VAD model locally over the input audio and emits a flat list of `{start_time, end_time, confidence}` speech segments.
-2. **`refine`** — Feeds those segments straight into `audio-clipper` as the `span` list, with `merge: true` so ffmpeg concatenates every speech clip into a single output audio.
+1. **`detect-silence`** — Runs the Silero VAD model locally over the input audio and emits a flat list of `{start_time, end_time, confidence}` speech segments (the non-speech gaps between them are the silence to be removed).
+2. **`refine`** — Feeds those segments straight into `audio-clipper` as the `span` list, with `merge: true` so ffmpeg concatenates every speech clip into a single silence-removed output audio.
 
 VAD's segment schema (`start_time`, `end_time`) matches the clipper's span schema 1:1, so no shape-mapping step is needed — the extra `confidence` field on each segment is simply ignored by the clipper.
 
@@ -30,7 +30,7 @@ Typical use cases:
 Navigate to this example directory:
 
 ```bash
-cd examples/media-processing/audio-refiner
+cd examples/media-processing/voice-silence-remover
 ```
 
 Verify ffmpeg is installed:
@@ -56,7 +56,7 @@ ffmpeg -version
    - Open http://localhost:8081.
    - Upload an audio file.
    - Optionally override `threshold`, `min_speech_duration`, `min_silence_duration`, `speech_padding_time`.
-   - Click **Run Workflow** and download the refined audio.
+   - Click **Run Workflow** and download the silence-removed audio.
 
    **Using CLI:**
 
@@ -106,15 +106,15 @@ ffmpeg -version
 
 ## Workflow Details
 
-### "Audio Refiner" Workflow
+### "Voice Silence Remover" Workflow
 
-**Description**: Detect speech regions with Silero VAD and merge them into a single refined audio file.
+**Description**: Detect speech regions with Silero VAD and merge them into a single audio file with the silence removed.
 
 #### Job Flow
 
 ```mermaid
 graph TD
-    J1((detect))
+    J1((detect-silence))
     J2((refine))
     C1[vad<br/>voice-activity-detection]
     C2[clipper<br/>audio-clipper]
@@ -144,7 +144,7 @@ Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `audio` | audio | The refined audio — a single file with all detected speech regions concatenated in order, non-speech dropped. |
+| `audio` | audio | The silence-removed audio — a single file with all detected speech regions concatenated in order, non-speech dropped. |
 
 ## Customization
 
@@ -157,10 +157,10 @@ workflow:
   jobs:
     - id: refine
       component: clipper
-      depends_on: [ detect ]
+      depends_on: [ detect-silence ]
       input:
         audio: ${input.audio as audio}
-        spans: ${jobs.detect.output}
+        spans: ${jobs.detect-silence.output}
       output:
         audios: ${output as audio[]}
 
@@ -173,7 +173,7 @@ components:
       # merge omitted -> one output clip per span
 ```
 
-### Feed the refined audio into a downstream ASR
+### Feed the silence-removed audio into a downstream ASR
 
 Add a third job that takes `${jobs.refine.output.audio}` as input to a `speech-to-text` model component — running ASR on the pre-cleaned audio typically cuts both cost and hallucinations.
 
@@ -181,7 +181,7 @@ Add a third job that takes `${jobs.refine.output.audio}` as input to a `speech-t
 
 - **Lossless clipping**: The clipper uses `ffmpeg -c copy`, so clip boundaries land on the nearest keyframe/frame supported by the container. For a lossy codec (mp3, aac) the cuts may be off by a few ms.
 - **Padding matters**: A `speech_padding_time` of 100–200ms usually prevents word-onset clipping caused by Silero's frame-level threshold.
-- **Whisper pre-processing**: If you plan to send the refined audio to Whisper, use a slightly larger `min_silence_duration` (e.g. `1s`) so within-utterance pauses aren't fragmented into many tiny clips.
+- **Whisper pre-processing**: If you plan to send the silence-removed audio to Whisper, use a slightly larger `min_silence_duration` (e.g. `1s`) so within-utterance pauses aren't fragmented into many tiny clips.
 
 ## Troubleshooting
 

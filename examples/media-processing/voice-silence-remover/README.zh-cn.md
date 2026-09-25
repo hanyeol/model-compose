@@ -1,13 +1,13 @@
-# 音频精炼示例
+# 人声静音去除示例
 
-本示例将 **Silero VAD** 与 **`audio-clipper`** 组件串联，生成仅包含检测到的语音区段的精炼音频文件。静音、呼吸声和背景噪声被丢弃，剩余的语音片段被合并成一个输出。
+本示例将 **Silero VAD** 与 **`audio-clipper`** 组件串联，从语音录音中去除静音。静音、呼吸声和背景噪声被丢弃，剩余的语音片段被合并成一个输出音频。
 
 ## 概述
 
 工作流由两个作业组成：
 
-1. **`detect`** — 在输入音频上本地运行 Silero VAD 模型，输出扁平的 `{start_time, end_time, confidence}` 语音区段列表。
-2. **`refine`** — 将这些区段直接作为 `span` 传递给 `audio-clipper`，并设置 `merge: true`，让 ffmpeg 将所有语音片段拼接成一个音频输出。
+1. **`detect-silence`** — 在输入音频上本地运行 Silero VAD 模型，输出扁平的 `{start_time, end_time, confidence}` 语音区段列表（区段之间的非语音间隙即为将被去除的静音）。
+2. **`refine`** — 将这些区段直接作为 `span` 传递给 `audio-clipper`，并设置 `merge: true`，让 ffmpeg 将所有语音片段拼接成一个去除了静音的音频输出。
 
 VAD 的段结构（`start_time`、`end_time`）与 clipper 的 span 结构 1:1 对应，无需任何形状映射步骤，每段附加的 `confidence` 字段会被 clipper 直接忽略。
 
@@ -30,7 +30,7 @@ VAD 的段结构（`start_time`、`end_time`）与 clipper 的 span 结构 1:1 �
 进入本示例目录：
 
 ```bash
-cd examples/media-processing/audio-refiner
+cd examples/media-processing/voice-silence-remover
 ```
 
 确认 ffmpeg 已安装：
@@ -56,7 +56,7 @@ ffmpeg -version
    - 打开 http://localhost:8081。
    - 上传音频文件。
    - 可选覆盖 `threshold`、`min_speech_duration`、`min_silence_duration`、`speech_padding_time`。
-   - 点击 **Run Workflow** 并下载精炼后的音频。
+   - 点击 **Run Workflow** 并下载去除静音后的音频。
 
    **使用 CLI：**
 
@@ -105,15 +105,15 @@ ffmpeg -version
 
 ## 工作流详情
 
-### "Audio Refiner" 工作流
+### "Voice Silence Remover" 工作流
 
-**描述**：使用 Silero VAD 检测语音区段，并将其合并为一个精炼的音频文件。
+**描述**：使用 Silero VAD 检测语音区段，并将其合并为一个去除了静音的音频文件。
 
 #### 作业流
 
 ```mermaid
 graph TD
-    J1((detect))
+    J1((detect-silence))
     J2((refine))
     C1[vad<br/>voice-activity-detection]
     C2[clipper<br/>audio-clipper]
@@ -143,7 +143,7 @@ graph TD
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `audio` | audio | 精炼后的音频 — 一个文件，按顺序拼接了所有检测到的语音区段，非语音部分被丢弃。 |
+| `audio` | audio | 去除静音后的音频 — 一个文件，按顺序拼接了所有检测到的语音区段，非语音部分被丢弃。 |
 
 ## 自定义
 
@@ -156,10 +156,10 @@ workflow:
   jobs:
     - id: refine
       component: clipper
-      depends_on: [ detect ]
+      depends_on: [ detect-silence ]
       input:
         audio: ${input.audio as audio}
-        spans: ${jobs.detect.output}
+        spans: ${jobs.detect-silence.output}
       output:
         audios: ${output as audio[]}
 
@@ -172,7 +172,7 @@ components:
       # 省略 merge -> 每个 span 输出一个片段
 ```
 
-### 将精炼后的音频送入下游 ASR
+### 将去除静音后的音频送入下游 ASR
 
 添加第三个作业，将 `${jobs.refine.output.audio}` 作为输入送入一个 `speech-to-text` 模型组件 — 在预清理后的音频上运行 ASR 通常能同时降低成本和幻觉率。
 
@@ -180,7 +180,7 @@ components:
 
 - **无损剪辑**：clipper 使用 `ffmpeg -c copy`，剪辑边界会落在容器允许的最近关键帧/帧边界。对有损编码（mp3、aac）可能有几毫秒偏差。
 - **填充很重要**：将 `speech_padding_time` 设为 100–200ms 通常可避免因 Silero 帧级阈值判定造成的词头被截断。
-- **Whisper 预处理**：若打算把精炼音频送入 Whisper，可稍微增大 `min_silence_duration`（例如 `1s`），避免话语内部的短停顿被切成多个小片段。
+- **Whisper 预处理**：若打算把去除静音后的音频送入 Whisper，可稍微增大 `min_silence_duration`（例如 `1s`），避免话语内部的短停顿被切成多个小片段。
 
 ## 故障排除
 

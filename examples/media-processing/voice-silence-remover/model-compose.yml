@@ -8,14 +8,14 @@ controller:
     port: 8081
 
 workflow:
-  title: Audio Refiner
+  title: Voice Silence Remover
   description: |
     Detect speech regions in an input audio with Silero VAD, then clip out
-    only those regions and concatenate them into a single refined audio.
-    Non-speech regions (silence, breath, background noise) are dropped, so
-    the output contains speech only.
+    only those regions and concatenate them into a single audio with the
+    silence removed. Non-speech regions (silence, breath, background noise)
+    are dropped, so the output contains speech only.
   jobs:
-    - id: detect
+    - id: detect-silence
       component: vad
       input:
         audio: ${input.audio as audio}
@@ -27,10 +27,10 @@ workflow:
 
     - id: refine
       component: clipper
-      depends_on: [ detect ]
+      depends_on: [ detect-silence ]
       input:
         audio: ${input.audio as audio}
-        spans: ${jobs.detect.output}
+        spans: ${jobs.detect-silence.output}
       output:
         audio: ${output as audio}
 

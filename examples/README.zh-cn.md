@@ -246,7 +246,6 @@ HUGGINGFACE_TOKEN=your-token-here
 - [audio-mixer](./media-processing/audio-mixer/) — 使用 ffmpeg 混合多个音频源
 - [audio-normalizer](./media-processing/audio-normalizer/) — 带真实峰值上限的 LUFS 响度归一化
 - [audio-processor](./media-processing/audio-processor/) — DSP 链（EQ、动态、空间、效果）
-- [audio-refiner](./media-processing/audio-refiner/) — 通过 Silero VAD + 裁剪器去除静音/噪声
 - [audio-silence-detector](./media-processing/audio-silence-detector/) — 使用 ffmpeg `silencedetect` 定位静音区
 - [audio-spectrum-to-video](./media-processing/audio-spectrum-to-video/) — 将音频渲染为均衡器风格的 MP4
 - [audio-synchronizer](./media-processing/audio-synchronizer/) — 计算多源录音之间的时间偏移
@@ -254,6 +253,7 @@ HUGGINGFACE_TOKEN=your-token-here
 - [music-segment-detector](./media-processing/music-segment-detector/) — 查找前奏/主歌/副歌段落边界
 - [speech-to-text-with-correction](./media-processing/speech-to-text-with-correction/) — 与参考稿对齐的 Whisper STT
 - [speech-to-text-with-vad](./media-processing/speech-to-text-with-vad/) — Silero VAD 预分段 + Whisper STT
+- [voice-silence-remover](./media-processing/voice-silence-remover/) — 通过 Silero VAD + 裁剪器从人声中去除静音/噪声
 
 #### 视频
 - [video-converter](./media-processing/video-converter/) — 视频格式/编解码器转换

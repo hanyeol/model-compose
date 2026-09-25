@@ -34,17 +34,21 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
     async def _resolve_params(self) -> Dict[str, Any]:
         params = await super()._resolve_params()
 
-        return_points = await self.context.render_scalar(self.config.return_points, bool)
+        return_cameras = await self.context.render_scalar(self.config.return_cameras, bool)
+        return_poses   = await self.context.render_scalar(self.config.return_poses, bool)
+        return_points  = await self.context.render_scalar(self.config.return_points, bool)
 
         # COLMAP camera model names are UPPER_SNAKE (e.g. `OPENCV_FISHEYE`);
         # the DSL enum values are lowercase kebab (`opencv-fisheye`).
         params.update({
-            "camera_model":  self.component_config.camera_model.value.replace("-", "_").upper(),
-            "single_camera": self.component_config.single_camera,
-            "matcher":       self.component_config.matcher.value,
-            "use_gpu":       self.component_config.use_gpu,
-            "thread_count":  self.component_config.thread_count,
-            "return_points": return_points,
+            "camera_model":   self.component_config.camera_model.value.replace("-", "_").upper(),
+            "single_camera":  self.component_config.single_camera,
+            "matcher":        self.component_config.matcher.value,
+            "use_gpu":        self.component_config.use_gpu,
+            "thread_count":   self.component_config.thread_count,
+            "return_cameras": return_cameras,
+            "return_poses":   return_poses,
+            "return_points":  return_points,
         })
 
         return params
@@ -192,44 +196,48 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         return matchers[matcher]
 
     def _build_result(self, workspace_dir: str, reconstruction: Any, sparse_index: int, params: Dict[str, Any]) -> Dict[str, Any]:
-        cameras: List[Dict[str, Any]] = []
-
-        for camera_id, camera in reconstruction.cameras.items():
-            cameras.append({
-                "id":     int(camera_id),
-                "model":  camera.model_name,
-                "width":  int(camera.width),
-                "height": int(camera.height),
-                "params": [ float(v) for v in camera.params ],
-            })
-
-        poses: List[Dict[str, Any]] = []
-
-        for _, image in reconstruction.images.items():
-            if not image.has_pose:
-                continue
-
-            cam_from_world = image.cam_from_world()
-
-            # pycolmap stores rotations as `Rotation3d`, whose `.quat` is
-            # `[x, y, z, w]` (Eigen convention). COLMAP's on-disk / textual
-            # convention is `[qw, qx, qy, qz]`, so swap the scalar to the
-            # front for downstream consumers.
-            qx, qy, qz, qw = cam_from_world.rotation.quat
-            poses.append({
-                "image":       image.name,
-                "camera_id":   int(image.camera_id),
-                "quaternion":  [ float(qw), float(qx), float(qy), float(qz) ],
-                "translation": [ float(v) for v in cam_from_world.translation ],
-            })
-
         result: Dict[str, Any] = {
             "workspace_dir": os.path.join(workspace_dir, "sparse", str(sparse_index)),
             "images_count":  int(reconstruction.num_reg_images()),
             "points_count":  int(reconstruction.num_points3D()),
-            "cameras":       cameras,
-            "poses":         poses,
         }
+
+        if params["return_cameras"]:
+            cameras: List[Dict[str, Any]] = []
+
+            for camera_id, camera in reconstruction.cameras.items():
+                cameras.append({
+                    "id":     int(camera_id),
+                    "model":  camera.model_name,
+                    "width":  int(camera.width),
+                    "height": int(camera.height),
+                    "params": [ float(v) for v in camera.params ],
+                })
+
+            result["cameras"] = cameras
+
+        if params["return_poses"]:
+            poses: List[Dict[str, Any]] = []
+
+            for _, image in reconstruction.images.items():
+                if not image.has_pose:
+                    continue
+
+                cam_from_world = image.cam_from_world()
+
+                # pycolmap stores rotations as `Rotation3d`, whose `.quat` is
+                # `[x, y, z, w]` (Eigen convention). COLMAP's on-disk / textual
+                # convention is `[qw, qx, qy, qz]`, so swap the scalar to the
+                # front for downstream consumers.
+                qx, qy, qz, qw = cam_from_world.rotation.quat
+                poses.append({
+                    "image":       image.name,
+                    "camera_id":   int(image.camera_id),
+                    "quaternion":  [ float(qw), float(qx), float(qy), float(qz) ],
+                    "translation": [ float(v) for v in cam_from_world.translation ],
+                })
+
+            result["poses"] = poses
 
         if params["return_points"]:
             scene = self._build_points_scene(reconstruction)

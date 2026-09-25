@@ -191,8 +191,7 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
 
         return matchers[matcher]
 
-    @staticmethod
-    def _build_result(workspace_dir: str, reconstruction: Any, sparse_index: int, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_result(self, workspace_dir: str, reconstruction: Any, sparse_index: int, params: Dict[str, Any]) -> Dict[str, Any]:
         cameras: List[Dict[str, Any]] = []
 
         for camera_id, camera in reconstruction.cameras.items():
@@ -233,7 +232,7 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         }
 
         if params["return_points"]:
-            scene = ColmapCameraPoseEstimatorAction._build_points_scene(reconstruction)
+            scene = self._build_points_scene(reconstruction)
             points_path = get_temporary_path("glb")
 
             scene.export(points_path, file_type="glb")
@@ -246,13 +245,19 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
 
         return result
 
-    @staticmethod
-    def _build_points_scene(reconstruction: Any) -> Any:
+    def _build_points_scene(self, reconstruction: Any) -> Any:
         # Bundle the sparse point cloud and per-image camera frustums into
         # one scene so a Gradio Model3D viewer shows both geometry and poses
         # without additional client-side glue.
         import numpy as np
         import trimesh
+
+        # COLMAP uses a right-handed frame with +y down / +z forward; glTF
+        # viewers use +y up / +z back. Flipping y and z on every world-space
+        # point brings the reconstruction upright in the Model3D viewer
+        # without needing a scene-graph transform (trimesh's `Scene`
+        # `apply_transform` requires geometry to already be attached).
+        world_axes_to_gltf = np.diag([ 1.0, -1.0, -1.0 ])
 
         points_xyz: List[List[float]] = []
         points_rgb: List[List[int]] = []
@@ -281,20 +286,21 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
             camera_centers.append(center_world)
             camera_poses.append((camera, cam_from_world))
 
-        frustum_scale = ColmapCameraPoseEstimatorAction._resolve_frustum_scale(np.asarray(camera_centers) if camera_centers else None)
-
-        # COLMAP uses a right-handed camera frame with +y down / +z forward;
-        # glTF viewers use +y up. Bake a 180° rotation about the world X axis
-        # into the scene so the reconstruction lands upright in the Model3D
-        # viewer without extra client-side transforms.
+        camera_center_array = np.asarray(camera_centers) if camera_centers else None
+        frustum_scale = self._resolve_frustum_scale(camera_center_array)
         scene = trimesh.Scene()
-        scene.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [ 1, 0, 0 ]))
 
         if points_xyz:
-            scene.add_geometry(trimesh.PointCloud(vertices=np.asarray(points_xyz), colors=np.asarray(points_rgb, dtype=np.uint8)))
+            point_vertices = np.asarray(points_xyz) @ world_axes_to_gltf.T
+            scene.add_geometry(trimesh.PointCloud(vertices=point_vertices, colors=np.asarray(points_rgb, dtype=np.uint8)))
 
         for camera, cam_from_world in camera_poses:
-            frustum = ColmapCameraPoseEstimatorAction._build_camera_frustum(camera, cam_from_world, scale=frustum_scale)
+            frustum = self._build_camera_frustum(
+                camera,
+                cam_from_world,
+                scale=frustum_scale,
+                world_transform=world_axes_to_gltf
+            )
 
             if frustum is not None:
                 scene.add_geometry(frustum)
@@ -321,12 +327,14 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         return max(median * 0.25, 1e-6)
 
     @staticmethod
-    def _build_camera_frustum(camera: Any, cam_from_world: Any, scale: float) -> Optional[Any]:
+    def _build_camera_frustum(camera: Any, cam_from_world: Any, scale: float, world_transform: Optional[Any] = None) -> Optional[Any]:
         """Build a wireframe frustum for one camera in world coordinates.
 
         Uses the camera's calibration matrix to back-project the four image
         corners onto a plane at depth `scale` in the camera frame, then
         transforms everything to world space via the inverse of `cam_from_world`.
+        When `world_transform` is provided (3×3), it is applied to the final
+        world-space vertices — used to reorient from COLMAP into glTF axes.
         """
         import numpy as np
         import trimesh
@@ -367,6 +375,10 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         corners_world      = (world_from_cam_rot @ corners_cam.T).T + origin_world
 
         vertices = np.vstack([ origin_world[None, :], corners_world ])
+
+        if world_transform is not None:
+            vertices = vertices @ np.asarray(world_transform).T
+
         # 4 rays from optical center to the corners, plus a 4-segment loop around
         # the image plane — enough to read the camera's pose at a glance.
         edges = np.array([
@@ -385,7 +397,7 @@ class ColmapCameraPoseEstimatorService(CameraPoseEstimatorDriver):
         return [
             *(super()._get_setup_requirements() or []),
             "pycolmap>=4.0",
-            "trimesh",
+            "trimesh>=4.0",
             "numpy"
         ]
 

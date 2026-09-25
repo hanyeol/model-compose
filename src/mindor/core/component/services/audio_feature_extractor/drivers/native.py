@@ -6,6 +6,7 @@ from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.dsl.schema.action.impl.audio_feature_extractor.impl.common import AudioFeature
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.resources import read_stream_to_buffer
 from mindor.core.utils.soundfile.audio import load_pcm_samples
 from ....action.media import MediaInputPathResolver
 from ..base import AudioFeatureExtractorDriver, AudioFeatureExtractorDriverType, register_audio_feature_extractor_driver
@@ -51,13 +52,15 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
     async def _load_pcm_samples(self, source: MediaSource, sample_rate: int) -> Tuple[np.ndarray, int]:
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "audio" ])
 
-        if input_path is None:
-            raise ValueError("Native audio feature extractor requires a file-based audio source.")
-
         try:
-            return await self._run_in_executor(load_pcm_samples, input_path, sample_rate)
+            if input_path is None:
+                audio = await read_stream_to_buffer(source.stream)
+            else:
+                audio = input_path
+
+            return await self._run_in_executor(load_pcm_samples, audio, sample_rate)
         finally:
-            if spooled:
+            if spooled and input_path is not None:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

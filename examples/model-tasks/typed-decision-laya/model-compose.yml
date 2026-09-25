@@ -1,0 +1,36 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Typed Decision (Laya)
+  description: One-shot typed decisions from a state and a per-question schema (noul/choice/score); returns the chosen value plus per-candidate probabilities per question, without generating any free-form text.
+  job:
+    input: ${input}
+    output: ${output as json}
+
+component:
+  type: model
+  task: typed-decision
+  driver: custom
+  family: laya
+  model: convaiinnovations/laya                # bundle repo hosting all three checkpoints; picks the English checkpoint by default
+  subfolder: multilingual                      # 'multilingual' (100+ langs) or 'typed-decisions' (fine-tuned on the typed-decisions workflows)
+  # max_len: 8192                              # override per-call encoder token budget; 'laya-multilingual' supports up to 8192
+  # head_max_len: 192                          # override per-question head token budget
+  fast: false                                  # enable the TileLang CUDA fast path (requires laya[fast])
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python                             # default; uses `python -m venv`
+    path: .venv/laya                           # relative to cwd; created on first run
+  action:
+    text: ${input.text as text}                # the state (unstructured text) the model judges
+    schema: ${input.schema as json}            # per-question map keyed by qid; each { type: noul|choice|score, instructions, criteria? }
+    return_probabilities: true                 # include per-candidate scores per question
+    return_logits: false                       # laya does not surface raw logits at the API level

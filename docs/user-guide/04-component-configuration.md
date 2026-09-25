@@ -57,6 +57,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `audio-processor` | Audio DSP chain | Rate/time (resample, speed, pitch-shift), EQ (highpass, lowpass, bell, shelves), dynamics (compressor, gate, limiter), spatial (chorus, delay, reverb), level (gain, normalize RMS/peak/LUFS), edit (trim edges/silence, fade in/out), and voice anonymization via pedalboard + librosa + soxr + pyloudnorm |
 | `model-3d-converter` | Convert 3D models | Transcode 3D assets between formats (glb/gltf/obj/stl/ply/dae/off/3mf) via trimesh |
+| `camera-pose-estimator` | Recover camera poses from photos | Structure-from-Motion reconstruction (SIFT + incremental mapping) via COLMAP/pycolmap; returns per-image poses plus a COLMAP-format workspace ready for 3DGS/NeRF/mesh downstream |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
 | `media-downloader` | Download media from URL | Fetch audio or video from YouTube, Vimeo, etc. via yt-dlp; returns a stream ready for downstream processing |
 | `subtitle-loader` | Load subtitles | Fetch subtitles from a URL (yt-dlp) or parse a local file / upload / raw text into segments with start/end/duration/text |
@@ -114,6 +115,7 @@ model-compose provides various component types for performing different tasks.
 - Subtitle loading (fetch from URL via yt-dlp, or parse local file / upload / raw text) → `subtitle-loader`
 - Document loading and chunking (PDF/DOCX/HTML into streaming chunk records for embedding or retrieval) → `document-loader`
 - 3D model format conversion (glb/gltf/obj/stl/ply/dae/off/3mf) → `model-3d-converter`
+- Camera pose recovery from photos (Structure-from-Motion via COLMAP; produces COLMAP-format workspace for 3DGS/NeRF/mesh pipelines) → `camera-pose-estimator`
 - Web scraping → `web-scraper`
 
 **Browser Automation**

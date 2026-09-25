@@ -51,6 +51,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `audio-clipper` | 音频片段裁剪 | 通过 ffmpeg 流复制无损裁剪音频中一个或多个时间范围 |
 | `audio-processor` | 音频 DSP 链 | 基于 pedalboard + librosa + soxr + pyloudnorm：时间/采样率（resample、speed、pitch-shift）、EQ（高/低通、bell、shelf）、动态（compressor、gate、limiter）、空间（chorus、delay、reverb）、电平（gain、normalize RMS/peak/LUFS）、编辑（裁剪/淡入淡出）、语音匿名化 |
 | `model-3d-converter` | 3D 模型转换 | 通过 trimesh 在格式之间转换 3D 资产（glb/gltf/obj/stl/ply/dae/off/3mf） |
+| `camera-pose-estimator` | 从照片恢复相机位姿 | 基于 COLMAP/pycolmap 的 Structure-from-Motion 重建（SIFT + 增量式建图）；返回逐图像位姿以及可供 3DGS/NeRF/网格下游任务直接使用的 COLMAP 格式工作空间 |
 | `media-inspector` | 检查媒体元数据 | 通过 ffprobe 或 exiftool 无需解码即可读取编解码器、时长、分辨率、EXIF/GPS 等 |
 | `web-scraper` | 网页抓取 | 使用 CSS/XPath 提取网页数据 |
 | `web-browser` | 浏览器自动化 | 通过 Chrome DevTools Protocol 控制浏览器 |
@@ -95,6 +96,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 音频 DSP（变速 / 移调、EQ、压缩器、归一化、静音裁剪、淡入淡出、语音匿名化）→ `audio-processor`
 - 媒体元数据检查（编解码器、时长、EXIF/GPS 等）→ `media-inspector`
 - 3D 模型格式转换（glb/gltf/obj/stl/ply/dae/off/3mf）→ `model-3d-converter`
+- 从照片恢复相机位姿（基于 COLMAP 的 Structure-from-Motion；为 3DGS/NeRF/网格管线生成 COLMAP 格式工作空间）→ `camera-pose-estimator`
 - 网页抓取 → `web-scraper`
 
 **浏览器自动化**

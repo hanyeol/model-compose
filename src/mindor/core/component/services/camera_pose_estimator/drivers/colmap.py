@@ -34,21 +34,23 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
     async def _resolve_params(self) -> Dict[str, Any]:
         params = await super()._resolve_params()
 
-        return_cameras = await self.context.render_scalar(self.config.return_cameras, bool)
-        return_poses   = await self.context.render_scalar(self.config.return_poses, bool)
-        return_points  = await self.context.render_scalar(self.config.return_points, bool)
+        return_cameras  = await self.context.render_scalar(self.config.return_cameras, bool)
+        return_poses    = await self.context.render_scalar(self.config.return_poses, bool)
+        return_points   = await self.context.render_scalar(self.config.return_points, bool)
+        return_metadata = await self.context.render_scalar(self.config.return_metadata, bool)
 
         # COLMAP camera model names are UPPER_SNAKE (e.g. `OPENCV_FISHEYE`);
         # the DSL enum values are lowercase kebab (`opencv-fisheye`).
         params.update({
-            "camera_model":   self.component_config.camera_model.value.replace("-", "_").upper(),
-            "single_camera":  self.component_config.single_camera,
-            "matcher":        self.component_config.matcher.value,
-            "use_gpu":        self.component_config.use_gpu,
-            "thread_count":   self.component_config.thread_count,
-            "return_cameras": return_cameras,
-            "return_poses":   return_poses,
-            "return_points":  return_points,
+            "camera_model":    self.component_config.camera_model.value.replace("-", "_").upper(),
+            "single_camera":   self.component_config.single_camera,
+            "matcher":         self.component_config.matcher.value,
+            "use_gpu":         self.component_config.use_gpu,
+            "thread_count":    self.component_config.thread_count,
+            "return_cameras":  return_cameras,
+            "return_poses":    return_poses,
+            "return_points":   return_points,
+            "return_metadata": return_metadata,
         })
 
         return params
@@ -196,11 +198,14 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         return matchers[matcher]
 
     def _build_result(self, workspace_dir: str, reconstruction: Any, sparse_index: int, params: Dict[str, Any]) -> Dict[str, Any]:
-        result: Dict[str, Any] = {
-            "workspace_dir": os.path.join(workspace_dir, "sparse", str(sparse_index)),
-            "images_count":  int(reconstruction.num_reg_images()),
-            "points_count":  int(reconstruction.num_points3D()),
-        }
+        result: Dict[str, Any] = {}
+
+        if params["return_metadata"]:
+            result.update({
+                "workspace_dir": os.path.join(workspace_dir, "sparse", str(sparse_index)),
+                "images_count":  int(reconstruction.num_reg_images()),
+                "points_count":  int(reconstruction.num_points3D()),
+            })
 
         if params["return_cameras"]:
             cameras: List[Dict[str, Any]] = []

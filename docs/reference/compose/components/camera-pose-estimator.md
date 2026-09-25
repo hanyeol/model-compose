@@ -21,10 +21,10 @@ component:
 | `type` | string | **required** | Must be `camera-pose-estimator` |
 | `driver` | string | `colmap` | SfM backend driver. Currently only `colmap` (pycolmap-based). |
 | `camera_model` | string | `opencv` | COLMAP camera model assumed for input images. See [Camera Models](#camera-models). |
-| `matcher` | string | `exhaustive` | Feature matching strategy. One of `exhaustive`, `sequential`, `spatial`, `vocab-tree`. |
+| `matcher` | string | `exhaustive` | Feature matching strategy. One of `exhaustive`, `sequential`, `spatial`. |
 | `single_camera` | boolean | `true` | Whether all input images share one physical camera and intrinsics. |
 | `use_gpu` | boolean | `false` | Route SIFT feature extraction/matching to the GPU. Requires a CUDA-enabled pycolmap build. |
-| `num_threads` | integer | `null` | Number of CPU threads used by COLMAP. Auto when omitted. |
+| `thread_count` | integer | `null` | Number of CPU threads used by COLMAP. Auto when omitted. |
 | `actions` | array | `[]` | List of estimation actions |
 
 ### Action Configuration
@@ -33,7 +33,8 @@ component:
 |-------|------|---------|-------------|
 | `images` | string \| string[] | `null` | Image or list of images the reconstruction is built from. When omitted, images already present under `workspace_dir/images/` are used. |
 | `workspace_dir` | string | `null` | Directory holding the COLMAP workspace (`images/`, `database.db`, `sparse/`). Defaults to `.workspace/<component-id>/<run-id>/` when omitted. |
-| `batch_size` | integer \| string | `1` | Number of scenes processed per batch when the input is a list or stream of scenes. |
+| `return_points` | boolean \| string | `false` | Include the sparse point cloud (with camera frustums) as a GLB model in the result. Opt-in — the primary downstream consumer is a workspace-reading job (3DGS trainer, mesh extractor), not a viewer. Enable it when the workflow output feeds a Gradio `Model3D` component or another GLB consumer. |
+| `batch_size` | integer \| string | `1` | Number of scenes buffered before results are emitted downstream on a streaming input. Scenes within a batch are still reconstructed sequentially — this is a flow-control knob for streaming consumers, not a parallelism setting. |
 
 Exactly one of `images` or `workspace_dir` (or both) must be provided.
 
@@ -79,8 +80,7 @@ The `matcher` field selects how image pairs are chosen for feature matching:
 |---------|----------|
 | `exhaustive` | All-pairs matching. Recommended default for photo sets up to a few hundred images. |
 | `sequential` | Adjacent-frame matching only. Much faster for frames extracted from a video; assumes sequential capture order. |
-| `spatial` | Match nearby images based on GPS metadata embedded in EXIF. |
-| `vocab-tree` | Vocabulary-tree-based candidate selection. Scales to very large image sets. |
+| `spatial` | Match nearby images based on GPS metadata embedded in EXIF. Requires images that still carry their original GPS EXIF tags — see [EXIF Preservation](#exif-preservation) for what survives the pipeline. |
 
 ## Output Format
 
@@ -118,6 +118,7 @@ The action returns one result dict per scene (or a single dict when the input is
 | `points_count` | Number of triangulated 3D points in the sparse reconstruction. |
 | `cameras` | Recovered camera intrinsics. `params` follows the parameter order defined by `model` (e.g. `[fx, fy, cx, cy, k1, k2, p1, p2]` for `OPENCV`). |
 | `poses` | Per-image world-from-camera pose. `quaternion` is `[qw, qx, qy, qz]` (COLMAP text convention). |
+| `points` | Sparse point cloud + camera frustums as a GLB `Model3DStreamResource`, only present when `return_points: true`. Route with `${output.points as model-3d/glb}`. |
 
 Extra partial reconstructions produced during incremental mapping are left on disk under `workspace_dir/sparse/1/`, `sparse/2/`, ... but are not summarised in the returned dict.
 
@@ -142,6 +143,16 @@ How the base workspace is chosen:
 | list or stream | any | Each entry used as-is, zipped with `images` slot-for-slot |
 
 The per-run subfolder (`<run-id>/`) prevents parallel runs from colliding. The `-N` suffix on multi-scene runs prevents scenes from overwriting each other when they share a scalar base.
+
+## EXIF Preservation
+
+COLMAP consults EXIF metadata for two things: the `FocalLength` tag becomes a per-image focal-length prior that seeds intrinsics estimation, and GPS tags feed the `spatial` matcher. Anything that strips those tags weakens the reconstruction — the focal-length prior falls back to a `1.2 × max(width, height)` heuristic, and the spatial matcher has nothing to sort image pairs by.
+
+To keep the metadata intact, the driver writes each input image out as its original encoded bytes rather than re-encoding via PIL. In practice, EXIF survives when the image reaches the driver as a stream that was never decoded upstream:
+
+- **Preserved**: images that arrive as an `ImageStreamResource` carrying raw bytes — typical for uploads (`gr.File`), URLs fetched by an upstream component, or files read from disk.
+- **Lost**: images that were decoded to PIL somewhere upstream (for example, another component that returned rendered `PIL.Image` objects). Re-encoding at that earlier step already dropped EXIF; the driver cannot recover it.
+- **Recommended for GPS-critical runs**: keep the original files on disk and use the `estimate-from-workspace` mode — the driver reads them straight from `workspace_dir/images/` without touching the encoding.
 
 ## Integration with Workflows
 

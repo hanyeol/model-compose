@@ -30,7 +30,12 @@ class CameraPoseEstimatorAction(ComponentAction):
         self.context: ComponentActionContext = context
 
     async def run(self) -> Any:
-        images        = await self.context.render_image_array(self.config.images, single_as_array=True) if self.config.images is not None else None
+        # `as_stream=True` keeps each image as an `ImageStreamResource` so
+        # drivers that write it back to disk can preserve the original
+        # encoded bytes — including EXIF metadata (focal-length prior, GPS
+        # coordinates) that COLMAP consults to seed intrinsics and drive the
+        # spatial matcher. Decoding to PIL upfront would strip that metadata.
+        images        = await self.context.render_image_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
         workspace_dir = await self.context.render_variable(self.config.workspace_dir)
         batch_size    = await self.context.render_variable(self.config.batch_size)
 

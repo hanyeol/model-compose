@@ -21,13 +21,12 @@ class ColmapMatcherType(str, Enum):
     EXHAUSTIVE = "exhaustive"
     SEQUENTIAL = "sequential"
     SPATIAL    = "spatial"
-    VOCAB_TREE = "vocab-tree"
 
 class ColmapCameraPoseEstimatorComponentConfig(CommonCameraPoseEstimatorComponentConfig):
     driver: Literal[CameraPoseEstimatorDriverType.COLMAP]
     camera_model: ColmapCameraModel = Field(default=ColmapCameraModel.OPENCV, description="COLMAP camera model assumed for input images.")
     single_camera: bool = Field(default=True, description="Whether all input images are assumed to share one camera and intrinsics.")
     matcher: ColmapMatcherType = Field(default=ColmapMatcherType.EXHAUSTIVE, description="Feature matching strategy applied across images.")
-    use_gpu: bool = Field(default=False, description="Whether SIFT feature extraction runs on the GPU.")
-    num_threads: Optional[int] = Field(default=None, description="Number of CPU threads used by COLMAP; auto when omitted.")
+    use_gpu: bool = Field(default=False, description="Whether SIFT feature extraction and matching run on the GPU.")
+    thread_count: Optional[int] = Field(default=None, description="Number of CPU threads used by COLMAP; auto when omitted.")
     actions: List[ColmapCameraPoseEstimatorActionConfig] = Field(default_factory=list)

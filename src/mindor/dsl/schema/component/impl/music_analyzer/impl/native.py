@@ -1,8 +1,8 @@
 from typing import Literal, List
 from pydantic import Field
-from mindor.dsl.schema.action import MusicAnalyzerActionConfig
+from mindor.dsl.schema.action import NativeMusicAnalyzerActionConfig
 from .common import CommonMusicAnalyzerComponentConfig, MusicAnalyzerDriverType
 
 class NativeMusicAnalyzerComponentConfig(CommonMusicAnalyzerComponentConfig):
     driver: Literal[MusicAnalyzerDriverType.NATIVE]
-    actions: List[MusicAnalyzerActionConfig] = Field(default_factory=list)
+    actions: List[NativeMusicAnalyzerActionConfig] = Field(default_factory=list)

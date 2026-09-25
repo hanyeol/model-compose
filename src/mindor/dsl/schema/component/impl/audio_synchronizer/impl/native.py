@@ -1,8 +1,8 @@
 from typing import Literal, List
 from pydantic import Field
-from mindor.dsl.schema.action import AudioSynchronizerActionConfig
+from mindor.dsl.schema.action import NativeAudioSynchronizerActionConfig
 from .common import CommonAudioSynchronizerComponentConfig, AudioSynchronizerDriverType
 
 class NativeAudioSynchronizerComponentConfig(CommonAudioSynchronizerComponentConfig):
     driver: Literal[AudioSynchronizerDriverType.NATIVE]
-    actions: List[AudioSynchronizerActionConfig] = Field(default_factory=list)
+    actions: List[NativeAudioSynchronizerActionConfig] = Field(default_factory=list)

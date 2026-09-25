@@ -12,4 +12,8 @@ class CustomTypedDecisionTaskDriver:
             from .nimble import NimbleTypedDecisionTaskDriver
             return NimbleTypedDecisionTaskDriver(id, config, daemon)
 
+        if config.family == TypedDecisionModelFamily.LAYA:
+            from .laya import LayaTypedDecisionTaskDriver
+            return LayaTypedDecisionTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

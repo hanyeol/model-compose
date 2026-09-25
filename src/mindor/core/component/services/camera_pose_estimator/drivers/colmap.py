@@ -281,7 +281,8 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
             cam_from_world = image.cam_from_world()
             rotation       = np.asarray(cam_from_world.rotation.matrix())
             translation    = np.asarray(cam_from_world.translation)
-            center_world   = -rotation.T @ translation # X_cam = R·X_world + t  ⇒  X_world = R^T·(X_cam - t)
+            # center_world: X_cam = R·X_world + t  ⇒  X_world = R^T·(X_cam - t)
+            center_world   = -rotation.T @ translation
 
             camera_centers.append(center_world)
             camera_poses.append((camera, cam_from_world))

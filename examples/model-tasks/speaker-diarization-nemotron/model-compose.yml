@@ -1,0 +1,33 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Speaker Diarization (Nemotron 3)
+  description: Detect who spoke when in an audio file using NVIDIA's Nemotron-3-Diarization model.
+  job:
+    input: ${input}
+    output: ${output as json}
+
+component:
+  type: model
+  task: speaker-diarization
+  driver: huggingface
+  # Nemotron-3-Diarization is a ~100M-param Sortformer-based model that emits
+  # per-frame speaker logits for up to 8 concurrent speakers. Input audio is
+  # downmixed to mono at the model's target sample rate (16 kHz).
+  model:
+    provider: huggingface
+    repository: nvidia/Nemotron-3-Diarization
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    # streaming_latency: low | very_low | ultra_low   # unset = offline
+    params:
+      min_segment_duration: ${input.min_segment_duration | 0s}
+      merge_gap: ${input.merge_gap | 0s}

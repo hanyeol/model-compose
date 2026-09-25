@@ -80,7 +80,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         requirements: List[str] = []
 
         # Nimble's CUDA scorer requires torch>=2.8 and a BF16-capable GPU.
-        if sys.platform == "linux" and platform.machine() == "x86_64":
+        if sys.platform == "linux" and platform.machine() in ("x86_64", "aarch64"):
             requirements.extend([
                 *torch_requirements("torch>=2.8,<3"),
                 "accelerate==1.15.0",
@@ -153,7 +153,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         return await self._run_in_executor(_merge)
 
     def _load_scorer(self, merged_path: str) -> NimbleScorer:
-        if sys.platform == "linux" and platform.machine() == "x86_64":
+        if sys.platform == "linux" and platform.machine() in ("x86_64", "aarch64"):
             from nimble.scoring.cuda_scorer import CudaCandidateScorer
             return CudaCandidateScorer(
                 model_path=merged_path,
@@ -167,7 +167,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
             return ParallelScorer(model_path=merged_path, max_input_tokens=self.config.max_seq_length)
 
         raise RuntimeError(
-            "Nimble supports only Darwin+arm64 (MLX) or Linux+x86_64 with CUDA; "
+            "Nimble supports only Darwin+arm64 (MLX) or Linux (x86_64 / aarch64) with CUDA; "
             f"got platform={sys.platform}, machine={platform.machine()}."
         )
 

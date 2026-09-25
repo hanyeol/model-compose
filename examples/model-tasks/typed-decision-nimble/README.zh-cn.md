@@ -20,7 +20,7 @@
 - 已安装 model-compose 并在 PATH 中可用
 - 两种受支持的硬件路径之一：
   - **带 Metal 的 Apple Silicon (Darwin arm64)** — MLX `ParallelScorer` 一次性读取共享提示并并行评分所有字段
-  - **带 BF16 支持 NVIDIA GPU 的 Linux x86_64** — `CudaCandidateScorer` 为每个字段重新运行完整提示
+  - **带 BF16 支持 NVIDIA GPU 的 Linux（x86_64 或 aarch64）** — `CudaCandidateScorer` 为每个字段重新运行完整提示
 - 足够的磁盘空间用于基础模型 (~18 GB)、适配器 (~50 MB) 和合并后的快照（首次运行时额外 ~18 GB）
 - 足够的 RAM/VRAM 容纳合并后的 9B 检查点。LoRA 合并步骤本身在 CPU 上运行，需要额外余量
 
@@ -239,7 +239,7 @@ component:
 ### 常见问题
 
 1. **合并期间内存不足**：一次性 LoRA 合并将完整基础模型加载到 CPU。确保至少 32 GB 系统 RAM；合并后的快照会被缓存，此成本只支付一次
-2. **不支持的平台错误**：Nimble 驱动程序仅支持 Darwin+arm64（MLX）和 Linux+x86_64 with CUDA。其他组合（Linux ARM、Intel Mac）不受上游评分器支持
+2. **不支持的平台错误**：Nimble 驱动程序仅支持 Darwin+arm64（MLX）和带 CUDA 的 Linux（x86_64 或 aarch64）。其他组合（Intel Mac、无 CUDA 的 Linux）不受上游评分器支持
 3. **不支持 BF16**：Nimble 的 CUDA 评分器需要支持 BF16 的 GPU（Ampere 或更新）。旧显卡将在评分器构造阶段失败
 4. **提示过长**：评分器拒绝超过 `max_seq_length` 个 token（默认 4096）的提示（包含模式）。缩短文本、精简字段描述，或将决策拆分为多次调用
 5. **首次运行缓慢**：下载基础模型（约 18 GB）和合并适配器可能需要几分钟；后续运行重用缓存的合并文件夹

@@ -402,6 +402,119 @@ action:
 
 The output is a list of ranked-result lists, one per query.
 
+### Typed Decision
+
+Answer a set of typed questions about a piece of text in a single forward pass. Each question is one of `noul` (yes/no), `choice` (one of N named options), or `score` (an ordered rating scale). The scorer reads candidate-answer logits directly, so the answer is always one of the values the schema allows — no free-form generation, no JSON parsing, no schema drift.
+
+Runs on `driver: custom` with one of three families: `laya`, `kev`, or `nimble`. Pick one per component; run two components if you need to combine them.
+
+```yaml
+component:
+  type: model
+  task: typed-decision
+  driver: custom
+  family: laya                        # 'laya' | 'kev' | 'nimble'
+  preset: multilingual                # laya-only: 'english' | 'multilingual' (default) | 'typed-decisions'
+  action:
+    text: ${input.text}
+    schema: ${input.schema}
+    return_probabilities: true
+```
+
+**Component Settings** (common to all families):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `family` | enum | **required** | `laya`, `kev`, or `nimble`. Picks the scoring backend. |
+| `model` | string \| object | family default | HuggingFace repo id or local checkpoint directory. Optional for `laya` (defaults to the `convaiinnovations/laya` bundle repo). Required for `kev` and `nimble`. |
+
+**Family-specific settings:**
+
+`laya`:
+- `preset` (enum, default `multilingual`) — checkpoint to load from the bundle repo: `english` (ModernBERT-large, 512-token context), `multilingual` (mmBERT-base, 100+ languages, up to 1024 tokens, extendable to 8192 via `max_seq_length`), or `typed-decisions` (fine-tuned on the four typed-decisions workflows).
+- `max_seq_length` (int, optional) — override per-call encoder token budget.
+- `max_head_length` (int, optional) — override per-call per-question head token budget.
+- `fast` (bool, default `false`) — enable the TileLang CUDA fast path (Linux+x86_64 with a supported NVIDIA GPU; the driver installs `tilelang` automatically).
+
+`kev`:
+- `backend` (enum, default `auto`) — `auto`, `torch`, or `mlx`. `auto` picks MLX on Apple Silicon with hybrid Qwen3.5 bases and Torch elsewhere.
+- `max_state_length` (int, default `8192`) — tokens allotted to the shared state (context) portion.
+- `max_branch_length` (int, default `8192`) — tokens allotted to per-question branches.
+
+`nimble`:
+- `base_model` (string, default `Qwen/Qwen3.5-9B`) — base model the adapter is merged onto. The driver merges the adapter once on first startup and caches the merged snapshot.
+- `max_seq_length` (int, default `4096`) — maximum sequence length the scorer accepts.
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `text` | string \| list | **required** | Unstructured text the scorer judges. A list scores many inputs against the same schema in one call. |
+| `schema` | object | **required** | Map of question id to a question spec (see below). |
+| `batch_size` | integer | `1` | Number of texts the driver scores in a single forward pass when `text` is a list. |
+| `return_probabilities` | bool | `false` | Include per-candidate scores per question in `fields[qid].scores`. |
+| `return_logits` | bool | `false` | Include raw pre-softmax logits per question. Only `nimble` surfaces logits at the API level. |
+
+**Question specs** (values in `schema`):
+
+| Question type | Required fields | Optional fields | Answer type |
+|---------------|-----------------|-----------------|-------------|
+| `noul` (yes/no) | `type`, `instructions` | `criteria: {true?: description, false?: description}` | boolean (`p(true) >= 0.5`) |
+| `choice` | `type`, `instructions`, `criteria: {name: description, ...}` | — | winning option name |
+| `score` | `type`, `instructions`, `criteria: [level0, level1, ...]` | — | expected level (float, averaged over the softmax across levels) |
+
+**Result Shape:**
+
+```yaml
+decision:
+  urgent: true                    # noul → boolean
+  category: infra                 # choice → option name
+  severity: 4.6                   # score → expected level (float)
+fields:                           # present only when return_probabilities is true
+  urgent:   { scores: { true: 0.94, false: 0.06 } }
+  category: { scores: { payments: 0.31, infra: 0.58, product: 0.11 } }
+  severity: { scores: { "0": 0.01, "1": 0.03, "2": 0.09, "3": 0.24, "4": 0.63 } }
+```
+
+**Example — Support-ticket triage with `laya` (multilingual):**
+
+```yaml
+component:
+  type: model
+  task: typed-decision
+  driver: custom
+  family: laya
+  preset: multilingual
+  action:
+    text: ${input.text}
+    schema:
+      urgent:
+        type: noul
+        instructions: Is this an urgent operational incident?
+        criteria:
+          true:  A production system is currently unavailable to real users.
+          false: Non-blocking issue, question, or feature request.
+      category:
+        type: choice
+        instructions: Which team owns this?
+        criteria:
+          payments: Billing, checkout, or payment processing.
+          infra:    Servers, deployment, or platform outages.
+          product:  UX, feature behavior, or product feedback.
+      severity:
+        type: score
+        instructions: Rate business impact from 1 (trivial) to 5 (critical).
+        criteria:
+          - trivial:  cosmetic or single-user issue
+          - low:      minor inconvenience for a few users
+          - medium:   measurable revenue or productivity loss
+          - high:     broad customer impact, some workaround exists
+          - critical: total outage with no workaround
+    return_probabilities: true
+```
+
+Full examples: [`typed-decision-laya`](../../../../examples/model-tasks/typed-decision-laya), [`typed-decision-kev`](../../../../examples/model-tasks/typed-decision-kev), [`typed-decision-nimble`](../../../../examples/model-tasks/typed-decision-nimble).
+
 ### Text to Text (Translation, Summarization, and other seq2seq tasks)
 
 Transform a source text with an encoder-decoder (seq2seq) model. This one task covers translation, summarization, and any other paraphrasing/rewriting workload that a seq2seq model can perform. Task selection with T5-family models is done by prefixing the source text (e.g. `"translate English to German: ..."`, `"summarize: ..."`); BART/MarianMT/Pegasus models are usually fine-tuned to a single task and don't need a prefix.
@@ -3964,6 +4077,11 @@ workflow:
 - **Mixedbread**: mixedbread-ai/mxbai-rerank-large-v1, mxbai-rerank-xsmall-v1
 - **Cross-Encoder**: cross-encoder/ms-marco-MiniLM-L-6-v2, ms-marco-MiniLM-L-12-v2
 
+### Typed Decision Models
+- **Laya** (`family: laya`): convaiinnovations/laya bundle — `english` (ModernBERT-large), `multilingual` (mmBERT-base, 100+ languages), `typed-decisions` (fine-tuned)
+- **Kev** (`family: kev`): jaredpalmer/kev-0.8b, kev-4b, kev-9b (LoRA adapter + pointer head on frozen Qwen3.5)
+- **Nimble** (`family: nimble`): bespokelabs/Bespoke-Nimble-9B (LoRA adapter merged onto Qwen/Qwen3.5-9B on first startup)
+
 ### Image Embedding Models
 - **CLIP Family**: openai/clip-vit-base-patch32, clip-vit-large-patch14 (uses `get_image_features`)
 - **SigLIP Family**: google/siglip-base-patch16-224
@@ -3981,6 +4099,7 @@ workflow:
 - **Text Generation**: Create articles, stories, code
 - **Chatbots**: Build conversational AI systems
 - **Content Analysis**: Classify and analyze text
+- **Structured Decisions**: Route, triage, or gate text with typed answers (yes/no, one-of-N, ordinal) and calibrated probabilities
 - **Search**: Generate embeddings for semantic search
 - **Visual Search / Dedup**: Encode images with CLIP/DINOv2 for similarity retrieval and near-duplicate detection
 - **Translation**: Translate between languages

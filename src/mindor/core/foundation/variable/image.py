@@ -4,7 +4,9 @@ from ..streaming.resources import StreamResource, read_stream_to_bytes
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.files import get_file_extension, guess_file_extension
+from mindor.core.utils.image import probe_format
 from PIL import Image as PILImage
+import asyncio
 
 ImageValue = Union[PILImage.Image, ImageStreamResource]
 
@@ -134,11 +136,7 @@ class ImageValueRenderer:
                 return ImageStreamResource(value, "png")
 
             if isinstance(value, StreamResource):
-                return ImageStreamResource(
-                    await read_stream_to_bytes(value),
-                    format=self._resolve_image_format(value),
-                    filename=value.filename,
-                )
+                return ImageStreamResource(await load_image_from_stream(value), "png")
 
             return None
 
@@ -152,15 +150,3 @@ class ImageValueRenderer:
             return await load_image_from_stream(value)
 
         return None
-
-    @staticmethod
-    def _resolve_image_format(stream: StreamResource) -> str:
-        # Prefer the stream's declared MIME (`image/jpeg` → `jpeg`) so JPEG
-        # stays JPEG on the next iteration; fall back to the filename
-        # extension, then to `png` (the default `ImageStreamResource` encoder).
-        format = guess_file_extension(stream.content_type)
-
-        if not format and stream.filename:
-            format = get_file_extension(stream.filename)
-
-        return format or "png"

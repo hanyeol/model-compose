@@ -5,12 +5,14 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import CameraPoseEstimatorActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_file
+from mindor.core.foundation.variable.file import FileArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.files import get_file_extension, guess_file_extension
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
-import os
+import os, shutil
 
 class CameraPoseEstimatorAction(ComponentAction):
     """Base for camera-pose-estimator driver actions.
@@ -30,12 +32,7 @@ class CameraPoseEstimatorAction(ComponentAction):
         self.context: ComponentActionContext = context
 
     async def run(self) -> Any:
-        # `as_stream=True` keeps each image as an `ImageStreamResource` so
-        # drivers that write it back to disk can preserve the original
-        # encoded bytes — including EXIF metadata (focal-length prior, GPS
-        # coordinates) that COLMAP consults to seed intrinsics and drive the
-        # spatial matcher. Decoding to PIL upfront would strip that metadata.
-        images        = await self.context.render_image_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
+        images        = await self.context.render_file_array(self.config.images, single_as_array=True) if self.config.images is not None else None
         workspace_dir = await self.context.render_variable(self.config.workspace_dir)
         batch_size    = await self.context.render_variable(self.config.batch_size)
 
@@ -92,7 +89,7 @@ class CameraPoseEstimatorAction(ComponentAction):
     @abstractmethod
     async def _estimate_batch(
         self,
-        inputs: List[Tuple[Optional[ImageArrayValue], str]],
+        inputs: List[Tuple[Optional[FileArrayValue], str]],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
@@ -100,9 +97,10 @@ class CameraPoseEstimatorAction(ComponentAction):
 
         Each `inputs[i]` is a `(images, workspace_dir)` tuple describing
         one scene:
-          - `images` is an `ImageArrayValue` holding that scene's images,
-            or `None` when the driver should reuse images already
-            present under `workspace_dir`.
+          - `images` is a `FileArrayValue` yielding that scene's image
+            stream resources (raw encoded bytes, EXIF preserved), or
+            `None` when the driver should reuse images already present
+            under `workspace_dir`.
           - `workspace_dir` is the base directory the driver owns for
             this scene — where inputs are read from and intermediate
             plus final artifacts are written. The on-disk layout inside
@@ -114,3 +112,36 @@ class CameraPoseEstimatorAction(ComponentAction):
         depending on the driver's output layout).
         """
         pass
+
+    async def _save_images(self, images: FileArrayValue, images_dir: str) -> None:
+        # Wipe stale files from prior runs before writing the new batch.
+        if os.path.isdir(images_dir):
+            shutil.rmtree(images_dir)
+
+        os.makedirs(images_dir)
+
+        # Write raw encoded bytes to preserve EXIF (a PIL round-trip strips it).
+        index = 0
+        async for image in images:
+            extension  = self._resolve_image_extension(image)
+            image_path = os.path.join(images_dir, f"image_{index:04d}.{extension}")
+            await save_stream_to_file(image, image_path)
+            index += 1
+
+        if index == 0:
+            raise ValueError("images array is empty")
+
+    def _resolve_image_extension(self, image: StreamResource) -> str:
+        if image.filename:
+            extension = get_file_extension(image.filename)
+
+            if extension:
+                return extension
+
+        if image.content_type and image.content_type.startswith("image/"):
+            extension = guess_file_extension(image.content_type)
+
+            if extension:
+                return extension
+
+        return "png"

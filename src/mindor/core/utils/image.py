@@ -1,4 +1,6 @@
+from typing import Optional
 from PIL import Image as PILImage
+import io
 
 def convert(
     image: PILImage.Image,
@@ -26,3 +28,10 @@ def compose_with_alpha(image: PILImage.Image, alpha: PILImage.Image) -> PILImage
 
 def has_alpha(image: PILImage.Image) -> bool:
     return image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
+
+def probe_format(data: bytes) -> Optional[str]:
+    try:
+        with PILImage.open(io.BytesIO(data)) as image:
+            return image.format.lower() if image.format else None
+    except (PILImage.UnidentifiedImageError, OSError):
+        return None

@@ -4,11 +4,9 @@ from typing import TYPE_CHECKING
 from typing import Optional, Tuple, Dict, List, Any
 from mindor.dsl.schema.component import CameraPoseEstimatorComponentConfig, ColmapMatcherType
 from mindor.dsl.schema.action import CameraPoseEstimatorActionConfig, ColmapCameraPoseEstimatorActionConfig
-from mindor.core.foundation.variable.image import ImageArrayValue
-from mindor.core.foundation.streaming.image import ImageStreamResource
+from mindor.core.foundation.variable.file import FileArrayValue
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.streaming.resources import read_stream_to_bytes
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.logger import logging
@@ -53,7 +51,7 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
 
     async def _estimate_batch(
         self,
-        inputs: List[Tuple[Optional[ImageArrayValue], str]],
+        inputs: List[Tuple[Optional[FileArrayValue], str]],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
@@ -92,36 +90,13 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
             try:
                 results.append(await pipeline_task)
             finally:
+                if not pipeline_task.done():
+                    pycolmap_cancellation_token.cancel()
+
                 if watcher_task is not None and not watcher_task.done():
                     watcher_task.cancel()
 
         return results
-
-    async def _save_images(self, images: ImageArrayValue, images_dir: str) -> None:
-        # Wipe anything saved by a prior run so pycolmap doesn't pick up
-        # stale files mixed in with the current request's images.
-        if os.path.isdir(images_dir):
-            shutil.rmtree(images_dir)
-
-        os.makedirs(images_dir)
-
-        # Write each image out as its original encoded bytes so EXIF (focal
-        # length, GPS coordinates) survives the trip through model-compose
-        # and can seed COLMAP's intrinsics + spatial matcher. Falling back
-        # to `image.save(...)` would re-encode via PIL and strip metadata.
-        index = 0
-        async for image in images:
-            extension  = _resolve_extension(image)
-            image_path = os.path.join(images_dir, f"image_{index:04d}.{extension}")
-            image_data = await read_stream_to_bytes(image)
-
-            with open(image_path, "wb") as f:
-                f.write(image_data)
-
-            index += 1
-
-        if index == 0:
-            raise ValueError("images array is empty")
 
     def _run_pipeline(self, workspace_dir: str, params: Dict[str, Any], cancellation_token: Any) -> Dict[str, Any]:
         import pycolmap
@@ -178,11 +153,22 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
 
         logging.info("COLMAP %s (device=%s)", matcher_fn.__name__, device.name)
 
-        matcher_fn(database_path, matching_options=matching_options, device=device, cancellation_token=cancellation_token)
+        matcher_fn(
+            database_path,
+            matching_options=matching_options,
+            device=device,
+            cancellation_token=cancellation_token
+        )
 
         logging.info("COLMAP incremental_mapping (sparse=%s)", sparse_dir)
 
-        reconstructions = pycolmap.incremental_mapping(database_path, image_dir, sparse_dir, options=mapping_options, cancellation_token=cancellation_token)
+        reconstructions = pycolmap.incremental_mapping(
+            database_path,
+            image_dir,
+            sparse_dir,
+            options=mapping_options,
+            cancellation_token=cancellation_token
+        )
 
         if not reconstructions:
             raise RuntimeError("COLMAP incremental_mapping produced no reconstruction; check input images and matches.")
@@ -225,6 +211,7 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
                 continue
 
             cam_from_world = image.cam_from_world()
+
             # pycolmap stores rotations as `Rotation3d`, whose `.quat` is
             # `[x, y, z, w]` (Eigen convention). COLMAP's on-disk / textual
             # convention is `[qw, qx, qy, qz]`, so swap the scalar to the
@@ -274,17 +261,40 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
             points_xyz.append([ float(v) for v in point.xyz ])
             points_rgb.append([ int(v) for v in point.color ] + [ 255 ])
 
-        scene = trimesh.Scene()
-
-        if points_xyz:
-            scene.add_geometry(trimesh.PointCloud(vertices=np.asarray(points_xyz), colors=np.asarray(points_rgb, dtype=np.uint8)))
+        # Gather world-space camera centers first so we can pick a frustum size
+        # that scales with the scene — SfM reconstructions come out at an
+        # arbitrary unit, so a fixed constant would render as either a dot or
+        # a giant occluder depending on the scene.
+        camera_centers: List[Any] = []
+        camera_poses: List[Tuple[Any, Any]] = []
 
         for _, image in reconstruction.images.items():
             if not image.has_pose:
                 continue
 
-            camera = reconstruction.cameras[image.camera_id]
-            frustum = ColmapCameraPoseEstimatorAction._build_camera_frustum(camera, image.cam_from_world(), scale=0.2)
+            camera         = reconstruction.cameras[image.camera_id]
+            cam_from_world = image.cam_from_world()
+            rotation       = np.asarray(cam_from_world.rotation.matrix())
+            translation    = np.asarray(cam_from_world.translation)
+            center_world   = -rotation.T @ translation # X_cam = R·X_world + t  ⇒  X_world = R^T·(X_cam - t)
+
+            camera_centers.append(center_world)
+            camera_poses.append((camera, cam_from_world))
+
+        frustum_scale = ColmapCameraPoseEstimatorAction._resolve_frustum_scale(np.asarray(camera_centers) if camera_centers else None)
+
+        # COLMAP uses a right-handed camera frame with +y down / +z forward;
+        # glTF viewers use +y up. Bake a 180° rotation about the world X axis
+        # into the scene so the reconstruction lands upright in the Model3D
+        # viewer without extra client-side transforms.
+        scene = trimesh.Scene()
+        scene.apply_transform(trimesh.transformations.rotation_matrix(np.pi, [ 1, 0, 0 ]))
+
+        if points_xyz:
+            scene.add_geometry(trimesh.PointCloud(vertices=np.asarray(points_xyz), colors=np.asarray(points_rgb, dtype=np.uint8)))
+
+        for camera, cam_from_world in camera_poses:
+            frustum = ColmapCameraPoseEstimatorAction._build_camera_frustum(camera, cam_from_world, scale=frustum_scale)
 
             if frustum is not None:
                 scene.add_geometry(frustum)
@@ -292,34 +302,61 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
         return scene
 
     @staticmethod
+    def _resolve_frustum_scale(camera_centers: Optional[Any]) -> float:
+        # Median pairwise camera distance gives a scene-relative unit that's
+        # robust to a couple of outlier cameras; take a fraction of it so
+        # each frustum sits comfortably between neighboring viewpoints.
+        import numpy as np
+
+        if camera_centers is None or len(camera_centers) < 2:
+            return 0.2
+
+        deltas    = camera_centers[:, None, :] - camera_centers[None, :, :]
+        distances = np.linalg.norm(deltas, axis=-1)
+        # Only look at the upper triangle (i<j) — the diagonal is zero and the
+        # lower triangle just mirrors the upper.
+        upper     = distances[np.triu_indices(len(camera_centers), k=1)]
+        median    = float(np.median(upper))
+
+        return max(median * 0.25, 1e-6)
+
+    @staticmethod
     def _build_camera_frustum(camera: Any, cam_from_world: Any, scale: float) -> Optional[Any]:
         """Build a wireframe frustum for one camera in world coordinates.
 
-        Uses the camera's focal length + principal point to place the four
-        image-plane corners at depth `scale` in the camera frame, then transforms
-        everything to world space via the inverse of `cam_from_world`.
+        Uses the camera's calibration matrix to back-project the four image
+        corners onto a plane at depth `scale` in the camera frame, then
+        transforms everything to world space via the inverse of `cam_from_world`.
         """
         import numpy as np
         import trimesh
 
         width, height = float(camera.width), float(camera.height)
-        params = [ float(v) for v in camera.params ]
 
-        # First one or two `params` entries are focal lengths across every
-        # COLMAP camera model — use whichever the model exposes.
-        fx = params[0]
-        fy = params[1] if len(params) > 1 and camera.model_name not in ("SIMPLE_PINHOLE", "SIMPLE_RADIAL", "SIMPLE_RADIAL_FISHEYE") else fx
+        # `calibration_matrix()` handles the per-model params → (fx, fy, cx, cy)
+        # mapping internally, so a SIMPLE_RADIAL camera with `params=[f,cx,cy,k]`
+        # doesn't get its `cx` mistakenly read as `fy`.
+        calibration = np.asarray(camera.calibration_matrix())
+        fx, fy      = calibration[0, 0], calibration[1, 1]
+        cx, cy      = calibration[0, 2], calibration[1, 2]
 
         if fx <= 0 or fy <= 0:
             return None
 
-        # Corners of the image plane in camera-space at depth `scale`.
-        corners_cam = np.array([
-            [ -width  / (2 * fx) * scale, -height / (2 * fy) * scale, scale ],
-            [  width  / (2 * fx) * scale, -height / (2 * fy) * scale, scale ],
-            [  width  / (2 * fx) * scale,  height / (2 * fy) * scale, scale ],
-            [ -width  / (2 * fx) * scale,  height / (2 * fy) * scale, scale ],
+        # Back-project the image corners (0..width, 0..height) through K^-1 to
+        # a plane at depth `scale` in camera space; using cx/cy keeps the
+        # frustum accurate for cameras whose principal point isn't centered.
+        corners_pixel = np.array([
+            [ 0.0,    0.0    ],
+            [ width,  0.0    ],
+            [ width,  height ],
+            [ 0.0,    height ],
         ])
+        corners_cam = np.column_stack([
+            (corners_pixel[:, 0] - cx) / fx,
+            (corners_pixel[:, 1] - cy) / fy,
+            np.ones(4),
+        ]) * scale
 
         rotation    = np.asarray(cam_from_world.rotation.matrix())
         translation = np.asarray(cam_from_world.translation)
@@ -345,17 +382,12 @@ class ColmapCameraPoseEstimatorService(CameraPoseEstimatorDriver):
         super().__init__(id, config, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *(super()._get_setup_requirements() or []), "pycolmap>=4.0", "trimesh", "numpy" ]
+        return [
+            *(super()._get_setup_requirements() or []),
+            "pycolmap>=4.0",
+            "trimesh",
+            "numpy"
+        ]
 
     async def _run(self, action: CameraPoseEstimatorActionConfig, context: ComponentActionContext) -> Any:
         return await ColmapCameraPoseEstimatorAction(action, context, self.config).run()
-
-def _resolve_extension(image: ImageStreamResource) -> str:
-    # Prefer the original filename's extension so we keep the true encoding
-    # (e.g. `.jpg`/`.jpeg`) instead of the container-agnostic format hint.
-    if image.filename:
-        _, ext = os.path.splitext(image.filename)
-        if ext:
-            return ext.lstrip(".").lower()
-
-    return image.format or "png"

@@ -39,7 +39,7 @@ Compared to prompting a general chat model to return JSON, Kev is purpose-built 
 **Trade-offs:**
 - **Text Only**: Kev accepts text states only; the vision head of the base model is not used
 - **Question-Local Attention**: Questions share the state but not each other; if two questions must agree, enforce that in your workflow
-- **Prompt Budget**: The state and per-question branches are each capped by `max_state` / `max_branch` tokens
+- **Prompt Budget**: The state and per-question branches are each capped by `max_state_length` / `max_branch_length` tokens
 - **Model Sizes**: Fixed at 0.8B / 4B / 9B — pick one that fits your latency and VRAM budget
 
 ### Environment Configuration
@@ -172,7 +172,7 @@ graph TD
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `text` | text | Yes | - | The state (unstructured text) the model judges. Combined with the schema, must fit within `max_state` + `max_branch` tokens. |
+| `text` | text | Yes | - | The state (unstructured text) the model judges. Combined with the schema, must fit within `max_state_length` + `max_branch_length` tokens. |
 | `schema` | json | Yes | - | Map of question id to a per-question spec: `{type: noul, criteria?: {true?, false?}}`, `{type: choice, criteria: {name: description, ...}}`, or `{type: score, criteria: [level1, level2, ...]}`. Each question may also carry an `instructions` field. |
 
 #### Output Format
@@ -256,7 +256,7 @@ component:
 1. **Checkpoint Download Slow**: The first run pulls the Kev checkpoint plus the base model referenced in `head.pt`. Subsequent runs reuse the HuggingFace cache.
 2. **MLX Backend Unavailable**: MLX is Apple Silicon only and requires `mlx-lm`. On other platforms the driver falls back to Torch automatically.
 3. **BF16 Not Supported**: The Torch backend defaults to BF16 on GPU. On older GPUs, override precision via LoadOptions or use CPU.
-4. **State Too Long**: Long states must fit within `max_state` tokens; per-question branches within `max_branch`. Trim the input or split into multiple calls.
+4. **State Too Long**: Long states must fit within `max_state_length` tokens; per-question branches within `max_branch_length`. Trim the input or split into multiple calls.
 5. **Score Question Unexpected Value**: `score` questions return an **expected level** (float) — the model's rating averaged over the softmax across levels, not a hard argmax. If you need the hard argmax use the `probabilities` field.
 
 ### Performance Optimization

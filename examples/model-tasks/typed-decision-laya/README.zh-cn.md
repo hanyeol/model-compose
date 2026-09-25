@@ -22,7 +22,7 @@
   - **Linux 上的 NVIDIA GPU** — 最快路径。启用 `fast: true` 以使用 TileLang 融合内核
   - **带 Metal 的 Apple Silicon (Darwin arm64)** — MPS autocast 自动应用
   - **CPU** — 支持且在此模型规格（~322–421M 参数）下速度合理；用于烟雾测试和低吞吐量服务
-- 足够的磁盘空间用于所请求的 Laya 检查点（每个子文件夹约 1 GB；捆绑仓库仅下载所需部分）
+- 足够的磁盘空间用于所请求的 Laya 检查点（每个 preset 约 1 GB；捆绑仓库仅下载所需部分）
 - Python 3.10 或更新版本
 
 ### 为何选择 Laya
@@ -39,7 +39,7 @@
 
 **权衡：**
 - **仅文本**：Laya 仅接受文本状态；没有视觉或音频头
-- **有限上下文**：英语检查点最多读取 512 token；`multilingual` 最多 1024，通过 `max_len` 可扩展至 8192
+- **有限上下文**：英语检查点最多读取 512 token；`multilingual` 最多 1024，通过 `max_seq_length` 可扩展至 8192
 - **一次一个检查点**：此驱动加载单个检查点。若要在请求之间切换英语与多语言，请运行两个组件或在 model-compose 之外使用 Laya `Router`
 
 ### 环境配置
@@ -125,20 +125,20 @@
 ### Typed Decision 模型组件（默认）
 - **类型**：带 typed-decision 任务的模型组件
 - **目的**：本地一次性类型化决策与校准的候选概率
-- **模型**：convaiinnovations/laya（捆绑仓库；在独立子文件夹下提供英语、多语言和 typed-decisions 检查点）
+- **模型**：convaiinnovations/laya（捆绑仓库；通过 `preset` 选择英语、多语言或 typed-decisions 检查点）
 - **家族**：laya
 - **功能**：
-  - 按请求的子文件夹过滤的自动检查点下载
+  - 按请求的 preset 过滤的自动检查点下载
   - 自动设备选择（CUDA → MPS → CPU），在设备支持处启用 autocast
   - `noul`、`choice` 和 `score` 问题类型的逐问题候选概率
   - 单个请求内所有问题的共享状态编码
 
 ### 模型信息：Laya
 - **开发者**：Convai Innovations
-- **检查点**：
-  - `convaiinnovations/laya`（默认子文件夹）— ModernBERT-large，421M 参数，512 token 上下文，英语
-  - `convaiinnovations/laya`, `subfolder: multilingual` — mmBERT-base，322M 参数，1024 token 上下文（通过 `max_len` 最多 8192），100+ 语言
-  - `convaiinnovations/laya`, `subfolder: typed-decisions` — ModernBERT-large，421M 参数，1024 token 上下文，为四个 typed-decisions 工作流微调
+- **检查点**（通过 `preset` 选择）：
+  - `preset: english` — ModernBERT-large，421M 参数，512 token 上下文，英语
+  - `preset: multilingual`（默认）— mmBERT-base，322M 参数，1024 token 上下文（通过 `max_seq_length` 最多 8192），100+ 语言
+  - `preset: typed-decisions` — ModernBERT-large，421M 参数，1024 token 上下文，为四个 typed-decisions 工作流微调
 - **类型**：带 RLCD 训练的决策头的非自回归编码器
 - **能力**：`noul`（是/否）、`choice`（命名选项）、`score`（有序级别）
 
@@ -173,7 +173,7 @@ graph TD
 
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |------|------|------|--------|------|
-| `text` | text | 是 | - | 模型判断的状态（非结构化文本）。必须适合检查点的 token 预算（英语 512，多语言 1024，通过 `max_len` 最多 8192）。 |
+| `text` | text | 是 | - | 模型判断的状态（非结构化文本）。必须适合检查点的 token 预算（英语 512，多语言 1024，通过 `max_seq_length` 最多 8192）。 |
 | `schema` | json | 是 | - | 问题 ID → 逐问题规范映射：`{type: noul, instructions, criteria?: {true?, false?}}`、`{type: choice, instructions, criteria: {name: description, ...}}` 或 `{type: score, instructions, criteria: [level1, level2, ...]}`。 |
 
 #### 输出格式
@@ -206,7 +206,7 @@ graph TD
 ### 最低要求
 - **RAM**：多语言检查点需 4 GB 以上；英语或 typed-decisions 检查点需 8 GB 以上
 - **VRAM**：使用 CUDA 时需 2 GB 以上；检查点在任何现代独立 GPU 上都能舒适容纳
-- **磁盘空间**：每个子文件夹约 1 GB
+- **磁盘空间**：每个 preset 约 1 GB
 - **CPU**：现代多核处理器
 - **互联网**：仅初次检查点下载需要
 
@@ -220,15 +220,15 @@ graph TD
 
 ### 选择检查点
 
-示例默认使用英语检查点。切换子文件夹以改变路由表面：
+示例使用 `preset: multilingual`。切换 preset 以改变路由表面：
 
 ```yaml
 component:
-  model: convaiinnovations/laya
-  subfolder: multilingual              # 100+ 语言
+  preset: english                      # 仅英语的 512-token 检查点
+  # preset: typed-decisions            # 为四个 typed-decisions 工作流微调
 ```
 
-或者直接指向独立仓库：
+或者通过覆盖 `model` 指向独立仓库 — preset 仍作为子文件夹名使用，所以只要 layout 与捆绑仓库一致，`preset: multilingual` 仍然有效：
 
 ```yaml
 component:
@@ -237,12 +237,12 @@ component:
 
 ### 扩展上下文预算
 
-`multilingual` 检查点每个状态最多支持 8192 token；发送长文档时提高 `max_len`：
+`multilingual` preset 每个状态最多支持 8192 token；发送长文档时提高 `max_seq_length`：
 
 ```yaml
 component:
-  subfolder: multilingual
-  max_len: 8192
+  preset: multilingual
+  max_seq_length: 8192
 ```
 
 准确度在约 4,000 token 之前很强，之后波动更大；在自己的数据上检查长文档准确度。
@@ -274,10 +274,10 @@ component:
 
 ### 常见问题
 
-1. **检查点下载慢**：首次运行拉取所请求的子文件夹。后续运行重用 HuggingFace 缓存。
+1. **检查点下载慢**：首次运行拉取所请求的 preset。后续运行重用 HuggingFace 缓存。
 2. **CUDA 快速路径不可用**：`fast: true` 需要 `tilelang`，它仅在 Linux+x86_64 上带有受支持的 CUDA 工具链时构建。在其他平台上，驱动保持 `fast: false`。
-3. **长输入被截断**：`multilingual` 检查点默认为 1024 token；对长文档设置 `max_len: 8192`。
-4. **状态过长**：如果提高 `max_len` 后输入仍溢出，将输入拆分为多次调用。
+3. **长输入被截断**：`multilingual` 检查点默认为 1024 token；对长文档设置 `max_seq_length: 8192`。
+4. **状态过长**：如果提高 `max_seq_length` 后输入仍溢出，将输入拆分为多次调用。
 5. **score 问题意外值**：`score` 问题返回**期望级别**（浮点数）— 是模型评分在级别间 softmax 的平均，而不是硬 argmax。如果需要硬 argmax，请使用 `probabilities` 字段。
 
 ### 性能优化

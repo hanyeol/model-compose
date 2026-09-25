@@ -39,7 +39,7 @@
 **트레이드오프:**
 - **텍스트 전용**: Kev는 텍스트 상태만 받습니다. 베이스 모델의 비전 헤드는 사용되지 않음
 - **질문-국소 어텐션**: 질문들이 상태는 공유하지만 서로는 공유하지 않음. 두 질문이 반드시 일치해야 한다면 워크플로우에서 강제하세요
-- **프롬프트 예산**: 상태와 질문별 브랜치가 각각 `max_state` / `max_branch` 토큰으로 제한
+- **프롬프트 예산**: 상태와 질문별 브랜치가 각각 `max_state_length` / `max_branch_length` 토큰으로 제한
 - **고정 모델 사이즈**: 0.8B / 4B / 9B 중 지연 시간과 VRAM 예산에 맞는 것을 선택
 
 ### 환경 설정
@@ -172,7 +172,7 @@ graph TD
 
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
-| `text` | text | 예 | - | 모델이 판단할 상태(비정형 텍스트). 스키마와 합쳐 `max_state` + `max_branch` 토큰 이내여야 합니다. |
+| `text` | text | 예 | - | 모델이 판단할 상태(비정형 텍스트). 스키마와 합쳐 `max_state_length` + `max_branch_length` 토큰 이내여야 합니다. |
 | `schema` | json | 예 | - | 질문 ID → 질문 스펙 맵: `{type: noul, criteria?: {true?, false?}}`, `{type: choice, criteria: {name: description, ...}}`, 또는 `{type: score, criteria: [level1, level2, ...]}`. 각 질문은 `instructions` 필드도 가질 수 있음. |
 
 #### 출력 형식
@@ -256,7 +256,7 @@ component:
 1. **체크포인트 다운로드가 느림**: 첫 실행 시 Kev 체크포인트와 `head.pt`에 명시된 베이스 모델을 가져옵니다. 이후 실행은 HuggingFace 캐시를 재사용
 2. **MLX 백엔드 사용 불가**: MLX는 Apple Silicon 전용이며 `mlx-lm`이 필요합니다. 다른 플랫폼에서는 드라이버가 Torch로 자동 폴백
 3. **BF16 미지원**: Torch 백엔드는 GPU에서 기본 BF16. 이전 GPU에서는 LoadOptions로 precision을 재정의하거나 CPU를 사용
-4. **상태가 너무 김**: 긴 상태는 `max_state` 토큰 이내여야 하며 질문별 브랜치는 `max_branch` 이내여야 합니다. 입력을 줄이거나 여러 호출로 분할하세요
+4. **상태가 너무 김**: 긴 상태는 `max_state_length` 토큰 이내여야 하며 질문별 브랜치는 `max_branch_length` 이내여야 합니다. 입력을 줄이거나 여러 호출로 분할하세요
 5. **score 질문의 예상치 못한 값**: `score` 질문은 **기대 레벨**(float)을 반환합니다 — 하드 argmax가 아니라 레벨에 대한 softmax의 평균. 하드 argmax가 필요하면 `probabilities` 필드를 사용
 
 ### 성능 최적화

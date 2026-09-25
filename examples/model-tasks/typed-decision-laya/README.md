@@ -22,7 +22,7 @@ This workflow provides local, structured decision-making that:
   - **NVIDIA GPU on Linux** — the fastest path; enable `fast: true` for the TileLang fused kernels
   - **Apple Silicon (Darwin arm64)** with Metal — MPS autocast picks up the load automatically
   - **CPU** — supported and reasonable at these model sizes (~322–421M parameters); intended for smoke tests and low-throughput services
-- Enough disk for the requested Laya checkpoint (~1 GB per subfolder; the bundle repo lets you download only what you need)
+- Enough disk for the requested Laya checkpoint (~1 GB per preset; the bundle repo lets you download only what you need)
 - Python 3.10 or newer
 
 ### Why Laya for Typed Decisions
@@ -39,7 +39,7 @@ Compared to prompting a general chat model to return JSON, Laya is purpose-built
 
 **Trade-offs:**
 - **Text Only**: Laya accepts text states only; there is no vision or audio head
-- **Bounded Context**: The English checkpoint reads up to 512 tokens; `multilingual` reads up to 1024, extendable to 8192 via `max_len`
+- **Bounded Context**: The English checkpoint reads up to 512 tokens; `multilingual` reads up to 1024, extendable to 8192 via `max_seq_length`
 - **One Checkpoint at a Time**: This driver loads a single checkpoint; to switch between English and multilingual per request, run two components or upgrade to the Laya `Router` outside of model-compose
 
 ### Environment Configuration
@@ -125,20 +125,20 @@ Compared to prompting a general chat model to return JSON, Laya is purpose-built
 ### Typed Decision Model Component (Default)
 - **Type**: Model component with typed-decision task
 - **Purpose**: Local one-shot typed decisions with calibrated candidate probabilities
-- **Model**: convaiinnovations/laya (bundle repo; ships English, multilingual, and typed-decisions checkpoints under separate subfolders)
+- **Model**: convaiinnovations/laya (bundle repo; ships English, multilingual, and typed-decisions checkpoints — chosen via `preset`)
 - **Family**: laya
 - **Features**:
-  - Automatic checkpoint download, filtered to just the requested subfolder
+  - Automatic checkpoint download, filtered to just the requested preset
   - Automatic device selection (CUDA → MPS → CPU) with autocast where the device supports it
   - Per-question candidate probabilities for `noul`, `choice`, and `score` question types
   - Shared state encoding across all questions in a single request
 
 ### Model Information: Laya
 - **Developer**: Convai Innovations
-- **Checkpoints**:
-  - `convaiinnovations/laya` (default subfolder) — ModernBERT-large, 421M params, 512-token context, English
-  - `convaiinnovations/laya`, `subfolder: multilingual` — mmBERT-base, 322M params, 1024-token context (up to 8192 via `max_len`), 100+ languages
-  - `convaiinnovations/laya`, `subfolder: typed-decisions` — ModernBERT-large, 421M params, 1024-token context, fine-tuned on four typed-decisions workflows
+- **Checkpoints** (selected via `preset`):
+  - `preset: english` — ModernBERT-large, 421M params, 512-token context, English
+  - `preset: multilingual` (default) — mmBERT-base, 322M params, 1024-token context (up to 8192 via `max_seq_length`), 100+ languages
+  - `preset: typed-decisions` — ModernBERT-large, 421M params, 1024-token context, fine-tuned on four typed-decisions workflows
 - **Type**: Non-autoregressive encoder with a decision head trained via RLCD
 - **Capabilities**: `noul` (yes/no), `choice` (named options), `score` (ordinal levels)
 
@@ -173,7 +173,7 @@ graph TD
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `text` | text | Yes | - | The state (unstructured text) the model judges. Must fit within the checkpoint's token budget (512 for English, 1024 for multilingual, up to 8192 with `max_len`). |
+| `text` | text | Yes | - | The state (unstructured text) the model judges. Must fit within the checkpoint's token budget (512 for English, 1024 for multilingual, up to 8192 with `max_seq_length`). |
 | `schema` | json | Yes | - | Map of question id to a per-question spec: `{type: noul, instructions, criteria?: {true?, false?}}`, `{type: choice, instructions, criteria: {name: description, ...}}`, or `{type: score, instructions, criteria: [level1, level2, ...]}`. |
 
 #### Output Format
@@ -206,7 +206,7 @@ Values in `decision`:
 ### Minimum Requirements
 - **RAM**: 4 GB+ for the multilingual checkpoint; 8 GB+ for the English or typed-decisions checkpoint
 - **VRAM**: 2 GB+ if targeting CUDA; the checkpoint fits comfortably on any modern discrete GPU
-- **Disk Space**: ~1 GB per subfolder
+- **Disk Space**: ~1 GB per preset
 - **CPU**: Modern multi-core processor
 - **Internet**: Required for initial checkpoint download only
 
@@ -220,15 +220,15 @@ Values in `decision`:
 
 ### Choosing a Checkpoint
 
-The example uses the English checkpoint by default. Switch subfolders to change the routing surface:
+The example uses `preset: multilingual`. Switch presets to change the routing surface:
 
 ```yaml
 component:
-  model: convaiinnovations/laya
-  subfolder: multilingual              # 100+ languages
+  preset: english                      # 512-token English-only checkpoint
+  # preset: typed-decisions            # fine-tuned on the four typed-decisions workflows
 ```
 
-Or point at a standalone repository if you prefer:
+Or override `model` to point at a standalone repository — the preset then names the subfolder for you, so `preset: multilingual` still works with any bundle-style layout:
 
 ```yaml
 component:
@@ -237,12 +237,12 @@ component:
 
 ### Extending the Context Budget
 
-The `multilingual` checkpoint supports up to 8192 tokens per state; raise `max_len` when you send long documents:
+The `multilingual` preset supports up to 8192 tokens per state; raise `max_seq_length` when you send long documents:
 
 ```yaml
 component:
-  subfolder: multilingual
-  max_len: 8192
+  preset: multilingual
+  max_seq_length: 8192
 ```
 
 Accuracy is strong up to about 4,000 tokens and more variable beyond; check long-document accuracy on your own data.
@@ -274,10 +274,10 @@ component:
 
 ### Common Issues
 
-1. **Checkpoint Download Slow**: The first run pulls the requested subfolder. Subsequent runs reuse the HuggingFace cache.
+1. **Checkpoint Download Slow**: The first run pulls the requested preset. Subsequent runs reuse the HuggingFace cache.
 2. **CUDA Fast Path Unavailable**: `fast: true` requires `tilelang`, which builds only on Linux+x86_64 with a supported CUDA toolchain. On other platforms the driver keeps `fast: false`.
-3. **Long Input Cut Off**: The `multilingual` checkpoint ships with a 1024-token default; set `max_len: 8192` for long documents.
-4. **State Too Long**: If the input still overflows after raising `max_len`, split the input into multiple calls.
+3. **Long Input Cut Off**: The `multilingual` checkpoint ships with a 1024-token default; set `max_seq_length: 8192` for long documents.
+4. **State Too Long**: If the input still overflows after raising `max_seq_length`, split the input into multiple calls.
 5. **Score Question Unexpected Value**: `score` questions return an **expected level** (float) — the model's rating averaged over the softmax across levels, not a hard argmax. If you need the hard argmax use the `probabilities` field.
 
 ### Performance Optimization

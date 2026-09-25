@@ -22,7 +22,7 @@
   - **Linux의 NVIDIA GPU** — 가장 빠른 경로. `fast: true`로 TileLang 융합 커널 활성화 가능
   - **Apple Silicon (Darwin arm64)** with Metal — MPS autocast가 자동 적용됨
   - **CPU** — 지원되며 이 모델 사이즈(~322–421M 파라미터)에서는 합리적인 속도. 스모크 테스트 및 저처리량 서비스용
-- 요청한 Laya 체크포인트를 저장할 디스크 공간 (서브폴더당 ~1 GB. 번들 리포는 필요한 것만 다운로드)
+- 요청한 Laya 체크포인트를 저장할 디스크 공간 (preset당 ~1 GB. 번들 리포는 필요한 것만 다운로드)
 - Python 3.10 이상
 
 ### Laya를 선택하는 이유
@@ -39,7 +39,7 @@
 
 **트레이드오프:**
 - **텍스트 전용**: Laya는 텍스트 상태만 받습니다. 비전이나 오디오 헤드는 없음
-- **제한된 컨텍스트**: 영어 체크포인트는 최대 512 토큰. `multilingual`은 최대 1024, `max_len`으로 8192까지 확장 가능
+- **제한된 컨텍스트**: 영어 체크포인트는 최대 512 토큰. `multilingual`은 최대 1024, `max_seq_length`으로 8192까지 확장 가능
 - **한 번에 하나의 체크포인트**: 이 드라이버는 단일 체크포인트를 로드합니다. 요청마다 영어와 다국어를 전환하려면 컴포넌트를 두 개 실행하거나 model-compose 밖에서 Laya `Router`를 사용
 
 ### 환경 설정
@@ -125,20 +125,20 @@
 ### Typed Decision 모델 컴포넌트 (기본)
 - **타입**: typed-decision 태스크를 가진 모델 컴포넌트
 - **목적**: 로컬 원샷 타입드 결정과 보정된 후보 확률
-- **모델**: convaiinnovations/laya (번들 리포. 영어, 다국어, typed-decisions 체크포인트를 별도 서브폴더로 제공)
+- **모델**: convaiinnovations/laya (번들 리포. 영어, 다국어, typed-decisions 체크포인트를 `preset`으로 선택)
 - **패밀리**: laya
 - **기능**:
-  - 요청한 서브폴더로 필터된 자동 체크포인트 다운로드
+  - 요청한 preset으로 필터된 자동 체크포인트 다운로드
   - 자동 디바이스 선택(CUDA → MPS → CPU)과 디바이스가 지원할 때의 autocast
   - `noul`, `choice`, `score` 질문 타입별 후보 확률
   - 단일 요청 내 모든 질문에 대한 공유 상태 인코딩
 
 ### 모델 정보: Laya
 - **개발자**: Convai Innovations
-- **체크포인트**:
-  - `convaiinnovations/laya` (기본 서브폴더) — ModernBERT-large, 421M 파라미터, 512 토큰 컨텍스트, 영어
-  - `convaiinnovations/laya`, `subfolder: multilingual` — mmBERT-base, 322M 파라미터, 1024 토큰 컨텍스트(`max_len`으로 최대 8192), 100+ 언어
-  - `convaiinnovations/laya`, `subfolder: typed-decisions` — ModernBERT-large, 421M 파라미터, 1024 토큰 컨텍스트, 4개의 typed-decisions 워크플로우에 파인튜닝
+- **체크포인트** (`preset`으로 선택):
+  - `preset: english` — ModernBERT-large, 421M 파라미터, 512 토큰 컨텍스트, 영어
+  - `preset: multilingual` (기본값) — mmBERT-base, 322M 파라미터, 1024 토큰 컨텍스트(`max_seq_length`으로 최대 8192), 100+ 언어
+  - `preset: typed-decisions` — ModernBERT-large, 421M 파라미터, 1024 토큰 컨텍스트, 4개의 typed-decisions 워크플로우에 파인튜닝
 - **타입**: RLCD로 학습된 디시전 헤드를 가진 비자기회귀 인코더
 - **능력**: `noul`(예/아니오), `choice`(명명 옵션), `score`(순서 레벨)
 
@@ -173,7 +173,7 @@ graph TD
 
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
-| `text` | text | 예 | - | 모델이 판단할 상태(비정형 텍스트). 체크포인트의 토큰 예산 이내여야 함(영어 512, 다국어 1024, `max_len`으로 최대 8192). |
+| `text` | text | 예 | - | 모델이 판단할 상태(비정형 텍스트). 체크포인트의 토큰 예산 이내여야 함(영어 512, 다국어 1024, `max_seq_length`으로 최대 8192). |
 | `schema` | json | 예 | - | 질문 ID → 질문 스펙 맵: `{type: noul, instructions, criteria?: {true?, false?}}`, `{type: choice, instructions, criteria: {name: description, ...}}`, 또는 `{type: score, instructions, criteria: [level1, level2, ...]}`. |
 
 #### 출력 형식
@@ -206,7 +206,7 @@ graph TD
 ### 최소 요구사항
 - **RAM**: 다국어 체크포인트에 4 GB 이상, 영어/typed-decisions 체크포인트에 8 GB 이상
 - **VRAM**: CUDA를 사용할 경우 2 GB 이상. 체크포인트가 최신 GPU에 여유롭게 적재됨
-- **디스크 공간**: 서브폴더당 ~1 GB
+- **디스크 공간**: preset당 ~1 GB
 - **CPU**: 최신 멀티코어 프로세서
 - **인터넷**: 최초 체크포인트 다운로드에만 필요
 
@@ -220,15 +220,15 @@ graph TD
 
 ### 체크포인트 선택
 
-예제는 기본적으로 영어 체크포인트를 사용합니다. 라우팅 표면을 바꾸려면 서브폴더를 전환:
+예제는 `preset: multilingual`을 사용합니다. preset을 바꿔 라우팅 표면 전환:
 
 ```yaml
 component:
-  model: convaiinnovations/laya
-  subfolder: multilingual              # 100+ 언어
+  preset: english                      # 영어 전용 512 토큰 체크포인트
+  # preset: typed-decisions            # 4개의 typed-decisions 워크플로우에 파인튜닝
 ```
 
-혹은 스탠드얼론 리포지토리를 직접 지정:
+혹은 `model`을 오버라이드해 스탠드얼론 리포지토리를 직접 지정 — preset은 서브폴더 이름으로 계속 사용되므로 번들 구조와 동일한 layout이라면 `preset: multilingual`도 그대로 동작:
 
 ```yaml
 component:
@@ -237,12 +237,12 @@ component:
 
 ### 컨텍스트 예산 확장
 
-`multilingual` 체크포인트는 상태당 최대 8192 토큰을 지원합니다. 긴 문서를 보낼 때 `max_len`을 높이세요:
+`multilingual` preset은 상태당 최대 8192 토큰을 지원합니다. 긴 문서를 보낼 때 `max_seq_length`을 높이세요:
 
 ```yaml
 component:
-  subfolder: multilingual
-  max_len: 8192
+  preset: multilingual
+  max_seq_length: 8192
 ```
 
 약 4,000 토큰까지는 정확도가 높고 그 이상은 편차가 있으므로 자체 데이터로 긴 문서 정확도를 확인하세요.
@@ -274,10 +274,10 @@ component:
 
 ### 일반적인 이슈
 
-1. **체크포인트 다운로드가 느림**: 첫 실행 시 요청한 서브폴더를 가져옵니다. 이후 실행은 HuggingFace 캐시를 재사용
+1. **체크포인트 다운로드가 느림**: 첫 실행 시 요청한 preset을 가져옵니다. 이후 실행은 HuggingFace 캐시를 재사용
 2. **CUDA 고속 경로 사용 불가**: `fast: true`는 Linux+x86_64에서 지원되는 CUDA 툴체인이 있어야 빌드되는 `tilelang`이 필요합니다. 다른 플랫폼에서는 드라이버가 `fast: false`로 유지
-3. **긴 입력이 잘림**: `multilingual` 체크포인트는 1024 토큰 기본값을 사용합니다. 긴 문서에는 `max_len: 8192`를 설정하세요
-4. **상태가 너무 김**: `max_len`을 올려도 입력이 넘치면, 입력을 여러 호출로 분할하세요
+3. **긴 입력이 잘림**: `multilingual` 체크포인트는 1024 토큰 기본값을 사용합니다. 긴 문서에는 `max_seq_length: 8192`를 설정하세요
+4. **상태가 너무 김**: `max_seq_length`을 올려도 입력이 넘치면, 입력을 여러 호출로 분할하세요
 5. **score 질문의 예상치 못한 값**: `score` 질문은 **기대 레벨**(float)을 반환합니다 — 하드 argmax가 아니라 레벨에 대한 softmax의 평균. 하드 argmax가 필요하면 `probabilities` 필드를 사용
 
 ### 성능 최적화

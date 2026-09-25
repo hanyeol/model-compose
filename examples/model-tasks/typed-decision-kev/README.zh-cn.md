@@ -39,7 +39,7 @@
 **权衡：**
 - **仅文本**：Kev 仅接受文本状态；未使用基础模型的视觉头
 - **问题局部注意力**：问题共享状态但彼此不共享；如果两个问题必须一致，请在工作流中强制
-- **提示预算**：状态和每个问题的分支分别由 `max_state` / `max_branch` token 上限
+- **提示预算**：状态和每个问题的分支分别由 `max_state_length` / `max_branch_length` token 上限
 - **固定模型规格**：0.8B / 4B / 9B — 选择一个适合你延迟和 VRAM 预算的
 
 ### 环境配置
@@ -172,7 +172,7 @@ graph TD
 
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |------|------|------|--------|------|
-| `text` | text | 是 | - | 模型判断的状态（非结构化文本）。与模式合计必须适合 `max_state` + `max_branch` token。 |
+| `text` | text | 是 | - | 模型判断的状态（非结构化文本）。与模式合计必须适合 `max_state_length` + `max_branch_length` token。 |
 | `schema` | json | 是 | - | 问题 ID → 逐问题规范映射：`{type: noul, criteria?: {true?, false?}}`、`{type: choice, criteria: {name: description, ...}}` 或 `{type: score, criteria: [level1, level2, ...]}`。每个问题也可携带 `instructions` 字段。 |
 
 #### 输出格式
@@ -256,7 +256,7 @@ component:
 1. **检查点下载慢**：首次运行拉取 Kev 检查点加 `head.pt` 中引用的基础模型。后续运行重用 HuggingFace 缓存。
 2. **MLX 后端不可用**：MLX 仅限 Apple Silicon 且需要 `mlx-lm`。在其他平台上，驱动自动回退到 Torch。
 3. **BF16 不支持**：Torch 后端在 GPU 上默认 BF16。在较旧的 GPU 上，通过 LoadOptions 覆盖 precision 或使用 CPU。
-4. **状态过长**：长状态必须在 `max_state` token 内；每个问题的分支在 `max_branch` 内。修剪输入或拆分为多次调用。
+4. **状态过长**：长状态必须在 `max_state_length` token 内；每个问题的分支在 `max_branch_length` 内。修剪输入或拆分为多次调用。
 5. **score 问题意外值**：`score` 问题返回**期望级别**（浮点数）— 是模型评分在级别间 softmax 的平均，而不是硬 argmax。如果需要硬 argmax，请使用 `probabilities` 字段。
 
 ### 性能优化

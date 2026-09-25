@@ -21,8 +21,8 @@ component:
   family: kev
   model: jaredpalmer/kev-4b                    # kev checkpoint (bundles LoRA adapter + pointer head; base model id is read from head.pt)
   backend: auto                                # 'auto' | 'torch' | 'mlx'; auto picks MLX on Apple Silicon hybrid bases
-  max_state: 8192                              # tokens allotted to the shared state (context) portion
-  max_branch: 8192                             # tokens allotted to per-question branches
+  max_state_length: 8192                       # tokens allotted to the shared state (context) portion
+  max_branch_length: 8192                      # tokens allotted to per-question branches
   max_concurrent_count: 1
   runtime:
     type: virtualenv

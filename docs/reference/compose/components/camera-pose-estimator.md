@@ -36,6 +36,7 @@ component:
 | `return_cameras` | boolean \| string | `true` | Include recovered camera intrinsics as a list of dicts in the result. Cheap to compute — turn off only when the HTTP response noise is undesirable. |
 | `return_poses` | boolean \| string | `true` | Include per-image world-from-camera poses as a list of dicts in the result. Cheap to compute — turn off only when the HTTP response noise is undesirable. |
 | `return_points` | boolean \| string | `false` | Include the sparse point cloud (with camera frustums) as a GLB model in the result. Opt-in — the primary downstream consumer is a workspace-reading job (3DGS trainer, mesh extractor), not a viewer. Enable it when the workflow output feeds a Gradio `Model3D` component or another GLB consumer. |
+| `return_metadata` | boolean \| string | `true` | Include the reconstruction summary (`workspace_dir`, `images_count`, `points_count`) in the result. Turn off when downstream consumers derive the workspace path themselves and don't need the counters. |
 | `batch_size` | integer \| string | `1` | Number of scenes buffered before results are emitted downstream on a streaming input. Scenes within a batch are still reconstructed sequentially — this is a flow-control knob for streaming consumers, not a parallelism setting. |
 
 Exactly one of `images` or `workspace_dir` (or both) must be provided.
@@ -115,12 +116,12 @@ The action returns one result dict per scene (or a single dict when the input is
 
 | Field | Description |
 |-------|-------------|
-| `workspace_dir` | Absolute or relative path to the produced `sparse/N/` folder in COLMAP binary format. Downstream jobs (3DGS trainers, mesh extractors) point at this directory. |
-| `images_count` | Number of input images whose pose was successfully recovered. |
-| `points_count` | Number of triangulated 3D points in the sparse reconstruction. |
 | `cameras` | Recovered camera intrinsics. `params` follows the parameter order defined by `model` (e.g. `[fx, fy, cx, cy, k1, k2, p1, p2]` for `OPENCV`). Present when `return_cameras: true` (default). |
 | `poses` | Per-image world-from-camera pose. `quaternion` is `[qw, qx, qy, qz]` (COLMAP text convention). Present when `return_poses: true` (default). |
 | `points` | Sparse point cloud + camera frustums as a GLB `Model3DStreamResource`, only present when `return_points: true`. Route with `${output.points as model-3d/glb}`. |
+| `workspace_dir` | Absolute or relative path to the produced `sparse/N/` folder in COLMAP binary format. Downstream jobs (3DGS trainers, mesh extractors) point at this directory. Present when `return_metadata: true` (default). |
+| `images_count` | Number of input images whose pose was successfully recovered. Present when `return_metadata: true` (default). |
+| `points_count` | Number of triangulated 3D points in the sparse reconstruction. Present when `return_metadata: true` (default). |
 
 Extra partial reconstructions produced during incremental mapping are left on disk under `workspace_dir/sparse/1/`, `sparse/2/`, ... but are not summarised in the returned dict.
 

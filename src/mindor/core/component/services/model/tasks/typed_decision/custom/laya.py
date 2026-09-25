@@ -18,14 +18,14 @@ class LayaTypedDecisionTaskAction(TypedDecisionTaskAction):
         self,
         config: TypedDecisionModelActionConfig,
         agent: LayaAgent,
-        max_len: Optional[int],
-        head_max_len: Optional[int],
+        max_seq_length: Optional[int],
+        max_head_length: Optional[int],
     ):
         super().__init__(config)
 
         self.agent: LayaAgent = agent
-        self.max_len: Optional[int] = max_len
-        self.head_max_len: Optional[int] = head_max_len
+        self.max_seq_length: Optional[int] = max_seq_length
+        self.max_head_length: Optional[int] = max_head_length
 
     async def _score_batch(
         self,
@@ -35,14 +35,18 @@ class LayaTypedDecisionTaskAction(TypedDecisionTaskAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         def _score() -> List[Dict[str, Any]]:
-            overrides: Dict[str, Any] = {}
-            if self.max_len is not None:
-                overrides["max_len"] = self.max_len
-            if self.head_max_len is not None:
-                overrides["head_max_len"] = self.head_max_len
+            # Map to laya's own kwargs; upstream still names them max_len / head_max_len.
+            predict_params: Dict[str, Any] = {}
 
-            batch = self.agent.predict_batch(texts, schema, **overrides)
-            return [ self._build_decision_result(result, params) for result in batch ]
+            if self.max_seq_length is not None:
+                predict_params["max_len"] = self.max_seq_length
+
+            if self.max_head_length is not None:
+                predict_params["head_max_len"] = self.max_head_length
+
+            results = self.agent.predict_batch(texts, schema, **predict_params)
+
+            return [ self._build_decision_result(result, params) for result in results ]
 
         return await self._run_in_executor(_score)
 
@@ -125,10 +129,17 @@ class LayaTypedDecisionTaskDriver(ModelTaskDriver):
 
     def _load_agent(self) -> LayaAgent:
         from laya import Agent
+        from mindor.dsl.schema.component import LayaPreset
+
+        # 'english' is the bundle's root checkpoint (no subfolder); every other preset is
+        # both the folder name inside the bundle and the standalone-repo suffix, so
+        # forwarding the preset value directly to laya.Agent works either way.
+        preset = self.config.preset
+        subfolder = None if preset == LayaPreset.ENGLISH else preset.value
 
         return Agent(
             model_id_or_path=self._resolve_model_id(),
-            subfolder=self.config.subfolder,
+            subfolder=subfolder,
             fast=self.config.fast,
         )
 
@@ -155,6 +166,6 @@ class LayaTypedDecisionTaskDriver(ModelTaskDriver):
         return await LayaTypedDecisionTaskAction(
             action,
             self.agent,
-            self.config.max_len,
-            self.config.head_max_len,
+            self.config.max_seq_length,
+            self.config.max_head_length,
         ).run(context)

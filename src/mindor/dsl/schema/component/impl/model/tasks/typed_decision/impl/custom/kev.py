@@ -15,6 +15,6 @@ class KevTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentConf
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TypedDecisionModelFamily.KEV]
     backend: KevBackend = Field(default=KevBackend.AUTO, description="Inference backend; 'auto' picks MLX on Apple Silicon hybrid bases and torch otherwise.")
-    max_state: int = Field(default=8192, description="Maximum tokens allotted to the state (shared context) portion of the prompt.")
-    max_branch: int = Field(default=8192, description="Maximum tokens allotted to per-question branches.")
+    max_state_length: int = Field(default=8192, description="Maximum tokens allotted to the state (shared context) portion of the prompt.")
+    max_branch_length: int = Field(default=8192, description="Maximum tokens allotted to per-question branches.")
     actions: List[TypedDecisionModelActionConfig] = Field(default_factory=list, description="Actions this typed decision component exposes to workflows.")

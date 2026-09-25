@@ -20,15 +20,15 @@ class KevTypedDecisionTaskAction(TypedDecisionTaskAction):
         config: TypedDecisionModelActionConfig,
         tokenizer: Any,
         model: Any,
-        max_state: int,
-        max_branch: int,
+        max_state_length: int,
+        max_branch_length: int,
     ):
         super().__init__(config)
 
         self.tokenizer: Any = tokenizer
         self.model: Any = model
-        self.max_state: int = max_state
-        self.max_branch: int = max_branch
+        self.max_state_length: int = max_state_length
+        self.max_branch_length: int = max_branch_length
 
     async def _score_batch(
         self,
@@ -45,7 +45,7 @@ class KevTypedDecisionTaskAction(TypedDecisionTaskAction):
             for text in texts:
                 request = SystemOneRequest(state=text, model="kev", questions=schema)
                 record, meta = to_record(request)
-                encoding = self.model.encode(self.tokenizer, record, max_state=self.max_state, max_branch=self.max_branch)
+                encoding = self.model.encode(self.tokenizer, record, max_state=self.max_state_length, max_branch=self.max_branch_length)
                 probabilities = self.model.probs(encoding)
                 answers = to_answers([ probability.tolist() for probability in probabilities ], meta)
                 results.append(self._build_decision_result(answers, params))
@@ -168,6 +168,6 @@ class KevTypedDecisionTaskDriver(ModelTaskDriver):
             action,
             self.tokenizer,
             self.model,
-            self.config.max_state,
-            self.config.max_branch,
+            self.config.max_state_length,
+            self.config.max_branch_length,
         ).run(context)

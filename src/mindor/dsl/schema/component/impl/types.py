@@ -17,6 +17,7 @@ class ComponentType(str, Enum):
     WORKFLOW                = "workflow"
     SHELL                   = "shell"
     TEXT_SPLITTER           = "text-splitter"
+    TEXT_PARSER             = "text-parser"
     SENTENCE_SPLITTER       = "sentence-splitter"
     TRANSCRIPT_CORRECTOR    = "transcript-corrector"
     MORPHEME_ANALYZER       = "morpheme-analyzer"

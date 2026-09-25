@@ -18,6 +18,7 @@ ComponentConfig = Annotated[
         WorkflowComponentConfig,
         ShellComponentConfig,
         TextSplitterComponentConfig,
+        TextParserComponentConfig,
         SentenceSplitterComponentConfig,
         TranscriptCorrectorComponentConfig,
         ImageProcessorComponentConfig,

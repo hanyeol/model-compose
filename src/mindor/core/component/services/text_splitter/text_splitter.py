@@ -54,15 +54,19 @@ class SegmentMergeBuffer:
     def _build_chunk(self) -> Optional[str]:
         if not self._segments:
             return None
+
         text = self.separator.join(self._segments).strip()
+
         return text or None
 
     def _should_drop_oldest(self, segment_len: int) -> bool:
         if self._length > self.chunk_overlap:
             return True
+
         if self._length > 0:
             overhead = len(self.separator) if self._segments else 0
             return self._length + segment_len + overhead > self.chunk_size
+
         return False
 
     def _drop_oldest(self) -> None:
@@ -73,6 +77,7 @@ class SegmentMergeBuffer:
 
     def _append(self, segment: str) -> None:
         overhead = len(self.separator) if len(self._segments) > 1 else 0
+
         self._segments.append(segment)
         self._length += len(segment) + overhead
 
@@ -117,7 +122,9 @@ class StreamingTextSplitter:
 
     def flush(self) -> Iterator[str]:
         yield from self._extract_segments(final=True)
+
         chunk = self._merge_buffer.flush()
+
         if chunk is not None:
             yield chunk
 
@@ -125,14 +132,18 @@ class StreamingTextSplitter:
         if self._separator is None:
             if not self._try_decide_separator(final=final):
                 return
+
             # After decision, the part of pending BEFORE the first separator occurrence is
             # the first segment (no leading separator).
             first_pos = self._pending_text.find(self._separator) if self._separator else -1
+
             if self._separator and first_pos >= 0:
                 first_segment = self._pending_text[:first_pos]
                 self._pending_text = self._pending_text[first_pos:]
+
                 if first_segment:
                     yield from self._consume_segment(first_segment)
+
                 self._is_first_segment = False
             elif not self._separator:
                 # Empty separator: character-level split. No "first segment" notion —
@@ -141,9 +152,12 @@ class StreamingTextSplitter:
 
         while True:
             segment, remaining = self._extract_segment(self._pending_text, final=final)
+
             if segment is None:
                 break
+
             self._pending_text = remaining
+
             yield from self._consume_segment(segment)
 
     def _try_decide_separator(self, final: bool) -> bool:
@@ -163,6 +177,7 @@ class StreamingTextSplitter:
                 # Empty separator — character split fallback.
                 self._separator = separator
                 self._fallback_separators = []
+
                 return True
 
             if self._pending_text.find(separator) < 0:
@@ -170,6 +185,7 @@ class StreamingTextSplitter:
 
             self._separator = separator
             self._fallback_separators = self.separators[index + 1:]
+
             return True
 
         return False
@@ -192,11 +208,13 @@ class StreamingTextSplitter:
             # Empty separator: yield one character at a time.
             if not text:
                 return None, text
+
             if not final and len(text) <= self.max_separator_len:
                 # Hold back the last character so a higher-priority separator (none here,
                 # since we only decide empty when final) could still complete — but in
                 # practice empty is only decided on final, so this branch is unreachable.
                 return None, text
+
             return text[:1], text[1:]
 
         # The text here should start with `separator` (or be empty / shorter than
@@ -207,8 +225,10 @@ class StreamingTextSplitter:
         next_pos = text.find(separator, len(separator))
         if next_pos < 0:
             # No further separator visible. Hold the text until more arrives or final.
+
             if not final:
                 return None, text
+
             # Final: the whole remaining text is the last segment.
             return text, ""
 
@@ -222,18 +242,23 @@ class StreamingTextSplitter:
         # Oversize: flush merge buffer, then recursively split with lower-priority
         # separators. If none left, emit the segment as-is.
         chunk = self._merge_buffer.flush()
+
         if chunk is not None:
             yield chunk
 
         if not self._fallback_separators:
             text = segment.strip()
+
             if text:
                 yield text
+
             return
 
         sub = StreamingTextSplitter(self._fallback_separators, self.chunk_size, self.chunk_overlap)
+
         for chunk in sub.feed(segment):
             yield chunk
+
         for chunk in sub.flush():
             yield chunk
 
@@ -340,6 +365,7 @@ class TextSplitterAction(ComponentAction):
             return self._split_text(text, params["separators"], params["chunk_size"], params["chunk_overlap"], cancellation_token)
 
         results: List[str] = []
+
         async for chunk in self._split_text(text, params["separators"], params["chunk_size"], params["chunk_overlap"], cancellation_token):
             results.append(chunk)
 

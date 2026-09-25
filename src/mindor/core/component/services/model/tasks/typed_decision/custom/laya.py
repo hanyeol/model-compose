@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
-from mindor.dsl.schema.component import LayaPreset
+from mindor.dsl.schema.component import LayaTypedDecisionModelComponentConfig, LayaPreset
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -11,7 +11,6 @@ from ..common import TypedDecisionTaskAction
 import sys, platform
 
 if TYPE_CHECKING:
-    from mindor.dsl.schema.component import LayaTypedDecisionModelComponentConfig
     from laya import Agent as LayaAgent
 
 class LayaTypedDecisionTaskAction(TypedDecisionTaskAction):

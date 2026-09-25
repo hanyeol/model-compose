@@ -20,7 +20,7 @@ This workflow provides local, structured decision-making that:
 - model-compose installed and available in your PATH
 - One of the two supported hardware paths:
   - **Apple Silicon (Darwin arm64)** with Metal — the MLX `ParallelScorer` reads the shared prompt once and scores all fields in parallel
-  - **Linux x86_64 with a BF16-capable NVIDIA GPU** — the `CudaCandidateScorer` re-runs the full prompt per field
+  - **Linux (x86_64 or aarch64) with a BF16-capable NVIDIA GPU** — the `CudaCandidateScorer` re-runs the full prompt per field
 - Enough disk for the base model (~18 GB), the adapter (~50 MB), and the merged snapshot (~18 GB additional the first time)
 - Enough RAM/VRAM for the merged 9B checkpoint; the LoRA merge step itself runs on CPU and needs additional headroom
 
@@ -239,7 +239,7 @@ component:
 ### Common Issues
 
 1. **Out of Memory During Merge**: The one-time LoRA merge loads the full base on CPU. Ensure at least 32 GB system RAM; the merged snapshot is cached so this cost is paid once
-2. **Unsupported Platform Error**: The Nimble driver supports Darwin+arm64 (MLX) and Linux+x86_64 with CUDA. Other combinations (Linux ARM, Intel Mac) are not supported by the upstream scorer
+2. **Unsupported Platform Error**: The Nimble driver supports Darwin+arm64 (MLX) and Linux (x86_64 or aarch64) with CUDA. Other combinations (Intel Mac, Linux without CUDA) are not supported by the upstream scorer
 3. **BF16 Not Supported**: Nimble's CUDA scorer requires BF16-capable GPUs (Ampere or newer). Older cards will fail during scorer construction
 4. **Prompt Too Long**: The scorer rejects prompts over `max_seq_length` tokens (default 4096) including the schema. Shorten the text, trim field descriptions, or split the decision into multiple calls
 5. **Slow First Run**: Downloading the base model (~18 GB) and merging the adapter can take several minutes; subsequent runs reuse the cached merged folder

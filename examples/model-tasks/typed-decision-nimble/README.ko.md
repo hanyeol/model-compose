@@ -20,7 +20,7 @@
 - model-compose가 설치되어 PATH에서 사용 가능
 - 지원되는 두 하드웨어 경로 중 하나:
   - **Apple Silicon (Darwin arm64)** with Metal — MLX `ParallelScorer`가 공유 프롬프트를 한 번 읽고 모든 필드를 병렬로 스코어링
-  - **BF16 지원 NVIDIA GPU가 있는 Linux x86_64** — `CudaCandidateScorer`가 필드마다 전체 프롬프트를 재실행
+  - **BF16 지원 NVIDIA GPU가 있는 Linux (x86_64 또는 aarch64)** — `CudaCandidateScorer`가 필드마다 전체 프롬프트를 재실행
 - 베이스 모델(~18 GB), 어댑터(~50 MB), 병합된 스냅샷(초기 실행 시 추가 ~18 GB)을 저장할 충분한 디스크
 - 병합된 9B 체크포인트를 다룰 만한 RAM/VRAM. LoRA 병합 단계 자체는 CPU에서 실행되며 추가 여유가 필요합니다
 
@@ -239,7 +239,7 @@ component:
 ### 일반적인 이슈
 
 1. **병합 중 메모리 부족**: 일회성 LoRA 병합은 전체 베이스를 CPU에 로드합니다. 최소 32 GB 시스템 RAM 확보하세요. 병합된 스냅샷은 캐시되므로 이 비용은 한 번만 지불됩니다
-2. **미지원 플랫폼 오류**: Nimble 드라이버는 Darwin+arm64 (MLX)와 Linux+x86_64 with CUDA만 지원합니다. 다른 조합(Linux ARM, Intel Mac)은 upstream 스코어러가 지원하지 않습니다
+2. **미지원 플랫폼 오류**: Nimble 드라이버는 Darwin+arm64 (MLX)와 CUDA가 있는 Linux (x86_64 또는 aarch64)만 지원합니다. 다른 조합(Intel Mac, CUDA 없는 Linux)은 upstream 스코어러가 지원하지 않습니다
 3. **BF16 미지원**: Nimble의 CUDA 스코어러는 BF16 지원 GPU(Ampere 이후)를 요구합니다. 이전 카드는 스코어러 구성 단계에서 실패합니다
 4. **프롬프트 초과**: 스코어러는 스키마 포함 `max_seq_length` 토큰(기본 4096)을 초과하는 프롬프트를 거부합니다. 텍스트를 줄이거나, 필드 설명을 다듬거나, 결정을 여러 호출로 분할하세요
 5. **첫 실행이 느림**: 베이스 모델(~18 GB) 다운로드와 어댑터 병합에 몇 분이 걸릴 수 있습니다. 이후 실행은 캐시된 병합 폴더를 재사용합니다

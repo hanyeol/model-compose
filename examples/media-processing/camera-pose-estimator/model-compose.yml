@@ -1,0 +1,52 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: estimate-from-images
+    title: Camera Pose Estimation from Uploaded Images
+    description: |
+      Recover camera intrinsics and per-image poses from a set of overlapping
+      photos passed in as an image array. The workspace is written to
+      `.workspace/estimator/<run-id>/` and its sparse/0/ subfolder is
+      returned for downstream jobs (3DGS trainers, mesh extractors, ...).
+    job:
+      component: estimator
+      action: from-images
+      input:
+        images: ${input.images as image[]}
+      output: ${output as json}
+
+  - id: estimate-from-workspace
+    title: Camera Pose Estimation from an Existing Workspace
+    description: |
+      Rerun SfM against a workspace that already contains an `images/`
+      subfolder — the layout that standard COLMAP datasets ship in.
+      Results land in the same workspace under `sparse/0/`.
+    job:
+      component: estimator
+      action: from-workspace
+      input:
+        workspace_dir: ${input.workspace_dir as string}
+      output: ${output as json}
+
+components:
+  - id: estimator
+    type: camera-pose-estimator
+    driver: colmap
+    # camera_model: opencv          # default; use pinhole/opencv-fisheye/... for other lenses
+    # matcher: exhaustive           # default; sequential is faster for video frames
+    # single_camera: true           # default; every photo shares one camera + intrinsics
+    # use_gpu: false                # default; set true when pycolmap is built with CUDA
+    actions:
+      - id: from-images
+        default: true
+        images: ${input.images}
+
+      - id: from-workspace
+        workspace_dir: ${input.workspace_dir}

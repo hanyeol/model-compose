@@ -27,7 +27,7 @@ class FFmpegAudioSynchronizerAction(NativeAudioSynchronizerAction):
 
             return decode_pcm_to_waveform(pcm, "s16le", dtype="float32"), sample_rate
         finally:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

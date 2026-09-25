@@ -54,6 +54,7 @@ from .audio_synchronizer import *
 from .audio_playback import *
 from .audio_mixer import *
 from .model_3d_converter import *
+from .camera_pose_estimator import *
 from .key_value_store import *
 from .graph_store import *
 from .file_store import *

@@ -44,7 +44,7 @@ class NativeModel3DConverterAction(Model3DConverterAction):
         try:
             await asyncio.to_thread(self._export, input_path, input_format, output_path, format)
         finally:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

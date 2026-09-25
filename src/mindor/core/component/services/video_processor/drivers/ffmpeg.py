@@ -198,7 +198,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             command.extend([ "-r", str(video_encoder.fps) ])
 
         def _cleanup() -> None:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

@@ -59,6 +59,7 @@ ComponentConfig = Annotated[
         AudioPlaybackComponentConfig,
         AudioMixerComponentConfig,
         Model3DConverterComponentConfig,
+        CameraPoseEstimatorComponentConfig,
         KeyValueStoreComponentConfig,
         GraphStoreComponentConfig,
         FileStoreComponentConfig,

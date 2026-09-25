@@ -140,7 +140,7 @@ class NativeMusicSegmentDetectorAction(MusicSegmentDetectorAction):
 
             return await self._run_in_executor(load_pcm_samples, audio, sample_rate)
         finally:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

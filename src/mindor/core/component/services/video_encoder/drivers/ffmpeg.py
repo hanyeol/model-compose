@@ -85,12 +85,12 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             command.append("-shortest")
 
         def _cleanup() -> None:
-            if video_spooled and video_path is not None:
+            if video_spooled:
                 try:
                     os.remove(video_path)
                 except FileNotFoundError:
                     pass
-            if audio_spooled and audio_path is not None:
+            if audio_spooled:
                 try:
                     os.remove(audio_path)
                 except FileNotFoundError:
@@ -154,7 +154,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             command.append("-shortest")
 
         def _cleanup() -> None:
-            if audio_spooled and audio_path is not None:
+            if audio_spooled:
                 try:
                     os.remove(audio_path)
                 except FileNotFoundError:

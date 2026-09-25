@@ -63,7 +63,7 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
         command.extend(self._build_audio_output_options(system, params["sink"], params["device"]))
 
         def _cleanup() -> None:
-            if audio_spooled and audio_path is not None:
+            if audio_spooled:
                 try:
                     os.remove(audio_path)
                 except FileNotFoundError:

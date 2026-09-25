@@ -1,10 +1,10 @@
-# 비디오 리파이너 예제
+# 비디오 무음 제거 예제
 
-비디오의 오디오 트랙에서 Silero VAD로 음성 구간을 검출하고, 원본 비디오에서 그 구간만 잘라내 하나의 "음성만 있는" mp4로 합치는 워크플로우 예제입니다. Silero VAD는 스트리밍 모드로 동작해서, 확정된 음성 세그먼트가 나오는 즉시 clipper로 흐릅니다 — 전체 오디오 분석이 끝날 때까지 기다리지 않습니다.
+비디오의 오디오 트랙에서 Silero VAD로 음성 구간을 검출하고, 원본 비디오에서 그 구간만 잘라내 하나의 무음이 제거된 mp4로 합치는 워크플로우 예제입니다. Silero VAD는 스트리밍 모드로 동작해서, 확정된 음성 세그먼트가 나오는 즉시 clipper로 흐릅니다 — 전체 오디오 분석이 끝날 때까지 기다리지 않습니다.
 
 ## 개요
 
-입력 비디오를 받아, 사람이 말하는 구간만 남긴 리파인 비디오를 반환합니다.
+입력 비디오를 받아, 사람이 말하는 구간만 남긴 무음 제거 비디오를 반환합니다.
 
 전략:
 
@@ -34,10 +34,10 @@ Silero의 non-streaming 모드는 오디오 전체 처리 완료 후에 세그�
 
 1. 예제 디렉터리로 이동:
    ```bash
-   cd examples/media-processing/video-refiner
+   cd examples/media-processing/video-silence-remover
    ```
 
-2. 리파인할 비디오 파일 준비. spool tempfile은 OS 기본 임시 디렉터리에 쓰이고 워크플로우 종료 후 자동 정리됨 — 예제 디렉터리에 별도 스토리지 폴더가 만들어지지 않음.
+2. 무음을 제거할 비디오 파일 준비. spool tempfile은 OS 기본 임시 디렉터리에 쓰이고 워크플로우 종료 후 자동 정리됨 — 예제 디렉터리에 별도 스토리지 폴더가 만들어지지 않음.
 
 ## 실행 방법
 
@@ -51,7 +51,7 @@ Silero의 non-streaming 모드는 오디오 전체 처리 완료 후에 세그�
    **Web UI:**
    - Web UI 열기: http://localhost:8081
    - 비디오 업로드하고 필요 시 `threshold` / `min_speech_duration` / `min_silence_duration` / `speech_padding_time` 조정
-   - "Run Workflow" 클릭 후 리파인된 비디오 다운로드
+   - "Run Workflow" 클릭 후 무음이 제거된 비디오 다운로드
 
    **API:**
    ```bash
@@ -75,7 +75,7 @@ Silero의 non-streaming 모드는 오디오 전체 처리 완료 후에 세그�
 
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
-| `video` | video (file) | Yes | - | 리파인할 입력 비디오 |
+| `video` | video (file) | Yes | - | 무음을 제거할 입력 비디오 |
 | `threshold` | number | No | `0.5` | Silero 음성 확률 임계값 (0.0 – 1.0). 높을수록 엄격 — 경계선 음성을 더 버리려면 올리고, 애매한 순간을 더 포착하려면 낮추세요 |
 | `min_speech_duration` | duration | No | `250ms` | 이보다 짧은 확정 음성 chunk는 버림 |
 | `min_silence_duration` | duration | No | `500ms` | 인접 음성 chunk 사이에 이 정도 무음이 있어야 별개 세그먼트로 취급 |
@@ -104,7 +104,7 @@ duration 필드는 `"250ms"`, `"0.5s"`, 또는 순수 숫자(초)로 지정.
 ### Clipper (`clipper`)
 - **타입**: `video-clipper`
 - **드라이버**: `ffmpeg`
-- **역할**: VAD 세그먼트 스트림을 소비해서 각 `[start_time, end_time]` 슬라이스를 spool된 비디오에서 `ffmpeg -c copy`로 잘라냄 (재인코딩 없음). `merge: true`라서 모든 클립을 ffmpeg의 `concat` 데뮤서로 하나의 mp4로 합치므로, 워크플로우 output은 개별 클립 스트림이 아니라 하나의 재생 가능한 리파인 비디오. VAD의 추가 `confidence` 필드는 그냥 통과 — clipper는 `start_time` / `end_time`만 읽음.
+- **역할**: VAD 세그먼트 스트림을 소비해서 각 `[start_time, end_time]` 슬라이스를 spool된 비디오에서 `ffmpeg -c copy`로 잘라냄 (재인코딩 없음). `merge: true`라서 모든 클립을 ffmpeg의 `concat` 데뮤서로 하나의 mp4로 합치므로, 워크플로우 output은 개별 클립 스트림이 아니라 하나의 재생 가능한 무음 제거 비디오. VAD의 추가 `confidence` 필드는 그냥 통과 — clipper는 `start_time` / `end_time`만 읽음.
 
 ## 참고와 튜닝
 

@@ -264,7 +264,7 @@ Audio, video, and image processing components.
 - [video-mixer](./media-processing/video-mixer/) — Composite multiple videos with ffmpeg
 - [video-playback](./media-processing/video-playback/) — Play a video in an OS-native window via ffplay
 - [video-processor](./media-processing/video-processor/) — Per-frame resize/crop/pad/flip/rotate
-- [video-refiner](./media-processing/video-refiner/) — VAD-driven speech-only video assembly
+- [video-silence-remover](./media-processing/video-silence-remover/) — Drop silence/noise from video via Silero VAD + clipper
 - [video-dubbing](./media-processing/video-dubbing/) — End-to-end dubbing (Whisper → translate → TTS → Wav2Lip)
 - [video-to-gif](./media-processing/video-to-gif/) — Convert a video (or a clip) to an animated GIF
 - [screen-capture](./media-processing/screen-capture/) — Capture the display/region/mic as continuous streams

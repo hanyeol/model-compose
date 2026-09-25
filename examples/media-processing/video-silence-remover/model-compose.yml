@@ -8,14 +8,14 @@ controller:
     port: 8081
 
 workflow:
-  title: Video Refiner
+  title: Video Silence Remover
   description: |
     Detect speech regions in the input video's audio track with Silero VAD,
-    then clip out only those regions from the original video and stream the
-    clips out one by one. The pipeline runs end-to-end in streaming mode:
-    VAD emits each speech segment as soon as it is confirmed, and the
-    clipper produces the corresponding video clip on the fly (no waiting
-    for VAD to finish).
+    then clip out only those regions from the original video and concatenate
+    them into a single video with the silence removed. The pipeline runs
+    end-to-end in streaming mode: VAD emits each speech segment as soon as
+    it is confirmed, and the clipper produces the corresponding video clip
+    on the fly (no waiting for VAD to finish).
   jobs:
     # 1. Fan the raw upload stream out to two independent consumers with
     #    `spool: true`. The upload is single-use, and the clipper (step 4)
@@ -46,7 +46,7 @@ workflow:
     #    as `{start_time, end_time, confidence}` the moment it is confirmed,
     #    so downstream jobs can start clipping without waiting for the full
     #    audio to be analysed.
-    - id: detect
+    - id: detect-silence
       component: vad
       input:
         audio: ${jobs.extract.output as audio}
@@ -57,18 +57,18 @@ workflow:
       depends_on: [ extract ]
 
     # 4. Feed the VAD segment stream into the clipper and merge every
-    #    speech clip into a single refined video via ffmpeg's concat
-    #    demuxer. With merge: true the clipper waits for the full span
-    #    stream to arrive before running concat, so the output is one
+    #    speech clip into a single silence-removed video via ffmpeg's
+    #    concat demuxer. With merge: true the clipper waits for the full
+    #    span stream to arrive before running concat, so the output is one
     #    ready-to-play file rather than a stream of separate clips.
     - id: refine
       component: clipper
       input:
         video: ${jobs.fanout-video.output.for-clip}
-        span: ${jobs.detect.output}
+        span: ${jobs.detect-silence.output}
       output:
         video: ${output as video}
-      depends_on: [ fanout-video, detect ]
+      depends_on: [ fanout-video, detect-silence ]
 
 components:
   - id: extractor
@@ -107,7 +107,7 @@ components:
       # only reads start_time/end_time, so the extra 'confidence' passes
       # through harmlessly.
       span: ${input.span}
-      # Concatenate all speech clips into a single refined video via
-      # ffmpeg's concat demuxer. All clips come from the same source so
-      # codec/container consistency is guaranteed.
+      # Concatenate all speech clips into a single silence-removed video
+      # via ffmpeg's concat demuxer. All clips come from the same source
+      # so codec/container consistency is guaranteed.
       merge: true

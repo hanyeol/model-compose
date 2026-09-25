@@ -1,10 +1,10 @@
-# 视频精修示例
+# 视频静音去除示例
 
-本示例展示了一个工作流：用 Silero VAD 检测视频音轨中的语音区域，将这些区域从原始视频中切出，并拼接为一个"仅语音"的 mp4。Silero VAD 以流式模式运行，因此每个确认的语音片段一出现就流向 clipper — 不必等待整段音频分析完成。
+本示例展示了一个工作流：用 Silero VAD 检测视频音轨中的语音区域，将这些区域从原始视频中切出，并拼接为一个去除了静音的 mp4。Silero VAD 以流式模式运行，因此每个确认的语音片段一出现就流向 clipper — 不必等待整段音频分析完成。
 
 ## 概览
 
-给定一个输入视频，工作流返回一个精修版本，仅包含有人说话的部分。
+给定一个输入视频，工作流返回一个去除静音的版本，仅包含有人说话的部分。
 
 策略：
 
@@ -34,10 +34,10 @@ Silero 的非流式模式要在整段音频处理完成后才返回片段列表�
 
 1. 进入示例目录：
    ```bash
-   cd examples/media-processing/video-refiner
+   cd examples/media-processing/video-silence-remover
    ```
 
-2. 准备一个待精修的视频文件。spool tempfile 写入 OS 默认临时目录，工作流结束后自动清理 — 示例目录下不会创建单独的存储文件夹。
+2. 准备一个待去除静音的视频文件。spool tempfile 写入 OS 默认临时目录，工作流结束后自动清理 — 示例目录下不会创建单独的存储文件夹。
 
 ## 如何运行
 
@@ -51,7 +51,7 @@ Silero 的非流式模式要在整段音频处理完成后才返回片段列表�
    **Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 上传视频，按需覆盖 `threshold` / `min_speech_duration` / `min_silence_duration` / `speech_padding_time`
-   - 点击 "Run Workflow" 并下载精修后的视频
+   - 点击 "Run Workflow" 并下载去除静音后的视频
 
    **API：**
    ```bash
@@ -75,7 +75,7 @@ Silero 的非流式模式要在整段音频处理完成后才返回片段列表�
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `video` | video (file) | Yes | - | 待精修的输入视频 |
+| `video` | video (file) | Yes | - | 待去除静音的输入视频 |
 | `threshold` | number | No | `0.5` | Silero 语音概率阈值（0.0 – 1.0）。越高越严 — 想丢掉更多边缘语音就调高，想捕捉更多不确定时刻就调低 |
 | `min_speech_duration` | duration | No | `250ms` | 丢弃短于该值的已确认语音 chunk |
 | `min_silence_duration` | duration | No | `500ms` | 相邻语音 chunk 之间需要该长度的静音才会被视为独立片段 |
@@ -104,7 +104,7 @@ duration 字段支持 `"250ms"`、`"0.5s"`，或纯数字（秒）。
 ### Clipper (`clipper`)
 - **类型**：`video-clipper`
 - **驱动**：`ffmpeg`
-- **作用**：消费 VAD 片段流，用 `ffmpeg -c copy` 从 spool 的视频中切出每个 `[start_time, end_time]` 片段（不重编码）。`merge: true` 让 clipper 通过 ffmpeg 的 `concat` demuxer 将所有片段拼接为单个 mp4，因此工作流输出是一个即用的精修视频，而非独立片段流。VAD 附带的 `confidence` 字段直接透传 — clipper 只读取 `start_time` / `end_time`。
+- **作用**：消费 VAD 片段流，用 `ffmpeg -c copy` 从 spool 的视频中切出每个 `[start_time, end_time]` 片段（不重编码）。`merge: true` 让 clipper 通过 ffmpeg 的 `concat` demuxer 将所有片段拼接为单个 mp4，因此工作流输出是一个即用的去除静音后的视频，而非独立片段流。VAD 附带的 `confidence` 字段直接透传 — clipper 只读取 `start_time` / `end_time`。
 
 ## 说明与调优
 

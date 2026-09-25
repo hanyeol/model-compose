@@ -264,7 +264,7 @@ ReAct 루프와 도구 사용을 활용한 자율 에이전트.
 - [video-mixer](./media-processing/video-mixer/) — ffmpeg로 여러 비디오 컴포지트
 - [video-playback](./media-processing/video-playback/) — ffplay로 OS 네이티브 창에서 비디오 재생
 - [video-processor](./media-processing/video-processor/) — 프레임 단위 리사이즈/크롭/패딩/플립/회전
-- [video-refiner](./media-processing/video-refiner/) — VAD 기반 발화 구간만 남긴 비디오 재조립
+- [video-silence-remover](./media-processing/video-silence-remover/) — Silero VAD + 클리퍼로 비디오에서 무음/노이즈 제거
 - [video-dubbing](./media-processing/video-dubbing/) — 엔드투엔드 더빙 (Whisper → 번역 → TTS → Wav2Lip)
 - [video-to-gif](./media-processing/video-to-gif/) — 비디오(또는 클립)를 애니메이션 GIF로 변환
 - [screen-capture](./media-processing/screen-capture/) — 화면/영역/마이크를 연속 스트림으로 캡처

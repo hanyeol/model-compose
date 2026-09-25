@@ -264,7 +264,7 @@ HUGGINGFACE_TOKEN=your-token-here
 - [video-mixer](./media-processing/video-mixer/) — 使用 ffmpeg 合成多个视频
 - [video-playback](./media-processing/video-playback/) — 通过 ffplay 在 OS 原生窗口播放视频
 - [video-processor](./media-processing/video-processor/) — 逐帧缩放/裁剪/填充/翻转/旋转
-- [video-refiner](./media-processing/video-refiner/) — 基于 VAD 的仅语音视频重组
+- [video-silence-remover](./media-processing/video-silence-remover/) — 通过 Silero VAD + 裁剪器从视频中去除静音/噪声
 - [video-dubbing](./media-processing/video-dubbing/) — 端到端配音 (Whisper → 翻译 → TTS → Wav2Lip)
 - [video-to-gif](./media-processing/video-to-gif/) — 将视频（或片段）转换为 GIF 动图
 - [screen-capture](./media-processing/screen-capture/) — 将屏幕/区域/麦克风捕获为连续流

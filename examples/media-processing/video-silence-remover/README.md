@@ -1,10 +1,10 @@
-# Video Refiner Example
+# Video Silence Remover Example
 
-This example demonstrates a workflow that detects speech regions in a video's audio track with Silero VAD, cuts only those regions out of the original video, and concatenates them into a single "speech-only" mp4. Silero VAD runs in streaming mode so each confirmed speech segment reaches the clipper without waiting for the full audio to be analysed.
+This example demonstrates a workflow that detects speech regions in a video's audio track with Silero VAD, cuts only those regions out of the original video, and concatenates them into a single silence-removed mp4. Silero VAD runs in streaming mode so each confirmed speech segment reaches the clipper without waiting for the full audio to be analysed.
 
 ## Overview
 
-Given an input video, the workflow returns a refined version of the same video containing only the parts where somebody is talking.
+Given an input video, the workflow returns a silence-removed version of the same video containing only the parts where somebody is talking.
 
 The strategy is:
 
@@ -34,10 +34,10 @@ Silero's non-streaming mode returns the full segment list only after processing 
 
 1. Navigate to this example directory:
    ```bash
-   cd examples/media-processing/video-refiner
+   cd examples/media-processing/video-silence-remover
    ```
 
-2. Prepare a video file to refine. The spool tempfile is written under the OS's default temporary directory and cleaned up automatically after the workflow finishes — no example-local storage directory is used.
+2. Prepare a video file to process. The spool tempfile is written under the OS's default temporary directory and cleaned up automatically after the workflow finishes — no example-local storage directory is used.
 
 ## How to Run
 
@@ -51,7 +51,7 @@ Silero's non-streaming mode returns the full segment list only after processing 
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload the video and optionally override `threshold` / `min_speech_duration` / `min_silence_duration` / `speech_padding_time`
-   - Click "Run Workflow" and download the refined video
+   - Click "Run Workflow" and download the silence-removed video
 
    **Using API:**
    ```bash
@@ -75,7 +75,7 @@ Silero's non-streaming mode returns the full segment list only after processing 
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `video` | video (file) | Yes | - | Input video to refine |
+| `video` | video (file) | Yes | - | Input video to remove silence from |
 | `threshold` | number | No | `0.5` | Silero speech-probability threshold (0.0 – 1.0). Higher is stricter — raise it to drop marginal speech, lower it to catch more borderline moments |
 | `min_speech_duration` | duration | No | `250ms` | Discard confirmed speech chunks shorter than this |
 | `min_silence_duration` | duration | No | `500ms` | Silence required between adjacent speech chunks before they are treated as separate segments |
@@ -104,7 +104,7 @@ Duration fields accept values like `"250ms"`, `"0.5s"`, or bare numeric seconds.
 ### Clipper (`clipper`)
 - **Type**: `video-clipper`
 - **Driver**: `ffmpeg`
-- **Function**: Consumes the VAD segment stream and cuts each `[start_time, end_time]` slice out of the spooled video with `ffmpeg -c copy` (no re-encoding). With `merge: true` the clipper concatenates every clip into a single mp4 via ffmpeg's `concat` demuxer, so the workflow's output is one ready-to-play refined video rather than a stream of separate clips. VAD's extra `confidence` field passes through harmlessly — the clipper only reads `start_time` / `end_time`.
+- **Function**: Consumes the VAD segment stream and cuts each `[start_time, end_time]` slice out of the spooled video with `ffmpeg -c copy` (no re-encoding). With `merge: true` the clipper concatenates every clip into a single mp4 via ffmpeg's `concat` demuxer, so the workflow's output is one ready-to-play silence-removed video rather than a stream of separate clips. VAD's extra `confidence` field passes through harmlessly — the clipper only reads `start_time` / `end_time`.
 
 ## Notes and Tuning
 

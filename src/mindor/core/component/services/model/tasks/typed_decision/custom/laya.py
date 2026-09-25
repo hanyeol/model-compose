@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
+from mindor.dsl.schema.component import LayaPreset
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -129,7 +130,6 @@ class LayaTypedDecisionTaskDriver(ModelTaskDriver):
 
     def _load_agent(self) -> LayaAgent:
         from laya import Agent
-        from mindor.dsl.schema.component import LayaPreset
 
         # 'english' is the bundle's root checkpoint (no subfolder); every other preset is
         # both the folder name inside the bundle and the standalone-repo suffix, so

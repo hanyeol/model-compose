@@ -26,7 +26,7 @@ from mindor.core.component.services.video_frame_extractor.drivers.opencv import 
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
+from mindor.dsl.schema.action import OpencvVideoFrameExtractorActionConfig as VideoFrameExtractorActionConfig
 
 
 pytestmark = pytest.mark.skipif(
@@ -282,14 +282,8 @@ class TestOpenCVCollectMode:
         with pytest.raises(ValueError, match="max_frame_count"):
             await action.run(ctx)
 
-    @pytest.mark.anyio
-    async def test_keyframe_only_not_supported(self, sample_video):
-        config = make_config(sample_video, keyframe_only=True)
-        action = OpenCVVideoFrameExtractorAction(config)
-        ctx = make_context()
-
-        with pytest.raises(NotImplementedError, match="keyframe_only"):
-            await action.run(ctx)
+    def test_keyframe_only_not_supported(self):
+        assert "keyframe_only" not in VideoFrameExtractorActionConfig.model_fields
 
     @pytest.mark.anyio
     async def test_registers_result_source(self, sample_video):

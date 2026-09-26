@@ -95,12 +95,46 @@ def test_faiss_index_manager_delete():
     assert results[0][0]["id"] == "doc2"
 
 
+def test_faiss_index_manager_persistence(tmp_path):
+    """Verify index and metadata are persisted to storage_dir and reloaded."""
+    storage_dir = str(tmp_path / "faiss_store")
+
+    mgr = FaissIndexManager(dimension=3, metric="cosine", storage_dir=storage_dir)
+    mgr.insert(
+        vector_ids=["doc1", "doc2"],
+        vectors=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        metadatas=[{"category": "A"}, {"category": "B"}],
+    )
+
+    # Reopen the store: state should be restored from disk
+    reloaded = FaissIndexManager(dimension=3, metric="cosine", storage_dir=storage_dir)
+
+    assert reloaded.index.ntotal == 2
+    assert reloaded.state.metadatas == {"doc1": {"category": "A"}, "doc2": {"category": "B"}}
+    assert reloaded.state.str_to_id.keys() == {"doc1", "doc2"}
+
+    results = reloaded.search(queries=[[1.0, 0.0, 0.0]], top_k=1)
+    assert results[0][0]["id"] == "doc1"
+    assert results[0][0]["metadata"] == {"category": "A"}
+
+
+def test_faiss_index_manager_persistence_dimension_mismatch(tmp_path):
+    """Reopening with a different dimension should raise a clear error."""
+    storage_dir = str(tmp_path / "faiss_store")
+
+    mgr = FaissIndexManager(dimension=3, metric="l2", storage_dir=storage_dir)
+    mgr.insert(vector_ids=["doc1"], vectors=[[1.0, 0.0, 0.0]], metadatas=[{}])
+
+    with pytest.raises(ValueError, match="dimension"):
+        FaissIndexManager(dimension=4, metric="l2", storage_dir=storage_dir)
+
+
 def test_faiss_action_execution():
     """Verify FaissVectorStoreAction execution."""
     async def _run():
         mgr = FaissIndexManager(dimension=2, metric="l2")
         config = MagicMock()
-        action = FaissVectorStoreAction(config=config, index_manager=mgr)
+        action = FaissVectorStoreAction(config=config, index_manager=mgr, lock=asyncio.Lock())
 
         res_ins = await action._insert("coll", vector_ids=["p1"], vectors=[[0.5, 0.5]], metadatas=[{"tag": "x"}], params={}, cancellation_token=None)
         assert res_ins["affected_rows"] == 1

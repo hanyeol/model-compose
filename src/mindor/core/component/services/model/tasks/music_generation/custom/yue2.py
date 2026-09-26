@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ModelComponentConfig, Yue2Backend, Yue2Submodule
+from mindor.dsl.schema.component import ModelComponentConfig, Yue2Backend, Yue2NarConfig, Yue2Submodule
 from mindor.dsl.schema.action import (
     ModelActionConfig,
     MusicGenerationActionMethod,
@@ -11,6 +11,7 @@ from mindor.dsl.schema.action import (
     Yue2MusicGenerationModelGenerateActionConfig,
     Yue2MusicGenerationModelCoverActionConfig,
     Yue2MusicGenerationModelScoreActionConfig,
+    Yue2CotMode,
 )
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
@@ -38,10 +39,14 @@ class Yue2MusicGenerationTaskAction(MusicGenerationTaskAction):
         params = await super()._resolve_params(context)
 
         cot_mode          = await context.render_variable(self.config.params.cot_mode)
-        cot_mode          = cot_mode.value if hasattr(cot_mode, "value") else cot_mode
         cfg_scale         = await context.render_scalar(self.config.params.cfg_scale, float) if self.config.params.cfg_scale is not None else None
         abc_sampling      = await self._resolve_sampling(context, self.config.params.abc_sampling) if self.config.params.abc_sampling is not None else None
         semantic_sampling = await self._resolve_sampling(context, self.config.params.semantic_sampling) if self.config.params.semantic_sampling is not None else None
+
+        try:
+            cot_mode = Yue2CotMode(cot_mode)
+        except ValueError:
+            raise ValueError(f"Unsupported cot_mode for yue2 music-generation: {cot_mode!r}")
 
         params.update({
             "cot_mode":          cot_mode,
@@ -71,11 +76,11 @@ class Yue2MusicGenerationTaskAction(MusicGenerationTaskAction):
             "max_tokens":         max_tokens,
         }
 
-    def _build_pipeline_params(self, style: str, lyrics: str, params: Dict[str, Any], abc: Optional[str] = None) -> Dict[str, Any]:
+    def _build_pipeline_params(self, style: str, lyrics: str, abc: Optional[str], params: Dict[str, Any]) -> Dict[str, Any]:
         pipeline_params: Dict[str, Any] = {
             "style":  style,
             "lyrics": lyrics,
-            "cot":    params["cot_mode"],
+            "cot":    params["cot_mode"].value,
         }
 
         if params.get("cfg_scale") is not None:
@@ -114,7 +119,7 @@ class Yue2MusicGenerationModelGenerateAction(Yue2MusicGenerationTaskAction):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
 
-                pipeline_params = self._build_pipeline_params(style, lyrics, params)
+                pipeline_params = self._build_pipeline_params(style, lyrics, None, params)
                 result = self.pipeline(
                     abc_sampling=params.get("abc_sampling"),
                     semantic_sampling=params.get("semantic_sampling"),
@@ -151,11 +156,6 @@ class Yue2MusicGenerationModelCoverAction(Yue2MusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        # Covers rely on a supplied ABC score, so force cot_mode to melody if the caller left it at the default.
-        cot_mode = params.get("cot_mode") or "melody"
-        if cot_mode == "off":
-            raise ValueError("YuE2 cover action requires cot_mode='melody' or cot_mode='full' (cot_mode='off' cannot use an external ABC).")
-
         def _generate() -> List[PcmStreamResource]:
             results: List[PcmStreamResource] = []
 
@@ -163,7 +163,7 @@ class Yue2MusicGenerationModelCoverAction(Yue2MusicGenerationTaskAction):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
 
-                pipeline_params = self._build_pipeline_params(style, lyrics, {**params, "cot_mode": cot_mode}, abc=abc)
+                pipeline_params = self._build_pipeline_params(style, lyrics, abc, params)
                 result = self.pipeline(
                     abc_sampling=params.get("abc_sampling"),
                     semantic_sampling=params.get("semantic_sampling"),
@@ -199,11 +199,6 @@ class Yue2MusicGenerationModelScoreAction(Yue2MusicGenerationTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
-        cot_mode = params.get("cot_mode") or "full"
-
-        if cot_mode == "off":
-            raise ValueError("YuE2 score action requires cot_mode='melody' or cot_mode='full' (cot_mode='off' does not produce an ABC score).")
-
         def _generate() -> List[Dict[str, Any]]:
             results: List[Dict[str, Any]] = []
 
@@ -211,7 +206,7 @@ class Yue2MusicGenerationModelScoreAction(Yue2MusicGenerationTaskAction):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
 
-                pipeline_params = self._build_pipeline_params(style, lyrics, {**params, "cot_mode": cot_mode})
+                pipeline_params = self._build_pipeline_params(style, lyrics, None, params)
                 result = self.pipeline.plan(
                     abc_sampling=params.get("abc_sampling"),
                     cancelled=(cancellation_token.is_cancelled if cancellation_token is not None else None),
@@ -246,8 +241,12 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
     async def _load_model(self) -> None:
         model_path     = await self._provision_model(self.config.model, prefetch=True)
         vae_model_path = await self._provision_model(self.config.vae.model, prefetch=True)
+        nar_path       = await self._provision_model(self.config.nar.model, prefetch=True) if self.config.nar is not None else None
 
         self.pipeline = await self._load_pipeline(model_path, vae_model_path)
+
+        if nar_path is not None:
+            await self._merge_nar_lora(self.pipeline, nar_path)
 
     async def _unload_model(self) -> None:
         if self.pipeline is not None:
@@ -290,6 +289,106 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
             cpu_offload = [ cpu_offload ]
     
         return cpu_offload
+
+    async def _merge_nar_lora(self, pipeline: YuE2Pipeline, nar_path: str) -> None:
+        def _merge() -> None:
+            import torch
+
+            # yue2 defers weight loading until first use; force it so the backbone
+            # is materialized before we reach into its layers.
+            model = pipeline._load_model()
+            device = pipeline.device
+
+            nar = self._load_nar_checkpoint(nar_path, device)
+
+            with torch.no_grad():
+                self._merge_lora_into_layers(
+                    layers=model.model.layers,
+                    tensors=nar["lora"],
+                    attn_attr="nar_self_attn",
+                    mlp_attr="nar_mlp",
+                    device=device,
+                )
+
+                # NAR ships retrained I/O projections paired with the LoRA;
+                # merging LoRA alone leaves the base I/O mismatched.
+                io = nar.get("io") or {}
+                for name in ("vae2llm", "llm2vae"):
+                    weights = io.get(name)
+                    if weights is None:
+                        continue
+                    target = getattr(model, name)
+                    dtype = next(target.parameters()).dtype
+                    target.load_state_dict({ k: v.to(dtype) for k, v in weights.items() })
+
+        await self._run_in_executor(_merge)
+
+    def _load_nar_checkpoint(self, nar_path: str, device: Any) -> Dict[str, Any]:
+        import torch
+
+        if nar_path.endswith(".safetensors"):
+            from safetensors.torch import load_file
+
+            flat = { k: v.to(device) for k, v in load_file(nar_path, device="cpu").items() }
+            return self._unflatten_nar_safetensors(flat)
+
+        return torch.load(nar_path, map_location=device, weights_only=False)
+
+    def _unflatten_nar_safetensors(self, flat: Dict[str, Any]) -> Dict[str, Any]:
+        # Mirrors the yue2-forge safetensors layout used for AR LoRAs; NAR checkpoints
+        # published as safetensors keep the same convention with `nar.` / `io.` prefixes.
+        attn_projs = ("q_proj", "k_proj", "v_proj", "o_proj")
+        mlp_projs  = ("gate_proj", "up_proj", "down_proj")
+        prefix     = "nar.layers."
+
+        layer_indices = sorted({
+            int(k.split(".")[2]) for k in flat if k.startswith(prefix)
+        })
+
+        lora: List[Any] = []
+
+        for index in layer_indices:
+            for proj in attn_projs:
+                lora.append(flat[f"{prefix}{index}.nar_self_attn.{proj}.lora_A"])
+                lora.append(flat[f"{prefix}{index}.nar_self_attn.{proj}.lora_B"])
+            for proj in mlp_projs:
+                lora.append(flat[f"{prefix}{index}.nar_mlp.{proj}.lora_A"])
+                lora.append(flat[f"{prefix}{index}.nar_mlp.{proj}.lora_B"])
+
+        io: Dict[str, Dict[str, Any]] = {}
+
+        for key, value in flat.items():
+            if not key.startswith("io."):
+                continue
+            _, submodule, param = key.split(".", 2)
+            io.setdefault(submodule, {})[param] = value
+
+        return { "lora": lora, "io": io }
+
+    def _merge_lora_into_layers(
+        self,
+        layers: Any,
+        tensors: List[Any],
+        attn_attr: str,
+        mlp_attr: str,
+        device: Any,
+        scale: float = 1.0,
+    ) -> None:
+        attn_projs = ("q_proj", "k_proj", "v_proj", "o_proj")
+        mlp_projs  = ("gate_proj", "up_proj", "down_proj")
+
+        ternsor_iterator = iter(tensors)
+
+        for layer in layers:
+            for module, projs in (
+                (getattr(layer, attn_attr), attn_projs),
+                (getattr(layer, mlp_attr), mlp_projs),
+            ):
+                for proj in projs:
+                    A = next(ternsor_iterator).to(device).float()
+                    B = next(ternsor_iterator).to(device).float()
+                    linear = getattr(module, proj)
+                    linear.weight.add_((scale * (B @ A)).to(linear.weight.dtype))
 
     def _force_vae_decode_on_cpu(self, pipeline: YuE2Pipeline) -> None:
         import torch

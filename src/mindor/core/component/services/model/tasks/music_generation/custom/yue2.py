@@ -329,12 +329,14 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         if nar_path.endswith(".safetensors"):
             from safetensors.torch import load_file
 
-            flat = { k: v.to(device) for k, v in load_file(nar_path, device="cpu").items() }
-            return self._unflatten_nar_safetensors(flat)
+            flat_tensors = load_file(nar_path, device="cpu")
+            flat_tensors = { key: value.to(device) for key, value in flat_tensors.items() }
+
+            return self._unflatten_nar_safetensors(flat_tensors)
 
         return torch.load(nar_path, map_location=device, weights_only=False)
 
-    def _unflatten_nar_safetensors(self, flat: Dict[str, Any]) -> Dict[str, Any]:
+    def _unflatten_nar_safetensors(self, flat_tensors: Dict[str, Any]) -> Dict[str, Any]:
         # Mirrors the yue2-forge safetensors layout used for AR LoRAs; NAR checkpoints
         # published as safetensors keep the same convention with `nar.` / `io.` prefixes.
         attn_projs = ("q_proj", "k_proj", "v_proj", "o_proj")
@@ -342,24 +344,26 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         prefix     = "nar.layers."
 
         layer_indices = sorted({
-            int(k.split(".")[2]) for k in flat if k.startswith(prefix)
+            int(key.split(".")[2]) for key in flat_tensors if key.startswith(prefix)
         })
 
         lora: List[Any] = []
 
         for index in layer_indices:
             for proj in attn_projs:
-                lora.append(flat[f"{prefix}{index}.nar_self_attn.{proj}.lora_A"])
-                lora.append(flat[f"{prefix}{index}.nar_self_attn.{proj}.lora_B"])
+                lora.append(flat_tensors[f"{prefix}{index}.nar_self_attn.{proj}.lora_A"])
+                lora.append(flat_tensors[f"{prefix}{index}.nar_self_attn.{proj}.lora_B"])
+
             for proj in mlp_projs:
-                lora.append(flat[f"{prefix}{index}.nar_mlp.{proj}.lora_A"])
-                lora.append(flat[f"{prefix}{index}.nar_mlp.{proj}.lora_B"])
+                lora.append(flat_tensors[f"{prefix}{index}.nar_mlp.{proj}.lora_A"])
+                lora.append(flat_tensors[f"{prefix}{index}.nar_mlp.{proj}.lora_B"])
 
         io: Dict[str, Dict[str, Any]] = {}
 
-        for key, value in flat.items():
+        for key, value in flat_tensors.items():
             if not key.startswith("io."):
                 continue
+
             _, submodule, param = key.split(".", 2)
             io.setdefault(submodule, {})[param] = value
 

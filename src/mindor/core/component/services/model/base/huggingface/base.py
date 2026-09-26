@@ -42,6 +42,9 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         if self.config.quantization is not None:
             requirements.append("bitsandbytes>=0.50.0")
 
+        if self.config.peft_adapters:
+            requirements.extend(self._get_peft_requirements())
+
         return requirements
 
     def _get_torch_requirements(self) -> List[str]:
@@ -49,6 +52,9 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
 
     def _get_transformers_requirements(self) -> List[str]:
         return [ "transformers>=4.52.0" ]
+
+    def _get_peft_requirements(self) -> List[str]:
+        return [ "peft" ]
 
     async def _load_pretrained_model(self) -> Tuple[PreTrainedModel, str]:
         model_path = await self._provision_model(self.config.model)

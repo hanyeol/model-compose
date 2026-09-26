@@ -15,6 +15,7 @@ from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from PIL import Image as PILImage
 import asyncio
+import inspect
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
@@ -22,6 +23,18 @@ if TYPE_CHECKING:
 
 class PipelineCancelled(Exception):
     pass
+
+_pipeline_call_params_cache: Dict[Type, frozenset] = {}
+
+def _pipeline_accepts(pipeline: Any, param_name: str) -> bool:
+    pipeline_class = type(pipeline)
+    params = _pipeline_call_params_cache.get(pipeline_class)
+
+    if params is None:
+        params = frozenset(inspect.signature(pipeline_class.__call__).parameters)
+        _pipeline_call_params_cache[pipeline_class] = params
+
+    return param_name in params
 
 class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAction):
     config: HuggingfaceImageGenerationModelActionConfig
@@ -88,13 +101,22 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         width             = await context.render_scalar(self.config.width, int)
         height            = await context.render_scalar(self.config.height, int)
         num_return_images = await context.render_scalar(self.config.num_return_images, int)
+        sigmas            = await context.render_variable(self.config.params.sigmas)
 
-        return {
+        if sigmas is not None and len(sigmas) != inference_steps:
+            raise ValueError(f"`sigmas` length ({len(sigmas)}) must equal `inference_steps` ({inference_steps}).")
+
+        params: Dict[str, Any] = {
             "num_inference_steps":   inference_steps,
             "width":                 width,
             "height":                height,
             "num_images_per_prompt": num_return_images,
         }
+
+        if sigmas is not None:
+            params["sigmas"] = sigmas
+
+        return params
 
     async def _resolve_architecture_params(self, architecture: HuggingfaceImageGenerationModelArchitecture, context: ComponentActionContext) -> Dict[str, Any]:
         if architecture == HuggingfaceImageGenerationModelArchitecture.SDXL:
@@ -147,6 +169,12 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
                 **params["pipeline"],
                 **self._build_architecture_input_params(self.architecture, inputs)
             }
+
+            if "sigmas" in pipeline_params and not _pipeline_accepts(self.pipeline, "sigmas"):
+                raise ValueError(
+                    f"{type(self.pipeline).__name__} does not accept `sigmas`; "
+                    "remove `params.sigmas` or switch to an architecture that supports it."
+                )
 
             if cancellation_token is not None:
                 def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):

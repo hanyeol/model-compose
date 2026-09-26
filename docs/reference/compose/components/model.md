@@ -3057,11 +3057,14 @@ M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–
 | `vae` | string/object | `m-a-p/YuE2-Vae` | VAE decoder model. String shorthand expands to `{ model: <value> }` |
 | `vae.model` | string/object | `m-a-p/YuE2-Vae` | VAE model identifier — HuggingFace repo ID or local path |
 | `vae.tile_size` | int | family-default | VAE decode tile size in frames; `512` for ≤12 GiB budgets, `1024` otherwise |
+| `nar` | string/object | `null` | NAR LoRA weights merged into the base pipeline. String shorthand expands to `{ model: <value> }`. When set, the checkpoint's LoRA deltas are folded into the AR model's NAR path (`nar_self_attn` + `nar_mlp`) and its `vae2llm` / `llm2vae` I/O projections replace the base modules. `null` keeps the stock NAR shipped with the AR model |
+| `nar.model` | string/object | **required** | NAR LoRA identifier — HuggingFace repo ID or local path. The reference Mothersuperior repo publishes several versioned pairs (`nar_lora_joint_v4`, `_v5`, `_v8`, `_v9`), so specify `filename` when pointing at a HuggingFace repo with multiple checkpoints |
 | `backend` | string | `torch` | AR backend (`torch`, `torch-eager`, `vllm`). `vllm` requires the model's optional `[fast]` extras |
 | `quantization.type` | string | — | Only `fp8` is supported; halves AR VRAM at a small quality cost |
 | `memory_budget_gib` | float | `24` | GPU memory budget reserved for generation |
 | `cpu_offload` | string/array | `null` | Submodules to run on CPU. `ar` moves the AR model to CPU during NAR synthesis to free VRAM. `vae` wraps the VAE decoder to run on CPU (workaround for MPS Conv1d `out_channels > 65536` on macOS < 15.1). Accepts a single value or a list of both |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load |
+| `peft_adapters` | array | `null` | AR LoRA adapters merged into the base pipeline. Each item follows the [top-level `peft_adapters`](#component-settings) item schema and must set `type: lora`; other adapter types are rejected. `weight` acts as the merge scale (`W += weight · B @ A`); the yue2 driver merges directly into the AR path's `self_attn` + `mlp` weights rather than routing through the `peft` library |
 
 **Common Action Fields:**
 
@@ -3155,6 +3158,33 @@ component:
       seed: 831001
       params:
         cot_mode: full
+```
+
+**With NAR LoRA and an AR LoRA adapter:**
+
+The Mothersuperior real-audio tokenizer repository publishes multiple joint checkpoints (`v4`, `v5`, `v8`, `v9`); pin the exact filename since head + LoRA files are version-matched. The AR LoRA is a user-trained adapter (e.g. from the yue2-lora-training recipe); its `weight` becomes the merge scale applied to `B @ A` when folding into the AR path.
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: yue2
+  model: m-a-p/YuE2-3B
+  device: cuda
+  nar:
+    model:
+      repository: Mothersuperior/yue2-mothersuperior-realaudio-tokenizer-v4
+      filename: nar_lora_joint_v4.safetensors
+  peft_adapters:
+    - type: lora
+      name: my-artist
+      model: ./out/my-artist.safetensors
+      weight: 1.0
+  action:
+    method: generate
+    style: ${input.style as text}
+    lyrics: ${input.lyrics as text}
 ```
 
 **Result Shape:**

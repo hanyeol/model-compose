@@ -25,6 +25,13 @@ async def install_package(package_spec: str, pip_options: Optional[List[str]] = 
     path, or any other spec pip accepts. `pip_options` appends extra flags
     such as `["--index-url", "https://download.pytorch.org/whl/cu128"]`.
 
+    pip's default `install` refuses to touch a same-named distribution, so
+    `--upgrade` is always passed on the pip path to force resolution against
+    the requested spec. uv already honors the spec on every install and
+    treats `--upgrade` as "re-resolve the entire dependency tree against
+    the latest versions" — which would drag unrelated pins (torch/CUDA
+    channels) forward — so we deliberately omit `--upgrade` on the uv path.
+
     Prefers uv when available (faster resolves, and `--link-mode=hardlink`
     shares wheel bytes across venvs on the same filesystem — a large deal
     for torch/CUDA installs). Falls back to `python -m pip install` when
@@ -36,7 +43,7 @@ async def install_package(package_spec: str, pip_options: Optional[List[str]] = 
     if uv_path:
         command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", package_spec ] + (pip_options or [])
     else:
-        command = [ sys.executable, "-m", "pip", "install", package_spec ] + (pip_options or [])
+        command = [ sys.executable, "-m", "pip", "install", "--upgrade", package_spec ] + (pip_options or [])
 
     process = await asyncio.create_subprocess_exec(
         *command,

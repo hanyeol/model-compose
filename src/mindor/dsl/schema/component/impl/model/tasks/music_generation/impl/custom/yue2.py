@@ -5,7 +5,7 @@ from mindor.dsl.utils.path import is_local_path
 from mindor.dsl.schema.action import MusicGenerationModelActionConfig
 from ..common import CommonMusicGenerationModelComponentConfig
 from .common import MusicGenerationModelFamily
-from ....common import ModelDriverType, ModelConfig, ModelProvider, ModelQuantizationConfig, ModelQuantizationType
+from ....common import ModelDriverType, ModelConfig, ModelProvider, ModelQuantizationConfig, ModelQuantizationType, PeftAdapterType
 
 _DEFAULT_YUE2_VAE_REPOSITORY = "m-a-p/YuE2-Vae"
 
@@ -56,7 +56,7 @@ class Yue2VaeConfig(BaseModel):
         return values
 
 class Yue2NarConfig(BaseModel):
-    model: ModelConfig = Field(..., description="NAR LoRA weights identifier — a HuggingFace repo ID or a local path; the repo publishes multiple versions, so specify filename when using HuggingFace.")
+    model: ModelConfig = Field(..., description="NAR LoRA model identifier — a HuggingFace repo ID or a local path.")
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
@@ -107,3 +107,13 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
         if isinstance(nar, str):
             values["nar"] = { "model": nar }
         return values
+
+    @model_validator(mode="after")
+    def validate_lora_peft_adapters(self):
+        for index, adapter in enumerate(self.peft_adapters or []):
+            if adapter.type != PeftAdapterType.LORA:
+                raise ValueError(
+                    f"peft_adapters[{index}] has type={adapter.type.value!r}; "
+                    f"yue2 music-generation only supports type={PeftAdapterType.LORA.value!r}."
+                )
+        return self

@@ -20,6 +20,7 @@ from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicGenerationTaskAction
+import asyncio
 
 if TYPE_CHECKING:
     from yue2 import YuE2Pipeline
@@ -243,10 +244,19 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         vae_model_path = await self._provision_model(self.config.vae.model, prefetch=True)
         nar_path       = await self._provision_model(self.config.nar.model, prefetch=True) if self.config.nar is not None else None
 
+        peft_adapters = self.config.peft_adapters or []
+
+        ar_lora_paths = await asyncio.gather(*[
+            self._provision_model(adapter.model, prefetch=True) for adapter in peft_adapters
+        ])
+
         self.pipeline = await self._load_pipeline(model_path, vae_model_path)
 
         if nar_path is not None:
             await self._merge_nar_lora(self.pipeline, nar_path)
+
+        for adapter, adapter_path in zip(peft_adapters, ar_lora_paths):
+            await self._merge_ar_lora(self.pipeline, adapter_path, float(adapter.weight))
 
     async def _unload_model(self) -> None:
         if self.pipeline is not None:
@@ -323,6 +333,64 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
 
         await self._run_in_executor(_merge)
 
+    async def _merge_ar_lora(self, pipeline: YuE2Pipeline, ar_path: str, scale: float) -> None:
+        def _merge() -> None:
+            import torch
+
+            model = pipeline._load_model()
+            device = pipeline.device
+
+            ar = self._load_ar_checkpoint(ar_path, device)
+
+            with torch.no_grad():
+                self._merge_lora_into_layers(
+                    layers=model.model.layers,
+                    tensors=ar["lora"],
+                    attn_attr="self_attn",
+                    mlp_attr="mlp",
+                    device=device,
+                    scale=scale,
+                )
+
+        await self._run_in_executor(_merge)
+
+    def _load_ar_checkpoint(self, ar_path: str, device: Any) -> Dict[str, Any]:
+        import torch
+
+        if ar_path.endswith(".safetensors"):
+            from safetensors.torch import load_file
+
+            flat_tensors = load_file(ar_path, device="cpu")
+            flat_tensors = { key: value.to(device) for key, value in flat_tensors.items() }
+
+            return self._unflatten_ar_safetensors(flat_tensors)
+
+        return torch.load(ar_path, map_location=device, weights_only=False)
+
+    def _unflatten_ar_safetensors(self, flat_tensors: Dict[str, Any]) -> Dict[str, Any]:
+        # Mirrors yue2-forge's export layout: `ar.layers.{i}.{self_attn,mlp}.{proj}.lora_{A,B}`
+        # plus an optional `cursor_head.*` group that is training-auxiliary and ignored here.
+        attn_projs = ("q_proj", "k_proj", "v_proj", "o_proj")
+        mlp_projs  = ("gate_proj", "up_proj", "down_proj")
+        prefix     = "ar.layers."
+
+        layer_indices = sorted({
+            int(key.split(".")[2]) for key in flat_tensors if key.startswith(prefix)
+        })
+
+        lora: List[Any] = []
+
+        for index in layer_indices:
+            for proj in attn_projs:
+                lora.append(flat_tensors[f"{prefix}{index}.self_attn.{proj}.lora_A"])
+                lora.append(flat_tensors[f"{prefix}{index}.self_attn.{proj}.lora_B"])
+
+            for proj in mlp_projs:
+                lora.append(flat_tensors[f"{prefix}{index}.mlp.{proj}.lora_A"])
+                lora.append(flat_tensors[f"{prefix}{index}.mlp.{proj}.lora_B"])
+
+        return { "lora": lora }
+
     def _load_nar_checkpoint(self, nar_path: str, device: Any) -> Dict[str, Any]:
         import torch
 
@@ -381,7 +449,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         attn_projs = ("q_proj", "k_proj", "v_proj", "o_proj")
         mlp_projs  = ("gate_proj", "up_proj", "down_proj")
 
-        ternsor_iterator = iter(tensors)
+        tensor_iterator = iter(tensors)
 
         for layer in layers:
             for module, projs in (
@@ -389,8 +457,8 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
                 (getattr(layer, mlp_attr), mlp_projs),
             ):
                 for proj in projs:
-                    A = next(ternsor_iterator).to(device).float()
-                    B = next(ternsor_iterator).to(device).float()
+                    A = next(tensor_iterator).to(device).float()
+                    B = next(tensor_iterator).to(device).float()
                     linear = getattr(module, proj)
                     linear.weight.add_((scale * (B @ A)).to(linear.weight.dtype))
 

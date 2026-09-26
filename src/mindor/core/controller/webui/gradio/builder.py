@@ -584,7 +584,7 @@ class GradioWebUIBuilder:
             return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
 
         if variable.type == WorkflowVariableType.LIST:
-            return gr.Textbox(label=label, value=json.dumps(default, ensure_ascii=False) if default else "", info=info)
+            return gr.Textbox(label=label, value="", info=info)
 
         if variable.type == WorkflowVariableType.IMAGE:
             if variable.is_list:

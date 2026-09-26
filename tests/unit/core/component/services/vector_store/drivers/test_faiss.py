@@ -12,6 +12,8 @@ from mindor.core.component.services.vector_store.drivers.faiss import (
     FaissIndexManager,
 )
 
+pytest.importorskip("faiss", reason="faiss-cpu is not installed")
+
 
 def test_faiss_driver_registration():
     """Verify FaissVectorStoreService is registered in VectorStoreDriverRegistry."""
@@ -24,6 +26,7 @@ def test_vector_store_component_loads_faiss():
     config = FaissVectorStoreComponentConfig(
         type=ComponentType.VECTOR_STORE,
         driver=VectorStoreDriverType.FAISS,
+        dimension=3,
     )
     global_configs = MagicMock()
     comp = VectorStoreComponent(id="faiss_comp", config=config, global_configs=global_configs, daemon=False)
@@ -33,7 +36,7 @@ def test_vector_store_component_loads_faiss():
 
 def test_faiss_index_manager_insert_and_search():
     """Verify insertion and vector similarity search in FaissIndexManager."""
-    mgr = FaissIndexManager(metric="l2")
+    mgr = FaissIndexManager(dimension=3, metric="l2")
     vectors = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
     metadatas = [{"category": "A"}, {"category": "B"}]
     ids = ["doc1", "doc2"]
@@ -51,7 +54,7 @@ def test_faiss_index_manager_insert_and_search():
 
 def test_faiss_index_manager_filter():
     """Verify metadata filter in FaissIndexManager search."""
-    mgr = FaissIndexManager(metric="l2")
+    mgr = FaissIndexManager(dimension=2, metric="l2")
     mgr.insert(
         vector_ids=["doc1", "doc2"],
         vectors=[[1.0, 0.0], [0.0, 1.0]],
@@ -59,7 +62,7 @@ def test_faiss_index_manager_filter():
     )
 
     cond = VectorStoreFilterCondition(field="status", operator=VectorStoreFilterOperator.EQ, value="active")
-    results = mgr.search(queries=[[1.0, 0.0]], top_k=5, filter_spec=cond)
+    results = mgr.search(queries=[[1.0, 0.0]], top_k=5, filter=cond)
 
     assert len(results) == 1
     assert len(results[0]) == 1
@@ -68,7 +71,7 @@ def test_faiss_index_manager_filter():
 
 def test_faiss_index_manager_update():
     """Verify vector and metadata update in FaissIndexManager."""
-    mgr = FaissIndexManager(metric="l2")
+    mgr = FaissIndexManager(dimension=2, metric="l2")
     mgr.insert(vector_ids=["doc1"], vectors=[[1.0, 0.0]], metadatas=[{"v": 1}])
 
     count = mgr.update(vector_ids=["doc1"], vectors=[[0.0, 1.0]], metadatas=[{"v": 2}])
@@ -81,7 +84,7 @@ def test_faiss_index_manager_update():
 
 def test_faiss_index_manager_delete():
     """Verify point deletion in FaissIndexManager."""
-    mgr = FaissIndexManager(metric="l2")
+    mgr = FaissIndexManager(dimension=2, metric="l2")
     mgr.insert(vector_ids=["doc1", "doc2"], vectors=[[1.0, 0.0], [0.0, 1.0]], metadatas=[{}, {}])
 
     deleted = mgr.delete(vector_ids=["doc1"])
@@ -95,7 +98,7 @@ def test_faiss_index_manager_delete():
 def test_faiss_action_execution():
     """Verify FaissVectorStoreAction execution."""
     async def _run():
-        mgr = FaissIndexManager(metric="l2")
+        mgr = FaissIndexManager(dimension=2, metric="l2")
         config = MagicMock()
         action = FaissVectorStoreAction(config=config, index_manager=mgr)
 

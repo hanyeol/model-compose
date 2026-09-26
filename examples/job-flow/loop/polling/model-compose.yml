@@ -11,9 +11,8 @@ workflow:
   title: Poll a Long-Running Job with `loop`
   description: |
     Polls a fake long-running job status until it reports "ready". Demonstrates
-    the `loop` job type with an `until` predicate, iteration-level logging via
-    hooks, and a fixed `${input}` reference so every iteration hits the same
-    logical job id.
+    the `loop` job type with an `until` predicate and a fixed `${input}`
+    reference so every poll hits the same logical job id.
   jobs:
     - id: reset-counter
       component: reset-counter
@@ -27,13 +26,6 @@ workflow:
         component: status-check
         input:
           job_id: ${input}
-        hook:
-          after:
-            script: |
-              def hook(input, output, *, task_id, job_id, run_id, phase):
-                  # Runs after each poll; makes the polling loop observable in logs.
-                  print(f"[poll] run={run_id} job_id={input['job_id']} -> status={output['status']} attempt={output['attempt']}")
-                  return output
       until:
         input: ${output.status}
         operator: eq
@@ -58,16 +50,15 @@ components:
     type: shell
     action:
       command:
-        - sh
+        - python3
         - -c
         - |
-          COUNTER_FILE=/tmp/model-compose-loop-polling.count
-          n=$(cat "$COUNTER_FILE" 2>/dev/null || echo 0)
-          n=$((n + 1))
-          echo "$n" > "$COUNTER_FILE"
-          if [ "$n" -lt 3 ]; then
-            printf '{"job_id":"%s","status":"pending","attempt":%d}' "${input.job_id}" "$n"
-          else
-            printf '{"job_id":"%s","status":"ready","attempt":%d}' "${input.job_id}" "$n"
-          fi
+          import json, os
+          counter = "/tmp/model-compose-loop-polling.count"
+          n = int(open(counter).read()) if os.path.exists(counter) else 0
+          n += 1
+          open(counter, "w").write(str(n))
+          job_id = "${input.job_id}"
+          status = "ready" if n >= 3 else "pending"
+          print(json.dumps({"job_id": job_id, "status": status, "attempt": n}))
       output: ${result.stdout as json}

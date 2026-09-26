@@ -1,0 +1,95 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Cursor-Based Pagination with `loop`
+  description: |
+    Walks a fake paginated endpoint page-by-page until it stops returning a
+    `next_cursor`. Demonstrates the `loop` job type with a `while` predicate
+    and feed-forward via `${output}` — the previous page's response supplies
+    the next request's cursor. Each iteration appends its page of items to a
+    shared JSON file, and a final job reads the file back to produce the full
+    result set.
+  jobs:
+    - id: reset-collector
+      component: reset-collector
+      output: ${output}
+
+    - id: paginate
+      type: loop
+      depends_on: [ reset-collector ]
+      input: null
+      do:
+        component: fetch-page
+        input:
+          # First iteration: ${output} is unset, so cursor resolves to null.
+          # Later iterations: ${output.next_cursor} feeds forward from the prior page.
+          cursor: ${output.next_cursor}
+      while:
+        input: ${output.next_cursor}
+        operator: neq
+        value: null
+      max_iteration_count: 50
+
+    - id: summarize
+      depends_on: [ paginate ]
+      component: read-collector
+      output:
+        total_pages: ${jobs.paginate.output.page_number as integer}
+        items: ${output as json}
+
+components:
+  # Truncates the accumulator and page-count files so each run starts empty.
+  - id: reset-collector
+    type: shell
+    action:
+      command:
+        - sh
+        - -c
+        - |
+          rm -f /tmp/model-compose-loop-pagination.items.json /tmp/model-compose-loop-pagination.page.count
+          echo reset
+      output: ${result.stdout}
+
+  # Simulates a paginated API. Returns 3 items per page across 3 pages, then no
+  # cursor. Uses a small Python helper to (a) advance the page counter and
+  # (b) append the new items to a shared JSON array — avoiding shell parameter
+  # expansion like `${var%suffix}` inside the command, which the model-compose
+  # renderer would consume as `${...}` variable references.
+  - id: fetch-page
+    type: shell
+    action:
+      command:
+        - python3
+        - -c
+        - |
+          import json, os
+          counter_path = "/tmp/model-compose-loop-pagination.page.count"
+          items_path = "/tmp/model-compose-loop-pagination.items.json"
+          n = int(open(counter_path).read()) if os.path.exists(counter_path) else 0
+          n += 1
+          open(counter_path, "w").write(str(n))
+          start = (n - 1) * 3 + 1
+          page_items = [start, start + 1, start + 2]
+          all_items = json.load(open(items_path)) if os.path.exists(items_path) else []
+          all_items.extend(page_items)
+          json.dump(all_items, open(items_path, "w"))
+          print(json.dumps({
+              "page_number": n,
+              "items": page_items,
+              "next_cursor": f"cur-{n}" if n < 3 else None,
+          }))
+      output: ${result.stdout as json}
+
+  # Reads the accumulated items back for the final summary.
+  - id: read-collector
+    type: shell
+    action:
+      command: [ "sh", "-c", "cat /tmp/model-compose-loop-pagination.items.json" ]
+      output: ${result.stdout as json}

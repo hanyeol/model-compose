@@ -1,0 +1,81 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Retry with Composite Stop Conditions
+  description: |
+    Repeatedly calls a flaky operation until it either succeeds, fails
+    permanently, or exhausts the retry budget. Demonstrates the `loop` job's
+    composite conditions — a single `until` clause combines `any` (short-circuit
+    on success OR permanent error) and a nested `all` under `not` (never stop
+    while attempts are still under budget). Also shows `max_iteration_count`
+    as the last-resort safety cap.
+  jobs:
+    - id: reset-attempts
+      component: reset-attempts
+      output: ${output}
+
+    - id: retry
+      type: loop
+      depends_on: [ reset-attempts ]
+      input:
+        max_attempts: ${input.max_attempts as integer @(description Retry budget)}
+      do:
+        component: flaky-op
+        input:
+          attempt: ${output.attempt | 0}
+      until:
+        any:
+          # Stop as soon as the operation reports success.
+          - input: ${output.status}
+            operator: eq
+            value: success
+          # Or stop immediately on a permanent (non-retryable) failure.
+          - input: ${output.status}
+            operator: eq
+            value: fatal
+          # Or stop once we have exhausted our retry budget.
+          - input: ${output.attempt}
+            operator: gte
+            value: ${input.max_attempts}
+      max_iteration_count: 20
+      output:
+        outcome: ${output.status}
+        attempts: ${output.attempt}
+        detail: ${output}
+
+components:
+  # Resets the attempt counter so each workflow run starts from attempt 1.
+  - id: reset-attempts
+    type: shell
+    action:
+      command: [ "sh", "-c", "rm -f /tmp/model-compose-loop-retry.count && echo reset" ]
+      output: ${result.stdout}
+
+  # Simulates a flaky operation:
+  #   attempts 1..2 -> transient failure ("retry")
+  #   attempt 3     -> success
+  # Real workflows would swap this for a genuine HTTP or model call.
+  - id: flaky-op
+    type: shell
+    action:
+      command:
+        - python3
+        - -c
+        - |
+          import json, os
+          counter = "/tmp/model-compose-loop-retry.count"
+          n = int(open(counter).read()) if os.path.exists(counter) else 0
+          n += 1
+          open(counter, "w").write(str(n))
+          if n < 3:
+              print(json.dumps({"attempt": n, "status": "retry", "message": f"transient failure on attempt {n}"}))
+          else:
+              print(json.dumps({"attempt": n, "status": "success", "message": "operation completed"}))
+      output: ${result.stdout as json}

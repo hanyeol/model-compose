@@ -30,6 +30,12 @@ class HuggingfaceLanguageModelTaskDriver(HuggingfaceModelTaskDriver):
         self.tokenizer = await self._load_pretrained_tokenizer(model_path)
         self.device = self._get_model_device(self.model)
 
+        # Mirror the tokenizer's pad id onto the model config. Some architectures
+        # (e.g. Qwen3) ship with pad_token_id=None; sequence-classification
+        # and generation paths raise on padded batches without this sync.
+        if self.tokenizer is not None and self.model.config.pad_token_id is None:
+            self.model.config.pad_token_id = self.tokenizer.pad_token_id
+
     async def _unload_model(self) -> None:
         self.model = None
         self.tokenizer = None

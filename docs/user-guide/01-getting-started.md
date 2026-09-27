@@ -402,6 +402,7 @@ Common component types:
 - `model`: Run local AI models (HuggingFace transformers)
 - `shell`: Execute shell commands
 - `text-splitter`: Split text into chunks
+- `text-parser`: Extract structured data (JSON/YAML/XML/table/list/regex) from noisy free-form text
 - `workflow`: Call another workflow as a component
 
 Each component has:

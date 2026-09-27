@@ -23,6 +23,17 @@ _PNG_SIGNATURE    = b"\x89PNG\r\n\x1a\n"
 _PNG_IEND_MARKER  = b"IEND\xaeB`\x82"
 
 class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        keyframe_only = await context.render_scalar(self.config.keyframe_only, bool)
+
+        params.update({
+            "keyframe_only": keyframe_only,
+        })
+
+        return params
+
     async def _extract_batch(
         self,
         videos: List[MediaSource],
@@ -105,7 +116,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         )
 
         def _cleanup() -> None:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

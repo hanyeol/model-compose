@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-converter | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -60,6 +60,7 @@ Model-compose supports the following component types:
 | `workflow` | Sub-workflow execution | [workflow.md](components/workflow.md) |
 | `shell` | Shell command execution | [shell.md](components/shell.md) |
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
+| `text-parser` | Extract structured data (JSON/YAML/XML/table/list/regex) from noisy free-form text | [text-parser.md](components/text-parser.md) |
 | `document-loader` | Parse PDF/DOCX/HTML/etc. into a streaming sequence of chunk records (docling, pypdf) | [document-loader.md](components/document-loader.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `image-drawing` | Draw shapes, text, and bitmaps onto images (Pillow ImageDraw) | [image-drawing.md](components/image-drawing.md) |
@@ -79,11 +80,13 @@ Model-compose supports the following component types:
 | `audio-analyzer` | Measure loudness (LUFS), peak, gain, clipping, and silence via ffmpeg filters | [audio-analyzer.md](components/audio-analyzer.md) |
 | `music-segment-detector` | Detect structural segment boundaries in music (intro/verse/chorus) via chroma-CQT and Laplacian or agglomerative segmentation | [music-segment-detector.md](components/music-segment-detector.md) |
 | `music-analyzer` | Analyze music properties: beats/BPM, onsets, tempogram, active regions, key/chroma/tonnetz, spectral brightness/flatness, and harmonic-vs-percussive ratio via librosa | [music-analyzer.md](components/music-analyzer.md) |
+| `music-synthesizer` | Synthesize a stereo WAV from a beat-timeline score — instrument voices (kick, snare, hat, chord, whoosh, ...) placed on beats, with kick-driven sidechain ducking and a soft-clip/normalize/fade master chain | [music-synthesizer.md](components/music-synthesizer.md) |
 | `audio-silence-detector` | Detect silent regions in audio via ffmpeg's `silencedetect` filter | [audio-silence-detector.md](components/audio-silence-detector.md) |
 | `audio-synchronizer` | Compute time offsets between multiple recordings that share the same audio via FFT cross-correlation | [audio-synchronizer.md](components/audio-synchronizer.md) |
 | `audio-clipper` | Clip one or more time ranges out of an audio file (ffmpeg stream copy) | [audio-clipper.md](components/audio-clipper.md) |
 | `audio-mixer` | Combine multiple audios into one — concat (join end-to-end) or overlay (layer with per-overlay timing, gain, pan, fade) via ffmpeg | [audio-mixer.md](components/audio-mixer.md) |
 | `model-3d-converter` | Convert 3D model files between formats (glb/gltf/obj/stl/ply/dae/off/3mf) via trimesh | [model-3d-converter.md](components/model-3d-converter.md) |
+| `camera-pose-estimator` | Recover per-image camera poses and a sparse 3D point cloud from overlapping photos via COLMAP Structure-from-Motion (pycolmap) | [camera-pose-estimator.md](components/camera-pose-estimator.md) |
 | `media-inspector` | Read audio/video/image metadata (format, streams, EXIF) via ffprobe or exiftool | [media-inspector.md](components/media-inspector.md) |
 | `media-downloader` | Download audio or video from a URL (YouTube, Vimeo, etc.) via yt-dlp | [media-downloader.md](components/media-downloader.md) |
 | `subtitle-loader` | Load subtitles from a URL (yt-dlp) or parse a local file / upload / raw text into segments | [subtitle-loader.md](components/subtitle-loader.md) |

@@ -58,9 +58,9 @@
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"text": "Your long article or document text here..."}}'
+     -d '{"input": {"text": "Your long article or document text here..."}, "output_only": true}'
    ```
 
    **웹 UI 사용:**

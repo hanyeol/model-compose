@@ -99,7 +99,7 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | face-tracking | pose-detection | pose-tracking | object-detection | object-tracking | image-segmentation | face-embedding | music-generation
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | typed-decision | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | face-tracking | pose-detection | pose-tracking | object-detection | object-tracking | image-segmentation | face-embedding | music-generation
     driver: huggingface | unsloth | vllm | llamacpp | custom  # Default: huggingface
     model: model-name-or-path          # Or a `{ provider, repository/path, ... }` object
 
@@ -345,6 +345,22 @@ components:
       chunk_size: 1000
       chunk_overlap: 200
       separator: "\n\n"
+```
+
+**Text Parser**:
+```yaml
+components:
+  - id: text-parser-id
+    type: text-parser
+    action:
+      text: ${input.text}
+      format: json                 # json | yaml | code | xml | list | table | regex
+      strategy: largest            # first | last | all | largest
+      fallback: null               # Returned when no candidate is extracted
+      json_schema: { }             # Optional: validate JSON result (json format only)
+      xml_root: answer             # Optional: filter by root tag (xml format only)
+      regex_pattern: ""            # Required when format: regex
+      regex_flags: ""              # Combination of 'i' (IGNORECASE), 's' (DOTALL), 'm' (MULTILINE)
 ```
 
 **Shell Command**:

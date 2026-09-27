@@ -36,7 +36,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
+from mindor.dsl.schema.action import FFmpegVideoFrameExtractorActionConfig as VideoFrameExtractorActionConfig
 
 from tests.async_helpers import assert_does_not_block, collect_async
 

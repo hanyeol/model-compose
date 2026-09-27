@@ -328,16 +328,14 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         disable_heads = [ head.value for head in self.config.disable_heads ] or None
-        enable_bf16 = bool(self.config.enable_bf16)
-        subfolder = self.config.subfolder
 
         def _load() -> Any:
             from hyworld2.worldrecon.pipeline import WorldMirrorPipeline
 
             return WorldMirrorPipeline.from_pretrained(
                 model_path,
-                subfolder=subfolder,
-                enable_bf16=enable_bf16,
+                subfolder=self.config.subfolder,
+                enable_bf16=bool(self.config.enable_bf16),
                 disable_heads=disable_heads,
             )
 

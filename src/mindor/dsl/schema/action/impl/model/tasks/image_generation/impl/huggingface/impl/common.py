@@ -1,9 +1,10 @@
-from typing import Union, Optional
+from typing import Union, Optional, List
 from pydantic import BaseModel, Field
 from ...common import CommonImageGenerationModelActionConfig, CommonImageGenerationModelInpaintActionConfig
 
 class CommonHuggingfaceImageGenerationParamsConfig(BaseModel):
     inference_steps: Union[int, str] = Field(default=30, description="Number of denoising steps run during sampling.")
+    sigmas: Optional[Union[List[float], str]] = Field(default=None, description="Custom sigma schedule (list of floats) that bypasses the pipeline scheduler; used by distilled/accelerator LoRAs.")
 
 class CommonHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
     denoise_strength: Union[float, str] = Field(default=1.0, description="Noise strength applied to the input image before denoising.")

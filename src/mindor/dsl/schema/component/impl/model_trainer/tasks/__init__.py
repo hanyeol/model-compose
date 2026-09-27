@@ -1,3 +1,3 @@
 from .common import *
 from .sft import *
-from .classification import *
+from .text_classification import *

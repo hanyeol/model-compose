@@ -23,13 +23,11 @@ class FFmpegAudioSynchronizerAction(NativeAudioSynchronizerAction):
             if input_path is not None:
                 pcm = await load_pcm_from_file(input_path, sample_rate, channels=1)
             else:
-                pcm = await load_pcm_from_stream(
-                    AudioStream(source.stream, source.format), sample_rate, channels=1,
-                )
+                pcm = await load_pcm_from_stream(AudioStream(source.stream, source.format), sample_rate, channels=1)
 
             return decode_pcm_to_waveform(pcm, "s16le", dtype="float32"), sample_rate
         finally:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

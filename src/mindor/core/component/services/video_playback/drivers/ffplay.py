@@ -64,7 +64,7 @@ class FFplayVideoPlaybackAction(VideoPlaybackAction):
         command.extend([ "-i", video_path if video_path is not None else "pipe:0" ])
 
         def _cleanup() -> None:
-            if video_spooled and video_path is not None:
+            if video_spooled:
                 try:
                     os.remove(video_path)
                 except FileNotFoundError:

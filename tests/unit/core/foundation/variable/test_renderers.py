@@ -2198,15 +2198,17 @@ class TestMediaBranchImageWithFormat:
         assert result.format == "png"
 
     @pytest.mark.anyio
-    async def test_image_base64_without_subtype_returns_pil(self):
+    async def test_image_base64_without_subtype_returns_image_stream(self):
         import io
         from PIL import Image as PILImage
+        from mindor.core.foundation.streaming.image import ImageStreamResource
         buf = io.BytesIO()
         PILImage.new("RGB", (4, 4), color="green").save(buf, "PNG")
         b64 = base64.b64encode(buf.getvalue()).decode()
         r = VariableRenderer(make_source_resolver({"v": b64}))
         result = await r.render("${v as image;base64}")
-        assert isinstance(result, PILImage.Image)
+        assert isinstance(result, ImageStreamResource)
+        assert isinstance(await result.as_image(), PILImage.Image)
 
 
 class TestVideoValueRenderer:

@@ -195,7 +195,7 @@ class DemucsMusicSourceSeparationTaskDriver(ModelTaskDriver):
         return await DemucsMusicSourceSeparationTaskAction(
             action,
             self.model,
-            self.model_sample_rate,
-            self.model_sources,
+            self.sample_rate,
+            self.sources,
             self.device,
         ).run(context)

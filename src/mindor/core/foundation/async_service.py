@@ -115,22 +115,14 @@ class AsyncService(ABC):
                 await self._install_package(package_spec, repository)
     
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
-        # `_install_packages` only reaches this branch after `is_requirement_
-        # satisfied` returned False for `package_spec`, so a distribution
-        # currently pinned outside the caller's specifier is present and needs
-        # to be replaced. pip's default (`install`) refuses to touch an
-        # already-installed package, so pass `--upgrade` to force resolution
-        # against the requested spec.
-        pip_options: List[str] = [ "--upgrade" ]
-
         if repository and repository.startswith("git+"):
-            await install_package(repository, pip_options)
+            await install_package(repository)
         elif repository and repository.endswith((".whl", ".tar.gz", ".zip")):
-            await install_package(repository, pip_options)
+            await install_package(repository)
         elif repository:
-            await install_package(package_spec, pip_options + [ "--index-url", repository ])
+            await install_package(package_spec, [ "--index-url", repository ])
         else:
-            await install_package(package_spec, pip_options)
+            await install_package(package_spec)
 
     async def _run_in_executor(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return await asyncio.get_running_loop().run_in_executor(None, functools.partial(fn, *args, **kwargs))

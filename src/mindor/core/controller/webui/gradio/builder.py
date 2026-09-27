@@ -584,14 +584,16 @@ class GradioWebUIBuilder:
             return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
 
         if variable.type == WorkflowVariableType.LIST:
-            return gr.Textbox(label=label, value=json.dumps(default, ensure_ascii=False) if default else "", info=info)
+            return gr.Textbox(label=label, value="", info=info)
 
         if variable.type == WorkflowVariableType.IMAGE:
+            if variable.is_list:
+                return gr.File(label=label, file_count="multiple", file_types=[ "image" ])
             return gr.Image(label=label, type="filepath")
 
         if variable.type == WorkflowVariableType.AUDIO:
             if variable.is_list:
-                return gr.File(label=label, file_count="multiple", file_types=["audio"])
+                return gr.File(label=label, file_count="multiple", file_types=[ "audio" ])
             return gr.Audio(label=label, sources=[ "upload", "microphone" ], type="filepath")
 
         if variable.type == WorkflowVariableType.VIDEO:
@@ -635,6 +637,7 @@ class GradioWebUIBuilder:
 
             if variable.is_list:
                 return [ create_upload_file(v, upload_type, upload_subtype) for v in value ] if value else None
+
             return create_upload_file(value, upload_type, upload_subtype) if value is not None else None
 
         if variable.type == WorkflowVariableType.INTEGER:

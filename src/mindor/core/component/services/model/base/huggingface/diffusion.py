@@ -9,6 +9,9 @@ from mindor.dsl.schema.component import (
     ModelQuantizationType,
     DiffusionCpuOffload,
     DiffusionSubmodule,
+    PeftAdapterConfig,
+    PeftAdapterType,
+    HuggingfaceModelConfig,
 )
 from mindor.core.logger import logging
 from .base import HuggingfaceModelTaskDriver
@@ -54,6 +57,8 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
         submodules = await self._load_pipeline_submodules(device, dtype)
         cpu_offload = self._get_cpu_offload()
+        adapter_configs = self.config.peft_adapters or []
+        adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapter_configs ]
 
         def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
             params: Dict[str, Any] = {
@@ -74,6 +79,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             if cpu_offload not in ("model", "sequential") or device.type != "cuda":
                 base_pipeline = base_pipeline.to(device)
 
+            self._attach_peft_adapters(base_pipeline, adapter_configs, adapter_paths)
             self._configure_memory(base_pipeline, device, cpu_offload)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
@@ -95,6 +101,46 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         return {}
+
+    def _attach_peft_adapters(
+        self,
+        pipeline: DiffusionPipeline,
+        adapter_configs: List[PeftAdapterConfig],
+        adapter_paths: List[str],
+    ) -> None:
+        if not adapter_configs:
+            return
+
+        if not hasattr(pipeline, "load_lora_weights"):
+            raise ValueError(
+                f"{type(pipeline).__name__} does not support LoRA loading; "
+                "remove `peft_adapters` from the component config."
+            )
+
+        names: List[str] = []
+        weights: List[float] = []
+
+        for index, (adapter, path) in enumerate(zip(adapter_configs, adapter_paths)):
+            if adapter.type != PeftAdapterType.LORA:
+                raise ValueError(
+                    f"Diffusion pipelines only support PEFT adapter type 'lora'; "
+                    f"got '{adapter.type.value}'."
+                )
+
+            name = adapter.name or f"peft_adapter_{index}"
+            load_kwargs: Dict[str, Any] = { "adapter_name": name }
+
+            if isinstance(adapter.model, HuggingfaceModelConfig) and adapter.model.filename:
+                load_kwargs["weight_name"] = adapter.model.filename
+
+            logging.info(f"Component '{self.id}': loading LoRA adapter '{name}' from {path}")
+            pipeline.load_lora_weights(path, **load_kwargs)
+
+            names.append(name)
+            weights.append(float(adapter.weight))
+
+        if hasattr(pipeline, "set_adapters"):
+            pipeline.set_adapters(names, adapter_weights=weights)
 
     def _configure_memory(
         self,

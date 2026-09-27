@@ -1,6 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from ...common import CommonActionConfig
 
 class LRSchedulerType(str, Enum):
@@ -83,3 +83,9 @@ class CommonModelTrainerActionConfig(CommonActionConfig):
 
     # Reproducibility
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make training reproducible.")
+
+    @model_validator(mode="after")
+    def validate_mixed_precision_exclusive(self):
+        if self.fp16 is True and self.bf16 is True:
+            raise ValueError("`fp16` and `bf16` are mutually exclusive; enable at most one.")
+        return self

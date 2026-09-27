@@ -58,14 +58,16 @@
    **API 사용:**
    ```bash
    # 기본 스트리밍 전사
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/audio.mp3" \
-     -F "input={\"audio\": \"@audio\"}"
+     -F "input={\"audio\": \"@audio\"}" \
+     -F "output_only=true"
 
    # 핫워드 바이어싱을 적용한 스트리밍 전사
-   curl -X POST http://localhost:8080/api/workflows/runs \
+   curl -N -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@/path/to/your/talk.wav" \
-     -F "input={\"audio\": \"@audio\", \"context_info\": \"Microsoft,VibeVoice\"}"
+     -F "input={\"audio\": \"@audio\", \"context_info\": \"Microsoft,VibeVoice\"}" \
+     -F "output_only=true"
    ```
 
    **웹 UI 사용:**

@@ -1,0 +1,73 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Fine-tune BERT for SST-2 Sentiment Classification
+  description: Load GLUE SST-2, then fine-tune BERT-base with LoRA adapters for binary sentiment classification (positive/negative), and return the checkpoint directory and training metrics.
+  jobs:
+    - id: load-dataset
+      component: sst2
+      input:
+        dataset_path: ${input.dataset_path | stanfordnlp/sst2}
+        dataset_name: ${input.dataset_name}
+      output: ${output}
+
+    - id: train
+      component: trainer
+      depends_on: [ load-dataset ]
+      input:
+        dataset:       ${jobs.load-dataset.output}
+        text_column:   ${input.text_column | sentence}
+        label_column:  ${input.label_column | label}
+        label_names:   ${input.label_names as list | [ "negative", "positive" ]}
+        output_dir:    ${input.output_dir | ./output/classification}
+        num_epochs:    ${input.num_epochs as integer | 3}
+        batch_size:    ${input.batch_size as integer | 32}
+        learning_rate: ${input.learning_rate as number | 5e-5}
+      output:
+        output_dir: ${output.output_dir}
+        train_loss: ${output.train_loss}
+        metrics:    ${output.metrics}
+
+components:
+  - id: sst2
+    type: datasets
+    driver: huggingface
+    action:
+      method: load
+      # SST-2's `test` split has masked labels (-1); the driver's evaluation-split
+      # lookup skips it and falls through to `validation` automatically.
+      path: ${input.dataset_path}
+      name: ${input.dataset_name}
+
+  - id: trainer
+    type: model-trainer
+    task: text-classification
+    driver: huggingface
+    model: bert-base-uncased
+    device: auto
+    lora:
+      rank: 8
+      alpha: 16
+      dropout: 0.05
+      target_modules: [ query, value ]
+    action:
+      dataset: ${input.dataset}
+      # Defaults target SST-2 (`sentence` column, binary sentiment). Override
+      # `text_column`, `label_column`, and `label_names` at run time to point
+      # the same trainer at a different classification dataset.
+      text_column: ${input.text_column | sentence}
+      label_column: ${input.label_column | label}
+      label_names: ${input.label_names as list | [ negative, positive ]}
+      output_dir: ${input.output_dir | ./output/classification}
+      num_epochs: ${input.num_epochs as integer | 3}
+      per_device_train_batch_size: ${input.batch_size as integer | 32}
+      learning_rate: ${input.learning_rate as number | 5e-5}
+      max_seq_length: 128
+      eval_steps: 500

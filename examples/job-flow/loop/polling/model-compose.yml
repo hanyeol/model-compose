@@ -1,0 +1,64 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Poll a Long-Running Job with `loop`
+  description: |
+    Polls a fake long-running job status until it reports "ready". Demonstrates
+    the `loop` job type with an `until` predicate and a fixed `${input}`
+    reference so every poll hits the same logical job id.
+  jobs:
+    - id: reset-counter
+      component: reset-counter
+      output: ${output}
+
+    - id: wait-ready
+      type: loop
+      depends_on: [ reset-counter ]
+      input: ${input.job_id | job-42}
+      do:
+        component: status-check
+        input:
+          job_id: ${input}
+      until:
+        input: ${output.status}
+        operator: eq
+        value: ready
+      max_iteration_count: 20
+      output:
+        job_id: ${output.job_id}
+        status: ${output.status}
+        attempts: ${output.attempt}
+
+components:
+  # Truncates a counter file so each workflow run starts from attempt 0.
+  - id: reset-counter
+    type: shell
+    action:
+      command: [ "sh", "-c", "rm -f /tmp/model-compose-loop-polling.count && echo reset" ]
+      output: ${result.stdout}
+
+  # Increments a counter file and returns "pending" for the first two attempts,
+  # then "ready". Simulates an external job that takes a few polls to finish.
+  - id: status-check
+    type: shell
+    action:
+      command:
+        - python3
+        - -c
+        - |
+          import json, os
+          counter = "/tmp/model-compose-loop-polling.count"
+          n = int(open(counter).read()) if os.path.exists(counter) else 0
+          n += 1
+          open(counter, "w").write(str(n))
+          job_id = "${input.job_id}"
+          status = "ready" if n >= 3 else "pending"
+          print(json.dumps({"job_id": job_id, "status": status, "attempt": n}))
+      output: ${result.stdout as json}

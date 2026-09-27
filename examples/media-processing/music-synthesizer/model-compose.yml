@@ -1,0 +1,67 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: bake-soundtrack
+    title: Bake Soundtrack From Score
+    description: >
+      Read a score JSON (bpm, seed, full track score, master, sidechain)
+      from disk and render it into a stereo WAV via the music-synthesizer. The
+      workflow is a thin pipe: the JSON *is* the score, and every field is
+      passed straight through to the sequence action.
+    jobs:
+      - id: load-score
+        component: score-store
+        action: load
+        input:
+          path: ${input.score_path | score.json}
+        output: ${output.content as json}
+
+      - id: bake
+        component: synth
+        action: sequence
+        input:
+          bpm:       ${jobs.load-score.output.bpm}
+          beats:     ${jobs.load-score.output.beats}
+          seed:      ${jobs.load-score.output.seed}
+          tracks:    ${jobs.load-score.output.tracks}
+          master:    ${jobs.load-score.output.master}
+          sidechain: ${jobs.load-score.output.sidechain}
+        output:
+          audio: ${output as audio}
+        depends_on: [ load-score ]
+
+components:
+  # `file-store` with a local driver rooted at the example folder — the same
+  # score.json lives next to this compose file, so the workflow works
+  # out of the box without any absolute paths in the input.
+  - id: score-store
+    type: file-store
+    driver: local
+    base_path: .
+    action:
+      id: load
+      method: get
+      path: ${input.path}
+
+  # Thin pass-through: every sequence field is fed from the workflow input,
+  # which in turn comes from the score JSON. Swap score.json for a
+  # different score and the same compose file bakes a different track.
+  - id: synth
+    type: music-synthesizer
+    driver: native
+    action:
+      id: sequence
+      method: sequence
+      bpm:       ${input.bpm}
+      beats:     ${input.beats}
+      seed:      ${input.seed}
+      tracks:    ${input.tracks}
+      master:    ${input.master}
+      sidechain: ${input.sidechain}

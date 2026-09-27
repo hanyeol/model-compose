@@ -28,7 +28,7 @@ from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import 
 from mindor.core.component.services.video_frame_extractor.drivers.opencv import OpenCVVideoFrameExtractorAction
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.dsl.schema.action import ImageProcessorActionConfig, VideoFrameExtractorActionConfig
+from mindor.dsl.schema.action import ImageProcessorActionConfig, FFmpegVideoFrameExtractorActionConfig as VideoFrameExtractorActionConfig
 
 
 pytestmark = pytest.mark.skipif(

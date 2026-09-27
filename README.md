@@ -16,16 +16,16 @@
 
 # model-compose
 
-**Deploy production-ready AI services in minutes.**
+One YAML file. Any model. Any protocol. Any runtime.
 
-One YAML file. Any model. Any protocol. Any runtime. Build chat APIs, RAG pipelines, autonomous agents, and MCP servers without writing application code — then deploy the same file anywhere, like `docker-compose`.
+Build chat APIs, RAG pipelines, autonomous agents, and MCP servers without writing orchestration code — then run the same definition anywhere, like `docker-compose`.
 
-AI systems should not be locked into a single provider, runtime, or cloud. model-compose is built on four principles:
+AI systems shouldn't be locked into a single provider, runtime, or cloud. model-compose is built on four principles:
 
 - **Composable** — Models, agents, workflows, tools, memory, and protocols are interchangeable building blocks.
-- **Portable** — Define your AI system once, deploy anywhere without re-engineering.
-- **Hybrid-First** — Bridge cloud APIs and local models on your own terms.
-- **Stream-Native** — Data flows through workflows as it arrives — tokens, audio, frames, and events as first-class values.
+- **Portable** — Define your AI system once and run it anywhere without re-engineering.
+- **Model-Agnostic** — Mix local models and cloud APIs in the same system.
+- **Stream-Native** — Tokens, audio, video frames, and events flow through workflows as first-class values.
 
 <div align="center">
 
@@ -237,7 +237,7 @@ No shared filesystem. No code changes. Just add more subscribers to scale.
 - **Any model, anywhere** — HuggingFace, vLLM, llama.cpp locally, or OpenAI/Anthropic/Google/xAI via HTTP
 - **Agents in YAML** — ReAct loops, tool use, multi-step reasoning — no code
 - **Human-in-the-loop** — pause workflows for approval, resume from CLI/UI/API
-- **90+ components** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell, browsers, and more
+- **100+ components** — models, agents, HTTP/WebSocket clients, vector/graph stores, shell, browsers, and more
 - **Any protocol** — HTTP REST, WebSocket, or MCP with one line
 - **Any runtime** — Docker, native, virtualenv, process, embedded — switch in one line
 - **Distributed** — Redis queue dispatch for horizontal scaling

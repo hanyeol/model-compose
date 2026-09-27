@@ -4,6 +4,7 @@ from .impl import *
 
 SpeakerDiarizationModelComponentConfig = Annotated[
     Union[
+        HuggingfaceSpeakerDiarizationModelComponentConfig,
         CustomSpeakerDiarizationModelComponentConfig,
     ],
     Field(discriminator="driver")

@@ -1,4 +1,6 @@
 .env
+.workspace
+.stop
 logs
 *.log
 __pycache__/

@@ -49,8 +49,8 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
     def __init__(
         self,
         config: MidiDdspMusicGenerationModelGenerateActionConfig,
-        synthesis_generator: "SynthesisGenerator",
-        expression_generator: "ExpressionGenerator",
+        synthesis_generator: SynthesisGenerator,
+        expression_generator: ExpressionGenerator,
     ):
         super().__init__(config)
 
@@ -225,8 +225,8 @@ class MidiDdspMusicGenerationTaskDriver(ModelTaskDriver):
 
         self._require_isolated_runtime()
 
-        self.synthesis_generator: Optional["SynthesisGenerator"] = None
-        self.expression_generator: Optional["ExpressionGenerator"] = None
+        self.synthesis_generator: Optional[SynthesisGenerator] = None
+        self.expression_generator: Optional[ExpressionGenerator] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [
@@ -247,7 +247,7 @@ class MidiDdspMusicGenerationTaskDriver(ModelTaskDriver):
         self.synthesis_generator = None
         self.expression_generator = None
 
-    async def _load_generators(self) -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
+    async def _load_generators(self) -> Tuple[SynthesisGenerator, ExpressionGenerator]:
         from midi_ddsp.hparams_synthesis_generator import hparams as hp
         from midi_ddsp.modules.get_synthesis_generator import (
             get_synthesis_generator,
@@ -261,7 +261,7 @@ class MidiDdspMusicGenerationTaskDriver(ModelTaskDriver):
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        def _load() -> Tuple["SynthesisGenerator", "ExpressionGenerator"]:
+        def _load() -> Tuple[SynthesisGenerator, ExpressionGenerator]:
             synthesis_generator_path, expression_generator_path = self._resolve_checkpoint_paths(model_path)
 
             # Upstream stores training hyperparameters next to the checkpoint as

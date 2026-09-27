@@ -51,6 +51,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `audio-clipper` | 오디오 구간 클리핑 | ffmpeg 스트림 카피로 오디오에서 하나 이상의 시간 범위를 무손실로 잘라내기 |
 | `audio-processor` | 오디오 DSP 체인 | pedalboard + librosa + soxr + pyloudnorm 기반: 시간/샘플레이트(resample, speed, pitch-shift), EQ(하이/로우패스, bell, shelf), 다이나믹스(compressor, gate, limiter), 공간(chorus, delay, reverb), 레벨(gain, normalize RMS/peak/LUFS), 편집(트림/페이드), 음성 익명화 |
 | `model-3d-converter` | 3D 모델 변환 | trimesh를 통해 3D 자산을 포맷 간 변환 (glb/gltf/obj/stl/ply/dae/off/3mf) |
+| `camera-pose-estimator` | 사진에서 카메라 포즈 복원 | COLMAP/pycolmap 기반 Structure-from-Motion 재구성(SIFT + 점진적 매핑); 이미지별 포즈와 3DGS/NeRF/메쉬 다운스트림에 바로 소비 가능한 COLMAP 포맷 워크스페이스 반환 |
 | `media-inspector` | 미디어 메타데이터 조회 | ffprobe 또는 exiftool로 디코딩 없이 코덱·재생시간·해상도·EXIF/GPS 등 조회 |
 | `web-scraper` | 웹 스크래핑 | CSS/XPath를 사용한 웹 데이터 추출 |
 | `web-browser` | 브라우저 자동화 | Chrome DevTools Protocol을 통한 브라우저 제어 |
@@ -95,6 +96,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 오디오 DSP (배속 / 피치 시프트, EQ, 컴프레서, 정규화, 무음 트림, 페이드 인/아웃, 음성 익명화) → `audio-processor`
 - 미디어 메타데이터 조회 (코덱, 재생시간, EXIF/GPS 등) → `media-inspector`
 - 3D 모델 포맷 변환 (glb/gltf/obj/stl/ply/dae/off/3mf) → `model-3d-converter`
+- 사진에서 카메라 포즈 복원 (COLMAP 기반 Structure-from-Motion; 3DGS/NeRF/메쉬 파이프라인용 COLMAP 포맷 워크스페이스 생성) → `camera-pose-estimator`
 - 웹 스크래핑 → `web-scraper`
 
 **브라우저 자동화**

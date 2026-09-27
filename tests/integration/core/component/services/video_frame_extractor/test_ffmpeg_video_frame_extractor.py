@@ -26,7 +26,7 @@ from mindor.core.component.services.video_frame_extractor.drivers.ffmpeg import 
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
+from mindor.dsl.schema.action import FFmpegVideoFrameExtractorActionConfig as VideoFrameExtractorActionConfig
 
 
 pytestmark = pytest.mark.skipif(

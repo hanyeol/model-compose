@@ -11,7 +11,7 @@ from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.variable.video import VideoValueRenderer, VideoArrayValue
 from mindor.core.foundation.variable.model_3d import Model3DValueRenderer, Model3DArrayValue
 from mindor.core.foundation.variable.media import MediaValueRenderer, MediaArrayValue
-from mindor.core.foundation.variable.file import FileValueRenderer
+from mindor.core.foundation.variable.file import FileValueRenderer, FileArrayValue
 from mindor.core.foundation.variable.text import TextValueRenderer
 from mindor.core.foundation.variable.size import parse_size
 from mindor.core.foundation.variable.time import TimeValueRenderer, parse_time
@@ -230,6 +230,13 @@ class ComponentActionContext:
         value: Any
     ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         return await FileValueRenderer().render(await self.render_variable(value))
+
+    async def render_file_array(
+        self,
+        value: Any,
+        single_as_array: bool = False,
+    ) -> Optional[Union[FileArrayValue, List[Optional[FileArrayValue]], AsyncIterator[Optional[FileArrayValue]]]]:
+        return await FileValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_vector(
         self,

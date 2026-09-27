@@ -8,6 +8,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.files import get_temporary_path, get_file_extension
+from mindor.core.utils.ytdlp import detect_js_runtimes, create_cookies_file
 from mindor.core.logger import logging
 from ..base import MediaDownloaderDriver, register_media_downloader_driver
 from ..base import ComponentActionContext
@@ -119,7 +120,7 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
 
         format_options, is_audio = self._build_format_options(params["format"])
         js_runtimes_option = self._build_js_runtimes_option(params["js_runtimes"])
-        cookiefile = self._create_cookies_file(params["cookies"]) if params["cookies"] else None
+        cookiefile = create_cookies_file(params["cookies"]) if params["cookies"] else None
 
         options = self._build_ytdlp_options(
             output_dir=output_dir,
@@ -199,68 +200,13 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         if isinstance(format, dict):
             media = format.get("media")
 
-            if media not in ("audio", "video"):
-                raise ValueError(f"YtdlpFormatSpec.media must be 'audio' or 'video', got {media!r}")
+            if media == "audio":
+                return YtdlpMediaDownloaderAction._build_audio_format_options(format), True
 
-            is_audio     = bool(media == "audio")
-            container    = format.get("container")
-            codec        = format.get("codec")
-            max_bitrate  = format.get("max_bitrate")
-            max_filesize = format.get("max_filesize")
-            prefer_free  = format.get("prefer_free_formats")
+            if media == "video":
+                return YtdlpMediaDownloaderAction._build_video_format_options(format), False
 
-            filters: List[str] = []
-
-            if container:
-                filters.append(f"ext={container}")
-
-            if codec:
-                filters.append(f"{'acodec' if is_audio else 'vcodec'}^={codec}")
-
-            if max_bitrate is not None:
-                filters.append(f"{'abr' if is_audio else 'vbr'}<={max_bitrate}")
-
-            if max_filesize is not None:
-                filters.append(f"filesize<={max_filesize}")
-
-            if is_audio:
-                selector = "bestaudio" + "".join(f"[{f}]" for f in filters) + "/bestaudio/best"
-            else:
-                max_height = format.get("max_height")
-                max_fps    = format.get("max_fps")
-                hdr        = format.get("hdr")
-
-                video_filters = list(filters)
-
-                if max_height is not None:
-                    video_filters.append(f"height<={max_height}")
-
-                if max_fps is not None:
-                    video_filters.append(f"fps<={max_fps}")
-
-                if hdr:
-                    video_filters.append("dynamic_range=hdr")
-
-                # Match yt-dlp's default merge shape (bestvideo+bestaudio/best) so
-                # separate streams get combined when available.
-                video_filter_str = "".join(f"[{f}]" for f in video_filters)
-                audio_filter_str = "".join(f"[{f}]" for f in filters) if filters else ""
-                selector = f"bestvideo{video_filter_str}+bestaudio{audio_filter_str}/best{video_filter_str}/best"
-
-            options: Dict[str, Any] = { "format": selector }
-
-            if prefer_free:
-                options["prefer_free_formats"] = True
-
-            if is_audio:
-                options["postprocessors"] = [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": (container or "m4a"),
-                }]
-            elif container:
-                options["merge_output_format"] = container
-
-            return options, is_audio
+            raise ValueError(f"YtdlpFormatSpec.media must be 'audio' or 'video', got {media!r}")
 
         if isinstance(format, str):
             preset = _FORMAT_PRESETS.get(format)
@@ -276,15 +222,128 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
         return { "format": "best" }, False
 
     @staticmethod
+    def _build_video_format_options(format: Dict[str, Any]) -> Dict[str, Any]:
+        container    = format.get("container")
+        codec        = format.get("codec")
+        max_bitrate  = format.get("max_bitrate")
+        max_filesize = format.get("max_filesize")
+        max_height   = format.get("max_height")
+        max_fps      = format.get("max_fps")
+        hdr          = format.get("hdr")
+        prefer_free  = format.get("prefer_free_formats")
+
+        video_filters: List[str] = []
+        audio_filters: List[str] = []
+
+        if container:
+            video_filters.append(f"ext={container}")
+            # Video containers don't share their `ext` with the paired audio
+            # track (e.g. an mp4 delivery bundles an m4a audio stream, not
+            # `ext=mp4`), so a container filter must be translated to the
+            # audio ext that actually ships in it. mkv accepts any codec,
+            # so no audio ext filter is applied.
+            audio_ext_by_container = { "mp4": "m4a", "webm": "webm" }
+            audio_ext = audio_ext_by_container.get(container)
+
+            if audio_ext:
+                audio_filters.append(f"ext={audio_ext}")
+
+        if codec:
+            video_filters.append(f"vcodec^={codec}")
+
+        if max_bitrate is not None:
+            video_filters.append(f"vbr<={max_bitrate}")
+
+        if max_filesize is not None:
+            video_filters.append(f"filesize<={max_filesize}")
+            audio_filters.append(f"filesize<={max_filesize}")
+
+        if max_height is not None:
+            video_filters.append(f"height<={max_height}")
+
+        if max_fps is not None:
+            video_filters.append(f"fps<={max_fps}")
+
+        if hdr:
+            video_filters.append("dynamic_range=hdr")
+
+        # Relaxed variant drops the container filter so the fallback branches
+        # can match any codec when the requested container has no compatible
+        # stream.
+        relaxed_video_filters = [ filter for filter in video_filters if not filter.startswith("ext=") ]
+
+        # YouTube (and most modern sources) no longer offer pre-merged streams
+        # above 360p, so `best[ext=mp4]` alone silently caps at 360p. Try the
+        # requested container end-to-end first, then relax to any separate
+        # video+audio pair, then to pre-merged fallbacks.
+        video_predicate = "".join(f"[{filter}]" for filter in video_filters)
+        audio_predicate = "".join(f"[{filter}]" for filter in audio_filters)
+        relaxed_video_predicate = "".join(f"[{filter}]" for filter in relaxed_video_filters)
+        selector = (
+            f"bestvideo{video_predicate}+bestaudio{audio_predicate}"
+            f"/bestvideo{relaxed_video_predicate}+bestaudio"
+            f"/best{video_predicate}"
+            f"/best{relaxed_video_predicate}"
+            f"/best"
+        )
+
+        options: Dict[str, Any] = { "format": selector }
+
+        if prefer_free:
+            options["prefer_free_formats"] = True
+
+        if container:
+            options["merge_output_format"] = container
+
+        return options
+
+    @staticmethod
+    def _build_audio_format_options(format: Dict[str, Any]) -> Dict[str, Any]:
+        # Peer tools (yt-dlp CLI, youtube-dl, spotdl, ...) all expose audio as a
+        # single fused codec token (mp3, m4a, opus, vorbis, flac, alac, wav,
+        # aac). We do the same and hand it straight to FFmpegExtractAudio, which
+        # owns the container/codec mapping.
+        codec        = format.get("codec")
+        max_bitrate  = format.get("max_bitrate")
+        max_filesize = format.get("max_filesize")
+        prefer_free  = format.get("prefer_free_formats")
+
+        filters: List[str] = []
+
+        if max_bitrate is not None:
+            filters.append(f"abr<={max_bitrate}")
+
+        if max_filesize is not None:
+            filters.append(f"filesize<={max_filesize}")
+
+        predicate = "".join(f"[{filter}]" for filter in filters)
+        options: Dict[str, Any] = {
+            "format": f"bestaudio{predicate}/bestaudio/best",
+        }
+
+        if prefer_free:
+            options["prefer_free_formats"] = True
+
+        if codec:
+            options["postprocessors"] = [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": codec,
+            }]
+
+        return options
+
+    @staticmethod
     def _build_js_runtimes_option(runtimes: Any) -> Dict[str, Dict[str, Any]]:
         """Accept the YAML-friendly shapes and return yt-dlp's {runtime: {config}} form.
 
         A bare string or a list of `RUNTIME[:PATH]` entries mirrors the
         `--js-runtimes` CLI spelling; a mapping is passed through so a caller
-        can supply the full per-runtime config.
+        can supply the full per-runtime config. When nothing is configured,
+        probe `PATH` for known runtimes so YouTube's EJS solver has something
+        to run instead of falling back to the deprecated path with a warning.
         """
         if not runtimes:
-            return {}
+            return { name: { "path": path } for name, path in detect_js_runtimes().items() }
 
         if isinstance(runtimes, dict):
             return { str(name): (config or {}) for name, config in runtimes.items() }
@@ -299,50 +358,6 @@ class YtdlpMediaDownloaderAction(MediaDownloaderAction):
             option[name] = { "path": path or None }
 
         return option
-
-    @staticmethod
-    def _create_cookies_file(cookies: List[Dict[str, Any]]) -> str:
-        path = get_temporary_path("txt")
-
-        # Python's http.cookiejar refuses to load the file without this magic
-        # header line, and yt-dlp defers to that loader.
-        lines = [ "# Netscape HTTP Cookie File" ]
-
-        for cookie in cookies:
-            name  = cookie.get("name")
-            value = cookie.get("value")
-
-            if name is None or value is None:
-                continue
-
-            domain = str(cookie.get("domain") or "")
-
-            # Netscape's include-subdomains flag is inferred from a leading dot
-            # on the domain — CDP/Playwright follow the same convention.
-            include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
-            cookie_path = str(cookie.get("path") or "/")
-            secure = "TRUE" if cookie.get("secure") else "FALSE"
-
-            # CDP reports session cookies with expires=-1 and Playwright with
-            # expires=-1 or expires=0; the Netscape format only accepts a
-            # non-negative unix timestamp (0 means session cookie). Coerce
-            # any negative or unparseable value to 0.
-            try:
-                expiry = int(float(cookie.get("expires", 0)))
-            except (TypeError, ValueError):
-                expiry = 0
-            expiry_field = str(max(expiry, 0))
-
-            # httpOnly cookies use the `#HttpOnly_` prefix on the domain per
-            # curl/wget convention, which yt-dlp's loader recognizes.
-            row_domain = f"#HttpOnly_{domain}" if cookie.get("httpOnly") else domain
-
-            lines.append("\t".join([ row_domain, include_subdomains, cookie_path, secure, expiry_field, str(name), str(value) ]))
-
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-
-        return path
 
     @staticmethod
     def _run_ytdlp(

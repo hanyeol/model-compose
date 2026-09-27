@@ -12,8 +12,7 @@ workflow:
   description: One-shot typed decisions from a context string and a flat field schema; returns the chosen value plus per-candidate probabilities per field, without generating any free-form text.
   job:
     input: ${input}
-    output:
-      decision: ${output as json}
+    output: ${result as json}
 
 component:
   type: model

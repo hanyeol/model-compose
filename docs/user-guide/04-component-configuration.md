@@ -33,6 +33,7 @@ model-compose provides various component types for performing different tasks.
 | `workflow` | Call workflows | Execute other workflows as subroutines |
 | `shell` | Execute shell commands | Run scripts, system commands |
 | `text-splitter` | Split text | Split documents into chunks |
+| `text-parser` | Parse structured data | Extract JSON, YAML, XML, tables, lists, or regex matches from noisy free-form text |
 | `image-processor` | Process images | Image transformation, resizing, filters, etc. |
 | `image-drawing` | Draw on images | Shapes, text, and bitmaps via Pillow ImageDraw — bounding boxes, labels, keypoints, masks |
 | `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
@@ -52,11 +53,13 @@ model-compose provides various component types for performing different tasks.
 | `audio-analyzer` | Measure audio levels | Loudness (LUFS/LRA), peak, RMS/gain, clipping, and silence via ffmpeg filters |
 | `music-segment-detector` | Detect music segment boundaries | Structural segmentation of music (intro/verse/chorus) via chroma-CQT and Laplacian or agglomerative clustering |
 | `music-analyzer` | Analyze music properties | Beats/BPM, onsets, tempogram, active regions, key/chroma/tonnetz, spectral brightness/flatness, and harmonic-vs-percussive ratio via librosa |
+| `music-synthesizer` | Synthesize music from a score | Beat-timeline sequencer: instrument voices (kick, snare, hat, chord, whoosh, ...) placed on beats, with kick-driven sidechain ducking and a soft-clip/normalize/fade master chain |
 | `audio-silence-detector` | Detect silence regions | Locate silent runs in audio using ffmpeg's `silencedetect` filter; useful for trimming dead air or splitting on quiet gaps |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `audio-processor` | Audio DSP chain | Rate/time (resample, speed, pitch-shift), EQ (highpass, lowpass, bell, shelves), dynamics (compressor, gate, limiter), spatial (chorus, delay, reverb), level (gain, normalize RMS/peak/LUFS), edit (trim edges/silence, fade in/out), and voice anonymization via pedalboard + librosa + soxr + pyloudnorm |
 | `model-3d-converter` | Convert 3D models | Transcode 3D assets between formats (glb/gltf/obj/stl/ply/dae/off/3mf) via trimesh |
+| `camera-pose-estimator` | Recover camera poses from photos | Structure-from-Motion reconstruction (SIFT + incremental mapping) via COLMAP/pycolmap; returns per-image poses plus a COLMAP-format workspace ready for 3DGS/NeRF/mesh downstream |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
 | `media-downloader` | Download media from URL | Fetch audio or video from YouTube, Vimeo, etc. via yt-dlp; returns a stream ready for downstream processing |
 | `subtitle-loader` | Load subtitles | Fetch subtitles from a URL (yt-dlp) or parse a local file / upload / raw text into segments with start/end/duration/text |
@@ -90,6 +93,7 @@ model-compose provides various component types for performing different tasks.
 - Key-value storage → `key-value-store`
 - File/object storage → `file-store`
 - Text splitting → `text-splitter`
+- Structured extraction from free-form text (JSON/YAML/XML/table/list/regex) → `text-parser`
 - Image processing → `image-processor`
 - Image drawing (bounding boxes, labels, keypoints, mask overlays) → `image-drawing`
 - Image compression (PNG) → `image-compressor`
@@ -108,12 +112,14 @@ model-compose provides various component types for performing different tasks.
 - Audio analysis (loudness, peak, gain, clipping, silence detection) → `audio-analyzer`
 - Music segment detection (structural boundaries: intro/verse/chorus) → `music-segment-detector`
 - Music analysis (beats/BPM, onsets, tempogram, key, chroma, tonnetz, brightness, flatness, harmonicity) → `music-analyzer`
+- Music synthesis (build a WAV from a beat-timeline score with drums, chords, whooshes, and sidechain ducking) → `music-synthesizer`
 - Silence detection (locate silent regions for trimming or splitting) → `audio-silence-detector`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`
 - Subtitle loading (fetch from URL via yt-dlp, or parse local file / upload / raw text) → `subtitle-loader`
 - Document loading and chunking (PDF/DOCX/HTML into streaming chunk records for embedding or retrieval) → `document-loader`
 - 3D model format conversion (glb/gltf/obj/stl/ply/dae/off/3mf) → `model-3d-converter`
+- Camera pose recovery from photos (Structure-from-Motion via COLMAP; produces COLMAP-format workspace for 3DGS/NeRF/mesh pipelines) → `camera-pose-estimator`
 - Web scraping → `web-scraper`
 
 **Browser Automation**

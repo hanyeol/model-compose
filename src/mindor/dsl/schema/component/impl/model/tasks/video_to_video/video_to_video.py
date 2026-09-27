@@ -5,6 +5,7 @@ from .impl import *
 VideoToVideoModelComponentConfig = Annotated[
     Union[
         HuggingfaceVideoToVideoModelComponentConfig,
+        CustomVideoToVideoModelComponentConfig,
     ],
     Field(discriminator="driver")
 ]

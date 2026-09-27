@@ -16,16 +16,16 @@
 
 # model-compose
 
-**在几分钟内部署生产级 AI 服务。**
+一个 YAML 文件。任意模型、任意协议、任意运行时。
 
-一个 YAML 文件。任意模型、任意协议、任意运行时。无需编写应用代码即可构建聊天 API、RAG 管道、自主智能体和 MCP 服务器 —— 像 `docker-compose` 一样将同一份文件部署到任何地方。
+无需编写编排代码即可构建聊天 API、RAG 管道、自主智能体和 MCP 服务器 —— 像 `docker-compose` 一样在任何地方运行同一份定义。
 
 AI 系统不应被锁定在单一提供商、运行时或云平台中。model-compose 建立在四个原则之上：
 
 - **Composable** —— 模型、智能体、工作流、工具、记忆和协议都是可互换的构建块。
-- **Portable** —— 只需定义一次 AI 系统，无需重新设计即可部署到任何地方。
-- **Hybrid-First** —— 按照您自己的条件连接云端 API 和本地模型。
-- **Stream-Native** —— 数据一到达就沿着工作流流动 —— 令牌、音频、帧和事件都是一等值。
+- **Portable** —— 只需定义一次 AI 系统，无需重新设计即可在任何地方运行。
+- **Model-Agnostic** —— 在同一个系统中混合使用本地模型和云端 API。
+- **Stream-Native** —— 令牌、音频、视频帧和事件作为一等值在工作流中流动。
 
 <div align="center">
 
@@ -237,7 +237,7 @@ controller:
 - **任意模型，任意地方** —— 本地使用 HuggingFace、vLLM、llama.cpp，或通过 HTTP 连接 OpenAI/Anthropic/Google/xAI
 - **YAML 中的智能体** —— ReAct 循环、工具使用、多步推理 —— 无需代码
 - **Human-in-the-loop** —— 暂停工作流以获得审批，通过 CLI/UI/API 恢复
-- **90+ 组件** —— 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、shell、浏览器等
+- **100+ 组件** —— 模型、智能体、HTTP/WebSocket 客户端、向量/图存储、shell、浏览器等
 - **任意协议** —— HTTP REST、WebSocket 或 MCP 只需一行
 - **任意运行时** —— Docker、原生、virtualenv、进程、嵌入式 —— 一行切换
 - **分布式** —— 基于 Redis 队列的分发实现水平扩展

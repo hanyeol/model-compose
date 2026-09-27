@@ -1,0 +1,85 @@
+{
+  "beats": 32,
+  "bpm": 128,
+  "seed": 128,
+
+  "tracks": [
+    {
+      "id": "count-in",
+      "events": [
+        { "beat": { "start": 0, "end": 4, "step": 1 }, "instrument": "tick", "gain": 0.35 }
+      ]
+    },
+    {
+      "id": "kicks",
+      "events": [
+        { "beat": { "start": 4,  "end": 24, "step": 1 }, "instrument": "kick" },
+        { "beat": { "start": 28, "end": 32, "step": 1 }, "instrument": "kick", "params": { "big": true } }
+      ]
+    },
+    {
+      "id": "hats",
+      "events": [
+        { "beat": { "start": 4,  "end": 24, "step": 1, "phase": 0.5 }, "instrument": "hat", "params": { "open": true }, "gain": 0.28, "pan": 0.25 },
+        { "beat": { "start": 28, "end": 32, "step": 1, "phase": 0.5 }, "instrument": "hat", "params": { "open": true }, "gain": 0.28, "pan": 0.25 }
+      ]
+    },
+    {
+      "id": "snares",
+      "events": [
+        { "beat": { "start": 5,  "end": 24, "step": 2 }, "instrument": "snare", "gain": 0.5 },
+        { "beat": { "start": 29, "end": 32, "step": 2 }, "instrument": "snare", "gain": 0.5 }
+      ]
+    },
+    {
+      "id": "build",
+      "events": [
+        { "beat": { "start": 24, "end": 26, "step": 0.5 },   "instrument": "snare", "gain": 0.35 },
+        { "beat": { "start": 26, "end": 27, "step": 0.25 },  "instrument": "snare", "gain": 0.55 },
+        { "beat": { "start": 27, "end": 28, "step": 0.125 }, "instrument": "snare", "gain": 0.75 }
+      ]
+    },
+    {
+      "id": "fx",
+      "events": [
+        { "beat": 6,  "instrument": "pop",         "gain": 0.35 },
+        { "beat": 24, "instrument": "whoosh",      "length": 4, "params": { "f0": 200,  "f1": 9000, "peak": 0.999 }, "gain": 0.85 },
+        { "beat": 28, "instrument": "whoosh",      "length": 3, "params": { "f0": 8000, "f1": 150,  "peak": 0.02 },  "gain": 0.6 },
+        { "beat": 28, "instrument": "noise-burst", "length": 4, "params": { "kind": "highpass", "frequency": 3000, "decay": 1.6 }, "gain": 0.5 }
+      ]
+    },
+    {
+      "id": "pad",
+      "events": [
+        { "beat": 0,  "instrument": "chord", "length": 4, "params": { "notes": ["A3", "C4", "E4", "A4"], "cutoff": 900  }, "gain": 0.22 },
+        { "beat": 4,  "instrument": "chord", "length": 4, "params": { "notes": ["A3", "C4", "E4", "A4"], "cutoff": 2200 }, "gain": 0.34 },
+        { "beat": 8,  "instrument": "chord", "length": 4, "params": { "notes": ["F3", "A3", "C4", "F4"], "cutoff": 2400 }, "gain": 0.34 },
+        { "beat": 12, "instrument": "chord", "length": 4, "params": { "notes": ["C4", "E4", "G4", "C5"], "cutoff": 2600 }, "gain": 0.34 },
+        { "beat": 16, "instrument": "chord", "length": 4, "params": { "notes": ["G3", "B3", "D4", "G4"], "cutoff": 2600 }, "gain": 0.34 },
+        { "beat": 20, "instrument": "chord", "length": 4, "params": { "notes": ["A3", "C4", "E4", "A4"], "cutoff": 2800 }, "gain": 0.34 },
+        { "beat": 24, "instrument": "chord", "length": 4, "params": { "notes": ["F3", "A3", "C4", "F4"], "sweep_from": 300, "sweep_to": 6000 }, "gain": 0.34 },
+        { "beat": 28, "instrument": "chord", "length": 2, "params": { "notes": ["A3", "C4", "E4", "A4"], "cutoff": 5500 }, "gain": 0.5 },
+        { "beat": 30, "instrument": "chord", "length": 2, "params": { "notes": ["F3", "A3", "C4", "F4"], "cutoff": 5500 }, "gain": 0.5 }
+      ]
+    }
+  ],
+
+  "master": {
+    "soft_clip": 1.2,
+    "normalize_level": -1.0,
+    "silences": [
+      { "start_beat": 27.7867, "end_beat": 28, "pre_fade_duration": "3ms" }
+    ],
+    "fades": [
+      { "start_beat": 31.5, "end_beat": 32, "curve": "quadratic" }
+    ]
+  },
+
+  "sidechain": {
+    "trigger": "kicks",
+    "targets": ["pad", "hats", "fx"],
+    "depth": 0.78,
+    "attack_time": "2ms",
+    "release_time": "70ms"
+  }
+}

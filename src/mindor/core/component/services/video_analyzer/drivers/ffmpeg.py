@@ -175,7 +175,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
                 error_message = stderr.decode("utf-8", errors="replace") if stderr else ""
                 raise RuntimeError(f"ffmpeg filter '{video_filter}' failed (exit code {process.returncode}): {error_message}")
         finally:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

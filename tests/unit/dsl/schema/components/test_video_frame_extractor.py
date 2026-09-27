@@ -3,8 +3,10 @@
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
+from mindor.dsl.schema.action import FFmpegVideoFrameExtractorActionConfig
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig, VideoFrameExtractorDriverType
+
+VideoFrameExtractorActionConfig = FFmpegVideoFrameExtractorActionConfig
 
 _video_frame_extractor_adapter = TypeAdapter(VideoFrameExtractorComponentConfig)
 

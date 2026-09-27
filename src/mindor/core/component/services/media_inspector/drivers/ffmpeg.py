@@ -59,7 +59,7 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
 
             return result
         finally:
-            if spooled and input_path is not None:
+            if spooled:
                 try:
                     os.remove(input_path)
                 except FileNotFoundError:

@@ -402,6 +402,119 @@ action:
 
 The output is a list of ranked-result lists, one per query.
 
+### Typed Decision
+
+Answer a set of typed questions about a piece of text in a single forward pass. Each question is one of `noul` (yes/no), `choice` (one of N named options), or `score` (an ordered rating scale). The scorer reads candidate-answer logits directly, so the answer is always one of the values the schema allows — no free-form generation, no JSON parsing, no schema drift.
+
+Runs on `driver: custom` with one of three families: `laya`, `kev`, or `nimble`. Pick one per component; run two components if you need to combine them.
+
+```yaml
+component:
+  type: model
+  task: typed-decision
+  driver: custom
+  family: laya                        # 'laya' | 'kev' | 'nimble'
+  preset: multilingual                # laya-only: 'english' | 'multilingual' (default) | 'typed-decisions'
+  action:
+    text: ${input.text}
+    schema: ${input.schema}
+    return_probabilities: true
+```
+
+**Component Settings** (common to all families):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `family` | enum | **required** | `laya`, `kev`, or `nimble`. Picks the scoring backend. |
+| `model` | string \| object | family default | HuggingFace repo id or local checkpoint directory. Optional for `laya` (defaults to the `convaiinnovations/laya` bundle repo). Required for `kev` and `nimble`. |
+
+**Family-specific settings:**
+
+`laya`:
+- `preset` (enum, default `multilingual`) — checkpoint to load from the bundle repo: `english` (ModernBERT-large, 512-token context), `multilingual` (mmBERT-base, 100+ languages, up to 1024 tokens, extendable to 8192 via `max_seq_length`), or `typed-decisions` (fine-tuned on the four typed-decisions workflows).
+- `max_seq_length` (int, optional) — override per-call encoder token budget.
+- `max_head_length` (int, optional) — override per-call per-question head token budget.
+- `fast` (bool, default `false`) — enable the TileLang CUDA fast path (Linux+x86_64 with a supported NVIDIA GPU; the driver installs `tilelang` automatically).
+
+`kev`:
+- `backend` (enum, default `auto`) — `auto`, `torch`, or `mlx`. `auto` picks MLX on Apple Silicon with hybrid Qwen3.5 bases and Torch elsewhere.
+- `max_state_length` (int, default `8192`) — tokens allotted to the shared state (context) portion.
+- `max_branch_length` (int, default `8192`) — tokens allotted to per-question branches.
+
+`nimble`:
+- `base_model` (string, default `Qwen/Qwen3.5-9B`) — base model the adapter is merged onto. The driver merges the adapter once on first startup and caches the merged snapshot.
+- `max_seq_length` (int, default `4096`) — maximum sequence length the scorer accepts.
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `text` | string \| list | **required** | Unstructured text the scorer judges. A list scores many inputs against the same schema in one call. |
+| `schema` | object | **required** | Map of question id to a question spec (see below). |
+| `batch_size` | integer | `1` | Number of texts the driver scores in a single forward pass when `text` is a list. |
+| `return_probabilities` | bool | `false` | Include per-candidate scores per question in `fields[qid].scores`. |
+| `return_logits` | bool | `false` | Include raw pre-softmax logits per question. Only `nimble` surfaces logits at the API level. |
+
+**Question specs** (values in `schema`):
+
+| Question type | Required fields | Optional fields | Answer type |
+|---------------|-----------------|-----------------|-------------|
+| `noul` (yes/no) | `type`, `instructions` | `criteria: {true?: description, false?: description}` | boolean (`p(true) >= 0.5`) |
+| `choice` | `type`, `instructions`, `criteria: {name: description, ...}` | — | winning option name |
+| `score` | `type`, `instructions`, `criteria: [level0, level1, ...]` | — | expected level (float, averaged over the softmax across levels) |
+
+**Result Shape:**
+
+```yaml
+decision:
+  urgent: true                    # noul → boolean
+  category: infra                 # choice → option name
+  severity: 4.6                   # score → expected level (float)
+fields:                           # present only when return_probabilities is true
+  urgent:   { scores: { true: 0.94, false: 0.06 } }
+  category: { scores: { payments: 0.31, infra: 0.58, product: 0.11 } }
+  severity: { scores: { "0": 0.01, "1": 0.03, "2": 0.09, "3": 0.24, "4": 0.63 } }
+```
+
+**Example — Support-ticket triage with `laya` (multilingual):**
+
+```yaml
+component:
+  type: model
+  task: typed-decision
+  driver: custom
+  family: laya
+  preset: multilingual
+  action:
+    text: ${input.text}
+    schema:
+      urgent:
+        type: noul
+        instructions: Is this an urgent operational incident?
+        criteria:
+          true:  A production system is currently unavailable to real users.
+          false: Non-blocking issue, question, or feature request.
+      category:
+        type: choice
+        instructions: Which team owns this?
+        criteria:
+          payments: Billing, checkout, or payment processing.
+          infra:    Servers, deployment, or platform outages.
+          product:  UX, feature behavior, or product feedback.
+      severity:
+        type: score
+        instructions: Rate business impact from 1 (trivial) to 5 (critical).
+        criteria:
+          - trivial:  cosmetic or single-user issue
+          - low:      minor inconvenience for a few users
+          - medium:   measurable revenue or productivity loss
+          - high:     broad customer impact, some workaround exists
+          - critical: total outage with no workaround
+    return_probabilities: true
+```
+
+Full examples: [`typed-decision-laya`](../../../../examples/model-tasks/typed-decision-laya), [`typed-decision-kev`](../../../../examples/model-tasks/typed-decision-kev), [`typed-decision-nimble`](../../../../examples/model-tasks/typed-decision-nimble).
+
 ### Text to Text (Translation, Summarization, and other seq2seq tasks)
 
 Transform a source text with an encoder-decoder (seq2seq) model. This one task covers translation, summarization, and any other paraphrasing/rewriting workload that a seq2seq model can perform. Task selection with T5-family models is done by prefixing the source text (e.g. `"translate English to German: ..."`, `"summarize: ..."`); BART/MarianMT/Pegasus models are usually fine-tuned to a single task and don't need a prefix.
@@ -1769,34 +1882,43 @@ component:
 
 ### Video to Video
 
-Restyle an existing video clip with a text prompt while preserving the source motion.
+Transform an existing video clip. Two driver families are supported: `huggingface` layers AnimateDiff over an SD 1.5 checkpoint to restyle the clip with a text prompt while preserving motion, and `custom` runs Wan-Animate to drive a reference character with the pose/expression of the input video.
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `video` | video/array | one of `video`/`frames` **required** | Source video (or list/stream of videos) whose motion is preserved |
+| `frames` | image-array | one of `video`/`frames` **required** | Source frames used as the motion source, as an alternative to `video` |
+| `prompt` | string/array | `null` | Text prompt guiding the output |
+| `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `reference_image` | image | `null` | Reference image; usage depends on the driver — appearance IP-Adapter conditioning for `huggingface`, target character for `custom` (**required** on Wan-Animate) |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
+| `params.num_frames` | int | `null` | Frames sampled from the input; unset consumes every input frame |
+| `params.fps` | int | `null` | Output video frame rate; unset inherits the input clip's native fps |
+| `params.width` | int | `null` | Output video width in pixels; defaults to the input width |
+| `params.height` | int | `null` | Output video height in pixels; defaults to the input height |
+
+#### Driver: huggingface (AnimateDiff)
+
+Restyle the source clip with a text prompt while preserving its motion.
 
 **Component Settings:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `video-to-video` |
-| `driver` | string | **required** | Model driver — currently `huggingface` |
-| `architecture` | string | **required** | Video-to-video architecture — currently `animatediff` |
+| `driver` | string | **required** | Must be `huggingface` |
+| `architecture` | string | **required** | Currently `animatediff` |
 | `model` | model | **required** | Base SD 1.5 style checkpoint (HuggingFace repo or local path); any SD 1.5 fine-tune works |
 | `motion_adapter` | model | **required** | AnimateDiff motion adapter matching the base architecture |
 | `ip_adapter` | model | `null` | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`) |
 
-**Action Fields:**
+**Action Fields (in addition to the common fields):**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `video` | video/array | one of `video`/`frames` **required** | Source video (or list/stream of videos) whose motion is preserved |
-| `frames` | image-array | one of `video`/`frames` **required** | Source frames used as the motion source, as an alternative to `video` |
-| `prompt` | string/array | `null` | Text prompt steering the restyled appearance |
-| `negative_prompt` | string/array | `null` | Text describing content to avoid |
-| `reference_image` | image | `null` | Reference image passed to the IP-Adapter for appearance conditioning; requires the component's `ip_adapter` to be set |
-| `seed` | int | `null` | Random seed for reproducible generation |
-| `batch_size` | int | `1` | Number of inputs processed per batch |
-| `params.num_frames` | int | `null` | Frames sampled from the input video and produced in the output; unset consumes every input frame |
-| `params.fps` | int | `null` | Output video frame rate; unset inherits the input clip's native fps so the output preserves the source playback duration |
-| `params.width` | int | `null` | Output video width in pixels; defaults to the input video width |
-| `params.height` | int | `null` | Output video height in pixels; defaults to the input video height |
 | `params.inference_steps` | int | `25` | Number of diffusion inference steps per frame |
 | `params.guidance_scale` | float | `7.5` | Classifier-free guidance scale |
 | `params.denoise_strength` | float | `0.5` | Denoising strength — higher values follow the prompt more, lower values preserve the input video's appearance |
@@ -1832,11 +1954,89 @@ component:
       ip_adapter_scale: 0.6
 ```
 
-#### Supported architectures
+**Supported architectures:**
 
 | Architecture | Notes |
 |--------------|-------|
 | `animatediff` | Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Trained on ~16-frame windows — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. |
+
+#### Driver: custom (Wan-Animate)
+
+Transfer the pose and expression of a driving video onto a reference character. Requires CUDA and preprocessing checkpoints (pose detection, person detection, and — for the optional replacement and pose-retargeting features — SAM2 and FLUX.1-Kontext).
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `video-to-video` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `wan`) |
+| `preset` | string | `animate-14b` | Checkpoint preset (`animate-14b`) |
+| `model` | model | **required** | Wan-Animate checkpoint (HuggingFace repo or local checkpoint directory) |
+| `pose2d_model` | model | **required** | ViTPose whole-body ONNX checkpoint used to extract driving poses |
+| `det_model` | model | **required** | Person detector ONNX checkpoint (e.g. YOLOv10) used by the pose extractor |
+| `sam2_model` | model | `null` | SAM2 checkpoint; required only when an action uses `params.replace_flag` |
+| `flux_kontext_model` | model | `null` | FLUX.1-Kontext model; required only when an action uses `params.use_flux` with pose retargeting |
+| `cpu_offload` | boolean | `false` | Offload submodules to CPU during generation to save VRAM |
+
+**Action Fields (in addition to the common fields):**
+
+`reference_image` is **required** on this driver — it supplies the target character animated to match the driving video.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.inference_steps` | int | `20` | Number of diffusion sampling steps |
+| `params.guidance_scale` | float | `1.0` | Classifier-free guidance scale used for expression control |
+| `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
+| `params.clip_len` | int | `77` | Frames generated per clip; must satisfy `4n+1` |
+| `params.refert_num` | int | `1` | Frames used as temporal guidance between clips; `1` or `5` |
+| `params.preprocess_fps` | int | `30` | Target fps when sampling the driving video during preprocessing; `-1` keeps the video's native fps |
+| `params.resolution_width` | int | `1280` | Preprocessing resolution width; the driving video is resized to preserve aspect ratio within `width * height` area |
+| `params.resolution_height` | int | `720` | Preprocessing resolution height; paired with `resolution_width` to define the target area |
+| `params.retarget_flag` | boolean | `false` | Enable pose retargeting during preprocessing |
+| `params.use_flux` | boolean | `false` | Use FLUX.1-Kontext image editing during pose retargeting; requires `retarget_flag` and the component's `flux_kontext_model` |
+| `params.replace_flag` | boolean | `false` | Enable character replacement mode; requires the component's `sam2_model` to be configured |
+| `params.mask_iterations` | int | `3` | Mask dilation iterations used in replacement mode |
+| `params.mask_kernel_size` | int | `7` | Mask dilation kernel size used in replacement mode |
+| `params.mask_w_len` | int | `1` | Grid subdivisions along the width axis used to refine the replacement mask contour |
+| `params.mask_h_len` | int | `1` | Grid subdivisions along the height axis used to refine the replacement mask contour |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: video-to-video
+  driver: custom
+  family: wan
+  preset: animate-14b
+  model: Wan-AI/Wan2.2-Animate-14B
+  pose2d_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/pose2d/vitpose_h_wholebody.onnx
+  det_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/det/yolov10m.onnx
+  # Optional — enable replacement mode / pose retargeting with image editing.
+  sam2_model: Wan-AI/Wan2.2-Animate-14B/process_checkpoint/sam2/sam2_hiera_large.pt
+  flux_kontext_model: black-forest-labs/FLUX.1-Kontext-dev
+  cpu_offload: false
+  device: cuda:0
+  action:
+    video: ${input.driving_video as video}
+    reference_image: ${input.reference_image as image}
+    prompt: ${input.prompt | ""}
+    params:
+      clip_len: 77
+      refert_num: 1
+      inference_steps: 20
+      guidance_scale: 1.0
+      resolution_width: 1280
+      resolution_height: 720
+      preprocess_fps: 30
+```
+
+**Supported families:**
+
+| Family | Preset | Notes |
+|--------|--------|-------|
+| `wan` | `animate-14b` | Wan2.2 Animate 14B. Requires CUDA. Preprocessing pulls in `pose2d`/`det` (always), `sam2` (replacement mode), and `FLUX.1-Kontext` (retargeting with image editing). |
 
 **Result Shape:**
 
@@ -2629,7 +2829,7 @@ Generate or edit music audio. The action selects an operation via the `method` f
 | `backend` | string | `torch` | Inference backend for the AR model (`yue2` only: `torch`, `torch-eager`, `vllm`) |
 | `quantization` | object | `null` | AR-model quantization (`yue2` only: `type: fp8`) |
 | `memory_budget_gib` | float | `24` | GPU memory budget in GiB reserved for generation (`yue2` only) |
-| `offload_ar` | bool | `false` | Offload the AR model to CPU during NAR synthesis (`yue2` only) |
+| `cpu_offload` | string/array | `null` | Submodules to run on CPU (`yue2` only): `ar` moves the AR model during NAR synthesis, `vae` runs the VAE decoder on CPU. Accepts a single value or a list |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load (`yue2` only) |
 | `model` | string | **required** | Local checkpoint directory (`ace-step`, `midi-ddsp`) or HuggingFace repo / local path (`yue2`) |
 
@@ -2848,7 +3048,7 @@ component:
 
 M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–NAR Mixture-of-Transformers plans an editable ABC score, generates semantic tokens, and hands off to a flow-matching NAR + VAE decoder that renders 48 kHz stereo audio. `model` accepts either a HuggingFace repo ID (e.g. `m-a-p/YuE2-3B`) or a local checkpoint directory.
 
-**Runtime requirement:** the unquantized preset needs a CUDA GPU with BF16 support and ≥24 GB VRAM. Reduce the footprint with `quantization.type: fp8`, `offload_ar: true`, and a smaller `vae.tile_size`.
+**Runtime requirement:** the unquantized preset needs a CUDA GPU with BF16 support and ≥24 GB VRAM. Reduce the footprint with `quantization.type: fp8`, `cpu_offload: ar`, and a smaller `vae.tile_size`. On macOS < 15.1 the MPS backend cannot execute the VAE's oversized Conv1d layers, so set `cpu_offload: vae` (or `cpu_offload: [ar, vae]`) to keep the decoder on CPU. The `vllm` backend additionally requires the model's optional `[fast]` extras, which model-compose installs automatically when `backend: vllm` is selected.
 
 **Component Fields:**
 
@@ -2857,11 +3057,14 @@ M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–
 | `vae` | string/object | `m-a-p/YuE2-Vae` | VAE decoder model. String shorthand expands to `{ model: <value> }` |
 | `vae.model` | string/object | `m-a-p/YuE2-Vae` | VAE model identifier — HuggingFace repo ID or local path |
 | `vae.tile_size` | int | family-default | VAE decode tile size in frames; `512` for ≤12 GiB budgets, `1024` otherwise |
+| `nar` | string/object | `null` | NAR LoRA weights merged into the base pipeline. String shorthand expands to `{ model: <value> }`. When set, the checkpoint's LoRA deltas are folded into the AR model's NAR path (`nar_self_attn` + `nar_mlp`) and its `vae2llm` / `llm2vae` I/O projections replace the base modules. `null` keeps the stock NAR shipped with the AR model |
+| `nar.model` | string/object | **required** | NAR LoRA identifier — HuggingFace repo ID or local path. The reference Mothersuperior repo publishes several versioned pairs (`nar_lora_joint_v4`, `_v5`, `_v8`, `_v9`), so specify `filename` when pointing at a HuggingFace repo with multiple checkpoints |
 | `backend` | string | `torch` | AR backend (`torch`, `torch-eager`, `vllm`). `vllm` requires the model's optional `[fast]` extras |
 | `quantization.type` | string | — | Only `fp8` is supported; halves AR VRAM at a small quality cost |
 | `memory_budget_gib` | float | `24` | GPU memory budget reserved for generation |
-| `offload_ar` | bool | `false` | Move the AR model to CPU during NAR synthesis to free VRAM |
+| `cpu_offload` | string/array | `null` | Submodules to run on CPU. `ar` moves the AR model to CPU during NAR synthesis to free VRAM. `vae` wraps the VAE decoder to run on CPU (workaround for MPS Conv1d `out_channels > 65536` on macOS < 15.1). Accepts a single value or a list of both |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load |
+| `peft_adapters` | array | `null` | AR LoRA adapters merged into the base pipeline. Each item follows the [top-level `peft_adapters`](#component-settings) item schema and must set `type: lora`; other adapter types are rejected. `weight` acts as the merge scale (`W += weight · B @ A`); the yue2 driver merges directly into the AR path's `self_attn` + `mlp` weights rather than routing through the `peft` library |
 
 **Common Action Fields:**
 
@@ -2943,7 +3146,7 @@ component:
   device: cuda
   quantization:
     type: fp8
-  offload_ar: true
+  cpu_offload: ar
   vae:
     model: m-a-p/YuE2-Vae
     tile_size: 512
@@ -2955,6 +3158,33 @@ component:
       seed: 831001
       params:
         cot_mode: full
+```
+
+**With NAR LoRA and an AR LoRA adapter:**
+
+The Mothersuperior real-audio tokenizer repository publishes multiple joint checkpoints (`v4`, `v5`, `v8`, `v9`); pin the exact filename since head + LoRA files are version-matched. The AR LoRA is a user-trained adapter (e.g. from the yue2-lora-training recipe); its `weight` becomes the merge scale applied to `B @ A` when folding into the AR path.
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: yue2
+  model: m-a-p/YuE2-3B
+  device: cuda
+  nar:
+    model:
+      repository: Mothersuperior/yue2-mothersuperior-realaudio-tokenizer-v4
+      filename: nar_lora_joint_v4.safetensors
+  peft_adapters:
+    - type: lora
+      name: my-artist
+      model: ./out/my-artist.safetensors
+      weight: 1.0
+  action:
+    method: generate
+    style: ${input.style as text}
+    lyrics: ${input.lyrics as text}
 ```
 
 **Result Shape:**
@@ -3877,6 +4107,11 @@ workflow:
 - **Mixedbread**: mixedbread-ai/mxbai-rerank-large-v1, mxbai-rerank-xsmall-v1
 - **Cross-Encoder**: cross-encoder/ms-marco-MiniLM-L-6-v2, ms-marco-MiniLM-L-12-v2
 
+### Typed Decision Models
+- **Laya** (`family: laya`): convaiinnovations/laya bundle — `english` (ModernBERT-large), `multilingual` (mmBERT-base, 100+ languages), `typed-decisions` (fine-tuned)
+- **Kev** (`family: kev`): jaredpalmer/kev-0.8b, kev-4b, kev-9b (LoRA adapter + pointer head on frozen Qwen3.5)
+- **Nimble** (`family: nimble`): bespokelabs/Bespoke-Nimble-9B (LoRA adapter merged onto Qwen/Qwen3.5-9B on first startup)
+
 ### Image Embedding Models
 - **CLIP Family**: openai/clip-vit-base-patch32, clip-vit-large-patch14 (uses `get_image_features`)
 - **SigLIP Family**: google/siglip-base-patch16-224
@@ -3894,6 +4129,7 @@ workflow:
 - **Text Generation**: Create articles, stories, code
 - **Chatbots**: Build conversational AI systems
 - **Content Analysis**: Classify and analyze text
+- **Structured Decisions**: Route, triage, or gate text with typed answers (yes/no, one-of-N, ordinal) and calibrated probabilities
 - **Search**: Generate embeddings for semantic search
 - **Visual Search / Dedup**: Encode images with CLIP/DINOv2 for similarity retrieval and near-duplicate detection
 - **Translation**: Translate between languages

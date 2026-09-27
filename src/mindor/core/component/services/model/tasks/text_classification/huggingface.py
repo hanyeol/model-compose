@@ -1,8 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Any
-from mindor.dsl.schema.component import HuggingfaceTextClassificationModelComponentConfig
+from typing import Type, Union, Optional, Dict, List, Any
+from mindor.dsl.schema.component import (
+    HuggingfaceTextClassificationModelComponentConfig,
+    CommonModelComponentConfig,
+    PeftAdapterConfig,
+    DiffusionVaeConfig,
+)
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
@@ -102,6 +107,24 @@ class HuggingfaceTextClassificationTaskDriver(HuggingfaceLanguageModelTaskDriver
     def _get_tokenizer_class(self) -> Type[PreTrainedTokenizer]:
         from transformers import AutoTokenizer
         return AutoTokenizer
+
+    def _get_model_options(
+        self,
+        config: Union[CommonModelComponentConfig, PeftAdapterConfig, DiffusionVaeConfig],
+        default_dtype: Optional[torch.dtype] = None,
+    ) -> Dict[str, Any]:
+        options = super()._get_model_options(config, default_dtype)
+
+        # Base classifier heads default to 2 labels. A PEFT adapter trained on
+        # N != 2 classes stores its score head in `modules_to_save`, and loading
+        # it over a 2-class base raises a size-mismatch error. Passing num_labels
+        # (and label maps) up front keeps the base head aligned with the adapter.
+        if self.labels:
+            options["num_labels"] = len(self.labels)
+            options["id2label"]   = { index: name for index, name in enumerate(self.labels) }
+            options["label2id"]   = { name: index for index, name in enumerate(self.labels) }
+
+        return options
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context)

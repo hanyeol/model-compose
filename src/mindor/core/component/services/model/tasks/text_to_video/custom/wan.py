@@ -22,11 +22,12 @@ _WAN_T2V_TASKS: Dict[WanTextToVideoPreset, str] = {
 class WanTextToVideoTaskAction(TextToVideoTaskAction):
     config: WanTextToVideoModelActionConfig
 
-    def __init__(self, config: WanTextToVideoModelActionConfig, pipeline: Any, preset: WanTextToVideoPreset):
+    def __init__(self, config: WanTextToVideoModelActionConfig, pipeline: Any, preset: WanTextToVideoPreset, cpu_offload: bool):
         super().__init__(config)
 
         self.pipeline: Any = pipeline
         self.preset: WanTextToVideoPreset = preset
+        self.cpu_offload: bool = cpu_offload
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -67,7 +68,7 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
                     guide_scale=float(params["guidance_scale"]),
                     n_prompt=negative or "",
                     seed=int(params["seed"]) if params["seed"] is not None else -1,
-                    offload_model=False,
+                    offload_model=bool(self.cpu_offload),
                 )
                 results.append(self._encode_video_tensor_to_mp4(video, fps))
 
@@ -148,4 +149,4 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
         return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await WanTextToVideoTaskAction(action, self.pipeline, self.config.preset).run(context)
+        return await WanTextToVideoTaskAction(action, self.pipeline, self.config.preset, self.config.cpu_offload).run(context)

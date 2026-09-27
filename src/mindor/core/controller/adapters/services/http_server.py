@@ -305,6 +305,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             request: Request
         ):
             content_type, _ = parse_options_header(request.headers, "Content-Type")
+
             if content_type not in ("application/json", "multipart/form-data", "application/x-www-form-urlencoded"):
                 raise HTTPException(status_code=400, detail="Missing or empty Content-Type header." if not content_type else f"Unsupported Content-Type: {content_type}")
 
@@ -344,7 +345,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                     workflow_id,
                     body.input,
                     wait_for_completion=body.wait_for_completion,
-                    stop_at_streaming=body.output_only,
+                    stop_at_streaming=body.wait_for_completion,
                     session_id=body.session_id,
                     metadata=body.metadata,
                 )
@@ -359,6 +360,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             if body.subscribe_task and session_id and self.websocket_server:
                 self.websocket_server.manager.subscribe_task(session_id, state.task_id)
                 state = self.controller.get_task_state(state.task_id)
+
                 if state:
                     await self.websocket_server.notify_task_subscribed(session_id, state)
 
@@ -434,6 +436,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self.controller.remove_task_state_listener(self._on_task_state_change)
         self.controller.remove_task_event_listener(self._on_task_event)
         self.controller.remove_job_event_listener(self._on_job_event)
+
         if self.websocket_server:
             await self.websocket_server.dispose()
 
@@ -477,11 +480,18 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
     def _resolve_workflow_id(self, workflow_id: str) -> Optional[str]:
         if workflow_id == "__default__":
             workflow_id, _ = WorkflowResolver(self.controller.workflows).resolve(workflow_id, raise_on_error=False)
+
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool, allow_streaming: bool = False) -> Response:
         if not output_only and isinstance(state.output, (StreamResource, StreamIterator, AsyncIterator)):
-            raise HTTPException(status_code=400, detail="Streaming output is only allowed when output_only=true.")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Streaming output requires output_only=true. "
+                    "Retry with {\"output_only\": true} in the request body."
+                ),
+            )
 
         if output_only:
             return self._render_task_output(state, allow_streaming=allow_streaming)

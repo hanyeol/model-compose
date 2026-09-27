@@ -17,6 +17,8 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
         training_arguments: Dict[str, Any],
         train_dataset: Any,
         evaluation_dataset: Any,
+        text_column: str,
+        label_column: str,
         label_names: Optional[List[str]],
         num_labels: int,
         label_remap: Optional[Dict[int, int]],
@@ -62,8 +64,6 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
             model = get_peft_model(model, lora_config)
 
-        text_column    = self.config.text_column
-        label_column   = self.config.label_column
         max_seq_length = self.config.max_seq_length
 
         def _tokenize(examples: Dict[str, Any]) -> Dict[str, Any]:

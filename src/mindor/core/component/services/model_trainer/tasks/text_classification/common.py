@@ -20,6 +20,10 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
     async def run(self, context: ComponentActionContext) -> Dict[str, Any]:
         dataset            = await context.render_variable(self.config.dataset)
         evaluation_dataset = await context.render_variable(self.config.evaluation_dataset) if self.config.evaluation_dataset is not None else None
+        text_column        = await context.render_text(self.config.text_column)
+        label_column       = await context.render_text(self.config.label_column)
+        label_names        = await context.render_variable(self.config.label_names) if self.config.label_names is not None else None
+        num_labels         = await context.render_scalar(self.config.num_labels, int)
         output_dir         = await context.render_text(self.config.output_dir)
 
         # Dataset load, split resolution, and label scanning all touch disk and
@@ -28,6 +32,9 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
             self._prepare_datasets,
             dataset,
             evaluation_dataset,
+            label_column,
+            label_names,
+            num_labels,
         )
         training_arguments = await self._build_training_arguments(context, output_dir, has_evaluation=evaluation_dataset is not None)
 
@@ -36,6 +43,8 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
             training_arguments,
             train_dataset,
             evaluation_dataset,
+            text_column,
+            label_column,
             label_names,
             num_labels,
             label_remap,
@@ -52,13 +61,27 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         self,
         dataset: Any,
         evaluation_dataset: Any,
+        label_column: str,
+        label_names: Optional[List[str]],
+        num_labels: Optional[int],
     ) -> Tuple[Any, Optional[Any], Optional[List[str]], int, Optional[Dict[int, int]]]:
         train_dataset, evaluation_dataset = self._load_datasets(dataset, evaluation_dataset)
-        label_names, num_labels, label_remap = self._resolve_labels(train_dataset)
+        label_names, num_labels, label_remap = self._resolve_labels(
+            train_dataset,
+            label_column,
+            label_names,
+            num_labels
+        )
 
         return train_dataset, evaluation_dataset, label_names, num_labels, label_remap
 
-    def _resolve_labels(self, train_dataset: Any) -> Tuple[Optional[List[str]], int, Optional[Dict[int, int]]]:
+    def _resolve_labels(
+        self,
+        train_dataset: Any,
+        label_column: str,
+        label_names: Optional[List[str]],
+        num_labels: Optional[int],
+    ) -> Tuple[Optional[List[str]], int, Optional[Dict[int, int]]]:
         """Return (label_names, num_labels, label_remap).
 
         Resolution order for the label list:
@@ -78,15 +101,10 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         """
         from datasets import ClassLabel
 
-        label_column = self.config.label_column
         label_values = self._collect_label_values(train_dataset, label_column)
+        label_index_order: Optional[List[int]] = None
 
-        label_names: Optional[List[str]] = None
-        canonical_order: Optional[List[int]] = None
-
-        if self.config.label_names is not None:
-            label_names = list(self.config.label_names)
-
+        if label_names is not None:
             # When label_names is given, observed values must be integer indices into it.
             if label_values - set(range(len(label_names))):
                 raise ValueError(
@@ -94,7 +112,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
                     f"range(len(label_names)={len(label_names)}); got {sorted(label_values)!r}."
                 )
 
-            canonical_order = list(range(len(label_names)))
+            label_index_order = list(range(len(label_names)))
         else:
             feature = train_dataset.features.get(label_column)
 
@@ -107,24 +125,24 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
                         f"ClassLabel.num_classes={feature.num_classes}; got {sorted(label_values)!r}."
                     )
 
-                canonical_order = list(range(feature.num_classes))
+                label_index_order = list(range(feature.num_classes))
             else:
                 # No names available — sort observed values to get a stable index mapping.
-                canonical_order = sorted(label_values)
+                label_index_order = sorted(label_values)
 
-        num_labels = len(canonical_order)
-
-        if self.config.num_labels is not None and self.config.num_labels != num_labels:
+        if num_labels is not None and num_labels != len(label_index_order):
             raise ValueError(
-                f"num_labels={self.config.num_labels} does not match the resolved label count "
-                f"({num_labels} from {'label_names' if label_names else 'dataset scan'})."
+                f"num_labels={num_labels} does not match the resolved label count "
+                f"({len(label_index_order)} from {'label_names' if label_names else 'dataset scan'})."
             )
 
+        num_labels = len(label_index_order)
+
         # Build remap only when the label domain is not already contiguous {0..N-1}.
-        if canonical_order == list(range(num_labels)):
+        if label_index_order == list(range(num_labels)):
             label_remap = None
         else:
-            label_remap = { label: index for index, label in enumerate(canonical_order) }
+            label_remap = { label: index for index, label in enumerate(label_index_order) }
 
         return label_names, num_labels, label_remap
 
@@ -158,6 +176,8 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         training_arguments: Dict[str, Any],
         train_dataset: Any,
         evaluation_dataset: Any,
+        text_column: str,
+        label_column: str,
         label_names: Optional[List[str]],
         num_labels: int,
         label_remap: Optional[Dict[int, int]],

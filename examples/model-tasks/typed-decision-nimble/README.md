@@ -37,7 +37,7 @@ Compared to prompting a general chat model to return JSON, Nimble is purpose-bui
 
 **Trade-offs:**
 - **Text Only**: Nimble accepts text contexts only; the vision head of the base model is not used
-- **Flat Schemas**: Each field is `enum` (1–26 choices) or `boolean`; nested fields, free-form strings, and cross-field dependencies must be handled by the caller
+- **Flat Schemas**: Each field is `enum` (up to 255 choices with the current Bespoke-Nimble-9B release, 26 with the original one) or `boolean`; nested fields, free-form strings, and cross-field dependencies must be handled by the caller
 - **Prompt Budget**: The full prompt including schema is limited to `max_seq_length` tokens (default 4096)
 - **Merge Cost**: The first startup downloads and merges the adapter onto the base; subsequent runs reuse the cached merged folder
 

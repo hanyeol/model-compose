@@ -1,8 +1,9 @@
 """Merged-checkpoint cache of the Nimble typed-decision driver.
 
 The driver merges the LoRA adapter onto the base once and reuses the result. The
-cache entry is named after the adapter weights and the base, and only a merge
-that finished (READY.json written last, then an atomic rename) is reused.
+cache entry is named after the adapter weights, its release contract and the base,
+carries the contract (schema_config.json) that Nimble's scorers read, and is
+reused only once the merge finished (READY.json written last, then an atomic rename).
 """
 
 from __future__ import annotations
@@ -84,9 +85,11 @@ def _make_driver() -> NimbleTypedDecisionTaskDriver:
     return NimbleTypedDecisionTaskDriver("nimble", config, daemon=False)
 
 
-def _adapter(path: Path, weights: bytes) -> str:
+def _adapter(path: Path, weights: bytes, contract: str | None = None) -> str:
     path.mkdir(parents=True, exist_ok=True)
     (path / "adapter_model.safetensors").write_bytes(weights)
+    if contract is not None:
+        (path / "schema_config.json").write_text(contract)
     return str(path)
 
 
@@ -141,3 +144,19 @@ def test_failed_merge_is_not_reused(fake_merge: FakeMerge, tmp_path: Path):
     assert (merged / "model.safetensors").read_bytes() == b"weights"
     assert fake_merge.merges == 2
     assert sorted(p.name for p in merged_root.iterdir()) == [ merged.name ]
+
+
+def test_merge_carries_the_release_contract(fake_merge: FakeMerge, tmp_path: Path):
+    contract = json.dumps({ "task": "schema_candidate_classification_v2", "max_choices": 255 })
+    merged = _merge(_adapter(tmp_path / "adapter", b"weights", contract), tmp_path / "base")
+
+    assert (merged / "schema_config.json").read_text() == contract
+
+
+def test_contract_change_is_merged_again(fake_merge: FakeMerge, tmp_path: Path):
+    base = tmp_path / "base"
+    old = _merge(_adapter(tmp_path / "old", b"weights", '{"max_choices": 26}'), base)
+    new = _merge(_adapter(tmp_path / "new", b"weights", '{"max_choices": 255}'), base)
+
+    assert old != new
+    assert json.loads((new / "schema_config.json").read_text()) == { "max_choices": 255 }

@@ -45,6 +45,7 @@ ActionConfig = Union[
     AudioAnalyzerActionConfig,
     MusicSegmentDetectorActionConfig,
     MusicAnalyzerActionConfig,
+    MusicSynthesizerActionConfig,
     AudioSilenceDetectorActionConfig,
     AudioSynchronizerActionConfig,
     AudioPlaybackActionConfig,

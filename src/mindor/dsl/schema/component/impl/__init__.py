@@ -49,12 +49,13 @@ from .audio_converter import *
 from .audio_processor import *
 from .audio_feature_extractor import *
 from .audio_analyzer import *
-from .music_segment_detector import *
-from .music_analyzer import *
 from .audio_silence_detector import *
 from .audio_synchronizer import *
 from .audio_playback import *
 from .audio_mixer import *
+from .music_segment_detector import *
+from .music_analyzer import *
+from .music_synthesizer import *
 from .model_3d_converter import *
 from .camera_pose_estimator import *
 from .key_value_store import *

@@ -1,0 +1,59 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Fine-tune TinyLlama with SFT + LoRA
+  description: Load the Alpaca instruction dataset, then supervised fine-tune TinyLlama-1.1B with LoRA adapters, and return the checkpoint directory and training metrics.
+  jobs:
+    - id: load-dataset
+      component: alpaca
+      output: ${output}
+
+    - id: train
+      component: trainer
+      depends_on: [ load-dataset ]
+      input:
+        dataset: ${jobs.load-dataset.output}
+      output:
+        output_dir: ${output.output_dir}
+        train_loss: ${output.train_loss}
+        metrics:    ${output.metrics}
+
+components:
+  - id: alpaca
+    type: datasets
+    driver: huggingface
+    action:
+      method: load
+      path: ${input.dataset_path | "tatsu-lab/alpaca"}
+      split: ${input.dataset_split | "train"}
+
+  - id: trainer
+    type: model-trainer
+    task: sft
+    driver: huggingface
+    model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    device: auto
+    precision: bfloat16
+    lora:
+      rank: 16
+      alpha: 32
+      dropout: 0.05
+      target_modules: [ q_proj, k_proj, v_proj, o_proj ]
+    action:
+      dataset: ${input.dataset}
+      text_column: text
+      output_dir: ${input.output_dir | "./output/sft-lora"}
+      num_epochs: ${input.num_epochs as int | 1}
+      per_device_train_batch_size: ${input.batch_size as int | 4}
+      learning_rate: ${input.learning_rate as float | 2e-4}
+      gradient_checkpointing: true
+      bf16: true
+      max_seq_length: 1024
+      packing: false

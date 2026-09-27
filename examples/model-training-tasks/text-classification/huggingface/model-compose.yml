@@ -1,0 +1,63 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Fine-tune BERT for SST-2 Sentiment Classification
+  description: Load GLUE SST-2, then fine-tune BERT-base with LoRA adapters for binary sentiment classification (positive/negative), and return the checkpoint directory and training metrics.
+  jobs:
+    - id: load-dataset
+      component: sst2
+      output: ${output}
+
+    - id: train
+      component: trainer
+      depends_on: [ load-dataset ]
+      input:
+        dataset: ${jobs.load-dataset.output}
+      output:
+        output_dir: ${output.output_dir}
+        train_loss: ${output.train_loss}
+        metrics:    ${output.metrics}
+
+components:
+  - id: sst2
+    type: datasets
+    driver: huggingface
+    action:
+      method: load
+      # SST-2 is a GLUE configuration; the entire DatasetDict (train + validation)
+      # is loaded here so the trainer can auto-select the evaluation split.
+      # SST-2's `test` split has masked labels (-1); the driver's evaluation-split
+      # lookup skips it and falls through to `validation` automatically.
+      path: ${input.dataset_path | "glue"}
+      name: ${input.dataset_name | "sst2"}
+
+  - id: trainer
+    type: model-trainer
+    task: text-classification
+    driver: huggingface
+    model: bert-base-uncased
+    device: auto
+    lora:
+      rank: 8
+      alpha: 16
+      dropout: 0.05
+      target_modules: [ query, value ]
+    action:
+      dataset: ${input.dataset}
+      # SST-2 ships the sentence under `sentence`, not `text`.
+      text_column: sentence
+      label_column: label
+      label_names: [ negative, positive ]
+      output_dir: ${input.output_dir | "./output/classification"}
+      num_epochs: ${input.num_epochs as int | 3}
+      per_device_train_batch_size: ${input.batch_size as int | 32}
+      learning_rate: ${input.learning_rate as float | 5e-5}
+      max_seq_length: 128
+      eval_steps: 500

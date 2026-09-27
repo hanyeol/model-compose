@@ -19,13 +19,16 @@ class SftModelTrainerTaskAction(ModelTrainerTaskAction):
 
     async def run(self, context: ComponentActionContext) -> Dict[str, Any]:
         # Render every templated field OUTSIDE the executor — async can't run inside.
-        dataset            = await context.render_variable(self.config.dataset)
-        evaluation_dataset = await context.render_variable(self.config.evaluation_dataset) if self.config.evaluation_dataset is not None else None
-        text_column        = await context.render_text(self.config.text_column) if self.config.text_column is not None else None
-        prompt_column      = await context.render_text(self.config.prompt_column) if self.config.prompt_column is not None else None
-        response_column    = await context.render_text(self.config.response_column) if self.config.response_column is not None else None
-        system_column      = await context.render_text(self.config.system_column) if self.config.system_column is not None else None
-        output_dir         = await context.render_text(self.config.output_dir)
+        dataset              = await context.render_variable(self.config.dataset)
+        evaluation_dataset   = await context.render_variable(self.config.evaluation_dataset) if self.config.evaluation_dataset is not None else None
+        text_column          = await context.render_text(self.config.text_column) if self.config.text_column is not None else None
+        prompt_column        = await context.render_text(self.config.prompt_column) if self.config.prompt_column is not None else None
+        response_column      = await context.render_text(self.config.response_column) if self.config.response_column is not None else None
+        system_column        = await context.render_text(self.config.system_column) if self.config.system_column is not None else None
+        max_seq_length       = await context.render_scalar(self.config.max_seq_length, int)
+        packing              = await context.render_scalar(self.config.packing, bool)
+        completion_only_loss = await context.render_scalar(self.config.completion_only_loss, bool)
+        output_dir           = await context.render_text(self.config.output_dir)
 
         # Dataset loading, split resolution, and building the messages column all
         # touch disk / network and can block for a long time — keep them off the
@@ -59,6 +62,9 @@ class SftModelTrainerTaskAction(ModelTrainerTaskAction):
             train_dataset,
             evaluation_dataset,
             dataset_text_field,
+            max_seq_length,
+            packing,
+            completion_only_loss,
             output_dir,
         )
 
@@ -120,6 +126,9 @@ class SftModelTrainerTaskAction(ModelTrainerTaskAction):
         train_dataset: Any,
         evaluation_dataset: Any,
         dataset_text_field: str,
+        max_seq_length: int,
+        packing: bool,
+        completion_only_loss: bool,
         output_dir: str,
     ) -> TrainOutput:
         pass

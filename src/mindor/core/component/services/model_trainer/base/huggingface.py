@@ -29,7 +29,10 @@ class HuggingfaceModelTrainerTaskDriver(ModelTrainerTaskDriver):
         return torch_requirements("torch")
 
     def _get_transformers_requirements(self) -> List[str]:
-        return [ "transformers>=4.52.0" ]
+        # Cap below 5.0: transformers 5 is a major version with breaking model
+        # loader and Trainer changes that TRL 0.13 and PEFT 0.x have not yet
+        # been validated against.
+        return [ "transformers>=4.52.0,<5.0" ]
 
     def _get_datasets_requirements(self) -> List[str]:
         # Pin below datasets 4.0 — TRL 0.13's conversational auto-detection

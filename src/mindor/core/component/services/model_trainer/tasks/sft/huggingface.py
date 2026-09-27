@@ -18,6 +18,9 @@ class HuggingfaceSftModelTrainerTaskAction(SftModelTrainerTaskAction):
         train_dataset: Any,
         evaluation_dataset: Any,
         dataset_text_field: str,
+        max_seq_length: int,
+        packing: bool,
+        completion_only_loss: bool,
         output_dir: str,
     ) -> TrainOutput:
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -43,6 +46,12 @@ class HuggingfaceSftModelTrainerTaskAction(SftModelTrainerTaskAction):
 
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
+
+        # Mirror the tokenizer's pad id onto the model config. Some architectures
+        # (e.g. Qwen3) ship with pad_token_id=None; without this sync the
+        # classification/causal forward pass raises when a batch has padding.
+        if model.config.pad_token_id is None:
+            model.config.pad_token_id = tokenizer.pad_token_id
 
         # Order matters for QLoRA: prepare_model_for_kbit_training() re-enables
         # input gradients and disables the base model's use_cache before LoRA
@@ -86,9 +95,10 @@ class HuggingfaceSftModelTrainerTaskAction(SftModelTrainerTaskAction):
         # degrades loss and generation. TRL suppresses this on its auto-detection
         # path but not when a formatting_func is supplied — we opt out explicitly.
         sft_config_params: Dict[str, Any] = {
-            "dataset_text_field": dataset_text_field if formatting_func is None else None,
-            "max_seq_length":     self.config.max_seq_length,
-            "packing":            self.config.packing,
+            "dataset_text_field":   dataset_text_field if formatting_func is None else None,
+            "max_seq_length":       max_seq_length,
+            "packing":              packing,
+            "completion_only_loss": completion_only_loss,
         }
 
         if formatting_func is not None:

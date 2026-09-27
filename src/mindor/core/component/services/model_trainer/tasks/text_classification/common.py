@@ -24,6 +24,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         label_column       = await context.render_text(self.config.label_column)
         label_names        = await context.render_variable(self.config.label_names) if self.config.label_names is not None else None
         num_labels         = await context.render_scalar(self.config.num_labels, int)
+        max_seq_length     = await context.render_scalar(self.config.max_seq_length, int)
         output_dir         = await context.render_text(self.config.output_dir)
 
         # Dataset load, split resolution, and label scanning all touch disk and
@@ -53,6 +54,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
             label_names,
             num_labels,
             label_remap,
+            max_seq_length,
             output_dir,
         )
 
@@ -186,6 +188,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         label_names: Optional[List[str]],
         num_labels: int,
         label_remap: Optional[Dict[int, int]],
+        max_seq_length: int,
         output_dir: str,
     ) -> TrainOutput:
         pass

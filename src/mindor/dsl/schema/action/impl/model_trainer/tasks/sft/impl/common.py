@@ -17,6 +17,7 @@ class SftModelTrainerActionConfig(CommonModelTrainerActionConfig):
     # Training strategy
     max_seq_length: int = Field(default=512, description="Maximum tokenized sequence length used during training.")
     packing: bool = Field(default=False, description="Whether multiple short examples are packed into one sequence for efficiency.")
+    completion_only_loss: bool = Field(default=False, description="Whether to compute loss only on the response tokens, masking the prompt.")
 
     @model_validator(mode="after")
     def validate_data_columns(self):

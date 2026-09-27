@@ -22,9 +22,16 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
         label_names: Optional[List[str]],
         num_labels: int,
         label_remap: Optional[Dict[int, int]],
+        max_seq_length: int,
         output_dir: str,
     ) -> TrainOutput:
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+        from transformers import (
+            AutoModelForSequenceClassification,
+            AutoTokenizer,
+            DataCollatorWithPadding,
+            Trainer,
+            TrainingArguments,
+        )
 
         if self.trainer_config.quantization is not None:
             quantization_config = self._build_quantization_config(self.trainer_config.quantization)
@@ -37,6 +44,9 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
             lora_config = None
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
 
         model_params: Dict[str, Any] = {
             "num_labels":          num_labels,
@@ -51,6 +61,12 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
         model = AutoModelForSequenceClassification.from_pretrained(self.model_path, **model_params)
 
+        # Mirror the tokenizer's pad id onto the model config. Some architectures
+        # (e.g. Qwen3) ship with pad_token_id=None; the sequence-classification
+        # forward pass raises when a batch has padding without this sync.
+        if model.config.pad_token_id is None:
+            model.config.pad_token_id = tokenizer.pad_token_id
+
         if quantization_config is not None:
             from peft import prepare_model_for_kbit_training
 
@@ -64,13 +80,13 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
             model = get_peft_model(model, lora_config)
 
-        max_seq_length = self.config.max_seq_length
-
         def _tokenize(examples: Dict[str, Any]) -> Dict[str, Any]:
+            # Dynamic padding via DataCollatorWithPadding at batch time — padding
+            # to max_seq_length here would inflate short-input datasets (e.g.
+            # sentence-level classification) with mostly-pad tokens.
             return tokenizer(
                 examples[text_column],
                 truncation=True,
-                padding="max_length",
                 max_length=max_seq_length,
             )
 
@@ -108,6 +124,8 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
             train_dataset=train_dataset,
             eval_dataset=evaluation_dataset,
             processing_class=tokenizer,
+            data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
+            compute_metrics=self._compute_metrics if evaluation_dataset is not None else None,
         )
 
         result = trainer.train()
@@ -117,7 +135,36 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
         return result
 
+    @staticmethod
+    def _compute_metrics(eval_prediction: Any) -> Dict[str, float]:
+        # Report accuracy plus macro-averaged precision/recall/F1. Macro is the
+        # right default for classification: it weights all classes equally, so
+        # a minority class collapsing does not get hidden behind a majority-class
+        # score. Callers who want a different average can subclass and override.
+        from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+        import numpy as np
+
+        predictions = np.argmax(eval_prediction.predictions, axis=-1)
+        labels = eval_prediction.label_ids
+
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            labels, predictions, average="macro", zero_division=0
+        )
+
+        return {
+            "accuracy":  accuracy_score(labels, predictions),
+            "precision": precision,
+            "recall":    recall,
+            "f1":        f1,
+        }
+
 @register_model_trainer_task_driver(ModelTrainerTaskType.TEXT_CLASSIFICATION, ModelTrainerDriverType.HUGGINGFACE)
 class HuggingfaceTextClassificationTrainerTaskDriver(HuggingfaceModelTrainerTaskDriver):
+    def _get_setup_requirements(self) -> List[str]:
+        return [
+            *super()._get_setup_requirements(),
+            "scikit-learn",
+        ]
+
     async def _run(self, action: TextClassificationModelTrainerActionConfig, context: ComponentActionContext) -> Dict[str, Any]:
         return await HuggingfaceTextClassificationModelTrainerTaskAction(action, self.config, self.model_path).run(context)

@@ -1,0 +1,70 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Fine-tune TinyLlama with SFT + LoRA (Unsloth)
+  description: Load the Alpaca instruction dataset, then supervised fine-tune TinyLlama-1.1B with LoRA adapters using Unsloth's fused CUDA kernels, and return the checkpoint directory and training metrics.
+  jobs:
+    - id: load-dataset
+      component: alpaca
+      input:
+        dataset_path:  ${input.dataset_path | tatsu-lab/alpaca}
+        dataset_split: ${input.dataset_split | train}
+      output: ${output}
+
+    - id: train
+      component: trainer
+      depends_on: [ load-dataset ]
+      input:
+        dataset:       ${jobs.load-dataset.output}
+        output_dir:    ${input.output_dir | ./output/sft-lora-unsloth}
+        num_epochs:    ${input.num_epochs as integer | 1}
+        batch_size:    ${input.batch_size as integer | 4}
+        learning_rate: ${input.learning_rate as number | 2e-4}
+      output:
+        output_dir: ${output.output_dir}
+        train_loss: ${output.train_loss}
+        metrics:    ${output.metrics}
+
+components:
+  - id: alpaca
+    type: datasets
+    driver: huggingface
+    action:
+      method: load
+      path: ${input.dataset_path}
+      split: ${input.dataset_split}
+
+  - id: trainer
+    type: model-trainer
+    task: sft
+    driver: unsloth
+    model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    device: auto
+    precision: bfloat16
+    # Baked into the model at load time via rope scaling — must cover the
+    # longest sequence any action below will feed in.
+    max_seq_length: 2048
+    # Unsloth requires LoRA and supports its fast kernels only with LoRA/QLoRA.
+    lora:
+      rank: 16
+      alpha: 32
+      dropout: 0.05
+      target_modules: [ q_proj, k_proj, v_proj, o_proj ]
+    action:
+      dataset: ${input.dataset}
+      text_column: text
+      output_dir: ${input.output_dir | ./output/sft-lora-unsloth}
+      num_epochs: ${input.num_epochs as integer | 1}
+      per_device_train_batch_size: ${input.batch_size as integer | 4}
+      learning_rate: ${input.learning_rate as number | 2e-4}
+      gradient_checkpointing: true
+      bf16: true
+      max_seq_length: 1024
+      packing: false

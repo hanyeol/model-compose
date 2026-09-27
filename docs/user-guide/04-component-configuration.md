@@ -53,6 +53,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-analyzer` | Measure audio levels | Loudness (LUFS/LRA), peak, RMS/gain, clipping, and silence via ffmpeg filters |
 | `music-segment-detector` | Detect music segment boundaries | Structural segmentation of music (intro/verse/chorus) via chroma-CQT and Laplacian or agglomerative clustering |
 | `music-analyzer` | Analyze music properties | Beats/BPM, onsets, tempogram, active regions, key/chroma/tonnetz, spectral brightness/flatness, and harmonic-vs-percussive ratio via librosa |
+| `music-synthesizer` | Synthesize music from a score | Beat-timeline sequencer: instrument voices (kick, snare, hat, chord, whoosh, ...) placed on beats, with kick-driven sidechain ducking and a soft-clip/normalize/fade master chain |
 | `audio-silence-detector` | Detect silence regions | Locate silent runs in audio using ffmpeg's `silencedetect` filter; useful for trimming dead air or splitting on quiet gaps |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
@@ -111,6 +112,7 @@ model-compose provides various component types for performing different tasks.
 - Audio analysis (loudness, peak, gain, clipping, silence detection) → `audio-analyzer`
 - Music segment detection (structural boundaries: intro/verse/chorus) → `music-segment-detector`
 - Music analysis (beats/BPM, onsets, tempogram, key, chroma, tonnetz, brightness, flatness, harmonicity) → `music-analyzer`
+- Music synthesis (build a WAV from a beat-timeline score with drums, chords, whooshes, and sidechain ducking) → `music-synthesizer`
 - Silence detection (locate silent regions for trimming or splitting) → `audio-silence-detector`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`
 - Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`

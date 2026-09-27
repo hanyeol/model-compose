@@ -2,7 +2,7 @@
 
 > **Development Status**: The configuration schema is defined and stable, but the training execution backend is still under active development. Schema fields below reflect the current declarative interface; expect runtime support to land in upcoming releases.
 
-The model-trainer component declares supervised fine-tuning (SFT) and classification training jobs. It supports LoRA adapters, quantization, optimizer and scheduler selection, mixed-precision training, and gradient checkpointing — all configured declaratively so the same workflow can target different hardware profiles by swapping a few fields.
+The model-trainer component declares supervised fine-tuning (SFT) and text-classification training jobs. It supports LoRA adapters, quantization, optimizer and scheduler selection, mixed-precision training, and gradient checkpointing — all configured declaratively so the same workflow can target different hardware profiles by swapping a few fields.
 
 ## Basic Configuration
 
@@ -25,7 +25,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model-trainer` |
-| `task` | string | **required** | Training task: `sft`, `classification` |
+| `task` | string | **required** | Training task: `sft`, `text-classification` |
 | `lora` | object | `null` | LoRA adapter configuration |
 | `quantization` | string/object | `null` | Model quantization configuration |
 
@@ -103,7 +103,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `dataset` | string | **required** | Training dataset reference |
-| `eval_dataset` | string | `null` | Evaluation dataset reference |
+| `evaluation_dataset` | string | `null` | Evaluation dataset reference |
 | `text_column` | string | `null` | Column containing pre-formatted training text |
 | `prompt_column` | string | `null` | Column containing chat prompts |
 | `response_column` | string | `null` | Column containing chat responses |
@@ -113,17 +113,17 @@ component:
 
 Either `text_column` or both `prompt_column` and `response_column` must be specified.
 
-### Classification
+### Text Classification
 
-Fine-tune a model for classification. The classification action shares all common training fields (no task-specific extras beyond the shared base).
+Fine-tune a model for text classification. The action shares all common training fields (no task-specific extras beyond the shared base).
 
 ```yaml
 component:
   type: model-trainer
-  task: classification
+  task: text-classification
   action:
     dataset: ${input.dataset}
-    eval_dataset: ${input.eval_dataset}
+    evaluation_dataset: ${input.evaluation_dataset}
     learning_rate: 3e-5
     per_device_train_batch_size: 16
     num_epochs: 5
@@ -296,15 +296,15 @@ workflows:
         depends_on: [format]
 ```
 
-### Classification
+### Text Classification
 
 ```yaml
 component:
   type: model-trainer
-  task: classification
+  task: text-classification
   action:
     dataset: ${input.train_dataset}
-    eval_dataset: ${input.eval_dataset}
+    evaluation_dataset: ${input.evaluation_dataset}
     learning_rate: 3e-5
     per_device_train_batch_size: 16
     per_device_eval_batch_size: 32
@@ -346,7 +346,7 @@ component:
 
 - **Instruction tuning**: Fine-tune a base model on instruction-following data with LoRA + 4-bit quantization
 - **Domain adaptation**: Continue training on domain-specific text to specialize a general model
-- **Classification**: Fine-tune encoder models for sentiment, intent, or topic classification
+- **Text Classification**: Fine-tune encoder models for sentiment, intent, or topic classification
 - **Style transfer**: Train on writing samples to capture a tone or persona
 
 ## Related Components

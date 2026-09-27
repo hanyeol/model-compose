@@ -385,7 +385,7 @@ components:
 
     # 评估
     eval_steps: 500                 # 每 500 步评估一次
-    eval_dataset: ${input.eval_dataset}
+    evaluation_dataset: ${input.evaluation_dataset}
 
     # 检查点保存
     save_steps: 500                 # 每 500 步保存一次
@@ -442,7 +442,7 @@ components:
 
     # 数据集
     dataset: ${input.dataset}
-    eval_dataset: ${input.eval_dataset}
+    evaluation_dataset: ${input.evaluation_dataset}
 
     # 数据格式
     text_column: text               # 单文本列
@@ -669,7 +669,7 @@ components:
     type: model-trainer
     task: sft
 
-    eval_dataset: ${input.eval_dataset}
+    evaluation_dataset: ${input.evaluation_dataset}
     eval_steps: 500
 ```
 

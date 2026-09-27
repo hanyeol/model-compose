@@ -16,4 +16,4 @@ class TextClassificationModelTrainerActionConfig(CommonModelTrainerActionConfig)
     label_names: Optional[Union[List[str], str]] = Field(default=None, description="Ordered class-name list used to build `id2label` / `label2id`.")
 
     # Training strategy
-    max_seq_length: int = Field(default=512, description="Maximum tokenized sequence length used during training.")
+    max_seq_length: Optional[int] = Field(default=None, description="Maximum tokenized sequence length used during training.")

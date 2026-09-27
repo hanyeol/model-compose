@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Dict, List, Any
+from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType
 from mindor.dsl.schema.action import SftModelTrainerActionConfig
 from .....context import ComponentActionContext
@@ -18,7 +18,7 @@ class HuggingfaceSftModelTrainerTaskAction(SftModelTrainerTaskAction):
         train_dataset: Any,
         evaluation_dataset: Any,
         dataset_text_field: str,
-        max_seq_length: int,
+        max_seq_length: Optional[int],
         packing: bool,
         completion_only_loss: bool,
         output_dir: str,

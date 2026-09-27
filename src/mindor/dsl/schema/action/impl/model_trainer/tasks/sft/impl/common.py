@@ -15,7 +15,7 @@ class SftModelTrainerActionConfig(CommonModelTrainerActionConfig):
     system_column: Optional[str] = Field(default=None, description="Dataset column that holds system prompts in chat-style data.")
 
     # Training strategy
-    max_seq_length: int = Field(default=512, description="Maximum tokenized sequence length used during training.")
+    max_seq_length: Optional[int] = Field(default=None, description="Maximum tokenized sequence length used during training.")
     packing: bool = Field(default=False, description="Whether multiple short examples are packed into one sequence for efficiency.")
     completion_only_loss: bool = Field(default=False, description="Whether to compute loss only on the response tokens, masking the prompt.")
 

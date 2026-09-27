@@ -22,7 +22,7 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
         label_names: Optional[List[str]],
         num_labels: int,
         label_remap: Optional[Dict[int, int]],
-        max_seq_length: int,
+        max_seq_length: Optional[int],
         output_dir: str,
     ) -> TrainOutput:
         from transformers import (

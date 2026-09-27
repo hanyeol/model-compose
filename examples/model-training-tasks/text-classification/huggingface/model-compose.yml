@@ -31,12 +31,14 @@ components:
     driver: huggingface
     action:
       method: load
-      # SST-2 is a GLUE configuration; the entire DatasetDict (train + validation)
-      # is loaded here so the trainer can auto-select the evaluation split.
+      # Default is the standalone SST-2 repo — no config name required, so users
+      # who override `dataset_path` don't inherit a stale `dataset_name`. For
+      # multi-config repos (e.g. GLUE benchmark) supply both `dataset_path` and
+      # `dataset_name` at run time.
       # SST-2's `test` split has masked labels (-1); the driver's evaluation-split
       # lookup skips it and falls through to `validation` automatically.
-      path: ${input.dataset_path | nyu-mll/glue}
-      name: ${input.dataset_name | sst2}
+      path: ${input.dataset_path | stanfordnlp/sst2}
+      name: ${input.dataset_name}
 
   - id: trainer
     type: model-trainer
@@ -51,10 +53,12 @@ components:
       target_modules: [ query, value ]
     action:
       dataset: ${input.dataset}
-      # SST-2 ships the sentence under `sentence`, not `text`.
-      text_column: sentence
-      label_column: label
-      label_names: [ negative, positive ]
+      # Defaults target SST-2 (`sentence` column, binary sentiment). Override
+      # `text_column`, `label_column`, and `label_names` at run time to point
+      # the same trainer at a different classification dataset.
+      text_column: ${input.text_column | sentence}
+      label_column: ${input.label_column | label}
+      label_names: ${input.label_names as list | [ negative, positive ]}
       output_dir: ${input.output_dir | ./output/classification}
       num_epochs: ${input.num_epochs as int | 3}
       per_device_train_batch_size: ${input.batch_size as int | 32}

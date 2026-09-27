@@ -108,8 +108,11 @@ No additional environment configuration required.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `dataset_path` | string | No | `nyu-mll/glue` | HuggingFace dataset repo (namespace/name) |
-| `dataset_name` | string | No | `sst2` | Dataset configuration name (GLUE subset) |
+| `dataset_path` | string | No | `stanfordnlp/sst2` | HuggingFace dataset repo id. For multi-config repos (e.g. `nyu-mll/glue`) also set `dataset_name` |
+| `dataset_name` | string | No | *(unset)* | Config name for multi-config repos (e.g. `sst2`, `mrpc`, `cola` under `nyu-mll/glue`) |
+| `text_column` | string | No | `sentence` | Column containing the input text |
+| `label_column` | string | No | `label` | Column containing the integer class label |
+| `label_names` | list | No | `[negative, positive]` | Human-readable class names, in id order. Length must match the number of classes in the dataset |
 | `num_epochs` | int | No | `3` | Number of training epochs |
 | `batch_size` | int | No | `32` | Per-device train batch size |
 | `learning_rate` | float | No | `5e-5` | AdamW initial learning rate |
@@ -160,20 +163,27 @@ If your dataset's raw label values are non-contiguous (e.g. `{1, 2}` instead of 
 
 ### Use a different classification dataset
 
-```yaml
-action:
-  dataset: glue/cola             # Grammatical acceptability (2 classes)
-  text_column: sentence
-  label_names: [unacceptable, acceptable]
+All dataset-shape inputs are overridable at run time — no YAML edits required.
+
+CoLA (grammatical acceptability, 2 classes, lives under the `nyu-mll/glue` multi-config repo):
+
+```bash
+model-compose run --input '{
+  "dataset_path": "nyu-mll/glue",
+  "dataset_name": "cola",
+  "text_column": "sentence",
+  "label_names": ["unacceptable", "acceptable"]
+}'
 ```
 
-Or a multi-class task:
+AG News (4-class news topic, single-config repo):
 
-```yaml
-action:
-  dataset: ag_news               # 4-class news topic
-  text_column: text
-  label_names: [world, sports, business, sci-tech]
+```bash
+model-compose run --input '{
+  "dataset_path": "ag_news",
+  "text_column": "text",
+  "label_names": ["world", "sports", "business", "sci-tech"]
+}'
 ```
 
 ### Use QLoRA (4-bit quantized base)

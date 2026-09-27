@@ -12,6 +12,7 @@ class ModelTrainerTaskType(str, Enum):
 
 class ModelTrainerDriverType(str, Enum):
     HUGGINGFACE = "huggingface"
+    UNSLOTH     = "unsloth"
 
 class ModelTrainerLoraConfig(BaseModel):
     rank: int = Field(default=8, description="Rank of the LoRA decomposition.")

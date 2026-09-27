@@ -5,6 +5,7 @@ from .impl import *
 SftModelTrainerComponentConfig = Annotated[
     Union[
         HuggingfaceSftModelTrainerComponentConfig,
+        UnslothSftModelTrainerComponentConfig,
     ],
     Field(discriminator="driver")
 ]

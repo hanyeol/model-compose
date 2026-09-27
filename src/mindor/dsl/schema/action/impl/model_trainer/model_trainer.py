@@ -4,5 +4,5 @@ from .tasks import *
 
 ModelTrainerActionConfig = Union[
     SftModelTrainerActionConfig,
-    ClassificationModelTrainerActionConfig
+    TextClassificationModelTrainerActionConfig
 ]

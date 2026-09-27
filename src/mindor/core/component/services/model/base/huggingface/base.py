@@ -32,6 +32,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         requirements = [
             *self._get_torch_requirements(),
             *self._get_transformers_requirements(),
+            *self._get_huggingface_hub_requirements(),
             "accelerate",
         ]
 
@@ -52,6 +53,13 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
 
     def _get_transformers_requirements(self) -> List[str]:
         return [ "transformers>=4.52.0" ]
+
+    def _get_huggingface_hub_requirements(self) -> List[str]:
+        # 1.33.0 returns 404 on the Xet `xet-read-token` endpoint for Xet-disabled
+        # repos (e.g. bert-base-uncased), breaking snapshot_download for many
+        # legacy models. transformers stable does not accept hf_hub 2.x yet, so
+        # exclude only the broken point release.
+        return [ "huggingface_hub!=1.33.0" ]
 
     def _get_peft_requirements(self) -> List[str]:
         return [ "peft" ]

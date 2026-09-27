@@ -29,9 +29,6 @@ class ModelTaskDriver(ComponentDriver):
         self._model_loaded: bool = False
         self._model_load_lock: asyncio.Lock = asyncio.Lock()
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return []
-
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if not self._model_loaded:
             async with self._model_load_lock:

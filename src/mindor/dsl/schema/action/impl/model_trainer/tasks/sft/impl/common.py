@@ -1,12 +1,12 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from pydantic import model_validator
-from .common import CommonModelTrainerActionConfig
+from ...common import CommonModelTrainerActionConfig
 
 class SftModelTrainerActionConfig(CommonModelTrainerActionConfig):
     # Dataset configuration
     dataset: str = Field(..., description="Dataset used for training.")
-    eval_dataset: Optional[str] = Field(default=None, description="Dataset used for evaluation during training.")
+    evaluation_dataset: Optional[str] = Field(default=None, description="Dataset used for evaluation during training.")
 
     # Data formatting
     text_column: Optional[str] = Field(default=None, description="Dataset column that holds the training text.")

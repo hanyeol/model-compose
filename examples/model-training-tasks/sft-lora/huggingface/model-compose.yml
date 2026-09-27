@@ -24,9 +24,9 @@ workflow:
       input:
         dataset:       ${jobs.load-dataset.output}
         output_dir:    ${input.output_dir | ./output/sft-lora}
-        num_epochs:    ${input.num_epochs as int | 1}
-        batch_size:    ${input.batch_size as int | 4}
-        learning_rate: ${input.learning_rate as float | 2e-4}
+        num_epochs:    ${input.num_epochs as integer | 1}
+        batch_size:    ${input.batch_size as integer | 4}
+        learning_rate: ${input.learning_rate as number | 2e-4}
       output:
         output_dir: ${output.output_dir}
         train_loss: ${output.train_loss}
@@ -57,9 +57,9 @@ components:
       dataset: ${input.dataset}
       text_column: text
       output_dir: ${input.output_dir | ./output/sft-lora}
-      num_epochs: ${input.num_epochs as int | 1}
-      per_device_train_batch_size: ${input.batch_size as int | 4}
-      learning_rate: ${input.learning_rate as float | 2e-4}
+      num_epochs: ${input.num_epochs as integer | 1}
+      per_device_train_batch_size: ${input.batch_size as integer | 4}
+      learning_rate: ${input.learning_rate as number | 2e-4}
       gradient_checkpointing: true
       bf16: true
       max_seq_length: 1024

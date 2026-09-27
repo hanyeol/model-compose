@@ -36,7 +36,11 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
             label_names,
             num_labels,
         )
-        training_arguments = await self._build_training_arguments(context, output_dir, has_evaluation=evaluation_dataset is not None)
+        training_arguments = await self._build_training_arguments(
+            context,
+            output_dir,
+            has_evaluation=evaluation_dataset is not None
+        )
 
         result = await self._run_in_executor(
             self._train,

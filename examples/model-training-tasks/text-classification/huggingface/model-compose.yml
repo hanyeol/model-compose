@@ -35,8 +35,8 @@ components:
       # is loaded here so the trainer can auto-select the evaluation split.
       # SST-2's `test` split has masked labels (-1); the driver's evaluation-split
       # lookup skips it and falls through to `validation` automatically.
-      path: ${input.dataset_path | "glue"}
-      name: ${input.dataset_name | "sst2"}
+      path: ${input.dataset_path | nyu-mll/glue}
+      name: ${input.dataset_name | sst2}
 
   - id: trainer
     type: model-trainer
@@ -55,7 +55,7 @@ components:
       text_column: sentence
       label_column: label
       label_names: [ negative, positive ]
-      output_dir: ${input.output_dir | "./output/classification"}
+      output_dir: ${input.output_dir | ./output/classification}
       num_epochs: ${input.num_epochs as int | 3}
       per_device_train_batch_size: ${input.batch_size as int | 32}
       learning_rate: ${input.learning_rate as float | 5e-5}

@@ -31,8 +31,8 @@ components:
     driver: huggingface
     action:
       method: load
-      path: ${input.dataset_path | "tatsu-lab/alpaca"}
-      split: ${input.dataset_split | "train"}
+      path: ${input.dataset_path | tatsu-lab/alpaca}
+      split: ${input.dataset_split | train}
 
   - id: trainer
     type: model-trainer
@@ -49,7 +49,7 @@ components:
     action:
       dataset: ${input.dataset}
       text_column: text
-      output_dir: ${input.output_dir | "./output/sft-lora"}
+      output_dir: ${input.output_dir | ./output/sft-lora}
       num_epochs: ${input.num_epochs as int | 1}
       per_device_train_batch_size: ${input.batch_size as int | 4}
       learning_rate: ${input.learning_rate as float | 2e-4}

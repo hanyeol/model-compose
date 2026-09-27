@@ -108,7 +108,8 @@ No additional environment configuration required.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `dataset` | string | No | `glue/sst2` | HuggingFace dataset name or local path |
+| `dataset_path` | string | No | `nyu-mll/glue` | HuggingFace dataset repo (namespace/name) |
+| `dataset_name` | string | No | `sst2` | Dataset configuration name (GLUE subset) |
 | `num_epochs` | int | No | `3` | Number of training epochs |
 | `batch_size` | int | No | `32` | Per-device train batch size |
 | `learning_rate` | float | No | `5e-5` | AdamW initial learning rate |
@@ -138,7 +139,7 @@ If your dataset's raw label values are non-contiguous (e.g. `{1, 2}` instead of 
 
 `_load_datasets` picks the evaluation split by trying `validation` → `eval` → `test` in that order. GLUE SST-2's `test` split has all labels masked to `-1`, so the driver detects this and falls through to `validation`. This means:
 
-- With `dataset: glue/sst2` you get `train` for training and `validation` for evaluation automatically.
+- With `path: nyu-mll/glue, name: sst2` you get `train` for training and `validation` for evaluation automatically.
 - If none of the candidates has usable labels, evaluation is skipped rather than falling back to an arbitrary split.
 
 ## System Requirements
@@ -193,7 +194,7 @@ component:
     type: nf4
     compute_dtype: bfloat16
   action:
-    dataset: glue/sst2
+    dataset: ${jobs.load-dataset.output}
     text_column: sentence
     label_names: [negative, positive]
 ```

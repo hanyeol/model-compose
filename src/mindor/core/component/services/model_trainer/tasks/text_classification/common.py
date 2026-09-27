@@ -36,6 +36,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
             label_names,
             num_labels,
         )
+
         training_arguments = await self._build_training_arguments(
             context,
             output_dir,

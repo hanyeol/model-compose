@@ -13,13 +13,23 @@ workflow:
   jobs:
     - id: load-dataset
       component: sst2
+      input:
+        dataset_path: ${input.dataset_path | stanfordnlp/sst2}
+        dataset_name: ${input.dataset_name}
       output: ${output}
 
     - id: train
       component: trainer
       depends_on: [ load-dataset ]
       input:
-        dataset: ${jobs.load-dataset.output}
+        dataset:       ${jobs.load-dataset.output}
+        text_column:   ${input.text_column | sentence}
+        label_column:  ${input.label_column | label}
+        label_names:   ${input.label_names as list | [ negative, positive ]}
+        output_dir:    ${input.output_dir | ./output/classification}
+        num_epochs:    ${input.num_epochs as int | 3}
+        batch_size:    ${input.batch_size as int | 32}
+        learning_rate: ${input.learning_rate as float | 5e-5}
       output:
         output_dir: ${output.output_dir}
         train_loss: ${output.train_loss}
@@ -31,13 +41,9 @@ components:
     driver: huggingface
     action:
       method: load
-      # Default is the standalone SST-2 repo — no config name required, so users
-      # who override `dataset_path` don't inherit a stale `dataset_name`. For
-      # multi-config repos (e.g. GLUE benchmark) supply both `dataset_path` and
-      # `dataset_name` at run time.
       # SST-2's `test` split has masked labels (-1); the driver's evaluation-split
       # lookup skips it and falls through to `validation` automatically.
-      path: ${input.dataset_path | stanfordnlp/sst2}
+      path: ${input.dataset_path}
       name: ${input.dataset_name}
 
   - id: trainer

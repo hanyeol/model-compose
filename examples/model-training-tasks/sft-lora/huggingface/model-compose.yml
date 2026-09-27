@@ -13,13 +13,20 @@ workflow:
   jobs:
     - id: load-dataset
       component: alpaca
+      input:
+        dataset_path:  ${input.dataset_path | tatsu-lab/alpaca}
+        dataset_split: ${input.dataset_split | train}
       output: ${output}
 
     - id: train
       component: trainer
       depends_on: [ load-dataset ]
       input:
-        dataset: ${jobs.load-dataset.output}
+        dataset:       ${jobs.load-dataset.output}
+        output_dir:    ${input.output_dir | ./output/sft-lora}
+        num_epochs:    ${input.num_epochs as int | 1}
+        batch_size:    ${input.batch_size as int | 4}
+        learning_rate: ${input.learning_rate as float | 2e-4}
       output:
         output_dir: ${output.output_dir}
         train_loss: ${output.train_loss}
@@ -31,8 +38,8 @@ components:
     driver: huggingface
     action:
       method: load
-      path: ${input.dataset_path | tatsu-lab/alpaca}
-      split: ${input.dataset_split | train}
+      path: ${input.dataset_path}
+      split: ${input.dataset_split}
 
   - id: trainer
     type: model-trainer

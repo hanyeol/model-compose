@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import Field
 from ...common import CommonModelTrainerActionConfig
 
@@ -13,7 +13,7 @@ class TextClassificationModelTrainerActionConfig(CommonModelTrainerActionConfig)
 
     # Label mapping
     num_labels: Optional[int] = Field(default=None, description="Number of output classes; auto-inferred from `label_column` when unset.")
-    label_names: Optional[List[str]] = Field(default=None, description="Ordered class-name list used to build `id2label` / `label2id`.")
+    label_names: Optional[Union[List[str], str]] = Field(default=None, description="Ordered class-name list used to build `id2label` / `label2id`.")
 
     # Training strategy
     max_seq_length: int = Field(default=512, description="Maximum tokenized sequence length used during training.")

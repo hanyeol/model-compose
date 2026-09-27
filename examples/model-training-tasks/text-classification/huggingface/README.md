@@ -112,7 +112,7 @@ No additional environment configuration required.
 | `dataset_name` | string | No | *(unset)* | Config name for multi-config repos (e.g. `sst2`, `mrpc`, `cola` under `nyu-mll/glue`) |
 | `text_column` | string | No | `sentence` | Column containing the input text |
 | `label_column` | string | No | `label` | Column containing the integer class label |
-| `label_names` | list | No | `[negative, positive]` | Human-readable class names, in id order. Length must match the number of classes in the dataset |
+| `label_names` | list | No | `["negative", "positive"]` | Human-readable class names, in id order. Length must match the number of classes in the dataset |
 | `num_epochs` | int | No | `3` | Number of training epochs |
 | `batch_size` | int | No | `32` | Per-device train batch size |
 | `learning_rate` | float | No | `5e-5` | AdamW initial learning rate |

@@ -25,7 +25,7 @@ workflow:
         dataset:       ${jobs.load-dataset.output}
         text_column:   ${input.text_column | sentence}
         label_column:  ${input.label_column | label}
-        label_names:   ${input.label_names as list | [ negative, positive ]}
+        label_names:   ${input.label_names as list | [ "negative", "positive" ]}
         output_dir:    ${input.output_dir | ./output/classification}
         num_epochs:    ${input.num_epochs as int | 3}
         batch_size:    ${input.batch_size as int | 32}

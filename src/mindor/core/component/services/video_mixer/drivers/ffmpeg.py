@@ -104,8 +104,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         # every stream specifier resolves. Durations are needed both for
         # anullsrc padding (unbounded anullsrc turns plain concat into an
         # infinite stream) and for computing cumulative xfade offsets.
-        input_has_audio = [ await self._has_audio_stream(path) for path in input_paths ]
-        input_durations = [ (await probe_video(path, [ "duration" ]))[0] for path in input_paths ]
+        has_audios = [ await self._has_audio_stream(path) for path in input_paths ]
+        durations = [ (await probe_video(path, [ "duration" ]))[0] for path in input_paths ]
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
 
@@ -113,8 +113,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             command.extend([ "-i", path ])
 
         filter_complex, video_label, audio_label = self._build_concat_filter(
-            input_has_audio,
-            input_durations,
+            has_audios,
+            durations,
             crossfade,
             transition,
         )
@@ -359,8 +359,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
     def _build_concat_filter(
         self,
-        input_has_audio: List[bool],
-        input_durations: List[float],
+        has_audios: List[bool],
+        durations: List[float],
         crossfade: Optional[float],
         transition: VideoMixerConcatTransition,
     ) -> Tuple[str, str, Optional[str]]:
@@ -381,7 +381,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         chain never breaks.
         """
         filter_parts: List[str] = []
-        count = len(input_has_audio)
+        count = len(has_audios)
 
         # Pad silent inputs with anullsrc matched to the clip's video duration
         # so downstream concat/xfade/acrossfade never see a missing audio
@@ -389,12 +389,12 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         # stream, so the length is always pinned to the video's duration.
         audio_labels: List[str] = []
 
-        for index, has_audio in enumerate(input_has_audio):
+        for index, has_audio in enumerate(has_audios):
             if has_audio:
                 audio_labels.append(f"[{index}:a]")
             else:
                 filter_parts.append(
-                    f"anullsrc=channel_layout=stereo:sample_rate=48000:d={input_durations[index]}[a{index}sil]"
+                    f"anullsrc=channel_layout=stereo:sample_rate=48000:d={durations[index]}[a{index}sil]"
                 )
                 audio_labels.append(f"[a{index}sil]")
 
@@ -416,7 +416,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         for pair_index in range(count - 1):
             next_index = pair_index + 1
-            offset = sum(input_durations[: next_index]) - (pair_index + 1) * crossfade
+            offset = sum(durations[: next_index]) - (pair_index + 1) * crossfade
 
             next_video_label = "[vout]" if next_index == count - 1 else f"[vx{pair_index}]"
             next_audio_label = "[aout]" if next_index == count - 1 else f"[ax{pair_index}]"

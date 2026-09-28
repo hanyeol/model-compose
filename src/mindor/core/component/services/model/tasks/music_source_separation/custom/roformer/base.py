@@ -285,7 +285,7 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
         def _load() -> torch.nn.Module:
             model = model_class(**model_params)
 
-            self._load_checkpoint(model, model_path)
+            self._load_model_checkpoint(model, model_path)
 
             model.to(device)
             model.eval()
@@ -296,19 +296,17 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
 
         return model, device
 
-    def _load_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
-        """Load a .ckpt/.pt/.safetensors state dict into the roformer module.
-
-        Uses the framework's `_load_model_checkpoint` for standard `.pt`/`.ckpt`
-        files (which handles the `params` / `state_dict` wrapping conventions)
-        and falls back to safetensors when the file has that extension.
-        """
+    def _load_model_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
+        # Roformer checkpoints ship as .ckpt/.pt (state dict, possibly wrapped
+        # in `params`/`state_dict`) or .safetensors. Delegate the former to the
+        # base helper; handle safetensors directly.
         if model_path.endswith(".safetensors"):
             from safetensors.torch import load_file
+
             state_dict = load_file(model_path, device="cpu")
             model.load_state_dict(state_dict, strict=True)
         else:
-            self._load_model_checkpoint(model, model_path)
+            super()._load_model_checkpoint(model, model_path)
 
     def _get_model_class(self) -> Type[torch.nn.Module]:
         raise NotImplementedError

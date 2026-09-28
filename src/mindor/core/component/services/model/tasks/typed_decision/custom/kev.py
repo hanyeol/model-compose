@@ -140,13 +140,6 @@ class KevTypedDecisionTaskDriver(ModelTaskDriver):
             )
 
     async def _load_model(self) -> None:
-        self.tokenizer, self.model = await self._load_checkpoint()
-
-    async def _unload_model(self) -> None:
-        self.tokenizer = None
-        self.model = None
-
-    async def _load_checkpoint(self) -> Any:
         model_path = await self._provision_model(self.config.model, prefetch=True)
         backend = self.config.backend.value
 
@@ -161,7 +154,11 @@ class KevTypedDecisionTaskDriver(ModelTaskDriver):
 
             return Checkpoint(model_path).load(default_device(), options)
 
-        return await self._run_in_executor(_load)
+        self.tokenizer, self.model = await self._run_in_executor(_load)
+
+    async def _unload_model(self) -> None:
+        self.tokenizer = None
+        self.model = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await KevTypedDecisionTaskAction(

@@ -197,14 +197,6 @@ class Mdx23cMusicSourceSeparationTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.model, self.instruments, self.device = await self._load_checkpoint()
-
-    async def _unload_model(self) -> None:
-        self.model = None
-        self.instruments = []
-        self.device = None
-
-    async def _load_checkpoint(self) -> Tuple[Any, List[str], torch.device]:
         import torch
         from mdx23c import TFC_TDF_net, load_config
 
@@ -259,9 +251,13 @@ class Mdx23cMusicSourceSeparationTaskDriver(ModelTaskDriver):
 
             return model, instruments
 
-        model, instruments = await self._run_in_executor(_load)
+        self.model, self.instruments = await self._run_in_executor(_load)
+        self.device = device
 
-        return model, instruments, device
+    async def _unload_model(self) -> None:
+        self.model = None
+        self.instruments = []
+        self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await Mdx23cMusicSourceSeparationTaskAction(

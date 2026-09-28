@@ -115,8 +115,8 @@ async def probe_audio(path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
     """
     return await _probe(path, fields, "a:0", _AUDIO_FIELDS)
 
-async def probe_video_keyframes(path: str, interval: Optional[Tuple[Optional[float], float]] = None) -> List[float]:
-    """List video keyframe presentation timestamps (absolute, in seconds).
+async def probe_video_keyframes(path: str, interval: Optional[Tuple[Optional[float], float]] = None) -> List[Tuple[float, int]]:
+    """List `(pts, packet_index)` for every video keyframe in the scanned range.
 
     `interval` optionally scopes the scan to `(start, end)` absolute seconds — pass
     `start=None` for an open start (needed when a keyframe sits exactly on the
@@ -124,6 +124,12 @@ async def probe_video_keyframes(path: str, interval: Optional[Tuple[Optional[flo
     cheaper than a full scan on large files, but the interval must cover a full
     GOP or the result may be empty; callers escalate to a wider window (or a
     full scan) when needed.
+
+    `packet_index` is the keyframe's 0-based position in the packet stream this
+    scan iterated (counting every video packet, not just keyframes). Indices
+    are only meaningful within one call — subtracting indices from different
+    scans yields garbage, so callers computing packet counts between two
+    keyframes must source both from the same call.
     """
     command = [
         resolve_ffprobe_executable(), "-v", "quiet", "-print_format", "json",
@@ -147,9 +153,9 @@ async def probe_video_keyframes(path: str, interval: Optional[Tuple[Optional[flo
 
     payload = json.loads(stdout.decode("utf-8"))
     packets = payload.get("packets") or []
-    keyframes: List[float] = []
+    keyframes: List[Tuple[float, int]] = []
 
-    for packet in packets:
+    for index, packet in enumerate(packets):
         if "K" not in (packet.get("flags") or ""):
             continue
 
@@ -158,6 +164,6 @@ async def probe_video_keyframes(path: str, interval: Optional[Tuple[Optional[flo
         if pts is None:
             continue
 
-        keyframes.append(float(pts))
+        keyframes.append((float(pts), index))
 
     return keyframes

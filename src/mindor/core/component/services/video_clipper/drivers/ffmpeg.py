@@ -13,7 +13,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video, probe_video_keyframes
-from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer
+from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer, get_muxer_for_extension
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -46,17 +46,24 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             input_path, spooled = await MediaInputPathResolver().resolve(video)
             format = video.format.lower() if video.format else await self._resolve_format(input_path)
 
+            # When merging, cut each clip to an ISO-BMFF container (mp4/mov) so
+            # concat sees stable per-clip A/V durations regardless of the final
+            # output format. mpegts intermediates would silently drop audio at
+            # the tail of every clip, and the drift would compound at each
+            # concat seam. The final container is applied in the concat step.
+            clip_format = await self._resolve_intermediate_format(input_path) if merge else format
+
             clips = self._clip(
                 input_path,
                 spooled,
                 self._iterate_spans(spans),
-                format,
+                clip_format,
                 precision,
                 cancellation_token,
             )
 
             if merge:
-                results.append(await self._merge(clips, format, cancellation_token))
+                results.append(await self._merge(clips, clip_format, format, cancellation_token))
             else:
                 results.append(clips)
 
@@ -94,23 +101,31 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 except FileNotFoundError:
                     pass
 
-        # Fast mode snaps each span's start to the nearest keyframe at/before it,
-        # so the returned span reflects what was actually cut. Requires a video
-        # stream with keyframes; input with no video track (or all-intra codecs
-        # where every frame is a keyframe) falls through to the requested times.
-        # `offset` is the input's format.start_time (relative↔absolute pts shift);
-        # None means fast-mode snapping isn't applicable. `keyframes` starts empty
-        # and is populated once (by the first window miss) then reused per span.
-        keyframes: Optional[List[float]] = None
+        # Fast mode snaps each span's start to the previous keyframe and its end
+        # to the next keyframe, then cuts exactly those N video packets. The
+        # returned span reflects what was actually cut. Requires a video stream
+        # with keyframes; audio-only inputs (codec probe returns None) fall
+        # through to the requested times unchanged.
+        # `offset` is format.start_time (relative↔absolute pts shift). `keyframes`
+        # is populated once (on the first miss) and reused for later spans;
+        # indices within it are only meaningful within that one scan.
+        keyframes: Optional[List[Tuple[float, int]]] = None
         offset: Optional[float] = None
+        duration: Optional[float] = None
 
         if precision == VideoClipperPrecision.FAST:
-            offset = await self._resolve_start_time(input_path)
+            (codec, offset, duration) = await probe_video(input_path, ("codec", "start_time", "duration"))
+
+            if codec is not None:
+                offset = float(offset) if offset is not None else 0.0
+            else:
+                # Audio-only input: skip snap logic and let ffmpeg cut with the requested times.
+                offset = None
 
         try:
             async for span in spans:
-                start_time = span["start_time"]
-                end_time   = span["end_time"]
+                start_time, end_time = span["start_time"], span["end_time"]
+                frame_count: Optional[int] = None
 
                 if precision == VideoClipperPrecision.ACCURATE:
                     # -ss/-to after -i forces frame-accurate seek; re-encode with
@@ -129,21 +144,29 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                         command.extend([ "-c:a", audio_codec ])
                 else:
                     if offset is not None:
-                        time_to_snap, keyframes = await self._snap_to_keyframe(input_path, start_time, offset, keyframes)
+                        start_time, end_time, frame_count, keyframes = await self._snap_to_keyframe(
+                            input_path,
+                            start_time,
+                            end_time,
+                            offset,
+                            duration,
+                            keyframes
+                        )
 
-                        if time_to_snap is not None:
-                            start_time = time_to_snap
-
-                    # -ss / -to before -i: fast input seek. With -c copy the cut aligns
-                    # to a keyframe; when we've pre-probed one, -ss lands exactly on it
-                    # and no container-dependent lead-in frames leak into the output.
+                    # -ss / -t before -i seeks fast to the input keyframe; `-frames:v`
+                    # stops at exactly N video packets, so B-frame decode-order lookahead
+                    # can't leak an extra frame or two past the requested end keyframe.
+                    # When frame_count is None the cut runs to end of file (no K2 found).
                     command = [
                         resolve_ffmpeg_executable(), "-hide_banner",
                         "-ss", f"{start_time:.6f}",
-                        "-to", f"{end_time:.6f}",
+                        "-t", f"{(end_time - start_time):.6f}",
                         "-i", input_path,
                         "-c", "copy",
                     ]
+
+                    if frame_count is not None:
+                        command.extend([ "-frames:v", str(frame_count) ])
 
                 logging.debug(
                     "Clipping video [%s..%s] (%s) -> '%s'",
@@ -176,17 +199,18 @@ class FFmpegVideoClipperAction(VideoClipperAction):
     async def _merge(
         self,
         clips: AsyncIterator[Dict[str, Any]],
-        format: str,
+        clip_format: str,
+        merge_format: str,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         """Concatenate an async stream of clips into a single video, carrying
         along each source span so callers can recover per-input positions.
 
-        Each incoming clip is drained to a temp file as it arrives; once the
-        clip iterator is exhausted, ffmpeg's concat demuxer stitches the files
-        together with -c copy (no re-encoding). Clips must share the same
-        codec/container for -c copy to work — that's guaranteed here because
-        they all come from the same _clip() call.
+        Each incoming clip is drained to a temp file (in `clip_format`) as it
+        arrives; once the clip iterator is exhausted, ffmpeg's concat demuxer
+        stitches them together with -c copy and remuxes into `merge_format`.
+        Clips must share the same codec/container for -c copy to work —
+        guaranteed here because they all come from the same _clip() call.
 
         Returns `{video, times: [{start_time, end_time}, ...]}`; when the clip
         iterator produced nothing, `video` is None and `times` is empty.
@@ -209,7 +233,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
         try:
             async for clip in clips:
-                clip_path = get_temporary_path(get_extension_for_muxer(format))
+                clip_path = get_temporary_path(get_extension_for_muxer(clip_format))
                 clip_paths.append(clip_path)
                 times.append({ "start_time": clip["start_time"], "end_time": clip["end_time"] })
 
@@ -234,10 +258,10 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 "-c", "copy",
             ]
 
-            if is_streamable_video_format(format):
-                video = await self._run_to_stream(concat_command, format, _cleanup, cancellation_token)
+            if is_streamable_video_format(merge_format):
+                video = await self._run_to_stream(concat_command, merge_format, _cleanup, cancellation_token)
             else:
-                video = await self._run_to_file(concat_command, format, _cleanup, cancellation_token)
+                video = await self._run_to_file(concat_command, merge_format, _cleanup, cancellation_token)
 
             return { "video": video, "times": times }
         except BaseException:
@@ -312,7 +336,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as a VideoStreamResource."""
-        command = command + [ "-f", format, "pipe:1" ]
+        command = command + [ "-f", get_muxer_for_extension(format), "pipe:1" ]
         error: list = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
@@ -374,85 +398,116 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         self,
         input_path: str,
         start_time: float,
+        end_time: float,
         offset: float,
-        keyframes: Optional[List[float]],
-    ) -> Tuple[Optional[float], Optional[List[float]]]:
-        """Return `(time_to_snap, keyframes)`.
+        duration: Optional[float],
+        keyframes: Optional[List[Tuple[float, int]]],
+    ) -> Tuple[Optional[float], Optional[float], Optional[int], Optional[List[Tuple[float, int]]]]:
+        """Return `(start_time_to_snap, end_time_to_snap, frame_count, keyframes)`.
 
-        `time_to_snap` is the largest keyframe pts ≤ `start_time` in
-        relative seconds, or None if no such keyframe was found. `keyframes` is
-        the full-file keyframe list (absolute pts) when a full scan was needed,
-        or the value passed in — callers should reuse it for subsequent spans
-        to skip re-probing.
+        `start_time_to_snap` is the largest keyframe pts ≤ `start_time` in
+        relative seconds; `end_time_to_snap` is the smallest keyframe pts ≥
+        `end_time` (or `duration` when the request extends past the last
+        keyframe). Both are None when no start keyframe was found — the caller
+        then falls through to the requested times. `frame_count` is the number
+        of video packets from the start keyframe up to (but not including) the
+        end keyframe; feed it to `-frames:v` so B-frame decode-order lookahead
+        can't leak past the end keyframe. None means cut to end of file.
 
-        Tries a bounded pre-probe window first for cheap access when `keyframes`
-        is None; on miss, escalates to a full-file scan.
+        Tries a bounded pre-probe window covering both ends when `keyframes` is
+        None; on miss (or when the window doesn't reach the file's end), falls
+        back to a full-file scan. `keyframes` is handed back so later spans on
+        the same input reuse it — packet indices are only meaningful within a
+        single scan, so both endpoints must be resolved against the same list.
         """
         start_time = start_time + offset
+        end_time   = end_time + offset
 
         if keyframes is None:
-            window_start: Optional[float] = start_time - _KEYFRAME_WINDOW_SECONDS
+            window_start_time = start_time - _KEYFRAME_WINDOW_SECONDS
+            window_end_time   = end_time   + _KEYFRAME_WINDOW_SECONDS
 
             # Use an open start when the window would begin at/before the file's
             # own start_time: some containers (mpegts) don't emit a boundary
             # keyframe otherwise.
-            if window_start <= offset:
-                window_start = None
+            if window_start_time <= offset:
+                window_start_time = None
 
-            # ffprobe's `-read_intervals` treats the end as exclusive, so a
-            # keyframe sitting exactly at `start_time` would be missed; bump the
-            # end by a small epsilon (well under one frame) to include it.
-            windowed = await probe_video_keyframes(input_path, (window_start, start_time + 1e-3))
-            time_to_snap = self._last_keyframe_time_before(windowed, start_time)
+            window_keyframes = await probe_video_keyframes(input_path, (window_start_time, window_end_time))
+            start_keyframe = self._last_keyframe_before(window_keyframes, start_time)
+            end_keyframe   = self._first_keyframe_after(window_keyframes, end_time)
 
-            if time_to_snap is None:
+            # A missing end entry is only OK when the file itself ends within
+            # the window; otherwise the GOP is wider than the window and we
+            # need a full scan.
+            file_ends_in_window = duration is not None and window_end_time >= duration + offset
+
+            if start_keyframe is None or (end_keyframe is None and not file_ends_in_window):
                 # Window miss: fall back to a full scan and hand it back so
                 # later spans on the same input can reuse it.
                 keyframes = await probe_video_keyframes(input_path)
-                time_to_snap = self._last_keyframe_time_before(keyframes, start_time)
+                start_keyframe = self._last_keyframe_before(keyframes, start_time)
+                end_keyframe   = self._first_keyframe_after(keyframes, end_time)
+            else:
+                # Cache the window scan for later spans; indices remain valid
+                # only because start/end entries came from this same scan.
+                keyframes = window_keyframes
         else:
-            time_to_snap = self._last_keyframe_time_before(keyframes, start_time)
+            start_keyframe = self._last_keyframe_before(keyframes, start_time)
+            end_keyframe   = self._first_keyframe_after(keyframes, end_time)
 
-        if time_to_snap is None:
-            return None, keyframes
+        if start_keyframe is None:
+            return None, None, None, keyframes
 
-        # Convert absolute pts back to relative seconds and round up to the nearest
-        # microsecond so ffmpeg's µs-quantized `-ss` lands on this keyframe rather
-        # than the previous one; the ≤1µs shift never crosses another keyframe boundary.
-        start_time = math.ceil((time_to_snap - offset) * 1_000_000) / 1_000_000
+        # Convert absolute pts back to relative seconds. Ceil the start (so
+        # ffmpeg's µs-quantized `-ss` lands on this keyframe, not the one
+        # before) and floor the end (so `-t` doesn't reach into the next GOP);
+        # the ≤1µs shift never crosses another keyframe boundary.
+        start_pts, start_index = start_keyframe
+        start_time = math.ceil((start_pts - offset) * 1_000_000) / 1_000_000
 
-        return start_time, keyframes
+        if end_keyframe is None:
+            return start_time, duration or end_time, None, keyframes
+
+        end_pts, end_index = end_keyframe
+        end_time = math.floor((end_pts - offset) * 1_000_000) / 1_000_000
+        frame_count = end_index - start_index
+
+        return start_time, end_time, frame_count, keyframes
 
     @staticmethod
-    def _last_keyframe_time_before(keyframes: List[float], start: float) -> Optional[float]:
-        """Return the largest keyframe pts ≤ `start`, or None if no keyframe qualifies.
+    def _last_keyframe_before(keyframes: List[Tuple[float, int]], start_time: float) -> Optional[Tuple[float, int]]:
+        """Return the `(pts, packet_index)` with the largest pts ≤ `start_time`, or None if no keyframe qualifies.
 
-        Both `keyframes` and `start` must share a coordinate system (the caller
-        handles absolute↔relative conversion).
+        Both `keyframes` and `start_time` must share a coordinate system (the
+        caller handles absolute↔relative conversion).
         """
-        candidate: Optional[float] = None
+        keyframe: Optional[Tuple[float, int]] = None
+        last_pts: float = -math.inf
 
-        for pts in keyframes:
-            if pts <= start and (candidate is None or pts > candidate):
-                candidate = pts
+        for pts, index in keyframes:
+            if pts <= start_time and pts > last_pts:
+                keyframe = (pts, index)
+                last_pts = pts
 
-        return candidate
+        return keyframe
 
-    async def _resolve_start_time(self, input_path: str) -> Optional[float]:
-        """Return the video's `format.start_time` (0.0 when absent), or None
-        when the input has no video stream.
+    @staticmethod
+    def _first_keyframe_after(keyframes: List[Tuple[float, int]], end_time: float) -> Optional[Tuple[float, int]]:
+        """Return the `(pts, packet_index)` with the smallest pts ≥ `end_time`, or None if no keyframe qualifies.
 
-        Callers use the offset to convert between the caller's relative seek
-        times and ffprobe's absolute pts; a None return signals fast-mode
-        snapping isn't applicable and the caller should fall through to the
-        requested times.
+        Both `keyframes` and `end_time` must share a coordinate system (the
+        caller handles absolute↔relative conversion).
         """
-        (codec, offset) = await probe_video(input_path, ("codec", "start_time"))
+        keyframe: Optional[Tuple[float, int]] = None
+        first_pts: float = math.inf
 
-        if codec is None:
-            return None
+        for pts, index in keyframes:
+            if pts >= end_time and pts < first_pts:
+                keyframe = (pts, index)
+                first_pts = pts
 
-        return float(offset) if offset is not None else 0.0
+        return keyframe
 
     async def _resolve_codecs(self, input_path: str, format: str) -> Tuple[str, Optional[str]]:
         """Pick (video, audio) codecs for the output.
@@ -482,6 +537,21 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         (format,) = await probe_video(input_path, ("format",))
 
         return format
+
+    async def _resolve_intermediate_format(self, input_path: str) -> str:
+        """Pick a per-clip container for merge intermediates.
+
+        mp4 is the default (widest codec compatibility while keeping stable
+        per-clip A/V durations); prores/dnxhd need mov instead since the mp4
+        muxer refuses them. mkv is excluded because its 1ms timestamp
+        quantization breaks the µs-precision keyframe snap.
+        """
+        (source_codec,) = await probe_video(input_path, ("codec",))
+
+        if source_codec in ("prores", "dnxhd"):
+            return "mov"
+
+        return "mp4"
 
 @register_video_clipper_driver(VideoClipperDriverType.FFMPEG)
 class FFmpegVideoClipperService(VideoClipperDriver):

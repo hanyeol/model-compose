@@ -55,6 +55,19 @@ _MUXER_EXTENSION_MAP: Dict[str, str] = {
     "jacosub":        "jss",
 }
 
+# ffmpeg's `-f` flag takes a muxer name, not an extension. Reverse the map so
+# callers holding an extension (e.g. from a filename or a container format
+# hint) can pass the right value to `-f`. Multiple muxers can share an
+# extension (`mpeg`/`mpeg1video`/`mpeg2video` → `mpg`); the first entry wins.
+_EXTENSION_MUXER_MAP: Dict[str, str] = {}
+
+for _muxer, _extension in _MUXER_EXTENSION_MAP.items():
+    _EXTENSION_MUXER_MAP.setdefault(_extension, _muxer)
+
 def get_extension_for_muxer(muxer: str) -> str:
     """Convert an ffmpeg muxer name to a filename extension ffmpeg autodetects."""
     return _MUXER_EXTENSION_MAP.get(muxer, muxer)
+
+def get_muxer_for_extension(extension: str) -> str:
+    """Convert a filename extension to the ffmpeg muxer name expected by `-f`."""
+    return _EXTENSION_MUXER_MAP.get(extension, extension)

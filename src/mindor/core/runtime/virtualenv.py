@@ -167,15 +167,26 @@ class VirtualEnvRuntime:
         site_packages = self._venv_site_packages()
         site_packages.mkdir(parents=True, exist_ok=True)
 
+        host_mindor_root = Path(mindor.__file__).resolve().parent
         venv_mindor_root = site_packages / "mindor"
-        venv_version_path = venv_mindor_root / ".version"
+        venv_pth_path = site_packages / "mindor.pth"
 
+        if self._is_editable_install(host_mindor_root):
+            if venv_mindor_root.exists():
+                shutil.rmtree(venv_mindor_root)
+
+            venv_pth_path.write_text(f"{host_mindor_root.parent}\n")
+
+            return
+
+        if venv_pth_path.exists():
+            venv_pth_path.unlink()
+
+        venv_version_path = venv_mindor_root / ".version"
         host_mindor_version = mindor.version.__version__
         venv_mindor_version = venv_version_path.read_text().strip() if venv_version_path.exists() else None
 
         if venv_mindor_version != host_mindor_version:
-            host_mindor_root = Path(mindor.__file__).resolve().parent
-
             if venv_mindor_root.exists():
                 shutil.rmtree(venv_mindor_root)
 
@@ -188,6 +199,25 @@ class VirtualEnvRuntime:
             os.replace(venv_mindor_staging_root, venv_mindor_root)
 
             venv_version_path.write_text(host_mindor_version)
+
+    def _is_editable_install(self, host_mindor_root: Path) -> bool:
+        # pip's editable installs leave a marker in the host site-packages
+        # (`__editable__.mindor-*.pth` for PEP 660 or `mindor.egg-link` for the
+        # legacy path). Fall back to checking for a project file next to the
+        # source tree (`src/mindor/` → `pyproject.toml` two levels up) so a
+        # source checkout without pip metadata is still treated as editable.
+        host_site_packages = host_mindor_root.parent
+
+        if any(host_site_packages.glob("__editable__.mindor-*.pth")):
+            return True
+
+        if (host_site_packages / "mindor.egg-link").exists():
+            return True
+
+        if (host_mindor_root.parent.parent / "pyproject.toml").exists():
+            return True
+
+        return False
 
     def _install_dependencies(self) -> None:
         runtime_requirements_path = Path(str(files("mindor.core.runtime.bootstrap") / "requirements.txt"))

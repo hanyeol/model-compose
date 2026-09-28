@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING
 from typing import Optional, Union, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, get_mindor_install_root
 from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
 import importlib.util
-import os, sys, platform
+import os, sys, platform, hashlib, json, shutil
 
 if TYPE_CHECKING:
     from mindor.dsl.schema.component import NimbleTypedDecisionModelComponentConfig
@@ -17,6 +17,13 @@ if TYPE_CHECKING:
     from nimble.scoring.cuda_scorer import CudaCandidateScorer
 
     NimbleScorer = Union[ParallelScorer, CudaCandidateScorer]
+
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 class NimbleTypedDecisionTaskAction(TypedDecisionTaskAction):
     def __init__(self, config: TypedDecisionModelActionConfig, scorer: NimbleScorer):
@@ -106,11 +113,19 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         # bespokelabsai/nimble is a research repo without pyproject/setup.py, so
         # `pip install git+...` fails. Drop the `nimble/` package next to `mindor`
         # via install_package_from_github's subdirs mechanism.
+        package_path = get_mindor_install_root() / "nimble"
+
+        # install_package_from_github never replaces an installed package. A copy from before
+        # the release contract (62076b4f2d36) would keep serving the old prompts, so replace it.
+        if package_path.is_dir() and not (package_path / "scoring" / "release_contract.py").is_file():
+            shutil.rmtree(package_path)
+            importlib.invalidate_caches()
+
         if importlib.util.find_spec("nimble") is None:
             await install_package_from_github(
                 "nimble",
                 "https://github.com/bespokelabsai/nimble.git",
-                revision="f136b3f75721",
+                revision="62076b4f2d36",
                 subdirs=[ "nimble" ],
             )
 
@@ -125,10 +140,18 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         self.scorer = None
 
     async def _merge_adapter(self, adapter_path: str, base_path: str) -> str:
-        merged_root = os.path.join(self._get_model_cache_dir(), "nimble-merged")
-        merged_path = os.path.join(merged_root, os.path.basename(adapter_path.rstrip(os.sep)))
+        # Name the merged checkpoint after its inputs, not the adapter folder: a local adapter
+        # trained again in place, or two adapters in folders with the same name, must not reuse
+        # each other's merge.
+        adapter_sha256 = await self._run_in_executor(_sha256_file, os.path.join(adapter_path, "adapter_model.safetensors"))
+        contract_path = os.path.join(adapter_path, "schema_config.json")
+        contract_sha256 = await self._run_in_executor(_sha256_file, contract_path) if os.path.isfile(contract_path) else ""
+        base_path = os.path.realpath(base_path)
+        merged_id = hashlib.sha256(f"{adapter_sha256}\n{contract_sha256}\n{base_path}".encode()).hexdigest()[:16]
+        merged_path = os.path.join(self._get_model_cache_dir(), "nimble-merged", merged_id)
 
-        if os.path.isdir(merged_path) and os.path.isfile(os.path.join(merged_path, "config.json")):
+        # READY.json is written last, so it marks a merge that finished.
+        if os.path.isfile(os.path.join(merged_path, "READY.json")):
             return merged_path
 
         def _merge() -> str:
@@ -137,6 +160,10 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
             import torch
 
             os.makedirs(os.path.dirname(merged_path), exist_ok=True)
+            staging_path = f"{merged_path}.staging.{os.getpid()}"
+
+            if os.path.exists(staging_path):
+                shutil.rmtree(staging_path)
 
             base_model = Qwen3_5ForConditionalGeneration.from_pretrained(
                 base_path,
@@ -145,8 +172,26 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
             )
             adapter = PeftModel.from_pretrained(base_model, adapter_path)
             merged = adapter.merge_and_unload(safe_merge=True)
-            merged.save_pretrained(merged_path)
-            AutoTokenizer.from_pretrained(adapter_path).save_pretrained(merged_path)
+            merged.save_pretrained(staging_path)
+            AutoTokenizer.from_pretrained(adapter_path).save_pretrained(staging_path)
+
+            # Nimble's scorers read the release's prompt contract from schema_config.json (up to 255
+            # choices for the current release) and pick its temperature by the adapter hash in
+            # READY.json, the files and field names of Nimble's own merge tool
+            # (nimble/scoring/merge_local_adapter.py).
+            if contract_sha256:
+                shutil.copyfile(contract_path, os.path.join(staging_path, "schema_config.json"))
+
+            with open(os.path.join(staging_path, "READY.json"), "w") as f:
+                json.dump({ "adapter_sha256": adapter_sha256, "base_path": base_path, "merge": "PEFT safe_merge on CPU" }, f, indent=2)
+
+            try:
+                os.replace(staging_path, merged_path)
+            except OSError:
+                # Another process finished the same merge first.
+                if not os.path.isfile(os.path.join(merged_path, "READY.json")):
+                    raise
+                shutil.rmtree(staging_path)
 
             return merged_path
 

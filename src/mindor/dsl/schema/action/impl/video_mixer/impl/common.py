@@ -10,6 +10,16 @@ class VideoMixerActionMethod(str, Enum):
     CONCAT  = "concat"
     OVERLAY = "overlay"
 
+class VideoMixerConcatTransition(str, Enum):
+    FADE       = "fade"
+    FADEBLACK  = "fadeblack"
+    FADEWHITE  = "fadewhite"
+    DISSOLVE   = "dissolve"
+    WIPELEFT   = "wipeleft"
+    WIPERIGHT  = "wiperight"
+    SLIDEUP    = "slideup"
+    SLIDEDOWN  = "slidedown"
+
 class VideoMixerOverlayAudioMode(str, Enum):
     BASE    = "base"
     OVERLAY = "overlay"
@@ -59,6 +69,7 @@ class VideoMixerConcatActionConfig(CommonVideoMixerActionConfig):
     method: Literal[VideoMixerActionMethod.CONCAT]
     videos: Union[List[str], str] = Field(..., description="Videos to concatenate, in the order they appear in the output.")
     crossfade: Optional[Union[str, float]] = Field(default=None, description="Crossfade duration between adjacent videos, as a duration string (e.g., \"500ms\") or seconds.")
+    transition: Union[VideoMixerConcatTransition, str] = Field(default=VideoMixerConcatTransition.FADE, description="Transition style applied when `crossfade` is set (fade, dissolve, wipeleft, slideup, ...).")
 
     @model_validator(mode="after")
     def validate_videos(self) -> VideoMixerConcatActionConfig:

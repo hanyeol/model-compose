@@ -6,6 +6,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import (
     VideoMixerActionConfig,
     VideoMixerActionMethod,
+    VideoMixerConcatTransition,
     VideoMixerOverlayAudioMode,
     VideoMixerOverlayDurationMode,
     VideoOverlayPlacement,
@@ -87,12 +88,19 @@ class VideoMixerAction(ComponentAction):
         context: ComponentActionContext,
     ) -> Dict[str, Any]:
         if method == VideoMixerActionMethod.CONCAT:
-            encoding  = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
-            crossfade = await context.render_scalar(self.config.crossfade, "time")
+            encoding   = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+            crossfade  = await context.render_scalar(self.config.crossfade, "time")
+            transition = await context.render_variable(self.config.transition)
+
+            try:
+                transition = VideoMixerConcatTransition(transition)
+            except ValueError:
+                raise ValueError(f"Invalid transition: {transition}")
 
             return {
-                "encoding":  encoding,
-                "crossfade": crossfade,
+                "encoding":   encoding,
+                "crossfade":  crossfade,
+                "transition": transition,
             }
 
         if method == VideoMixerActionMethod.OVERLAY:

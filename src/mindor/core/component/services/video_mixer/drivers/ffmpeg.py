@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoMixerComponentConfig, VideoMixerDriverType
 from mindor.dsl.schema.action import (
     VideoMixerActionConfig,
+    VideoMixerConcatTransition,
     VideoMixerOverlayAudioMode,
     VideoMixerOverlayDurationMode,
     VideoOverlayAnchor,
@@ -78,8 +79,9 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        encoding  = params["encoding"]
-        crossfade = params["crossfade"]
+        encoding   = params["encoding"]
+        crossfade  = params["crossfade"]
+        transition = params["transition"]
 
         format = self._resolve_container_format(encoding)
 
@@ -97,12 +99,25 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             if spooled:
                 spooled_paths.append(path)
 
+        # Probe each input's audio track so silent clips don't crash the
+        # concat/xfade graph — the video and audio filter chains both assume
+        # every stream specifier resolves. Durations are needed both for
+        # anullsrc padding (unbounded anullsrc turns plain concat into an
+        # infinite stream) and for computing cumulative xfade offsets.
+        input_has_audio = [ await self._has_audio_stream(path) for path in input_paths ]
+        input_durations = [ (await probe_video(path, [ "duration" ]))[0] for path in input_paths ]
+
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
 
         for path in input_paths:
             command.extend([ "-i", path ])
 
-        filter_complex, video_label, audio_label = self._build_concat_filter(len(input_paths), crossfade)
+        filter_complex, video_label, audio_label = self._build_concat_filter(
+            input_has_audio,
+            input_durations,
+            crossfade,
+            transition,
+        )
 
         command.extend([ "-filter_complex", filter_complex ])
         command.extend([ "-map", video_label ])
@@ -342,37 +357,85 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
 
-    @staticmethod
     def _build_concat_filter(
-        count: int,
+        self,
+        input_has_audio: List[bool],
+        input_durations: List[float],
         crossfade: Optional[float],
+        transition: VideoMixerConcatTransition,
     ) -> Tuple[str, str, Optional[str]]:
-        """Build a filter_complex that produces a single [vout]/[aout] from `count` inputs.
+        """Build a filter_complex that produces a single [vout]/[aout] from the concat inputs.
 
-        Without crossfade the ffmpeg `concat` filter joins video and audio streams
-        end-to-end. With crossfade, adjacent pairs are combined via `xfade`
-        (video) and `acrossfade` (audio); each pair overlaps by `crossfade` seconds,
-        which is the standard ffmpeg pattern for smooth transitions between clips.
+        Without crossfade the ffmpeg `concat` filter joins video and audio
+        end-to-end. `concat=n=N:v=1:a=1` demands every input carries an audio
+        track, so silent clips are padded with `anullsrc` matched to the clip's
+        own duration before the join.
+
+        With crossfade, adjacent pairs are combined via `xfade` (video) and
+        `acrossfade` (audio). Each xfade needs the offset at which the
+        transition starts on the *cumulative* timeline of everything already
+        chained — that offset is `sum(prior durations) - k*crossfade` after
+        `k` prior transitions, since each crossfade shortens the total by
+        exactly `crossfade` seconds. The audio side mirrors the same chain via
+        `acrossfade`, and silent inputs get an anullsrc source so the audio
+        chain never breaks.
         """
+        filter_parts: List[str] = []
+        count = len(input_has_audio)
+
+        # Pad silent inputs with anullsrc matched to the clip's video duration
+        # so downstream concat/xfade/acrossfade never see a missing audio
+        # stream. Unbounded anullsrc would turn plain concat into an infinite
+        # stream, so the length is always pinned to the video's duration.
+        audio_labels: List[str] = []
+
+        for index, has_audio in enumerate(input_has_audio):
+            if has_audio:
+                audio_labels.append(f"[{index}:a]")
+            else:
+                filter_parts.append(
+                    f"anullsrc=channel_layout=stereo:sample_rate=48000:d={input_durations[index]}[a{index}sil]"
+                )
+                audio_labels.append(f"[a{index}sil]")
+
         if crossfade is None or crossfade <= 0:
-            parts: List[str] = []
-            streams = "".join(f"[{index}:v:0][{index}:a:0]" for index in range(count))
-            parts.append(f"{streams}concat=n={count}:v=1:a=1[vout][aout]")
-            return ";".join(parts), "[vout]", "[aout]"
+            # ffmpeg's concat filter expects streams interleaved per input:
+            # `[0:v][0:a][1:v][1:a]...` — not all-video-then-all-audio.
+            streams = "".join(f"[{index}:v]{audio_labels[index]}" for index in range(count))
+            filter_parts.append(f"{streams}concat=n={count}:v=1:a=1[vout][aout]")
+
+            return ";".join(filter_parts), "[vout]", "[aout]"
 
         # Crossfade path: chain xfade/acrossfade across adjacent pairs.
-        # Each xfade needs the offset (end-of-previous minus crossfade) which
-        # depends on cumulative duration — we defer to ffmpeg by using
-        # `xfade=transition=fade:duration=D:offset=0` on pre-trimmed streams is
-        # complex, so instead we conservatively concatenate and then apply a
-        # single acrossfade-like effect: fall back to plain concat when
-        # crossfade is requested for now, with a warning-level log documented.
-        # Full offset chaining requires per-input duration probing, which is
-        # out of scope for the current implementation.
-        raise NotImplementedError(
-            "concat with crossfade requires per-input duration probing and is not yet supported; "
-            "omit `crossfade` to use plain concat."
-        )
+        # After k prior transitions the running timeline holds
+        # `sum(durations[:k+1]) - k*crossfade` seconds of content, so the next
+        # xfade must start `crossfade` seconds before that — i.e. at
+        # `sum(durations[:k+1]) - (k+1)*crossfade`.
+        current_video_label = "[0:v]"
+        current_audio_label = audio_labels[0]
+
+        for pair_index in range(count - 1):
+            next_index = pair_index + 1
+            offset = sum(input_durations[: next_index]) - (pair_index + 1) * crossfade
+
+            next_video_label = "[vout]" if next_index == count - 1 else f"[vx{pair_index}]"
+            next_audio_label = "[aout]" if next_index == count - 1 else f"[ax{pair_index}]"
+
+            filter_parts.append(
+                f"{current_video_label}[{next_index}:v]"
+                f"xfade=transition={transition.value}:duration={crossfade}:offset={offset}"
+                f"{next_video_label}"
+            )
+            filter_parts.append(
+                f"{current_audio_label}{audio_labels[next_index]}"
+                f"acrossfade=d={crossfade}"
+                f"{next_audio_label}"
+            )
+
+            current_video_label = next_video_label
+            current_audio_label = next_audio_label
+
+        return ";".join(filter_parts), "[vout]", "[aout]"
 
     def _build_overlay_filter(
         self,

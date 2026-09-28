@@ -12,13 +12,13 @@ class VideoMixerActionMethod(str, Enum):
 
 class VideoMixerConcatTransition(str, Enum):
     FADE       = "fade"
-    FADEBLACK  = "fadeblack"
-    FADEWHITE  = "fadewhite"
+    FADE_BLACK = "fade-black"
+    FADE_WHITE = "fade-white"
     DISSOLVE   = "dissolve"
-    WIPELEFT   = "wipeleft"
-    WIPERIGHT  = "wiperight"
-    SLIDEUP    = "slideup"
-    SLIDEDOWN  = "slidedown"
+    WIPE_LEFT  = "wipe-left"
+    WIPE_RIGHT = "wipe-right"
+    SLIDE_UP   = "slide-up"
+    SLIDE_DOWN = "slide-down"
 
 class VideoMixerOverlayAudioMode(str, Enum):
     BASE    = "base"

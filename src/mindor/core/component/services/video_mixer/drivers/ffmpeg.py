@@ -423,9 +423,10 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
             filter_parts.append(
                 f"{current_video_label}[{next_index}:v]"
-                f"xfade=transition={transition.value}:duration={crossfade}:offset={offset}"
+                f"xfade=transition={transition.value.replace('-', '')}:duration={crossfade}:offset={offset}"
                 f"{next_video_label}"
             )
+
             filter_parts.append(
                 f"{current_audio_label}{audio_labels[next_index]}"
                 f"acrossfade=d={crossfade}"

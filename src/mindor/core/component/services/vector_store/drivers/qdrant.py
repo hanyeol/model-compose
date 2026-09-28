@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.dsl.schema.action import VectorStoreFilterCondition, VectorStoreFilterOperator
@@ -29,11 +29,11 @@ class QdrantFilterSpecBuilder:
             must_not=must_not or None
         )
 
-    def _build_conditions(self, filter: Any) -> tuple[List[Any], List[Any]]:
-        must: List[Any] = []
-        must_not: List[Any] = []
-
+    def _build_conditions(self, filter: Any) -> Tuple[List[Any], List[Any]]:
         if isinstance(filter, (list, tuple, set)):
+            must: List[Any] = []
+            must_not: List[Any] = []
+
             for item in filter:
                 item_must, item_must_not = self._build_conditions(item)
                 must.extend(item_must)
@@ -42,38 +42,17 @@ class QdrantFilterSpecBuilder:
             return must, must_not
 
         if isinstance(filter, dict):
-            if "field" in filter and "operator" in filter:
-                condition = VectorStoreFilterCondition(
-                    field=filter["field"],
-                    operator=filter["operator"],
-                    value=filter.get("value"),
-                )
-                return self._build_conditions(condition)
+            filter = VectorStoreFilterCondition.model_validate(filter)
+            condition, is_negated = self._build_field_condition(filter)
 
-            for field, value in filter.items():
-                must.append(self._build_field_condition(field, value))
+            if condition is None:
+                return [], []
 
-            return must, must_not
+            return ([], [ condition ]) if is_negated else ([ condition ], [])
 
-        if isinstance(filter, VectorStoreFilterCondition):
-            condition, is_negated = self._build_operator_condition(filter)
+        return [], []
 
-            if condition is not None:
-                (must_not if is_negated else must).append(condition)
-
-            return must, must_not
-
-        return must, must_not
-
-    def _build_field_condition(self, field: str, value: Any) -> Any:
-        from qdrant_client.http import models as qmodels
-
-        if isinstance(value, (list, tuple, set)):
-            return qmodels.FieldCondition(key=field, match=qmodels.MatchAny(any=list(value)))
-
-        return qmodels.FieldCondition(key=field, match=qmodels.MatchValue(value=value))
-
-    def _build_operator_condition(self, condition: VectorStoreFilterCondition) -> tuple[Optional[Any], bool]:
+    def _build_field_condition(self, condition: VectorStoreFilterCondition) -> Tuple[Optional[Any], bool]:
         from qdrant_client.http import models as qmodels
 
         if condition.operator == VectorStoreFilterOperator.EQ:

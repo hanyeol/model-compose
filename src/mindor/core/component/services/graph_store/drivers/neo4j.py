@@ -121,12 +121,13 @@ class Neo4jQueryBuilder:
         return cypher, { "start_id": start_node }
 
 class Neo4jGraphStoreAction(GraphStoreAction):
-    def __init__(self, config: GraphStoreActionConfig, driver: "AsyncDriver", database_name: Optional[str]):
+    def __init__(self, config: GraphStoreActionConfig, driver: AsyncDriver, database_name: Optional[str]):
         super().__init__(config, driver)
-        self.driver: "AsyncDriver" = driver
+
+        self.driver: AsyncDriver = driver
         self.database_name: Optional[str] = database_name
 
-    def _open_session(self) -> "AsyncSession":
+    def _open_session(self) -> AsyncSession:
         return self.driver.session(database=self.database_name)
 
     async def _query(

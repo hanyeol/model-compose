@@ -24,35 +24,28 @@ class MilvusFilterExpressionBuilder:
         return " and ".join(clauses)
 
     def _build_clauses(self, filter: Any) -> List[str]:
-        clauses: List[str] = []
-
         if isinstance(filter, (list, tuple, set)):
+            clauses: List[str] = []
+
             for item in filter:
                 clauses.extend(self._build_clauses(item))
+
             return clauses
 
         if isinstance(filter, dict):
-            for field, value in filter.items():
-                clause = self._format_field_clause(field, value)
-                if clause:
-                    clauses.append(clause)
-            return clauses
+            condition = VectorStoreFilterCondition.model_validate(filter)
+            clause = self._format_field_clause(condition)
 
-        if isinstance(filter, VectorStoreFilterCondition):
-            clause = self._format_condition(filter)
-            if clause:
-                clauses.append(clause)
-            return clauses
+            return [ clause ] if clause else []
 
         if isinstance(filter, str):
             clause = filter.strip()
-            if clause:
-                clauses.append(clause)
-            return clauses
 
-        return clauses
+            return [ clause ] if clause else []
 
-    def _format_condition(self, condition: VectorStoreFilterCondition) -> Optional[str]:
+        return []
+
+    def _format_field_clause(self, condition: VectorStoreFilterCondition) -> Optional[str]:
         if condition.operator == VectorStoreFilterOperator.EQ:
             return f"{condition.field} == {self._format_scalar(condition.value)}"
 
@@ -76,15 +69,6 @@ class MilvusFilterExpressionBuilder:
 
         if condition.operator == VectorStoreFilterOperator.NOT_IN:
             return f"{condition.field} not in {self._format_list(condition.value)}"
-
-        return None
-
-    def _format_field_clause(self, field: str, value: Any) -> Optional[str]:
-        if isinstance(value, (list, tuple, set)):
-            return f"{field} in {self._format_list(list(value))}" if value else None
-
-        if not isinstance(value, dict):
-            return f"{field} == {self._format_scalar(value)}"
 
         return None
 
@@ -193,7 +177,11 @@ class MilvusVectorStoreAction(VectorStoreAction):
             data.append(item)
 
         if not insert_if_not_exist:
-            filter_expr = MilvusFilterExpressionBuilder().build({ id_field: vector_ids })
+            filter_expr = MilvusFilterExpressionBuilder().build({
+                "field":    id_field,
+                "operator": VectorStoreFilterOperator.IN,
+                "value":    vector_ids,
+            })
 
             existing = await self.client.query(
                 collection_name=collection_name,
@@ -274,8 +262,14 @@ class MilvusVectorStoreAction(VectorStoreAction):
         filter   = params["filter"]
 
         clauses: List[Any] = []
+
         if vector_ids:
-            clauses.append({ id_field: vector_ids })
+            clauses.append({
+                "field":    id_field,
+                "operator": VectorStoreFilterOperator.IN,
+                "value":    vector_ids,
+            })
+
         if filter:
             clauses.append(filter)
 

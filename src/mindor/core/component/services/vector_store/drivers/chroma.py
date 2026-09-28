@@ -28,21 +28,18 @@ class ChromaWhereSpecBuilder:
         return spec
 
     def _build_where_spec(self, filter: Any) -> Dict[str, Any]:
-        spec: Dict[str, Any] = {}
-
         if isinstance(filter, (list, tuple, set)):
+            spec: Dict[str, Any] = {}
+
             for item in filter:
                 spec.update(self._build_where_spec(item))
+
             return spec
 
         if isinstance(filter, dict):
-            for field, value in filter.items():
-                spec.update({field: { "$eq": value }})
-            return spec
+            condition = VectorStoreFilterCondition.model_validate(filter)
 
-        if isinstance(filter, VectorStoreFilterCondition):
-            spec.update(self._build_condition_spec(filter))
-            return spec
+            return self._build_condition_spec(condition) or {}
 
         return {}
 

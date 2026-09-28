@@ -26,6 +26,50 @@ class FaissIndexState:
     vectors: Dict[str, List[float]] = field(default_factory=dict)
     next_int_id: int = 1
 
+class FaissFilterEvaluator:
+    def evaluate(self, metadata: Dict[str, Any], filter: Any) -> bool:
+        return self._evaluate_filter(metadata, filter)
+
+    def _evaluate_filter(self, metadata: Dict[str, Any], filter: Any) -> bool:
+        if isinstance(filter, (list, tuple, set)):
+            return all(self._evaluate_filter(metadata, item) for item in filter)
+
+        if isinstance(filter, dict):
+            condition = VectorStoreFilterCondition.model_validate(filter)
+
+            return self._evaluate_condition(metadata, condition)
+
+        return True
+
+    def _evaluate_condition(self, metadata: Dict[str, Any], condition: VectorStoreFilterCondition) -> bool:
+        metadata_value = metadata.get(condition.field)
+
+        if condition.operator == VectorStoreFilterOperator.EQ:
+            return metadata_value == condition.value
+
+        if condition.operator == VectorStoreFilterOperator.NEQ:
+            return metadata_value != condition.value
+
+        if condition.operator == VectorStoreFilterOperator.GT:
+            return metadata_value is not None and metadata_value > condition.value
+
+        if condition.operator == VectorStoreFilterOperator.GTE:
+            return metadata_value is not None and metadata_value >= condition.value
+
+        if condition.operator == VectorStoreFilterOperator.LT:
+            return metadata_value is not None and metadata_value < condition.value
+
+        if condition.operator == VectorStoreFilterOperator.LTE:
+            return metadata_value is not None and metadata_value <= condition.value
+
+        if condition.operator == VectorStoreFilterOperator.IN:
+            return metadata_value in (condition.value if isinstance(condition.value, (list, tuple)) else [ condition.value ])
+
+        if condition.operator == VectorStoreFilterOperator.NOT_IN:
+            return metadata_value not in (condition.value if isinstance(condition.value, (list, tuple)) else [ condition.value ])
+
+        return True
+
 class FaissIndexManager:
     """Manages an in-memory FAISS vector index with ID mapping and metadata."""
 
@@ -171,7 +215,7 @@ class FaissIndexManager:
                 str_id = self.state.id_to_str[int_id]
                 metadata = self.state.metadatas.get(str_id, {})
 
-                if not self._evaluate_filter(metadata, filter):
+                if not FaissFilterEvaluator().evaluate(metadata, filter):
                     continue
 
                 if output_fields:
@@ -201,7 +245,7 @@ class FaissIndexManager:
 
         if not target_ids and filter:
             for str_id, metadata in list(self.state.metadatas.items()):
-                if self._evaluate_filter(metadata, filter):
+                if FaissFilterEvaluator().evaluate(metadata, filter):
                     target_ids.append(str_id)
 
         deleted = 0
@@ -284,46 +328,6 @@ class FaissIndexManager:
     @staticmethod
     def _metadata_path(storage_dir: str) -> str:
         return os.path.join(storage_dir, "metadata.json")
-
-    def _evaluate_filter(self, metadata: Dict[str, Any], filter: Any) -> bool:
-        if isinstance(filter, dict):
-            for field, value in filter.items():
-                if metadata.get(field) != value:
-                    return False
-
-            return True
-
-        if isinstance(filter, VectorStoreFilterCondition):
-            metadata_value = metadata.get(filter.field)
-
-            if filter.operator == VectorStoreFilterOperator.EQ:
-                return metadata_value == filter.value
-
-            if filter.operator == VectorStoreFilterOperator.NEQ:
-                return metadata_value != filter.value
-
-            if filter.operator == VectorStoreFilterOperator.GT:
-                return metadata_value is not None and metadata_value > filter.value
-
-            if filter.operator == VectorStoreFilterOperator.GTE:
-                return metadata_value is not None and metadata_value >= filter.value
-
-            if filter.operator == VectorStoreFilterOperator.LT:
-                return metadata_value is not None and metadata_value < filter.value
-
-            if filter.operator == VectorStoreFilterOperator.LTE:
-                return metadata_value is not None and metadata_value <= filter.value
-
-            if filter.operator == VectorStoreFilterOperator.IN:
-                return metadata_value in (filter.value if isinstance(filter.value, (list, tuple)) else [ filter.value ])
-
-            if filter.operator == VectorStoreFilterOperator.NOT_IN:
-                return metadata_value not in (filter.value if isinstance(filter.value, (list, tuple)) else [ filter.value ])
-
-        if isinstance(filter, (list, tuple)):
-            return all(self._evaluate_filter(metadata, item) for item in filter)
-
-        return True
 
 class FaissVectorStoreAction(VectorStoreAction):
     def __init__(self, config: VectorStoreActionConfig, index_manager: FaissIndexManager, lock: asyncio.Lock):

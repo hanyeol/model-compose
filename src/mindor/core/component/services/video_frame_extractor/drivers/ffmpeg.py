@@ -45,6 +45,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             self._extract(
                 video,
                 params["frame_interval"],
+                params["fps"],
                 params["keyframe_only"],
                 params["start_time"],
                 params["end_time"],
@@ -60,6 +61,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         self,
         video: MediaSource,
         frame_interval: int,
+        fps: Optional[float],
         keyframe_only: bool,
         start_time: Optional[float],
         end_time: Optional[float],
@@ -90,16 +92,22 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         filters: List[str] = []
 
-        # Chain two `select` filters when combining keyframe_only with a stride:
-        # the first keeps only I-frames, and the second uses `n` (now numbering
-        # the surviving keyframes 0,1,2,...) to keep every Nth. Fusing both into
-        # a single `select` doesn't work because `selected_n` inside one select
-        # only advances when the whole expression matches.
+        if fps is not None:
+            # `fps` resamples the source onto a uniform grid — picking the source
+            # frame nearest each grid point, dropping or duplicating as needed —
+            # so output timestamps are `0, 1/fps, 2/fps, …` regardless of the
+            # source's original (possibly variable) frame rate.
+            filters.append(f"fps={fps}")
+
         if keyframe_only:
+            # Chain two `select` filters when combining keyframe_only with a stride:
+            # the first keeps only I-frames, and the second uses `n` (now numbering
+            # the surviving keyframes 0,1,2,...) to keep every Nth. Fusing both into
+            # a single `select` doesn't work because `selected_n` inside one select
+            # only advances when the whole expression matches.
             filters.append("select='eq(pict_type\\,I)'")
-            if frame_interval > 1:
-                filters.append(f"select='not(mod(n\\,{frame_interval}))'")
-        elif frame_interval > 1:
+
+        if frame_interval > 1:
             filters.append(f"select='not(mod(n\\,{frame_interval}))'")
 
         filters.append("showinfo")

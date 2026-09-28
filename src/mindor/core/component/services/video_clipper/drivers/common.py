@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import VideoClipperActionConfig
+from mindor.dsl.schema.action import VideoClipperActionConfig, VideoClipperPrecision
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.iterators import StreamIterator
@@ -22,8 +22,14 @@ class VideoClipperAction(ComponentAction):
         video            = await context.render_video(self.config.video)
         span             = await context.render_variable(self.config.span)
         merge            = await context.render_scalar(self.config.merge, bool, False)
+        precision        = await context.render_variable(self.config.precision)
         return_timestamp = await context.render_scalar(self.config.return_timestamp, bool, False)
         batch_size       = await context.render_variable(self.config.batch_size)
+
+        try:
+            precision = VideoClipperPrecision(precision)
+        except ValueError:
+            raise ValueError(f"Invalid precision: {precision}")
 
         # A single span dict yields a scalar clip; a list/stream yields an
         # iterator of clips. Sniff the raw shape here because ArrayValue erases
@@ -38,7 +44,7 @@ class VideoClipperAction(ComponentAction):
         if isinstance(video, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_videos, batch_spans in BatchSourceIterator((video, spans), batch_size=batch_size or 1):
-                    batch_results = await self._clip_batch(batch_videos, batch_spans, merge, context.cancellation_token)
+                    batch_results = await self._clip_batch(batch_videos, batch_spans, merge, precision, context.cancellation_token)
                     for result in batch_results:
                         yield await self._format_result(result, merge, is_single_span, return_timestamp)
 
@@ -111,6 +117,7 @@ class VideoClipperAction(ComponentAction):
         videos: List[MediaSource],
         spans: List[ArrayValue],
         merge: bool,
+        precision: VideoClipperPrecision,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[AsyncIterator[Dict[str, Any]], Dict[str, Any]]]:
         """Return, per input video, either an async iterator of clips (per

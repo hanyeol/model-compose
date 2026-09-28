@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from ..files import get_file_extension
 from ..shell import run_command
 from .executable import resolve_ffprobe_executable
@@ -10,6 +10,7 @@ import json
 _VIDEO_FIELDS: Dict[str, Tuple[str, str]] = {
     "format":     ("format", "format_name"),
     "duration":   ("format", "duration"),
+    "start_time": ("format", "start_time"),
     "size":       ("format", "size"),
     "bit_rate":   ("format", "bit_rate"),
     "codec":      ("stream", "codec_name"),
@@ -49,7 +50,7 @@ def _parse_field_value(field: str, value: Any, hint: Optional[str] = None) -> An
         numerator, denominator = value.split("/")
         return float(numerator) / float(denominator)
 
-    if field in ("duration",):
+    if field in ("duration", "start_time"):
         return float(value)
 
     if field in ("size", "bit_rate", "sample_rate", "channels", "width", "height"):
@@ -101,7 +102,7 @@ async def _probe(
 async def probe_video(path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
     """Probe a video file with a single ffprobe call and return the requested fields in order.
 
-    Supported fields: 'format', 'duration', 'size', 'bit_rate' (from container),
+    Supported fields: 'format', 'duration', 'start_time', 'size', 'bit_rate' (from container),
     'codec', 'width', 'height', 'frame_rate', 'pix_fmt' (from the first video stream).
     """
     return await _probe(path, fields, "v:0", _VIDEO_FIELDS)
@@ -113,3 +114,50 @@ async def probe_audio(path: str, fields: Sequence[str]) -> Tuple[Any, ...]:
     'codec', 'sample_rate', 'channels', 'channel_layout' (from the first audio stream).
     """
     return await _probe(path, fields, "a:0", _AUDIO_FIELDS)
+
+async def probe_video_keyframes(path: str, interval: Optional[Tuple[Optional[float], float]] = None) -> List[float]:
+    """List video keyframe presentation timestamps (absolute, in seconds).
+
+    `interval` optionally scopes the scan to `(start, end)` absolute seconds — pass
+    `start=None` for an open start (needed when a keyframe sits exactly on the
+    window boundary in some containers). Reading a bounded interval is much
+    cheaper than a full scan on large files, but the interval must cover a full
+    GOP or the result may be empty; callers escalate to a wider window (or a
+    full scan) when needed.
+    """
+    command = [
+        resolve_ffprobe_executable(), "-v", "quiet", "-print_format", "json",
+        "-select_streams", "v:0",
+        "-show_entries", "packet=pts_time,flags",
+    ]
+
+    if interval is not None:
+        start, end = interval
+        # `-read_intervals` uses absolute pts (i.e. includes format.start_time).
+        # `%end` form makes the interval open on the start side so a keyframe
+        # exactly on the boundary isn't missed (mpegts).
+        command.extend([ "-read_intervals", f"{start:.6f}%{end:.6f}" if start is not None else f"%{end:.6f}" ])
+
+    command.append(path)
+
+    stdout, _, returncode = await run_command(command)
+
+    if returncode != 0:
+        raise RuntimeError(f"ffprobe failed to read keyframes (exit code {returncode})")
+
+    payload = json.loads(stdout.decode("utf-8"))
+    packets = payload.get("packets") or []
+    keyframes: List[float] = []
+
+    for packet in packets:
+        if "K" not in (packet.get("flags") or ""):
+            continue
+
+        pts = packet.get("pts_time")
+
+        if pts is None:
+            continue
+
+        keyframes.append(float(pts))
+
+    return keyframes

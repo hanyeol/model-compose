@@ -109,11 +109,12 @@ class VideoAudioEncodingResolver:
         context: ComponentActionContext,
         video: VideoEncoderConfig,
     ) -> VideoEncoderParams:
-        codec      = await context.render_scalar(video.codec, str)
-        bitrate    = await context.render_scalar(video.bitrate, "decimal")
-        quality    = await context.render_scalar(video.quality, int)
-        resolution = await context.render_scalar(video.resolution, str)
-        fps        = await context.render_scalar(video.fps, float)
+        codec        = await context.render_scalar(video.codec, str)
+        bitrate      = await context.render_scalar(video.bitrate, "decimal")
+        quality      = await context.render_scalar(video.quality, int)
+        resolution   = await context.render_scalar(video.resolution, str)
+        fps          = await context.render_scalar(video.fps, float)
+        pixel_format = await context.render_scalar(video.pixel_format, str)
 
         return VideoEncoderParams(
             codec=codec,
@@ -121,6 +122,7 @@ class VideoAudioEncodingResolver:
             quality=quality,
             resolution=resolution,
             fps=fps,
+            pixel_format=pixel_format,
         )
 
     async def resolve_audio(

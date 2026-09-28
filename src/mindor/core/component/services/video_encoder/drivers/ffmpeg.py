@@ -13,7 +13,12 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
-from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
+from mindor.core.utils.ffmpeg.codecs import (
+    get_alpha_containers_for_codec,
+    get_supported_pixel_formats,
+    get_video_codecs_for_format,
+    has_alpha_channel,
+)
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -76,7 +81,10 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         if audio_input is not None:
             command.extend([ "-i", audio_input ])
-            command.extend([ "-map", "0:v", "-map", "1:a" ])
+            # `?` makes the audio map optional so an audio input without an
+            # audio stream (video-only file passed as `audio`) doesn't crash;
+            # the encoder still runs and just produces a video-only output.
+            command.extend([ "-map", "0:v", "-map", "1:a?" ])
 
         for option, value in self._resolve_encoding_options(encoding, has_audio=audio_input is not None).items():
             command.extend([ option, value ])
@@ -145,7 +153,10 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         if audio_input is not None:
             command.extend([ "-i", audio_input ])
-            command.extend([ "-map", "0:v", "-map", "1:a" ])
+            # `?` makes the audio map optional so an audio input without an
+            # audio stream (video-only file passed as `audio`) doesn't crash;
+            # the encoder still runs and just produces a video-only output.
+            command.extend([ "-map", "0:v", "-map", "1:a?" ])
 
         for option, value in self._resolve_encoding_options(encoding, has_audio=audio_input is not None).items():
             command.extend([ option, value ])
@@ -377,9 +388,24 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if video and video.fps is not None:
             options["-r"] = str(video.fps)
 
-        # yuv420p ensures broad player compatibility for image-derived streams.
-        if video_codec in ("libx264", "libx265"):
-            options["-pix_fmt"] = "yuv420p"
+        pixel_format = self._resolve_pixel_format(encoding, video_codec)
+
+        if pixel_format is not None:
+            options["-pix_fmt"] = pixel_format
+
+            # yuv420p (4:2:0 subsampling) requires even dimensions; ffmpeg
+            # errors on odd width/height. Pad up to the next even pixel with
+            # black — a no-op on already-even sources — so callers don't have
+            # to worry about source dimensions.
+            if pixel_format == "yuv420p":
+                options["-vf"] = "pad=ceil(iw/2)*2:ceil(ih/2)*2:color=black"
+
+            # libvpx (VP8) refuses to encode alpha unless auto_alt_ref is
+            # disabled — otherwise it aborts with "Transparency encoding with
+            # auto_alt_ref does not work". Set the flag transparently so alpha
+            # pipelines "just work".
+            if video_codec == "libvpx" and has_alpha_channel(pixel_format):
+                options["-auto-alt-ref"] = "0"
 
         if has_audio:
             audio_codec = self._resolve_audio_codec(encoding)
@@ -391,6 +417,41 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 options["-b:a"] = str(audio.bitrate)
 
         return options
+
+    def _resolve_pixel_format(self, encoding: VideoAudioEncodingParams, video_codec: Optional[str]) -> Optional[str]:
+        """Pick and validate the output pixel format.
+
+        User-supplied `pixel_format` is checked against the encoder's known
+        supported list (per `codecs.py`) and against known silent-drop
+        codec/container pairings (VP9-alpha only works in webm/mkv; mp4
+        would silently drop alpha). When no `pixel_format` is set,
+        libx264/libx265 fall back to yuv420p for broad player compatibility.
+        """
+        pixel_format = encoding.video.pixel_format if encoding.video else None
+
+        if pixel_format is None:
+            # Backwards-compatible default: yuv420p for x264/x265 image-derived streams.
+            return "yuv420p" if video_codec in ("libx264", "libx265") else None
+
+        if video_codec:
+            supported = get_supported_pixel_formats(video_codec)
+            if supported is not None and pixel_format not in supported:
+                raise ValueError(
+                    f"Encoder '{video_codec}' does not support pixel_format '{pixel_format}'; "
+                    f"supported formats: {', '.join(sorted(supported))}"
+                )
+
+        if has_alpha_channel(pixel_format):
+            container = self._resolve_container_format(encoding)
+            allowed_containers = get_alpha_containers_for_codec(video_codec) if video_codec else None
+
+            if allowed_containers is not None and container not in allowed_containers:
+                raise ValueError(
+                    f"Encoder '{video_codec}' with alpha pixel_format '{pixel_format}' silently drops alpha "
+                    f"in container '{container}'; use one of: {', '.join(sorted(allowed_containers))}"
+                )
+
+        return pixel_format
 
     @staticmethod
     def _resolve_container_format(encoding: VideoAudioEncodingParams) -> str:
@@ -405,6 +466,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             return encoding.video.codec
 
         video_codec, _ = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+
         return video_codec
 
     @staticmethod
@@ -413,6 +475,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             return encoding.audio.codec
 
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+
         return audio_codec
 
 @register_video_encoder_driver(VideoEncoderDriverType.FFMPEG)

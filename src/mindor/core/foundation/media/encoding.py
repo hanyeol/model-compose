@@ -8,6 +8,7 @@ class VideoEncoderParams:
     quality: Optional[int] = None
     resolution: Optional[str] = None
     fps: Optional[float] = None
+    pixel_format: Optional[str] = None
 
 @dataclass
 class AudioEncoderParams:

@@ -74,6 +74,7 @@ async def _probe(
 
     if "stream" in sections:
         command.extend([ "-select_streams", stream_selector, "-show_streams" ])
+
     if "format" in sections:
         command.append("-show_format")
 

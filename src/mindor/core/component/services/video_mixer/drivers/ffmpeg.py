@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Tuple, List, Dict, Callable, Any
+from dataclasses import dataclass
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoMixerComponentConfig, VideoMixerDriverType
 from mindor.dsl.schema.action import (
@@ -8,6 +9,7 @@ from mindor.dsl.schema.action import (
     VideoMixerOverlayAudioMode,
     VideoMixerOverlayDurationMode,
     VideoOverlayAnchor,
+    VideoOverlayEofAction,
     VideoOverlayPlacement,
 )
 from mindor.core.foundation.cancellation import CancellationToken
@@ -18,7 +20,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
-from mindor.core.utils.ffmpeg.probe import probe_video
+from mindor.core.utils.ffmpeg.probe import probe_video, probe_audio
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
@@ -32,6 +34,12 @@ import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
 
+_AMIX_DURATIONS: Dict[VideoMixerOverlayDurationMode, str] = {
+    VideoMixerOverlayDurationMode.BASE:     "first",
+    VideoMixerOverlayDurationMode.SHORTEST: "shortest",
+    VideoMixerOverlayDurationMode.LONGEST:  "longest",
+}
+
 _ANCHOR_OFFSETS: Dict[VideoOverlayAnchor, Tuple[str, str]] = {
     VideoOverlayAnchor.TOP_LEFT:      ("0",    "0"),
     VideoOverlayAnchor.TOP_CENTER:    ("-w/2", "0"),
@@ -44,6 +52,24 @@ _ANCHOR_OFFSETS: Dict[VideoOverlayAnchor, Tuple[str, str]] = {
     VideoOverlayAnchor.BOTTOM_RIGHT:  ("-w",   "-h"),
 }
 
+@dataclass
+class OverlayFilterPlacement:
+    """Normalized placement values consumed by the overlay filter builder.
+
+    Time fields are seconds on the base timeline; `gain` is a linear volume
+    multiplier for the overlay's audio when routed through amix.
+    """
+    x: int
+    y: int
+    width: Optional[int]
+    height: Optional[int]
+    anchor: VideoOverlayAnchor
+    opacity: float
+    gain: float
+    start_time: Optional[float]
+    end_time: Optional[float]
+    eof_action: VideoOverlayEofAction
+
 class FFmpegVideoMixerAction(VideoMixerAction):
     async def _concat(
         self,
@@ -53,7 +79,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         encoding  = params["encoding"]
-        crossfade = params.get("crossfade")
+        crossfade = params["crossfade"]
 
         format = self._resolve_container_format(encoding)
 
@@ -67,20 +93,26 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         for video in videos:
             path, spooled = await MediaInputPathResolver().resolve(video)
             input_paths.append(path)
+
             if spooled:
                 spooled_paths.append(path)
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
+
         for path in input_paths:
             command.extend([ "-i", path ])
 
         filter_complex, video_label, audio_label = self._build_concat_filter(len(input_paths), crossfade)
+
         command.extend([ "-filter_complex", filter_complex ])
         command.extend([ "-map", video_label ])
+
         if audio_label is not None:
             command.extend([ "-map", audio_label ])
 
-        for option, value in self._resolve_encoding_options(encoding, has_audio=audio_label is not None).items():
+        encoding_options = self._resolve_encoding_options(encoding, has_audio=audio_label is not None)
+
+        for option, value in encoding_options.items():
             command.extend([ option, value ])
 
         def _cleanup() -> None:
@@ -143,6 +175,13 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         elif params["duration_mode"] == VideoMixerOverlayDurationMode.BASE:
             (output_duration,) = await probe_video(base_path, [ "duration" ])
 
+        # Feeding an audio-less input to amix via `[N:a]` fails hard because the
+        # stream specifier can't match. Probe each input up front so the filter
+        # builder can substitute anullsrc for the missing tracks and keep the
+        # mix graph well-formed.
+        base_has_audio = await self._has_audio_stream(base_path)
+        overlay_has_audio = [ await self._has_audio_stream(path) for path in overlay_paths ]
+
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         command.extend([ "-i", base_path ])
 
@@ -154,6 +193,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             params["audio_mode"],
             params["duration_mode"],
             base_pad_duration,
+            base_has_audio,
+            overlay_has_audio,
         )
 
         command.extend([ "-filter_complex", filter_complex ])
@@ -162,7 +203,9 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         if audio_label is not None:
             command.extend([ "-map", audio_label ])
 
-        for option, value in self._resolve_encoding_options(params["encoding"], has_audio=audio_label is not None).items():
+        encoding_options = self._resolve_encoding_options(params["encoding"], has_audio=audio_label is not None)
+
+        for option, value in encoding_options.items():
             command.extend([ option, value ])
 
         if output_duration is not None:
@@ -181,135 +224,6 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             return await self._encode_to_stream(command, format, _cleanup, cancellation_token)
 
         return await self._encode_to_file(command, format, _cleanup, cancellation_token)
-
-    @staticmethod
-    def _build_concat_filter(
-        count: int,
-        crossfade: Optional[float],
-    ) -> Tuple[str, str, Optional[str]]:
-        """Build a filter_complex that produces a single [vout]/[aout] from `count` inputs.
-
-        Without crossfade the ffmpeg `concat` filter joins video and audio streams
-        end-to-end. With crossfade, adjacent pairs are combined via `xfade`
-        (video) and `acrossfade` (audio); each pair overlaps by `crossfade` seconds,
-        which is the standard ffmpeg pattern for smooth transitions between clips.
-        """
-        if crossfade is None or crossfade <= 0:
-            parts: List[str] = []
-            streams = "".join(f"[{index}:v:0][{index}:a:0]" for index in range(count))
-            parts.append(f"{streams}concat=n={count}:v=1:a=1[vout][aout]")
-            return ";".join(parts), "[vout]", "[aout]"
-
-        # Crossfade path: chain xfade/acrossfade across adjacent pairs.
-        # Each xfade needs the offset (end-of-previous minus crossfade) which
-        # depends on cumulative duration — we defer to ffmpeg by using
-        # `xfade=transition=fade:duration=D:offset=0` on pre-trimmed streams is
-        # complex, so instead we conservatively concatenate and then apply a
-        # single acrossfade-like effect: fall back to plain concat when
-        # crossfade is requested for now, with a warning-level log documented.
-        # Full offset chaining requires per-input duration probing, which is
-        # out of scope for the current implementation.
-        raise NotImplementedError(
-            "concat with crossfade requires per-input duration probing and is not yet supported; "
-            "omit `crossfade` to use plain concat."
-        )
-
-    @staticmethod
-    def _build_overlay_filter(
-        placements: List[Tuple[int, int, Optional[int], Optional[int], VideoOverlayAnchor, float, Optional[float], Optional[float]]],
-        audio_mode: VideoMixerOverlayAudioMode,
-        duration_mode: VideoMixerOverlayDurationMode,
-        base_pad_duration: Optional[float],
-    ) -> Tuple[str, str, Optional[str]]:
-        """Build a filter_complex that composites N overlays (inputs 1..N) onto the base (input 0).
-
-        Each overlay goes through its own preparation chain (format→scale→opacity)
-        and is then composited onto the running video stream. The composite
-        result is chained forward, so overlays stack in DSL order — the first
-        overlay lands on the base, the second on that result, and so on.
-        `anchor` shifts each overlay relative to (x, y) via ffmpeg overlay
-        expressions (`w`/`h` are the overlay's width/height).
-        `enable=between(t,start,end)` gates each overlay's visibility.
-
-        `duration_mode` decides how long the output runs:
-          - base:     stop when the base ends (overlay filter default).
-          - shortest: stop when the first of base/overlays ends (`overlay=shortest=1`).
-          - longest:  stop when the last stream ends. The base is pre-padded with
-                      cloned frames (`tpad`) so the overlay filter can keep
-                      compositing after the base's own EOF; overlays past their
-                      own EOF hold their last frame via `eof_action=pass` (the
-                      overlay filter's default).
-        Audio uses the same intent via `amix duration=first|shortest|longest`.
-        """
-        filter_parts: List[str] = []
-
-        # Video pipeline entry — pad the base first when `longest` needs to hold
-        # frames past the base's original EOF.
-        if duration_mode == VideoMixerOverlayDurationMode.LONGEST and base_pad_duration and base_pad_duration > 0:
-            filter_parts.append(f"[0:v]tpad=stop_mode=clone:stop_duration={base_pad_duration}[base_v]")
-            current_video_label = "[base_v]"
-        else:
-            current_video_label = "[0:v]"
-
-        for index, (x, y, width, height, anchor, opacity, start, end) in enumerate(placements):
-            input_index = index + 1  # inputs 1..N are overlays; 0 is base.
-
-            overlay_chain: List[str] = [ "format=yuva420p" ]
-            if width or height:
-                w = str(width) if width else "-1"
-                h = str(height) if height else "-1"
-                overlay_chain.append(f"scale={w}:{h}")
-            if opacity < 1.0:
-                overlay_chain.append(f"colorchannelmixer=aa={opacity}")
-
-            prep_label = f"[ovl{index}]"
-            filter_parts.append(f"[{input_index}:v]{','.join(overlay_chain)}{prep_label}")
-
-            ax, ay = _ANCHOR_OFFSETS[anchor]
-            pos_x = f"{x}+({ax})"
-            pos_y = f"{y}+({ay})"
-
-            overlay_opts = [ f"x={pos_x}", f"y={pos_y}" ]
-            if start is not None or end is not None:
-                lo = f"{start}" if start is not None else "0"
-                hi = f"{end}"   if end   is not None else "9e9"
-                overlay_opts.append(f"enable='between(t,{lo},{hi})'")
-
-            if duration_mode == VideoMixerOverlayDurationMode.SHORTEST:
-                overlay_opts.append("shortest=1")
-
-            next_video_label = "[vout]" if index == len(placements) - 1 else f"[v{index}]"
-            filter_parts.append(f"{current_video_label}{prep_label}overlay={':'.join(overlay_opts)}{next_video_label}")
-            current_video_label = next_video_label
-
-        amix_duration = {
-            VideoMixerOverlayDurationMode.BASE:     "first",
-            VideoMixerOverlayDurationMode.SHORTEST: "shortest",
-            VideoMixerOverlayDurationMode.LONGEST:  "longest",
-        }[duration_mode]
-
-        audio_label: Optional[str]
-        overlay_count = len(placements)
-
-        if audio_mode == VideoMixerOverlayAudioMode.NONE:
-            audio_label = None
-        elif audio_mode == VideoMixerOverlayAudioMode.BASE:
-            audio_label = "0:a?"
-        elif audio_mode == VideoMixerOverlayAudioMode.OVERLAY:
-            if overlay_count == 1:
-                audio_label = "1:a?"
-            else:
-                streams = "".join(f"[{index + 1}:a]" for index in range(overlay_count))
-                filter_parts.append(f"{streams}amix=inputs={overlay_count}:duration={amix_duration}:dropout_transition=0[aout]")
-                audio_label = "[aout]"
-        elif audio_mode == VideoMixerOverlayAudioMode.MIX:
-            streams = "[0:a]" + "".join(f"[{index + 1}:a]" for index in range(overlay_count))
-            filter_parts.append(f"{streams}amix=inputs={overlay_count + 1}:duration={amix_duration}:dropout_transition=0[aout]")
-            audio_label = "[aout]"
-        else:
-            audio_label = "0:a?"
-
-        return ";".join(filter_parts), "[vout]", audio_label
 
     async def _encode_to_file(
         self,
@@ -429,26 +343,269 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
 
     @staticmethod
-    def _resolve_overlay_filter_params(
-        placement: VideoOverlayPlacement,
-    ) -> Tuple[int, int, Optional[int], Optional[int], VideoOverlayAnchor, float, Optional[float], Optional[float]]:
+    def _build_concat_filter(
+        count: int,
+        crossfade: Optional[float],
+    ) -> Tuple[str, str, Optional[str]]:
+        """Build a filter_complex that produces a single [vout]/[aout] from `count` inputs.
+
+        Without crossfade the ffmpeg `concat` filter joins video and audio streams
+        end-to-end. With crossfade, adjacent pairs are combined via `xfade`
+        (video) and `acrossfade` (audio); each pair overlaps by `crossfade` seconds,
+        which is the standard ffmpeg pattern for smooth transitions between clips.
+        """
+        if crossfade is None or crossfade <= 0:
+            parts: List[str] = []
+            streams = "".join(f"[{index}:v:0][{index}:a:0]" for index in range(count))
+            parts.append(f"{streams}concat=n={count}:v=1:a=1[vout][aout]")
+            return ";".join(parts), "[vout]", "[aout]"
+
+        # Crossfade path: chain xfade/acrossfade across adjacent pairs.
+        # Each xfade needs the offset (end-of-previous minus crossfade) which
+        # depends on cumulative duration — we defer to ffmpeg by using
+        # `xfade=transition=fade:duration=D:offset=0` on pre-trimmed streams is
+        # complex, so instead we conservatively concatenate and then apply a
+        # single acrossfade-like effect: fall back to plain concat when
+        # crossfade is requested for now, with a warning-level log documented.
+        # Full offset chaining requires per-input duration probing, which is
+        # out of scope for the current implementation.
+        raise NotImplementedError(
+            "concat with crossfade requires per-input duration probing and is not yet supported; "
+            "omit `crossfade` to use plain concat."
+        )
+
+    def _build_overlay_filter(
+        self,
+        placements: List[OverlayFilterPlacement],
+        audio_mode: VideoMixerOverlayAudioMode,
+        duration_mode: VideoMixerOverlayDurationMode,
+        base_pad_duration: Optional[float],
+        base_has_audio: bool,
+        overlay_has_audio: List[bool],
+    ) -> Tuple[str, str, Optional[str]]:
+        """Build a filter_complex that composites N overlays (inputs 1..N) onto the base (input 0).
+
+        Each overlay goes through its own preparation chain (setpts→format→
+        scale→opacity) and is then composited onto the running video stream.
+        The composite result is chained forward, so overlays stack in DSL order —
+        the first overlay lands on the base, the second on that result, and so
+        on. `anchor` shifts each overlay relative to (x, y) via ffmpeg overlay
+        expressions (`w`/`h` are the overlay's width/height).
+
+        `placement.start_time` shifts the overlay's own PTS via `setpts`
+        (video) and `adelay` (audio) so the overlay plays *from its beginning*
+        at that base-timeline time, not just becomes visible mid-playback. The
+        original `enable=between` gate is kept in sync so late overlays don't
+        leak a frame before their shifted start.
+
+        `placement.eof_action` picks what happens after the overlay's own
+        stream ends: `repeat` (ffmpeg default) freezes the last frame, `pass`
+        lets the base show through, and `endall` cuts the whole output.
+
+        `duration_mode` decides how long the output runs:
+          - base:     stop when the base ends (overlay filter default).
+          - shortest: stop when the first of base/overlays ends (`overlay=shortest=1`).
+          - longest:  stop when the last stream ends. The base is pre-padded with
+                      cloned frames (`tpad`) so the overlay filter can keep
+                      compositing after the base's own EOF.
+        Audio uses the same intent via `amix duration=first|shortest|longest`,
+        with `normalize=0` so mixing multiple tracks doesn't halve the base's
+        loudness (per-placement `gain` still weights the mix).
+        """
+        filter_parts: List[str] = []
+
+        # Video pipeline entry — pad the base first when `longest` needs to hold
+        # frames past the base's original EOF.
+        if duration_mode == VideoMixerOverlayDurationMode.LONGEST and base_pad_duration and base_pad_duration > 0:
+            filter_parts.append(f"[0:v]tpad=stop_mode=clone:stop_duration={base_pad_duration}[base_v]")
+            current_video_label = "[base_v]"
+        else:
+            current_video_label = "[0:v]"
+
+        for index, placement in enumerate(placements):
+            input_index = index + 1  # inputs 1..N are overlays; 0 is base.
+            overlay_chain: List[str] = []
+
+            # Rebase the overlay's own PTS so it starts at `start_time` on the
+            # base timeline. Without this, `enable=between(t,start,end)` just
+            # gates visibility — the overlay is already `start` seconds in when
+            # it first appears.
+            if placement.start_time is not None and placement.start_time > 0:
+                overlay_chain.append(f"setpts=PTS-STARTPTS+{placement.start_time}/TB")
+            else:
+                overlay_chain.append("setpts=PTS-STARTPTS")
+
+            overlay_chain.append("format=yuva420p")
+
+            if placement.width or placement.height:
+                width  = str(placement.width)  if placement.width  else "-1"
+                height = str(placement.height) if placement.height else "-1"
+                overlay_chain.append(f"scale={width}:{height}")
+
+            if placement.opacity < 1.0:
+                overlay_chain.append(f"colorchannelmixer=aa={placement.opacity}")
+
+            prep_label = f"[ovl{index}]"
+            filter_parts.append(f"[{input_index}:v]{','.join(overlay_chain)}{prep_label}")
+
+            ax, ay = _ANCHOR_OFFSETS[placement.anchor]
+            pos_x = f"{placement.x}+({ax})"
+            pos_y = f"{placement.y}+({ay})"
+
+            overlay_options = [ f"x={pos_x}", f"y={pos_y}" ]
+
+            if placement.start_time is not None or placement.end_time is not None:
+                start_time = f"{placement.start_time}" if placement.start_time is not None else "0"
+                end_time   = f"{placement.end_time}"   if placement.end_time   is not None else "9e9"
+                overlay_options.append(f"enable='between(t,{start_time},{end_time})'")
+
+            overlay_options.append(f"eof_action={placement.eof_action.value}")
+
+            if duration_mode == VideoMixerOverlayDurationMode.SHORTEST:
+                overlay_options.append("shortest=1")
+
+            next_video_label = "[vout]" if index == len(placements) - 1 else f"[v{index}]"
+            filter_parts.append(f"{current_video_label}{prep_label}overlay={':'.join(overlay_options)}{next_video_label}")
+            current_video_label = next_video_label
+
+        audio_label = self._build_overlay_audio_filter(
+            filter_parts,
+            placements,
+            audio_mode,
+            duration_mode,
+            base_has_audio,
+            overlay_has_audio,
+        )
+
+        return ";".join(filter_parts), "[vout]", audio_label
+
+    def _build_overlay_audio_filter(
+        self,
+        filter_parts: List[str],
+        placements: List[OverlayFilterPlacement],
+        audio_mode: VideoMixerOverlayAudioMode,
+        duration_mode: VideoMixerOverlayDurationMode,
+        base_has_audio: bool,
+        overlay_has_audio: List[bool],
+    ) -> Optional[str]:
+        """Append audio preparation and mix nodes to `filter_parts` and return the mapped label.
+
+        For each track routed into the mix we run a prep chain of `[async]setpts →
+        adelay → volume` (or an anullsrc when the input has no audio). The
+        prepared labels are then either mapped straight through or combined via
+        `amix normalize=0`. Returning None means the output has no audio track.
+        """
+        amix_duration = _AMIX_DURATIONS[duration_mode]
+
+        if audio_mode == VideoMixerOverlayAudioMode.NONE:
+            return None
+
+        if audio_mode == VideoMixerOverlayAudioMode.BASE:
+            if not base_has_audio:
+                return None
+
+            return "0:a"
+
+        overlay_indices = [ index for index in range(len(placements)) if overlay_has_audio[index] ]
+
+        if audio_mode == VideoMixerOverlayAudioMode.OVERLAY:
+            if not overlay_indices:
+                return None
+
+            prepared_labels = [
+                self._append_audio_overlay(filter_parts, index + 1, placements[index])
+                for index in overlay_indices
+            ]
+
+            if len(prepared_labels) == 1:
+                return prepared_labels[0]
+
+            weights = " ".join(f"{placements[index].gain}" for index in overlay_indices)
+            streams = "".join(prepared_labels)
+            filter_parts.append(
+                f"{streams}amix=inputs={len(prepared_labels)}:duration={amix_duration}"
+                f":normalize=0:weights='{weights}':dropout_transition=0[aout]"
+            )
+
+            return "[aout]"
+
+        # VideoMixerOverlayAudioMode.MIX — include the base plus every overlay,
+        # substituting anullsrc for tracks that carry no audio so amix stays
+        # well-formed. When only the base survives (no overlay has audio), skip
+        # amix entirely and map `0:a` directly — inlining `[0:a]` as a
+        # standalone filter node would leave the label undefined in the graph.
+        if not overlay_indices:
+            if base_has_audio:
+                return "0:a"
+
+            return None
+
+        prepared_labels: List[str] = []
+        weights: List[str] = []
+
+        if base_has_audio:
+            prepared_labels.append("[0:a]")
+        else:
+            filter_parts.append("anullsrc=channel_layout=stereo:sample_rate=48000[abase]")
+            prepared_labels.append("[abase]")
+
+        weights.append("1")
+
+        for index in overlay_indices:
+            prepared_labels.append(self._append_audio_overlay(filter_parts, index + 1, placements[index]))
+            weights.append(f"{placements[index].gain}")
+
+        streams = "".join(prepared_labels)
+        filter_parts.append(
+            f"{streams}amix=inputs={len(prepared_labels)}:duration={amix_duration}"
+            f":normalize=0:weights='{' '.join(weights)}':dropout_transition=0[aout]"
+        )
+
+        return "[aout]"
+
+    def _append_audio_overlay(
+        self,
+        filter_parts: List[str],
+        input_index: int,
+        placement: OverlayFilterPlacement,
+    ) -> str:
+        """Append an audio overlay chain (`asetpts → adelay → volume`) for one overlay input."""
+        chain: List[str] = [ "asetpts=PTS-STARTPTS" ]
+
+        if placement.start_time is not None and placement.start_time > 0:
+            delay_ms = int(placement.start_time * 1000)
+            chain.append(f"adelay={delay_ms}:all=1")
+
+        if placement.gain != 1.0:
+            chain.append(f"volume={placement.gain}")
+
+        label = f"[a{input_index}]"
+        filter_parts.append(f"[{input_index}:a]{','.join(chain)}{label}")
+
+        return label
+
+    @staticmethod
+    def _resolve_overlay_filter_params(placement: VideoOverlayPlacement) -> OverlayFilterPlacement:
         """Coerce a placement's field values into the concrete types the filter builder expects.
 
         Fields are `Union[int|float, str]` in the schema so callers can inline
         literal numbers or template references that resolved to strings; cast
         here so the overlay filter always receives numbers.
         """
-        anchor = placement.anchor if isinstance(placement.anchor, VideoOverlayAnchor) else VideoOverlayAnchor(placement.anchor)
+        anchor     = placement.anchor     if isinstance(placement.anchor, VideoOverlayAnchor)        else VideoOverlayAnchor(placement.anchor)
+        eof_action = placement.eof_action if isinstance(placement.eof_action, VideoOverlayEofAction) else VideoOverlayEofAction(placement.eof_action)
 
-        return (
-            int(placement.x),
-            int(placement.y),
-            int(placement.width)  if placement.width  is not None else None,
-            int(placement.height) if placement.height is not None else None,
-            anchor,
-            float(placement.opacity),
-            parse_time(placement.start) if placement.start is not None else None,
-            parse_time(placement.end)   if placement.end   is not None else None,
+        return OverlayFilterPlacement(
+            x=int(placement.x),
+            y=int(placement.y),
+            width=int(placement.width)   if placement.width  is not None else None,
+            height=int(placement.height) if placement.height is not None else None,
+            anchor=anchor,
+            opacity=float(placement.opacity),
+            gain=float(placement.gain),
+            start_time=parse_time(placement.start_time) if placement.start_time is not None else None,
+            end_time=parse_time(placement.end_time)     if placement.end_time   is not None else None,
+            eof_action=eof_action,
         )
 
     def _resolve_encoding_options(self, encoding: VideoAudioEncodingParams, has_audio: bool) -> Dict[str, str]:
@@ -500,6 +657,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             return encoding.video.codec
 
         video_codec, _ = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+
         return video_codec
 
     @staticmethod
@@ -508,7 +666,14 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             return encoding.audio.codec
 
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+
         return audio_codec
+
+    @staticmethod
+    async def _has_audio_stream(path: str) -> bool:
+        (codec,) = await probe_audio(path, [ "codec" ])
+
+        return codec is not None
 
 @register_video_mixer_driver(VideoMixerDriverType.FFMPEG)
 class FFmpegVideoMixerService(VideoMixerDriver):

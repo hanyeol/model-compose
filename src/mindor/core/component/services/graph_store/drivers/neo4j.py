@@ -121,6 +121,14 @@ class Neo4jQueryBuilder:
         return cypher, { "start_id": start_node }
 
 class Neo4jGraphStoreAction(GraphStoreAction):
+    def __init__(self, config: GraphStoreActionConfig, driver: "AsyncDriver", database_name: Optional[str]):
+        super().__init__(config, driver)
+        self.driver: "AsyncDriver" = driver
+        self.database_name: Optional[str] = database_name
+
+    def _open_session(self) -> "AsyncSession":
+        return self.driver.session(database=self.database_name)
+
     async def _query(
         self,
         queries: List[str],
@@ -134,9 +142,10 @@ class Neo4jGraphStoreAction(GraphStoreAction):
 
         records: List[Dict[str, Any]] = []
 
-        for query in queries:
-            result = await self.database.run(query, parameters=bind_vars or {})
-            records.extend(await result.data())
+        async with self._open_session() as session:
+            for query in queries:
+                result = await session.run(query, parameters=bind_vars or {})
+                records.extend(await result.data())
 
         return records
 
@@ -153,29 +162,30 @@ class Neo4jGraphStoreAction(GraphStoreAction):
         created_nodes = 0
         created_relationships = 0
 
-        for node in nodes or []:
-            cypher, cypher_params = Neo4jQueryBuilder.build_create_node(
-                node.get("label", "Node"),
-                node.get("properties", {}),
-            )
-            result = await self.database.run(cypher, parameters=cypher_params)
-            record = await result.single()
-            if record:
-                node_ids.append(record["id"])
-            created_nodes += 1
+        async with self._open_session() as session:
+            for node in nodes or []:
+                cypher, cypher_params = Neo4jQueryBuilder.build_create_node(
+                    node.get("label", "Node"),
+                    node.get("properties", {}),
+                )
+                result = await session.run(cypher, parameters=cypher_params)
+                record = await result.single()
+                if record:
+                    node_ids.append(record["id"])
+                created_nodes += 1
 
-        for relationship in relationships or []:
-            cypher, cypher_params = Neo4jQueryBuilder.build_create_relationship(
-                relationship.get("type", "RELATED_TO"),
-                relationship.get("from"),
-                relationship.get("to"),
-                relationship.get("properties", {}) or {},
-            )
-            result = await self.database.run(cypher, parameters=cypher_params)
-            record = await result.single()
-            if record:
-                relationship_ids.append(record["id"])
-            created_relationships += 1
+            for relationship in relationships or []:
+                cypher, cypher_params = Neo4jQueryBuilder.build_create_relationship(
+                    relationship.get("type", "RELATED_TO"),
+                    relationship.get("from"),
+                    relationship.get("to"),
+                    relationship.get("properties", {}) or {},
+                )
+                result = await session.run(cypher, parameters=cypher_params)
+                record = await result.single()
+                if record:
+                    relationship_ids.append(record["id"])
+                created_relationships += 1
 
         return {
             "ids": node_ids + relationship_ids,
@@ -196,18 +206,19 @@ class Neo4jGraphStoreAction(GraphStoreAction):
 
         affected_rows = 0
 
-        for id in node_ids or []:
-            built = Neo4jQueryBuilder.build_update_node(id, properties, labels)
-            if built:
-                cypher, cypher_params = built
-                await self.database.run(cypher, parameters=cypher_params)
-                affected_rows += 1
+        async with self._open_session() as session:
+            for id in node_ids or []:
+                built = Neo4jQueryBuilder.build_update_node(id, properties, labels)
+                if built:
+                    cypher, cypher_params = built
+                    await session.run(cypher, parameters=cypher_params)
+                    affected_rows += 1
 
-        if properties:
-            for id in relationship_ids or []:
-                cypher, cypher_params = Neo4jQueryBuilder.build_update_relationship(id, properties)
-                await self.database.run(cypher, parameters=cypher_params)
-                affected_rows += 1
+            if properties:
+                for id in relationship_ids or []:
+                    cypher, cypher_params = Neo4jQueryBuilder.build_update_relationship(id, properties)
+                    await session.run(cypher, parameters=cypher_params)
+                    affected_rows += 1
 
         return { "affected_rows": affected_rows }
 
@@ -223,15 +234,16 @@ class Neo4jGraphStoreAction(GraphStoreAction):
 
         affected_rows = 0
 
-        for id in node_ids or []:
-            cypher, cypher_params = Neo4jQueryBuilder.build_delete_node(id, detach)
-            await self.database.run(cypher, parameters=cypher_params)
-            affected_rows += 1
+        async with self._open_session() as session:
+            for id in node_ids or []:
+                cypher, cypher_params = Neo4jQueryBuilder.build_delete_node(id, detach)
+                await session.run(cypher, parameters=cypher_params)
+                affected_rows += 1
 
-        for id in relationship_ids or []:
-            cypher, cypher_params = Neo4jQueryBuilder.build_delete_relationship(id)
-            await self.database.run(cypher, parameters=cypher_params)
-            affected_rows += 1
+            for id in relationship_ids or []:
+                cypher, cypher_params = Neo4jQueryBuilder.build_delete_relationship(id)
+                await session.run(cypher, parameters=cypher_params)
+                affected_rows += 1
 
         return { "affected_rows": affected_rows }
 
@@ -249,16 +261,17 @@ class Neo4jGraphStoreAction(GraphStoreAction):
 
         records: List[Dict[str, Any]] = []
 
-        for start_node in start_nodes:
-            cypher, cypher_params = Neo4jQueryBuilder.build_traverse(
-                start_node,
-                direction,
-                max_depth,
-                relationship_types,
-                node_labels,
-            )
-            result = await self.database.run(cypher, parameters=cypher_params)
-            records.extend(await result.data())
+        async with self._open_session() as session:
+            for start_node in start_nodes:
+                cypher, cypher_params = Neo4jQueryBuilder.build_traverse(
+                    start_node,
+                    direction,
+                    max_depth,
+                    relationship_types,
+                    node_labels,
+                )
+                result = await session.run(cypher, parameters=cypher_params)
+                records.extend(await result.data())
 
         return records
 
@@ -268,30 +281,24 @@ class Neo4jGraphStoreService(GraphStoreDriver):
         super().__init__(id, config, daemon)
 
         self.driver: Optional[AsyncDriver] = None
-        self.session: Optional[AsyncSession] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
         return [ "neo4j" ]
 
     async def _start(self) -> None:
         self.driver = self._create_driver()
-        self.session = self.driver.session(database=self.config.database)
 
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
 
-        if self.session:
-            await self.session.close()
-            self.session = None
-
         if self.driver:
             await self.driver.close()
             self.driver = None
 
     async def _run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await Neo4jGraphStoreAction(action, self.session).run(context)
+        return await Neo4jGraphStoreAction(action, self.driver, self.config.database).run(context)
 
     def _create_driver(self) -> AsyncDriver:
         from neo4j import AsyncGraphDatabase

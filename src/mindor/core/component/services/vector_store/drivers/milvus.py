@@ -264,7 +264,7 @@ class MilvusVectorStoreAction(VectorStoreAction):
     async def _delete(
         self,
         collection: Any,
-        vector_ids: List[Any],
+        vector_ids: Optional[List[Any]],
         *,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
@@ -273,7 +273,16 @@ class MilvusVectorStoreAction(VectorStoreAction):
         id_field = params["id_field"]
         filter   = params["filter"]
 
-        filter_expr = MilvusFilterExpressionBuilder().build([ { id_field: vector_ids }, filter ])
+        clauses: List[Any] = []
+        if vector_ids:
+            clauses.append({ id_field: vector_ids })
+        if filter:
+            clauses.append(filter)
+
+        filter_expr = MilvusFilterExpressionBuilder().build(clauses) if clauses else None
+
+        if not filter_expr:
+            return { "affected_rows": 0 }
 
         result = await self.client.delete(
             collection_name=collection_name,

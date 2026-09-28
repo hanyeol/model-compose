@@ -187,7 +187,7 @@ class ChromaVectorStoreAction(VectorStoreAction):
     async def _delete(
         self,
         collection: Any,
-        vector_ids: List[Any],
+        vector_ids: Optional[List[Any]],
         *,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
@@ -196,12 +196,15 @@ class ChromaVectorStoreAction(VectorStoreAction):
             database: Collection = self.client.get_or_create_collection(name=collection)
             where_spec = ChromaWhereSpecBuilder().build(params["filter"])
 
+            if not vector_ids and not where_spec:
+                return { "affected_rows": 0 }
+
             database.delete(
                 ids=vector_ids,
                 where=where_spec
             )
 
-            return { "affected_rows": len(vector_ids) }
+            return { "affected_rows": len(vector_ids) if vector_ids else 0 }
 
         return await self._run_in_executor(_delete)
 

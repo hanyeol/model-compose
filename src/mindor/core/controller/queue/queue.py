@@ -36,3 +36,6 @@ class ControllerQueueService:
         interrupt_handler: InterruptHandler
     ) -> Any:
         return await self.driver.dispatch(task_id, workflow_id, input, interrupt_handler)
+
+    async def cancel(self, task_id: str) -> None:
+        await self.driver.cancel(task_id)

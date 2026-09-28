@@ -74,7 +74,7 @@ class CommonVectorSearchActionConfig(CommonVectorStoreActionConfig):
 
 class CommonVectorDeleteActionConfig(CommonVectorStoreActionConfig):
     method: Literal[VectorStoreActionMethod.DELETE]
-    vector_id: Union[Union[int, str], List[Union[int, str]], str] = Field(..., description="ID or IDs of the vectors to delete.")
+    vector_id: Optional[Union[Union[int, str], List[Union[int, str]], str]] = Field(default=None, description="ID or IDs of the vectors to delete; omit to delete purely by filter.")
     filter: Optional[Union[List[VectorStoreFilterCondition], str]] = Field(default=None, description="Metadata filter conditions that select vectors to delete.")
 
     @model_validator(mode="before")

@@ -398,7 +398,7 @@ class FaissVectorStoreAction(VectorStoreAction):
     async def _delete(
         self,
         collection: Any,
-        vector_ids: List[Any],
+        vector_ids: Optional[List[Any]],
         *,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],

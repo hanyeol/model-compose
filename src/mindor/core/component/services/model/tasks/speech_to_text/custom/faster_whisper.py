@@ -74,7 +74,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
             params["compression_ratio_threshold"] = compression_ratio_threshold
 
         if log_prob_threshold is not None:
-            params["logprob_threshold"] = log_prob_threshold
+            params["log_prob_threshold"] = log_prob_threshold
 
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold

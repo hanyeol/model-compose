@@ -3,8 +3,9 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 VectorStoreComponentConfig = Annotated[
-    Union[ 
+    Union[
         MilvusVectorStoreComponentConfig,
+        QdrantVectorStoreComponentConfig,
         FaissVectorStoreComponentConfig,
         ChromaVectorStoreComponentConfig
     ],

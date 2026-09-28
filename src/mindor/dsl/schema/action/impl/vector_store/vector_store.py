@@ -4,6 +4,7 @@ from .impl import *
 
 VectorStoreActionConfig = Union[
     MilvusVectorStoreActionConfig,
+    QdrantVectorStoreActionConfig,
     FaissVectorStoreActionConfig,
     ChromaVectorStoreActionConfig
 ]

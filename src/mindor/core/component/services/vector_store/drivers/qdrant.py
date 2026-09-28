@@ -42,6 +42,14 @@ class QdrantFilterSpecBuilder:
             return must, must_not
 
         if isinstance(filter, dict):
+            if "field" in filter and "operator" in filter:
+                condition = VectorStoreFilterCondition(
+                    field=filter["field"],
+                    operator=filter["operator"],
+                    value=filter.get("value"),
+                )
+                return self._build_conditions(condition)
+
             for field, value in filter.items():
                 must.append(self._build_field_condition(field, value))
 
@@ -179,14 +187,15 @@ class QdrantVectorStoreAction(VectorStoreAction):
         results = []
 
         for query_vector in queries:
-            hits_raw = await self.client.search(
+            response = await self.client.query_points(
                 collection_name=collection,
-                query_vector=query_vector,
+                query=query_vector,
                 query_filter=query_filter,
                 limit=int(top_k),
                 with_payload=True,
                 with_vectors=True
             )
+            hits_raw = response.points
 
             hits = []
             for hit in hits_raw:
@@ -208,7 +217,7 @@ class QdrantVectorStoreAction(VectorStoreAction):
     async def _delete(
         self,
         collection: Any,
-        vector_ids: List[Any],
+        vector_ids: Optional[List[Any]],
         *,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],

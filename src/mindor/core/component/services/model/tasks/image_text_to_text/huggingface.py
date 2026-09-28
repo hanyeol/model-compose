@@ -77,10 +77,12 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         }
 
     async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        min_output_length = await context.render_variable(self.config.min_output_length)
-        num_beams         = await context.render_variable(self.config.params.num_beams)
-        length_penalty    = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
-        early_stopping    = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        min_output_length    = await context.render_variable(self.config.min_output_length)
+        num_beams            = await context.render_variable(self.config.params.num_beams)
+        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        repetition_penalty   = await context.render_variable(self.config.params.repetition_penalty)
+        no_repeat_ngram_size = await context.render_variable(self.config.params.no_repeat_ngram_size)
 
         params: Dict[str, Any] = {
             "min_length": min_output_length,
@@ -94,6 +96,12 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
                 params["length_penalty"] = length_penalty
 
             params["early_stopping"] = early_stopping
+
+        if repetition_penalty is not None:
+            params["repetition_penalty"] = repetition_penalty
+
+        if no_repeat_ngram_size is not None:
+            params["no_repeat_ngram_size"] = no_repeat_ngram_size
 
         return params
 

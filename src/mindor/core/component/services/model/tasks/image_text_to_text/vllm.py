@@ -59,6 +59,14 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         if params["stop_sequences"]:
             sampling_params["stop"] = params["stop_sequences"] if isinstance(params["stop_sequences"], list) else [params["stop_sequences"]]
 
+        repetition_penalty = await context.render_variable(self.config.params.repetition_penalty)
+        if repetition_penalty is not None:
+            sampling_params["repetition_penalty"] = repetition_penalty
+
+        no_repeat_ngram_size = await context.render_variable(self.config.params.no_repeat_ngram_size)
+        if no_repeat_ngram_size is not None:
+            sampling_params["no_repeat_ngram_size"] = no_repeat_ngram_size
+
         params["sampling"] = SamplingParams(**sampling_params)
 
         return params

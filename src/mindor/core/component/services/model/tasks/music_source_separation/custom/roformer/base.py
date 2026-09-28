@@ -310,8 +310,8 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
 
         # exclude_none keeps lucidrains' own defaults for optional fields the
         # user didn't set (e.g. BS-RoFormer's `freqs_per_bands`).
-        model_params: Dict[str, Any] = self.config.params.model_dump(exclude_none=True)
         model_class = self._get_model_class()
+        model_params: Dict[str, Any] = self.config.params.model_dump(exclude_none=True)
         accepts_streams = "num_residual_streams" in inspect.signature(model_class).parameters
 
         def _load() -> torch.nn.Module:

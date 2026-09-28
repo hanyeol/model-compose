@@ -11,7 +11,7 @@ class ImageTextToTextParamsConfig(BaseModel):
     num_beams: Union[int, str] = Field(default=1, description="Number of beams used in beam search.")
     length_penalty: Union[float, str] = Field(default=1.0, description="Length penalty applied during beam search.")
     early_stopping: bool = Field(default=True, description="Whether beam search stops once all beams finish generating.")
-    repetition_penalty: Optional[Union[float, str]] = Field(default=None, description="Penalty applied to tokens that have already appeared; values above 1.0 discourage repetition.")
+    repetition_penalty: Optional[Union[float, str]] = Field(default=None, description="Penalty applied to tokens that have already appeared.")
     no_repeat_ngram_size: Optional[Union[int, str]] = Field(default=None, description="Blocks any n-gram of this size from being generated more than once.")
 
 class ImageTextToTextModelActionConfig(CommonModelActionConfig):

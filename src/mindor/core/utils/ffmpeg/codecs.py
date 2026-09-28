@@ -111,6 +111,13 @@ _ALPHA_PIXEL_FORMATS: Set[str] = {
     "gbrapf32be", "gbrapf32le",
 }
 
+# Prefixes that identify a pixel format as YUV (or a semi-planar/planar YUV
+# variant). Kept as a positive allowlist because misclassifying RGB as YUV
+# would tag an RGB stream with a YUV color matrix — a new bug — while
+# misclassifying YUV as RGB just skips a fix. `p010`/`p016`/`p210`/`p410` are
+# semi-planar YUV formats used by hardware pipelines.
+_YUV_PIXEL_FORMAT_PREFIXES: Tuple[str, ...] = ("yuv", "yuvj", "yuva", "nv", "p0", "p2", "p4")
+
 def get_video_codecs_for_format(format: str) -> Tuple[Optional[str], Optional[str]]:
     return _VIDEO_FORMAT_CODEC_MAP.get(format, (None, None))
 
@@ -125,3 +132,14 @@ def get_supported_pixel_formats(encoder: str) -> Optional[Set[str]]:
 
 def has_alpha_channel(pixel_format: str) -> bool:
     return pixel_format in _ALPHA_PIXEL_FORMATS
+
+def encoder_supports_yuv_pixel_format(encoder: str) -> Optional[bool]:
+    pixel_formats = _SUPPORTED_PIXEL_FORMATS.get(encoder)
+
+    if pixel_formats is not None:
+        return any(is_yuv_pixel_format(pixel_format) for pixel_format in pixel_formats)
+
+    return None
+
+def is_yuv_pixel_format(pixel_format: str) -> bool:
+    return pixel_format.startswith(_YUV_PIXEL_FORMAT_PREFIXES)

@@ -18,6 +18,8 @@ from mindor.core.utils.ffmpeg.codecs import (
     get_supported_pixel_formats,
     get_video_codecs_for_format,
     has_alpha_channel,
+    encoder_supports_yuv_pixel_format,
+    is_yuv_pixel_format,
 )
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
@@ -148,6 +150,16 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 fd_channels.append(channel)
                 audio_input = f"pipe:{channel.read_fd}"
 
+        # Peek the first frame so we know the source height before building the
+        # encode command — needed for BT.709/601 matrix selection. `resolution`
+        # in `encoding` takes precedence when set (that's the final output size);
+        # otherwise the first frame's pixel height is authoritative. Peeking is
+        # unavoidable here because the encoder's ffmpeg process needs its
+        # `-color_*` flags decided before the first frame reaches it.
+        frames_iterator = frames.__aiter__()
+        first_frame = await self._peek_next_frame(frames_iterator)
+        source_height = (await first_frame.as_image()).size[1] if first_frame is not None else None
+
         command = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         command.extend([ "-f", "image2pipe", "-framerate", str(frame_rate), "-i", "pipe:0" ])
 
@@ -158,7 +170,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             # the encoder still runs and just produces a video-only output.
             command.extend([ "-map", "0:v", "-map", "1:a?" ])
 
-        for option, value in self._resolve_encoding_options(encoding, has_audio=audio_input is not None).items():
+        for option, value in self._resolve_encoding_options(encoding, has_audio=audio_input is not None, source_height=source_height).items():
             command.extend([ option, value ])
 
         if audio_input is not None:
@@ -172,7 +184,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                     pass
 
         async def _source_iterator() -> AsyncIterator[bytes]:
-            async for frame in frames:
+            # Replay the peeked frame first, then drain the rest of the iterator.
+            if first_frame is not None:
+                async with first_frame:
+                    async for chunk in first_frame:
+                        yield chunk
+
+            async for frame in frames_iterator:
                 async with frame:
                     async for chunk in frame:
                         yield chunk
@@ -198,7 +216,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         """Run ffmpeg to a temporary file, then return a VideoStreamResource over that file."""
         output_path = get_temporary_path(format)
 
-        command = command + [ "-movflags", "+faststart", output_path ]
+        # `+faststart` moves the moov atom to the front so mp4/mov files start
+        # playing before the whole file is downloaded. It's an ISO-BMFF-only
+        # feature — webm/mkv/etc. ignore or reject it, so gate on container.
+        if format in ("mp4", "mov", "m4v"):
+            command = command + [ "-movflags", "+faststart" ]
+
+        command = command + [ output_path ]
 
         async def _on_started() -> None:
             # ffmpeg owns the read ends now; each start() drops the parent's
@@ -336,6 +360,14 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
 
     @staticmethod
+    async def _peek_next_frame(iterator: AsyncIterator[ImageStreamResource]) -> Optional[ImageStreamResource]:
+        """Pull one frame from an async iterator or return None if it's exhausted."""
+        try:
+            return await iterator.__anext__()
+        except StopAsyncIteration:
+            return None
+
+    @staticmethod
     def _resolve_input_source(
         media: MediaSource,
         media_path: Optional[str],
@@ -366,7 +398,20 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         return f"pipe:{channel.read_fd}", stdin_owner
 
-    def _resolve_encoding_options(self, encoding: VideoAudioEncodingParams, has_audio: bool) -> Dict[str, str]:
+    def _resolve_encoding_options(
+        self,
+        encoding: VideoAudioEncodingParams,
+        has_audio: bool,
+        source_height: Optional[int] = None,
+    ) -> Dict[str, str]:
+        """Build the ffmpeg option dict for one encode.
+
+        `source_height` is the input height in pixels when it's known ahead of
+        time (frames path — first-frame lookahead). It's used to (a) pick the
+        color matrix for RGB→YUV conversion and (b) tag the stream to match.
+        Video-input path passes None, since ffmpeg preserves the source's own
+        color tags and forcing 709 on an SD (601) source would be wrong.
+        """
         options: Dict[str, str] = {}
 
         video = encoding.video
@@ -388,7 +433,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if video and video.fps is not None:
             options["-r"] = str(video.fps)
 
-        pixel_format = self._resolve_pixel_format(encoding, video_codec)
+        pixel_format = self._resolve_pixel_format(encoding, video_codec, force_yuv=source_height is not None)
+        filters: List[str] = []
 
         if pixel_format is not None:
             options["-pix_fmt"] = pixel_format
@@ -398,7 +444,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             # black — a no-op on already-even sources — so callers don't have
             # to worry about source dimensions.
             if pixel_format == "yuv420p":
-                options["-vf"] = "pad=ceil(iw/2)*2:ceil(ih/2)*2:color=black"
+                filters.append("pad=ceil(iw/2)*2:ceil(ih/2)*2:color=black")
 
             # libvpx (VP8) refuses to encode alpha unless auto_alt_ref is
             # disabled — otherwise it aborts with "Transparency encoding with
@@ -406,6 +452,34 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             # pipelines "just work".
             if video_codec == "libvpx" and has_alpha_channel(pixel_format):
                 options["-auto-alt-ref"] = "0"
+
+        # Color-matrix conversion + tagging (frames path only). ffmpeg's
+        # default swscale converts RGB → YUV with a BT.601 matrix regardless
+        # of resolution, so HD frames come out wrong on players that assume
+        # 709 for HD. Force the matrix explicitly and tag the stream to match.
+        color_matrix = self._resolve_color_matrix(video_codec, pixel_format, source_height)
+
+        if color_matrix is not None:
+            filters.append(f"scale=out_color_matrix={color_matrix}:out_range=tv")
+
+            # Pin the pixel-format conversion to this filter graph so ffmpeg's
+            # negotiator can't insert its own (default-601) scale after us.
+            if pixel_format is not None:
+                filters.append(f"format={pixel_format}")
+
+            # `setparams` writes the color metadata onto every frame — encoders
+            # then propagate it into the bitstream's VUI. Works across codecs
+            # (x264/x265/vpx) and ffmpeg versions without per-encoder params.
+            # The output flags below are belt-and-suspenders for muxer metadata.
+            filters.append(f"setparams=color_primaries={color_matrix}:color_trc={color_matrix}:colorspace={color_matrix}:range=tv")
+
+            options["-color_primaries"] = color_matrix
+            options["-color_trc"]       = color_matrix
+            options["-colorspace"]      = color_matrix
+            options["-color_range"]     = "tv"
+
+        if filters:
+            options["-vf"] = ",".join(filters)
 
         if has_audio:
             audio_codec = self._resolve_audio_codec(encoding)
@@ -418,23 +492,64 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         return options
 
-    def _resolve_pixel_format(self, encoding: VideoAudioEncodingParams, video_codec: Optional[str]) -> Optional[str]:
+    @staticmethod
+    def _resolve_color_matrix(
+        video_codec: Optional[str],
+        pixel_format: Optional[str],
+        source_height: Optional[int],
+    ) -> Optional[str]:
+        """Pick the color matrix for RGB→YUV conversion, or None to skip.
+
+        Only applies when the caller supplied a source height (frames path)
+        and the output is definitely YUV. When `pixel_format` isn't known,
+        fall back to the encoder's supported list — encoders with no YUV
+        formats (gif, png) never get tagged.
+        """
+        if source_height is None:
+            return None
+
+        if pixel_format is not None:
+            if not is_yuv_pixel_format(pixel_format):
+                return None
+        else:
+            if video_codec is None or not encoder_supports_yuv_pixel_format(video_codec):
+                return None
+
+        # BT.709 is the HDTV standard (≥720p); SD stays on BT.601 so players
+        # that ignore stream tags and assume 601-for-SD still render correctly.
+        return "bt709" if source_height >= 720 else "smpte170m"
+
+    def _resolve_pixel_format(
+        self,
+        encoding: VideoAudioEncodingParams,
+        video_codec: Optional[str],
+        force_yuv: bool = False,
+    ) -> Optional[str]:
         """Pick and validate the output pixel format.
 
         User-supplied `pixel_format` is checked against the encoder's known
         supported list (per `codecs.py`) and against known silent-drop
         codec/container pairings (VP9-alpha only works in webm/mkv; mp4
-        would silently drop alpha). When no `pixel_format` is set,
-        libx264/libx265 fall back to yuv420p for broad player compatibility.
+        would silently drop alpha).
+
+        When `pixel_format` is unset:
+        - `force_yuv=True` (frames path): pin any YUV-capable encoder to yuv420p
+          so libx265/libvpx-vp9 don't silently pick gbrp for RGB input.
+        - `force_yuv=False` (video path): keep the old x264/x265 → yuv420p
+          default; other encoders inherit ffmpeg's negotiation from the source.
         """
         pixel_format = encoding.video.pixel_format if encoding.video else None
 
         if pixel_format is None:
+            if force_yuv and video_codec and encoder_supports_yuv_pixel_format(video_codec):
+                return "yuv420p"
+
             # Backwards-compatible default: yuv420p for x264/x265 image-derived streams.
             return "yuv420p" if video_codec in ("libx264", "libx265") else None
 
         if video_codec:
             supported = get_supported_pixel_formats(video_codec)
+
             if supported is not None and pixel_format not in supported:
                 raise ValueError(
                     f"Encoder '{video_codec}' does not support pixel_format '{pixel_format}'; "

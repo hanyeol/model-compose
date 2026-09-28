@@ -10,11 +10,11 @@ from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
 from PIL import Image as PILImage
-import os, tempfile, importlib.util
+import os, tempfile
 
 if TYPE_CHECKING:
     import torch
@@ -217,7 +217,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
         # imports torch at build time (pip's isolated build env has none).
         pip_options: List[str] = [ "--no-build-isolation" ]
 
-        if importlib.util.find_spec("pytorch3d") is None:
+        if not is_package_installed("pytorch3d"):
             await install_package_from_github(
                 "pytorch3d",
                 "https://github.com/facebookresearch/pytorch3d.git",
@@ -226,7 +226,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if importlib.util.find_spec("nvdiffrast") is None:
+        if not is_package_installed("nvdiffrast"):
             await install_package_from_github(
                 "nvdiffrast",
                 "https://github.com/NVlabs/nvdiffrast.git",
@@ -235,7 +235,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if importlib.util.find_spec("anigen") is None:
+        if not is_package_installed("anigen"):
             # AniGen's `anigen/` is pure Python; drop it next to `mindor` so
             # `from anigen.pipelines import AnigenImageTo3DPipeline` resolves
             # without any sys.path manipulation.

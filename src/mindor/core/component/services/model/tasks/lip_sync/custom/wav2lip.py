@@ -12,14 +12,14 @@ from mindor.core.utils.soundfile.audio import load_pcm_samples
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, get_mindor_install_root
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, get_mindor_install_root
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import LipSyncTaskAction
-import os, sys, tempfile, importlib, importlib.util, subprocess
+import os, sys, tempfile, subprocess
 
 if TYPE_CHECKING:
     import torch
@@ -406,7 +406,7 @@ class Wav2LipLipSyncTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if importlib.util.find_spec("wav2lip") is None:
+        if not is_package_installed("wav2lip"):
             # Wav2Lip's code sits at the repo root (audio.py, models/, face_detection/,
             # hparams.py) rather than under a src/ subdir, so mount the whole
             # tree as a `wav2lip/` package. Internal imports stay top-level

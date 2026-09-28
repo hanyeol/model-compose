@@ -4,11 +4,10 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
-import importlib.util
 import os, sys, platform
 
 if TYPE_CHECKING:
@@ -131,7 +130,7 @@ class KevTypedDecisionTaskDriver(ModelTaskDriver):
     async def _setup(self) -> None:
         # kev ships a proper pyproject.toml; install it as a normal package.
         # Revision pinned to jaredpalmer/kev@main as of 2026-09-24.
-        if importlib.util.find_spec("kev") is None:
+        if not is_package_installed("kev"):
             await install_package_from_github(
                 "kev",
                 "https://github.com/jaredpalmer/kev.git",

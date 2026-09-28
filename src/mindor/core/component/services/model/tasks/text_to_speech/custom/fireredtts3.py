@@ -15,12 +15,11 @@ from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
-import importlib.util
 
 if TYPE_CHECKING:
     import torch
@@ -306,7 +305,7 @@ class FireRedTextToSpeechTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if importlib.util.find_spec("fireredtts3") is None:
+        if not is_package_installed("fireredtts3"):
             await install_package_from_github(
                 "fireredtts3",
                 "https://github.com/FireRedTeam/FireRedTTS3.git",

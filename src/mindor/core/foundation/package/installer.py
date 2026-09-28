@@ -170,6 +170,19 @@ async def install_package_from_github(
 
     importlib.invalidate_caches()
 
+def is_package_installed(module_name: str) -> bool:
+    """Return True when `module_name` is importable.
+
+    Thin wrapper around `importlib.util.find_spec` so pre-install guards read
+    as intent (`if not is_package_installed(...)`) rather than a bare spec
+    lookup. Kept parameter-light for now; GitHub-specific checks (e.g. a
+    revision arg matched against `.mindor-revision`) can layer on later.
+    """
+    if importlib.util.find_spec(module_name) is None:
+        return False
+
+    return True
+
 def rewrite_python_imports(root: Path, mapping: Dict[str, str]) -> None:
     """Rewrite top-level import names inside every `.py` file under `root`.
 

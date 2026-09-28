@@ -9,7 +9,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
@@ -278,7 +278,7 @@ class SadTalkerTalkingHeadTaskDriver(ModelTaskDriver):
         # would collide with model-compose's editable-install root. Rename it to
         # `sadtalker/` on install; the tuple form triggers automatic rewrites of
         # `import src.…` inside the copied tree.
-        if importlib.util.find_spec("sadtalker") is None:
+        if not is_package_installed("sadtalker"):
             await install_package_from_github(
                 "sadtalker",
                 "https://github.com/OpenTalker/SadTalker.git",

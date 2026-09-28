@@ -6,9 +6,9 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.natten import natten_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from .....base import ModelTaskDriver
-import os, importlib.util
+import os
 
 if TYPE_CHECKING:
     import torch
@@ -111,7 +111,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
         # package on top.
         pip_options: List[str] = [ "--no-build-isolation" ]
 
-        if importlib.util.find_spec("cumesh") is None:
+        if not is_package_installed("cumesh"):
             # CuMesh vendors `third_party/cubvh` as a git submodule; the tarball
             # fallback strips it, so `git` must be available for this to succeed.
             await install_package_from_github(
@@ -122,7 +122,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if importlib.util.find_spec("flex_gemm.ops.grid_sample") is None:
+        if not is_package_installed("flex_gemm.ops.grid_sample"):
             # MoGe's pyproject.toml hard-pins flex_gemm to a `dev/all_triton` commit
             # that reorganises `ops.grid_sample` under `ops.sample`, but Pixal3D
             # imports the pre-rename layout (`flex_gemm.ops.grid_sample`). Detect the
@@ -137,7 +137,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=[ *pip_options, "--force-reinstall", "--no-deps" ],
             )
 
-        if importlib.util.find_spec("nvdiffrast") is None:
+        if not is_package_installed("nvdiffrast"):
             # o_voxel's postprocess.py imports `nvdiffrast.torch`; source-built
             # because upstream ships no wheels.
             await install_package_from_github(
@@ -148,7 +148,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if importlib.util.find_spec("o_voxel") is None:
+        if not is_package_installed("o_voxel"):
             # TRELLIS.2's o-voxel lives one level down (`o-voxel/`) and needs a
             # full pip build for its CUDA kernels — the earlier tree-copy path
             # dropped a pure-Python shell that crashed at import time.
@@ -160,7 +160,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if importlib.util.find_spec("pixal3d") is None:
+        if not is_package_installed("pixal3d"):
             # Pixal3D's `pixal3d/` is pure Python — keep the tree-copy path so
             # its top-level module lands next to `mindor` without invoking pip.
             await install_package_from_github(

@@ -13,11 +13,11 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
 from PIL import Image as PILImage
-import os, json, shutil, tempfile, importlib.util
+import os, json, shutil, tempfile
 
 if TYPE_CHECKING:
     import torch
@@ -300,7 +300,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
         # `--no-build-isolation`.
         pip_options: List[str] = [ "--no-build-isolation" ]
 
-        if importlib.util.find_spec("gsplat") is None:
+        if not is_package_installed("gsplat"):
             await install_package_from_github(
                 "gsplat",
                 "https://github.com/Tencent-Hunyuan/HY-World-2.0.git",
@@ -308,7 +308,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if importlib.util.find_spec("hyworld2") is None:
+        if not is_package_installed("hyworld2"):
             await install_package_from_github(
                 "hyworld2",
                 "https://github.com/Tencent-Hunyuan/HY-World-2.0.git",

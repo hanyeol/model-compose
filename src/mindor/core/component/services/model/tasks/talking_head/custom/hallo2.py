@@ -9,12 +9,12 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, argparse
+import os, tempfile, shutil, argparse
 
 if TYPE_CHECKING:
     import torch
@@ -190,7 +190,7 @@ class Hallo2TalkingHeadTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if importlib.util.find_spec("hallo") is None:
+        if not is_package_installed("hallo"):
             await install_package_from_github(
                 "hallo",
                 "https://github.com/fudan-generative-vision/hallo2.git",

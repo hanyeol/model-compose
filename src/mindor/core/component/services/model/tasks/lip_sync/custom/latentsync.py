@@ -10,11 +10,11 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, get_mindor_install_root
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, get_mindor_install_root
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import LipSyncTaskAction
-import os, sys, tempfile, importlib, importlib.util
+import os, sys, tempfile
 
 if TYPE_CHECKING:
     import torch
@@ -174,7 +174,7 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
         # (its own submodules use `from latentsync.xxx import ...`) and drop
         # `configs/` under a namespaced directory so it doesn't collide with
         # any other backend that installs its own top-level `configs/`.
-        if importlib.util.find_spec("latentsync") is None:
+        if not is_package_installed("latentsync"):
             await install_package_from_github(
                 "latentsync",
                 "https://github.com/bytedance/LatentSync.git",

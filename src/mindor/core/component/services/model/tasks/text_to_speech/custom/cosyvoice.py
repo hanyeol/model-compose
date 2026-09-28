@@ -13,12 +13,12 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
 from ..common import TextToSpeechTaskAction
-import os, importlib.util
+import os
 
 if TYPE_CHECKING:
     import torch
@@ -262,14 +262,14 @@ class CosyvoiceTextToSpeechTaskDriver(ModelTaskDriver):
         # CosyVoice depends on Matcha-TTS at a submodule-pinned commit. Tarball
         # downloads don't include submodules, so we fetch it as a separate top-
         # level `matcha` package.
-        if importlib.util.find_spec("cosyvoice") is None:
+        if not is_package_installed("cosyvoice"):
             await install_package_from_github(
                 "cosyvoice",
                 "https://github.com/FunAudioLLM/CosyVoice.git",
                 revision="074ca6dc9e80",
             )
 
-        if importlib.util.find_spec("matcha") is None:
+        if not is_package_installed("matcha"):
             await install_package_from_github(
                 "matcha",
                 "https://github.com/shivammehta25/Matcha-TTS.git",

@@ -10,13 +10,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, rewrite_python_imports
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, rewrite_python_imports
 from mindor.core.utils.github import download_github_tarball
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import os, tempfile, shutil, importlib.util, asyncio
+import os, tempfile, shutil, asyncio
 
 if TYPE_CHECKING:
     import torch
@@ -150,7 +150,7 @@ class SonicTalkingHeadTaskDriver(ModelTaskDriver):
         # a proper `sonic/` package (import rewrites happen automatically),
         # then fold `sonic.py`'s contents into `sonic/__init__.py` — with the
         # rewrites applied there too — so callers can `from sonic import Sonic`.
-        if importlib.util.find_spec("sonic") is None:
+        if not is_package_installed("sonic"):
             await install_package_from_github(
                 "sonic",
                 "https://github.com/jixiaozhong/Sonic.git",

@@ -4,11 +4,10 @@ from typing import TYPE_CHECKING
 from typing import Optional, Union, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
-import importlib.util
 import os, sys, platform
 
 if TYPE_CHECKING:
@@ -106,7 +105,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         # bespokelabsai/nimble is a research repo without pyproject/setup.py, so
         # `pip install git+...` fails. Drop the `nimble/` package next to `mindor`
         # via install_package_from_github's subdirs mechanism.
-        if importlib.util.find_spec("nimble") is None:
+        if not is_package_installed("nimble"):
             await install_package_from_github(
                 "nimble",
                 "https://github.com/bespokelabsai/nimble.git",

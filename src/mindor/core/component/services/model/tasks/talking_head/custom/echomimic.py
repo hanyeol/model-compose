@@ -9,13 +9,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import importlib, importlib.util
+import importlib
 import os, tempfile
 
 if TYPE_CHECKING:
@@ -259,7 +259,7 @@ class EchoMimicTalkingHeadTaskDriver(ModelTaskDriver):
     async def _setup(self) -> None:
         module_name = _ECHOMIMIC_MODULES[self.config.preset]
 
-        if importlib.util.find_spec(module_name) is None:
+        if not is_package_installed(module_name):
             repo_url, revision = _ECHOMIMIC_REPOS[self.config.preset]
 
             await install_package_from_github(

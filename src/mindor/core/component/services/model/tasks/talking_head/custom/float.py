@@ -10,13 +10,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import rewrite_python_imports, get_mindor_install_root
+from mindor.core.foundation.package.installer import is_package_installed, rewrite_python_imports, get_mindor_install_root
 from mindor.core.utils.github import download_github_tarball
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import importlib, importlib.util
+import importlib
 import os, tempfile, shutil, asyncio, argparse
 
 if TYPE_CHECKING:
@@ -154,7 +154,7 @@ class FloatTalkingHeadTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if importlib.util.find_spec("float_talker") is None:
+        if not is_package_installed("float_talker"):
             await asyncio.get_running_loop().run_in_executor(None, self._install_float_package)
 
     def _install_float_package(self) -> None:

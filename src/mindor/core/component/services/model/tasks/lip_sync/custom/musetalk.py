@@ -10,13 +10,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import LipSyncTaskAction
-import os, sys, tempfile, subprocess, importlib, importlib.util
+import os, sys, tempfile, subprocess
 
 if TYPE_CHECKING:
     import torch
@@ -337,7 +337,7 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
         # the sample yaml in `configs/` are avoided so they don't collide
         # with other backends that install their own top-level `scripts` /
         # `configs` directories into site-packages.
-        if importlib.util.find_spec("musetalk") is None:
+        if not is_package_installed("musetalk"):
             await install_package_from_github(
                 "musetalk",
                 "https://github.com/TMElyralab/MuseTalk.git",

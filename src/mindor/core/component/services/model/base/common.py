@@ -77,6 +77,8 @@ class ModelTaskDriver(ComponentDriver):
         return self._device_resolver.resolve(device)
 
     def _load_model_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
+        import torch
+
         checkpoint = torch.load(model_path, map_location="cpu")
         state_dict = self._get_state_dict_from_checkpoint(checkpoint)
 
@@ -86,6 +88,7 @@ class ModelTaskDriver(ComponentDriver):
         for key in [ "params", "state_dict" ]:
             if key in checkpoint:
                 return checkpoint[key]
+
         return checkpoint
 
     def _require_isolated_runtime(self) -> None:

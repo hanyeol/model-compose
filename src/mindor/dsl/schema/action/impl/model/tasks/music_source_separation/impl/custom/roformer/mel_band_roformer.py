@@ -1,0 +1,8 @@
+from pydantic import Field
+from .common import CommonRoFormerMusicSourceSeparationModelActionConfig, CommonRoFormerMusicSourceSeparationParamsConfig
+
+class MelBandRoFormerMusicSourceSeparationParamsConfig(CommonRoFormerMusicSourceSeparationParamsConfig):
+    pass
+
+class MelBandRoFormerMusicSourceSeparationModelActionConfig(CommonRoFormerMusicSourceSeparationModelActionConfig):
+    params: MelBandRoFormerMusicSourceSeparationParamsConfig = Field(default_factory=MelBandRoFormerMusicSourceSeparationParamsConfig, description="Mel-Band RoFormer stem selection and separation quality parameters.")

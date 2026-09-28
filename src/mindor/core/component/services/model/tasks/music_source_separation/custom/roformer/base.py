@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Dict, Optional, List, Tuple, Type, Union, Any
+from typing import Dict, Mapping, Optional, List, Tuple, Type, Union, Any
 from mindor.dsl.schema.component import (
     BsRoFormerMusicSourceSeparationModelComponentConfig,
     MelBandRoFormerMusicSourceSeparationModelComponentConfig,
@@ -54,6 +54,7 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         sample_rate: int,
         stereo: bool,
         stem_names: List[str],
+        stft_hop_length: int,
         device: Optional[torch.device],
     ):
         super().__init__(config, device)
@@ -62,6 +63,18 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         self.sample_rate: int = sample_rate
         self.stereo: bool = stereo
         self.stem_names: List[str] = stem_names
+        self.stft_hop_length: int = stft_hop_length
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        chunk_duration = await context.render_scalar(self.config.params.chunk_duration, float)
+
+        params.update({
+            "chunk_duration": chunk_duration,
+        })
+
+        return params
 
     async def _separate_batch(
         self,
@@ -90,8 +103,13 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
     def _separate(self, waveform: np.ndarray, params: Dict[str, Any]) -> Any:
         tensor = self._to_model_tensor(waveform)
 
-        chunk_duration = params.get("chunk_duration") or _DEFAULT_CHUNK_DURATION_SECONDS
+        chunk_duration = params["chunk_duration"] or _DEFAULT_CHUNK_DURATION_SECONDS
+        # RoFormer's internal iSTFT calls torch.istft without `length=`, so its
+        # output rounds down to a multiple of stft_hop_length. Align the request
+        # to that grid up-front — otherwise the overlap-add stitch below hits a
+        # shape mismatch of up to stft_hop_length - 1 samples.
         chunk_samples = max(1, int(round(chunk_duration * self.sample_rate)))
+        chunk_samples = max(self.stft_hop_length, chunk_samples // self.stft_hop_length * self.stft_hop_length)
         overlap_ratio = params["overlap"] if params["overlap"] is not None else 0.25
         overlap_ratio = min(max(overlap_ratio, 0.0), 0.99)
         hop_samples = max(1, chunk_samples - int(round(chunk_samples * overlap_ratio)))
@@ -179,6 +197,17 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
                 # Now estimate: (batch, num_stems, channels, samples)
                 estimate = estimate[0]        # drop batch → (num_stems, channels, samples)
+
+                # Defensive: some roformer versions return slightly short output
+                # when the iSTFT length isn't perfectly aligned. Force the length
+                # to match `chunk_samples` so the overlap-add stitch doesn't
+                # trip on a shape mismatch.
+                length = estimate.shape[-1]
+
+                if length > chunk_samples:
+                    estimate = estimate[..., :chunk_samples]
+                elif length < chunk_samples:
+                    estimate = torch.nn.functional.pad(estimate, (0, chunk_samples - length))
 
                 if num_stems_ref is None:
                     num_stems_ref = estimate.shape[0]
@@ -274,6 +303,8 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
         self.device = None
 
     async def _load_pretrained_model(self) -> Tuple[torch.nn.Module, torch.device]:
+        import inspect
+
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
@@ -281,11 +312,29 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
         # user didn't set (e.g. BS-RoFormer's `freqs_per_bands`).
         model_params: Dict[str, Any] = self.config.params.model_dump(exclude_none=True)
         model_class = self._get_model_class()
+        accepts_streams = "num_residual_streams" in inspect.signature(model_class).parameters
 
         def _load() -> torch.nn.Module:
+            state_dict = self._load_checkpoint_state_dict(model_path)
+            # bs-roformer 0.6+ wraps each transformer block with hyper-connections,
+            # inserting a `.branch.` submodule in the state-dict keys. Older
+            # community checkpoints (0.4.x) predate this and have no `.branch.`
+            # keys — detecting one tells us we're loading a legacy checkpoint on
+            # a newer model class.
+            legacy = not any(".branch." in key for key in state_dict)
+
+            if legacy and accepts_streams:
+                # Collapse hyper-connections to a single residual stream so the
+                # module tree matches what the legacy checkpoint expects (aside
+                # from the `.branch.` prefix, which the key rewrite below fixes).
+                model_params.setdefault("num_residual_streams", 1)
+
             model = model_class(**model_params)
 
-            self._load_model_checkpoint(model, model_path)
+            if legacy:
+                state_dict = self._adapt_legacy_state_dict(model, state_dict)
+
+            model.load_state_dict(state_dict, strict=True)
 
             model.to(device)
             model.eval()
@@ -296,17 +345,66 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
 
         return model, device
 
-    def _load_model_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
-        # Roformer checkpoints ship as .ckpt/.pt (state dict, possibly wrapped
-        # in `params`/`state_dict`) or .safetensors. Delegate the former to the
-        # base helper; handle safetensors directly.
+    def _load_checkpoint_state_dict(self, model_path: str) -> Mapping[str, Any]:
+        import torch
+
         if model_path.endswith(".safetensors"):
             from safetensors.torch import load_file
 
-            state_dict = load_file(model_path, device="cpu")
-            model.load_state_dict(state_dict, strict=True)
-        else:
-            super()._load_model_checkpoint(model, model_path)
+            return load_file(model_path, device="cpu")
+
+        checkpoint = torch.load(model_path, map_location="cpu")
+
+        return self._get_state_dict_from_checkpoint(checkpoint)
+
+    def _adapt_legacy_state_dict(self, model: torch.nn.Module, state_dict: Mapping[str, Any]) -> Dict[str, Any]:
+        """Rewrite a pre-0.6 RoFormer state dict to load on the current architecture.
+
+        Two adjustments are needed:
+
+        1. Insert `.branch.` into transformer-block keys so they match the
+           hyper-connections wrapper (kept even at num_residual_streams=1).
+        2. Fill in the value-residual mix parameters that pre-0.6 checkpoints
+           don't carry. Initializing weight=0, bias=-1e4 makes sigmoid(...) ≈ 0,
+           which turns the mix into a no-op (the constructor exposes no flag
+           to disable it).
+        """
+        import torch
+        import re
+
+        block_pattern = re.compile(r"^(layers\.\d+\.\d+\.layers\.\d+\.\d+)\.(.+)$")
+        expected = model.state_dict()
+
+        # Step 1: insert `.branch.` where the model expects it.
+        adapted: Dict[str, Any] = {}
+
+        for key, tensor in state_dict.items():
+            if key not in expected:
+                match = block_pattern.match(key)
+
+                if match:
+                    candidate = f"{match.group(1)}.branch.{match.group(2)}"
+
+                    if candidate in expected:
+                        key = candidate
+
+            adapted[key] = tensor
+
+        # Step 2: value-residual mix — BS uses `.to_value_residual_mix.{weight,bias}`;
+        # Mel-Band uses `.learned_value_residual_mix.0.{weight,bias}`. Only fill
+        # keys the model expects but the legacy checkpoint doesn't provide.
+        value_mix_markers = (".to_value_residual_mix.", ".learned_value_residual_mix.0.")
+
+        for key, reference in expected.items():
+            if key in adapted or not any(marker in key for marker in value_mix_markers):
+                continue
+
+            if key.endswith(".weight"):
+                adapted[key] = torch.zeros_like(reference)
+            elif key.endswith(".bias"):
+                adapted[key] = torch.full_like(reference, -1e4)
+
+        return adapted
 
     def _get_model_class(self) -> Type[torch.nn.Module]:
         raise NotImplementedError
@@ -327,5 +425,6 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
             self._get_sample_rate(),
             self.config.params.stereo,
             self._get_stem_names(),
+            self.config.params.stft_hop_length,
             self.device,
         ).run(context)

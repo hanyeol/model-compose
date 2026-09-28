@@ -2,8 +2,8 @@ from typing import Union
 from .demucs import DemucsMusicSourceSeparationModelActionConfig
 from .mdx_net import MdxNetMusicSourceSeparationModelActionConfig
 from .mdx23c import Mdx23cMusicSourceSeparationModelActionConfig
-from .bs_roformer import BsRoFormerMusicSourceSeparationModelActionConfig
-from .mel_band_roformer import MelBandRoFormerMusicSourceSeparationModelActionConfig
+from .roformer.bs_roformer import BsRoFormerMusicSourceSeparationModelActionConfig
+from .roformer.mel_band_roformer import MelBandRoFormerMusicSourceSeparationModelActionConfig
 
 CustomMusicSourceSeparationModelActionConfig = Union[
     DemucsMusicSourceSeparationModelActionConfig,

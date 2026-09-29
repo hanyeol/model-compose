@@ -77,7 +77,7 @@ class VideoMixerConcatActionConfig(CommonVideoMixerActionConfig):
     method: Literal[VideoMixerActionMethod.CONCAT]
     videos: Union[List[str], str] = Field(..., description="Videos to concatenate, in the order they appear in the output.")
     crossfade: Optional[Union[str, float]] = Field(default=None, description="Crossfade duration between adjacent videos, as a duration string (e.g., \"500ms\") or seconds.")
-    transition: Union[VideoConcatTransition, str] = Field(default=VideoConcatTransition.FADE, description="Transition style applied when `crossfade` is set (fade, dissolve, wipeleft, slideup, ...).")
+    transition: Union[VideoConcatTransition, str] = Field(default=VideoConcatTransition.FADE, description="Transition style applied when `crossfade` is set.")
 
     @model_validator(mode="after")
     def validate_videos(self) -> VideoMixerConcatActionConfig:

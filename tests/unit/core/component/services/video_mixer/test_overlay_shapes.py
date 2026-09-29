@@ -30,8 +30,8 @@ from mindor.core.foundation.variable.video import VideoArrayValue
 from mindor.dsl.schema.action import (
     FFmpegVideoMixerActionConfig,
     VideoMixerActionMethod,
-    VideoMixerOverlayAudioMode,
-    VideoMixerOverlayDurationMode,
+    VideoOverlayAudioMode,
+    VideoOverlayDurationMode,
     VideoOverlayPlacement,
 )
 from pydantic import TypeAdapter
@@ -389,16 +389,16 @@ class TestDurationMode:
 
     The shape tests already prove `_overlay` is called with the right video/overlays/placements;
     here we just verify the enum makes the round trip intact for each mode, since the FFmpeg
-    filter-graph branches read it as a `VideoMixerOverlayDurationMode` instance.
+    filter-graph branches read it as a `VideoOverlayDurationMode` instance.
     """
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "raw,expected",
         [
-            ("base",     VideoMixerOverlayDurationMode.BASE),
-            ("longest",  VideoMixerOverlayDurationMode.LONGEST),
-            ("shortest", VideoMixerOverlayDurationMode.SHORTEST),
+            ("base",     VideoOverlayDurationMode.BASE),
+            ("longest",  VideoOverlayDurationMode.LONGEST),
+            ("shortest", VideoOverlayDurationMode.SHORTEST),
         ],
     )
     async def test_duration_mode_reaches_overlay(self, raw, expected):
@@ -428,43 +428,57 @@ class TestDurationMode:
         )
         await action.run(stub.build())
 
-        assert calls[0]["params"]["duration_mode"] == VideoMixerOverlayDurationMode.BASE
+        assert calls[0]["params"]["duration_mode"] == VideoOverlayDurationMode.BASE
 
 
 class TestBuildOverlayFilterDuration:
     """Direct tests on `_build_overlay_filter` verify filter-graph strings per duration mode."""
 
+    def _action(self) -> FFmpegVideoMixerAction:
+        config = _adapter.validate_python({
+            "method": "overlay",
+            "video": "base.mp4",
+            "overlay": "pip.mp4",
+        })
+        return FFmpegVideoMixerAction(config)
+
     def _one_placement(self):
         return [ FFmpegVideoMixerAction._resolve_overlay_filter_params(VideoOverlayPlacement(x=10, y=10)) ]
 
     def test_base_mode_omits_shortest_and_tpad(self):
-        filter_complex, video_label, audio_label = FFmpegVideoMixerAction._build_overlay_filter(
+        filter_complex, video_label, audio_label = self._action()._build_overlay_filter(
             self._one_placement(),
-            VideoMixerOverlayAudioMode.BASE,
-            VideoMixerOverlayDurationMode.BASE,
+            VideoOverlayAudioMode.BASE,
+            VideoOverlayDurationMode.BASE,
             base_pad_duration=None,
+            base_has_audio=True,
+            overlay_has_audio=[True],
         )
         assert "tpad" not in filter_complex, "base mode must not pad the base video"
         assert "shortest=1" not in filter_complex
         assert video_label == "[vout]"
-        assert audio_label == "0:a?"
+        assert audio_label == "0:a"
 
     def test_shortest_mode_sets_shortest_flag_on_overlay(self):
-        filter_complex, _, _ = FFmpegVideoMixerAction._build_overlay_filter(
+        filter_complex, _, _ = self._action()._build_overlay_filter(
             self._one_placement(),
-            VideoMixerOverlayAudioMode.BASE,
-            VideoMixerOverlayDurationMode.SHORTEST,
+            VideoOverlayAudioMode.BASE,
+            VideoOverlayDurationMode.SHORTEST,
             base_pad_duration=None,
+            base_has_audio=True,
+            overlay_has_audio=[True],
         )
         assert "shortest=1" in filter_complex
         assert "tpad" not in filter_complex
 
     def test_longest_mode_pads_base_and_amixes_longest(self):
-        filter_complex, _, audio_label = FFmpegVideoMixerAction._build_overlay_filter(
+        filter_complex, _, audio_label = self._action()._build_overlay_filter(
             self._one_placement(),
-            VideoMixerOverlayAudioMode.MIX,
-            VideoMixerOverlayDurationMode.LONGEST,
+            VideoOverlayAudioMode.MIX,
+            VideoOverlayDurationMode.LONGEST,
             base_pad_duration=3.5,
+            base_has_audio=True,
+            overlay_has_audio=[True],
         )
         # base is padded so overlay can keep compositing after base's original EOF
         assert "tpad=stop_mode=clone:stop_duration=3.5" in filter_complex
@@ -474,11 +488,13 @@ class TestBuildOverlayFilterDuration:
 
     def test_longest_mode_without_pad_skips_tpad(self):
         """When base already the longest, pad_duration=0 → tpad emitted with 0 makes no sense."""
-        filter_complex, _, _ = FFmpegVideoMixerAction._build_overlay_filter(
+        filter_complex, _, _ = self._action()._build_overlay_filter(
             self._one_placement(),
-            VideoMixerOverlayAudioMode.BASE,
-            VideoMixerOverlayDurationMode.LONGEST,
+            VideoOverlayAudioMode.BASE,
+            VideoOverlayDurationMode.LONGEST,
             base_pad_duration=0.0,
+            base_has_audio=True,
+            overlay_has_audio=[True],
         )
         assert "tpad" not in filter_complex, "no padding needed when base is already longest"
 

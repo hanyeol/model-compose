@@ -105,14 +105,22 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
     worker_exe = component._runtime_manager._runtime.subprocess.args[0]
     assert str(expected_venv) in worker_exe
 
-    # mindor should have been copied into the venv's site-packages, not pip-installed.
+    # Editable host installs reuse the host `src/` tree via a `mindor.pth` entry;
+    # non-editable installs get a `mindor/` copy with a `.version` stamp.
     site_packages = component._runtime_manager._runtime._venv_site_packages()
-    assert (site_packages / "mindor" / "__init__.py").exists()
+    mindor_pth = site_packages / "mindor.pth"
+    mindor_pkg = site_packages / "mindor"
 
-    import mindor.version
-    version_file = site_packages / "mindor" / ".version"
-    assert version_file.exists()
-    assert version_file.read_text().strip() == mindor.version.__version__
+    if mindor_pth.exists():
+        import mindor
+        assert Path(mindor_pth.read_text().strip()) == Path(mindor.__file__).resolve().parent.parent
+        assert not mindor_pkg.exists(), "editable bootstrap must not leave a copied mindor/ tree"
+    else:
+        import mindor.version
+        assert (mindor_pkg / "__init__.py").exists()
+        version_file = mindor_pkg / ".version"
+        assert version_file.exists()
+        assert version_file.read_text().strip() == mindor.version.__version__
 
     # Execute a round-trip RUN.
     result = await component.run(
@@ -162,12 +170,18 @@ async def test_component_virtualenv_skips_injection_when_version_unchanged(
     await component.start()
     # Snapshot the venv path before stop — the manager clears its `_runtime` handle on teardown.
     site_packages = component._runtime_manager._runtime._venv_site_packages()
+    mindor_pkg = site_packages / "mindor"
     await component.stop()
     await component.teardown()
 
+    # Version gating only applies to non-editable hosts (copytree path). Editable
+    # hosts materialize a `mindor.pth` and never touch `site-packages/mindor/`.
+    if not mindor_pkg.exists():
+        pytest.skip("editable host install: version-gated injection path is not exercised")
+
     # Touch a sentinel file inside mindor/ so we can verify it is not blown away on the
     # second start (which should skip reinjection because the version hasn't changed).
-    sentinel = site_packages / "mindor" / "_test_sentinel.txt"
+    sentinel = mindor_pkg / "_test_sentinel.txt"
     sentinel.write_text("preserved")
 
     # Force-clear the component cache so create_component returns a fresh instance.

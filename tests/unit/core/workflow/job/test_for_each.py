@@ -37,11 +37,48 @@ class FakeWorkflow:
 class FakeJobContext:
     def __init__(self):
         self.workflow = FakeWorkflow()
-        self.is_terminal = False
+        self._is_terminal = False
         self.cancellation_token = None
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
+        self._run_id_stack: List[str] = []
+        self._default_input_stack: List[Any] = []
+        self._is_terminal_stack: List[bool] = []
         self.renderer = VariableRenderer(self.resolve_source)
         self.register_calls: list[tuple[Optional[str], str, Any]] = []
+
+    @property
+    def default_input(self) -> Any:
+        if self._default_input_stack and self._default_input_stack[-1] is not None:
+            return self._default_input_stack[-1]
+        return getattr(self.workflow, "input", None)
+
+    @property
+    def is_terminal(self) -> bool:
+        if self._is_terminal_stack:
+            return self._is_terminal_stack[-1]
+        return self._is_terminal
+
+    @is_terminal.setter
+    def is_terminal(self, value: bool) -> None:
+        self._is_terminal = value
+
+    class _InlineScope:
+        def __init__(self, context: "FakeJobContext", run_id: str, default_input: Any, is_terminal: bool) -> None:
+            self._context = context
+            self._run_id = run_id
+            self._default_input = default_input
+            self._is_terminal = is_terminal
+        def __enter__(self) -> None:
+            self._context._run_id_stack.append(self._run_id)
+            self._context._default_input_stack.append(self._default_input)
+            self._context._is_terminal_stack.append(self._is_terminal)
+        def __exit__(self, *_exc) -> None:
+            self._context._run_id_stack.pop()
+            self._context._default_input_stack.pop()
+            self._context._is_terminal_stack.pop()
+
+    def use_inline_scope(self, run_id: str, default_input: Any = None, is_terminal: bool = False):
+        return self._InlineScope(self, run_id, default_input, is_terminal)
 
     def register_source(self, scope: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(scope or "__global__", {})[key] = source
@@ -84,14 +121,26 @@ def _cfg(raw: dict):
     return TypeAdapter(JobConfig).validate_python({ "type": "for-each", **raw })
 
 
-def _make_job(cfg, component: FakeComponent) -> ForEachJob:
+def _make_job(cfg, component: FakeComponent, monkeypatch: Optional[pytest.MonkeyPatch] = None) -> ForEachJob:
+    async def _create_component(_id, _component):
+        return component
+
+    if monkeypatch is not None:
+        from mindor.core.workflow.job.impl import common as impl_common
+        original_create_job = impl_common.create_job
+
+        def wrapped_create_job(job_id, config, global_configs):
+            inline_job = original_create_job(job_id, config, global_configs)
+            if hasattr(inline_job, "_create_component"):
+                inline_job._create_component = _create_component  # type: ignore[assignment]
+            return inline_job
+
+        monkeypatch.setattr(impl_common, "create_job", wrapped_create_job)
+
     job = ForEachJob.__new__(ForEachJob)
     job.id = "test-for-each"
     job.config = cfg
     job.global_configs = None
-    # Stub component construction so no real ComponentService is created.
-    async def _create_component(_id, _component):
-        return component
     job._create_component = _create_component  # type: ignore[assignment]
     return job
 
@@ -110,7 +159,7 @@ def _output_registered(context: FakeJobContext) -> bool:
 class TestRunOutputFastPath:
 
     @pytest.mark.anyio
-    async def test_run_output_direct_fast_path(self):
+    async def test_run_output_direct_fast_path(self, monkeypatch):
         # No top-level `output` -> the iteration result list is returned
         # verbatim and no global `output` source is registered.
         context = FakeJobContext()
@@ -121,6 +170,7 @@ class TestRunOutputFastPath:
                 "do": { "component": "c", "action": "a" },
             }),
             component,
+            monkeypatch,
         )
 
         result = await job.run(context)
@@ -129,7 +179,7 @@ class TestRunOutputFastPath:
         assert not _output_registered(context)
 
     @pytest.mark.anyio
-    async def test_run_output_explicit_dollar_is_direct(self):
+    async def test_run_output_explicit_dollar_is_direct(self, monkeypatch):
         # `output: "${output}"` still bypasses the render pass.
         context = FakeJobContext()
         component = FakeComponent()
@@ -140,6 +190,7 @@ class TestRunOutputFastPath:
                 "do": { "component": "c", "action": "a" },
             }),
             component,
+            monkeypatch,
         )
 
         result = await job.run(context)
@@ -148,7 +199,7 @@ class TestRunOutputFastPath:
         assert not _output_registered(context)
 
     @pytest.mark.anyio
-    async def test_run_output_template_renders(self):
+    async def test_run_output_template_renders(self, monkeypatch):
         # A non-passthrough `output` template should trigger the render pass,
         # register `output` on the global scope, and materialize the wrapper.
         context = FakeJobContext()
@@ -160,6 +211,7 @@ class TestRunOutputFastPath:
                 "do": { "component": "c", "action": "a" },
             }),
             component,
+            monkeypatch,
         )
 
         result = await job.run(context)
@@ -175,7 +227,7 @@ class TestRunOutputFastPath:
 class TestDoOutputFastPath:
 
     @pytest.mark.anyio
-    async def test_do_output_direct_fast_path(self):
+    async def test_do_output_direct_fast_path(self, monkeypatch):
         # `do.output` unset -> per-iteration raw component output is returned.
         context = FakeJobContext()
         component = FakeComponent(transform=lambda x: {"value": x})
@@ -185,6 +237,7 @@ class TestDoOutputFastPath:
                 "do": { "component": "c", "action": "a" },
             }),
             component,
+            monkeypatch,
         )
 
         result = await job.run(context)
@@ -192,7 +245,7 @@ class TestDoOutputFastPath:
         assert result == [{"value": 1}, {"value": 2}]
 
     @pytest.mark.anyio
-    async def test_do_output_explicit_dollar_is_direct(self):
+    async def test_do_output_explicit_dollar_is_direct(self, monkeypatch):
         # `do.output: "${output}"` is also a fast path: raw component output
         # is returned per iteration.
         context = FakeJobContext()
@@ -207,6 +260,7 @@ class TestDoOutputFastPath:
                 },
             }),
             component,
+            monkeypatch,
         )
 
         result = await job.run(context)
@@ -214,7 +268,7 @@ class TestDoOutputFastPath:
         assert result == [{"value": 1}, {"value": 2}]
 
     @pytest.mark.anyio
-    async def test_do_output_template_renders(self):
+    async def test_do_output_template_renders(self, monkeypatch):
         # `do.output` template triggers per-iteration render: each raw output
         # is wrapped by the template.
         context = FakeJobContext()
@@ -229,6 +283,7 @@ class TestDoOutputFastPath:
                 },
             }),
             component,
+            monkeypatch,
         )
 
         result = await job.run(context)

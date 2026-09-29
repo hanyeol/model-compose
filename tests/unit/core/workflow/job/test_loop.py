@@ -51,27 +51,52 @@ class FakeWorkflow:
 
 class FakeJobContext:
     """Mirrors JobContext enough to drive composite jobs, including
-    `use_run_id` which `CompositeJob._run_inline_job` depends on."""
+    `use_inline_scope` which `CompositeJob._run_inline_job` depends on."""
 
     def __init__(self) -> None:
         self.workflow = FakeWorkflow()
-        self.is_terminal = False
+        self._is_terminal = False
         self.cancellation_token = None
         self._sources: Dict[str, Dict[str, Any]] = {"__global__": {}}
         self._run_id_stack: List[str] = []
+        self._default_input_stack: List[Any] = []
+        self._is_terminal_stack: List[bool] = []
         self.renderer = VariableRenderer(self._resolve_source)
         self.register_calls: List[tuple[Optional[str], str, Any]] = []
 
-    class _RunIdScope:
-        def __init__(self, stack: List[str], run_id: str) -> None:
-            self._stack, self._run_id = stack, run_id
-        def __enter__(self) -> None:
-            self._stack.append(self._run_id)
-        def __exit__(self, *_exc) -> None:
-            self._stack.pop()
+    @property
+    def default_input(self) -> Any:
+        if self._default_input_stack and self._default_input_stack[-1] is not None:
+            return self._default_input_stack[-1]
+        return getattr(self.workflow, "input", None)
 
-    def use_run_id(self, run_id: str):
-        return self._RunIdScope(self._run_id_stack, run_id)
+    @property
+    def is_terminal(self) -> bool:
+        if self._is_terminal_stack:
+            return self._is_terminal_stack[-1]
+        return self._is_terminal
+
+    @is_terminal.setter
+    def is_terminal(self, value: bool) -> None:
+        self._is_terminal = value
+
+    class _InlineScope:
+        def __init__(self, context: "FakeJobContext", run_id: str, default_input: Any, is_terminal: bool) -> None:
+            self._context = context
+            self._run_id = run_id
+            self._default_input = default_input
+            self._is_terminal = is_terminal
+        def __enter__(self) -> None:
+            self._context._run_id_stack.append(self._run_id)
+            self._context._default_input_stack.append(self._default_input)
+            self._context._is_terminal_stack.append(self._is_terminal)
+        def __exit__(self, *_exc) -> None:
+            self._context._run_id_stack.pop()
+            self._context._default_input_stack.pop()
+            self._context._is_terminal_stack.pop()
+
+    def use_inline_scope(self, run_id: str, default_input: Any = None, is_terminal: bool = False):
+        return self._InlineScope(self, run_id, default_input, is_terminal)
 
     def register_source(self, scope: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(scope or "__global__", {})[key] = source
@@ -716,10 +741,16 @@ class TestLoopOfLoop:
 
     @pytest.mark.anyio
     async def test_inner_loop_reruns_each_outer_iteration(self, monkeypatch):
-        # Outer never satisfies its stop (checks i>=99, inner always yields {"i":2}),
-        # so max_iteration_count=3 triggers RuntimeError; on_error.output supplies a
-        # fallback. What we care about is that the inner loop runs from scratch each
-        # outer iteration: 3 outer × 2 inner = 6 inner calls.
+        # Outer never satisfies its stop (checks i>=99), so max_iteration_count=3
+        # triggers RuntimeError; on_error.output supplies a fallback.
+        #
+        # Because both loops omit `input`, `default_input` cascades outward:
+        #  - Outer iter 0: default_input = None (top-level), inner starts fresh —
+        #    2 inner calls (i: None→1, then 1→2, until fires at i>=2).
+        #  - Outer iter 1..: default_input = previous outer output = {"i": 2},
+        #    inner iter 0 starts from {"i": 2}, transform yields {"i": 3},
+        #    stop condition fires immediately — 1 inner call per outer iter.
+        # Total: 2 + 1 + 1 = 4 inner calls.
         def in_step(x):
             n = 0 if x is None else x["i"]
             return {"i": n + 1}
@@ -741,5 +772,4 @@ class TestLoopOfLoop:
         job = _install_component_lookup(LoopJob, cfg, {"in": in_comp}, monkeypatch)
         result = await job.run(FakeJobContext())
         assert result == {"fallback": True}
-        # 3 outer iters × 2 inner iters = 6 total inner calls.
-        assert len(in_comp.calls) == 6
+        assert len(in_comp.calls) == 4

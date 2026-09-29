@@ -107,7 +107,9 @@ async def test_aiohttp_batch():
 @pytest.mark.anyio
 async def test_aiohttp_single():
     print("\n=== aiohttp single URL ===")
-    action = _make_action(selector="h1")
+    # example.com no longer carries an <h1>; use <title> which is stable across the IANA
+    # example-domain family and still contains "Example Domain".
+    action = _make_action(selector="title")
     ctx = _make_context("https://example.com/")
 
     result = await action.run(ctx)

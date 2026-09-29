@@ -352,9 +352,46 @@ class _FakeCtx:
         self._sources = {"__global__": {}}
         self.workflow = _FakeWorkflowForOutput()
         self.workflow.input = workflow_input
-        self.is_terminal = False
+        self._is_terminal = False
         self.cancellation_token = None
+        self._run_id_stack = []
+        self._default_input_stack = []
+        self._is_terminal_stack = []
         self.renderer = VariableRenderer(self.resolve_source)
+
+    @property
+    def default_input(self):
+        if self._default_input_stack and self._default_input_stack[-1] is not None:
+            return self._default_input_stack[-1]
+        return self.workflow.input
+
+    @property
+    def is_terminal(self):
+        if self._is_terminal_stack:
+            return self._is_terminal_stack[-1]
+        return self._is_terminal
+
+    @is_terminal.setter
+    def is_terminal(self, value):
+        self._is_terminal = value
+
+    class _InlineScope:
+        def __init__(self, ctx, run_id, default_input, is_terminal):
+            self._ctx = ctx
+            self._run_id = run_id
+            self._default_input = default_input
+            self._is_terminal = is_terminal
+        def __enter__(self):
+            self._ctx._run_id_stack.append(self._run_id)
+            self._ctx._default_input_stack.append(self._default_input)
+            self._ctx._is_terminal_stack.append(self._is_terminal)
+        def __exit__(self, *_exc):
+            self._ctx._run_id_stack.pop()
+            self._ctx._default_input_stack.pop()
+            self._ctx._is_terminal_stack.pop()
+
+    def use_inline_scope(self, run_id, default_input=None, is_terminal=False):
+        return self._InlineScope(self, run_id, default_input, is_terminal)
 
     def register_source(self, scope, key, value):
         self._sources.setdefault(scope or "__global__", {})[key] = value
@@ -423,11 +460,12 @@ async def test_component_after_hook_runs_before_output_render():
 
 
 @pytest.mark.anyio
-async def test_for_each_after_hook_runs_before_output_render():
+async def test_for_each_after_hook_runs_before_output_render(monkeypatch):
     # ForEachJob.run should apply the after hook to the aggregated batch
     # results BEFORE rendering the top-level `output` template.
     from pydantic import TypeAdapter
     from mindor.core.workflow.job.impl.for_each import ForEachJob
+    from mindor.core.workflow.job.impl import common as impl_common
     from mindor.dsl.schema.job import JobConfig
 
     class _FakeComponent:
@@ -458,12 +496,23 @@ async def test_for_each_after_hook_runs_before_output_render():
     })
 
     component = _FakeComponent()
+    async def _create_component(_id, _c):
+        return component
+
+    original_create_job = impl_common.create_job
+
+    def wrapped_create_job(job_id, config, global_configs):
+        inline_job = original_create_job(job_id, config, global_configs)
+        if hasattr(inline_job, "_create_component"):
+            inline_job._create_component = _create_component  # type: ignore[assignment]
+        return inline_job
+
+    monkeypatch.setattr(impl_common, "create_job", wrapped_create_job)
+
     job = ForEachJob.__new__(ForEachJob)
     job.id = "fej"
     job.config = cfg
     job.global_configs = None
-    async def _create_component(_id, _c):
-        return component
     job._create_component = _create_component  # type: ignore[assignment]
 
     result = await job.run(_FakeCtx())

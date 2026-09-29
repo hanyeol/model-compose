@@ -35,10 +35,47 @@ class FakeWorkflow:
 class FakeJobContext:
     def __init__(self, workflow_input: Optional[Any] = None):
         self.workflow = FakeWorkflow(workflow_input)
-        self.is_terminal = False
+        self._is_terminal = False
         self._sources: Dict[str, Dict[str, Any]] = { "__global__": {} }
+        self._run_id_stack: List[str] = []
+        self._default_input_stack: List[Any] = []
+        self._is_terminal_stack: List[bool] = []
         self.renderer = VariableRenderer(self.resolve_source)
         self.register_calls: list[tuple[Optional[str], str, Any]] = []
+
+    @property
+    def default_input(self) -> Any:
+        if self._default_input_stack and self._default_input_stack[-1] is not None:
+            return self._default_input_stack[-1]
+        return self.workflow.input
+
+    @property
+    def is_terminal(self) -> bool:
+        if self._is_terminal_stack:
+            return self._is_terminal_stack[-1]
+        return self._is_terminal
+
+    @is_terminal.setter
+    def is_terminal(self, value: bool) -> None:
+        self._is_terminal = value
+
+    class _InlineScope:
+        def __init__(self, context: "FakeJobContext", run_id: str, default_input: Any, is_terminal: bool) -> None:
+            self._context = context
+            self._run_id = run_id
+            self._default_input = default_input
+            self._is_terminal = is_terminal
+        def __enter__(self) -> None:
+            self._context._run_id_stack.append(self._run_id)
+            self._context._default_input_stack.append(self._default_input)
+            self._context._is_terminal_stack.append(self._is_terminal)
+        def __exit__(self, *_exc) -> None:
+            self._context._run_id_stack.pop()
+            self._context._default_input_stack.pop()
+            self._context._is_terminal_stack.pop()
+
+    def use_inline_scope(self, run_id: str, default_input: Any = None, is_terminal: bool = False):
+        return self._InlineScope(self, run_id, default_input, is_terminal)
 
     def register_source(self, scope: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(scope or "__global__", {})[key] = source

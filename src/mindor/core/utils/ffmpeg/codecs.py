@@ -33,6 +33,32 @@ _CODEC_ALPHA_CONTAINERS_MAP: Dict[str, Set[str]] = {
     "libvpx-vp9": { "webm", "mkv" },
 }
 
+# Source codec → decoder that preserves alpha. ffmpeg's native VP8/VP9 decoders
+# silently drop the alpha side-data channel; libvpx/libvpx-vp9 read it. The
+# codec probed from a file is the codec name (vp8, vp9), not the encoder — so
+# the mapping is keyed by that. Only codecs whose native decoder is lossy for
+# alpha belong here.
+_ALPHA_INPUT_DECODERS: Dict[str, str] = {
+    "vp8": "libvpx",
+    "vp9": "libvpx-vp9",
+}
+
+# Codecs whose files are still-image containers, not video sequences. nb_frames
+# is unreliable for the ffprobe distinction (PNG/JPEG report N/A, webm video
+# also reports N/A), so overlay AUTO eof_action falls back to a codec check —
+# an animated GIF has a normal codec_name of `gif` too, so it's excluded here
+# and probed via nb_frames separately.
+_STILL_IMAGE_CODECS: Set[str] = {
+    "png", "mjpeg", "webp", "bmp", "tiff",
+}
+
+# Encoders that only emit RGB/paletted output. Unknown encoders default to
+# YUV in `encoder_supports_yuv_pixel_format`, so any RGB-only encoder that
+# isn't in `_SUPPORTED_PIXEL_FORMATS` must be listed here to opt out.
+_RGB_ONLY_ENCODERS: Set[str] = {
+    "gif", "png", "qtrle",
+}
+
 # Pixel formats each encoder accepts. Encoders not listed here are treated as
 # "unknown" and callers skip pix-fmt validation for them; this leaves hardware
 # encoders (h264_videotoolbox, *_nvenc, ...) and custom builds unblocked at
@@ -127,19 +153,28 @@ def get_audio_codec_for_format(format: str) -> Optional[str]:
 def get_alpha_containers_for_codec(codec: str) -> Optional[Set[str]]:
     return _CODEC_ALPHA_CONTAINERS_MAP.get(codec)
 
+def is_still_image_codec(codec: Optional[str]) -> bool:
+    return codec in _STILL_IMAGE_CODECS
+
+def get_alpha_input_decoder(codec: Optional[str], alpha_mode: Optional[str]) -> Optional[str]:
+    return _ALPHA_INPUT_DECODERS.get(codec) if alpha_mode == "1" else None
+
 def get_supported_pixel_formats(encoder: str) -> Optional[Set[str]]:
     return _SUPPORTED_PIXEL_FORMATS.get(encoder)
 
 def has_alpha_channel(pixel_format: str) -> bool:
     return pixel_format in _ALPHA_PIXEL_FORMATS
 
-def encoder_supports_yuv_pixel_format(encoder: str) -> Optional[bool]:
+def encoder_supports_yuv_pixel_format(encoder: str) -> bool:
     pixel_formats = _SUPPORTED_PIXEL_FORMATS.get(encoder)
 
     if pixel_formats is not None:
         return any(is_yuv_pixel_format(pixel_format) for pixel_format in pixel_formats)
 
-    return None
+    if encoder not in _RGB_ONLY_ENCODERS:
+        return True
+
+    return False
 
 def is_yuv_pixel_format(pixel_format: str) -> bool:
     return pixel_format.startswith(_YUV_PIXEL_FORMAT_PREFIXES)

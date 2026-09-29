@@ -6,9 +6,12 @@ from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.resources import save_stream_to_temporary_file
 from mindor.core.foundation.streaming.image import load_image_from_bytes
 from mindor.core.foundation.media.filename import format_filename
+from mindor.core.utils.ffmpeg.codecs import get_alpha_input_decoder
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
+from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
@@ -72,6 +75,13 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await MediaInputPathResolver().resolve(video, streamable_media=[ "video" ])
 
+        # webm/mkv can carry VP8/VP9 side-data alpha; the ffprobe check + the
+        # `-c:v libvpx*` decoder override both require a file path. Force-spool
+        # so alpha isn't lost when the source arrives as a pipe.
+        if input_path is None and video.format and video.format.lower() in ("webm", "mkv"):
+            input_path = await save_stream_to_temporary_file(video.stream, video.format)
+            spooled = True
+
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "info" ]
 
         if video.format and input_path is None:
@@ -87,6 +97,17 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             command.extend([ "-ss", str(start_time) ])
         if end_time is not None:
             command.extend([ "-to", str(end_time) ])
+
+        # VP8/VP9 side-data alpha is silently dropped by the native decoder;
+        # force libvpx*/libvpx-vp9 when the source carries it so extracted
+        # frames keep the alpha channel. Only viable with a file input
+        # (probing needs a path).
+        if input_path is not None:
+            codec, alpha_mode = await probe_video(input_path, ("codec", "alpha_mode"))
+            alpha_decoder = get_alpha_input_decoder(codec, alpha_mode)
+
+            if alpha_decoder is not None:
+                command.extend([ "-c:v", alpha_decoder ])
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
 

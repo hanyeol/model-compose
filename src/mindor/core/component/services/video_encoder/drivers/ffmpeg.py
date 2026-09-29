@@ -13,8 +13,10 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
+from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.codecs import (
     get_alpha_containers_for_codec,
+    get_alpha_input_decoder,
     get_supported_pixel_formats,
     get_video_codecs_for_format,
     has_alpha_channel,
@@ -56,6 +58,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         video_path, video_spooled = await MediaInputPathResolver().resolve(video, streamable_media=[ "video" ])
         audio_path, audio_spooled = (await MediaInputPathResolver().resolve(audio, streamable_media=[ "audio", "video" ])) if audio is not None else (None, False)
 
+        # webm/mkv can carry VP8/VP9 side-data alpha; the ffprobe check + the
+        # `-c:v libvpx*` decoder override both require a file path. Force-spool
+        # so alpha isn't lost when the source arrives as a pipe.
+        if video_path is None and video.format and video.format.lower() in ("webm", "mkv"):
+            video_path = await save_stream_to_temporary_file(video.stream, video.format)
+            video_spooled = True
+
         # On Windows only `pipe:0` is available. If both sides would end up as
         # live streams, force-spool the audio side so the video keeps its pipe path.
         if not _SUPPORTS_FD_INPUT and audio is not None:
@@ -78,6 +87,17 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         if video.attrs.get("fps"):
             command.extend([ "-r", str(video.attrs["fps"]) ])
+
+        # VP8/VP9 side-data alpha is silently dropped by the native decoder;
+        # force libvpx*/libvpx-vp9 when the source carries it so the alpha
+        # channel actually reaches the encoder. Only viable with a file input
+        # (probing needs a path).
+        if video_path is not None:
+            codec, alpha_mode = await probe_video(video_path, ("codec", "alpha_mode"))
+            alpha_decoder = get_alpha_input_decoder(codec, alpha_mode)
+
+            if alpha_decoder is not None:
+                command.extend([ "-c:v", alpha_decoder ])
 
         command.extend([ "-i", video_input ])
 
@@ -152,13 +172,15 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
         # Peek the first frame so we know the source height before building the
         # encode command — needed for BT.709/601 matrix selection. `resolution`
-        # in `encoding` takes precedence when set (that's the final output size);
-        # otherwise the first frame's pixel height is authoritative. Peeking is
+        # in `encoding` takes precedence when set (that's the final output size,
+        # and encoding a 640×360 source with resolution=1280x720 needs BT.709
+        # tagging so HD-assuming players don't render it with 601); otherwise
+        # the first frame's pixel height is authoritative. Peeking is
         # unavoidable here because the encoder's ffmpeg process needs its
         # `-color_*` flags decided before the first frame reaches it.
         frames_iterator = frames.__aiter__()
         first_frame = await self._peek_next_frame(frames_iterator)
-        source_height = (await first_frame.as_image()).size[1] if first_frame is not None else None
+        source_height = await self._resolve_source_height(encoding, first_frame)
 
         command = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
         command.extend([ "-f", "image2pipe", "-framerate", str(frame_rate), "-i", "pipe:0" ])
@@ -366,6 +388,28 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             return await iterator.__anext__()
         except StopAsyncIteration:
             return None
+
+    @staticmethod
+    async def _resolve_source_height(
+        encoding: VideoAudioEncodingParams,
+        first_frame: Optional[ImageStreamResource],
+    ) -> Optional[int]:
+        """Pick the height that drives BT.709/601 selection.
+
+        `encoding.video.resolution` wins when set — a 640×360 source encoded to
+        1280×720 outputs HD and needs 709 tagging even though the first frame
+        is SD. Falls back to the first frame's pixel height when resolution is
+        left unspecified.
+        """
+        if encoding.video and encoding.video.resolution:
+            _, _, height = encoding.video.resolution.partition("x")
+            if height.isdigit():
+                return int(height)
+
+        if first_frame is not None:
+            return (await first_frame.as_image()).size[1]
+
+        return None
 
     @staticmethod
     def _resolve_input_source(

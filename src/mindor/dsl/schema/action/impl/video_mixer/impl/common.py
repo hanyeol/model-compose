@@ -22,6 +22,7 @@ class VideoOverlayAnchor(str, Enum):
     BOTTOM_RIGHT  = "bottom-right"
 
 class VideoOverlayEofAction(str, Enum):
+    AUTO   = "auto"
     REPEAT = "repeat"
     ENDALL = "endall"
     PASS   = "pass"
@@ -57,7 +58,7 @@ class VideoOverlayPlacement(BaseModel):
     gain: Union[float, str] = Field(default=1.0, description="Volume multiplier for the overlay's audio when mixed with other tracks.")
     start_time: Optional[Union[str, float]] = Field(default=None, description="Time the overlay first appears, as a duration string (e.g., \"2s\") or seconds.")
     end_time: Optional[Union[str, float]] = Field(default=None, description="Time the overlay disappears, as a duration string (e.g., \"5s\") or seconds.")
-    eof_action: Union[VideoOverlayEofAction, str] = Field(default=VideoOverlayEofAction.REPEAT, description="Behavior after the overlay's own stream ends: `repeat` holds the last frame, `pass` shows the base only, `endall` ends the output.")
+    eof_action: Union[VideoOverlayEofAction, str] = Field(default=VideoOverlayEofAction.AUTO, description="Behavior after the overlay's own stream ends: `auto` picks `repeat` for single-frame images and `pass` for videos.")
 
 class CommonVideoMixerActionConfig(CommonActionConfig):
     method: VideoMixerActionMethod = Field(..., description="Mixing operation this action performs.")

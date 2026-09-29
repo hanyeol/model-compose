@@ -6,7 +6,7 @@ from ..shell import run_command
 from .executable import resolve_ffprobe_executable
 import json
 
-# Requested field name → (section, ffprobe key). section is "format" or "stream".
+# Requested field name → (section, ffprobe key). section is "format", "stream", or "stream_tags".
 _VIDEO_FIELDS: Dict[str, Tuple[str, str]] = {
     "format":     ("format", "format_name"),
     "duration":   ("format", "duration"),
@@ -18,6 +18,13 @@ _VIDEO_FIELDS: Dict[str, Tuple[str, str]] = {
     "height":     ("stream", "height"),
     "frame_rate": ("stream", "r_frame_rate"),
     "pix_fmt":    ("stream", "pix_fmt"),
+    "nb_frames":  ("stream", "nb_frames"),
+    # BT.709/601 selection for overlay/mixer color-space matching. ffprobe
+    # names the ISO/IEC 23091-2 matrix coefficients as `color_space`.
+    "color_space": ("stream", "color_space"),
+    # VP8/VP9 side-data alpha is only surfaced via `stream.tags.alpha_mode=1`;
+    # `pix_fmt` stays plain `yuv420p` even for alpha-carrying webm.
+    "alpha_mode": ("stream_tags", "alpha_mode"),
 }
 
 _AUDIO_FIELDS: Dict[str, Tuple[str, str]] = {
@@ -48,12 +55,17 @@ def _parse_field_value(field: str, value: Any, hint: Optional[str] = None) -> An
 
     if field == "frame_rate":
         numerator, denominator = value.split("/")
-        return float(numerator) / float(denominator)
+        denominator = float(denominator)
+        # ffprobe reports `0/0` on some odd webm/mkv variants; guarding
+        # here means callers get None instead of a ZeroDivisionError.
+        if denominator == 0:
+            return None
+        return float(numerator) / denominator
 
     if field in ("duration", "start_time"):
         return float(value)
 
-    if field in ("size", "bit_rate", "sample_rate", "channels", "width", "height"):
+    if field in ("size", "bit_rate", "sample_rate", "channels", "width", "height", "nb_frames"):
         return int(value)
 
     return value
@@ -72,7 +84,9 @@ async def _probe(
 
     command = [ resolve_ffprobe_executable(), "-v", "quiet", "-print_format", "json" ]
 
-    if "stream" in sections:
+    # `stream_tags` fields live inside stream.tags, so they need the same
+    # -show_streams as regular stream fields.
+    if "stream" in sections or "stream_tags" in sections:
         command.extend([ "-select_streams", stream_selector, "-show_streams" ])
 
     if "format" in sections:
@@ -89,13 +103,21 @@ async def _probe(
     format = result.get("format") or {}
     streams = result.get("streams") or []
     stream = streams[0] if streams else {}
+    stream_tags = stream.get("tags") or {}
 
     hint = get_file_extension(path)
 
     values = []
     for field in fields:
         section, key = field_map[field]
-        source = format if section == "format" else stream
+
+        if section == "format":
+            source = format
+        elif section == "stream_tags":
+            source = stream_tags
+        else:
+            source = stream
+
         values.append(_parse_field_value(field, source.get(key), hint))
 
     return tuple(values)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Union, Dict, List, Tuple, Callable, Any
+from dataclasses import dataclass
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoClipperComponentConfig
 from mindor.dsl.schema.action import VideoClipperActionConfig, VideoClipperPrecision
@@ -10,7 +11,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
+from mindor.core.utils.ffmpeg.codecs import get_alpha_input_decoder, get_video_codecs_for_format
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video, probe_video_keyframes
 from mindor.core.utils.ffmpeg.muxer import get_extension_for_muxer, get_muxer_for_extension
@@ -30,6 +31,38 @@ import asyncio, math, os
 # means the file's GOP is unusual, and packet demuxing without decoding makes a
 # full scan cheap enough on typical inputs.
 _KEYFRAME_WINDOW_SECONDS = 10.0
+
+@dataclass
+class KeyframeScanRange:
+    """A cached keyframe list plus the absolute pts range it covered.
+
+    `start_time`/`end_time` are the pts bounds this scan actually walked;
+    either can be None to mean open on that side (a full-file scan is open
+    on both). Reuse is only safe when a later span's snap range lands inside
+    those bounds — packet indices are only meaningful within one scan.
+    """
+    keyframes: List[Tuple[float, int]]
+    start_time: Optional[float]
+    end_time: Optional[float]
+
+    def covers(self, start_time: float, end_time: float) -> bool:
+        starts_inside = self.start_time is None or self.start_time <= start_time
+        ends_inside   = self.end_time   is None or self.end_time   >= end_time
+
+        return starts_inside and ends_inside
+
+@dataclass
+class SnappedKeyframe:
+    """Result of snapping one span to keyframe boundaries.
+
+    `start_time`/`end_time` are relative seconds; `frame_count` is None when
+    the cut runs to end of file; `scan_range` is the (possibly refreshed)
+    keyframe scan the caller should thread into the next span.
+    """
+    start_time: Optional[float]
+    end_time: Optional[float]
+    frame_count: Optional[int]
+    scan_range: Optional[KeyframeScanRange]
 
 class FFmpegVideoClipperAction(VideoClipperAction):
     async def _clip_batch(
@@ -106,12 +139,19 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         # returned span reflects what was actually cut. Requires a video stream
         # with keyframes; audio-only inputs (codec probe returns None) fall
         # through to the requested times unchanged.
-        # `offset` is format.start_time (relative↔absolute pts shift). `keyframes`
-        # is populated once (on the first miss) and reused for later spans;
-        # indices within it are only meaningful within that one scan.
-        keyframes: Optional[List[Tuple[float, int]]] = None
+        # `offset` is format.start_time (relative↔absolute pts shift).
+        # `scan_range` caches the last keyframe scan and its pts range; later
+        # spans reuse it only when they land inside that range — packet
+        # indices are only meaningful within one scan, so a miss triggers a
+        # fresh scan.
+        scan_range: Optional[KeyframeScanRange] = None
         offset: Optional[float] = None
         duration: Optional[float] = None
+        # Accurate mode reuses the same codec/alpha decision on every span, so
+        # the probes are hoisted here rather than repeated inside the loop.
+        video_codec: Optional[str] = None
+        audio_codec: Optional[str] = None
+        alpha_decoder: Optional[str] = None
 
         if precision == VideoClipperPrecision.FAST:
             (codec, offset, duration) = await probe_video(input_path, ("codec", "start_time", "duration"))
@@ -121,6 +161,13 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             else:
                 # Audio-only input: skip snap logic and let ffmpeg cut with the requested times.
                 offset = None
+        elif precision == VideoClipperPrecision.ACCURATE:
+            video_codec, audio_codec = await self._resolve_codecs(input_path, format)
+            # VP8/VP9 side-data alpha is silently dropped by the native
+            # decoder; force libvpx*/libvpx-vp9 when the source carries it so
+            # the re-encode preserves the alpha channel.
+            codec, alpha_mode = await probe_video(input_path, ("codec", "alpha_mode"))
+            alpha_decoder = get_alpha_input_decoder(codec, alpha_mode)
 
         try:
             async for span in spans:
@@ -128,30 +175,46 @@ class FFmpegVideoClipperAction(VideoClipperAction):
                 frame_count: Optional[int] = None
 
                 if precision == VideoClipperPrecision.ACCURATE:
-                    # -ss/-to after -i forces frame-accurate seek; re-encode with
-                    # the source codecs so the container/pixel format keeps working.
-                    video_codec, audio_codec = await self._resolve_codecs(input_path, format)
+                    # Input-side `-ss`/`-t` skips decoding of everything before
+                    # the span — the same seek accuracy as `-ss` after `-i`
+                    # because we re-encode anyway, but at a fraction of the
+                    # cost (a 1s cut at the 40s mark of a 60s file drops from
+                    # ~0.48s to ~0.15s here; the gap grows linearly with the
+                    # start offset). `-t` uses relative duration so the seek
+                    # semantics are unambiguous for input-side placement.
+                    # video_codec/audio_codec/alpha_decoder are hoisted above
+                    # so multi-span accurate cuts don't re-probe the input.
+                    command = [ resolve_ffmpeg_executable(), "-hide_banner" ]
 
-                    command = [
-                        resolve_ffmpeg_executable(), "-hide_banner",
-                        "-i", input_path,
+                    if alpha_decoder is not None:
+                        command.extend([ "-c:v", alpha_decoder ])
+
+                    command.extend([
                         "-ss", f"{start_time:.6f}",
-                        "-to", f"{end_time:.6f}",
+                        "-t", f"{(end_time - start_time):.6f}",
+                        "-i", input_path,
                         "-c:v", video_codec,
-                    ]
+                    ])
 
                     if audio_codec is not None:
                         command.extend([ "-c:a", audio_codec ])
                 else:
                     if offset is not None:
-                        start_time, end_time, frame_count, keyframes = await self._snap_to_keyframe(
+                        snapped_keyframe = await self._snap_to_keyframe(
                             input_path,
                             start_time,
                             end_time,
                             offset,
                             duration,
-                            keyframes
+                            scan_range
                         )
+
+                        if snapped_keyframe.start_time is not None:
+                            start_time = snapped_keyframe.start_time
+                            end_time   = snapped_keyframe.end_time
+
+                        frame_count = snapped_keyframe.frame_count
+                        scan_range  = snapped_keyframe.scan_range
 
                     # -ss / -t before -i seeks fast to the input keyframe; `-frames:v`
                     # stops at exactly N video packets, so B-frame decode-order lookahead
@@ -401,12 +464,12 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         end_time: float,
         offset: float,
         duration: Optional[float],
-        keyframes: Optional[List[Tuple[float, int]]],
-    ) -> Tuple[Optional[float], Optional[float], Optional[int], Optional[List[Tuple[float, int]]]]:
-        """Return `(start_time_to_snap, end_time_to_snap, frame_count, keyframes)`.
+        scan_range: Optional[KeyframeScanRange],
+    ) -> SnappedKeyframe:
+        """Snap a span to the enclosing keyframe boundaries.
 
-        `start_time_to_snap` is the largest keyframe pts ≤ `start_time` in
-        relative seconds; `end_time_to_snap` is the smallest keyframe pts ≥
+        The result's `start_time` is the largest keyframe pts ≤ `start_time`
+        in relative seconds; `end_time` is the smallest keyframe pts ≥
         `end_time` (or `duration` when the request extends past the last
         keyframe). Both are None when no start keyframe was found — the caller
         then falls through to the requested times. `frame_count` is the number
@@ -414,16 +477,26 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         end keyframe; feed it to `-frames:v` so B-frame decode-order lookahead
         can't leak past the end keyframe. None means cut to end of file.
 
-        Tries a bounded pre-probe window covering both ends when `keyframes` is
-        None; on miss (or when the window doesn't reach the file's end), falls
-        back to a full-file scan. `keyframes` is handed back so later spans on
-        the same input reuse it — packet indices are only meaningful within a
-        single scan, so both endpoints must be resolved against the same list.
+        `scan_range` is the previous span's cached scan; reuse it only when
+        the current span sits inside that scan's covered range. Packet
+        indices are only meaningful within a single scan, so a range miss
+        replaces the cache with a fresh scan rather than merging.
         """
         start_time = start_time + offset
         end_time   = end_time + offset
 
-        if keyframes is None:
+        # Try the cached scan first; a range that covers the requested endpoints
+        # is only necessary, not sufficient (K1 or K2 can still sit past the
+        # cached bounds), so `_lookup_keyframe_range` re-checks that after the
+        # lookup and returns None on miss.
+        start_keyframe = end_keyframe = None
+        if scan_range is not None and scan_range.covers(start_time, end_time):
+            start_keyframe, end_keyframe = self._lookup_keyframe_range(scan_range, start_time, end_time)
+
+        if start_keyframe is None:
+            scan_range = None
+
+        if scan_range is None:
             window_start_time = start_time - _KEYFRAME_WINDOW_SECONDS
             window_end_time   = end_time   + _KEYFRAME_WINDOW_SECONDS
 
@@ -443,21 +516,35 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             file_ends_in_window = duration is not None and window_end_time >= duration + offset
 
             if start_keyframe is None or (end_keyframe is None and not file_ends_in_window):
-                # Window miss: fall back to a full scan and hand it back so
-                # later spans on the same input can reuse it.
+                # Window miss: fall back to a full scan. Cache it as an
+                # unbounded range so every later span hits.
                 keyframes = await probe_video_keyframes(input_path)
                 start_keyframe = self._last_keyframe_before(keyframes, start_time)
                 end_keyframe   = self._first_keyframe_after(keyframes, end_time)
+
+                scan_range = KeyframeScanRange(
+                    keyframes=keyframes,
+                    start_time=None,
+                    end_time=None
+                )
             else:
-                # Cache the window scan for later spans; indices remain valid
-                # only because start/end entries came from this same scan.
-                keyframes = window_keyframes
-        else:
-            start_keyframe = self._last_keyframe_before(keyframes, start_time)
-            end_keyframe   = self._first_keyframe_after(keyframes, end_time)
+                # Cache the window scan bounded by the pts range it covered so
+                # later spans can tell whether they land inside it. `None` on
+                # a bound means open on that side (start clamped to file
+                # start, or end reaching file EOF).
+                scan_range = KeyframeScanRange(
+                    keyframes=window_keyframes,
+                    start_time=window_start_time,
+                    end_time=None if file_ends_in_window else window_end_time,
+                )
 
         if start_keyframe is None:
-            return None, None, None, keyframes
+            return SnappedKeyframe(
+                start_time=None,
+                end_time=None,
+                frame_count=None,
+                scan_range=scan_range,
+            )
 
         # Convert absolute pts back to relative seconds. Ceil the start (so
         # ffmpeg's µs-quantized `-ss` lands on this keyframe, not the one
@@ -467,13 +554,49 @@ class FFmpegVideoClipperAction(VideoClipperAction):
         start_time = math.ceil((start_pts - offset) * 1_000_000) / 1_000_000
 
         if end_keyframe is None:
-            return start_time, duration or end_time, None, keyframes
+            return SnappedKeyframe(
+                start_time=start_time,
+                end_time=duration or end_time,
+                frame_count=None,
+                scan_range=scan_range,
+            )
 
         end_pts, end_index = end_keyframe
         end_time = math.floor((end_pts - offset) * 1_000_000) / 1_000_000
         frame_count = end_index - start_index
 
-        return start_time, end_time, frame_count, keyframes
+        return SnappedKeyframe(
+            start_time=start_time,
+            end_time=end_time,
+            frame_count=frame_count,
+            scan_range=scan_range,
+        )
+
+    def _lookup_keyframe_range(
+        self,
+        scan_range: KeyframeScanRange,
+        start_time: float,
+        end_time: float,
+    ) -> Tuple[Optional[Tuple[float, int]], Optional[Tuple[float, int]]]:
+        """Look up (K1, K2) inside a cached scan and report a miss as (None, None).
+
+        K1 = last keyframe ≤ start_time; K2 = first keyframe ≥ end_time.
+        A window scan can hold the span while still leaving K2 outside its
+        upper bound (span at the tail of the window, next keyframe past it).
+        When that happens — no K1, or missing K2 with the cache still bounded
+        on the right — the caller must rescan; signal that by returning
+        (None, None) so the "start_keyframe is None" branch triggers.
+        """
+        start_keyframe = self._last_keyframe_before(scan_range.keyframes, start_time)
+        end_keyframe   = self._first_keyframe_after(scan_range.keyframes, end_time)
+
+        if start_keyframe is None:
+            return None, None
+
+        if end_keyframe is None and scan_range.end_time is not None:
+            return None, None
+
+        return start_keyframe, end_keyframe
 
     @staticmethod
     def _last_keyframe_before(keyframes: List[Tuple[float, int]], start_time: float) -> Optional[Tuple[float, int]]:
@@ -543,13 +666,19 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
         mp4 is the default (widest codec compatibility while keeping stable
         per-clip A/V durations); prores/dnxhd need mov instead since the mp4
-        muxer refuses them. mkv is excluded because its 1ms timestamp
-        quantization breaks the µs-precision keyframe snap.
+        muxer refuses them; vp8/vp9 with side-data alpha need mkv so the mp4
+        muxer doesn't silently strip alpha and so AAC audio (common alongside
+        mkv-wrapped vp9) still muxes — webm would reject anything but
+        Opus/Vorbis. The µs-precision keyframe snap is unaffected because
+        `-frames:v` counts packets rather than seeking on timestamps.
         """
-        (source_codec,) = await probe_video(input_path, ("codec",))
+        source_codec, alpha_mode = await probe_video(input_path, ("codec", "alpha_mode"))
 
         if source_codec in ("prores", "dnxhd"):
             return "mov"
+
+        if get_alpha_input_decoder(source_codec, alpha_mode) is not None:
+            return "mkv"
 
         return "mp4"
 

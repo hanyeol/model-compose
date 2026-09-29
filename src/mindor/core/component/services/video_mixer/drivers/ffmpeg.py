@@ -22,7 +22,7 @@ from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video, probe_audio
-from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
+from mindor.core.utils.ffmpeg.codecs import get_alpha_input_decoder, get_video_codecs_for_format, is_still_image_codec
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -125,19 +125,53 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         base_has_audio = await self._has_audio_stream(base_path)
         overlay_has_audio = [ await self._has_audio_stream(path) for path in overlay_paths ]
 
+        # One probe per overlay covers all four downstream decisions:
+        # - codec + nb_frames drive AUTO eof_action (still-image codecs like
+        #   png/webp map to `repeat` so watermarks persist; multi-frame video
+        #   maps to `pass` so it disappears after its own EOF).
+        # - color_space + height drive the per-overlay `in_color_matrix` on
+        #   `scale`. Without an input matrix, swscale assumes 601 for un-tagged
+        #   YUV, so a 709-but-un-tagged HD overlay (very common — clipper and
+        #   mixer outputs are un-tagged) would go through a 601→709 conversion
+        #   and come out miscolored on a 709 base.
+        overlay_probes = [
+            await probe_video(path, ("codec", "nb_frames", "color_space", "height"))
+            for path in overlay_paths
+        ]
+
+        # Overlay preparation runs each overlay through `format=yuva420p`,
+        # whose default RGB→YUV matrix is BT.601 regardless of resolution —
+        # that miscolors RGB overlays (PNG/JPEG) landing on an HD base tagged
+        # 709. Pull the base's color_space tag (falling back to the
+        # height-based rule other drivers use) and pin the overlay chain to
+        # the same matrix.
+        base_color_space, base_height = await probe_video(base_path, ("color_space", "height"))
+        base_matrix = self._resolve_base_color_matrix(base_color_space, base_height)
+        overlay_matrices = [
+            self._resolve_base_color_matrix(color_space, height)
+            for _, _, color_space, height in overlay_probes
+        ]
+
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
+        command.extend(await self._alpha_input_options(base_path))
         command.extend([ "-i", base_path ])
 
         for path in overlay_paths:
+            command.extend(await self._alpha_input_options(path))
             command.extend([ "-i", path ])
 
         filter_complex, video_label, audio_label = self._build_overlay_filter(
-            [ self._resolve_overlay_filter_params(placement) for placement in placements ],
+            [
+                self._resolve_overlay_filter_params(placement, overlay_probes[index][0], overlay_probes[index][1])
+                for index, placement in enumerate(placements)
+            ],
             params["audio_mode"],
             params["duration_mode"],
             base_pad_duration,
             base_has_audio,
             overlay_has_audio,
+            base_matrix,
+            overlay_matrices,
         )
 
         command.extend([ "-filter_complex", filter_complex ])
@@ -200,17 +234,41 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         # every stream specifier resolves. Durations are needed both for
         # anullsrc padding (unbounded anullsrc turns plain concat into an
         # infinite stream) and for computing cumulative xfade offsets.
+        # xfade also refuses inputs whose timebase, fps, or pixel format
+        # differ (common across mp4s from different encoders), so when
+        # crossfade is on we probe resolution + fps too and normalize every
+        # input to the max of those before xfade. All video fields are
+        # fetched in one ffprobe call per input to keep this O(N) instead of
+        # O(4N).
         has_audios = [ await self._has_audio_stream(path) for path in input_paths ]
-        durations = [ (await probe_video(path, [ "duration" ]))[0] for path in input_paths ]
+        crossfading = crossfade is not None and crossfade > 0
+        video_fields = ("duration", "width", "height", "frame_rate") if crossfading else ("duration",)
+        video_probes = [ await probe_video(path, video_fields) for path in input_paths ]
+
+        durations = [ duration for duration, *_ in video_probes ]
+        resolutions: List[Tuple[int, int]] = []
+        frame_rates: List[float] = []
+
+        if crossfading:
+            for _, width, height, frame_rate in video_probes:
+                resolutions.append((width, height))
+                # Fall back to 30 fps when the source doesn't report one
+                # (rare; happens with a few odd webm/mkv variants). Any
+                # non-None value keeps max() well-defined and lets xfade
+                # normalization proceed.
+                frame_rates.append(frame_rate if frame_rate is not None else 30.0)
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
 
         for path in input_paths:
+            command.extend(await self._alpha_input_options(path))
             command.extend([ "-i", path ])
 
         filter_complex, video_label, audio_label = self._build_concat_filter(
             has_audios,
             durations,
+            resolutions,
+            frame_rates,
             crossfade,
             transition,
         )
@@ -249,7 +307,13 @@ class FFmpegVideoMixerAction(VideoMixerAction):
     ) -> VideoStreamResource:
         output_path = get_temporary_path(format)
 
-        command = command + [ "-movflags", "+faststart", output_path ]
+        # `+faststart` moves the moov atom to the front so mp4/mov files start
+        # playing before the whole file is downloaded. It's an ISO-BMFF-only
+        # feature — webm/mkv/etc. ignore or reject it, so gate on container.
+        if format in ("mp4", "mov", "m4v"):
+            command = command + [ "-movflags", "+faststart" ]
+
+        command = command + [ output_path ]
 
         process_task = asyncio.create_task(run_subprocess(
             command,
@@ -361,6 +425,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         self,
         has_audios: List[bool],
         durations: List[float],
+        resolutions: List[Tuple[int, int]],
+        frame_rates: List[float],
         crossfade: Optional[float],
         transition: VideoConcatTransition,
     ) -> Tuple[str, str, Optional[str]]:
@@ -372,13 +438,17 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         own duration before the join.
 
         With crossfade, adjacent pairs are combined via `xfade` (video) and
-        `acrossfade` (audio). Each xfade needs the offset at which the
-        transition starts on the *cumulative* timeline of everything already
-        chained — that offset is `sum(prior durations) - k*crossfade` after
-        `k` prior transitions, since each crossfade shortens the total by
-        exactly `crossfade` seconds. The audio side mirrors the same chain via
-        `acrossfade`, and silent inputs get an anullsrc source so the audio
-        chain never breaks.
+        `acrossfade` (audio). xfade refuses inputs whose timebase, fps, or
+        pixel format differ (mp4s from different encoders commonly ship with
+        distinct AV timebases like 1/15360 vs 1/90000), so each input is
+        first normalized to the max resolution and max fps across all inputs
+        via `settb=AVTB, fps=<target>, scale=<w>:<h>, setsar=1, format=yuv420p`.
+        Each xfade needs the offset at which the transition starts on the
+        *cumulative* timeline of everything already chained — that offset is
+        `sum(prior durations) - k*crossfade` after `k` prior transitions,
+        since each crossfade shortens the total by exactly `crossfade`
+        seconds. The audio side mirrors the same chain via `acrossfade`, and
+        silent inputs get an anullsrc source so the audio chain never breaks.
         """
         filter_parts: List[str] = []
         count = len(has_audios)
@@ -411,7 +481,27 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         # `sum(durations[:k+1]) - k*crossfade` seconds of content, so the next
         # xfade must start `crossfade` seconds before that — i.e. at
         # `sum(durations[:k+1]) - (k+1)*crossfade`.
-        current_video_label = "[0:v]"
+        # Normalize every input to a shared timebase, fps, resolution, sar,
+        # and pixel format before xfade — xfade fails hard on any mismatch,
+        # and different-encoder mp4s routinely disagree on timebase even at
+        # the same nominal fps.
+        width  = max(width  for width, _  in resolutions)
+        height = max(height for _, height in resolutions)
+        fps    = max(frame_rates)
+
+        video_labels: List[str] = []
+
+        for index in range(count):
+            normalized_label = f"[v{index}norm]"
+            filter_parts.append(
+                f"[{index}:v]settb=AVTB,fps={fps},"
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
+                f"setsar=1,format=yuv420p{normalized_label}"
+            )
+            video_labels.append(normalized_label)
+
+        current_video_label = video_labels[0]
         current_audio_label = audio_labels[0]
 
         for pair_index in range(count - 1):
@@ -422,7 +512,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             next_audio_label = "[aout]" if next_index == count - 1 else f"[ax{pair_index}]"
 
             filter_parts.append(
-                f"{current_video_label}[{next_index}:v]"
+                f"{current_video_label}{video_labels[next_index]}"
                 f"xfade=transition={transition.value.replace('-', '')}:duration={crossfade}:offset={offset}"
                 f"{next_video_label}"
             )
@@ -446,6 +536,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         base_pad_duration: Optional[float],
         base_has_audio: bool,
         overlay_has_audio: List[bool],
+        base_matrix: str,
+        overlay_matrices: List[str],
     ) -> Tuple[str, str, Optional[str]]:
         """Build a filter_complex that composites N overlays (inputs 1..N) onto the base (input 0).
 
@@ -499,6 +591,16 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             else:
                 overlay_chain.append("setpts=PTS-STARTPTS")
 
+            # Convert to yuva420p using the base's color matrix so RGB
+            # overlays (PNG/JPEG) don't hard-code a 601 conversion and end up
+            # miscolored on a 709-tagged HD base. `in_color_matrix` is also
+            # spelled out per-overlay so swscale doesn't default un-tagged
+            # YUV inputs to 601 and run an extra 601→709 conversion on
+            # HD-but-un-tagged clipper/mixer outputs (swscale ignores
+            # in_color_matrix for RGB, so a shared value is safe there).
+            overlay_chain.append(
+                f"scale=in_color_matrix={overlay_matrices[index]}:out_color_matrix={base_matrix}:out_range=tv"
+            )
             overlay_chain.append("format=yuva420p")
 
             if placement.width or placement.height:
@@ -649,15 +751,32 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         return label
 
     @staticmethod
-    def _resolve_overlay_filter_params(placement: VideoOverlayPlacement) -> OverlayFilterPlacement:
+    def _resolve_overlay_filter_params(
+        placement: VideoOverlayPlacement,
+        codec: Optional[str],
+        nb_frames: Optional[int],
+    ) -> OverlayFilterPlacement:
         """Coerce a placement's field values into the concrete types the filter builder expects.
 
         Fields are `Union[int|float, str]` in the schema so callers can inline
         literal numbers or template references that resolved to strings; cast
-        here so the overlay filter always receives numbers.
+        here so the overlay filter always receives numbers. `AUTO` for
+        eof_action is folded here into `REPEAT` for stills (PNG/JPEG/etc.
+        watermarks — codec is authoritative because nb_frames is N/A for
+        PNG/JPEG) and `PASS` for animated content (including gif with
+        `nb_frames > 1`) — ffmpeg has no `auto` value of its own.
         """
         anchor     = placement.anchor     if isinstance(placement.anchor, VideoOverlayAnchor)        else VideoOverlayAnchor(placement.anchor)
         eof_action = placement.eof_action if isinstance(placement.eof_action, VideoOverlayEofAction) else VideoOverlayEofAction(placement.eof_action)
+
+        if eof_action == VideoOverlayEofAction.AUTO:
+            # Both signals must agree on "still" — a still-image codec alone
+            # isn't enough because MJPEG is also the codec for real video
+            # (webcams, older cameras), and there `nb_frames > 1` correctly
+            # says it's animated. PNG/JPEG stills report `nb_frames=None`,
+            # which passes the second half of the check.
+            is_still_image = is_still_image_codec(codec) and (nb_frames is None or nb_frames <= 1)
+            eof_action = VideoOverlayEofAction.REPEAT if is_still_image else VideoOverlayEofAction.PASS
 
         return OverlayFilterPlacement(
             x=int(placement.x),
@@ -732,6 +851,30 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
 
         return audio_codec
+
+    @staticmethod
+    def _resolve_base_color_matrix(color_space: Optional[str], height: Optional[int]) -> str:
+        if color_space in ("bt709", "smpte170m"):
+            return color_space
+
+        return "bt709" if height is not None and height >= 720 else "smpte170m"
+
+    @staticmethod
+    async def _alpha_input_options(path: str) -> List[str]:
+        """Return `["-c:v", <decoder>]` when the file needs an alpha-preserving
+        decoder forced ahead of its `-i`, or `[]` otherwise.
+
+        VP8/VP9 side-data alpha is silently dropped by ffmpeg's native
+        decoder; mixer inputs land in a filter graph, so alpha lost here can't
+        be recovered downstream.
+        """
+        codec, alpha_mode = await probe_video(path, ("codec", "alpha_mode"))
+        alpha_decoder = get_alpha_input_decoder(codec, alpha_mode)
+
+        if alpha_decoder is not None:
+            return [ "-c:v", alpha_decoder ]
+
+        return []
 
     @staticmethod
     async def _has_audio_stream(path: str) -> bool:

@@ -5,10 +5,11 @@ from pydantic import model_validator
 from ...common import CommonComponentConfig, ComponentType
 
 class VectorStoreDriverType(str, Enum):
-    MILVUS = "milvus"
-    QDRANT = "qdrant"
-    FAISS  = "faiss"
-    CHROMA = "chroma"
+    MILVUS   = "milvus"
+    QDRANT   = "qdrant"
+    FAISS    = "faiss"
+    CHROMA   = "chroma"
+    PINECONE = "pinecone"
 
 class CommonVectorStoreComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VECTOR_STORE]

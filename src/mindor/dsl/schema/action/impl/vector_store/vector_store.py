@@ -6,5 +6,6 @@ VectorStoreActionConfig = Union[
     MilvusVectorStoreActionConfig,
     QdrantVectorStoreActionConfig,
     FaissVectorStoreActionConfig,
-    ChromaVectorStoreActionConfig
+    ChromaVectorStoreActionConfig,
+    PineconeVectorStoreActionConfig
 ]

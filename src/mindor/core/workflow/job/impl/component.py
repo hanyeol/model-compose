@@ -16,8 +16,8 @@ class ComponentJob(ComponentRunnerJob):
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         component: ComponentService = await self._create_component(self.id, self.config.component)
 
-        input        = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
-        repeat_count = (await context.render_variable(None, self.config.repeat_count)) if self.config.repeat_count else None
+        input        = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
+        repeat_count = await context.render_variable(None, self.config.repeat_count) if self.config.repeat_count is not None else None
 
         await self._started(input)
 

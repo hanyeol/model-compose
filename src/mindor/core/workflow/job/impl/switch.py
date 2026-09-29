@@ -11,7 +11,7 @@ class SwitchJob(Job):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
+        input = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
 
         await self._started(input)
 

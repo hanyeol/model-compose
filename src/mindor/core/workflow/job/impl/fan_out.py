@@ -231,7 +231,7 @@ class FanOutJob(ComponentRunnerJob):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input       = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
+        input       = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
         output      = await context.render_variable(None, self.config.output)
         buffer_size = await context.render_variable(None, self.config.buffer_size)
         spool       = await context.render_variable(None, self.config.spool)

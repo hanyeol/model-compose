@@ -72,7 +72,7 @@ class VariableRenderer:
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                                                                # ${
-                    (?:\s*([a-zA-Z_][^.\[\s]*(?:\[\])?))(?:\[(-?\d*:-?\d*|-?\d+)\])?                                    # key: input, result[], result[0], result[-1], result[1:], result[:5], result[1:5], etc.
+                    (?:\s*([a-zA-Z_][^.\[\s}]*(?:\[\])?))(?:\[(-?\d*:-?\d*|-?\d+)\])?                                   # key: input, result[], result[0], result[-1], result[1:], result[:5], result[1:5], etc.
                     (?:\.([^\s|}]+))?                                                                                   # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;\[}]+)(\[\])?(?:/([^\s;\[}]+)(?:\[((?:\$\{[^}]*\}|[^\]])*)\])?)?(?:;([^\s}]+))?)? # type[]/subtype[attrs];format (attrs may contain nested ${...})
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?                                       # default value after `|`
@@ -189,9 +189,14 @@ class VariableRenderer:
             if not isinstance(condition, dict):
                 raise TypeError(f"Conditional `?` entry must be a dict, got {type(condition).__name__}")
 
-            input = await self._render_element(condition.get("input"), scope, skip_decode)
-            value = await self._render_element(condition.get("value"), scope, skip_decode)
-            operator = ConditionOperator(condition.get("operator", ConditionOperator.EQ.value))
+            input    = await self._render_element(condition.get("input"), scope, skip_decode)
+            value    = await self._render_element(condition.get("value"), scope, skip_decode)
+            operator = condition.get("operator", ConditionOperator.EQ.value)
+
+            try:
+                operator = ConditionOperator(operator)
+            except ValueError as e:
+                raise ValueError(f"Unsupported operator in conditional expression: {operator}") from e
 
             if evaluate_condition(operator, input, value):
                 return await self._render_element(condition.get("if_true"), scope, skip_decode)
@@ -469,9 +474,15 @@ class VariableRenderer:
             raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
 
         async def _evaluate_condition(condition: Any) -> bool:
-            input = await self._render_element(condition.get("input"), scope, skip_decode)
-            value = await self._render_element(condition.get("value"), scope, skip_decode)
-            operator = ConditionOperator(condition.get("operator", ConditionOperator.EQ.value))
+            input    = await self._render_element(condition.get("input"), scope, skip_decode)
+            value    = await self._render_element(condition.get("value"), scope, skip_decode)
+            operator = condition.get("operator", ConditionOperator.EQ.value)
+
+            try:
+                operator = ConditionOperator(operator)
+            except ValueError as e:
+                raise ValueError(f"Unsupported operator in where clause: {operator}") from e
+
             return evaluate_condition(operator, input, value)
 
         return await evaluate_where(where, _evaluate_condition)

@@ -39,17 +39,23 @@ components:
   - id: clipper
     type: video-clipper
     actions:
+      # `precision: fast` (default) stream-copies the input and snaps the cut
+      # to the nearest keyframe at or before `start_time`; `accurate` re-encodes
+      # so the cut lands on the requested frame at the cost of extra CPU time.
       - id: clip-single
         video: ${input.video as video}
         span:
           start_time: ${input.start_time | 0s}
           end_time: ${input.end_time | 10s}
+        precision: ${input.precision as select/fast,accurate | fast}
 
       - id: clip-multiple
         video: ${input.video as video}
         span: ${input.spans as json}
+        precision: ${input.precision as select/fast,accurate | fast}
 
       - id: clip-and-merge
         video: ${input.video as video}
         span: ${input.spans as json}
         merge: true
+        precision: ${input.precision as select/fast,accurate | fast}

@@ -1,6 +1,6 @@
 # Video Clipper 예제
 
-이 예제는 `video-clipper` 컴포넌트를 사용해 비디오 파일에서 하나 이상의 구간을 잘라내는 방법을 보여줍니다. 재인코딩 없이 ffmpeg의 `-c copy`로 컷하므로 빠르고 무손실이며, 비디오와 오디오 트랙 모두 stream copy됩니다.
+이 예제는 `video-clipper` 컴포넌트를 사용해 비디오 파일에서 하나 이상의 구간을 잘라내는 방법을 보여줍니다. 두 가지 컷 모드를 지원합니다: `fast`(기본값, stream copy, 키프레임 정렬)와 `accurate`(재인코딩, 프레임 단위 정확).
 
 ## 개요
 
@@ -50,11 +50,19 @@ ffmpeg -version
 
    **CLI 사용:**
    ```bash
-   # 단일 구간 (10s..25s)
+   # 단일 구간 (10s..25s), fast(키프레임 정렬) 컷
    model-compose run clip-single --input '{
      "video": "/path/to/input.mp4",
      "start_time": "10s",
      "end_time": "25s"
+   }'
+
+   # 같은 구간을 프레임 단위 정확도로 (재인코딩)
+   model-compose run clip-single --input '{
+     "video": "/path/to/input.mp4",
+     "start_time": "10s",
+     "end_time": "25s",
+     "precision": "accurate"
    }'
 
    # 여러 구간을 리스트로 반환
@@ -91,7 +99,7 @@ ffmpeg -version
 
 - **타입**: `video-clipper`
 - **드라이버**: `ffmpeg`
-- **목적**: `ffmpeg -c copy`로 비디오 파일에서 하나 이상의 구간을 재인코딩 없이 잘라냄 (비디오/오디오 트랙 모두 보존)
+- **목적**: ffmpeg으로 비디오 파일에서 하나 이상의 구간을 잘라냄 — `fast` 모드(기본)는 stream copy, `accurate` 모드는 재인코딩
 
 #### 주요 필드
 
@@ -100,6 +108,7 @@ ffmpeg -version
 | `video` | 비디오 소스 | 예 | - | 클리핑할 비디오 파일 |
 | `span` | 객체 또는 객체 리스트 | 예 | - | 하나 이상의 `{start_time, end_time}` 항목. 단일 객체는 요소 1개짜리 리스트로 자동 승격 |
 | `merge` | boolean | 아니오 | `false` | `true`면 모든 클립을 하나의 비디오 파일로 이어붙임 |
+| `precision` | `fast` \| `accurate` | 아니오 | `fast` | `fast`는 `start_time` 이하의 가장 가까운 키프레임으로 stream copy, `accurate`는 요청 프레임에 맞도록 재인코딩 |
 | `batch_size` | integer | 아니오 | `1` | 입력이 리스트/스트림일 때 배치당 처리할 비디오 수 |
 
 `start_time`과 `end_time`은 다음 형식을 지원합니다:
@@ -122,6 +131,7 @@ ffmpeg -version
 | `video` | file | 예 | - | 원본 비디오 파일 |
 | `start_time` | 문자열/숫자 | 아니오 | `0s` | 클립 시작 |
 | `end_time` | 문자열/숫자 | 아니오 | `10s` | 클립 끝 |
+| `precision` | `fast` \| `accurate` | 아니오 | `fast` | 컷 정확도 ([컴포넌트 상세](#video-clipper-컴포넌트) 참조) |
 
 #### 출력
 
@@ -139,6 +149,7 @@ ffmpeg -version
 |-----------|------|----------|-------------|
 | `video` | file | 예 | 원본 비디오 파일 |
 | `spans` | json | 예 | `{start_time, end_time}` 객체의 JSON 배열 |
+| `precision` | `fast` \| `accurate` | 아니오 | 컷 정확도 ([컴포넌트 상세](#video-clipper-컴포넌트) 참조) |
 
 #### 출력
 
@@ -156,6 +167,7 @@ ffmpeg -version
 |-----------|------|----------|-------------|
 | `video` | file | 예 | 원본 비디오 파일 |
 | `spans` | json | 예 | `{start_time, end_time}` 객체의 JSON 배열 |
+| `precision` | `fast` \| `accurate` | 아니오 | 컷 정확도 ([컴포넌트 상세](#video-clipper-컴포넌트) 참조) |
 
 #### 출력
 
@@ -165,7 +177,8 @@ ffmpeg -version
 
 ## 팁
 
-- **무손실**: `-c copy`이므로 재인코딩이 없습니다. 출력은 입력 코덱/컨테이너를 그대로 유지합니다. 비디오는 키프레임 기반 프레임간 압축을 사용하므로 컷 지점은 `start_time` 이하의 가장 가까운 키프레임에 스냅됩니다 — 소스의 키프레임 간격이 넓다면 실제 클립이 요청보다 살짝 이른 시점부터 시작될 수 있습니다. 프레임 단위 정확도가 필요하면 재인코딩이 필요하며, 현재 이 컴포넌트에서는 지원하지 않습니다.
+- **fast vs. accurate**: `precision: fast`(기본)는 `-c copy`를 사용해 무손실·즉시 처리되지만, `start_time` 이하의 가장 가까운 키프레임으로 컷이 스냅되므로 GOP가 긴 소스는 요청보다 살짝 이른 시점부터 시작될 수 있습니다. `precision: accurate`는 요청 프레임에 정확히 맞도록 재인코딩하며, 출력이 더 이상 bit-exact가 아니고 처리 시간이 상당히 늘어나므로 다운스트림에서 정확한 프레임 경계가 필요한 경우에만 사용하세요.
+- **반환되는 컷 span**: `return_timestamp: true`일 때 각 클립이 담고 있는 `start_time`/`end_time`은 실제로 잘린 값입니다. `precision: fast`에서는 스냅된 키프레임 시각이지 원래 요청값이 아닙니다.
 - **스트리밍 입력**: 파일이 아닌 비디오 소스(bytes, HTTP 업로드)는 임시 파일로 정확히 1회 spool되어 각 구간이 독립적으로 seek할 수 있게 됩니다.
 - **스트리밍 span**: `spans` 리스트는 선행 컴포넌트가 생성한 스트리밍 이터레이터일 수도 있으며, 각 span이 도착하는 대로 처리됩니다 (`merge=true`는 예외로, 모든 span이 도착해야 concat이 실행됩니다).
 - **merge 시 형식 일관성**: `merge=true`는 ffmpeg `concat` demuxer + `-c copy`를 사용합니다. 모든 클립이 같은 소스에서 나왔기 때문에 코덱/컨테이너 일관성이 보장됩니다.
@@ -177,4 +190,4 @@ ffmpeg -version
 1. **ffmpeg not found**: ffmpeg (및 ffprobe)가 설치되어 있고 `PATH`에 있는지 확인하세요.
 2. **`end_time must be greater than start_time`**: 각 span의 end는 start보다 반드시 커야 합니다.
 3. **Unknown format**: 비디오 소스에 format 힌트와 파일 확장자가 모두 없으면 ffprobe로 컨테이너를 감지합니다. 매우 특이하거나 손상된 입력은 이 단계에서 실패할 수 있으니, 파일 확장자를 제공하거나 상위에서 명시적 format을 가진 `MediaSource`로 감싸주세요.
-4. **클립이 예상보다 이른 시점에서 시작**: `-c copy`는 `start_time` 이하의 가장 가까운 키프레임으로 seek합니다. 무손실/고속 경로의 트레이드오프이며, GOP가 긴 소스(키프레임 간격이 넓은 경우)일수록 드리프트가 커집니다.
+4. **클립이 예상보다 이른 시점에서 시작**: `precision: fast`에서는 컷이 `start_time` 이하의 가장 가까운 키프레임으로 스냅됩니다. 무손실/고속 경로의 트레이드오프이며, GOP가 긴 소스일수록 드리프트가 커집니다. 프레임 단위 정확도가 필요하면 `precision: accurate`로 전환하세요 (재인코딩 시간 비용 있음).

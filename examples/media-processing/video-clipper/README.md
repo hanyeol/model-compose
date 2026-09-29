@@ -1,6 +1,6 @@
 # Video Clipper Example
 
-This example demonstrates the `video-clipper` component, which cuts one or more time ranges out of a video file using ffmpeg. Clips are extracted without re-encoding (`-c copy`), so the operation is fast and lossless — both the video and audio tracks are stream-copied.
+This example demonstrates the `video-clipper` component, which cuts one or more time ranges out of a video file using ffmpeg. Two cut modes are supported: `fast` (default, stream-copy, keyframe-aligned) and `accurate` (re-encode, frame-accurate).
 
 ## Overview
 
@@ -50,11 +50,19 @@ ffmpeg -version
 
    **Using CLI:**
    ```bash
-   # Single span (10s..25s)
+   # Single span (10s..25s), fast (keyframe-aligned) cut
    model-compose run clip-single --input '{
      "video": "/path/to/input.mp4",
      "start_time": "10s",
      "end_time": "25s"
+   }'
+
+   # Same span, but frame-accurate (re-encodes)
+   model-compose run clip-single --input '{
+     "video": "/path/to/input.mp4",
+     "start_time": "10s",
+     "end_time": "25s",
+     "precision": "accurate"
    }'
 
    # Multiple spans returned as a list of clips
@@ -91,7 +99,7 @@ ffmpeg -version
 
 - **Type**: `video-clipper`
 - **Driver**: `ffmpeg`
-- **Purpose**: Cut one or more time ranges out of a video file using `ffmpeg -c copy` (no re-encoding; both video and audio tracks preserved).
+- **Purpose**: Cut one or more time ranges out of a video file using ffmpeg — stream-copy in `fast` mode (default) or re-encode in `accurate` mode.
 
 #### Key Fields
 
@@ -100,6 +108,7 @@ ffmpeg -version
 | `video` | video source | Yes | - | The video file to clip |
 | `span` | object or list of objects | Yes | - | One or more `{start_time, end_time}` entries. A single object is auto-promoted to a one-element list |
 | `merge` | boolean | No | `false` | When `true`, all clips are concatenated into a single video file |
+| `precision` | `fast` \| `accurate` | No | `fast` | `fast` stream-copies to the nearest keyframe at or before `start_time`; `accurate` re-encodes so the cut lands on the requested frame |
 | `batch_size` | integer | No | `1` | Number of input videos processed per batch when the input is a list/stream |
 
 `start_time` and `end_time` accept:
@@ -122,6 +131,7 @@ The output format is preserved from the input container (via `video.format`, the
 | `video` | file | Yes | - | Source video file |
 | `start_time` | string/number | No | `0s` | Clip start |
 | `end_time` | string/number | No | `10s` | Clip end |
+| `precision` | `fast` \| `accurate` | No | `fast` | Cut precision (see [Component Details](#video-clipper-component)) |
 
 #### Output
 
@@ -139,6 +149,7 @@ The output format is preserved from the input container (via `video.format`, the
 |-----------|------|----------|-------------|
 | `video` | file | Yes | Source video file |
 | `spans` | json | Yes | JSON array of `{start_time, end_time}` objects |
+| `precision` | `fast` \| `accurate` | No | Cut precision (see [Component Details](#video-clipper-component)) |
 
 #### Output
 
@@ -156,6 +167,7 @@ The output format is preserved from the input container (via `video.format`, the
 |-----------|------|----------|-------------|
 | `video` | file | Yes | Source video file |
 | `spans` | json | Yes | JSON array of `{start_time, end_time}` objects |
+| `precision` | `fast` \| `accurate` | No | Cut precision (see [Component Details](#video-clipper-component)) |
 
 #### Output
 
@@ -165,7 +177,8 @@ The output format is preserved from the input container (via `video.format`, the
 
 ## Tips
 
-- **Lossless**: `-c copy` means no re-encoding. The output shares the input codec/container. Because video uses keyframe-based inter-frame compression, cuts snap to the nearest keyframe at or before `start_time` — if your source has sparse keyframes, the actual clip may start slightly earlier than requested. If you need frame-accurate cuts, you'll want to re-encode (not offered by this component yet).
+- **Fast vs. accurate**: `precision: fast` (default) uses `-c copy` — lossless and near-instant, but the cut snaps to the nearest keyframe at or before `start_time`, so sources with a long GOP may start slightly earlier than requested. `precision: accurate` re-encodes so the cut lands on the requested frame; the output is no longer bit-exact and encoding takes materially longer, so reach for it only when downstream processing needs exact frame boundaries.
+- **Reported cut span**: With `return_timestamp: true`, the `start_time`/`end_time` returned per clip reflect what was actually cut — under `precision: fast` that's the snapped keyframe timestamp, not the originally requested one.
 - **Streaming input**: Non-file video sources (bytes, HTTP uploads) are spooled to a temporary file exactly once so each span can seek independently.
 - **Streaming spans**: The `spans` list can also be a streaming iterator produced by a preceding component — each span is processed as it arrives (except for `merge=true`, which has to wait for all spans before concatenating).
 - **Format mismatch with merge**: `merge=true` uses the ffmpeg `concat` demuxer with `-c copy`; because every clip comes from the same source, codec/container consistency is guaranteed.
@@ -177,4 +190,4 @@ The output format is preserved from the input container (via `video.format`, the
 1. **ffmpeg not found**: Ensure ffmpeg (and ffprobe) is installed and available in your `PATH`.
 2. **`end_time must be greater than start_time`**: Each span's end must be strictly after its start.
 3. **Unknown format**: If the video source has no format hint and no file extension, ffprobe is used to detect the container. Very unusual or corrupt inputs may fail this step — provide a proper file extension or wrap in a `MediaSource` with an explicit format upstream.
-4. **Clip starts earlier than expected**: `-c copy` seeks to the nearest keyframe at or before `start_time`. This is a tradeoff for the lossless / fast path — sources encoded with a long GOP (e.g. long keyframe interval) will show the largest drift.
+4. **Clip starts earlier than expected**: With `precision: fast` the cut snaps to the nearest keyframe at or before `start_time`. This is a tradeoff for the lossless/fast path — sources encoded with a long GOP will show the largest drift. Switch to `precision: accurate` for a frame-exact cut (at the cost of re-encoding time).

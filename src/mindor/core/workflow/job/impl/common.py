@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Any
+from typing import Union, Tuple, Optional, Any
 from mindor.dsl.schema.job import InlineJobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentResolver, create_component
@@ -26,8 +26,16 @@ class ComponentRunnerJob(Job):
 class CompositeJob(ComponentRunnerJob):
     """A job whose body is one or more inline jobs, dispatched per iteration or step."""
 
-    async def _run_inline_job(self, config: InlineJobConfig, context: JobContext, run_id: str, tag: str) -> Any:
+    async def _run_inline_job(
+        self,
+        config: InlineJobConfig,
+        context: JobContext,
+        run_id: str,
+        tag: str,
+        input: Optional[Any] = None,
+        is_terminal: bool = False,
+    ) -> Any:
         job = create_job(f"{self.id}[{tag}]", config, self.global_configs)
 
-        with context.use_run_id(run_id):
+        with context.use_inline_scope(run_id, input, is_terminal):
             return await job.run(context)

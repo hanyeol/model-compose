@@ -111,8 +111,17 @@ class OutputJobConfig(CommonJobConfig):
 class CompositeJobConfig(OutputJobConfig):
     """Base for jobs whose body is one or more inline sub-jobs (for-each, accumulate, pipeline)."""
 
+    def validate_inline_job(self, job: CommonJobConfig, label: str) -> None:
+        # Inline jobs run inside the composite's iteration/step loop and cannot
+        # participate in the workflow-level job graph, so `depends_on` and routing
+        # via `on_error.to` have no meaning here. `on_error.output` still works.
+        if job.depends_on:
+            raise ValueError(f"{label} cannot declare 'depends_on'.")
+        if job.on_error and job.on_error.to:
+            raise ValueError(f"{label} cannot declare 'on_error.to' — inline jobs cannot route to workflow jobs.")
+
     def get_scope_isolated_fields(self) -> Set[str]:
-        # Names of fields holding inline sub-jobs whose `${input}`/`${output}` refer to the
+        # Names of fields holding inline jobs whose `${input}`/`${output}` refer to the
         # composite's own scope, not the surrounding workflow scope. Consumers walking the
         # workflow for outer-scope references must skip these fields.
         return set()

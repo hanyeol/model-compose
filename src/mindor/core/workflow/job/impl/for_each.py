@@ -1,7 +1,7 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Union, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.job import ForEachJobConfig, ComponentJobConfig
-from mindor.core.component import ComponentService, ComponentGlobalConfigs
+from mindor.dsl.schema.job import ForEachJobConfig
+from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.time import TimeTracker
@@ -16,12 +16,7 @@ class ForEachJob(CompositeJob):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        component: Optional[ComponentService] = None
-
-        if isinstance(self.config.do, ComponentJobConfig):
-            component = await self._create_component(self.id, self.config.do.component)
-
-        input      = await context.render_variable(None, self.config.input)
+        input      = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
         batch_size = await context.render_variable(None, self.config.batch_size)
         streaming  = await context.render_variable(None, self.config.streaming)
 
@@ -39,7 +34,7 @@ class ForEachJob(CompositeJob):
                     if cancellation_token is not None and cancellation_token.is_cancelled():
                         raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
-                    batch_results = await self._run_batch(batch_items, component, context)
+                    batch_results = await self._run_batch(batch_items, context)
                     for result in batch_results:
                         yield result
 
@@ -50,7 +45,7 @@ class ForEachJob(CompositeJob):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
-                results.extend(await self._run_batch(batch_items, component, context))
+                results.extend(await self._run_batch(batch_items, context))
 
             output = results[0] if is_single_input else results
 
@@ -62,31 +57,38 @@ class ForEachJob(CompositeJob):
 
         return output
 
-    async def _run_batch(self, batch_items: List[Any], component: Optional[ComponentService], context: JobContext) -> List[Any]:
-        return await asyncio.gather(*[ self._run_item(item, component, context) for item in batch_items ])
+    async def _run_batch(self, batch_items: List[Any], context: JobContext) -> List[Any]:
+        return await asyncio.gather(*[
+            self._run_item(item, context) for item in batch_items
+        ])
 
-    async def _run_item(self, item: Any, component: Optional[ComponentService], context: JobContext) -> Any:
+    async def _run_item(self, item: Any, context: JobContext) -> Any:
         run_id: str = ulid.ulid()
         context.workflow.record_run_id(self.id, run_id)
 
         job_time_tracker = TimeTracker()
-        logging.debug("[task-%s] Run '%s' for job '%s:%s' started.", context.workflow.task_id, run_id, self.id, context.workflow.workflow_id)
-
-        is_direct_output = not self.config.do.output or self.config.do.output == "${output}"
+        logging.debug(
+            "[task-%s] Run '%s' for job '%s:%s' started.",
+            context.workflow.task_id,
+            run_id,
+            self.id,
+            context.workflow.workflow_id,
+        )
 
         try:
             context.register_source(run_id, "item", item)
 
-            if component is not None:
-                input = (await context.render_variable(run_id, self.config.do.input)) if self.config.do.input is not None else item
-                output = await component.run(self.config.do.action, run_id, input, workflow=context.workflow, job_id=self.id)
-            else:
-                output = await self._run_inline_job(self.config.do, context, run_id, "do")
+            output = await self._run_inline_job(self.config.do, context, run_id, "do", input=item)
 
-            context.register_source(run_id, "output", output)
+            logging.debug(
+                "[task-%s] Run '%s' for job '%s:%s' completed in %.2f seconds.",
+                context.workflow.task_id,
+                run_id,
+                self.id,
+                context.workflow.workflow_id,
+                job_time_tracker.elapsed(),
+            )
 
-            logging.debug("[task-%s] Run '%s' for job '%s:%s' completed in %.2f seconds.", context.workflow.task_id, run_id, self.id, context.workflow.workflow_id, job_time_tracker.elapsed())
-
-            return (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal)) if not is_direct_output else output
+            return output
         finally:
             context._sources.pop(run_id, None)

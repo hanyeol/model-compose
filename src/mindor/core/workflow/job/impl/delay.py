@@ -42,12 +42,20 @@ class DelayJob(Job):
         duration = parse_time(await context.render_variable(None, self.config.duration) or 0.0)
 
         job_time_tracker = TimeTracker()
-        logging.debug("[task-%s] Delay started for time interval: %d seconds.", context.workflow.task_id, int(duration))
+        logging.debug(
+            "[task-%s] Delay started for time interval: %d seconds.",
+            context.workflow.task_id,
+            int(duration),
+        )
 
         if duration > 0.0:
             await asyncio.sleep(duration)
 
-        logging.debug("[task-%s] Delay completed in %.2f seconds.", context.workflow.task_id, job_time_tracker.elapsed())
+        logging.debug(
+            "[task-%s] Delay completed in %.2f seconds.",
+            context.workflow.task_id,
+            job_time_tracker.elapsed(),
+        )
 
         return None
 
@@ -59,11 +67,19 @@ class DelayJob(Job):
         duration = max((time - now).total_seconds(), 0.0)
 
         job_time_tracker = TimeTracker()
-        logging.debug("[task-%s] Delay started, waiting until %s", context.workflow.task_id, time)
+        logging.debug(
+            "[task-%s] Delay started, waiting until %s",
+            context.workflow.task_id,
+            time,
+        )
 
         if duration > 0.0:
             await asyncio.sleep(duration)
 
-        logging.debug("[task-%s] Delay completed in %.2f seconds.", context.workflow.task_id, job_time_tracker.elapsed())
+        logging.debug(
+            "[task-%s] Delay completed in %.2f seconds.",
+            context.workflow.task_id,
+            job_time_tracker.elapsed(),
+        )
 
         return None

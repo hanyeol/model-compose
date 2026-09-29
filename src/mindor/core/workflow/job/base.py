@@ -40,6 +40,7 @@ class Job(ABC):
 
         while True:
             attempt += 1
+
             try:
                 return await self._run(context)
             except Exception as e:
@@ -73,17 +74,6 @@ class Job(ABC):
 
                 return None
 
-    def _resolve_retry_delay(self, attempt: int) -> float:
-        delay = parse_time(self.config.retry.delay)
-
-        if self.config.retry.backoff == JobRetryBackoff.EXPONENTIAL:
-            delay = delay * (2 ** (attempt - 1))
-
-        if self.config.retry.max_delay is not None:
-            delay = min(delay, parse_time(self.config.retry.max_delay))
-
-        return max(delay, 0.0)
-
     @abstractmethod
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
         pass
@@ -91,6 +81,7 @@ class Job(ABC):
     async def _started(self, input: Any) -> None:
         if not self._started_fired:
             self._started_fired = True
+
             if self._on_start is not None:
                 await self._on_start(input)
  
@@ -130,6 +121,7 @@ class Job(ABC):
         if interrupt.condition:
             input = await context.render_variable(run_id, interrupt.condition.input)
             value = await context.render_variable(run_id, interrupt.condition.value)
+
             if not evaluate_condition(interrupt.condition.operator, input, value):
                 logging.debug("[task-%s] Job '%s:%s' interrupt at '%s' phase skipped: condition not met.", context.workflow.task_id, self.id, context.workflow.workflow_id, phase)
                 return None
@@ -200,6 +192,20 @@ class Job(ABC):
             result = await result
 
         return result
+
+    def _resolve_retry_delay(self, attempt: int) -> float:
+        delay = parse_time(self.config.retry.delay)
+
+        if self.config.retry.backoff == JobRetryBackoff.EXPONENTIAL:
+            delay = delay * (2 ** (attempt - 1))
+
+        if self.config.retry.max_delay is not None:
+            delay = min(delay, parse_time(self.config.retry.max_delay))
+
+        return max(delay, 0.0)
+
+    def _default_input(self, context: JobContext) -> Any:
+        return context.workflow.input
 
 def register_job(type: JobType):
     def decorator(cls: Type[Job]) -> Type[Job]:

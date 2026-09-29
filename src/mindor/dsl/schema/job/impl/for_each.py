@@ -18,7 +18,6 @@ class ForEachJobConfig(CompositeJobConfig):
         return value
 
     @model_validator(mode="after")
-    def validate_inline_job(self):
-        if getattr(self.do, "depends_on", None):
-            raise ValueError("Inline `do` job cannot declare 'depends_on'.")
+    def validate_inline_do_job(self):
+        self.validate_inline_job(self.do, "Inline `do` job")
         return self

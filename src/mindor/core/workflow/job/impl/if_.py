@@ -12,7 +12,7 @@ class IfJob(Job):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input = await context.render_variable(None, self.config.input)
+        input = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
 
         await self._started(input)
 
@@ -23,7 +23,13 @@ class IfJob(Job):
         for condition in self.config.conditions:
             value = await context.render_variable(None, condition.value)
 
-            logging.debug("[task-%s] Evaluating condition: %s %s %s", context.workflow.task_id, input, condition.operator, value)
+            logging.debug(
+                "[task-%s] Evaluating condition: %s %s %s",
+                context.workflow.task_id,
+                input,
+                condition.operator,
+                value,
+            )
 
             if evaluate_condition(condition.operator, input, value):
                 if condition.if_true:

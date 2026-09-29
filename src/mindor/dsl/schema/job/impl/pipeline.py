@@ -24,10 +24,9 @@ class PipelineJobConfig(CompositeJobConfig):
         return value
 
     @model_validator(mode="after")
-    def validate_inline_jobs(self):
+    def validate_inline_step_jobs(self):
         for index, step in enumerate(self.steps):
-            if getattr(step, "depends_on", None):
-                raise ValueError(f"Inline pipeline step[{index}] cannot declare 'depends_on'.")
+            self.validate_inline_job(step, f"Inline pipeline step[{index}]")
         return self
 
     def get_scope_isolated_fields(self) -> Set[str]:

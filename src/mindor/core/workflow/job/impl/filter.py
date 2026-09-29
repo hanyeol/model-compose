@@ -16,7 +16,7 @@ class FilterJob(Job):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input     = await context.render_variable(None, self.config.input)
+        input     = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
         streaming = await context.render_variable(None, self.config.streaming)
 
         await self._started(input)
@@ -61,9 +61,15 @@ class FilterJob(Job):
         context.register_source(self.id, "index", index)
 
         async def _evaluate_condition(condition: Dict[str, Any]) -> bool:
-            input = await context.render_variable(self.id, condition.get("input"))
-            value = await context.render_variable(self.id, condition.get("value"))
-            operator = ConditionOperator(condition.get("operator", ConditionOperator.EQ.value))
+            input    = await context.render_variable(self.id, condition.get("input"))
+            value    = await context.render_variable(self.id, condition.get("value"))
+            operator = condition.get("operator", ConditionOperator.EQ.value)
+
+            try:
+                operator = ConditionOperator(operator)
+            except ValueError as e:
+                raise ValueError(f"Unsupported operator in filter job '{self.id}' condition: {operator}") from e
+
             return evaluate_condition(operator, input, value)
 
         return await evaluate_where(where, _evaluate_condition)

@@ -1,6 +1,6 @@
-from typing import Type, Union, Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.job import PipelineJobConfig, InlineJobConfig, ComponentJobConfig
-from mindor.core.component import ComponentService, ComponentGlobalConfigs
+from typing import Union, Any
+from mindor.dsl.schema.job import PipelineJobConfig, InlineJobConfig
+from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from ..base import JobType, JobContext, RoutingTarget, register_job
@@ -13,15 +13,7 @@ class PipelineJob(CompositeJob):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        components: List[Optional[ComponentService]] = []
-
-        for index, step in enumerate(self.config.steps):
-            if isinstance(step, ComponentJobConfig):
-                components.append(await self._create_component(f"{self.id}[step:{index}]", step.component))
-            else:
-                components.append(None)
-
-        input = await context.render_variable(None, self.config.input)
+        input = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
 
         await self._started(input)
 
@@ -29,16 +21,16 @@ class PipelineJob(CompositeJob):
         cancellation_token = context.cancellation_token
 
         is_direct_output = not self.config.output or self.config.output == "${output}"
-        last_step_index = len(self.config.steps) - 1
 
         output: Any = None
+        last_step_index = len(self.config.steps) - 1
 
         for index, step in enumerate(self.config.steps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
             is_last_step = bool(index == last_step_index)
-            output = await self._run_step(step, index, components[index], input, output, context, is_last=is_last_step)
+            output = await self._run_step(step, index, input, output, context, is_last=is_last_step)
 
         output = await self._after_run(context, None, input, output)
 
@@ -52,7 +44,6 @@ class PipelineJob(CompositeJob):
         self,
         step: InlineJobConfig,
         index: int,
-        component: Optional[ComponentService],
         pipeline_input: Any,
         previous_output: Any,
         context: JobContext,
@@ -71,33 +62,23 @@ class PipelineJob(CompositeJob):
             context.workflow.workflow_id,
         )
 
-        is_direct_output = not step.output or step.output == "${output}"
-        is_terminal_job = context.is_terminal if is_last else False
-
         try:
             context.register_source(run_id, "input", pipeline_input)
 
             if index > 0:
                 context.register_source(run_id, "output", previous_output)
 
-            if component is not None:
-                if step.input is not None:
-                    input = await context.render_variable(run_id, step.input)
-                else:
-                    input = previous_output if index > 0 else pipeline_input
-            else:
-                input = previous_output if index > 0 else pipeline_input
-
-            # Expose this step's metadata (received input, position) for the output mapping.
+            input = previous_output if index > 0 else pipeline_input
             context.register_source(run_id, "step", { "input": input, "index": index })
 
-            if component is not None:
-                output = await component.run(step.action, run_id, input, workflow=context.workflow, job_id=self.id)
-            else:
-                output = await self._run_inline_job(step, context, run_id, f"step:{index}")
-
-            # Overwrite `${output}` with what this step just produced so the output mapping sees it.
-            context.register_source(run_id, "output", output)
+            output = await self._run_inline_job(
+                step,
+                context,
+                run_id,
+                f"step:{index}",
+                input=input,
+                is_terminal=(is_last and context.is_terminal),
+            )
 
             logging.debug(
                 "[task-%s] Step %d '%s' for job '%s:%s' completed in %.2f seconds.",
@@ -109,6 +90,6 @@ class PipelineJob(CompositeJob):
                 job_time_tracker.elapsed(),
             )
 
-            return (await context.render_variable(run_id, step.output, skip_decode=is_terminal_job)) if not is_direct_output else output
+            return output
         finally:
             context._sources.pop(run_id, None)

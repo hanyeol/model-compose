@@ -1,7 +1,7 @@
-from typing import Type, Union, Optional, Dict, List, Tuple, Any
-from mindor.dsl.schema.job import LoopJobConfig, ComponentJobConfig
+from typing import Union, Optional, Dict, Tuple, Any
+from mindor.dsl.schema.job import LoopJobConfig
 from mindor.dsl.schema.common.operator.condition import ConditionOperator
-from mindor.core.component import ComponentService, ComponentGlobalConfigs
+from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.foundation.condition import evaluate_condition, evaluate_where
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
@@ -15,12 +15,7 @@ class LoopJob(CompositeJob):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        component: Optional[ComponentService] = None
-
-        if isinstance(self.config.do, ComponentJobConfig):
-            component = await self._create_component(self.id, self.config.do.component)
-
-        input = await context.render_variable(None, self.config.input)
+        input = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
 
         await self._started(input)
 
@@ -51,7 +46,6 @@ class LoopJob(CompositeJob):
                 input,
                 output,
                 iteration,
-                component,
                 context,
                 stop_condition,
                 continue_condition,
@@ -72,10 +66,9 @@ class LoopJob(CompositeJob):
 
     async def _run_iteration(
         self,
-        input: Any,
+        loop_input: Any,
         previous_output: Any,
         iteration: int,
-        component: Optional[ComponentService],
         context: JobContext,
         stop_condition: Optional[Dict[str, Any]],
         continue_condition: Optional[Dict[str, Any]],
@@ -93,11 +86,9 @@ class LoopJob(CompositeJob):
             context.workflow.workflow_id,
         )
 
-        is_direct_output = not self.config.do.output or self.config.do.output == "${output}"
-
         try:
             # ${input} = loop's initial input (fixed across iterations, like pipeline).
-            context.register_source(run_id, "input", input)
+            context.register_source(run_id, "input", loop_input)
 
             # ${output} = previous iteration's output; unavailable on the first iteration (like pipeline).
             if iteration > 0:
@@ -105,17 +96,11 @@ class LoopJob(CompositeJob):
 
             context.register_source(run_id, "iteration", iteration)
 
-            if component is not None:
-                if self.config.do.input is not None:
-                    input = await context.render_variable(run_id, self.config.do.input)
-                else:
-                    input = previous_output if iteration > 0 else input
-                output = await component.run(self.config.do.action, run_id, input, workflow=context.workflow, job_id=self.id)
-            else:
-                output = await self._run_inline_job(self.config.do, context, run_id, "do")
+            input = previous_output if iteration > 0 else loop_input
+            output = await self._run_inline_job(self.config.do, context, run_id, "do", input=input)
 
-            # Overwrite ${output} with what this iteration just produced so do.output
-            # mapping and the loop's condition both see the current iteration's result.
+            # Overwrite ${output} with what this iteration just produced so the loop's
+            # condition sees the current iteration's result.
             context.register_source(run_id, "output", output)
 
             logging.debug(
@@ -128,10 +113,6 @@ class LoopJob(CompositeJob):
                 job_time_tracker.elapsed(),
             )
 
-            if not is_direct_output:
-                output = await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal)
-                context.register_source(run_id, "output", output)
-
             if stop_condition is not None:
                 should_break = await self._matches_condition(context, run_id, stop_condition)
             else:
@@ -143,9 +124,15 @@ class LoopJob(CompositeJob):
 
     async def _matches_condition(self, context: JobContext, run_id: str, condition: Dict[str, Any]) -> bool:
         async def _evaluate_leaf(leaf: Dict[str, Any]) -> bool:
-            input = await context.render_variable(run_id, leaf.get("input"))
-            value = await context.render_variable(run_id, leaf.get("value"))
-            operator = ConditionOperator(leaf.get("operator", ConditionOperator.EQ.value))
+            input    = await context.render_variable(run_id, leaf.get("input"))
+            value    = await context.render_variable(run_id, leaf.get("value"))
+            operator = leaf.get("operator", ConditionOperator.EQ.value)
+
+            try:
+                operator = ConditionOperator(operator)
+            except ValueError as e:
+                raise ValueError(f"Unsupported operator in loop job '{self.id}' condition: {operator}") from e
+
             return evaluate_condition(operator, input, value)
 
         return await evaluate_where(condition, _evaluate_leaf)

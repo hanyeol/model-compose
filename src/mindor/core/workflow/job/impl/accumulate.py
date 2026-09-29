@@ -1,8 +1,6 @@
-from typing import Type, Union, Optional, Dict, List, Tuple, Any
-from collections.abc import AsyncIterator
-from mindor.dsl.schema.job import AccumulateJobConfig, ComponentJobConfig
-from mindor.core.component import ComponentService, ComponentGlobalConfigs
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from typing import Union, Any
+from mindor.dsl.schema.job import AccumulateJobConfig
+from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
@@ -16,12 +14,7 @@ class AccumulateJob(CompositeJob):
         super().__init__(id, config, global_configs)
 
     async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        component: Optional[ComponentService] = None
-
-        if isinstance(self.config.do, ComponentJobConfig):
-            component = await self._create_component(self.id, self.config.do.component)
-
-        input       = await context.render_variable(None, self.config.input)
+        input       = (await context.render_variable(None, self.config.input)) if self.config.input else context.default_input
         accumulator = await context.render_variable(None, self.config.accumulator)
 
         await self._started(input)
@@ -37,7 +30,7 @@ class AccumulateJob(CompositeJob):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
-                accumulator = await self._run_item(item, index, accumulator, component, context)
+                accumulator = await self._run_item(item, index, accumulator, context)
                 index += 1
 
         output = await self._after_run(context, None, input, accumulator)
@@ -53,8 +46,7 @@ class AccumulateJob(CompositeJob):
         item: Any,
         index: int,
         accumulator: Any,
-        component: Optional[ComponentService],
-        context: JobContext
+        context: JobContext,
     ) -> Any:
         run_id: str = ulid.ulid()
         context.workflow.record_run_id(self.id, run_id)
@@ -69,22 +61,11 @@ class AccumulateJob(CompositeJob):
             context.workflow.workflow_id,
         )
 
-        is_direct_output = not self.config.do.output or self.config.do.output == "${output}"
-
         try:
             context.register_source(run_id, "item", item)
             context.register_source(run_id, "accumulator", accumulator)
 
-            if component is not None:
-                if self.config.do.input is not None:
-                    input = await context.render_variable(run_id, self.config.do.input)
-                else:
-                    input = item
-                output = await component.run(self.config.do.action, run_id, input, workflow=context.workflow, job_id=self.id)
-            else:
-                output = await self._run_inline_job(self.config.do, context, run_id, "do")
-
-            context.register_source(run_id, "output", output)
+            output = await self._run_inline_job(self.config.do, context, run_id, "do", input=item)
 
             logging.debug(
                 "[task-%s] Iteration %d '%s' for job '%s:%s' completed in %.2f seconds.",
@@ -96,6 +77,6 @@ class AccumulateJob(CompositeJob):
                 job_time_tracker.elapsed(),
             )
 
-            return (await context.render_variable(run_id, self.config.do.output, skip_decode=context.is_terminal)) if not is_direct_output else output
+            return output
         finally:
             context._sources.pop(run_id, None)

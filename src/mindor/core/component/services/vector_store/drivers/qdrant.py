@@ -42,8 +42,8 @@ class QdrantFilterSpecBuilder:
             return must, must_not
 
         if isinstance(filter, dict):
-            filter = VectorStoreFilterCondition.model_validate(filter)
-            condition, is_negated = self._build_field_condition(filter)
+            condition = VectorStoreFilterCondition.model_validate(filter)
+            condition, is_negated = self._build_field_condition(condition)
 
             if condition is None:
                 return [], []

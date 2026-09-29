@@ -211,7 +211,7 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
         )
 
         proxy._start_timeout = self._start_timeout
-        proxy._stop_timeout = self._stop_timeout
+        proxy._stop_timeout  = self._stop_timeout
 
         return proxy
 

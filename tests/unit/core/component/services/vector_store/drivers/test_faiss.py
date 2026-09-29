@@ -61,7 +61,7 @@ def test_faiss_index_manager_filter():
         metadatas=[{"status": "active"}, {"status": "inactive"}],
     )
 
-    cond = VectorStoreFilterCondition(field="status", operator=VectorStoreFilterOperator.EQ, value="active")
+    cond = VectorStoreFilterCondition(field="status", operator=VectorStoreFilterOperator.EQ, value="active").model_dump()
     results = mgr.search(queries=[[1.0, 0.0]], top_k=5, filter=cond)
 
     assert len(results) == 1

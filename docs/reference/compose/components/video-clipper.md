@@ -1,6 +1,6 @@
 # Video Clipper Component
 
-The video clipper component extracts one or more time ranges out of a video file, optionally concatenating the extracted spans into a single output. Clipping is performed by FFmpeg using stream copy (`-c copy`), so the operation is fast and lossless (no re-encoding).
+The video clipper component extracts one or more time ranges out of a video file, optionally concatenating the extracted spans into a single output. Clipping is performed by FFmpeg either via stream copy (`-c copy`, keyframe-aligned; the default) or with re-encoding for frame-accurate cuts.
 
 ## Basic Configuration
 
@@ -32,7 +32,8 @@ component:
 | `video` | string \| string[] | **required** | Video source(s) — file path, URL, or interpolated variable (e.g. `${input.video as video}`) |
 | `span` | object \| object[] \| string | **required** | One or more time spans to clip out of each video source. A single span object yields a single clip; a list yields one clip per span. |
 | `merge` | boolean \| string | `false` | If true, concatenate all clips per source into a single video; otherwise return a list of clips. |
-| `return_timestamp` | boolean \| string | `false` | If true, each clip carries its source span alongside the video (see [Output Format](#output-format)). |
+| `precision` | string | `fast` | Cut precision: `fast` snaps to the nearest keyframe (stream copy); `accurate` re-encodes to the requested frame (±1 frame). |
+| `return_timestamp` | boolean \| string | `false` | If true, each clip carries its actual cut span alongside the video — `start_time`/`end_time` reflect what was cut, not what was requested (see [Output Format](#output-format)). |
 | `batch_size` | integer \| string | `null` | Number of input sources per batch. When unset, all sources are processed together. |
 
 ### Span Object
@@ -46,7 +47,7 @@ component:
 
 ### FFmpeg
 
-Uses FFmpeg's stream-copy mode to slice the input without re-encoding. Only FFmpeg needs to be installed on the system; no additional Python dependencies are required.
+Uses FFmpeg to slice the input. In `fast` mode (default) the input is stream-copied, so cuts are lossless and near-instant; in `accurate` mode the clip is re-encoded so cuts land on the requested frame. Only FFmpeg needs to be installed on the system; no additional Python dependencies are required.
 
 ```yaml
 component:
@@ -57,11 +58,14 @@ component:
     span:
       start_time: "00:00:10"
       end_time: "00:00:25"
+    precision: fast   # or 'accurate' for frame-accurate cuts (re-encodes)
 ```
 
 **Requires:** `ffmpeg` binary on `PATH`.
 
-> **Note on keyframes**: Because clips are cut without re-encoding, cut points snap to the nearest preceding keyframe. If frame-accurate cuts are required, re-encode the clips with the `video-encoder` component after clipping.
+> **On keyframe snapping (`fast`)**: The cut is aligned to the nearest keyframe at or before the requested `start_time`. When `return_timestamp` is enabled, the emitted `start_time` reflects that keyframe — not the originally requested value — so downstream jobs see the clip's real starting position.
+>
+> **When to use `accurate`**: Choose `accurate` when downstream processing depends on exact frame boundaries (e.g. sub-second edits, syncing to a script). Re-encoding uses the source video codec by default, falling back to the container's default codec when the source codec is unknown; expect it to be materially slower than `fast` and to produce a re-encoded (not bit-exact) output.
 
 ## Output Format
 
@@ -211,7 +215,7 @@ The scene detector emits objects with `start_time`/`end_time` fields, matching t
 
 ## Best Practices
 
-1. **Lossless by default**: FFmpeg stream copy is used, so container and codec match the input. If frame-accurate cuts are required, follow up with `video-encoder` to re-encode.
+1. **Lossless by default**: `precision: fast` uses FFmpeg stream copy, so container and codec match the input. For frame-accurate cuts set `precision: accurate` (re-encodes with the input codec).
 2. **Time formats**: Prefer `HH:MM:SS(.ms)` or duration strings (`"10s"`, `"1m30s"`) for readability; numeric seconds are also accepted.
 3. **Batch clipping from a detector**: Pass a full list of `{start_time, end_time}` spans in one action rather than issuing a separate call per span — the input is materialized once and each clip seeks independently.
 4. **Merge vs. list**: Use `merge: true` when the downstream job needs one concatenated file (e.g. a highlight reel); leave it `false` when clips should stay individually addressable.

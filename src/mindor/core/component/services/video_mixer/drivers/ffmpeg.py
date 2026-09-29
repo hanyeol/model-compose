@@ -6,9 +6,9 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoMixerComponentConfig, VideoMixerDriverType
 from mindor.dsl.schema.action import (
     VideoMixerActionConfig,
-    VideoMixerConcatTransition,
-    VideoMixerOverlayAudioMode,
-    VideoMixerOverlayDurationMode,
+    VideoConcatTransition,
+    VideoOverlayAudioMode,
+    VideoOverlayDurationMode,
     VideoOverlayAnchor,
     VideoOverlayEofAction,
     VideoOverlayPlacement,
@@ -35,10 +35,10 @@ import asyncio, os
 
 _DEFAULT_FORMAT = "mp4"
 
-_AMIX_DURATIONS: Dict[VideoMixerOverlayDurationMode, str] = {
-    VideoMixerOverlayDurationMode.BASE:     "first",
-    VideoMixerOverlayDurationMode.SHORTEST: "shortest",
-    VideoMixerOverlayDurationMode.LONGEST:  "longest",
+_AMIX_DURATIONS: Dict[VideoOverlayDurationMode, str] = {
+    VideoOverlayDurationMode.BASE:     "first",
+    VideoOverlayDurationMode.SHORTEST: "shortest",
+    VideoOverlayDurationMode.LONGEST:  "longest",
 }
 
 _ANCHOR_OFFSETS: Dict[VideoOverlayAnchor, Tuple[str, str]] = {
@@ -72,6 +72,102 @@ class OverlayFilterPlacement:
     eof_action: VideoOverlayEofAction
 
 class FFmpegVideoMixerAction(VideoMixerAction):
+    async def _overlay(
+        self,
+        video: MediaSource,
+        overlays: List[MediaSource],
+        placements: List[VideoOverlayPlacement],
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        format = self._resolve_container_format(params["encoding"])
+
+        if streaming and not is_streamable_video_format(format):
+            logging.warning("Format '%s' is not streamable; falling back to file output.", format)
+            streaming = False
+
+        base_path, base_spooled = await MediaInputPathResolver().resolve(video)
+
+        overlay_paths: List[str] = []
+        spooled_paths: List[str] = []
+
+        if base_spooled:
+            spooled_paths.append(base_path)
+
+        for overlay in overlays:
+            path, spooled = await MediaInputPathResolver().resolve(overlay)
+            overlay_paths.append(path)
+            if spooled:
+                spooled_paths.append(path)
+
+        # The overlay filter's default `eof_action=repeat` keeps holding the base's
+        # last frame while any overlay is still producing frames — so unless we
+        # constrain the output, `base` mode leaks into `longest` when overlays
+        # outlast the base. `base` therefore probes the base's duration and caps
+        # the output with `-t`. `longest` probes every input to compute how far
+        # to pad the base with clones. `shortest` needs no probe.
+        base_pad_duration: Optional[float] = None
+        output_duration: Optional[float] = None
+
+        if params["duration_mode"] == VideoOverlayDurationMode.LONGEST:
+            (base_duration,) = await probe_video(base_path, [ "duration" ])
+            overlay_durations = [ (await probe_video(path, [ "duration" ]))[0] for path in overlay_paths ]
+            longest_duration = max([ base_duration ] + overlay_durations)
+            base_pad_duration = max(0.0, longest_duration - base_duration)
+        elif params["duration_mode"] == VideoOverlayDurationMode.BASE:
+            (output_duration,) = await probe_video(base_path, [ "duration" ])
+
+        # Feeding an audio-less input to amix via `[N:a]` fails hard because the
+        # stream specifier can't match. Probe each input up front so the filter
+        # builder can substitute anullsrc for the missing tracks and keep the
+        # mix graph well-formed.
+        base_has_audio = await self._has_audio_stream(base_path)
+        overlay_has_audio = [ await self._has_audio_stream(path) for path in overlay_paths ]
+
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
+        command.extend([ "-i", base_path ])
+
+        for path in overlay_paths:
+            command.extend([ "-i", path ])
+
+        filter_complex, video_label, audio_label = self._build_overlay_filter(
+            [ self._resolve_overlay_filter_params(placement) for placement in placements ],
+            params["audio_mode"],
+            params["duration_mode"],
+            base_pad_duration,
+            base_has_audio,
+            overlay_has_audio,
+        )
+
+        command.extend([ "-filter_complex", filter_complex ])
+        command.extend([ "-map", video_label ])
+
+        if audio_label is not None:
+            command.extend([ "-map", audio_label ])
+
+        encoding_options = self._resolve_encoding_options(params["encoding"], has_audio=audio_label is not None)
+
+        for option, value in encoding_options.items():
+            command.extend([ option, value ])
+
+        if output_duration is not None:
+            command.extend([ "-t", str(output_duration) ])
+
+        def _cleanup() -> None:
+            for path in spooled_paths:
+                try:
+                    os.remove(path)
+                except FileNotFoundError:
+                    pass
+
+        logging.debug("Overlaying %d overlay(s) on base to '%s'", len(overlays), format)
+
+        if streaming:
+            return await self._encode_to_stream(command, format, _cleanup, cancellation_token)
+
+        return await self._encode_to_file(command, format, _cleanup, cancellation_token)
+
     async def _concat(
         self,
         videos: List[MediaSource],
@@ -138,102 +234,6 @@ class FFmpegVideoMixerAction(VideoMixerAction):
                     pass
 
         logging.debug("Mixing %d videos with concat filter to '%s'", len(videos), format)
-
-        if streaming:
-            return await self._encode_to_stream(command, format, _cleanup, cancellation_token)
-
-        return await self._encode_to_file(command, format, _cleanup, cancellation_token)
-
-    async def _overlay(
-        self,
-        video: MediaSource,
-        overlays: List[MediaSource],
-        placements: List[VideoOverlayPlacement],
-        params: Dict[str, Any],
-        streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> VideoStreamResource:
-        format = self._resolve_container_format(params["encoding"])
-
-        if streaming and not is_streamable_video_format(format):
-            logging.warning("Format '%s' is not streamable; falling back to file output.", format)
-            streaming = False
-
-        base_path, base_spooled = await MediaInputPathResolver().resolve(video)
-
-        overlay_paths: List[str] = []
-        spooled_paths: List[str] = []
-
-        if base_spooled:
-            spooled_paths.append(base_path)
-
-        for overlay in overlays:
-            path, spooled = await MediaInputPathResolver().resolve(overlay)
-            overlay_paths.append(path)
-            if spooled:
-                spooled_paths.append(path)
-
-        # The overlay filter's default `eof_action=repeat` keeps holding the base's
-        # last frame while any overlay is still producing frames — so unless we
-        # constrain the output, `base` mode leaks into `longest` when overlays
-        # outlast the base. `base` therefore probes the base's duration and caps
-        # the output with `-t`. `longest` probes every input to compute how far
-        # to pad the base with clones. `shortest` needs no probe.
-        base_pad_duration: Optional[float] = None
-        output_duration: Optional[float] = None
-
-        if params["duration_mode"] == VideoMixerOverlayDurationMode.LONGEST:
-            (base_duration,) = await probe_video(base_path, [ "duration" ])
-            overlay_durations = [ (await probe_video(path, [ "duration" ]))[0] for path in overlay_paths ]
-            longest_duration = max([ base_duration ] + overlay_durations)
-            base_pad_duration = max(0.0, longest_duration - base_duration)
-        elif params["duration_mode"] == VideoMixerOverlayDurationMode.BASE:
-            (output_duration,) = await probe_video(base_path, [ "duration" ])
-
-        # Feeding an audio-less input to amix via `[N:a]` fails hard because the
-        # stream specifier can't match. Probe each input up front so the filter
-        # builder can substitute anullsrc for the missing tracks and keep the
-        # mix graph well-formed.
-        base_has_audio = await self._has_audio_stream(base_path)
-        overlay_has_audio = [ await self._has_audio_stream(path) for path in overlay_paths ]
-
-        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
-        command.extend([ "-i", base_path ])
-
-        for path in overlay_paths:
-            command.extend([ "-i", path ])
-
-        filter_complex, video_label, audio_label = self._build_overlay_filter(
-            [ self._resolve_overlay_filter_params(placement) for placement in placements ],
-            params["audio_mode"],
-            params["duration_mode"],
-            base_pad_duration,
-            base_has_audio,
-            overlay_has_audio,
-        )
-
-        command.extend([ "-filter_complex", filter_complex ])
-        command.extend([ "-map", video_label ])
-
-        if audio_label is not None:
-            command.extend([ "-map", audio_label ])
-
-        encoding_options = self._resolve_encoding_options(params["encoding"], has_audio=audio_label is not None)
-
-        for option, value in encoding_options.items():
-            command.extend([ option, value ])
-
-        if output_duration is not None:
-            command.extend([ "-t", str(output_duration) ])
-
-        def _cleanup() -> None:
-            for path in spooled_paths:
-                try:
-                    os.remove(path)
-                except FileNotFoundError:
-                    pass
-
-        logging.debug("Overlaying %d overlay(s) on base to '%s'", len(overlays), format)
 
         if streaming:
             return await self._encode_to_stream(command, format, _cleanup, cancellation_token)
@@ -362,7 +362,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         has_audios: List[bool],
         durations: List[float],
         crossfade: Optional[float],
-        transition: VideoMixerConcatTransition,
+        transition: VideoConcatTransition,
     ) -> Tuple[str, str, Optional[str]]:
         """Build a filter_complex that produces a single [vout]/[aout] from the concat inputs.
 
@@ -441,8 +441,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
     def _build_overlay_filter(
         self,
         placements: List[OverlayFilterPlacement],
-        audio_mode: VideoMixerOverlayAudioMode,
-        duration_mode: VideoMixerOverlayDurationMode,
+        audio_mode: VideoOverlayAudioMode,
+        duration_mode: VideoOverlayDurationMode,
         base_pad_duration: Optional[float],
         base_has_audio: bool,
         overlay_has_audio: List[bool],
@@ -480,7 +480,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         # Video pipeline entry — pad the base first when `longest` needs to hold
         # frames past the base's original EOF.
-        if duration_mode == VideoMixerOverlayDurationMode.LONGEST and base_pad_duration and base_pad_duration > 0:
+        if duration_mode == VideoOverlayDurationMode.LONGEST and base_pad_duration and base_pad_duration > 0:
             filter_parts.append(f"[0:v]tpad=stop_mode=clone:stop_duration={base_pad_duration}[base_v]")
             current_video_label = "[base_v]"
         else:
@@ -525,7 +525,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
             overlay_options.append(f"eof_action={placement.eof_action.value}")
 
-            if duration_mode == VideoMixerOverlayDurationMode.SHORTEST:
+            if duration_mode == VideoOverlayDurationMode.SHORTEST:
                 overlay_options.append("shortest=1")
 
             next_video_label = "[vout]" if index == len(placements) - 1 else f"[v{index}]"
@@ -547,8 +547,8 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         self,
         filter_parts: List[str],
         placements: List[OverlayFilterPlacement],
-        audio_mode: VideoMixerOverlayAudioMode,
-        duration_mode: VideoMixerOverlayDurationMode,
+        audio_mode: VideoOverlayAudioMode,
+        duration_mode: VideoOverlayDurationMode,
         base_has_audio: bool,
         overlay_has_audio: List[bool],
     ) -> Optional[str]:
@@ -561,10 +561,10 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         """
         amix_duration = _AMIX_DURATIONS[duration_mode]
 
-        if audio_mode == VideoMixerOverlayAudioMode.NONE:
+        if audio_mode == VideoOverlayAudioMode.NONE:
             return None
 
-        if audio_mode == VideoMixerOverlayAudioMode.BASE:
+        if audio_mode == VideoOverlayAudioMode.BASE:
             if not base_has_audio:
                 return None
 
@@ -572,7 +572,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         overlay_indices = [ index for index in range(len(placements)) if overlay_has_audio[index] ]
 
-        if audio_mode == VideoMixerOverlayAudioMode.OVERLAY:
+        if audio_mode == VideoOverlayAudioMode.OVERLAY:
             if not overlay_indices:
                 return None
 
@@ -593,7 +593,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
             return "[aout]"
 
-        # VideoMixerOverlayAudioMode.MIX — include the base plus every overlay,
+        # VideoOverlayAudioMode.MIX — include the base plus every overlay,
         # substituting anullsrc for tracks that carry no audio so amix stays
         # well-formed. When only the base survives (no overlay has audio), skip
         # amix entirely and map `0:a` directly — inlining `[0:a]` as a

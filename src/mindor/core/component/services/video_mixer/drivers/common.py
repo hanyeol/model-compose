@@ -6,9 +6,9 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import (
     VideoMixerActionConfig,
     VideoMixerActionMethod,
-    VideoMixerConcatTransition,
-    VideoMixerOverlayAudioMode,
-    VideoMixerOverlayDurationMode,
+    VideoConcatTransition,
+    VideoOverlayAudioMode,
+    VideoOverlayDurationMode,
     VideoOverlayPlacement,
 )
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
@@ -62,6 +62,16 @@ class VideoMixerAction(ComponentAction):
         method: VideoMixerActionMethod,
         context: ComponentActionContext,
     ) -> Tuple[Any, bool, bool]:
+        if method == VideoMixerActionMethod.OVERLAY:
+            video      = await context.render_video(self.config.video)
+            overlays   = await context.render_video_array(self.config.overlay, single_as_array=True)
+            placements = await self._render_overlay_placement(context)
+
+            is_single_input    = not isinstance(video, (list, StreamIterator, AsyncIterator))
+            is_streaming_input = isinstance(video, (StreamIterator, AsyncIterator))
+
+            return (video, overlays, placements), is_single_input, is_streaming_input
+
         if method == VideoMixerActionMethod.CONCAT:
             videos = await context.render_video_array(self.config.videos)
 
@@ -70,16 +80,6 @@ class VideoMixerAction(ComponentAction):
 
             return videos, is_single_input, is_streaming_input
 
-        if method == VideoMixerActionMethod.OVERLAY:
-            video     = await context.render_video(self.config.video)
-            overlay   = await context.render_video_array(self.config.overlay, single_as_array=True)
-            placement = await self._render_overlay_placement(context)
-
-            is_single_input    = not isinstance(video, (list, StreamIterator, AsyncIterator))
-            is_streaming_input = isinstance(video, (StreamIterator, AsyncIterator))
-
-            return (video, overlay, placement), is_single_input, is_streaming_input
-
         raise ValueError(f"Unsupported video mixer action method: {method}")
 
     async def _resolve_params(
@@ -87,34 +87,18 @@ class VideoMixerAction(ComponentAction):
         method: VideoMixerActionMethod,
         context: ComponentActionContext,
     ) -> Dict[str, Any]:
-        if method == VideoMixerActionMethod.CONCAT:
-            encoding   = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
-            crossfade  = await context.render_scalar(self.config.crossfade, "time")
-            transition = await context.render_variable(self.config.transition)
-
-            try:
-                transition = VideoMixerConcatTransition(transition)
-            except ValueError:
-                raise ValueError(f"Invalid transition: {transition}")
-
-            return {
-                "encoding":   encoding,
-                "crossfade":  crossfade,
-                "transition": transition,
-            }
-
         if method == VideoMixerActionMethod.OVERLAY:
             encoding      = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
             audio_mode    = await context.render_variable(self.config.audio_mode)
             duration_mode = await context.render_variable(self.config.duration_mode)
 
             try:
-                audio_mode = VideoMixerOverlayAudioMode(audio_mode)
+                audio_mode = VideoOverlayAudioMode(audio_mode)
             except ValueError:
                 raise ValueError(f"Invalid audio_mode: {audio_mode}")
 
             try:
-                duration_mode = VideoMixerOverlayDurationMode(duration_mode)
+                duration_mode = VideoOverlayDurationMode(duration_mode)
             except ValueError:
                 raise ValueError(f"Invalid duration_mode: {duration_mode}")
 
@@ -122,6 +106,22 @@ class VideoMixerAction(ComponentAction):
                 "encoding":      encoding,
                 "audio_mode":    audio_mode,
                 "duration_mode": duration_mode,
+            }
+
+        if method == VideoMixerActionMethod.CONCAT:
+            encoding   = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+            crossfade  = await context.render_scalar(self.config.crossfade, "time")
+            transition = await context.render_variable(self.config.transition)
+
+            try:
+                transition = VideoConcatTransition(transition)
+            except ValueError:
+                raise ValueError(f"Invalid transition: {transition}")
+
+            return {
+                "encoding":   encoding,
+                "crossfade":  crossfade,
+                "transition": transition,
             }
 
         raise ValueError(f"Unsupported video mixer action method: {method}")
@@ -149,14 +149,6 @@ class VideoMixerAction(ComponentAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        if method == VideoMixerActionMethod.CONCAT:
-            videos = await input.collect()
-
-            if len(videos) < 2:
-                raise ValueError("concat requires at least two videos.")
-
-            return await self._concat(videos, params, streaming, cancellation_token)
-
         if method == VideoMixerActionMethod.OVERLAY:
             video, overlays, placements = input
             overlays   = await overlays.collect()
@@ -179,6 +171,14 @@ class VideoMixerAction(ComponentAction):
                 streaming,
                 cancellation_token,
             )
+
+        if method == VideoMixerActionMethod.CONCAT:
+            videos = await input.collect()
+
+            if len(videos) < 2:
+                raise ValueError("concat requires at least two videos.")
+
+            return await self._concat(videos, params, streaming, cancellation_token)
 
         raise ValueError(f"Unsupported video mixer action method: {method}")
 
@@ -212,9 +212,11 @@ class VideoMixerAction(ComponentAction):
         raise ValueError(f"'placement' entry must be a placement object or dict, got {type(value).__name__}")
 
     @abstractmethod
-    async def _concat(
+    async def _overlay(
         self,
-        videos: List[MediaSource],
+        video: MediaSource,
+        overlays: List[MediaSource],
+        placements: List[VideoOverlayPlacement],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
@@ -222,11 +224,9 @@ class VideoMixerAction(ComponentAction):
         pass
 
     @abstractmethod
-    async def _overlay(
+    async def _concat(
         self,
-        video: MediaSource,
-        overlays: List[MediaSource],
-        placements: List[VideoOverlayPlacement],
+        videos: List[MediaSource],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,

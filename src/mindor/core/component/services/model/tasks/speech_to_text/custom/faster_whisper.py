@@ -62,6 +62,8 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         compression_ratio_threshold = await context.render_variable(self.config.params.compression_ratio_threshold)
         log_prob_threshold          = await context.render_variable(self.config.params.log_prob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
+        vad_filter                  = await context.render_scalar(self.config.params.vad_filter, bool)
+        condition_on_previous_text  = await context.render_scalar(self.config.params.condition_on_previous_text, bool)
 
         params: Dict[str, Any] = {
             "beam_size": num_beams,
@@ -78,6 +80,12 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         if no_speech_threshold is not None:
             params["no_speech_threshold"] = no_speech_threshold
+
+        if vad_filter is not None:
+            params["vad_filter"] = vad_filter
+
+        if condition_on_previous_text is not None:
+            params["condition_on_previous_text"] = condition_on_previous_text
 
         return params
 

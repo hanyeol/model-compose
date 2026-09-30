@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageBackgroundRemovalModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageBackgroundRemovalModelArchitecture, ModelConfig
-from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
@@ -81,7 +81,7 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 
 @register_model_task_driver(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageBackgroundRemovalTaskDriver(HuggingfaceMultimodalModelTaskDriver):
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision"),
             "transformers",

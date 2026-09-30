@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Union, Callable, Any
 from collections.abc import AsyncIterable, AsyncIterator
@@ -179,7 +179,7 @@ class TransNetV2ShotBoundaryDetectionTaskDriver(ModelTaskDriver):
 
         self.model: Optional[TransNetV2] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             "transnetv2@git+https://github.com/soCzech/TransNetV2.git",
             "ffmpeg-python",

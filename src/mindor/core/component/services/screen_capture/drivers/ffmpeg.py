@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple, Any, Union
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ScreenCaptureComponentConfig
 from mindor.dsl.schema.action import (
@@ -524,7 +524,7 @@ class FFmpegScreenCaptureService(ScreenCaptureDriver):
     def __init__(self, id: str, config: ScreenCaptureComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # Quartz is needed to resolve window titles → screen-space rects for
         # window capture on macOS. Linux relies on the 'xdotool' / 'xwininfo'
         # CLIs (not pip-installable); Windows uses ctypes from stdlib.

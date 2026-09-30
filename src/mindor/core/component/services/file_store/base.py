@@ -13,7 +13,7 @@ class FileStoreDriver(ComponentDriver):
         self.id: str = id
         self.config: FileStoreComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: FileStoreActionConfig, context: ComponentActionContext) -> Any:

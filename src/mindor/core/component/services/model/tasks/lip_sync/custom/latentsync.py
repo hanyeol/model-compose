@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig, LatentSyncPreset
 from mindor.dsl.schema.action import ModelActionConfig, LatentSyncLipSyncModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, get_mindor_install_root
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, get_mindor_install_root
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import LipSyncTaskAction
@@ -141,7 +142,7 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
         self.unet_config: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch==2.5.1", "torchvision==0.20.1"),
             "diffusers==0.32.2",
@@ -158,7 +159,7 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
             "imageio-ffmpeg==0.5.1",
             "face-alignment==1.4.1",
             "insightface==0.7.3",
-            "onnxruntime",
+            ("onnxruntime", get_onnxruntime_distributions()),
             "DeepCache==0.1.1",
             "kornia==0.8.0",
             "numpy==1.26.4",

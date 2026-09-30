@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, BeatThisMusicBeatTrackingModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, BeatThisMusicBeatTrackingModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.ffmpeg.probe import probe_audio
 from ......base import ComponentActionContext
 from ......action.media import MediaInputPathResolver
@@ -122,7 +122,7 @@ class BeatThisMusicBeatTrackingTaskDriver(ModelTaskDriver):
         self.tracker: Optional[File2Beats] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ *torch_requirements("torch", "torchaudio"), "beat_this" ]
 
     async def _load_model(self) -> None:

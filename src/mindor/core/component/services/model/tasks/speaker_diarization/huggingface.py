@@ -1,14 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceSpeakerDiarizationModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
@@ -147,7 +147,7 @@ class HuggingfaceSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
 
 @register_model_task_driver(ModelTaskType.SPEAKER_DIARIZATION, ModelDriverType.HUGGINGFACE)
 class HuggingfaceSpeakerDiarizationTaskDriver(HuggingfaceMultimodalModelTaskDriver):
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [
             *super()._get_setup_requirements(),
             "soxr",

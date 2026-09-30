@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Mapping, Optional, List, Tuple, Type, Union, Any
 from mindor.dsl.schema.component import (
@@ -11,10 +11,10 @@ from mindor.dsl.schema.action import (
     BsRoFormerMusicSourceSeparationModelActionConfig,
     MelBandRoFormerMusicSourceSeparationModelActionConfig,
 )
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from .......base import ComponentActionContext
 from .....base import ModelTaskDriver
@@ -283,7 +283,7 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
         self.model: Optional[torch.nn.Module] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchaudio"),
             "bs-roformer",

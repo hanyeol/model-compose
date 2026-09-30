@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import (
@@ -28,7 +28,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         requirements = [
             *self._get_torch_requirements(),
             *self._get_transformers_requirements(),

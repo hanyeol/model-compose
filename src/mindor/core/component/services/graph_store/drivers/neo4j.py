@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 import re
 from typing import Union, Optional, Dict, List, Tuple, Any
@@ -283,7 +283,7 @@ class Neo4jGraphStoreService(GraphStoreDriver):
 
         self.driver: Optional[AsyncDriver] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "neo4j" ]
 
     async def _start(self) -> None:

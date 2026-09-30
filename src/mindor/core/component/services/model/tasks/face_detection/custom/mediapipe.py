@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig
@@ -105,7 +105,7 @@ class BlazeFaceFaceDetectionTaskDriver(ModelTaskDriver):
 
         self.model_path: Optional[str] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "mediapipe" ]
 
     async def _load_model(self) -> None:

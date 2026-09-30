@@ -1,4 +1,4 @@
-from typing import Type, Optional, Dict, List, Any
+from typing import Type, Optional, Dict, List, Any, Union, Tuple
 from abc import abstractmethod
 from mindor.dsl.schema.component import Model3DConverterComponentConfig, Model3DConverterDriverType
 from mindor.dsl.schema.action import Model3DConverterActionConfig
@@ -13,7 +13,7 @@ class Model3DConverterDriver(ComponentDriver):
         self.id: str = id
         self.config: Model3DConverterComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: Model3DConverterActionConfig, context: ComponentActionContext) -> Any:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Tuple, List, Any
+from typing import TYPE_CHECKING, Optional, Tuple, List, Any, Union
 from mindor.dsl.schema.component import AudioSynchronizerComponentConfig
 from mindor.dsl.schema.action import AudioSynchronizerActionConfig
 from mindor.core.foundation.streaming.media import MediaSource
@@ -38,7 +38,7 @@ class FFmpegAudioSynchronizerService(AudioSynchronizerDriver):
     def __init__(self, id: str, config: AudioSynchronizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "numpy" ]
 
     async def _run(

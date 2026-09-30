@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from pydantic import BaseModel
@@ -26,7 +26,7 @@ class VllmModelTaskDriver(ModelTaskDriver):
         self.engine: Optional[AsyncLLMEngine] = None
         self.tokenizer: Optional[PreTrainedTokenizerBase] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "vllm" ]
 
     async def _load_model(self) -> None:

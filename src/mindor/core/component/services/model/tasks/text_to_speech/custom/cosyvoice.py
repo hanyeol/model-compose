@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Union, Dict, Optional, List, Tuple, Any
 from abc import abstractmethod
@@ -9,11 +9,11 @@ from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelGenerateActionConfig
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelCloneActionConfig
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelDesignActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_temporary_file
-from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
@@ -218,7 +218,7 @@ class CosyvoiceTextToSpeechTaskDriver(ModelTaskDriver):
         self.sample_rate: int = 24000
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # cosyvoice has no pip distribution — clone it from source and add both the
         # repo root and its Matcha-TTS submodule to sys.path (or a venv .pth file).
         # We still declare the runtime deps so the environment matches what the

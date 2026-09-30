@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Generic, TypeVar, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import (
@@ -29,7 +29,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         self.pipelines: Optional[Dict[Optional[TMethod], DiffusionPipeline]] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [
             *super()._get_setup_requirements(),
             *self._get_diffusers_requirements(),

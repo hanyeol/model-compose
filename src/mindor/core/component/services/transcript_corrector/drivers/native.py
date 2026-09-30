@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Set, Iterator, Tuple, Any
+from typing import Optional, Dict, List, Set, Iterator, Tuple, Any, Union
 from mindor.dsl.schema.component import TranscriptCorrectorComponentConfig, TranscriptCorrectorDriverType
 from mindor.dsl.schema.action import TranscriptCorrectorActionConfig
 from mindor.dsl.schema.action.impl.transcript_corrector.impl.common import TranscriptGranularity
@@ -368,7 +368,7 @@ class NativeTranscriptCorrectorService(TranscriptCorrectorDriver):
     def __init__(self, id: str, config: TranscriptCorrectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "rapidfuzz", "regex" ]
 
     async def _run(self, action: TranscriptCorrectorActionConfig, context: ComponentActionContext) -> Any:

@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceEmbeddingModelActionConfig
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import FaceEmbeddingTaskAction, FaceEmbedding
@@ -145,8 +146,8 @@ class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
 
         self.model: Optional[FaceAnalysis] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "insightface", "opencv-python", "onnxruntime" ]
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "insightface", "opencv-python", ("onnxruntime", get_onnxruntime_distributions()) ]
 
     async def _load_model(self) -> None:
         self.model = await self._load_pretrained_model()

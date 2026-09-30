@@ -1,13 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, PyannoteVoiceEmbeddingModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, VoiceEmbeddingModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
 from ..common import VoiceEmbedding, VoiceEmbeddingTaskAction
@@ -81,7 +81,7 @@ class PyannoteVoiceEmbeddingTaskDriver(ModelTaskDriver):
         self.inference: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ *torch_requirements("torch", "torchaudio"), "pyannote.audio", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:

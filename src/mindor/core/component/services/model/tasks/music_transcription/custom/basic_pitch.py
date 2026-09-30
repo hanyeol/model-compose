@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, BasicPitchMusicTranscriptionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BasicPitchMusicTranscriptionModelActionConfig
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -193,11 +194,17 @@ class BasicPitchMusicTranscriptionTaskDriver(ModelTaskDriver):
         self.model_path: Optional[str] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # basic-pitch ships four checkpoint formats (TF SavedModel, CoreML, TFLite,
         # ONNX). We target ONNX because onnxruntime installs cleanly on every
         # platform without pulling in a large TF/CoreML stack.
-        return [ "basic-pitch", "onnxruntime", "soundfile", "numpy", "soxr" ]
+        return [
+            "basic-pitch",
+            ("onnxruntime", get_onnxruntime_distributions()),
+            "soundfile",
+            "numpy",
+            "soxr"
+        ]
 
     async def _load_model(self) -> None:
         from basic_pitch import build_icassp_2022_model_path, FilenameSuffix

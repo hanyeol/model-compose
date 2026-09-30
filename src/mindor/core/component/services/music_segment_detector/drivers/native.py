@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any
+from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any, Union
 from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig
 from mindor.dsl.schema.action import MusicSegmentDetectorActionConfig
 from mindor.dsl.schema.action.impl.music_segment_detector.impl.native import NativeMusicSegmentDetectorStrategy
@@ -541,7 +541,7 @@ class NativeMusicSegmentDetectorService(MusicSegmentDetectorDriver):
     def __init__(self, id: str, config: MusicSegmentDetectorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "librosa", "numpy", "soundfile" ]
 
     async def _run(

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Any, Dict, List, Optional
 from mindor.core.foundation.variable.codec import VariableCodec
@@ -46,7 +46,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         self._max_blob_size: Optional[int] = None
         self._max_stream_length: Optional[int] = None
 
-    def _get_setup_requirements(self):
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return ["redis>=5.0.0"]
 
     async def _serve(self) -> None:

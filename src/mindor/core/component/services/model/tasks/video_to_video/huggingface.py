@@ -1,14 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Optional, Dict, List, Tuple, Union, Any
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
 from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceVideoToVideoModelArchitecture
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource, encode_frames_to_mp4
 from mindor.core.foundation.variable.image import ImageArrayValue
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
@@ -164,7 +164,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
 @register_model_task_driver(ModelTaskType.VIDEO_TO_VIDEO, ModelDriverType.HUGGINGFACE)
 class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[None]):
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [
             *super()._get_setup_requirements(),
             # transformers imports torchaudio at runtime; pin it to the same torch

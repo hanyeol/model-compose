@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
@@ -15,11 +15,11 @@ from mindor.dsl.schema.action import (
     AceStepMusicGenerationModelLayerActionConfig,
     AceStepMusicGenerationModelAccompanyActionConfig,
 )
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -534,7 +534,7 @@ class AceStepMusicGenerationTaskDriver(ModelTaskDriver):
         self.handler: Optional[AceStepHandler] = None
         self.llm_handler: Optional[LLMHandler] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         requirements: List[str] = []
 
         # Pre-install packages that ace-step pulls from custom sources: pip ignores its

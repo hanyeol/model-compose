@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
 from pydantic import BaseModel
@@ -17,7 +17,7 @@ class LlamaCppModelTaskDriver(ModelTaskDriver):
 
         self.model: Optional[Llama] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "llama-cpp-python", "huggingface_hub" ]
 
     async def _load_model(self) -> None:

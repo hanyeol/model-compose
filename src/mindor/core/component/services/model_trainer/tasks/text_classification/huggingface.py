@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType
@@ -160,7 +160,7 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
 @register_model_trainer_task_driver(ModelTrainerTaskType.TEXT_CLASSIFICATION, ModelTrainerDriverType.HUGGINGFACE)
 class HuggingfaceTextClassificationTrainerTaskDriver(HuggingfaceModelTrainerTaskDriver):
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [
             *super()._get_setup_requirements(),
             "scikit-learn",

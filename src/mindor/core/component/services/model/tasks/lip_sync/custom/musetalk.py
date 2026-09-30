@@ -1,16 +1,16 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig, MuseTalkPreset
 from mindor.dsl.schema.action import ModelActionConfig, MuseTalkLipSyncModelActionConfig, MuseTalkParsingMode
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from ......action.media import MediaInputPathResolver
@@ -312,7 +312,7 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
         self.pipeline: Optional[Dict[str, Any]] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
             "diffusers==0.30.2",

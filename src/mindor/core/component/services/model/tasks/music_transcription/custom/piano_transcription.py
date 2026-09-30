@@ -1,14 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, PianoTranscriptionMusicTranscriptionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, PianoTranscriptionMusicTranscriptionModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.files import get_temporary_path
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
@@ -167,7 +167,7 @@ class PianoTranscriptionMusicTranscriptionTaskDriver(ModelTaskDriver):
         self.transcriptor: Optional[PianoTranscription] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ *torch_requirements("torch"), "piano_transcription_inference", "numpy", "soxr" ]
 
     async def _load_model(self) -> None:

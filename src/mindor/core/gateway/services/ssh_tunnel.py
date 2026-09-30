@@ -18,7 +18,7 @@ class SshTunnelGateway(GatewayService):
 
         self._shutdown_event: Optional[asyncio.Event] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "paramiko" ]
 
     def get_context(self, port: int) -> Optional[Dict[str, Any]]:

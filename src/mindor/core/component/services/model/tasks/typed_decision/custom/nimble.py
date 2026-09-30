@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Union, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
-from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
 import os, sys, platform
@@ -73,7 +73,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
 
         self.scorer: Optional[NimbleScorer] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # Versions mirror the pins Nimble ships in requirements/{mlx,cuda-eval,training}.txt.
         # Nimble itself has no pyproject/setup.py, so it is fetched via `_setup` (see below).
         requirements: List[str] = []

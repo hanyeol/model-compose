@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Optional, Dict, List, Protocol, Any
 from collections.abc import AsyncIterator
@@ -220,7 +220,7 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
 @register_model_task_driver(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageTextToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         requirements = super()._get_setup_requirements()
 
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.LIGHTON_OCR:

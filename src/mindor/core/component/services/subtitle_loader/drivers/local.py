@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple, Dict, List, Any
+from typing import Optional, Tuple, Dict, List, Any, Union
 from mindor.dsl.schema.component import SubtitleLoaderComponentConfig, SubtitleLoaderDriverType
 from mindor.dsl.schema.action import SubtitleLoaderActionConfig, LocalSubtitleLoaderActionConfig
 from mindor.core.foundation.streaming.file import FileStreamResource
@@ -126,7 +126,7 @@ class LocalSubtitleLoaderService(SubtitleLoaderDriver):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "pysubs2" ]
 
     async def _run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:

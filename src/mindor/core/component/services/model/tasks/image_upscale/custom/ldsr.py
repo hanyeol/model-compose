@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, LdsrImageUpscaleModelActionConfig
@@ -77,7 +77,7 @@ class LdsrImageUpscaleTaskAction(ImageUpscaleTaskAction):
         return await self._run_in_executor(_upscale)
 
 class LdsrImageUpscaleTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[None]):
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return super()._get_setup_requirements()
 
     def _get_pipeline_class(self, method: None) -> Type[DiffusionPipeline]:

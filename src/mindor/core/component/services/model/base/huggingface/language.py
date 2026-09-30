@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig
@@ -18,7 +18,7 @@ class HuggingfaceLanguageModelTaskDriver(HuggingfaceModelTaskDriver):
         self.tokenizer: Optional[PreTrainedTokenizer] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [
             *super()._get_setup_requirements(),
             "peft>=0.5.0",

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Union, Tuple
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import SshShellComponentConfig
 from mindor.dsl.schema.action import SshShellActionConfig
@@ -92,7 +92,7 @@ class SshShellService(ShellDriver):
 
         self.client: Optional[SshClient] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "paramiko" ]
 
     async def _setup(self) -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Optional, Dict, List, Any
+from typing import Union, Optional, Dict, List, Any, Tuple
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import DocumentLoaderComponentConfig, DocumentLoaderDriverType
 from mindor.dsl.schema.action import DocumentLoaderActionConfig, PypdfDocumentLoaderActionConfig
@@ -161,7 +161,7 @@ class PypdfDocumentLoaderService(DocumentLoaderDriver):
     def __init__(self, id: str, config: DocumentLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "pypdf" ]
 
     async def _run(self, action: DocumentLoaderActionConfig, context: ComponentActionContext) -> Any:

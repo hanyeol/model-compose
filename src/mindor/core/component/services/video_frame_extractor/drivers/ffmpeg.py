@@ -418,7 +418,7 @@ class FFmpegVideoFrameExtractorService(VideoFrameExtractorDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext) -> Any:

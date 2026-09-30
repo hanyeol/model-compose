@@ -1,4 +1,4 @@
-from typing import Type, Optional, Dict, List, Any
+from typing import Type, Optional, Dict, List, Any, Union, Tuple
 from abc import abstractmethod
 from mindor.dsl.schema.component import ImageCompressorComponentConfig, ImageCompressorDriverType
 from mindor.dsl.schema.action import ImageCompressorActionConfig
@@ -13,7 +13,7 @@ class ImageCompressorDriver(ComponentDriver):
         self.id: str = id
         self.config: ImageCompressorComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: ImageCompressorActionConfig, context: ComponentActionContext) -> Any:

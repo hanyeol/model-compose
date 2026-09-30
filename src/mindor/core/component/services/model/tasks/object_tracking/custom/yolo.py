@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Union, Dict, List, Tuple, Any
 from collections.abc import AsyncIterable, AsyncIterator
@@ -896,7 +896,7 @@ class YoloObjectTrackingTaskDriver(ModelTaskDriver):
         self.model: Optional[YOLO] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "ultralytics", "lap" ]
 
     async def _load_model(self) -> None:

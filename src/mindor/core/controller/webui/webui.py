@@ -27,7 +27,7 @@ class ControllerWebUI(AsyncService):
 
         self.driver: Optional[WebUIDriver] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         if self.config.driver == ControllerWebUIDriverType.GRADIO:
             return [ "gradio>=6.26.0" ]
 

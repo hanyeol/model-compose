@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Union, Tuple
 from mindor.core.foundation.package.torch import torch_requirements
 from .common import ModelTrainerTaskDriver
 
 class UnslothModelTrainerTaskDriver(ModelTrainerTaskDriver):
-    def _get_setup_requirements(self) -> List[str]:
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         # Unsloth bundles transformers/peft/trl/bitsandbytes/xformers/triton as
         # runtime dependencies at compatible pinned versions, so we deliberately
         # don't pin them separately here — letting unsloth pick its known-good

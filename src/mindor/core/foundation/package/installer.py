@@ -224,71 +224,39 @@ def parse_requirement(package_spec: str) -> Optional[Requirement]:
     except Exception:
         return None
 
-def is_requirement_satisfied(requirement: Requirement, repository: Optional[str] = None) -> bool:
-    """Check whether the installed distribution satisfies `requirement`.
+def is_requirement_satisfied(
+    requirement: Requirement,
+    repository: Optional[str] = None,
+    canonical_names: Optional[List[str]] = None,
+) -> bool:
+    """Check whether an installed distribution satisfies `requirement`.
 
-    Returns False when the package is not installed at all, when its version
-    falls outside the specifier, or when any of the requested extras are
-    themselves unsatisfied.
-
-    When `repository` names a PyTorch wheel channel (e.g. `.../whl/cu126`),
-    the installed distribution's local version segment (e.g. `2.11.0+cu128`)
-    is also compared against the channel. A mismatch marks the requirement
-    unsatisfied so the caller reinstalls from the requested channel — this
-    catches the case where torch and its siblings were installed from
-    different CUDA channels and are now ABI-incompatible.
+    `repository` narrows the check to a specific PyTorch wheel channel — the
+    installed local segment (`+cuXXX`) must match, so a channel switch forces
+    a reinstall. `canonical_names` lists extra distribution names to accept
+    as equivalent, for packages that ship the same module under several
+    distribution names (e.g. `onnxruntime` / `onnxruntime-gpu`).
     """
-    distribution_name = canonicalize_name(requirement.name)
-
-    try:
-        installed_version = version(distribution_name)  # e.g. "4.41.2"
-    except PackageNotFoundError:
-        return False
-
     specifier: SpecifierSet = requirement.specifier
 
-    if specifier and not specifier.contains(installed_version, prereleases=True):
-        return False
+    for name in [ requirement.name ] + (canonical_names or []):
+        try:
+            installed_version = version(canonicalize_name(name))  # e.g. "4.41.2"
+        except PackageNotFoundError:
+            continue
 
-    if requirement.extras and not is_extra_requirement_satisfied(requirement):
-        return False
+        if specifier and not specifier.contains(installed_version, prereleases=True):
+            continue
 
-    if not _is_local_version_compatible(installed_version, repository):
-        return False
+        if requirement.extras and not is_extra_requirement_satisfied(requirement):
+            continue
 
-    return True
+        if not _installed_wheel_matches_channel(installed_version, repository):
+            continue
 
-def _is_local_version_compatible(installed_version: str, repository: Optional[str]) -> bool:
-    """Return False when the installed local segment names a different CUDA channel.
-
-    Wheels from `.../whl/cu126/` embed `+cu126` in their version. If the caller
-    routes to a different channel (e.g. cu128), reinstalling is the only way to
-    swap the CUDA build — pip won't touch a same-version distribution otherwise.
-    Falls through (returns True) when either side lacks a channel token, so
-    non-torch packages and CPU wheels don't trigger spurious reinstalls.
-    """
-    if repository is None:
         return True
 
-    requested_channel = _extract_channel(repository)
-
-    if requested_channel is None:
-        return True
-
-    try:
-        installed_local = Version(installed_version).local
-    except InvalidVersion:
-        return True
-
-    if not installed_local:
-        return True
-
-    return installed_local == requested_channel
-
-def _extract_channel(repository: str) -> Optional[str]:
-    """Pull the wheel-index channel token (`cu126`, `cpu`, ...) out of a URL."""
-    match = re.search(r"/whl/([^/]+)/?$", repository)
-    return match.group(1) if match else None
+    return False
 
 def is_extra_requirement_satisfied(requirement: Requirement) -> bool:
     """Check whether the extras listed on `requirement` have their dependencies installed.
@@ -343,3 +311,32 @@ def remove_requirement(requirements: List[str], package_name: str) -> Optional[s
 
 def get_mindor_install_root() -> Path:
     return _MINDOR_INSTALL_ROOT
+
+def _installed_wheel_matches_channel(installed_version: str, repository: Optional[str]) -> bool:
+    """Return False when the installed wheel came from a different CUDA channel than `repository`.
+
+    Wheels from `.../whl/cu126/` embed `+cu126` in their version. If the caller
+    routes to a different channel (e.g. cu128), reinstalling is the only way to
+    swap the CUDA build — pip won't touch a same-version distribution otherwise.
+    Falls through (returns True) when either side lacks a channel token, so
+    non-torch packages and CPU wheels don't trigger spurious reinstalls.
+    """
+    if repository is None:
+        return True
+
+    channel_match = re.search(r"/whl/([^/]+)/?$", repository)
+
+    if channel_match is None:
+        return True
+
+    requested_channel = channel_match.group(1)
+
+    try:
+        installed_channel = Version(installed_version).local
+    except InvalidVersion:
+        return True
+
+    if not installed_channel:
+        return True
+
+    return installed_channel == requested_channel

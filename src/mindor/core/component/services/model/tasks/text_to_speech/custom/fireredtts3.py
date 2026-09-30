@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Union, Dict, Optional, List, Tuple, Any
 from abc import abstractmethod
@@ -10,12 +10,12 @@ from mindor.dsl.schema.action import FireRedTextToSpeechModelCloneActionConfig
 from mindor.dsl.schema.action import FireRedTextToSpeechModelDesignActionConfig
 from mindor.dsl.schema.action import FireRedTextToSpeechModelEditActionConfig
 from mindor.dsl.schema.action import FireRedTextToSpeechEditMode
-from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import PcmStreamResource
-from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.streaming.audio import PcmStreamResource
+from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
@@ -282,7 +282,7 @@ class FireRedTextToSpeechTaskDriver(ModelTaskDriver):
         self.sample_rate: int = 24000
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # fireredtts3 has no pip distribution — clone the repo and add it to the
         # venv's site-packages (e.g. via a .pth file). We only declare the
         # runtime deps its inference paths pull in.

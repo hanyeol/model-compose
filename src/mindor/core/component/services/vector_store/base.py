@@ -13,7 +13,7 @@ class VectorStoreDriver(ComponentDriver):
         self.id: str = id
         self.config: VectorStoreComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:

@@ -25,7 +25,7 @@ class HttpTunnelGateway(GatewayService):
             self.driver = CloudflareHttpTunnelGateway(self.config)
             return
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return self.driver.get_setup_requirements()
 
     def get_context(self, port: int) -> Optional[Dict[str, Any]]:

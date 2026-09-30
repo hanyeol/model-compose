@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union, Tuple
 from mindor.dsl.schema.component import ModelMemoryComponentConfig
 from mindor.dsl.schema.component import ModelMemoryWindowConfig, ModelMemorySummaryConfig
 from mindor.dsl.schema.component import ModelMemoryBufferDriverType, ModelMemoryStorageDriverType
@@ -282,7 +282,7 @@ class ModelMemoryComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported model memory storage driver: {driver}") from e
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *(self._buffer.get_setup_requirements()  or []),
             *(self._storage.get_setup_requirements() or []),

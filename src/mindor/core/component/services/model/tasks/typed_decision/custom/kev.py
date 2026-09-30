@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
 import os, sys, platform
@@ -108,7 +108,7 @@ class KevTypedDecisionTaskDriver(ModelTaskDriver):
         self.tokenizer: Optional[Any] = None
         self.model: Optional[Any] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # Mirror kev's own inference-only pins from pyproject.toml.
         requirements: List[str] = [
             *torch_requirements("torch>=2.6,<2.9"),

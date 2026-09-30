@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, Any
 from mindor.dsl.schema.tracer import OtlpTracerConfig
@@ -23,7 +23,7 @@ class OtlpTracerService(TracerService):
         self._job_spans: Dict[str, Any] = {}
         self._trace_attachments: Dict[str, Any] = {}
 
-    def _get_setup_requirements(self):
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         requirements = [ "opentelemetry-api>=1.27", "opentelemetry-sdk>=1.27" ]
 
         if self.config.protocol == "grpc":

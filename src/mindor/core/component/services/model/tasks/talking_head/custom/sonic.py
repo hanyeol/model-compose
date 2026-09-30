@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
@@ -11,6 +11,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, rewrite_python_imports
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.utils.github import download_github_tarball
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -124,7 +125,7 @@ class SonicTalkingHeadTaskDriver(ModelTaskDriver):
         self.pipeline: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
             "diffusers",
@@ -140,7 +141,7 @@ class SonicTalkingHeadTaskDriver(ModelTaskDriver):
             "moviepy",
             "safetensors",
             "insightface",
-            "onnxruntime",
+            ("onnxruntime", get_onnxruntime_distributions()),
         ]
 
     async def _setup(self) -> None:

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
@@ -86,7 +86,7 @@ class RealEsrganImageUpscaleTaskDriver(ModelTaskDriver):
                 raise NotImplementedError("cached_download is deprecated; not intended to be used.")
             hub.cached_download = _raise_not_implemented
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision"),
             "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git",

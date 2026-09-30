@@ -592,7 +592,7 @@ class NativeMusicAnalyzerService(MusicAnalyzerDriver):
     def __init__(self, id: str, config: MusicAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "librosa", "numpy", "soundfile" ]
 
     async def _run(

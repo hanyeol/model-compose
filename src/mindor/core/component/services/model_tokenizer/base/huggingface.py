@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, HuggingfaceModelConfig
@@ -10,7 +10,7 @@ class HuggingfaceModelTokenizerTaskDriver(ModelTokenizerTaskDriver):
     def __init__(self, id: str, config: ModelTokenizerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "transformers" ]
 
     async def _load_tokenizer(self) -> None:

@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.dsl.schema.component import LayaTypedDecisionModelComponentConfig, LayaPreset
-from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.cancellation import CancellationToken
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
 import sys, platform
@@ -103,7 +103,7 @@ class LayaTypedDecisionTaskDriver(ModelTaskDriver):
 
         self.agent: Optional[LayaAgent] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # Mirror laya's own pyproject pins.
         requirements: List[str] = [
             *torch_requirements("torch>=2.0.0"),

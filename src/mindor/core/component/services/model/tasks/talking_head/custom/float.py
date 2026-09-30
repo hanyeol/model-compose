@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
@@ -130,7 +130,7 @@ class FloatTalkingHeadTaskDriver(ModelTaskDriver):
         self.agent: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch>=2.4,<2.5", "torchvision", "torchaudio"),
             "diffusers>=0.28,<0.35",

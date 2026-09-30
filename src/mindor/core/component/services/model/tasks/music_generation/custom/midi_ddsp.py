@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
@@ -228,7 +228,7 @@ class MidiDdspMusicGenerationTaskDriver(ModelTaskDriver):
         self.synthesis_generator: Optional[SynthesisGenerator] = None
         self.expression_generator: Optional[ExpressionGenerator] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             "midi-ddsp",
             "tensorflow>=2.7,<=2.11",

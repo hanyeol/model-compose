@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, List, Dict, Any
+from typing import TYPE_CHECKING, Optional, List, Dict, Any, Union, Tuple
 from mindor.dsl.schema.component import ImageAnalyzerComponentConfig, ImageAnalyzerDriverType
 from mindor.dsl.schema.action import ImageAnalyzerActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -143,7 +143,7 @@ class NativeImageAnalyzerService(ImageAnalyzerDriver):
     def __init__(self, id: str, config: ImageAnalyzerComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "numpy" ]
 
     async def _run(

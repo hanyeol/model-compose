@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
@@ -117,7 +117,7 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 
 @register_model_task_driver(ModelTaskType.TEXT_EMBEDDING, ModelDriverType.HUGGINGFACE)
 class HuggingfaceTextEmbeddingTaskDriver(HuggingfaceLanguageModelTaskDriver):
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         requirements = super()._get_setup_requirements() or []
 
         if self.config.architecture == HuggingfaceTextEmbeddingModelArchitecture.SBERT:

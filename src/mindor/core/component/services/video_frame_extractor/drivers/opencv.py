@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Union, Callable, Any
+from typing import Optional, Dict, List, Union, Callable, Any, Tuple
 from collections.abc import AsyncIterator, Iterator
 from mindor.dsl.schema.component import VideoFrameExtractorComponentConfig
 from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
@@ -227,7 +227,7 @@ class OpenCVVideoFrameExtractorService(VideoFrameExtractorDriver):
     def __init__(self, id: str, config: VideoFrameExtractorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "opencv-python" ]
 
     async def _run(self, action: VideoFrameExtractorActionConfig, context: ComponentActionContext) -> Any:

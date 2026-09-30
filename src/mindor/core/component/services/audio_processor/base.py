@@ -1,4 +1,4 @@
-from typing import Type, Optional, Dict, List, Any
+from typing import Type, Optional, Dict, List, Any, Union, Tuple
 from abc import abstractmethod
 from mindor.dsl.schema.component import AudioProcessorComponentConfig, AudioProcessorDriverType
 from mindor.dsl.schema.action import AudioProcessorActionConfig
@@ -13,7 +13,7 @@ class AudioProcessorDriver(ComponentDriver):
         self.id: str = id
         self.config: AudioProcessorComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: AudioProcessorActionConfig, context: ComponentActionContext) -> Any:

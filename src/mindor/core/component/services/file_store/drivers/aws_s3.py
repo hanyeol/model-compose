@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Any
@@ -294,7 +294,7 @@ class AwsS3FileStoreService(FileStoreDriver):
 
         self._client_session: Optional[AsyncContextManager[S3Client]] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "aioboto3" ]
 
     async def _start(self) -> None:

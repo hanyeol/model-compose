@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig, MdxNetMusicSourceSeparationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, MdxNetMusicSourceSeparationModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
@@ -233,8 +234,13 @@ class MdxNetMusicSourceSeparationTaskDriver(ModelTaskDriver):
         self.input_name: str = ""
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ *torch_requirements("torch"), "onnxruntime", "numpy", "soxr" ]
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [
+            *torch_requirements("torch"),
+            ("onnxruntime", get_onnxruntime_distributions()),
+            "numpy",
+            "soxr"
+        ]
 
     async def _load_model(self) -> None:
         self.session, self.input_name, self.device = await self._load_onnx_session()

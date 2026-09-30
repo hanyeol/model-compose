@@ -91,7 +91,7 @@ class ComponentService(AsyncService):
             self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
 
     def get_declared_requirements(self) -> List[str]:
-        requirements = list(self._get_setup_requirements() or [])
+        requirements = super().get_declared_requirements()
 
         if self.driver is not None:
             requirements.extend(self.driver.get_declared_requirements())

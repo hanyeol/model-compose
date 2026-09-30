@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 import re
 from typing import Optional, Dict, List, Tuple, Any
@@ -292,7 +292,7 @@ class ArangoDBGraphStoreService(GraphStoreDriver):
         self.client: Optional[ArangoClient] = None
         self.database: Optional[StandardDatabase] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "python-arango" ]
 
     async def _start(self) -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Union, Tuple
 from mindor.dsl.schema.component import ImageCompressorComponentConfig
 from mindor.dsl.schema.action import ImageCompressorActionConfig
 from ..base import ImageCompressorDriver, ImageCompressorDriverType, register_image_compressor_driver
@@ -40,7 +40,7 @@ class OxipngImageCompressorService(ImageCompressorDriver):
     def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "pyoxipng" ]
 
     async def _run(self, action: ImageCompressorActionConfig, context: ComponentActionContext) -> Any:

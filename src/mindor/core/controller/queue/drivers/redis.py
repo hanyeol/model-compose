@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Any, Dict, List, Optional
 from mindor.dsl.schema.controller import RedisControllerQueueConfig, ControllerQueueDriverType
@@ -32,7 +32,7 @@ class RedisControllerQueueService(CommonControllerQueueService):
         self._inline_bytes_threshold: int = 0
         self._max_stream_length: Optional[int] = None
 
-    def _get_setup_requirements(self):
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return ["redis>=5.0.0"]
 
     async def _start(self) -> None:

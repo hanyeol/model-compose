@@ -13,7 +13,7 @@ class GraphStoreDriver(ComponentDriver):
         self.id: str = id
         self.config: GraphStoreComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:

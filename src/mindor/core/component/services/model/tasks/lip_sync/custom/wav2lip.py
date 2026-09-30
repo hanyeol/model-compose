@@ -1,18 +1,18 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig, Wav2LipPreset
 from mindor.dsl.schema.action import ModelActionConfig, Wav2LipLipSyncModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, get_mindor_install_root
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.box import Box
 from mindor.core.utils.soundfile.audio import load_pcm_samples
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed, get_mindor_install_root
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
@@ -394,7 +394,7 @@ class Wav2LipLipSyncTaskDriver(ModelTaskDriver):
         self.model: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
             "numpy",

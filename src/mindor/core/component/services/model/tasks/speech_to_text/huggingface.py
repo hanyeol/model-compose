@@ -1,15 +1,15 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceSpeechToTextModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
@@ -272,7 +272,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
 @register_model_task_driver(ModelTaskType.SPEECH_TO_TEXT, ModelDriverType.HUGGINGFACE)
 class HuggingfaceSpeechToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchaudio"),
             "transformers>=4.52.0",

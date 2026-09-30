@@ -310,7 +310,7 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         self._converter: Optional[Any] = None
         self._tokenizer: Optional[PreTrainedTokenizerBase] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # docling-slim is the actual package shipping the docling Python
         # modules from v2.100.0 onward; the legacy `docling` distribution
         # became a CLI-only alias whose install can leave the top-level

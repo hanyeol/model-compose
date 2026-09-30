@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
@@ -212,7 +212,7 @@ class ChromaVectorStoreService(VectorStoreDriver):
 
         self.client: Optional[ChromaClient] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "chromadb" ]
 
     async def _start(self) -> None:

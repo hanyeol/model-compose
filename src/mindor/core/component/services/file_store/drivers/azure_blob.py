@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Any
@@ -342,7 +342,7 @@ class AzureBlobFileStoreService(FileStoreDriver):
 
         self._service_client: Optional[BlobServiceClient] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "azure-storage-blob", "aiohttp" ]
 
     async def _start(self) -> None:

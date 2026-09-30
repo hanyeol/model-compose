@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
@@ -229,7 +229,7 @@ class QdrantVectorStoreService(VectorStoreDriver):
 
         self.client: Optional[AsyncQdrantClient] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "qdrant-client" ]
 
     async def _start(self) -> None:

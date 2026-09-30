@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
@@ -13,10 +13,10 @@ from mindor.dsl.schema.action import (
     Yue2MusicGenerationModelScoreActionConfig,
     Yue2CotMode,
 )
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.audio import encode_waveform_to_pcm
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicGenerationTaskAction
@@ -228,7 +228,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
 
         self.pipeline: Optional[YuE2Pipeline] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # YuE2 pins torch==2.10.0 (see YuE/pyproject.toml); install a matching torch
         # ahead of the wheel so uv/pip doesn't drift the resolved version.
         # The [fast] extra pulls vllm+triton, which are only needed for the vllm backend.

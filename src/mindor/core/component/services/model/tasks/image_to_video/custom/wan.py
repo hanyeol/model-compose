@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, WanImageToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanImageToVideoModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
-from mindor.core.foundation.package.torch import torch_requirements
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageToVideoTaskAction
 from PIL import Image as PILImage
@@ -117,7 +117,7 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
         self.pipeline: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision"),
             "diffusers",

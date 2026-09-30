@@ -13,7 +13,7 @@ class DatasetsDriver(ComponentDriver):
         self.id: str = id
         self.config: DatasetsComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: DatasetsActionConfig, context: ComponentActionContext) -> Any:

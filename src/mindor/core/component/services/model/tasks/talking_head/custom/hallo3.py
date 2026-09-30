@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
@@ -10,6 +10,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
@@ -116,7 +117,7 @@ class Hallo3TalkingHeadTaskDriver(ModelTaskDriver):
         self.repo_root: Optional[str] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
             "diffusers",
@@ -136,7 +137,7 @@ class Hallo3TalkingHeadTaskDriver(ModelTaskDriver):
             "audio-separator",
             "insightface",
             "mediapipe",
-            "onnxruntime",
+            ("onnxruntime", get_onnxruntime_distributions()),
             "moviepy<2",
             "safetensors",
             "av<14",

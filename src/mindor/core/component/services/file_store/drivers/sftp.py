@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
@@ -339,7 +339,7 @@ class SftpFileStoreService(FileStoreDriver):
         self.base_path: str = self._normalize_posix_base_path(config.base_path)
         self.client: Optional[SftpClient] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "paramiko" ]
 
     async def _start(self) -> None:

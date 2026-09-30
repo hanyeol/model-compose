@@ -1,19 +1,20 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WorldMirrorImageTo3DModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, WorldMirrorImageTo3DModelActionConfig, WorldMirrorSkyMaskSource
+from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.flash_attn import flash_attn_requirements
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.image import ImageArrayValue
-from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.flash_attn import flash_attn_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
 from PIL import Image as PILImage
@@ -254,7 +255,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
         self.pipeline: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch==2.7.1", "torchvision==0.22.1"),
             *flash_attn_requirements("torch==2.7.1", "flash-attn"),
@@ -290,7 +291,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
             "loguru==0.7.3",
             "tqdm",
             "numpy==1.26.4",
-            "onnxruntime",
+            ("onnxruntime", get_onnxruntime_distributions()),
             "huggingface_hub>=0.34.0,<1.0",
         ]
 

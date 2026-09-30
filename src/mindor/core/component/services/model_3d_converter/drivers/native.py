@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union, Tuple
 from mindor.dsl.schema.component import Model3DConverterComponentConfig
 from mindor.dsl.schema.action import Model3DConverterActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -77,7 +77,7 @@ class NativeModel3DConverterService(Model3DConverterDriver):
     def __init__(self, id: str, config: Model3DConverterComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "trimesh" ]
 
     async def _run(self, action: Model3DConverterActionConfig, context: ComponentActionContext) -> Any:

@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Union, Dict, List, Tuple, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceTrackingModelActionConfig
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
@@ -1092,8 +1093,8 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
 
         self.model: Optional[FaceAnalysis] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "insightface", "opencv-python", "onnxruntime" ]
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "insightface", "opencv-python", ("onnxruntime", get_onnxruntime_distributions()) ]
 
     async def _load_model(self) -> None:
         self.model = await self._load_pretrained_model()

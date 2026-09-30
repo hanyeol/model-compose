@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, Any
 from mindor.dsl.schema.tracer import LangfuseTracerConfig
@@ -20,7 +20,7 @@ class LangfuseTracerService(TracerService):
         self._trace_spans: Dict[str, Any] = {}
         self._job_spans: Dict[str, Any] = {}
 
-    def _get_setup_requirements(self):
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [ "langfuse>=4.0" ]
 
     async def _start(self) -> None:

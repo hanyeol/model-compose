@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Tuple, Dict, List, Any
 from mindor.dsl.schema.component import CameraPoseEstimatorComponentConfig, ColmapMatcherType
@@ -407,7 +407,7 @@ class ColmapCameraPoseEstimatorService(CameraPoseEstimatorDriver):
     def __init__(self, id: str, config: CameraPoseEstimatorComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *(super()._get_setup_requirements() or []),
             "pycolmap>=4.0",

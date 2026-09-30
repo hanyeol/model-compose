@@ -1,14 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, VibeVoiceSpeechToTextModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, VibeVoiceSpeechToTextModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging
@@ -291,7 +291,7 @@ class VibeVoiceSpeechToTextTaskDriver(ModelTaskDriver):
         self.streaming_info: Optional[Dict[str, float]] = None
         self.device: Optional[torch.device] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # PyPI's `vibevoice 0.0.1` is the earlier TTS release and does not ship
         # the ASR modules; install from GitHub for the real classes.
         # `transformers==4.51.3` matches the checkpoints' `transformers_version`.

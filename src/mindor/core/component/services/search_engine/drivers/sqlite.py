@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
 from mindor.dsl.schema.component import SQLiteSearchEngineComponentConfig
@@ -262,7 +262,7 @@ class SQLiteSearchEngineService(SearchEngineDriver):
         self.meta_cache: Dict[str, Any] = {}
         self.write_lock: asyncio.Lock = asyncio.Lock()
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "aiosqlite" ]
 
     async def _start(self) -> None:

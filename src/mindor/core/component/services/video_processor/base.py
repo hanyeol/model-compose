@@ -1,4 +1,4 @@
-from typing import Type, Optional, Dict, List, Any
+from typing import Type, Optional, Dict, List, Any, Union, Tuple
 from abc import abstractmethod
 from mindor.dsl.schema.component import VideoProcessorComponentConfig, VideoProcessorDriverType
 from mindor.dsl.schema.action import VideoProcessorActionConfig
@@ -13,7 +13,7 @@ class VideoProcessorDriver(ComponentDriver):
         self.id: str = id
         self.config: VideoProcessorComponentConfig = config
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return None
 
     async def run(self, action: VideoProcessorActionConfig, context: ComponentActionContext) -> Any:

@@ -1,4 +1,4 @@
-from typing import Union, Optional, Dict, List, Any
+from typing import Union, Optional, Dict, List, Any, Tuple
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WebScraperComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebScraperActionConfig
@@ -379,7 +379,7 @@ class WebScraperComponent(ComponentService):
 
         self._rate_limiter: Optional[RateLimiter] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "playwright", "beautifulsoup4", "lxml" ]
 
     async def _setup(self) -> None:

@@ -32,4 +32,4 @@ class YtdlpMediaDownloaderActionConfig(CommonMediaDownloaderActionConfig):
     format: Optional[Union[YtdlpFormatSpec, str]] = Field(default=None, description="Download format as a preset name (e.g., mp3, mp4), a raw yt-dlp format expression, or a structured spec.")
     cookies: Union[List[Dict[str, Any]], str] = Field(default_factory=list, description="Cookies sent with the download request, in the shape returned by web-browser's get-cookies.")
     extractor_args: Union[Dict[str, Dict[str, Any]], str] = Field(default_factory=dict, description="Extractor-specific arguments keyed by extractor name, mirroring yt-dlp's --extractor-args.")
-    js_runtimes: Union[List[str], str] = Field(default="deno", description="JavaScript runtimes yt-dlp may use to solve player challenges, in priority order; each entry may carry a path as RUNTIME:PATH.")
+    js_runtimes: Optional[Union[List[str], str]] = Field(default=None, description="JavaScript runtimes yt-dlp may use to solve player challenges, in priority order; each entry may carry a path as RUNTIME:PATH. Auto-detects deno, node, and bun on PATH when unset.")

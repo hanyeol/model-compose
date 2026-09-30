@@ -121,6 +121,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                     os.remove(video_path)
                 except FileNotFoundError:
                     pass
+
             if audio_spooled:
                 try:
                     os.remove(audio_path)

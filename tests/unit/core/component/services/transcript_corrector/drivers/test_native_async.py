@@ -278,7 +278,10 @@ class TestMultiTranscriptStreamingInput:
 
         config = NativeTranscriptCorrectorActionConfig(
             reference="hello world",
-            transcript=_async_iter([_inner1(), _inner2()]),
+            transcript=_async_iter([
+                StreamChunkIterator(_inner1(), is_fragmented=True),
+                StreamChunkIterator(_inner2(), is_fragmented=True),
+            ]),
         )
         context = make_action_context()
 

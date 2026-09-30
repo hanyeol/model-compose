@@ -542,7 +542,7 @@ class TestErrorPropagation:
         config = _make_config(video="${v}")
         ctx = _make_context(video_value=str(bogus))
 
-        with pytest.raises(RuntimeError, match="ffmpeg video encoding failed"):
+        with pytest.raises(RuntimeError, match="ffmpeg video encoding failed|ffprobe failed to read metadata"):
             await FFmpegVideoEncoderAction(config).run(ctx)
 
 

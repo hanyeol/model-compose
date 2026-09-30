@@ -443,7 +443,7 @@ class TestBuildOverlayFilterDuration:
         return FFmpegVideoMixerAction(config)
 
     def _one_placement(self):
-        return [ FFmpegVideoMixerAction._resolve_overlay_filter_params(VideoOverlayPlacement(x=10, y=10)) ]
+        return [ FFmpegVideoMixerAction._resolve_overlay_filter_params(VideoOverlayPlacement(x=10, y=10), None, None) ]
 
     def test_base_mode_omits_shortest_and_tpad(self):
         filter_complex, video_label, audio_label = self._action()._build_overlay_filter(
@@ -453,6 +453,8 @@ class TestBuildOverlayFilterDuration:
             base_pad_duration=None,
             base_has_audio=True,
             overlay_has_audio=[True],
+            base_matrix="bt709",
+            overlay_matrices=["bt709"],
         )
         assert "tpad" not in filter_complex, "base mode must not pad the base video"
         assert "shortest=1" not in filter_complex
@@ -467,6 +469,8 @@ class TestBuildOverlayFilterDuration:
             base_pad_duration=None,
             base_has_audio=True,
             overlay_has_audio=[True],
+            base_matrix="bt709",
+            overlay_matrices=["bt709"],
         )
         assert "shortest=1" in filter_complex
         assert "tpad" not in filter_complex
@@ -479,6 +483,8 @@ class TestBuildOverlayFilterDuration:
             base_pad_duration=3.5,
             base_has_audio=True,
             overlay_has_audio=[True],
+            base_matrix="bt709",
+            overlay_matrices=["bt709"],
         )
         # base is padded so overlay can keep compositing after base's original EOF
         assert "tpad=stop_mode=clone:stop_duration=3.5" in filter_complex
@@ -495,6 +501,8 @@ class TestBuildOverlayFilterDuration:
             base_pad_duration=0.0,
             base_has_audio=True,
             overlay_has_audio=[True],
+            base_matrix="bt709",
+            overlay_matrices=["bt709"],
         )
         assert "tpad" not in filter_complex, "no padding needed when base is already longest"
 

@@ -11,7 +11,7 @@ Regression cases target four known matcher hazards:
     similarity, the one whose last bounding box overlaps the incoming face
     should win.
   - Stale cluster expiry: a cluster that hasn't been seen for many frames must
-    not keep contaminating tie-breaks with its ancient last_bbox.
+    not keep contaminating tie-breaks with its ancient last_bounding_box.
   - Deterministic ordering for true ties: with identical similarity AND
     identical overlap, the sort must not depend on incidental key ordering.
 """
@@ -54,6 +54,7 @@ def _face(embedding: np.ndarray, bbox: Tuple[int, int, int, int], score: float =
 
 
 FRAME_RATE = 2.0
+FRAME_PERIOD = 1.0 / FRAME_RATE
 
 
 def _default_params(**overrides) -> Dict[str, Any]:
@@ -63,6 +64,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "max_face_count_per_frame": 0,
         "merge_gap":                10.0,   # loose so a single segment covers a burst
         "bounding_box_padding":     0.0,
+        "bounding_box_smoothing":   None,
         "max_track_distance":       0.0,
         "return_track_image":       False,
         "return_frame_image":       False,
@@ -92,7 +94,7 @@ class TestOrderIndependentAssignment:
         action._cluster_faces(
             [_face(e_alice, (0, 0, 40, 40)), _face(e_bob, (200, 0, 40, 40))],
             timestamp=0.0,
-            frame_rate=FRAME_RATE,
+            frame_period=FRAME_PERIOD,
             centroids_state=centroids_state,
             cluster_tracks=cluster_tracks,
             params=params,
@@ -108,7 +110,7 @@ class TestOrderIndependentAssignment:
                              for k, v in cluster_tracks.items()}
         action._cluster_faces(
             [_face(e_alice, (0, 0, 40, 40)), _face(e_bob, (200, 0, 40, 40))],
-            timestamp=1.0, frame_rate=FRAME_RATE, centroids_state=state_a, cluster_tracks=tracks_a, params=params,
+            timestamp=1.0, frame_period=FRAME_PERIOD, centroids_state=state_a, cluster_tracks=tracks_a, params=params,
         )
 
         # Second frame with the detection order swapped.
@@ -120,7 +122,7 @@ class TestOrderIndependentAssignment:
                              for k, v in cluster_tracks.items()}
         action._cluster_faces(
             [_face(e_bob, (200, 0, 40, 40)), _face(e_alice, (0, 0, 40, 40))],
-            timestamp=1.0, frame_rate=FRAME_RATE, centroids_state=state_b, cluster_tracks=tracks_b, params=params,
+            timestamp=1.0, frame_period=FRAME_PERIOD, centroids_state=state_b, cluster_tracks=tracks_b, params=params,
         )
 
         # No new clusters should have been spawned in either order.
@@ -144,7 +146,7 @@ class TestSpatialTieBreak:
         centroids_state, cluster_tracks = _fresh_state()
         action._cluster_faces(
             [_face(base_a, (0, 0, 40, 40)), _face(base_b, (400, 0, 40, 40))],
-            timestamp=0.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=0.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
 
         # Craft a new detection that is spatially glued to cluster 0's position
@@ -162,7 +164,7 @@ class TestSpatialTieBreak:
 
         action._cluster_faces(
             [_face(nudged, (2, 2, 40, 40))],              # overlaps cluster 0's box
-            timestamp=1.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=1.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
 
         # Expected: cluster 0 wins because spatial overlap breaks the near-tie.
@@ -182,7 +184,7 @@ class TestSpatialTieBreak:
         centroids_state, cluster_tracks = _fresh_state()
         action._cluster_faces(
             [_face(base_a, (0, 0, 40, 40)), _face(base_b, (400, 0, 40, 40))],
-            timestamp=0.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=0.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
 
         # Craft an embedding whose similarity to the two centroids straddles a
@@ -198,7 +200,7 @@ class TestSpatialTieBreak:
 
         action._cluster_faces(
             [_face(target, (2, 2, 40, 40))],  # overlaps cluster 0
-            timestamp=1.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=1.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
 
         # Cluster 0 must still win: the similarity gap is < 0.001, well below
@@ -208,9 +210,9 @@ class TestSpatialTieBreak:
 
 class TestStaleClusterExpiry:
     """A cluster last seen many frames ago should not keep influencing spatial
-    tie-breaks with its stale last_bbox."""
+    tie-breaks with its stale last_bounding_box."""
 
-    def test_long_absent_cluster_last_bbox_does_not_break_ties(self):
+    def test_long_absent_cluster_last_bounding_box_does_not_break_ties(self):
         action = _action()
         params = _default_params()
 
@@ -221,7 +223,7 @@ class TestStaleClusterExpiry:
         centroids_state, cluster_tracks = _fresh_state()
         action._cluster_faces(
             [_face(base_a, (0, 0, 40, 40)), _face(base_b, (400, 0, 40, 40))],
-            timestamp=0.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=0.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
 
         # Cluster 1 stays active up to t=30 — we keep seeing it as it drifts.
@@ -231,10 +233,10 @@ class TestStaleClusterExpiry:
             x = 400 + int(i / 6)
             action._cluster_faces(
                 [_face(base_b, (x, 0, 40, 40))],
-                timestamp=t, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+                timestamp=t, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
             )
 
-        # Cluster 0 has been silent since t=0. Its last_bbox is still (0, 0, 40, 40)
+        # Cluster 0 has been silent since t=0. Its last_bounding_box is still (0, 0, 40, 40)
         # — 30 seconds stale. Now a face arrives at t=31 spatially glued to
         # cluster 1's active position, embedding-wise a near-tie between the
         # two. Without expiry, cluster 0's ancient bbox could tie the overlap
@@ -248,7 +250,7 @@ class TestStaleClusterExpiry:
         x1, y1, x2, y2 = cluster_tracks[1]["last_bbox"]
         action._cluster_faces(
             [_face(nudged, (x1, y1, x2 - x1, y2 - y1))],
-            timestamp=31.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=31.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
 
         # Expected: cluster 1 wins because its fresh overlap (~1.0) beats
@@ -269,12 +271,12 @@ class TestDeterministicSortOrder:
         e_alice = _unit_embedding(4, 0)
 
         # Seed two clusters with the SAME centroid so any face matches both
-        # equally on similarity, and neither has a last_bbox overlap advantage
+        # equally on similarity, and neither has a last_bounding_box overlap advantage
         # for a face detected far from both.
         centroids_state, cluster_tracks = _fresh_state()
         action._cluster_faces(
             [_face(e_alice, (0, 0, 10, 10))],
-            timestamp=0.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=0.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
         # Force a second identical cluster by hand.
         centroids_state["centroids"].append(centroids_state["centroids"][0].copy())
@@ -282,10 +284,10 @@ class TestDeterministicSortOrder:
         cluster_tracks[1] = {"segments": [], "current": None, "last_bbox": (500, 500, 510, 510)}
 
         # A single new face equidistant from both clusters. Overlap with either
-        # last_bbox is 0. The winning cluster must be the lower-indexed one
+        # last_bounding_box is 0. The winning cluster must be the lower-indexed one
         # (stable / deterministic), not whichever wins from reverse-tuple sort.
         action._cluster_faces(
             [_face(e_alice, (1000, 1000, 10, 10))],
-            timestamp=1.0, frame_rate=FRAME_RATE, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
+            timestamp=1.0, frame_period=FRAME_PERIOD, centroids_state=centroids_state, cluster_tracks=cluster_tracks, params=params,
         )
         assert centroids_state["counts"] == [2, 1]

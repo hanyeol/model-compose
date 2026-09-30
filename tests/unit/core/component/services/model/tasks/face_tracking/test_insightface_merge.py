@@ -42,6 +42,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_gender_age":        False,
         "return_detections":        False,
         "bounding_box_padding":     0.0,
+        "bounding_box_smoothing":   None,
     }
     base.update(overrides)
     return base
@@ -68,7 +69,7 @@ def _run(frames: List[List[Dict[str, Any]]], params: Dict[str, Any]) -> Dict[str
     centroids_state: Dict[str, Any] = {"centroids": [], "counts": []}
 
     for frame_index, faces in enumerate(frames):
-        action._cluster_faces(faces, frame_index * FRAME_PERIOD, FRAME_RATE, centroids_state, cluster_tracks, params)
+        action._cluster_faces(faces, frame_index * FRAME_PERIOD, FRAME_PERIOD, centroids_state, cluster_tracks, params)
 
     # Flush the still-open segment, as _collect_tracks() does before building the result.
     for track in cluster_tracks.values():
@@ -151,9 +152,10 @@ class TestFloatingPointRobustness:
     def _run_at(action, frame_rate: float, offset: float, num_frames: int, params: Dict[str, Any]) -> Dict[str, Any]:
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = {"centroids": [], "counts": []}
+        frame_period = 1.0 / frame_rate
         for i in range(num_frames):
             timestamp = offset + i / frame_rate
-            action._cluster_faces([_face(ALICE)], timestamp, frame_rate, centroids_state, cluster_tracks, params)
+            action._cluster_faces([_face(ALICE)], timestamp, frame_period, centroids_state, cluster_tracks, params)
         for track in cluster_tracks.values():
             if track["current"] is not None:
                 track["segments"].append(track["current"])

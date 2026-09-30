@@ -39,6 +39,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_gender_age":        False,
         "return_detections":            False,
         "bounding_box_padding":     0.0,
+        "bounding_box_smoothing":   None,
     }
     base.update(overrides)
     return base
@@ -61,7 +62,7 @@ def _run(frames: List[List[Dict[str, Any]]], params: Dict[str, Any]) -> Dict[str
 
     for frame_index, faces in enumerate(frames):
         timestamp = frame_index * FRAME_PERIOD
-        tracked_faces, _ = action._cluster_faces(faces, timestamp, FRAME_RATE, centroids_state, cluster_tracks, params)
+        tracked_faces, _ = action._cluster_faces(faces, timestamp, FRAME_PERIOD, centroids_state, cluster_tracks, params)
         if params["return_detections"]:
             tracked_frames.append({
                 "number":        frame_index + 1,

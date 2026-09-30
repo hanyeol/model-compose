@@ -38,6 +38,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_metadata":           False,
         "return_detections":         False,
         "bounding_box_padding":      0.0,
+        "bounding_box_smoothing":    None,
     }
     base.update(overrides)
     return base
@@ -65,7 +66,7 @@ def _run(frames: List[List[Dict[str, Any]]], params: Dict[str, Any], frame_rate:
     frame_period = 1.0 / frame_rate
 
     for frame_index, poses in enumerate(frames):
-        action._add_poses_to_tracks(poses, frame_index * frame_period, frame_rate, track_segments, params)
+        action._add_poses_to_tracks(poses, frame_index * frame_period, frame_period, track_segments, params)
 
     for track in track_segments.values():
         if track["current"] is not None:

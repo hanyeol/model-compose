@@ -22,6 +22,13 @@ if TYPE_CHECKING:
     from insightface.app.common import Face
     import numpy as np
 
+# Sub-crop margin around the raw detection bbox when stashing image_source.
+# Sized so any downstream `_crop_face_image(padding=...)` up to this ratio
+# produces pixel-identical output to cropping the full frame; a tracked face
+# that lingers in `tracked_frames` / `last_face_by_cluster` / interpolated
+# copies then holds ~1/16 of a full frame instead of the whole ndarray.
+_IMAGE_SOURCE_MARGIN: float = 0.5
+
 class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     config: InsightfaceFaceTrackingModelActionConfig
 
@@ -754,13 +761,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             )
             frame["interpolated_faces"].append(({ **prev_face, "bounding_box": interpolated_bbox, "interpolated": True }, cluster_id))
 
-    # Sub-crop margin around the raw detection bbox when stashing image_source.
-    # Sized so any downstream `_crop_face_image(padding=...)` up to this ratio
-    # produces pixel-identical output to cropping the full frame; a tracked face
-    # that lingers in `tracked_frames` / `last_face_by_cluster` / interpolated
-    # copies then holds ~1/16 of a full frame instead of the whole ndarray.
-    _IMAGE_SOURCE_MARGIN: float = 0.5
-
     def _build_detected_faces(
         self,
         detections: List[Face],
@@ -804,8 +804,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             if return_gender_age:
                 gender = getattr(detection, "gender", None)
                 age = getattr(detection, "age", None)
+
                 if gender is not None:
                     face["gender"] = int(gender)
+
                 if age is not None:
                     face["age"] = int(age)
 
@@ -819,8 +821,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         as a segment's best, so the PIL conversion cost is paid once per
         segment instead of per frame."""
         face_with_image: Dict[str, Any] = {
-            key: value for key, value in face.items()
-            if key not in ("image_source", "image_source_origin")
+            key: value for key, value in face.items() if key not in ("image_source", "image_source_origin")
         }
         image_source = face.get("image_source")
 
@@ -1142,13 +1143,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         Returns `(None, (0, 0))` if the padded box has no valid overlap with
         the frame."""
         x1, y1, x2, y2 = bounding_box
-        w = x2 - x1
-        h = y2 - y1
-        margin = cls._IMAGE_SOURCE_MARGIN
-        mx1 = max(0, x1 - int(w * margin))
-        my1 = max(0, y1 - int(h * margin))
-        mx2 = min(width, x2 + int(w * margin))
-        my2 = min(height, y2 + int(h * margin))
+        margin = _IMAGE_SOURCE_MARGIN
+
+        mx1 = max(0, x1 - int((x2 - x1) * margin))
+        my1 = max(0, y1 - int((y2 - y1) * margin))
+        mx2 = min(width, x2 + int((x2 - x1) * margin))
+        my2 = min(height, y2 + int((y2 - y1) * margin))
 
         if mx2 <= mx1 or my2 <= my1:
             return None, (0, 0)

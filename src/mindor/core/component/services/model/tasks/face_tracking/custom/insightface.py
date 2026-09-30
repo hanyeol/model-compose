@@ -754,6 +754,13 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             )
             frame["interpolated_faces"].append(({ **prev_face, "bounding_box": interpolated_bbox, "interpolated": True }, cluster_id))
 
+    # Sub-crop margin around the raw detection bbox when stashing image_source.
+    # Sized so any downstream `_crop_face_image(padding=...)` up to this ratio
+    # produces pixel-identical output to cropping the full frame; a tracked face
+    # that lingers in `tracked_frames` / `last_face_by_cluster` / interpolated
+    # copies then holds ~1/16 of a full frame instead of the whole ndarray.
+    _IMAGE_SOURCE_MARGIN: float = 0.5
+
     def _build_detected_faces(
         self,
         detections: List[Face],
@@ -762,11 +769,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         return_gender_age: bool,
     ) -> List[Dict[str, Any]]:
         # Defer cropping to _add_face_to_track: only the frames that actually
-        # become a segment's representative are worth converting to PIL, so
-        # we pass a reference to the source frame (cheap) instead of eagerly
-        # producing an RGB PIL crop for every detection (expensive when a
-        # track spans many frames or the input has many candidate faces).
+        # become a segment's representative are worth converting to PIL, so we
+        # stash a small BGR sub-crop around each detection (cheap to hold on
+        # to) instead of eagerly producing an RGB PIL crop for every one.
+        # We deliberately do NOT stash the full frame — a long track keeps
+        # every referenced face alive via `tracked_frames`,
+        # `last_face_by_cluster`, and interpolation copies, so a full-frame
+        # reference balloons into gigabytes on hour-long inputs.
         faces: List[Dict[str, Any]] = []
+        height, width = image_cv.shape[:2] if return_track_image else (0, 0)
 
         for detection in detections:
             embedding = getattr(detection, "normed_embedding", None)
@@ -775,15 +786,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 continue
 
             x1, y1, x2, y2 = detection.bbox
+            bounding_box = (int(x1), int(y1), int(x2), int(y2))
 
             face: Dict[str, Any] = {
                 "embedding":    embedding,
-                "bounding_box": (int(x1), int(y1), int(x2), int(y2)),
+                "bounding_box": bounding_box,
                 "score":        float(getattr(detection, "det_score", 0.0)),
             }
 
             if return_track_image:
-                face["image_source"] = image_cv
+                image_source, origin = self._extract_face_region(image_cv, bounding_box, width, height)
+
+                if image_source is not None:
+                    face["image_source"] = image_source
+                    face["image_source_origin"] = origin
 
             if return_gender_age:
                 gender = getattr(detection, "gender", None)
@@ -798,14 +814,23 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         return faces
 
     def _build_face_with_image(self, face: Dict[str, Any], bounding_box_padding: float) -> Dict[str, Any]:
-        """Copy `face` and swap its `image_source` (raw BGR ndarray) for a cropped
-        PIL `image`. Called only when a face is picked as a segment's best, so
-        the PIL conversion cost is paid once per segment instead of per frame."""
-        face_with_image: Dict[str, Any] = { key: value for key, value in face.items() if key != "image_source" }
+        """Copy `face` and swap its `image_source` (BGR sub-crop around the
+        detection) for a cropped PIL `image`. Called only when a face is picked
+        as a segment's best, so the PIL conversion cost is paid once per
+        segment instead of per frame."""
+        face_with_image: Dict[str, Any] = {
+            key: value for key, value in face.items()
+            if key not in ("image_source", "image_source_origin")
+        }
         image_source = face.get("image_source")
 
         if image_source is not None:
-            face_with_image["image"] = self._crop_face_image(image_source, face["bounding_box"], bounding_box_padding)
+            face_with_image["image"] = self._crop_face_image(
+                image_source,
+                face["bounding_box"],
+                bounding_box_padding,
+                origin=face.get("image_source_origin", (0, 0)),
+            )
 
         return face_with_image
 
@@ -814,20 +839,29 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         image_cv: np.ndarray,
         bounding_box: Tuple[int, int, int, int],
         padding: float,
+        origin: Tuple[int, int] = (0, 0),
     ) -> Optional[PILImage.Image]:
         """Crop the face at its detected bounding box (as `(x1, y1, x2, y2)`
         in the original frame's coordinate system) at the frame's native
         resolution. `padding` grows the box by that ratio of its own
-        width/height on each side before clipping to the frame; embeddings
+        width/height on each side before clipping to `image_cv`; embeddings
         still use the un-padded box, so this only affects the returned image.
-        Downstream consumers get real pixels they can display, resize, or feed
-        into another detector for a different embedding backbone. Returns None
-        if the bounding box has no valid overlap with the frame (fully off-
-        screen or zero-area)."""
+        `origin` lets callers pass a pre-cropped sub-region of the frame:
+        the bounding box is translated into `image_cv`-local coordinates
+        before clipping, so a sub-crop with its top-left offset yields the
+        same pixels as the full frame with `origin=(0, 0)` as long as the
+        padded box stays inside the sub-crop.
+        Returns None if the bounding box has no valid overlap with `image_cv`
+        (fully outside the sub-crop or zero-area)."""
         import cv2
 
         height, width = image_cv.shape[:2]
+        ox, oy = origin
         x1, y1, x2, y2 = bounding_box
+        x1 -= ox
+        y1 -= oy
+        x2 -= ox
+        y2 -= oy
 
         if padding > 0.0:
             w = x2 - x1
@@ -1013,7 +1047,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             image_source = tracked_face.get("image_source")
 
             if image_source is not None and not tracked_face.get("interpolated"):
-                face["image"] = self._crop_face_image(image_source, tracked_face["bounding_box"], params["bounding_box_padding"])
+                face["image"] = self._crop_face_image(
+                    image_source,
+                    tracked_face["bounding_box"],
+                    params["bounding_box_padding"],
+                    origin=tracked_face.get("image_source_origin", (0, 0)),
+                )
             else:
                 face["image"] = None
 
@@ -1086,6 +1125,35 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     @staticmethod
     def _gender_to_label(gender: int) -> str:
         return "male" if gender == 1 else "female"
+
+    @classmethod
+    def _extract_face_region(
+        cls,
+        image_cv: np.ndarray,
+        bounding_box: Tuple[int, int, int, int],
+        width: int,
+        height: int,
+    ) -> Tuple[Optional[np.ndarray], Tuple[int, int]]:
+        """Copy the region of `image_cv` around `bounding_box` expanded by
+        `_IMAGE_SOURCE_MARGIN` on each side, returning `(sub_crop, (ox, oy))`.
+        The copy — not a view — is what lets the caller drop the original
+        frame while retaining just the face's neighborhood; a numpy slice
+        keeps the parent buffer alive and defeats the point of this fix.
+        Returns `(None, (0, 0))` if the padded box has no valid overlap with
+        the frame."""
+        x1, y1, x2, y2 = bounding_box
+        w = x2 - x1
+        h = y2 - y1
+        margin = cls._IMAGE_SOURCE_MARGIN
+        mx1 = max(0, x1 - int(w * margin))
+        my1 = max(0, y1 - int(h * margin))
+        mx2 = min(width, x2 + int(w * margin))
+        my2 = min(height, y2 + int(h * margin))
+
+        if mx2 <= mx1 or my2 <= my1:
+            return None, (0, 0)
+
+        return image_cv[my1:my2, mx1:mx2].copy(), (mx1, my1)
 
 class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

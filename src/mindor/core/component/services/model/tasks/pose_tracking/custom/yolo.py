@@ -673,8 +673,10 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
             if pose_keypoints is not None:
                 pose["keypoints"] = pose_keypoints
+
             if openpose_keypoints is not None:
                 pose["openpose_keypoints"] = openpose_keypoints
+
             if params["return_track_image"]:
                 pose["image_source"] = image
 

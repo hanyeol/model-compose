@@ -73,6 +73,16 @@ class VideoFrameExtractorAction(ComponentAction):
         if frame_interval < 1:
             raise ValueError(f"'frame_interval' must be >= 1, got {frame_interval}")
 
+        if fps is not None and fps <= 0:
+            raise ValueError(f"'fps' must be > 0, got {fps}")
+
+        # Schema-level check only fires when both values are concrete literals;
+        # template strings ("${...}") slip past it. Repeat here now that both
+        # are rendered so a template that resolves to `fps=30, frame_interval=2`
+        # errors instead of silently dropping the stride.
+        if fps is not None and frame_interval != 1:
+            raise ValueError("'fps' and 'frame_interval' are mutually exclusive; set one or the other")
+
         if max_frame_count is not None and max_frame_count < 1:
             raise ValueError(f"'max_frame_count' must be >= 1, got {max_frame_count}")
 

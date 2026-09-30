@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 from collections.abc import AsyncIterator, AsyncIterable
 from mindor.core.foundation.streaming.iterators import StreamIterator
 import codecs
@@ -167,3 +167,43 @@ class TextDecodeIterator:
         text = decoder.decode(b"", final=True)
         if text:
             yield text
+
+async def async_zip(*iterables: Optional[AsyncIterable[Any]]) -> AsyncIterator[Tuple[Any, ...]]:
+    """Zip multiple async iterables in lockstep. `None` slots broadcast `None`
+    for every tick — mirrors how `BatchSourceIterator` treats an absent source.
+
+    All non-None iterables must yield the same number of items; if they
+    disagree ValueError is raised. Sync callers use `zip(...)`; here the
+    equivalent for async sources uses `async for item, ... in async_zip(...)`.
+    """
+    iterators = [ iterable.__aiter__() if iterable is not None else None for iterable in iterables ]
+
+    if not any(iterator is not None for iterator in iterators):
+        return
+
+    while True:
+        items: List[Any] = []
+        stops: List[bool] = []
+
+        for iterator in iterators:
+            if iterator is None:
+                items.append(None)
+                stops.append(False)
+                continue
+
+            try:
+                items.append(await iterator.__anext__())
+                stops.append(False)
+            except StopAsyncIteration:
+                items.append(None)
+                stops.append(True)
+
+        active_stops = [ stops[i] for i, iterator in enumerate(iterators) if iterator is not None ]
+
+        if all(active_stops):
+            return
+
+        if any(active_stops):
+            raise ValueError("async_zip sources have different lengths")
+
+        yield tuple(items)

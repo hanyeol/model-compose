@@ -8,12 +8,21 @@ from ...common import CommonActionConfig
 from ...media import VideoAudioEncodingConfig
 
 class VideoProcessorActionMethod(str, Enum):
-    RESIZE = "resize"
-    CROP   = "crop"
-    PAD    = "pad"
-    FLIP   = "flip"
-    ROTATE = "rotate"
-    SPEED  = "speed"
+    RESIZE   = "resize"
+    CROP     = "crop"
+    PAD      = "pad"
+    FLIP     = "flip"
+    ROTATE   = "rotate"
+    SPEED    = "speed"
+    FADE_IN  = "fade-in"
+    FADE_OUT = "fade-out"
+    FREEZE   = "freeze"
+    REVERSE  = "reverse"
+    FPS      = "fps"
+
+class VideoFreezePosition(str, Enum):
+    START = "start"
+    END   = "end"
 
 class VideoScaleMode(str, Enum):
     FIT     = "fit"
@@ -63,3 +72,27 @@ class VideoProcessorRotateActionConfig(CommonVideoProcessorActionConfig):
 class VideoProcessorSpeedActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.SPEED]
     speed: Union[float, str] = Field(..., description="Playback speed multiplier (e.g., 2.0 for double speed, 0.5 for half).")
+
+class VideoProcessorFadeInActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.FADE_IN]
+    start_time: Union[float, str] = Field(default=0.0, description="Time in seconds where the fade-in begins.")
+    duration: Union[float, str] = Field(..., description="Fade-in length in seconds.")
+    color: Union[Color, str] = Field(default="#000000", description="Color the video reveals from.")
+
+class VideoProcessorFadeOutActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.FADE_OUT]
+    start_time: Union[float, str] = Field(..., description="Time in seconds where the fade-out begins.")
+    duration: Union[float, str] = Field(..., description="Fade-out length in seconds.")
+    color: Union[Color, str] = Field(default="#000000", description="Color the video fades to.")
+
+class VideoProcessorFreezeActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.FREEZE]
+    position: Union[VideoFreezePosition, str] = Field(..., description="Which end to hold: `start` clones the first frame; `end` clones the last.")
+    duration: Union[float, str] = Field(..., description="Freeze length in seconds.")
+
+class VideoProcessorReverseActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.REVERSE]
+
+class VideoProcessorFpsActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.FPS]
+    fps: Union[float, str] = Field(..., description="Target output frame rate. Frames are resampled onto a uniform grid.")

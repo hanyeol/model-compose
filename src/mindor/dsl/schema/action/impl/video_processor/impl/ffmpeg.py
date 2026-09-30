@@ -7,6 +7,11 @@ from .common import (
     VideoProcessorFlipActionConfig,
     VideoProcessorRotateActionConfig,
     VideoProcessorSpeedActionConfig,
+    VideoProcessorFadeInActionConfig,
+    VideoProcessorFadeOutActionConfig,
+    VideoProcessorFreezeActionConfig,
+    VideoProcessorReverseActionConfig,
+    VideoProcessorFpsActionConfig,
 )
 
 FFmpegVideoProcessorActionConfig = Annotated[
@@ -17,6 +22,11 @@ FFmpegVideoProcessorActionConfig = Annotated[
         VideoProcessorFlipActionConfig,
         VideoProcessorRotateActionConfig,
         VideoProcessorSpeedActionConfig,
+        VideoProcessorFadeInActionConfig,
+        VideoProcessorFadeOutActionConfig,
+        VideoProcessorFreezeActionConfig,
+        VideoProcessorReverseActionConfig,
+        VideoProcessorFpsActionConfig,
     ],
     Field(discriminator="method")
 ]

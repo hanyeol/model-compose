@@ -7,7 +7,10 @@ from mindor.dsl.schema.action import VideoFrameExtractorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.media.filename import format_filename
+from mindor.core.utils.ffmpeg.codecs import get_alpha_input_decoder
+from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.streamer import SyncGeneratorStreamer
+from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
 from ..base import VideoFrameExtractorDriver, VideoFrameExtractorDriverType, register_video_frame_extractor_driver
 from ..base import ComponentActionContext
@@ -56,6 +59,18 @@ class OpenCVVideoFrameExtractorAction(VideoFrameExtractorAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         input_path, spooled = await MediaInputPathResolver().resolve(video, default_format="mp4")
+
+        # OpenCV's VideoCapture always returns BGR — the alpha channel is
+        # dropped no matter what codec/tag the source carries. Warn once so
+        # callers know to switch to the ffmpeg driver if they need alpha.
+        codec, alpha_mode = await probe_video(input_path, ("codec", "alpha_mode"))
+
+        if get_alpha_input_decoder(codec, alpha_mode) is not None:
+            logging.warning(
+                "OpenCV extractor drops alpha for '%s' (%s + alpha_mode=1); "
+                "use the ffmpeg driver to preserve the alpha channel.",
+                input_path, codec,
+            )
 
         def _cleanup() -> None:
             if spooled:

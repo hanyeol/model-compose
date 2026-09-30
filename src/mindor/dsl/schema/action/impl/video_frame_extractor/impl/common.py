@@ -21,6 +21,10 @@ class CommonVideoFrameExtractorActionConfig(CommonActionConfig):
             # `fps` resamples to a uniform grid; combining it with an
             # index-based stride wastes work at best and creates an
             # ambiguous ordering (resample first or stride first?) at worst.
-            if self.frame_interval != 1:
+            # Only compare when both sides are concrete — a template string
+            # like "${input.stride}" never equals 1 as a Python value even
+            # when it resolves to 1 at render time, so the check is deferred
+            # to the driver's post-render validation.
+            if isinstance(self.frame_interval, int) and self.frame_interval != 1:
                 raise ValueError("'fps' and 'frame_interval' are mutually exclusive; set one or the other")
         return self

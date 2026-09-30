@@ -4,6 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import PoseTrackingModelActionConfig
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
@@ -17,13 +18,20 @@ class PoseTrackingTaskAction(ComponentAction):
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames      = await context.render_image_array(self.config.frames)
-        frame_rate  = await context.render_scalar(self.config.frame_rate, float)
+        timestamps  = await context.render_array(self.config.timestamps) if self.config.timestamps is not None else None
         time_offset = await context.render_time(self.config.time_offset, 0.0)
+        frame_rate  = await context.render_scalar(self.config.frame_rate, float)
         batch_size  = await context.render_variable(self.config.batch_size)
         streaming   = await context.render_scalar(self.config.streaming, bool)
 
-        if not frame_rate or frame_rate <= 0:
-            raise ValueError(f"'frame_rate' must be > 0, got {frame_rate}")
+        # `timestamps` overrides both `frame_rate` and `time_offset` — when
+        # set, each frame reads its true pts from the paired stream instead
+        # of the `offset + n/rate` extrapolation, and drivers derive the
+        # merge_gap tolerance from actual pts diffs rather than a fixed
+        # frame period. `frame_rate` is required only when `timestamps` is
+        # unset (both extrapolation and tolerance depend on it).
+        if timestamps is None and (not frame_rate or frame_rate <= 0):
+            raise ValueError(f"'frame_rate' must be > 0 when 'timestamps' is unset, got {frame_rate}")
 
         params = await self._resolve_params(context)
 
@@ -32,8 +40,8 @@ class PoseTrackingTaskAction(ComponentAction):
 
         if isinstance(frames, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_frames, batch_offsets in BatchSourceIterator((frames, time_offset), batch_size=batch_size or 1):
-                    batch_results = await self._track_batch(batch_frames, batch_offsets, frame_rate, streaming, params, context.cancellation_token)
+                async for batch_frames, batch_timestamps, batch_offsets in BatchSourceIterator((frames, timestamps, time_offset), batch_size=batch_size or 1):
+                    batch_results = await self._track_batch(batch_frames, batch_timestamps, batch_offsets, frame_rate, streaming, params, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -48,8 +56,8 @@ class PoseTrackingTaskAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_frames, batch_offsets in BatchSourceIterator((frames, time_offset), batch_size=batch_size or 1):
-                batch_results = await self._track_batch(batch_frames, batch_offsets, frame_rate, streaming, params, context.cancellation_token)
+            async for batch_frames, batch_timestamps, batch_offsets in BatchSourceIterator((frames, timestamps, time_offset), batch_size=batch_size or 1):
+                batch_results = await self._track_batch(batch_frames, batch_timestamps, batch_offsets, frame_rate, streaming, params, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -72,10 +80,11 @@ class PoseTrackingTaskAction(ComponentAction):
         min_pose_size             = await context.render_scalar(self.config.params.min_pose_size, int)
         min_frame_count           = await context.render_scalar(self.config.params.min_frame_count, int)
         max_pose_count_per_frame  = await context.render_scalar(self.config.params.max_pose_count_per_frame, int)
+        bounding_box_padding      = await context.render_scalar(self.config.params.bounding_box_padding, float)
+        bounding_box_smoothing    = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
         merge_gap                 = await context.render_scalar(self.config.params.merge_gap, float)
         skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
         skeleton_background       = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
-        bounding_box_padding      = await context.render_scalar(self.config.bounding_box_padding, float)
         return_tracks             = await context.render_scalar(self.config.return_tracks, bool)
         return_keypoints          = await context.render_scalar(self.config.return_keypoints, bool)
         return_openpose_keypoints = await context.render_scalar(self.config.return_openpose_keypoints, bool)
@@ -94,11 +103,14 @@ class PoseTrackingTaskAction(ComponentAction):
         if not 0.0 <= min_presence_confidence <= 1.0:
             raise ValueError(f"'min_presence_confidence' must be between 0.0 and 1.0, got {min_presence_confidence}")
 
-        if merge_gap < 0.0:
-            raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
-
         if bounding_box_padding < 0.0:
             raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+
+        if bounding_box_smoothing is not None and not 0.0 <= bounding_box_smoothing <= 1.0:
+            raise ValueError(f"'bounding_box_smoothing' must be between 0.0 and 1.0, got {bounding_box_smoothing}")
+
+        if merge_gap < 0.0:
+            raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
 
         if not return_tracks and not return_detections:
             raise ValueError("Either 'return_tracks' or 'return_detections' must be true.")
@@ -112,10 +124,11 @@ class PoseTrackingTaskAction(ComponentAction):
             "min_pose_size":             min_pose_size,
             "min_frame_count":           min_frame_count,
             "max_pose_count_per_frame":  max_pose_count_per_frame,
+            "bounding_box_padding":      bounding_box_padding,
+            "bounding_box_smoothing":    bounding_box_smoothing,
             "merge_gap":                 merge_gap,
             "skeleton_format":           skeleton_format,
             "skeleton_background":       skeleton_background,
-            "bounding_box_padding":      bounding_box_padding,
             "return_tracks":             return_tracks,
             "return_keypoints":          return_keypoints,
             "return_openpose_keypoints": return_openpose_keypoints,
@@ -129,19 +142,23 @@ class PoseTrackingTaskAction(ComponentAction):
     @abstractmethod
     async def _track_batch(
         self,
-        frames_batch: List[ImageArrayValue],
-        offsets_batch: List[float],
+        frames: List[ImageArrayValue],
+        timestamps: Optional[List[ArrayValue]],
+        offsets: List[float],
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
         """Run tracking on a batch of independent frame sequences. Each item in
-        `frames_batch` is one video's ordered frames as an ImageArrayValue; the
-        matching offset in `offsets_batch` is that video's timestamp for its
-        first frame. Returns one item per input video: a tracking result dict
-        when `streaming` is false, or an async iterator yielding per-frame and
-        per-segment events (with a final done event carrying whatever wasn't
-        already streamed) when it is true. The base class wraps the iterator
-        as a StreamChunkIterator and applies per-chunk output rendering."""
+        `frames` is one video's ordered frames as an ImageArrayValue; the
+        matching offset in `offsets` is that video's timestamp for its first
+        frame. `timestamps` optionally pairs one true pts per frame; when set
+        it overrides the `offset + n/rate` extrapolation across every video
+        in the batch. Returns one item per input video: a tracking result
+        dict when `streaming` is false, or an async iterator yielding
+        per-frame and per-segment events (with a final done event carrying
+        whatever wasn't already streamed) when it is true. The base class
+        wraps the iterator as a StreamChunkIterator and applies per-chunk
+        output rendering."""
         pass

@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import (
     VideoProcessorActionConfig,
     VideoScaleMode,
     VideoFlipDirection,
+    VideoFreezePosition,
 )
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
@@ -89,7 +90,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        # ffmpeg pad: pad=out_w:out_h:x:y where (x, y) is the top-left of the source inside the padded canvas.
         video_filter = f"pad=iw+{left + right}:ih+{top + bottom}:{left}:{top}:color={self._format_color(color)}"
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
@@ -115,21 +115,61 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     ) -> VideoStreamResource:
         import math
 
-        # ffmpeg's rotate filter takes radians and rotates clockwise; our schema follows
-        # image_processor's counter-clockwise degrees convention, so negate.
+        # Our schema follows image_processor's counter-clockwise degrees
+        # convention. Multiples of 90° are handled by `transpose`/`hflip`
+        # rather than `rotate` — no resampling, no fill colour, and the
+        # dimensions are exact (swapped for 90/270). Everything else falls
+        # through to the generic `rotate` path below.
+        right_angle_filters = self._right_angle_rotate_filter(angle)
+
+        if right_angle_filters is not None:
+            return await self._run_ffmpeg_filter(video, right_angle_filters, None, encoding, cancellation_token)
+
+        # ffmpeg's rotate filter takes radians and rotates clockwise, so
+        # negate to match the counter-clockwise convention.
         radians = -math.radians(angle)
 
         if expand:
-            # Grow the output canvas to fit the rotated frame (transparent background).
+            # Grow the output canvas to the rotated bounding box using
+            # `rotw(a)`/`roth(a)` — the true rotated size, not a hypot-sized
+            # square that leaves triangular black corners. Round up to even
+            # pixels because yuv420p demands even dimensions. `c=black` makes
+            # the fill explicit; the previous `c=none` implied transparency
+            # but only produces alpha when the output container carries it,
+            # and shows as black on yuv420p output.
             video_filter = (
                 f"rotate={radians}:"
-                f"ow='hypot(iw,ih)':oh='hypot(iw,ih)':"
-                f"c=none"
+                f"ow='2*ceil(rotw({radians})/2)':oh='2*ceil(roth({radians})/2)':"
+                f"c=black"
             )
         else:
             video_filter = f"rotate={radians}"
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
+
+    @staticmethod
+    def _right_angle_rotate_filter(angle: float) -> Optional[str]:
+        """Return a `transpose`/`hflip` chain for multiples of 90°, or None.
+
+        Angles are counter-clockwise degrees; ffmpeg's `transpose=1` is 90°
+        clockwise, so the mapping inverts. Non-multiples fall through to the
+        caller's generic `rotate` path.
+        """
+        angle = angle % 360
+
+        if angle == 0:
+            return "null"
+
+        if angle == 90:
+            return "transpose=2"
+
+        if angle == 180:
+            return "hflip,vflip"
+
+        if angle == 270:
+            return "transpose=1"
+
+        return None
 
     async def _speed(
         self,
@@ -145,6 +185,78 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         audio_filter = self._build_atempo_chain(speed)
 
         return await self._run_ffmpeg_filter(video, video_filter, audio_filter, encoding, cancellation_token)
+
+    async def _fade_in(
+        self,
+        video: MediaSource,
+        start_time: float,
+        duration: float,
+        color: Any,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # `fade=t=in` blends from `color` into the source; `afade=t=in` mirrors
+        # it on the audio so a silent lead-in matches the visual reveal.
+        video_filter = f"fade=t=in:st={start_time}:d={duration}:color={self._format_color(color)}"
+        audio_filter = f"afade=t=in:st={start_time}:d={duration}"
+
+        return await self._run_ffmpeg_filter(video, video_filter, audio_filter, encoding, cancellation_token)
+
+    async def _fade_out(
+        self,
+        video: MediaSource,
+        start_time: float,
+        duration: float,
+        color: Any,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        video_filter = f"fade=t=out:st={start_time}:d={duration}:color={self._format_color(color)}"
+        audio_filter = f"afade=t=out:st={start_time}:d={duration}"
+
+        return await self._run_ffmpeg_filter(video, video_filter, audio_filter, encoding, cancellation_token)
+
+    async def _freeze(
+        self,
+        video: MediaSource,
+        position: VideoFreezePosition,
+        duration: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # `tpad` clones the first/last frame to hold it for `duration` seconds.
+        # Audio is padded with silence via `apad=pad_dur` on the matching end
+        # so the audio track stays in sync with the extended video.
+        if position == VideoFreezePosition.START:
+            video_filter = f"tpad=start_duration={duration}:start_mode=clone"
+            audio_filter = f"adelay={int(duration * 1000)}:all=1"
+        else:
+            video_filter = f"tpad=stop_duration={duration}:stop_mode=clone"
+            audio_filter = f"apad=pad_dur={duration}"
+
+        return await self._run_ffmpeg_filter(video, video_filter, audio_filter, encoding, cancellation_token)
+
+    async def _reverse(
+        self,
+        video: MediaSource,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # `reverse` buffers the entire stream in memory — fine for short clips,
+        # but callers should trim first for long sources. `areverse` mirrors
+        # the audio so playback stays in sync end-to-end.
+        return await self._run_ffmpeg_filter(video, "reverse", "areverse", encoding, cancellation_token)
+
+    async def _fps(
+        self,
+        video: MediaSource,
+        fps: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # `fps` resamples onto a uniform grid, duplicating or dropping frames
+        # as needed. Audio is untouched — timing stays anchored to seconds.
+        return await self._run_ffmpeg_filter(video, f"fps={fps}", None, encoding, cancellation_token)
 
     async def _run_ffmpeg_filter(
         self,

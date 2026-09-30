@@ -6,7 +6,9 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloObjectTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.utils.iterators import async_zip
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import ObjectTrackingTaskAction
@@ -63,8 +65,9 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
     async def _track_batch(
         self,
-        frames_batch: List[ImageArrayValue],
-        offsets_batch: List[float],
+        frames: List[ImageArrayValue],
+        timestamps: Optional[List[ArrayValue]],
+        offsets: List[float],
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
@@ -72,9 +75,10 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
         results: List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]] = []
 
-        for frames, offset in zip(frames_batch, offsets_batch):
+        for index, (frames_, offset) in enumerate(zip(frames, offsets)):
             results.append(await self._track(
-                frames,
+                frames_,
+                timestamps[index] if timestamps is not None else None,
                 float(offset or 0.0),
                 frame_rate,
                 streaming,
@@ -87,6 +91,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     async def _track(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         streaming: bool,
@@ -97,13 +102,14 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         async iterator of per-frame/per-segment/done events; non-streaming
         mode runs to completion and returns the assembled result dict."""
         if streaming:
-            return self._stream_tracks(frames, offset, frame_rate, params, cancellation_token)
+            return self._stream_tracks(frames, timestamps, offset, frame_rate, params, cancellation_token)
 
-        return await self._collect_tracks(frames, offset, frame_rate, params, cancellation_token)
+        return await self._collect_tracks(frames, timestamps, offset, frame_rate, params, cancellation_token)
 
     async def _collect_tracks(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         params: Dict[str, Any],
@@ -111,14 +117,16 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     ) -> Dict[str, Any]:
         track_segments: Dict[int, Dict[str, Any]] = {}
         tracked_frames: List[Dict[str, Any]] = []
+        merge_gap = params["merge_gap"] or 0.0
+        frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
-        def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
+        def _track_frame(image: PILImage.Image, timestamp: float, frame_period: float) -> Dict[str, Any]:
             objects = self._detect_objects_in_frame(image, params)
             tracked_objects, _ = self._add_objects_to_tracks(
                 objects,
                 timestamp,
-                frame_rate,
+                frame_period,
                 track_segments,
                 params
             )
@@ -134,19 +142,28 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
             return tracked_frame
 
-        async for image in frames:
+        previous_frame_timestamp: Optional[float] = None
+
+        async for image, timestamp in async_zip(frames, timestamps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            timestamp = offset + frame_count / frame_rate
-            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
+            if timestamp is not None:
+                timestamp = float(timestamp)
+                if previous_frame_timestamp is not None:
+                    frame_period = timestamp - previous_frame_timestamp
+            else:
+                timestamp = offset + frame_count / frame_rate
+
+            previous_frame_timestamp = timestamp
+            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp, frame_period)
             frame_count += 1
 
             if params["return_detections"]:
                 tracked_frames.append(tracked_frame)
 
         if params["return_detections"]:
-            self._interpolate_missing_objects(tracked_frames, frame_rate, params["merge_gap"] or 0.0)
+            self._interpolate_missing_objects(tracked_frames, frame_rate, merge_gap)
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -162,6 +179,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     async def _stream_tracks(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         params: Dict[str, Any],
@@ -169,7 +187,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         track_segments: Dict[int, Dict[str, Any]] = {}
         merge_gap = params["merge_gap"] or 0.0
-        frame_period = 1.0 / frame_rate
+        frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
         # Frame chunk emission is delayed by `merge_gap` so that a detection in
@@ -187,7 +205,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             tracked_objects, tracked_segments = self._add_objects_to_tracks(
                 objects,
                 timestamp,
-                frame_rate,
+                frame_period,
                 track_segments,
                 params
             )
@@ -226,11 +244,20 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
             return ready
 
-        async for image in frames:
+        previous_frame_timestamp: Optional[float] = None
+
+        async for image, timestamp in async_zip(frames, timestamps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            timestamp = offset + frame_count / frame_rate
+            if timestamp is not None:
+                timestamp = float(timestamp)
+                if previous_frame_timestamp is not None:
+                    frame_period = timestamp - previous_frame_timestamp
+            else:
+                timestamp = offset + frame_count / frame_rate
+
+            previous_frame_timestamp = timestamp
             tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
             frame_count += 1
 
@@ -239,7 +266,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             # pair anchors the linear interpolation across the pending frames
             # in between.
             if params["return_detections"]:
-                for obj, track_id in tracked_frame["tracked_objects"]:
+                for object, track_id in tracked_frame["tracked_objects"]:
                     last_object = last_object_by_track.get(track_id)
                     if last_object is not None:
                         prev_timestamp, prev_object = last_object
@@ -252,9 +279,9 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
                                 prev_timestamp,
                                 prev_object,
                                 timestamp,
-                                obj
+                                object
                             )
-                    last_object_by_track[track_id] = (timestamp, obj)
+                    last_object_by_track[track_id] = (timestamp, object)
 
                 pending_frames.append(tracked_frame)
 
@@ -329,10 +356,10 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         max_object_count_per_frame: int,
     ) -> List[Dict[str, Any]]:
         if min_object_size > 0:
-            objects = [ obj for obj in objects if self._bbox_meets_min_size(obj["bounding_box"], min_object_size) ]
+            objects = [ object for object in objects if self._bounding_box_meets_min_size(object["bounding_box"], min_object_size) ]
 
         if max_object_count_per_frame > 0 and len(objects) > max_object_count_per_frame:
-            objects = sorted(objects, key=lambda obj: obj["score"], reverse=True)[:max_object_count_per_frame]
+            objects = sorted(objects, key=lambda object: object["score"], reverse=True)[:max_object_count_per_frame]
 
         return objects
 
@@ -340,58 +367,70 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         self,
         objects: List[Dict[str, Any]],
         timestamp: float,
-        frame_rate: float,
+        frame_period: float,
         track_segments: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
         """Fold this frame's detections into their tracks' segment histories.
         Association is already done by YOLO's tracker — each object arrives
         with a `track_id` — so this step only extends or seals segments. A
-        track's `current` segment is extended if this frame is within one
-        frame period plus `merge_gap` of the previous one; otherwise the
-        current segment is sealed into `segments` and a fresh one starts. The
-        frame-period baseline means `merge_gap` measures how long an object
-        may go undetected before the segment is split, not how far apart two
-        detections may be — consecutive frames always merge, so `merge_gap=0`
-        does what a user naïvely expects.
+        track's `current` segment is extended if this frame is within
+        `frame_period + merge_gap` of the previous one; otherwise the
+        current segment is sealed into `segments` and a fresh one starts.
+        `frame_period` is the caller-computed gap to the previous frame —
+        `1/frame_rate` when the caller extrapolates timestamps, or the
+        actual pts delta when `timestamps` is set. Either way `merge_gap=0`
+        means "consecutive frames always merge, one missing frame splits".
 
         Returns `(tracked_objects, tracked_segments)`: `tracked_objects` is the
         `(object, track_id)` pairs bound in this frame so the caller can
         materialize a per-frame view; `tracked_segments` is the
         `(track_id, segment)` pairs that were just sealed by these detections
         so streaming callers can emit segment events."""
-        merge_gap = params["merge_gap"] or 0.0
-        frame_period = 1.0 / frame_rate
         tracked_objects: List[Tuple[Dict[str, Any], int]] = []
         tracked_segments: List[Tuple[int, Dict[str, Any]]] = []
+        merge_gap = params["merge_gap"] or 0.0
 
-        for obj in objects:
-            track_id = obj["track_id"]
+        for object in objects:
+            track_id = object["track_id"]
             track = track_segments.setdefault(track_id, {
-                "segments":  [],
-                "current":   None,
-                "last_seen": None,
-                "emitted":   False,
+                "segments":       [],
+                "current":        None,
+                "last_seen":      None,
+                "last_bbox":      None,
+                "emitted":        False,
             })
 
             track["last_seen"] = timestamp
 
             current: Optional[Dict[str, Any]] = track["current"]
-            score = obj["score"]
+            score = object["score"]
 
-            # Absorb ULP-scale jitter: caller derives `timestamp` as
-            # `offset + n/rate` while `frame_period` is `1/rate`, and the two
-            # paths can diverge by up to ~1e-13 for long offsets. `merge_gap`
-            # is measured in seconds, so a microsecond tolerance can't blur any
-            # user-meaningful behavior.
-            if current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6:
+            # 1e-6 tolerance absorbs ULP-scale jitter — timestamp arithmetic
+            # can diverge from the frame period by up to ~1e-13 for long
+            # offsets, and `merge_gap` is in seconds so a microsecond
+            # tolerance can't blur any user-meaningful behavior.
+            in_same_segment = current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6
+
+            # EMA-blend this frame's bbox with the track's previous bbox to
+            # dampen per-frame jitter. Only applied within the same segment —
+            # a new segment starts fresh so a re-detected object doesn't drag
+            # the box from its previous appearance. `bounding_box_smoothing`
+            # is the weight given to the previous frame (0 disables, 1 freezes).
+            if in_same_segment and params["bounding_box_smoothing"] and track["last_bbox"] is not None:
+                bounding_box = self._blend_bounding_box(track["last_bbox"], object["bounding_box"], params["bounding_box_smoothing"])
+                object = { **object, "bounding_box": bounding_box }
+
+            track["last_bbox"] = object["bounding_box"]
+
+            if in_same_segment:
                 current["end"] = timestamp
                 current["frame_count"] += 1
 
                 if score > current["best_object"]["score"]:
-                    current["best_object"] = obj
+                    current["best_object"] = object
 
-                tracked_objects.append((obj, track_id))
+                tracked_objects.append((object, track_id))
 
                 continue
 
@@ -403,12 +442,12 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
                 "start":       timestamp,
                 "end":         timestamp,
                 "frame_count": 1,
-                "best_object": obj,
+                "best_object": object,
             }
 
             track["emitted"] = False
 
-            tracked_objects.append((obj, track_id))
+            tracked_objects.append((object, track_id))
 
         return tracked_objects, tracked_segments
 
@@ -526,7 +565,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
         for current_index, frame in enumerate(tracked_frames):
             timestamp = frame["timestamp"]
-            for obj, track_id in frame["tracked_objects"]:
+            for object, track_id in frame["tracked_objects"]:
                 last_object = last_object_by_track.get(track_id)
                 if last_object is not None:
                     prev_index, prev_timestamp, prev_object = last_object
@@ -539,9 +578,9 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
                             prev_timestamp,
                             prev_object,
                             timestamp,
-                            obj
+                            object
                         )
-                last_object_by_track[track_id] = (current_index, timestamp, obj)
+                last_object_by_track[track_id] = (current_index, timestamp, object)
 
         for frame in tracked_frames:
             frame["tracked_objects"] = frame["tracked_objects"] + frame["interpolated_objects"]
@@ -619,7 +658,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             x1, y1, x2, y2 = boxes_xyxy[index]
             label_id = int(boxes_cls[index])
 
-            obj: Dict[str, Any] = {
+            object: Dict[str, Any] = {
                 "track_id":     int(track_ids[index]),
                 "label":        names[label_id] if label_id in names else None,
                 "label_id":     label_id,
@@ -630,24 +669,24 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             }
 
             if params["return_track_image"]:
-                obj["image_source"] = image
+                object["image_source"] = image
 
-            objects.append(obj)
+            objects.append(object)
 
         return self._filter_objects(objects, params["min_object_size"], params["max_object_count_per_frame"])
 
-    def _crop_object_image(self, obj: Dict[str, Any], padding: float) -> Optional[PILImage.Image]:
+    def _crop_object_image(self, object: Dict[str, Any], padding: float) -> Optional[PILImage.Image]:
         """Crop the object at its bounding box from the source frame. Returns
         None when the source frame wasn't retained on the object (per-segment
         `best_object` currently keeps only metadata; per-frame objects carry
         `image_source` when `return_track_image` is enabled)."""
-        image_source: Optional[PILImage.Image] = obj.get("image_source")
+        image_source: Optional[PILImage.Image] = object.get("image_source")
 
         if image_source is None:
             return None
 
         width, height = image_source.size
-        x1, y1, x2, y2 = obj["bounding_box"]
+        x1, y1, x2, y2 = object["bounding_box"]
 
         if padding > 0.0:
             w = x2 - x1
@@ -804,7 +843,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         return frame
 
     def _serialize_tracked_object(self, tracked_object: Dict[str, Any], track_id: int, params: Dict[str, Any]) -> Dict[str, Any]:
-        obj: Dict[str, Any] = {
+        object: Dict[str, Any] = {
             "track_id":     int(track_id),
             "label":        tracked_object.get("label"),
             "label_id":     tracked_object.get("label_id"),
@@ -816,12 +855,12 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             # Interpolated objects carry the anchor frame's `image_source`, so
             # cropping at the interpolated bbox would show the object from the
             # wrong frame; skip the crop for those and rely on the real anchors.
-            obj["image"] = self._crop_object_image(tracked_object, params["bounding_box_padding"]) if not tracked_object.get("interpolated") else None
+            object["image"] = self._crop_object_image(tracked_object, params["bounding_box_padding"]) if not tracked_object.get("interpolated") else None
 
         if tracked_object.get("interpolated"):
-            obj["interpolated"] = True
+            object["interpolated"] = True
 
-        return obj
+        return object
 
     @staticmethod
     def _serialize_bounding_box(bounding_box: Tuple[int, int, int, int]) -> Dict[str, int]:
@@ -830,7 +869,21 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     @staticmethod
-    def _bbox_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
+    def _blend_bounding_box(
+        prev_bounding_box: Tuple[int, int, int, int],
+        new_bounding_box: Tuple[int, int, int, int],
+        smoothing: float,
+    ) -> Tuple[int, int, int, int]:
+        """EMA-blend `new_bounding_box` toward `prev_bounding_box` and re-quantize to int pixels.
+
+        `smoothing` is the weight given to the previous frame's box, so a
+        larger value produces a heavier tail and a slower response to
+        movement (0 disables, 1 freezes on `prev_bounding_box`).
+        """
+        return tuple(int(round(smoothing * prev_bounding_box[i] + (1.0 - smoothing) * new_bounding_box[i])) for i in range(4))
+
+    @staticmethod
+    def _bounding_box_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
         """Whether both sides of `bounding_box` are at least `min_size` pixels."""
         x1, y1, x2, y2 = bounding_box
 

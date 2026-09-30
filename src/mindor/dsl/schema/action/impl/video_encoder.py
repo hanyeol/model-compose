@@ -6,7 +6,8 @@ from .media import VideoAudioEncodingConfig
 class VideoEncoderActionConfig(CommonActionConfig):
     video: Optional[Union[List[str], str]] = Field(default=None, description="Existing video source or list of sources. Mutually exclusive with `frames`.")
     frames: Optional[Union[List[str], str]] = Field(default=None, description="Frame sequence or list of sequences to encode. Mutually exclusive with `video`.")
-    frame_rate: Optional[Union[int, str]] = Field(default=None, description="Frame rate applied when encoding from `frames`.")
+    timestamps: Optional[Union[List[Union[float, str]], str]] = Field(default=None, description="Per-frame timestamps in seconds paired with `frames`; overrides `frame_rate` pacing when set.")
+    frame_rate: Optional[Union[float, int, str]] = Field(default=None, description="Frame rate applied when encoding from `frames`; ignored when `timestamps` is set.")
     audio: Optional[Union[str, List[str]]] = Field(default=None, description="Audio source or list of sources muxed into the output.")
     encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Encoding settings applied to the output video and audio.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of inputs processed per batch.")
@@ -18,4 +19,6 @@ class VideoEncoderActionConfig(CommonActionConfig):
             raise ValueError("Either 'video' or 'frames' must be set, but not both")
         if values.get("video") and values.get("frame_rate") is not None:
             raise ValueError("'frame_rate' is only valid with 'frames' input")
+        if values.get("video") and values.get("timestamps") is not None:
+            raise ValueError("'timestamps' is only valid with 'frames' input")
         return values

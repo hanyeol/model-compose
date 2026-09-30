@@ -6,7 +6,9 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.utils.iterators import async_zip
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import FaceTrackingTaskAction, FaceEmbedding
@@ -51,8 +53,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
     async def _track_batch(
         self,
-        frames_batch: List[ImageArrayValue],
-        offsets_batch: List[float],
+        frames: List[ImageArrayValue],
+        timestamps: Optional[List[ArrayValue]],
+        offsets: List[float],
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
@@ -60,9 +63,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
         results: List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]] = []
 
-        for frames, offset in zip(frames_batch, offsets_batch):
+        for index, (frames_, offset) in enumerate(zip(frames, offsets)):
             results.append(await self._track(
-                frames,
+                frames_,
+                timestamps[index] if timestamps is not None else None,
                 float(offset or 0.0),
                 frame_rate,
                 streaming,
@@ -75,6 +79,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     async def _track(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         streaming: bool,
@@ -85,13 +90,14 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         async iterator of per-frame/per-segment/done events; non-streaming
         mode runs to completion and returns the assembled result dict."""
         if streaming:
-            return self._stream_tracks(frames, offset, frame_rate, params, cancellation_token)
+            return self._stream_tracks(frames, timestamps, offset, frame_rate, params, cancellation_token)
 
-        return await self._collect_tracks(frames, offset, frame_rate, params, cancellation_token)
+        return await self._collect_tracks(frames, timestamps, offset, frame_rate, params, cancellation_token)
 
     async def _collect_tracks(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         params: Dict[str, Any],
@@ -100,14 +106,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
         tracked_frames: List[Dict[str, Any]] = []
+        frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
-        def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
+        def _track_frame(image: PILImage.Image, timestamp: float, frame_period: float) -> Dict[str, Any]:
             faces = self._detect_faces_in_frame(image, params)
             tracked_faces, _ = self._cluster_faces(
                 faces,
                 timestamp,
-                frame_rate,
+                frame_period,
                 centroids_state,
                 cluster_tracks,
                 params
@@ -124,12 +131,21 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             return tracked_frame
 
-        async for image in frames:
+        previous_frame_timestamp: Optional[float] = None
+
+        async for image, timestamp in async_zip(frames, timestamps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            timestamp = offset + frame_count / frame_rate
-            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
+            if timestamp is not None:
+                timestamp = float(timestamp)
+                if previous_frame_timestamp is not None:
+                    frame_period = timestamp - previous_frame_timestamp
+            else:
+                timestamp = offset + frame_count / frame_rate
+
+            previous_frame_timestamp = timestamp
+            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp, frame_period)
             frame_count += 1
 
             if params["return_detections"]:
@@ -152,6 +168,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     async def _stream_tracks(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         params: Dict[str, Any],
@@ -159,9 +176,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
-        merge_gap = params["merge_gap"] or 0.0
         max_track_distance = params["max_track_distance"] or 0.0
-        frame_period = 1.0 / frame_rate
+        merge_gap = params["merge_gap"] or 0.0
+        frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
         # Frame chunk emission is delayed by `merge_gap` so that a detection in
@@ -179,7 +196,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             tracked_faces, tracked_segments = self._cluster_faces(
                 faces,
                 timestamp,
-                frame_rate,
+                frame_period,
                 centroids_state,
                 cluster_tracks,
                 params
@@ -219,11 +236,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             return ready
 
-        async for image in frames:
+        previous_frame_timestamp: Optional[float] = None
+
+        async for image, timestamp in async_zip(frames, timestamps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            timestamp = offset + frame_count / frame_rate
+            if timestamp is not None:
+                timestamp = float(timestamp)
+                if previous_frame_timestamp is not None:
+                    frame_period = timestamp - previous_frame_timestamp
+            else:
+                timestamp = offset + frame_count / frame_rate
+
+            previous_frame_timestamp = timestamp
             tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
             frame_count += 1
 
@@ -310,7 +336,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         self,
         faces: List[Dict[str, Any]],
         timestamp: float,
-        frame_rate: float,
+        frame_period: float,
         centroids_state: Dict[str, Any],
         cluster_tracks: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
@@ -320,10 +346,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         similarity_threshold     = params["similarity_threshold"] or 0.0
         min_face_size            = params["min_face_size"] or 0
         max_face_count_per_frame = params["max_face_count_per_frame"] or 0
-        merge_gap                = params["merge_gap"] or 0.0
-        frame_period             = 1.0 / frame_rate
         bounding_box_padding     = params["bounding_box_padding"] or 0.0
+        bounding_box_smoothing   = params["bounding_box_smoothing"]
         max_track_distance       = params["max_track_distance"] or 0.0
+        merge_gap                = params["merge_gap"] or 0.0
 
         candidates = self._filter_faces(faces, min_face_size, max_face_count_per_frame)
         centroids: List[np.ndarray] = centroids_state["centroids"]
@@ -335,7 +361,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         # (`tie_margin * overlap`). Since overlap ∈ [0, 1], the term can only
         # flip the order of two pairs whose raw similarity gap is smaller than
         # `tie_margin` — i.e. a near-tie defers to spatial overlap with no
-        # bucket-boundary discontinuities. A cluster's last_bbox is ignored once
+        # bucket-boundary discontinuities. A cluster's last_bounding_box is ignored once
         # it goes stale (`stale_after` seconds without a detection) so long-
         # absent clusters can't win tie-breaks with an ancient position.
         tie_margin: float = 0.05
@@ -358,19 +384,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                     continue
 
                 track = cluster_tracks.get(cluster_id)
-                last_bbox = track.get("last_bbox") if track else None
+                last_bounding_box = track.get("last_bbox") if track else None
                 last_seen = track.get("last_seen") if track else None
                 is_stale = last_seen is None or (timestamp - last_seen) > stale_after
 
                 # A live cluster whose last detection is farther than `max_track_distance`
                 # face-sizes away can't be the same person — reject the pair outright so the
                 # face falls through to a new cluster instead of hijacking this one.
-                if not is_stale and last_bbox is not None and max_track_distance > 0.0:
+                if not is_stale and last_bounding_box is not None and max_track_distance > 0.0:
                     face_size = max(face_bbox[2] - face_bbox[0], face_bbox[3] - face_bbox[1])
-                    if self._bbox_center_distance(face_bbox, last_bbox) > max_track_distance * face_size:
+
+                    if self._bounding_box_center_distance(face_bbox, last_bounding_box) > max_track_distance * face_size:
                         continue
 
-                overlap = 0.0 if is_stale or last_bbox is None else self._bbox_overlap(face_bbox, last_bbox)
+                overlap = 0.0 if is_stale or last_bounding_box is None else self._bounding_box_overlap(face_bbox, last_bounding_box)
                 face_cluster_scores.append((similarity + tie_margin * overlap, face_index, cluster_id))
 
         # Sort by blended score, descending. Do NOT let face_index / cluster_id
@@ -405,7 +432,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 counts.append(1)
                 cluster_id = len(centroids) - 1
 
-            tracked_segment = self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding)
+            face, tracked_segment = self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding, bounding_box_smoothing)
 
             if tracked_segment is not None:
                 tracked_segments.append((cluster_id, tracked_segment))
@@ -421,7 +448,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         max_face_count_per_frame: int
     ) -> List[Dict[str, Any]]:
         if min_face_size > 0:
-            faces = [ face for face in faces if self._bbox_meets_min_size(face["bounding_box"], min_face_size) ]
+            faces = [ face for face in faces if self._bounding_box_meets_min_size(face["bounding_box"], min_face_size) ]
 
         if max_face_count_per_frame > 0 and len(faces) > max_face_count_per_frame:
             faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_face_count_per_frame]
@@ -437,7 +464,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         merge_gap: float,
         frame_period: float,
         bounding_box_padding: float,
-    ) -> Optional[Dict[str, Any]]:
+        bounding_box_smoothing: Optional[float],
+    ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         """Fold a new detection into its cluster's segment history. The
         cluster's `current` segment is extended if this frame is within one
         frame period plus `merge_gap` of the previous one; otherwise the
@@ -453,10 +481,19 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         `_build_detected_faces`, so frames that never become a segment's best
         never pay the crop / PIL-conversion cost.
 
-        Returns the segment that this detection just closed off, or None
-        when the detection only extended the current segment. Streaming
-        callers use the return value to emit segment events; batch callers
-        can ignore it since `track["segments"]` accumulates the same data."""
+        When `bounding_box_smoothing` is set and this detection extends the
+        current segment, the face's bounding box is EMA-blended with the
+        track's previous box to dampen per-frame jitter; a new segment starts
+        fresh so a re-detected person doesn't drag the box from an earlier
+        appearance. The blended box also updates `last_bounding_box`, so downstream
+        tie-break/overlap checks see the smoothed position.
+
+        Returns `(face, segment)`: `face` is the detection dict with its
+        bounding box possibly replaced by the smoothed value, and `segment`
+        is the segment this detection just closed off (or None when the
+        detection only extended the current segment). Streaming callers use
+        the segment return value to emit segment events; batch callers can
+        ignore it since `track["segments"]` accumulates the same data."""
         track = cluster_tracks.setdefault(cluster_id, {
             "segments": [],
             "current": None,
@@ -465,9 +502,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "emitted": False
         })
 
-        track["last_bbox"] = face["bounding_box"]
-        track["last_seen"] = timestamp
-
         current: Optional[Dict[str, Any]] = track["current"]
         score = face["score"]
 
@@ -475,14 +509,23 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         # while `frame_period` is `1/rate`, and the two paths can diverge by up
         # to ~1e-13 for long offsets. `merge_gap` is measured in seconds, so a
         # microsecond tolerance can't blur any user-meaningful behavior.
-        if current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6:
+        in_same_segment = current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6
+
+        if in_same_segment and bounding_box_smoothing and track["last_bbox"] is not None:
+            bounding_box = self._blend_bounding_box(track["last_bbox"], face["bounding_box"], bounding_box_smoothing)
+            face = { **face, "bounding_box": bounding_box }
+
+        track["last_bbox"] = face["bounding_box"]
+        track["last_seen"] = timestamp
+
+        if in_same_segment:
             current["end"] = timestamp
             current["frame_count"] += 1
 
             if score > current["best_face"]["score"]:
                 current["best_face"] = self._build_face_with_image(face, bounding_box_padding)
 
-            return None
+            return face, None
 
         tracked_segment = current
 
@@ -498,7 +541,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         track["emitted"] = False
 
-        return tracked_segment
+        return face, tracked_segment
 
     def _sweep_idle_tracks(
         self,
@@ -684,7 +727,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if max_track_distance > 0.0:
             gap_frames = max(1, int(round(span / frame_period)))
             face_size = max(current_bbox[2] - current_bbox[0], current_bbox[3] - current_bbox[1])
-            if self._bbox_center_distance(prev_bbox, current_bbox) > max_track_distance * face_size * gap_frames:
+
+            if self._bounding_box_center_distance(prev_bbox, current_bbox) > max_track_distance * face_size * gap_frames:
                 return
 
         for index in range(start_index, end_index):
@@ -990,7 +1034,21 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     @staticmethod
-    def _bbox_center_distance(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
+    def _blend_bounding_box(
+        prev_bounding_box: Tuple[int, int, int, int],
+        new_bounding_box: Tuple[int, int, int, int],
+        smoothing: float,
+    ) -> Tuple[int, int, int, int]:
+        """EMA-blend `new_bounding_box` toward `prev_bounding_box` and re-quantize to int pixels.
+
+        `smoothing` is the weight given to the previous frame's box, so a
+        larger value produces a heavier tail and a slower response to
+        movement (0 disables, 1 freezes on `prev_bounding_box`).
+        """
+        return tuple(int(round(smoothing * prev_bounding_box[n] + (1.0 - smoothing) * new_bounding_box[n])) for n in range(4))
+
+    @staticmethod
+    def _bounding_box_center_distance(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
         """Euclidean distance between the centers of two bounding boxes."""
         ax = (a[0] + a[2]) / 2.0
         ay = (a[1] + a[3]) / 2.0
@@ -1000,7 +1058,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
 
     @staticmethod
-    def _bbox_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
+    def _bounding_box_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:
         """Ratio of shared area to combined area of two bounding boxes. Returns 1.0
         for identical boxes and 0.0 for boxes that do not touch."""
         ax1, ay1, ax2, ay2 = a
@@ -1018,7 +1076,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         return intersection / union if union > 0 else 0.0
 
     @staticmethod
-    def _bbox_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
+    def _bounding_box_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
         """Whether both sides of `bounding_box` are at least `min_size` pixels."""
         x1, y1, x2, y2 = bounding_box
 

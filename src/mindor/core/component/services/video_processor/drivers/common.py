@@ -9,6 +9,7 @@ from mindor.dsl.schema.action import (
     VideoProcessorActionMethod,
     VideoScaleMode,
     VideoFlipDirection,
+    VideoFreezePosition,
 )
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.iterators import StreamIterator
@@ -125,6 +126,44 @@ class VideoProcessorAction(ComponentAction):
 
             return { "encoding": encoding, "speed": speed }
 
+        if method in (VideoProcessorActionMethod.FADE_IN, VideoProcessorActionMethod.FADE_OUT):
+            start_time = await context.render_scalar(self.config.start_time, float)
+            duration   = await context.render_scalar(self.config.duration, float)
+            color      = await context.render_variable(self.config.color)
+
+            if duration is None or duration <= 0:
+                raise ValueError(f"'duration' must be positive for '{method.value}' method")
+
+            if start_time is None or start_time < 0:
+                raise ValueError(f"'start_time' must be >= 0 for '{method.value}' method")
+
+            return { "encoding": encoding, "start_time": start_time, "duration": duration, "color": color }
+
+        if method == VideoProcessorActionMethod.FREEZE:
+            position = await context.render_variable(self.config.position)
+            duration = await context.render_scalar(self.config.duration, float)
+
+            try:
+                position = VideoFreezePosition(position)
+            except ValueError:
+                raise ValueError(f"Invalid freeze position: {position}")
+
+            if duration is None or duration <= 0:
+                raise ValueError("'duration' must be positive for 'freeze' method")
+
+            return { "encoding": encoding, "position": position, "duration": duration }
+
+        if method == VideoProcessorActionMethod.REVERSE:
+            return { "encoding": encoding }
+
+        if method == VideoProcessorActionMethod.FPS:
+            fps = await context.render_scalar(self.config.fps, float)
+
+            if fps is None or fps <= 0:
+                raise ValueError("'fps' must be a positive number for 'fps' method")
+
+            return { "encoding": encoding, "fps": fps }
+
         raise ValueError(f"Unsupported video processing action method: {method}")
 
     async def _process_batch(
@@ -205,6 +244,50 @@ class VideoProcessorAction(ComponentAction):
                 cancellation_token,
             )
 
+        if method == VideoProcessorActionMethod.FADE_IN:
+            return await self._fade_in(
+                video,
+                params["start_time"],
+                params["duration"],
+                params["color"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.FADE_OUT:
+            return await self._fade_out(
+                video,
+                params["start_time"],
+                params["duration"],
+                params["color"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.FREEZE:
+            return await self._freeze(
+                video,
+                params["position"],
+                params["duration"],
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.REVERSE:
+            return await self._reverse(
+                video,
+                encoding,
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.FPS:
+            return await self._fps(
+                video,
+                params["fps"],
+                encoding,
+                cancellation_token,
+            )
+
         raise ValueError(f"Unsupported video processing action method: {method}")
 
     @abstractmethod
@@ -272,6 +355,60 @@ class VideoProcessorAction(ComponentAction):
         self,
         video: MediaSource,
         speed: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _fade_in(
+        self,
+        video: MediaSource,
+        start_time: float,
+        duration: float,
+        color: Any,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _fade_out(
+        self,
+        video: MediaSource,
+        start_time: float,
+        duration: float,
+        color: Any,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _freeze(
+        self,
+        video: MediaSource,
+        position: VideoFreezePosition,
+        duration: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _reverse(
+        self,
+        video: MediaSource,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _fps(
+        self,
+        video: MediaSource,
+        fps: float,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

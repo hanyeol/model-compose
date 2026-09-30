@@ -56,7 +56,7 @@ _STILL_IMAGE_CODECS: Set[str] = {
 # YUV in `encoder_supports_yuv_pixel_format`, so any RGB-only encoder that
 # isn't in `_SUPPORTED_PIXEL_FORMATS` must be listed here to opt out.
 _RGB_ONLY_ENCODERS: Set[str] = {
-    "gif", "png", "qtrle",
+    "gif", "png", "apng", "qtrle",
 }
 
 # Pixel formats each encoder accepts. Encoders not listed here are treated as

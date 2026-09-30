@@ -50,7 +50,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         )
 
         duration = await self._get_page_duration()
-        frame_count = int(duration * fps)
+        frame_count = int(duration * fps + 1e-9) + 1
 
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
 
@@ -61,25 +61,52 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
             if use_push:
                 self._clear_ready_signal()  # discard any stray ready() calls from the previous frame
-                seek_task = asyncio.create_task(
-                    self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
-                )
+                seek_task = asyncio.create_task(self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp))
+
                 try:
-                    if frame == 0:
-                        # First frame decides whether the page implements the ready() push
-                        # contract. If no signal arrives in ready_timeout, fall back to the
-                        # legacy sequential path for the rest of the session.
-                        await asyncio.wait_for(self._frame_ready.get(), timeout=ready_timeout)
+                    # Wait for either the page's ready() push or the seek RPC
+                    # itself; the latter surfaces navigation errors (page
+                    # closed, JS threw) that would otherwise hang the get()
+                    # forever. `ready_timeout` applies to every frame — a
+                    # page that pushed once but stalls later must still fail
+                    # fast rather than block the whole render.
+                    ready_task = asyncio.create_task(self._frame_ready.get())
+                    done, _ = await asyncio.wait(
+                        { ready_task, seek_task },
+                        return_when=asyncio.FIRST_COMPLETED,
+                        timeout=ready_timeout,
+                    )
+
+                    if not done:
+                        ready_task.cancel()
+                        raise asyncio.TimeoutError
+
+                    if ready_task in done:
+                        ready_task.result()  # surfaces any exception; discards the timestamp
                     else:
-                        await self._frame_ready.get()
+                        # seek finished before ready(): re-raise seek errors,
+                        # otherwise treat as "page doesn't push" and fall back.
+                        ready_task.cancel()
+                        seek_task.result()
+                        raise asyncio.TimeoutError
                 except asyncio.TimeoutError:
+                    if frame != 0:
+                        # After the first frame the push contract was proven,
+                        # so a stall here is a real failure — don't silently
+                        # switch modes mid-render.
+                        raise RuntimeError(
+                            f"Frame {frame}: page stopped calling window.__renderer.ready() within {ready_timeout}s"
+                        )
+
                     logging.info("Page did not call window.__renderer.ready(); falling back to sequential seek/screenshot.")
+
                     use_push = False
                     await seek_task  # ensure seek finished before capturing
             else:
                 await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
 
             frame_bytes = await self._page.screenshot(**screenshot_params)
+
             yield ImageStreamResource(frame_bytes, format=format), timestamp
 
     async def close(self) -> None:

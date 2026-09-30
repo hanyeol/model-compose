@@ -11,6 +11,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, save_stream_to_temporary_file
 from mindor.core.foundation.streaming.file import FileStreamResource
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video
@@ -141,11 +142,18 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         audio: Optional[MediaSource],
         encoding: VideoAudioEncodingParams,
         frame_rate: Optional[float],
+        timestamps: Optional[ArrayValue],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         format = encoding.format or _DEFAULT_FORMAT
         frame_rate = frame_rate or 30
+
+        # TODO: When `timestamps` is set, drive VFR pacing via
+        # `-vsync passthrough` + per-frame pts (concat demuxer or setpts).
+        # For now the signature accepts the argument so the shape is stable;
+        # image2pipe still produces CFR at `frame_rate`.
+        _ = timestamps
 
         if streaming and not is_streamable_video_format(format.lower()):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)

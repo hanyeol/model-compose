@@ -6,7 +6,9 @@ from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.utils.iterators import async_zip
 from mindor.core.utils.time import format_timecode
 from mindor.core.logger import logging
 from ..common import PoseTrackingTaskAction
@@ -43,8 +45,9 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
     async def _track_batch(
         self,
-        frames_batch: List[ImageArrayValue],
-        offsets_batch: List[float],
+        frames: List[ImageArrayValue],
+        timestamps: Optional[List[ArrayValue]],
+        offsets: List[float],
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
@@ -52,9 +55,10 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
         results: List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]] = []
 
-        for frames, offset in zip(frames_batch, offsets_batch):
+        for index, (frames_, offset) in enumerate(zip(frames, offsets)):
             results.append(await self._track(
-                frames,
+                frames_,
+                timestamps[index] if timestamps is not None else None,
                 float(offset or 0.0),
                 frame_rate,
                 streaming,
@@ -67,6 +71,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     async def _track(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         streaming: bool,
@@ -77,13 +82,14 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         async iterator of per-frame/per-segment/done events; non-streaming
         mode runs to completion and returns the assembled result dict."""
         if streaming:
-            return self._stream_tracks(frames, offset, frame_rate, params, cancellation_token)
+            return self._stream_tracks(frames, timestamps, offset, frame_rate, params, cancellation_token)
 
-        return await self._collect_tracks(frames, offset, frame_rate, params, cancellation_token)
+        return await self._collect_tracks(frames, timestamps, offset, frame_rate, params, cancellation_token)
 
     async def _collect_tracks(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         params: Dict[str, Any],
@@ -91,14 +97,16 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     ) -> Dict[str, Any]:
         track_segments: Dict[int, Dict[str, Any]] = {}
         tracked_frames: List[Dict[str, Any]] = []
+        merge_gap = params["merge_gap"] or 0.0
+        frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
-        def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
+        def _track_frame(image: PILImage.Image, timestamp: float, frame_period: float) -> Dict[str, Any]:
             poses = self._detect_poses_in_frame(image, params)
             tracked_poses, _ = self._add_poses_to_tracks(
                 poses,
                 timestamp,
-                frame_rate,
+                frame_period,
                 track_segments,
                 params
             )
@@ -114,19 +122,28 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
             return tracked_frame
 
-        async for image in frames:
+        previous_frame_timestamp: Optional[float] = None
+
+        async for image, timestamp in async_zip(frames, timestamps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            timestamp = offset + frame_count / frame_rate
-            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
+            if timestamp is not None:
+                timestamp = float(timestamp)
+                if previous_frame_timestamp is not None:
+                    frame_period = timestamp - previous_frame_timestamp
+            else:
+                timestamp = offset + frame_count / frame_rate
+
+            previous_frame_timestamp = timestamp
+            tracked_frame = await self._run_in_executor(_track_frame, image, timestamp, frame_period)
             frame_count += 1
 
             if params["return_detections"]:
                 tracked_frames.append(tracked_frame)
 
         if params["return_detections"]:
-            self._interpolate_missing_poses(tracked_frames, frame_rate, params["merge_gap"] or 0.0)
+            self._interpolate_missing_poses(tracked_frames, frame_rate, merge_gap)
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -142,6 +159,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     async def _stream_tracks(
         self,
         frames: ImageArrayValue,
+        timestamps: Optional[ArrayValue],
         offset: float,
         frame_rate: float,
         params: Dict[str, Any],
@@ -149,7 +167,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         track_segments: Dict[int, Dict[str, Any]] = {}
         merge_gap = params["merge_gap"] or 0.0
-        frame_period = 1.0 / frame_rate
+        frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
         # Frame chunk emission is delayed by `merge_gap` so that a detection in
@@ -167,7 +185,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             tracked_poses, tracked_segments = self._add_poses_to_tracks(
                 poses,
                 timestamp,
-                frame_rate,
+                frame_period,
                 track_segments,
                 params
             )
@@ -206,11 +224,20 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
             return ready
 
-        async for image in frames:
+        previous_frame_timestamp: Optional[float] = None
+
+        async for image, timestamp in async_zip(frames, timestamps):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 break
 
-            timestamp = offset + frame_count / frame_rate
+            if timestamp is not None:
+                timestamp = float(timestamp)
+                if previous_frame_timestamp is not None:
+                    frame_period = timestamp - previous_frame_timestamp
+            else:
+                timestamp = offset + frame_count / frame_rate
+
+            previous_frame_timestamp = timestamp
             tracked_frame = await self._run_in_executor(_track_frame, image, timestamp)
             frame_count += 1
 
@@ -306,7 +333,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         max_pose_count_per_frame: int,
     ) -> List[Dict[str, Any]]:
         if min_pose_size > 0:
-            poses = [ pose for pose in poses if self._bbox_meets_min_size(pose["bounding_box"], min_pose_size) ]
+            poses = [ pose for pose in poses if self._bounding_box_meets_min_size(pose["bounding_box"], min_pose_size) ]
 
         if max_pose_count_per_frame > 0 and len(poses) > max_pose_count_per_frame:
             poses = sorted(poses, key=lambda pose: pose["score"], reverse=True)[:max_pose_count_per_frame]
@@ -317,7 +344,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         self,
         poses: List[Dict[str, Any]],
         timestamp: float,
-        frame_rate: float,
+        frame_period: float,
         track_segments: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
@@ -325,22 +352,22 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         Unlike face_tracking, association is already done by YOLO's tracker —
         each pose arrives with a `track_id` — so this step only extends or
         seals segments. A track's `current` segment is extended if this frame
-        is within one frame period plus `merge_gap` of the previous one;
-        otherwise the current segment is sealed into `segments` and a fresh
-        one starts. The frame-period baseline means `merge_gap` measures how
-        long a person may go undetected before the segment is split, not how
-        far apart two detections may be — consecutive frames always merge, so
-        `merge_gap=0` does what a user naïvely expects.
+        is within `frame_period + merge_gap` of the previous one; otherwise
+        the current segment is sealed into `segments` and a fresh one
+        starts. `frame_period` is the caller-computed gap to the previous
+        frame — `1/frame_rate` when the caller extrapolates timestamps, or
+        the actual pts delta when `timestamps` is set. Either way
+        `merge_gap=0` means "consecutive frames always merge, one missing
+        frame splits".
 
         Returns `(tracked_poses, tracked_segments)`: `tracked_poses` is the
         `(pose, track_id)` pairs bound in this frame so the caller can
         materialize a per-frame view; `tracked_segments` is the
         `(track_id, segment)` pairs that were just sealed by these detections
         so streaming callers can emit segment events."""
-        merge_gap = params["merge_gap"] or 0.0
-        frame_period = 1.0 / frame_rate
         tracked_poses: List[Tuple[Dict[str, Any], int]] = []
         tracked_segments: List[Tuple[int, Dict[str, Any]]] = []
+        merge_gap = params["merge_gap"] or 0.0
 
         for pose in poses:
             track_id = pose["track_id"]
@@ -348,6 +375,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                 "segments":  [],
                 "current":   None,
                 "last_seen": None,
+                "last_bbox": None,
                 "emitted":   False,
             })
 
@@ -357,11 +385,24 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             score = pose["score"]
 
             # Absorb ULP-scale jitter: caller derives `timestamp` as
-            # `offset + n/rate` while `frame_period` is `1/rate`, and the two
-            # paths can diverge by up to ~1e-13 for long offsets. `merge_gap`
-            # is measured in seconds, so a microsecond tolerance can't blur any
-            # user-meaningful behavior.
-            if current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6:
+            # `offset + n/rate` while `1/frame_rate` is the frame period, and
+            # the two paths can diverge by up to ~1e-13 for long offsets.
+            # `merge_gap` is measured in seconds, so a microsecond tolerance
+            # can't blur any user-meaningful behavior.
+            in_same_segment = current is not None and timestamp - current["end"] <= frame_period + merge_gap + 1e-6
+
+            # EMA-blend this frame's bbox with the track's previous bbox to
+            # dampen per-frame jitter. Only applied within the same segment —
+            # a new segment starts fresh so a re-detected pose doesn't drag
+            # the box from its previous appearance. `bounding_box_smoothing`
+            # is the weight given to the previous frame (0 disables, 1 freezes).
+            if in_same_segment and params["bounding_box_smoothing"] and track["last_bbox"] is not None:
+                bounding_box = self._blend_bounding_box(track["last_bbox"], pose["bounding_box"], params["bounding_box_smoothing"])
+                pose = { **pose, "bounding_box": bounding_box }
+
+            track["last_bbox"] = pose["bounding_box"]
+
+            if in_same_segment:
                 current["end"] = timestamp
                 current["frame_count"] += 1
 
@@ -388,6 +429,20 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             tracked_poses.append((pose, track_id))
 
         return tracked_poses, tracked_segments
+
+    @staticmethod
+    def _blend_bounding_box(
+        prev_bounding_box: Tuple[int, int, int, int],
+        new_bounding_box: Tuple[int, int, int, int],
+        smoothing: float,
+    ) -> Tuple[int, int, int, int]:
+        """EMA-blend `new_bounding_box` toward `prev_bounding_box` and re-quantize to int pixels.
+
+        `smoothing` is the weight given to the previous frame's box, so a
+        larger value produces a heavier tail and a slower response to
+        movement (0 disables, 1 freezes on `prev_bounding_box`).
+        """
+        return tuple(int(round(smoothing * prev_bounding_box[i] + (1.0 - smoothing) * new_bounding_box[i])) for i in range(4))
 
     def _sweep_idle_tracks(
         self,
@@ -857,7 +912,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
 
     @staticmethod
-    def _bbox_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
+    def _bounding_box_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:
         """Whether both sides of `bounding_box` are at least `min_size` pixels."""
         x1, y1, x2, y2 = bounding_box
 

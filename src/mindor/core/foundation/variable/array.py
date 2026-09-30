@@ -66,11 +66,6 @@ class ArrayValueRenderer:
                         yield item
             return ArrayValue(_iterate())
 
-        if isinstance(value, (StreamIterator, AsyncIterator)):
-            # Bare async iterator whose elements are the array's elements — wrap
-            # unchanged so ArrayValue delivers them lazily.
-            return ArrayValue(value)
-
         if isinstance(value, (list, tuple)):
             return ArrayValue(list(value))
 

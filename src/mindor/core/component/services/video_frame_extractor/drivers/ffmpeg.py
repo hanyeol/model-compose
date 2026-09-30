@@ -31,6 +31,13 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         keyframe_only = await context.render_scalar(self.config.keyframe_only, bool)
 
+        # Schema-level check only fires when `keyframe_only` is a concrete
+        # bool; template strings ("${...}") slip past it. Repeat here so a
+        # template that resolves to `fps=30, keyframe_only=true` errors
+        # instead of silently dropping the keyframe filter.
+        if params["fps"] is not None and keyframe_only:
+            raise ValueError("'fps' and 'keyframe_only' are mutually exclusive; set one or the other")
+
         params.update({
             "keyframe_only": keyframe_only,
         })

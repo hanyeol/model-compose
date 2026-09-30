@@ -9,6 +9,7 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.image import ImageStreamResource
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -62,11 +63,17 @@ class VideoEncoderAction(ComponentAction):
         return (video, audio), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        frame_rate = await context.render_variable(self.config.frame_rate)
-        encoding   = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
+        frame_rate = await context.render_scalar(self.config.frame_rate, float)
+        timestamps = await context.render_array(self.config.timestamps) if self.config.timestamps is not None else None
+
+        if self.config.encoding:
+            encoding = await VideoAudioEncodingResolver().resolve(context, self.config.encoding)
+        else:
+            encoding = VideoAudioEncodingParams()
 
         return {
             "frame_rate": frame_rate,
+            "timestamps": timestamps,
             "encoding":   encoding,
         }
 
@@ -84,7 +91,7 @@ class VideoEncoderAction(ComponentAction):
             audio = audios[index] if audios is not None else None
 
             if isinstance(video, ImageArrayValue):
-                results.append(await self._encode_from_frames(video, audio, params["encoding"], params["frame_rate"], streaming, cancellation_token))
+                results.append(await self._encode_from_frames(video, audio, params["encoding"], params["frame_rate"], params["timestamps"], streaming, cancellation_token))
             else:
                 results.append(await self._encode_from_video(video, audio, params["encoding"], streaming, cancellation_token))
 
@@ -108,6 +115,7 @@ class VideoEncoderAction(ComponentAction):
         audio: Optional[MediaSource],
         encoding: VideoAudioEncodingParams,
         frame_rate: Optional[float],
+        timestamps: Optional[ArrayValue],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

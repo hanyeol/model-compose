@@ -79,11 +79,14 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             input_path, spooled = await MediaInputPathResolver().resolve(video)
             format = video.format.lower() if video.format else await self._resolve_format(input_path)
 
-            # When merging, cut each clip to an ISO-BMFF container (mp4/mov) so
-            # concat sees stable per-clip A/V durations regardless of the final
-            # output format. mpegts intermediates would silently drop audio at
-            # the tail of every clip, and the drift would compound at each
-            # concat seam. The final container is applied in the concat step.
+            # When merging, cut each clip to a container that keeps stable
+            # per-clip A/V durations regardless of the final output format
+            # (mp4/mov for the common case, mkv for alpha-carrying vp8/vp9 so
+            # the mp4 muxer doesn't strip alpha, mov for prores/dnxhd — see
+            # `_resolve_intermediate_format`). mpegts intermediates would
+            # silently drop audio at the tail of every clip, and the drift
+            # would compound at each concat seam. The final container is
+            # applied in the concat step.
             clip_format = await self._resolve_intermediate_format(input_path) if merge else format
 
             clips = self._clip(

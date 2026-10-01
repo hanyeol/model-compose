@@ -42,6 +42,14 @@ component:
   # available for the active submodules.
   cpu_offload: true
   max_concurrent_count: 1
+  # MiniMaxH3Transformer3DModel ships in a diffusers build newer than most
+  # controllers have installed. The driver adds that pin to this component's
+  # setup requirements, so isolate the worker to keep it from shadowing the
+  # controller's `diffusers` install.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/minimax-h3
   action:
     prompt: ${input.prompt}
     negative_prompt: ${input.negative_prompt}

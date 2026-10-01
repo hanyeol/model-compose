@@ -19,7 +19,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
     render call. The parent service owns the shared browser process."""
     def __init__(self, page: Any):
         self._page = page
-        self._frame_ready: asyncio.Queue = asyncio.Queue()
+        self._render_signals: asyncio.Queue = asyncio.Queue()
 
     async def render_frames(
         self,
@@ -27,12 +27,12 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> AsyncIterator[Tuple[ImageStreamResource, float]]:
-        fps           = params["fps"]
-        width         = params["width"]
-        height        = params["height"]
-        format        = params["format"]
-        quality       = params["quality"]
-        ready_timeout = params["ready_timeout"]
+        fps            = params["fps"]
+        width          = params["width"]
+        height         = params["height"]
+        format         = params["format"]
+        quality        = params["quality"]
+        render_timeout = params["render_timeout"]
 
         screenshot_params: Dict[str, Any] = { "type": format }
 
@@ -40,13 +40,13 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             screenshot_params["quality"] = quality
 
         await self._page.set_viewport_size({"width": width, "height": height})
-        await self._page.expose_binding("__renderer_ready", lambda source, t: self._frame_ready.put_nowait(t))
+        await self._page.expose_binding("__renderer_frame_done", lambda source, t: self._render_signals.put_nowait(t))
         await self._inject_bootstrap(props)
         await self._page.goto(html.url)
 
         await self._page.wait_for_function(
             "typeof window.__renderer?.seek === 'function'",
-            timeout=ready_timeout * 1000,
+            timeout=render_timeout * 1000,
         )
 
         duration = await self._get_page_duration()
@@ -54,53 +54,65 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
 
-        use_push = True
+        use_render_signal = True
 
         for frame in range(frame_count):
             timestamp = frame / fps
 
-            if use_push:
-                self._clear_ready_signal()  # discard any stray ready() calls from the previous frame
+            if use_render_signal:
+                self._clear_render_signals()  # discard any stray rendered() calls from the previous frame
                 seek_task = asyncio.create_task(self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp))
 
                 try:
-                    # Wait for either the page's ready() push or the seek RPC
-                    # itself; the latter surfaces navigation errors (page
-                    # closed, JS threw) that would otherwise hang the get()
-                    # forever. `ready_timeout` applies to every frame — a
-                    # page that pushed once but stalls later must still fail
-                    # fast rather than block the whole render.
-                    ready_task = asyncio.create_task(self._frame_ready.get())
-                    done, _ = await asyncio.wait(
-                        { ready_task, seek_task },
-                        return_when=asyncio.FIRST_COMPLETED,
-                        timeout=ready_timeout,
-                    )
+                    # Wait for the page's rendered() signal. The seek RPC returning
+                    # first just means the function call returned — the paint can
+                    # still be a rAF away, so keep waiting for rendered() up to the
+                    # remaining budget. We still watch `seek_task` so navigation
+                    # errors (page closed, JS threw) surface instead of hanging.
+                    render_signal_task = asyncio.create_task(self._render_signals.get())
+                    deadline = asyncio.get_running_loop().time() + render_timeout
+                    seek_done = False
 
-                    if not done:
-                        ready_task.cancel()
-                        raise asyncio.TimeoutError
+                    while True:
+                        remaining = deadline - asyncio.get_running_loop().time()
 
-                    if ready_task in done:
-                        ready_task.result()  # surfaces any exception; discards the timestamp
-                    else:
-                        # seek finished before ready(): re-raise seek errors,
-                        # otherwise treat as "page doesn't push" and fall back.
-                        ready_task.cancel()
-                        seek_task.result()
+                        if remaining <= 0:
+                            render_signal_task.cancel()
+                            raise asyncio.TimeoutError
+
+                        pending = { render_signal_task } if seek_done else { render_signal_task, seek_task }
+                        done, _ = await asyncio.wait(
+                            pending,
+                            return_when=asyncio.FIRST_COMPLETED,
+                            timeout=remaining,
+                        )
+
+                        if render_signal_task in done:
+                            render_signal_task.result()  # surfaces exceptions; discards the timestamp
+                            break
+
+                        if seek_task in done:
+                            # Re-raise seek errors; a plain success just means the
+                            # RPC returned — keep waiting for rendered().
+                            seek_task.result()
+                            seek_done = True
+                            continue
+
+                        # Timeout.
+                        render_signal_task.cancel()
                         raise asyncio.TimeoutError
                 except asyncio.TimeoutError:
                     if frame != 0:
-                        # After the first frame the push contract was proven,
+                        # After the first frame the rendered() contract was proven,
                         # so a stall here is a real failure — don't silently
                         # switch modes mid-render.
                         raise RuntimeError(
-                            f"Frame {frame}: page stopped calling window.__renderer.ready() within {ready_timeout}s"
+                            f"Frame {frame}: page stopped calling window.__renderer.rendered() within {render_timeout}s"
                         )
 
-                    logging.info("Page did not call window.__renderer.ready(); falling back to sequential seek/screenshot.")
+                    logging.info("Page did not call window.__renderer.rendered(); falling back to sequential seek/screenshot.")
 
-                    use_push = False
+                    use_render_signal = False
                     await seek_task  # ensure seek finished before capturing
             else:
                 await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
@@ -120,13 +132,13 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         - `props` (if given) becomes ``window.__renderer.props``,
           giving the page read-only access to workflow-provided data.
-        - `ready(t)` bridges to the server binding so pages can push a
+        - `rendered(t)` bridges to the server binding so pages can push a
           "frame is painted" signal instead of forcing the server to await
           seek()'s RPC response before requesting the screenshot.
         """
         scripts = [
             "window.__renderer = window.__renderer || {};",
-            "window.__renderer.ready = (t) => window.__renderer_ready(t);",
+            "window.__renderer.rendered = (t) => window.__renderer_frame_done(t);",
         ]
 
         if props is not None:
@@ -142,10 +154,10 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         return duration
 
-    def _clear_ready_signal(self) -> None:
-        while not self._frame_ready.empty():
+    def _clear_render_signals(self) -> None:
+        while not self._render_signals.empty():
             try:
-                self._frame_ready.get_nowait()
+                self._render_signals.get_nowait()
             except asyncio.QueueEmpty:
                 break
 

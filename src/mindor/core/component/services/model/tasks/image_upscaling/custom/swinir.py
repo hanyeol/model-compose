@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, SwinIRImageUpscaleModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, SwinIRImageUpscalingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
-from ..common import ImageUpscaleTaskAction
+from ..common import ImageUpscalingTaskAction
 from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
@@ -16,12 +16,12 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    config: SwinIRImageUpscaleModelActionConfig
+class SwinIRImageUpscalingTaskAction(ImageUpscalingTaskAction):
+    config: SwinIRImageUpscalingModelActionConfig
 
     def __init__(
         self,
-        config: SwinIRImageUpscaleModelActionConfig,
+        config: SwinIRImageUpscalingModelActionConfig,
         model: SwinIR,
         device: Optional[torch.device]
     ):
@@ -167,7 +167,7 @@ class SwinIRImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return output
 
-class SwinIRImageUpscaleTaskDriver(ModelTaskDriver):
+class SwinIRImageUpscalingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -209,4 +209,4 @@ class SwinIRImageUpscaleTaskDriver(ModelTaskDriver):
         return params
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await SwinIRImageUpscaleTaskAction(action, self.model, self.device).run(context)
+        return await SwinIRImageUpscalingTaskAction(action, self.model, self.device).run(context)

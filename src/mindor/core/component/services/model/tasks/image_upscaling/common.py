@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Literal, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import ImageUpscaleModelActionConfig, ColorFormat
+from mindor.dsl.schema.action import ImageUpscalingModelActionConfig, ColorFormat
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -22,9 +22,9 @@ _RESAMPLE_MAP = {
     "lanczos": PILImage.Resampling.LANCZOS,
 }
 
-class ImageUpscaleTaskAction(ComponentAction):
-    def __init__(self, config: ImageUpscaleModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageUpscaleModelActionConfig = config
+class ImageUpscalingTaskAction(ComponentAction):
+    def __init__(self, config: ImageUpscalingModelActionConfig, device: Optional[torch.device]):
+        self.config: ImageUpscalingModelActionConfig = config
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

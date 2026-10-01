@@ -20,7 +20,7 @@ class ModelTaskType(str, Enum):
     IMAGE_GENERATION         = "image-generation"
     IMAGE_EMBEDDING          = "image-embedding"
     VIDEO_EMBEDDING          = "video-embedding"
-    IMAGE_UPSCALE            = "image-upscale"
+    IMAGE_UPSCALING          = "image-upscaling"
     IMAGE_BACKGROUND_REMOVAL = "image-background-removal"
     IMAGE_SEGMENTATION       = "image-segmentation"
     TEXT_TO_VIDEO            = "text-to-video"

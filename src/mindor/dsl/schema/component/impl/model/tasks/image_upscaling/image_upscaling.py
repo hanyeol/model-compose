@@ -2,9 +2,9 @@ from typing import Union, Annotated
 from pydantic import Field
 from .impl import *
 
-ImageUpscaleModelComponentConfig = Annotated[
+ImageUpscalingModelComponentConfig = Annotated[
     Union[
-        CustomImageUpscaleModelComponentConfig,
+        CustomImageUpscalingModelComponentConfig,
     ],
     Field(discriminator="driver")
 ]

@@ -7,11 +7,11 @@ class ColorFormat(str, Enum):
     RGB = "rgb"
     BGR = "bgr"
 
-class CommonImageUpscaleParamsConfig(BaseModel):
+class CommonImageUpscalingParamsConfig(BaseModel):
     pass
 
-class CommonImageUpscaleModelActionConfig(CommonModelActionConfig):
+class CommonImageUpscalingModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to upscale.")
     color_format: ColorFormat = Field(default=ColorFormat.RGB, description="Color channel order used by the model.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input images processed per batch.")
-    params: CommonImageUpscaleParamsConfig = Field(..., description="Backend-specific image upscale parameters.")
+    params: CommonImageUpscalingParamsConfig = Field(..., description="Backend-specific image upscaling parameters.")

@@ -17,7 +17,7 @@ ModelComponentConfig = Annotated[
         ImageGenerationModelComponentConfig,
         ImageEmbeddingModelComponentConfig,
         VideoEmbeddingModelComponentConfig,
-        ImageUpscaleModelComponentConfig,
+        ImageUpscalingModelComponentConfig,
         ImageBackgroundRemovalModelComponentConfig,
         ImageSegmentationModelComponentConfig,
         TextToVideoModelComponentConfig,

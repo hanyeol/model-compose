@@ -3,12 +3,12 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, EsrganImageUpscaleModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, EsrganImageUpscalingModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ....base import ComponentActionContext, ModelTaskDriver
-from ..common import ImageUpscaleTaskAction
+from ..common import ImageUpscalingTaskAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -16,12 +16,12 @@ if TYPE_CHECKING:
     from torch import Tensor
     import torch
 
-class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    config: EsrganImageUpscaleModelActionConfig
+class EsrganImageUpscalingTaskAction(ImageUpscalingTaskAction):
+    config: EsrganImageUpscalingModelActionConfig
 
     def __init__(
         self,
-        config: EsrganImageUpscaleModelActionConfig,
+        config: EsrganImageUpscalingModelActionConfig,
         model: RRDBNet,
         device: Optional[torch.device]
     ):
@@ -147,7 +147,7 @@ class EsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return output
 
-class EsrganImageUpscaleTaskDriver(ModelTaskDriver):
+class EsrganImageUpscalingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -184,4 +184,4 @@ class EsrganImageUpscaleTaskDriver(ModelTaskDriver):
         return model, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await EsrganImageUpscaleTaskAction(action, self.model, self.device).run(context)
+        return await EsrganImageUpscalingTaskAction(action, self.model, self.device).run(context)

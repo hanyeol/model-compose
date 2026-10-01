@@ -1,8 +1,8 @@
 from typing import Union
 from pydantic import Field
-from ..common import CommonImageUpscaleModelActionConfig, CommonImageUpscaleParamsConfig
+from ..common import CommonImageUpscalingModelActionConfig, CommonImageUpscalingParamsConfig
 
-class SwinIRImageUpscaleParamsConfig(CommonImageUpscaleParamsConfig):
+class SwinIRImageUpscalingParamsConfig(CommonImageUpscalingParamsConfig):
     task: str = Field(default="real_sr", description="SwinIR task variant (e.g., real_sr, classical_sr, dn).")
     tile_size: Union[int, str] = Field(default=None, description="Tile size in pixels used to process large images.")
     tile_overlap: Union[int, str] = Field(default=32, description="Overlap in pixels between adjacent tiles.")
@@ -10,5 +10,5 @@ class SwinIRImageUpscaleParamsConfig(CommonImageUpscaleParamsConfig):
     window_size: Union[int, str] = Field(default=8, description="Attention window size used by the SwinIR model.")
     jpeg_quality: Union[int, str] = Field(default=40, description="JPEG quality assumed by the compression-artifact-removal task.")
 
-class SwinIRImageUpscaleModelActionConfig(CommonImageUpscaleModelActionConfig):
-    params: SwinIRImageUpscaleParamsConfig = Field(default_factory=SwinIRImageUpscaleParamsConfig)
+class SwinIRImageUpscalingModelActionConfig(CommonImageUpscalingModelActionConfig):
+    params: SwinIRImageUpscalingParamsConfig = Field(default_factory=SwinIRImageUpscalingParamsConfig)

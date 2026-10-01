@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import ModelComponentConfig
-from mindor.dsl.schema.action import ModelActionConfig, RealEsrganImageUpscaleModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, RealEsrganImageUpscalingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.logger import logging
-from ..common import ImageUpscaleTaskAction
+from ..common import ImageUpscalingTaskAction
 from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
 
@@ -15,12 +15,12 @@ if TYPE_CHECKING:
     from RealESRGAN import RealESRGAN
     import torch
 
-class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
-    config: RealEsrganImageUpscaleModelActionConfig
+class RealEsrganImageUpscalingTaskAction(ImageUpscalingTaskAction):
+    config: RealEsrganImageUpscalingModelActionConfig
 
     def __init__(
         self,
-        config: RealEsrganImageUpscaleModelActionConfig,
+        config: RealEsrganImageUpscalingModelActionConfig,
         model: RealESRGAN,
         device: Optional[torch.device]
     ):
@@ -69,7 +69,7 @@ class RealEsrganImageUpscaleTaskAction(ImageUpscaleTaskAction):
 
         return await self._run_in_executor(_upscale)
 
-class RealEsrganImageUpscaleTaskDriver(ModelTaskDriver):
+class RealEsrganImageUpscalingTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
@@ -117,4 +117,4 @@ class RealEsrganImageUpscaleTaskDriver(ModelTaskDriver):
         return model, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await RealEsrganImageUpscaleTaskAction(action, self.model, self.device).run(context)
+        return await RealEsrganImageUpscalingTaskAction(action, self.model, self.device).run(context)

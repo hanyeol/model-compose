@@ -1,0 +1,69 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: MiniMax-H3 Text-to-Video
+  description: Generate a short clip with native stereo audio from a text prompt using MiniMax-H3.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  # MiniMax-H3 Omni-Transformer (text + reference + audio + video packed into a
+  # single sequence). Produces 24 fps video and 32 kHz stereo audio in one call.
+  family: minimax-h3
+  device: cuda
+  # Checkpoint on Hugging Face; defaults to `MiniMaxAI/MiniMax-H3`. Requires a
+  # diffusers build that ships `MiniMaxH3Transformer3DModel` (>= 0.36). The
+  # provisioner caches the shards under the component's model cache; weights
+  # are large (~70 GB total — base transformer, Qwen3-VL text encoder, VAE,
+  # audio VAE). Override `model:` to point at a fork or a local path.
+  # model:
+  #   provider: huggingface
+  #   repository: MiniMaxAI/MiniMax-H3
+  # Attention backend for the main transformer blocks.
+  #   torch (default) — diffusers' standard SDPA / FlashAttention dispatch,
+  #     runs on every CUDA GPU.
+  #   sol             — Sol-Attn sparse attention via a compiled flex_attention
+  #     kernel, validated on NVIDIA Blackwell consumer SM120 (RTX 5090 /
+  #     RTX PRO 6000). Non-SM120 hosts fall back to dense attention per call.
+  # backend: sol
+  # Offload submodules to CPU during generation to fit on single-GPU hosts
+  # (the Omni-Transformer alone is ~33B parameters). Disable when all VRAM is
+  # available for the active submodules.
+  cpu_offload: true
+  max_concurrent_count: 1
+  action:
+    prompt: ${input.prompt}
+    negative_prompt: ${input.negative_prompt}
+    seed: ${input.seed as integer}
+    params:
+      # Native output is 24 fps. The model was trained at this frame rate;
+      # changing fps re-encodes the mp4 but does not resample frames.
+      fps: ${input.fps as integer | 24}
+      # Short-side 768 is the model's default; 2K generation needs the
+      # separate H3-Regenerate-2K stage not wired up in this example.
+      width: ${input.width as integer | 1280}
+      height: ${input.height as integer | 720}
+      # 24 fps × 4-15 s window → 96..360 frames. Longer clips grow the packed
+      # sequence quadratically in attention cost.
+      num_frames: ${input.num_frames as integer | 96}
+      inference_steps: ${input.inference_steps as integer | 50}
+      guidance_scale: ${input.guidance_scale as float | 5.0}
+      # Sol-Attn tuning overrides, only consulted when `backend: sol` is set
+      # on the component above. The defaults below are already applied when
+      # the backend is sol and this block is omitted.
+      # sol_attn:
+      #   tau: 1.0            # routing threshold scale; higher skips more KV blocks
+      #   thresh_type: diag   # `diag` is faster, `exact` is more precise
+      #   dense_steps: 1      # last N denoising steps run fully dense
+      #   step_off: 0.0       # alternative to dense_steps: dense fraction at the tail

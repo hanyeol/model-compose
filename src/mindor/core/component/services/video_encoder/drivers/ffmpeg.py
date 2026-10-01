@@ -13,6 +13,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.channels.subprocess_stream import SubprocessStreamChannel
+from mindor.core.utils.iterators import async_zip
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.ffmpeg.codecs import (
@@ -150,12 +151,6 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         format = encoding.format or _DEFAULT_FORMAT
         frame_rate = frame_rate or 30
 
-        # TODO: When `timestamps` is set, drive VFR pacing via
-        # `-vsync passthrough` + per-frame pts (concat demuxer or setpts).
-        # For now the signature accepts the argument so the shape is stable;
-        # image2pipe still produces CFR at `frame_rate`.
-        _ = timestamps
-
         if streaming and not is_streamable_video_format(format.lower()):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
             streaming = False
@@ -179,14 +174,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 fd_channels.append(channel)
                 audio_input = f"pipe:{channel.read_fd}"
 
-        # Peek the first frame so we know the source height before building the
-        # encode command — needed for BT.709/601 matrix selection. `resolution`
-        # in `encoding` takes precedence when set (that's the final output size,
-        # and encoding a 640×360 source with resolution=1280x720 needs BT.709
-        # tagging so HD-assuming players don't render it with 601); otherwise
-        # the first frame's pixel height is authoritative. Peeking is
-        # unavoidable here because the encoder's ffmpeg process needs its
-        # `-color_*` flags decided before the first frame reaches it.
+        # Peek the first frame for the source height — needed to pick the BT.709/601 matrix
+        # before the ffmpeg process starts. `encoding.resolution` wins when set.
         frames_iterator = frames.__aiter__()
         first_frame = await self._peek_next_frame(frames_iterator)
         source_height = await self._resolve_source_height(encoding, first_frame)
@@ -214,17 +203,62 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 except FileNotFoundError:
                     pass
 
-        async def _source_iterator() -> AsyncIterator[bytes]:
-            # Replay the peeked frame first, then drain the rest of the iterator.
+        async def _stream_frames() -> AsyncIterator[ImageStreamResource]:
+            # Rejoin the peeked first frame with the rest of the iterator so
+            # downstream consumers see one unbroken frame stream.
             if first_frame is not None:
-                async with first_frame:
-                    async for chunk in first_frame:
-                        yield chunk
+                yield first_frame
 
             async for frame in frames_iterator:
-                async with frame:
-                    async for chunk in frame:
-                        yield chunk
+                yield frame
+
+        async def _source_iterator() -> AsyncIterator[bytes]:
+            if timestamps is not None:
+                # VFR → CFR pacing: emit each frame `round(t[i+1]*fps) - round(t[i]*fps)` times.
+                # The first timestamp is normalized to 0, so audio muxed separately may need its own offset.
+                first_timestamp: Optional[float] = None
+                previous_frame_bytes: Optional[bytes] = None
+                previous_frame_index = 0
+                previous_timestamp = 0.0
+
+                async for frame, timestamp in async_zip(_stream_frames(), timestamps):
+                    timestamp = float(timestamp)
+
+                    if first_timestamp is None:
+                        first_timestamp = timestamp
+
+                    timestamp -= first_timestamp
+
+                    if timestamp < previous_timestamp:
+                        raise ValueError(
+                            f"timestamps must be non-decreasing; got {timestamp + first_timestamp} after {previous_timestamp + first_timestamp}"
+                        )
+
+                    current_frame_index = round(timestamp * float(frame_rate))
+
+                    if previous_frame_bytes is not None:
+                        for _ in range(current_frame_index - previous_frame_index):
+                            yield previous_frame_bytes
+
+                    frame_bytes = bytearray()
+
+                    async with frame:
+                        async for chunk in frame:
+                            frame_bytes.extend(chunk)
+
+                    previous_frame_bytes = bytes(frame_bytes)
+                    previous_frame_index = current_frame_index
+                    previous_timestamp = timestamp
+
+                # Final frame has no successor to size against; emit once.
+                if previous_frame_bytes is not None:
+                    yield previous_frame_bytes
+            else:
+                # No timestamps: CFR path — pipe raw frame bytes through at `frame_rate`.
+                async for frame in _stream_frames():
+                    async with frame:
+                        async for chunk in frame:
+                            yield chunk
 
         source = _source_iterator()
 

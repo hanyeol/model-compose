@@ -8,4 +8,8 @@ class CustomTextToVideoTaskDriver:
             from .wan import WanTextToVideoTaskDriver
             return WanTextToVideoTaskDriver(id, config, daemon)
 
+        if config.family == TextToVideoModelFamily.MINIMAX_H3:
+            from .minimax_h3.minimax_h3 import MinimaxH3TextToVideoTaskDriver
+            return MinimaxH3TextToVideoTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

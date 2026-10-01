@@ -145,6 +145,7 @@ class ControllerService(AsyncService):
         with cls._shared_instance_lock:
             if cls._shared_instance is None:
                 cls._shared_instance = super().__new__(cls)
+
         return cls._shared_instance
 
     @classmethod

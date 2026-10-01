@@ -57,6 +57,16 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             timeout=ready_timeout * 1000,
         )
 
+        # Wait for webfonts before the first seek so FOUT doesn't bleed across frames.
+        # Capped by `ready_timeout` so a dead font host can't stall the render.
+        await self._page.evaluate(
+            "(timeoutMs) => Promise.race(["
+            "document.fonts.ready, "
+            "new Promise(resolve => setTimeout(resolve, timeoutMs))"
+            "])",
+            int(ready_timeout * 1000),
+        )
+
         duration = await self._get_page_duration()
         frame_count = int(duration * fps + 0.5)
 

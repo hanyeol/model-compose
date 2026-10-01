@@ -1740,7 +1740,7 @@ Segments are sorted by `score` in descending order and truncated to `max_segment
 
 ### Text to Video
 
-Generate a short video clip from a text prompt. This task uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
+Generate a short video clip from a text prompt. This task uses `driver: custom` with a `family` field to select the model family; `wan` additionally takes a `preset` field to select the checkpoint variant, and `minimax-h3` takes a `backend` field to select the attention backend.
 
 **Component Settings:**
 
@@ -1748,11 +1748,13 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `text-to-video` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (currently `wan`) |
-| `preset` | string | `t2v-a14b` | Checkpoint preset (`t2v-a14b`, `ti2v-5b`) |
-| `model` | string | **required** | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
+| `family` | string | **required** | Model family (`wan`, `minimax-h3`) |
+| `preset` | string | `t2v-a14b` | **wan only.** Checkpoint preset (`t2v-a14b`, `ti2v-5b`) |
+| `backend` | string | `torch` | **minimax-h3 only.** Attention backend (`torch`, `sol`) |
+| `cpu_offload` | bool | `false` | **minimax-h3 only.** Offload submodules to CPU to save VRAM |
+| `model` | string | **required** for `wan`, defaults to `MiniMaxAI/MiniMax-H3` for `minimax-h3` | Model identifier — a HuggingFace repo ID or a local checkpoint directory |
 
-**Action Fields:**
+**Action Fields (wan):**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -1768,7 +1770,26 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 | `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
 | `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
 
-**Example:**
+**Action Fields (minimax-h3):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Text description of the video to generate |
+| `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of prompts processed per batch |
+| `params.num_frames` | int | `81` | Number of frames to generate |
+| `params.fps` | int | `24` | Output video frame rate |
+| `params.width` | int | `1280` | Output video width in pixels |
+| `params.height` | int | `720` | Output video height in pixels |
+| `params.inference_steps` | int | `50` | Number of diffusion inference steps |
+| `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
+| `params.sol_attn.tau` | float | `1.0` | **sol backend only.** Sol-Attn routing threshold scale (τ); higher skips more KV blocks |
+| `params.sol_attn.thresh_type` | string | `diag` | **sol backend only.** Threshold estimation mode (`diag`, `exact`) |
+| `params.sol_attn.dense_steps` | int | `null` | **sol backend only.** Run the last N denoising steps fully dense |
+| `params.sol_attn.step_off` | float | `null` | **sol backend only.** Dense fraction at the tail of the schedule |
+
+**Example (wan):**
 
 ```yaml
 component:
@@ -1790,16 +1811,40 @@ component:
       guidance_scale: 5.0
 ```
 
+**Example (minimax-h3):**
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  backend: sol        # default: torch
+  cpu_offload: true
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    params:
+      inference_steps: 50
+      guidance_scale: 5.0
+      sol_attn:       # only consulted when backend: sol
+        tau: 1.0
+        thresh_type: diag
+        dense_steps: 1
+```
+
 #### Supported families
 
-| Family | Preset | Notes |
-|--------|--------|-------|
-| `wan` | `t2v-a14b` | Wan2.2 T2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
-| `wan` | `ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU (e.g. RTX 4090). |
+| Family | Preset / Backend | Notes |
+|--------|------------------|-------|
+| `wan` | preset: `t2v-a14b` | Wan2.2 T2V, 27B parameters (14B active). Requires ~80GB+ VRAM on a single GPU. |
+| `wan` | preset: `ti2v-5b` | Wan2.2 hybrid text-and-image-to-video, 5B parameters. Runs on a single 24GB GPU (e.g. RTX 4090). |
+| `minimax-h3` | backend: `torch` | MiniMax-H3 Omni-Transformer with diffusers' standard SDPA / FlashAttention dispatch. Joint 24 fps video + 32 kHz stereo audio; ~33B parameters so `cpu_offload: true` is required on single-GPU hosts. |
+| `minimax-h3` | backend: `sol` | Same model with a Sol-Attn flex_attention processor installed on the main transformer blocks. Validated on NVIDIA Blackwell consumer SM120 (RTX 5090 / RTX PRO 6000); non-SM120 hosts fall back to dense attention per call. |
 
 **Result Shape:**
 
-Returns a single mp4 stream (or a list of streams for batched prompts). Each stream carries `format: "mp4"` and an `fps` attribute matching the requested frame rate.
+Returns a single mp4 stream (or a list of streams for batched prompts). Each stream carries `format: "mp4"` and an `fps` attribute matching the requested frame rate. For `minimax-h3`, the mp4 additionally carries an audio track (32 kHz stereo) and an `audio_sample_rate` attribute.
 
 ### Image to Video
 

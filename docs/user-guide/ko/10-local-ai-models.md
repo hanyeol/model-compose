@@ -1327,8 +1327,34 @@ component:
 - `wan`
   - `t2v-a14b` — Wan2.2 T2V 27B (14B active); 약 80GB 이상의 VRAM 필요.
   - `ti2v-5b` — Wan2.2 하이브리드 텍스트/이미지→비디오 5B; 단일 24GB GPU (RTX 4090)에서 실행 가능.
+- `minimax-h3` — MiniMax-H3 Omni-Transformer; 텍스트 프롬프트에서 24 fps 비디오와 32 kHz 스테레오 오디오를 공동 생성합니다. 체크포인트 기본값은 `MiniMaxAI/MiniMax-H3`이며 diffusers의 `MiniMaxH3ModularPipeline`을 통해 로드됩니다. Omni-Transformer는 약 33B 파라미터이므로 단일 GPU 환경에서는 `cpu_offload: true`가 필요합니다; H100 급 하드웨어는 offload 없이 실행할 수 있습니다.
 
-결과는 단일 mp4 스트림(배치 프롬프트에는 mp4 스트림 리스트)입니다. 전체 옵션은 [Model Component 레퍼런스](../reference/compose/components/model.md#text-to-video)를 참고하세요.
+MiniMax-H3는 component에 attention 백엔드 선택을 노출합니다:
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  backend: sol        # 기본값: torch
+  cpu_offload: true
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    params:
+      inference_steps: 50
+      guidance_scale: 5.0
+      sol_attn:       # backend: sol 일 때만 참조됨
+        tau: 1.0
+        thresh_type: diag
+        dense_steps: 1
+```
+
+- `backend: torch` (기본값) — diffusers의 표준 SDPA / FlashAttention 디스패치로 attention을 라우팅하며 모든 CUDA GPU에서 실행됩니다.
+- `backend: sol` — 메인 트랜스포머 블록에 Sol-Attn flex_attention processor를 설치합니다. NVIDIA Blackwell 컨슈머 SM120 (RTX 5090 / RTX PRO 6000)에서 검증되었습니다. SM120이 아닌 호스트에서는 각 호출마다 dense attention으로 폴백하므로 component는 portable하게 동작하되, 실측 속도 향상은 SM120에서만 얻을 수 있습니다.
+
+결과는 단일 mp4 스트림(배치 프롬프트에는 mp4 스트림 리스트)이며, 패밀리가 `minimax-h3`일 때는 mp4가 비디오와 오디오 트랙을 모두 포함합니다. 전체 옵션은 [Model Component 레퍼런스](../reference/compose/components/model.md#text-to-video)를 참고하세요.
 
 ### 10.3.24 image-to-video
 

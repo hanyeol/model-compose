@@ -1327,8 +1327,34 @@ component:
 - `wan`
   - `t2v-a14b` — Wan2.2 T2V 27B (14B active); requires ~80GB+ VRAM.
   - `ti2v-5b` — Wan2.2 hybrid text-and-image-to-video 5B; runs on a single 24GB GPU (RTX 4090).
+- `minimax-h3` — MiniMax-H3 Omni-Transformer; generates joint 24 fps video and 32 kHz stereo audio from a text prompt. The checkpoint defaults to `MiniMaxAI/MiniMax-H3` and is loaded through diffusers' `MiniMaxH3ModularPipeline`. The Omni-Transformer is ~33B parameters, so single-GPU hosts need `cpu_offload: true`; H100-class hardware can run without offload.
 
-The result is a single mp4 stream (or a list of mp4 streams for batched prompts). See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
+MiniMax-H3 exposes an attention backend selector on the component:
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  backend: sol        # default: torch
+  cpu_offload: true
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    params:
+      inference_steps: 50
+      guidance_scale: 5.0
+      sol_attn:       # only consulted when backend: sol
+        tau: 1.0
+        thresh_type: diag
+        dense_steps: 1
+```
+
+- `backend: torch` (default) routes attention through diffusers' standard SDPA / FlashAttention dispatch and runs on any CUDA GPU.
+- `backend: sol` installs a Sol-Attn flex_attention processor on the main transformer blocks. Validated on NVIDIA Blackwell consumer SM120 (RTX 5090 / RTX PRO 6000). Non-SM120 hosts fall back to dense attention per call, so the component stays portable; measurable speedup requires SM120.
+
+The result is a single mp4 stream (or a list of mp4 streams for batched prompts); when the family is `minimax-h3` the mp4 carries both video and audio tracks. See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
 
 ### 10.3.24 image-to-video
 

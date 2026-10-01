@@ -1327,8 +1327,34 @@ component:
 - `wan`
   - `t2v-a14b` — Wan2.2 T2V 27B（14B 激活）；需要 ~80GB+ VRAM。
   - `ti2v-5b` — Wan2.2 混合文本+图像到视频 5B；可在单个 24GB GPU（RTX 4090）上运行。
+- `minimax-h3` — MiniMax-H3 Omni-Transformer；根据文本提示联合生成 24 fps 视频和 32 kHz 立体声音频。检查点默认 `MiniMaxAI/MiniMax-H3`，通过 diffusers 的 `MiniMaxH3ModularPipeline` 加载。Omni-Transformer 约 33B 参数，单 GPU 环境需要 `cpu_offload: true`；H100 级硬件可无需 offload。
 
-结果是每个提示对应一个 mp4 流（批量提示则为 mp4 流列表）。完整选项请参见 [Model Component 参考](../reference/compose/components/model.md#text-to-video)。
+MiniMax-H3 在 component 层暴露 attention 后端选择：
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  backend: sol        # 默认: torch
+  cpu_offload: true
+  device: cuda:0
+  action:
+    prompt: ${input.prompt as text}
+    params:
+      inference_steps: 50
+      guidance_scale: 5.0
+      sol_attn:       # 仅在 backend: sol 时读取
+        tau: 1.0
+        thresh_type: diag
+        dense_steps: 1
+```
+
+- `backend: torch`（默认）— 通过 diffusers 的标准 SDPA / FlashAttention 调度运行注意力，可在任意 CUDA GPU 上运行。
+- `backend: sol` — 在主变换器块上安装 Sol-Attn flex_attention processor。在 NVIDIA Blackwell 消费级 SM120（RTX 5090 / RTX PRO 6000）上验证。非 SM120 主机在每次调用时回退到 dense attention，因此 component 可移植运行；可测得的速度提升仅限于 SM120。
+
+结果是每个提示对应一个 mp4 流（批量提示则为 mp4 流列表）；当系列为 `minimax-h3` 时，mp4 同时包含视频与音频轨道。完整选项请参见 [Model Component 参考](../reference/compose/components/model.md#text-to-video)。
 
 ### 10.3.24 image-to-video
 

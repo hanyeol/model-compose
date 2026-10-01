@@ -32,7 +32,8 @@ class HtmlFrameRendererSession(ABC):
 
         `html` is owned by the component and reused across sessions — do not
         close it here. `params` carries the shared render options resolved by
-        `HtmlFrameRendererAction` (`fps`, `width`, `height`, `render_timeout`).
+        `HtmlFrameRendererAction` (`fps`, `width`, `height`, `ready_timeout`,
+        `render_timeout`).
 
         Frames are yielded as `ImageStreamResource` carrying the driver's
         encoded bytes (JPEG/PNG) so downstream consumers that can pipe raw
@@ -106,6 +107,7 @@ class HtmlFrameRendererAction(ComponentAction):
         format          = await context.render_scalar(self.config.format, str)
         quality         = await context.render_scalar(self.config.quality, int) if self.config.quality is not None else None
         transparent     = await context.render_scalar(self.config.transparent, bool)
+        ready_timeout   = await context.render_scalar(self.config.ready_timeout, "time")
         render_timeout  = await context.render_scalar(self.config.render_timeout, "time")
         filename_format = await context.render_variable(self.config.filename_format)
 
@@ -128,6 +130,7 @@ class HtmlFrameRendererAction(ComponentAction):
             "format":          format,
             "quality":         quality,
             "transparent":     transparent,
+            "ready_timeout":   ready_timeout,
             "render_timeout":  render_timeout,
             "filename_format": filename_format,
         }

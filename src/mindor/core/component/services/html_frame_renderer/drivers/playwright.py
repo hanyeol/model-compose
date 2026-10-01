@@ -33,6 +33,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         format         = params["format"]
         quality        = params["quality"]
         transparent    = params["transparent"]
+        ready_timeout  = params["ready_timeout"]
         render_timeout = params["render_timeout"]
 
         screenshot_params: Dict[str, Any] = { "type": format }
@@ -53,7 +54,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         await self._page.wait_for_function(
             "typeof window.__renderer?.seek === 'function'",
-            timeout=render_timeout * 1000,
+            timeout=ready_timeout * 1000,
         )
 
         duration = await self._get_page_duration()

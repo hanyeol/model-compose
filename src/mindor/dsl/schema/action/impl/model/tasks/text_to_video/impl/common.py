@@ -10,7 +10,6 @@ class CommonTextToVideoParamsConfig(BaseModel):
 
 class CommonTextToVideoModelActionConfig(CommonModelActionConfig):
     prompt: Union[str, List[str]] = Field(..., description="Text description of the video to generate.")
-    negative_prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make generation reproducible.")
     batch_size: Union[int, str] = Field(default=1, description="Number of prompts processed per batch.")
     params: CommonTextToVideoParamsConfig = Field(default_factory=CommonTextToVideoParamsConfig, description="Frame count, resolution, and fps parameters applied to generation.")

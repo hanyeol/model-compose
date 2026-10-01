@@ -14,6 +14,7 @@ class ImageProcessorActionMethod(str, Enum):
     GRAYSCALE         = "grayscale"
     BLUR              = "blur"
     SHARPEN           = "sharpen"
+    ADJUST_COLOR      = "adjust-color"
     ADJUST_BRIGHTNESS = "adjust-brightness"
     ADJUST_CONTRAST   = "adjust-contrast"
     ADJUST_SATURATION = "adjust-saturation"
@@ -88,6 +89,20 @@ class ImageProcessorBlurActionConfig(CommonImageProcessorActionConfig):
 class ImageProcessorSharpenActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.SHARPEN]
     factor: Union[float, str] = Field(default=1.0, description="Sharpening strength; 1.0 leaves the image unchanged.")
+
+class ImageProcessorAdjustColorActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.ADJUST_COLOR]
+    brightness: Optional[Union[float, str]] = Field(default=None, description="Brightness multiplier; 1.0 leaves the image unchanged.")
+    contrast:   Optional[Union[float, str]] = Field(default=None, description="Contrast multiplier; 1.0 leaves the image unchanged.")
+    saturation: Optional[Union[float, str]] = Field(default=None, description="Saturation multiplier; 1.0 leaves the image unchanged.")
+    gamma:      Optional[Union[float, str]] = Field(default=None, description="Gamma value; 1.0 leaves the image unchanged, <1.0 brightens, >1.0 darkens.")
+    hue:        Optional[Union[float, str]] = Field(default=None, description="Hue rotation in degrees; 0 leaves the image unchanged.")
+
+    @model_validator(mode="after")
+    def validate_at_least_one(self):
+        if all(getattr(self, field) is None for field in ("brightness", "contrast", "saturation", "gamma", "hue")):
+            raise ValueError("'adjust-color' requires at least one of brightness, contrast, saturation, gamma, hue")
+        return self
 
 class ImageProcessorAdjustBrightnessActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ADJUST_BRIGHTNESS]

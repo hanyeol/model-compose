@@ -2,23 +2,24 @@ from __future__ import annotations
 
 from typing import Union, Literal, Optional, List, Tuple
 from enum import Enum
-from pydantic import Field
+from pydantic import Field, model_validator
 from mindor.dsl.schema.common.color import Color
 from ...common import CommonActionConfig
 from ...media import VideoAudioEncodingConfig
 
 class VideoProcessorActionMethod(str, Enum):
-    RESIZE   = "resize"
-    CROP     = "crop"
-    PAD      = "pad"
-    FLIP     = "flip"
-    ROTATE   = "rotate"
-    SPEED    = "speed"
-    FADE_IN  = "fade-in"
-    FADE_OUT = "fade-out"
-    FREEZE   = "freeze"
-    REVERSE  = "reverse"
-    FPS      = "fps"
+    RESIZE       = "resize"
+    CROP         = "crop"
+    PAD          = "pad"
+    FLIP         = "flip"
+    ROTATE       = "rotate"
+    SPEED        = "speed"
+    FADE_IN      = "fade-in"
+    FADE_OUT     = "fade-out"
+    FREEZE       = "freeze"
+    REVERSE      = "reverse"
+    RESAMPLE     = "resample"
+    ADJUST_COLOR = "adjust-color"
 
 class VideoFreezePosition(str, Enum):
     START = "start"
@@ -93,6 +94,20 @@ class VideoProcessorFreezeActionConfig(CommonVideoProcessorActionConfig):
 class VideoProcessorReverseActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.REVERSE]
 
-class VideoProcessorFpsActionConfig(CommonVideoProcessorActionConfig):
-    method: Literal[VideoProcessorActionMethod.FPS]
+class VideoProcessorResampleActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.RESAMPLE]
     fps: Union[float, str] = Field(..., description="Target output frame rate. Frames are resampled onto a uniform grid.")
+
+class VideoProcessorAdjustColorActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ADJUST_COLOR]
+    brightness: Optional[Union[float, str]] = Field(default=None, description="Brightness multiplier; 1.0 leaves the video unchanged.")
+    contrast:   Optional[Union[float, str]] = Field(default=None, description="Contrast multiplier; 1.0 leaves the video unchanged.")
+    saturation: Optional[Union[float, str]] = Field(default=None, description="Saturation multiplier; 1.0 leaves the video unchanged.")
+    gamma:      Optional[Union[float, str]] = Field(default=None, description="Gamma value; 1.0 leaves the video unchanged, <1.0 brightens, >1.0 darkens.")
+    hue:        Optional[Union[float, str]] = Field(default=None, description="Hue rotation in degrees; 0 leaves the video unchanged.")
+
+    @model_validator(mode="after")
+    def validate_at_least_one(self):
+        if all(getattr(self, field) is None for field in ("brightness", "contrast", "saturation", "gamma", "hue")):
+            raise ValueError("'adjust-color' requires at least one of brightness, contrast, saturation, gamma, hue")
+        return self

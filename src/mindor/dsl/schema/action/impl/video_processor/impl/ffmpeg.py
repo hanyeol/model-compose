@@ -11,7 +11,8 @@ from .common import (
     VideoProcessorFadeOutActionConfig,
     VideoProcessorFreezeActionConfig,
     VideoProcessorReverseActionConfig,
-    VideoProcessorFpsActionConfig,
+    VideoProcessorResampleActionConfig,
+    VideoProcessorAdjustColorActionConfig,
 )
 
 FFmpegVideoProcessorActionConfig = Annotated[
@@ -26,7 +27,8 @@ FFmpegVideoProcessorActionConfig = Annotated[
         VideoProcessorFadeOutActionConfig,
         VideoProcessorFreezeActionConfig,
         VideoProcessorReverseActionConfig,
-        VideoProcessorFpsActionConfig,
+        VideoProcessorResampleActionConfig,
+        VideoProcessorAdjustColorActionConfig,
     ],
     Field(discriminator="method")
 ]

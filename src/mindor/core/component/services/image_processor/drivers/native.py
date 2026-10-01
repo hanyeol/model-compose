@@ -76,6 +76,35 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return await self._run_in_executor(_sharpen)
 
+    async def _adjust_color(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _adjust_color() -> PILImage.Image:
+            brightness = params["brightness"]
+            contrast   = params["contrast"]
+            saturation = params["saturation"]
+            gamma      = params["gamma"]
+            hue        = params["hue"]
+
+            result = image
+
+            if brightness is not None:
+                result = ImageEnhance.Brightness(result).enhance(brightness)
+
+            if contrast is not None:
+                result = ImageEnhance.Contrast(result).enhance(contrast)
+
+            if saturation is not None:
+                result = ImageEnhance.Color(result).enhance(saturation)
+
+            if gamma is not None:
+                result = self._apply_gamma(result, gamma)
+
+            if hue is not None:
+                result = self._apply_hue_rotation(result, hue)
+
+            return result
+
+        return await self._run_in_executor(_adjust_color)
+
     async def _adjust_brightness(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         def _adjust_brightness() -> PILImage.Image:
             return ImageEnhance.Brightness(image).enhance(params["factor"])
@@ -365,6 +394,40 @@ class NativeImageProcessorAction(ImageProcessorAction):
         bottom = top + target_height
 
         return (left, top, right, bottom)
+
+    def _apply_gamma(self, image: PILImage.Image, gamma: float) -> PILImage.Image:
+        # Per-channel LUT: out = 255 * (in/255) ** (1/gamma). Build once and
+        # apply to the RGB channels only so an alpha band passes through intact.
+        inverse = 1.0 / gamma
+        table = [ round(255 * (value / 255) ** inverse) for value in range(256) ]
+
+        if image.mode in ("RGBA", "LA"):
+            bands = image.split()
+            color_bands = [ band.point(table) for band in bands[:-1] ]
+            return PILImage.merge(image.mode, (*color_bands, bands[-1]))
+
+        if image.mode in ("RGB", "L"):
+            return image.point(table * len(image.getbands()))
+
+        return image.convert("RGB").point(table * 3)
+
+    def _apply_hue_rotation(self, image: PILImage.Image, degrees: float) -> PILImage.Image:
+        # Pillow's HSV stores hue as 0..255 (not 0..359). Convert, roll the H
+        # channel, convert back. Alpha is preserved by splitting it off first.
+        shift = round((degrees % 360) / 360 * 255) & 0xFF
+
+        if image.mode == "RGBA":
+            r, g, b, a = image.split()
+            rgb = PILImage.merge("RGB", (r, g, b))
+            h, s, v = rgb.convert("HSV").split()
+            h = h.point(lambda value, shift=shift: (value + shift) & 0xFF)
+            rotated = PILImage.merge("HSV", (h, s, v)).convert("RGB")
+            return PILImage.merge("RGBA", (*rotated.split(), a))
+
+        source = image if image.mode == "RGB" else image.convert("RGB")
+        h, s, v = source.convert("HSV").split()
+        h = h.point(lambda value, shift=shift: (value + shift) & 0xFF)
+        return PILImage.merge("HSV", (h, s, v)).convert("RGB")
 
 @register_image_processor_driver(ImageProcessorDriverType.NATIVE)
 class NativeImageProcessorService(ImageProcessorDriver):

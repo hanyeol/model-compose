@@ -156,13 +156,32 @@ class VideoProcessorAction(ComponentAction):
         if method == VideoProcessorActionMethod.REVERSE:
             return { "encoding": encoding }
 
-        if method == VideoProcessorActionMethod.FPS:
+        if method == VideoProcessorActionMethod.RESAMPLE:
             fps = await context.render_scalar(self.config.fps, float)
 
             if fps is None or fps <= 0:
-                raise ValueError("'fps' must be a positive number for 'fps' method")
+                raise ValueError("'fps' must be a positive number for 'resample' method")
 
             return { "encoding": encoding, "fps": fps }
+
+        if method == VideoProcessorActionMethod.ADJUST_COLOR:
+            brightness = await context.render_scalar(self.config.brightness, float)
+            contrast   = await context.render_scalar(self.config.contrast,   float)
+            saturation = await context.render_scalar(self.config.saturation, float)
+            gamma      = await context.render_scalar(self.config.gamma,      float)
+            hue        = await context.render_scalar(self.config.hue,        float)
+
+            if gamma is not None and gamma <= 0:
+                raise ValueError("'gamma' must be positive for 'adjust-color' method")
+
+            return {
+                "encoding":   encoding,
+                "brightness": brightness,
+                "contrast":   contrast,
+                "saturation": saturation,
+                "gamma":      gamma,
+                "hue":        hue,
+            }
 
         raise ValueError(f"Unsupported video processing action method: {method}")
 
@@ -184,15 +203,13 @@ class VideoProcessorAction(ComponentAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        encoding: VideoAudioEncodingParams = params["encoding"]
-
         if method == VideoProcessorActionMethod.RESIZE:
             return await self._resize(
                 video,
                 params["width"],
                 params["height"],
                 params["scale_mode"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -203,7 +220,7 @@ class VideoProcessorAction(ComponentAction):
                 params["y"],
                 params["width"],
                 params["height"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -215,7 +232,7 @@ class VideoProcessorAction(ComponentAction):
                 params["top"],
                 params["bottom"],
                 params["color"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -223,7 +240,7 @@ class VideoProcessorAction(ComponentAction):
             return await self._flip(
                 video,
                 params["direction"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -232,7 +249,7 @@ class VideoProcessorAction(ComponentAction):
                 video,
                 params["angle"],
                 params["expand"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -240,7 +257,7 @@ class VideoProcessorAction(ComponentAction):
             return await self._speed(
                 video,
                 params["speed"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -250,7 +267,7 @@ class VideoProcessorAction(ComponentAction):
                 params["start_time"],
                 params["duration"],
                 params["color"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -260,7 +277,7 @@ class VideoProcessorAction(ComponentAction):
                 params["start_time"],
                 params["duration"],
                 params["color"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -269,22 +286,34 @@ class VideoProcessorAction(ComponentAction):
                 video,
                 params["position"],
                 params["duration"],
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
         if method == VideoProcessorActionMethod.REVERSE:
             return await self._reverse(
                 video,
-                encoding,
+                params["encoding"],
                 cancellation_token,
             )
 
-        if method == VideoProcessorActionMethod.FPS:
-            return await self._fps(
+        if method == VideoProcessorActionMethod.RESAMPLE:
+            return await self._resample(
                 video,
                 params["fps"],
-                encoding,
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ADJUST_COLOR:
+            return await self._adjust_color(
+                video,
+                params["brightness"],
+                params["contrast"],
+                params["saturation"],
+                params["gamma"],
+                params["hue"],
+                params["encoding"],
                 cancellation_token,
             )
 
@@ -405,10 +434,24 @@ class VideoProcessorAction(ComponentAction):
         pass
 
     @abstractmethod
-    async def _fps(
+    async def _resample(
         self,
         video: MediaSource,
         fps: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _adjust_color(
+        self,
+        video: MediaSource,
+        brightness: Optional[float],
+        contrast: Optional[float],
+        saturation: Optional[float],
+        gamma: Optional[float],
+        hue: Optional[float],
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

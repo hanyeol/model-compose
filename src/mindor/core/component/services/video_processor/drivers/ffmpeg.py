@@ -247,7 +247,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         # the audio so playback stays in sync end-to-end.
         return await self._run_ffmpeg_filter(video, "reverse", "areverse", encoding, cancellation_token)
 
-    async def _fps(
+    async def _resample(
         self,
         video: MediaSource,
         fps: float,
@@ -257,6 +257,44 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         # `fps` resamples onto a uniform grid, duplicating or dropping frames
         # as needed. Audio is untouched — timing stays anchored to seconds.
         return await self._run_ffmpeg_filter(video, f"fps={fps}", None, encoding, cancellation_token)
+
+    async def _adjust_color(
+        self,
+        video: MediaSource,
+        brightness: Optional[float],
+        contrast: Optional[float],
+        saturation: Optional[float],
+        gamma: Optional[float],
+        hue: Optional[float],
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # Order matches image-processor so results stay comparable: brightness
+        # (curves, true multiplier like PIL) → contrast/saturation/gamma (eq,
+        # all natively multipliers in ffmpeg) → hue rotation.
+        chain: List[str] = []
+
+        if brightness is not None:
+            chain.append(f"curves=all='0/0 1/{brightness}'")
+
+        eq_terms: List[str] = []
+
+        if contrast is not None:
+            eq_terms.append(f"contrast={contrast}")
+
+        if saturation is not None:
+            eq_terms.append(f"saturation={saturation}")
+
+        if gamma is not None:
+            eq_terms.append(f"gamma={gamma}")
+
+        if eq_terms:
+            chain.append("eq=" + ":".join(eq_terms))
+
+        if hue is not None:
+            chain.append(f"hue=h={hue}")
+
+        return await self._run_ffmpeg_filter(video, ",".join(chain), None, encoding, cancellation_token)
 
     async def _run_ffmpeg_filter(
         self,

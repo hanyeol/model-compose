@@ -121,6 +121,24 @@ class ImageProcessorAction(ComponentAction):
 
             return { "factor": factor }
 
+        if method == ImageProcessorActionMethod.ADJUST_COLOR:
+            brightness = await context.render_scalar(self.config.brightness, float)
+            contrast   = await context.render_scalar(self.config.contrast,   float)
+            saturation = await context.render_scalar(self.config.saturation, float)
+            gamma      = await context.render_scalar(self.config.gamma,      float)
+            hue        = await context.render_scalar(self.config.hue,        float)
+
+            if gamma is not None and gamma <= 0:
+                raise ValueError("'gamma' must be positive for 'adjust-color' method")
+
+            return {
+                "brightness": brightness,
+                "contrast":   contrast,
+                "saturation": saturation,
+                "gamma":      gamma,
+                "hue":        hue,
+            }
+
         if method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
             factor = await context.render_scalar(self.config.factor, float)
 
@@ -323,6 +341,9 @@ class ImageProcessorAction(ComponentAction):
         if method == ImageProcessorActionMethod.SHARPEN:
             return await self._sharpen(image, params)
 
+        if method == ImageProcessorActionMethod.ADJUST_COLOR:
+            return await self._adjust_color(image, params)
+
         if method == ImageProcessorActionMethod.ADJUST_BRIGHTNESS:
             return await self._adjust_brightness(image, params)
 
@@ -372,6 +393,10 @@ class ImageProcessorAction(ComponentAction):
 
     @abstractmethod
     async def _sharpen(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    async def _adjust_color(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod

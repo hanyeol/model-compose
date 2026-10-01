@@ -7,6 +7,7 @@ from mindor.dsl.schema.action import ModelActionConfig, MinimaxH3TextToVideoMode
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
+from mindor.core.logger import logging
 from .....base import ComponentActionContext, ModelTaskDriver
 from ...common import TextToVideoTaskAction
 import io
@@ -29,46 +30,42 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        inference_steps = await context.render_variable(self.config.params.inference_steps)
-        guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
+        inference_steps = await context.render_scalar(self.config.params.inference_steps, int)
 
         params.update({
             "inference_steps": inference_steps,
-            "guidance_scale":  guidance_scale,
         })
 
         return params
 
     async def _generate_batch(
         self,
-        prompts: List[str],
-        negative_prompts: Optional[List[Optional[str]]],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
         def _generate() -> List[VideoStreamResource]:
             import torch
 
-            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
-            fps = int(params["fps"])
-            seed = params["seed"]
+            (prompts,) = inputs
             results: List[VideoStreamResource] = []
 
-            for prompt, negative in zip(prompts, negatives):
-                generator = torch.Generator(device=self.pipeline.device).manual_seed(int(seed)) if seed is not None else None
+            for prompt in prompts:
+                if params["seed"] is not None:
+                    generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
+                else:
+                    generator = None
 
                 output = self.pipeline(
                     prompt=prompt,
-                    negative_prompt=negative,
-                    height=int(params["height"]),
-                    width=int(params["width"]),
-                    num_frames=int(params["num_frames"]),
-                    num_inference_steps=int(params["inference_steps"]),
-                    guidance_scale=float(params["guidance_scale"]),
+                    height=params["height"],
+                    width=params["width"],
+                    num_frames=params["num_frames"],
+                    num_inference_steps=params["inference_steps"],
                     generator=generator,
                 )
 
-                results.append(self._encode_video_audio_to_mp4(output, fps))
+                results.append(self._encode_video_audio_to_mp4(output, params["fps"]))
 
             return results
 
@@ -211,8 +208,7 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
 
         return array, sample_rate
 
-
-class MinimaxH3TextToVideoTaskDriverBase(ModelTaskDriver):
+class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
     """Shared pipeline loader for the MiniMax-H3 text-to-video task.
 
     Subclasses are the per-backend drivers; the only backend-specific
@@ -251,23 +247,32 @@ class MinimaxH3TextToVideoTaskDriverBase(ModelTaskDriver):
         self.pipeline = None
 
     async def _load_pipeline(self) -> Any:
-        from diffusers import DiffusionPipeline
+        from diffusers import ModularPipeline
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         def _load() -> Any:
             import torch
 
-            pipeline = DiffusionPipeline.from_pretrained(
-                model_path,
-                torch_dtype=torch.bfloat16,
-                trust_remote_code=True,
-            )
+            # MiniMax-H3 is distributed as Modular Diffusers blocks; pin the
+            # text-only workflow (`t2va`) so only the text transformer partition
+            # is fetched and the pipeline's declared signature is text-to-video.
+            pipeline = ModularPipeline.from_pretrained(model_path, workflow="t2va")
+            pipeline.load_components(dtype=torch.bfloat16)
 
+            # ModularPipeline doesn't ship `enable_model_cpu_offload`; the
+            # upstream recipe for offload is a ComponentsManager with an auto
+            # strategy. Until that is wired up, honor the user's device choice
+            # with a plain `.to()` and log when offload is requested but
+            # unavailable so OOM errors are easier to diagnose.
             if self.cpu_offload:
-                pipeline.enable_model_cpu_offload()
-            else:
-                pipeline = pipeline.to(self.device)
+                logging.warning(
+                    "cpu_offload is not yet wired up for MiniMax-H3 (ModularPipeline uses "
+                    "ComponentsManager-driven offload); ignoring and moving the pipeline to the "
+                    "requested device."
+                )
+
+            pipeline = pipeline.to(self.device)
 
             return pipeline
 

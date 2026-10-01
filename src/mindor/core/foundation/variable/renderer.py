@@ -40,12 +40,15 @@ class FieldResolver:
             if segment == "[*]":
                 if not isinstance(value, list):
                     return default
+
                 return [ self._resolve_value(item, segments[index + 1:], default) for item in value ]
 
             if segment.startswith("["):
                 if not isinstance(value, list):
                     return default
+
                 inner = segment[1:-1]
+
                 if ":" in inner:
                     start, stop = inner.split(":", 1)
                     start_index = int(start) if start else None
@@ -53,14 +56,18 @@ class FieldResolver:
                     value = value[start_index:stop_index]
                 else:
                     index = int(inner)
+
                     if not -len(value) <= index < len(value):
                         return default
+
                     value = value[index]
             else:
                 if not isinstance(value, dict):
                     return default
+
                 if segment not in value:
                     return default
+
                 value = value[segment]
 
         return value
@@ -99,14 +106,19 @@ class VariableRenderer:
         if isinstance(value, dict):
             if "?" in value and len(value) == 1:
                 return await self._render_conditional(value["?"], scope, skip_decode)
+
             if "+" in value and len(value) == 1:
                 return await self._render_join(value["+"], scope, skip_decode)
+
             if "&" in value and len(value) == 1:
                 return await self._render_zip(value["&"], scope, skip_decode)
+
             if "*" in value:
                 return await self._render_map(value, scope, skip_decode)
+
             if "|" in value:
                 return await self._render_split(value, scope, skip_decode)
+
             return await self._render_dict(value, scope, skip_decode)
 
         if isinstance(value, (list, tuple)):
@@ -120,16 +132,20 @@ class VariableRenderer:
         for key, value in entries.items():
             if key == "...":
                 value = await self._render_element(value, scope, skip_decode)
+
                 if isinstance(value, dict) or value is None:
                     values.update(value or {})
                 else:
                     raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             elif key == "?":
                 result = await self._render_conditional(value, scope, skip_decode)
+
                 if result is None:
                     continue
+
                 if not isinstance(result, dict):
                     raise TypeError(f"Conditional `?` as a sibling key must resolve to a dict, got {type(result).__name__}")
+
                 values.update(result)
             else:
                 values[key] = await self._render_element(value, scope, skip_decode)
@@ -142,6 +158,7 @@ class VariableRenderer:
         for item in entries:
             if isinstance(item, str) and self._is_spread_expression(item):
                 value = await self._render_text(item[3:], scope, skip_decode)
+
                 if isinstance(value, (list, tuple)) or value is None:
                     values.extend(value or [])
                 else:
@@ -230,9 +247,11 @@ class VariableRenderer:
             for index, item in enumerate(source):
                 self._item_stack.append(item)
                 self._index_stack.append(index)
+
                 try:
                     if where is not None and not await self._matches_where(where, scope, skip_decode):
                         continue
+
                     if template:
                         values.append(await self._render_dict(template, scope, skip_decode))
                     else:
@@ -249,12 +268,15 @@ class VariableRenderer:
 
             async def _iterate() -> AsyncIterator[Any]:
                 index = 0
+
                 async for item in source:
                     self._item_stack.append(item)
                     self._index_stack.append(index)
+
                     try:
                         if where is not None and not await self._matches_where(where, scope, skip_decode):
                             continue
+
                         if template:
                             yield await self._render_dict(template, scope, skip_decode)
                         else:
@@ -285,6 +307,7 @@ class VariableRenderer:
                 for part in parts:
                     if part is not None:
                         yield part
+
             parts = StreamChunkIterator(_stream_from_parts(), is_fragmented=True)
 
         if isinstance(parts, (list, tuple)):
@@ -295,14 +318,18 @@ class VariableRenderer:
 
             if isinstance(parts[0], (list, tuple)):
                 value: List[Any] = []
+
                 for part in parts:
                     value.extend(part)
+
                 return value
 
             if isinstance(parts[0], dict):
                 value: Dict[str, Any] = {}
+
                 for part in parts:
                     value.update(part)
+
                 return value
 
             if isinstance(parts[0], str):
@@ -426,8 +453,10 @@ class VariableRenderer:
                 async with advance_lock:
                     if buffers[key]:
                         return True
+
                     if exhausted:
                         return False
+
                     if error is not None:
                         raise error
 
@@ -490,8 +519,10 @@ class VariableRenderer:
     async def _resolve_source(self, key: str, index: Optional[Union[int, slice]], scope: Optional[str]) -> Any:
         if key == "item" and self._item_stack:
             value = self._item_stack[-1]
+
             if index is not None and isinstance(value, list):
                 return value[index]
+
             return value
 
         if key == "index" and self._index_stack:
@@ -514,6 +545,7 @@ class VariableRenderer:
                 async def _iterate():
                     async for item in value:
                         yield await self._convert_value_to_type(item, type, False, subtype, attrs, format, skip_decode)
+
                 return _iterate()
 
             if not isinstance(value, (list, tuple)):
@@ -527,6 +559,7 @@ class VariableRenderer:
         if skip_decode and format in [ "base64", "url", "data-uri" ]:
             if not isinstance(value, str):
                 raise TypeError(f"`{format}` format requires a string value, got {value.__class__.__name__}")
+
             return value
 
         if value is None:
@@ -545,6 +578,7 @@ class VariableRenderer:
         if type in [ "string", "text", "markdown" ]:
             if isinstance(value, bytes):
                 return value.decode("utf-8")
+
             return value if isinstance(value, str) else str(value)
 
         if type == "number":
@@ -556,19 +590,23 @@ class VariableRenderer:
         if type == "boolean":
             if isinstance(value, bytes):
                 return value.lower() in [ b"true", b"1" ]
+
             return str(value).lower() in [ "true", "1" ]
 
         if type == "list":
             if not isinstance(value, list):
                 raise ValueError(f"`list` requires a list input, got {value.__class__.__name__}")
+
             return value
 
         if type == "object":
             if not isinstance(value, dict):
                 raise ValueError(f"`object` requires a dict input, got {value.__class__.__name__}")
+
             if subtype:
                 paths = [ ( path, path.split(".")[-1] ) for path in subtype.split(",") ]
                 return { key: self.field_resolver.resolve(value, path) for path, key in paths }
+
             return value
 
         if type == "base64":
@@ -590,42 +628,55 @@ class VariableRenderer:
             if type == "image":
                 if not isinstance(value, (StreamResource, PILImage.Image)):
                     raise TypeError(f"`image` requires an image or raw image bytes, got {value.__class__.__name__}")
+
                 if subtype is None and isinstance(value, ImageStreamResource):
                     return value
+
                 if isinstance(value, StreamResource):
                     value = await load_image_from_stream(value)
+
                 return ImageStreamResource(value, subtype, filename=filename)
 
             if type == "audio":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`audio` requires raw audio bytes, got {value.__class__.__name__}")
+
                 if subtype == "pcm":
                     return value if isinstance(value, PcmStreamResource) else PcmStreamResource(value, attrs)
+
                 if subtype == "wav":
                     return value if isinstance(value, WavStreamResource) else WavStreamResource(value)
+
                 if subtype is None and isinstance(value, (PcmStreamResource, WavStreamResource, AudioStreamResource)):
                     return value
+
                 return AudioStreamResource(value, subtype, attrs, filename=filename)
 
             if type == "video":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`video` requires raw video input, got {value.__class__.__name__}")
+
                 if subtype is None and isinstance(value, VideoStreamResource):
                     return value
+
                 return VideoStreamResource(value, subtype, attrs, filename=filename)
 
             if type == "model-3d":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`model-3d` requires raw 3D model input, got {value.__class__.__name__}")
+
                 if subtype is None and isinstance(value, Model3DStreamResource):
                     return value
+
                 return Model3DStreamResource(value, subtype, attrs, filename=filename)
 
             if type == "file":
                 if not isinstance(value, (StreamResource, bytes)):
                     raise TypeError(f"`file` requires a binary input, got {value.__class__.__name__}")
+
                 if isinstance(value, bytes):
                     value = BytesStreamResource(value)
+
                 return value
 
         if type == "stream":
@@ -633,9 +684,12 @@ class VariableRenderer:
             if isinstance(value, (StreamResource, StreamIterator, AsyncIterator)):
                 if isinstance(value, StreamEncodingIterator) and value.format == format:
                     return value
+
                 return StreamEncodingIterator(value, format)
+
             async def _stream_output_generator():
                 yield value
+
             return StreamEncodingIterator(_stream_output_generator(), format)
 
         return value

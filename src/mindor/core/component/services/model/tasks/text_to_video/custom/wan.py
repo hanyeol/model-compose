@@ -2,9 +2,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, WanTextToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanTextToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -29,12 +31,19 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
         self.preset: WanTextToVideoPreset = preset
         self.cpu_offload: bool = cpu_offload
 
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        (prompt,), is_single_input, is_streaming_input = await super()._prepare_input(context)
+
+        negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
+
+        return (prompt, negative_prompt), is_single_input, is_streaming_input
+
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        inference_steps = await context.render_variable(self.config.params.inference_steps)
-        guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
-        shift           = await context.render_variable(self.config.params.shift)
+        inference_steps = await context.render_scalar(self.config.params.inference_steps, int)
+        guidance_scale  = await context.render_scalar(self.config.params.guidance_scale, float)
+        shift           = await context.render_scalar(self.config.params.shift, float)
 
         params.update({
             "inference_steps": inference_steps,
@@ -46,29 +55,29 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
 
     async def _generate_batch(
         self,
-        prompts: List[str],
-        negative_prompts: Optional[List[Optional[str]]],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
         def _generate() -> List[VideoStreamResource]:
+            prompts, negative_prompts = inputs
             negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
-            fps = int(params["fps"])
+            fps = params["fps"]
             results: List[VideoStreamResource] = []
 
             for prompt, negative in zip(prompts, negatives):
-                size = f"{int(params['width'])}*{int(params['height'])}"
+                size = f"{params['width']}*{params['height']}"
                 video = self.pipeline.generate(
                     input_prompt=prompt,
                     size=size,
-                    frame_num=int(params["num_frames"]),
-                    shift=float(params["shift"]),
+                    frame_num=params["num_frames"],
+                    shift=params["shift"],
                     sample_solver="unipc",
-                    sampling_steps=int(params["inference_steps"]),
-                    guide_scale=float(params["guidance_scale"]),
+                    sampling_steps=params["inference_steps"],
+                    guide_scale=params["guidance_scale"],
                     n_prompt=negative or "",
-                    seed=int(params["seed"]) if params["seed"] is not None else -1,
-                    offload_model=bool(self.cpu_offload),
+                    seed=params["seed"] if params["seed"] is not None else -1,
+                    offload_model=self.cpu_offload,
                 )
                 results.append(self._encode_video_tensor_to_mp4(video, fps))
 

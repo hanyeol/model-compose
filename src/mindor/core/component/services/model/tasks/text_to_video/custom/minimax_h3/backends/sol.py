@@ -7,7 +7,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
-from ..base import MinimaxH3TextToVideoTaskAction, MinimaxH3TextToVideoTaskDriverBase
+from ..base import MinimaxH3TextToVideoTaskAction, MinimaxH3TextToVideoBaseDriver
 
 if TYPE_CHECKING:
     import torch
@@ -165,8 +165,7 @@ class SolAttnMinimaxH3Processor:
 
         return hidden_states
 
-
-class MinimaxH3SolTextToVideoTaskDriver(MinimaxH3TextToVideoTaskDriverBase):
+class MinimaxH3SolTextToVideoTaskDriver(MinimaxH3TextToVideoBaseDriver):
     """MiniMax-H3 driver that routes main-block self-attention through Sol-Attn on SM120."""
 
     def __init__(self, id: str, config: Any, daemon: bool):
@@ -267,7 +266,6 @@ class MinimaxH3SolTextToVideoTaskDriver(MinimaxH3TextToVideoTaskDriverBase):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await MinimaxH3SolTextToVideoTaskAction(action, self.pipeline, self.sol_attn_processor).run(context)
 
-
 class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
     """Sol-backend action that resets the processor's step counter per batch item
     and streams the current denoising step into it via ``callback_on_step_end``."""
@@ -284,45 +282,43 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
 
     async def _generate_batch(
         self,
-        prompts: List[str],
-        negative_prompts: Optional[List[Optional[str]]],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
         def _generate() -> List[VideoStreamResource]:
             import torch
 
-            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
-            fps = int(params["fps"])
-            seed = params["seed"]
-            total_steps = int(params["inference_steps"])
+            (prompts,) = inputs
             processor = self.sol_attn_processor
             results: List[VideoStreamResource] = []
 
             def _on_step_end(pipeline: Any, step: int, timestep: Any, callback_kwargs: Dict[str, Any]):
-                processor.current_step = int(step) + 1
-                processor.total_steps = int(getattr(pipeline, "num_timesteps", total_steps) or total_steps)
+                processor.current_step = step + 1
+                processor.total_steps = getattr(pipeline, "num_timesteps", params["inference_steps"]) or params["inference_steps"]
+
                 return callback_kwargs
 
-            for prompt, negative in zip(prompts, negatives):
-                generator = torch.Generator(device=self.pipeline.device).manual_seed(int(seed)) if seed is not None else None
+            for prompt in prompts:
+                if params["seed"] is not None:
+                    generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
+                else:
+                    generator = None
 
                 processor.current_step = 0
-                processor.total_steps = total_steps
+                processor.total_steps = params["inference_steps"]
 
                 output = self.pipeline(
                     prompt=prompt,
-                    negative_prompt=negative,
-                    height=int(params["height"]),
-                    width=int(params["width"]),
-                    num_frames=int(params["num_frames"]),
-                    num_inference_steps=total_steps,
-                    guidance_scale=float(params["guidance_scale"]),
+                    height=params["height"],
+                    width=params["width"],
+                    num_frames=params["num_frames"],
+                    num_inference_steps=params["inference_steps"],
                     generator=generator,
                     callback_on_step_end=_on_step_end,
                 )
 
-                results.append(self._encode_video_audio_to_mp4(output, fps))
+                results.append(self._encode_video_audio_to_mp4(output, params["fps"]))
 
             return results
 

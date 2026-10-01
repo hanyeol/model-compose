@@ -9,8 +9,7 @@ class MinimaxH3SolAttnConfig(BaseModel):
     step_off: Optional[Union[float, str]] = Field(default=None, description="Dense fraction at the tail of the schedule.")
 
 class MinimaxH3TextToVideoParamsConfig(CommonTextToVideoParamsConfig):
-    inference_steps: Union[int, str] = Field(default=50, description="Number of diffusion inference steps.")
-    guidance_scale: Union[float, str] = Field(default=5.0, description="Classifier-free guidance scale applied during sampling.")
+    inference_steps: Union[int, str] = Field(default=50, description="Number of sigma grid points (including the terminal 0), one less than the model evaluations.")
     sol_attn: Optional[MinimaxH3SolAttnConfig] = Field(default=None, description="Sol-Attn sparse attention acceleration on Blackwell SM120 GPUs; omit to disable.")
 
 class MinimaxH3TextToVideoModelActionConfig(CommonTextToVideoModelActionConfig):

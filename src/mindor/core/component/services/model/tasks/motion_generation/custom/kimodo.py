@@ -12,11 +12,14 @@ from mindor.dsl.schema.action import (
 )
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from ....base import ComponentActionContext, ModelTaskDriver
-from ..common import MotionGenerationTaskAction
-import io, os
+from ..common import MotionGenerationTaskAction, MotionClip
+import os
+
+# Kimodo-SOMA presets emit the 77-joint SOMA skeleton; G1/SMPL-X presets would
+# resolve differently and are not yet exposed.
+_KIMODO_SKELETON = "soma"
 
 if TYPE_CHECKING:
     from kimodo.model.kimodo_model import Kimodo
@@ -74,10 +77,10 @@ class KimodoMotionGenerationModelGenerateAction(KimodoMotionGenerationTaskAction
         fps = int(self.model.fps)
         num_frames = max(1, int(round(float(params["duration"]) * fps)))
 
-        def _generate() -> List[BytesStreamResource]:
+        def _generate() -> List[MotionClip]:
             import torch
 
-            results: List[BytesStreamResource] = []
+            results: List[MotionClip] = []
 
             for (prompt,) in inputs:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
@@ -95,27 +98,27 @@ class KimodoMotionGenerationModelGenerateAction(KimodoMotionGenerationTaskAction
                     num_samples=int(params["num_samples"]),
                     post_processing=bool(params["post_processing"]),
                     return_numpy=True,
-                    progress_bar=lambda it, **_: it,
+                    progress_bar=lambda iterator, **_: iterator,
                 )
 
-                results.append(self._build_motion_resource(motion, fps))
+                results.append(MotionClip({
+                    "fps":              fps,
+                    "skeleton":         _KIMODO_SKELETON,
+                    "joint_positions":  motion["posed_joints"],
+                    "joint_rotations":  motion["global_rot_mats"],
+                    "rotation_format":  "matrix",
+                    "root_position":    motion["root_positions"],
+                    "extras": {
+                        "local_rot_mats":      motion["local_rot_mats"],
+                        "smooth_root_pos":     motion["smooth_root_pos"],
+                        "global_root_heading": motion["global_root_heading"],
+                        "foot_contacts":       motion["foot_contacts"],
+                    },
+                }))
 
             return results
 
         return await self._run_in_executor(_generate)
-
-    def _build_motion_resource(self, motion: Dict[str, Any], fps: int) -> BytesStreamResource:
-        import numpy as np
-
-        payload: Dict[str, Any] = { "fps": np.array(fps, dtype=np.int32) }
-
-        for key, value in motion.items():
-            payload[key] = np.asarray(value)
-
-        buffer = io.BytesIO()
-        np.savez(buffer, **payload)
-
-        return BytesStreamResource(buffer.getvalue(), content_type="application/x-npz", filename="motion.npz")
 
 class KimodoMotionGenerationTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

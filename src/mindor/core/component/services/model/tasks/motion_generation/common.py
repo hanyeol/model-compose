@@ -4,9 +4,26 @@ from typing import Optional, Dict, List, Tuple, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import CommonMotionGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
 from ...base import ComponentActionContext
+
+class MotionClip(AtomicDict):
+    # Generator-agnostic skeletal-motion container shared across motion-generation
+    # drivers and (future) motion-converter. Required keys: fps, skeleton,
+    # joint_positions [T,J,3], joint_rotations [T,J,...], rotation_format,
+    # root_position [T,3]. Driver-specific signals (foot contacts, heading
+    # vectors, smoothed root, alternate rotation reps, ...) live under `extras`.
+    def __log__(self) -> str:
+        joint_positions = self.get("joint_positions")
+        frames = int(joint_positions.shape[0]) if joint_positions is not None else 0
+        joint_count = int(joint_positions.shape[1]) if joint_positions is not None else 0
+
+        return (
+            f"<MotionClip skeleton={self.get('skeleton')!r} "
+            f"frames={frames} joints={joint_count} fps={self.get('fps')}>"
+        )
 
 class MotionGenerationTaskAction(ComponentAction):
     def __init__(self, config: CommonMotionGenerationModelActionConfig):

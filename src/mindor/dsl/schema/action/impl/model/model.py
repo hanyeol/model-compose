@@ -38,6 +38,7 @@ ModelActionConfig = Union[
     VoiceActivityDetectionModelActionConfig,
     SpeakerDiarizationModelActionConfig,
     MusicGenerationModelActionConfig,
+    MotionGenerationModelActionConfig,
     MusicSourceSeparationModelActionConfig,
     MusicTranscriptionModelActionConfig,
     MusicBeatTrackingModelActionConfig,

@@ -35,6 +35,7 @@ from .audio_text_alignment import *
 from .voice_activity_detection import *
 from .speaker_diarization import *
 from .music_generation import *
+from .motion_generation import *
 from .music_source_separation import *
 from .music_transcription import *
 from .music_beat_tracking import *

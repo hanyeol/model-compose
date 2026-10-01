@@ -32,12 +32,19 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         height         = params["height"]
         format         = params["format"]
         quality        = params["quality"]
+        transparent    = params["transparent"]
         render_timeout = params["render_timeout"]
 
         screenshot_params: Dict[str, Any] = { "type": format }
 
         if format == "jpeg" and quality is not None:
             screenshot_params["quality"] = quality
+
+        if transparent:
+            # `omit_background` only takes effect when the page's html/body
+            # leave their background unset; otherwise the page color still
+            # paints over the viewport. Documented in the component guide.
+            screenshot_params["omit_background"] = True
 
         await self._page.set_viewport_size({"width": width, "height": height})
         await self._page.expose_binding("__renderer_frame_done", lambda source, t: self._render_signals.put_nowait(t))

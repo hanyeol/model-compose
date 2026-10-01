@@ -105,6 +105,7 @@ class HtmlFrameRendererAction(ComponentAction):
         height          = await context.render_scalar(self.config.height, int)
         format          = await context.render_scalar(self.config.format, str)
         quality         = await context.render_scalar(self.config.quality, int) if self.config.quality is not None else None
+        transparent     = await context.render_scalar(self.config.transparent, bool)
         render_timeout  = await context.render_scalar(self.config.render_timeout, "time")
         filename_format = await context.render_variable(self.config.filename_format)
 
@@ -117,12 +118,16 @@ class HtmlFrameRendererAction(ComponentAction):
         if format not in ("jpeg", "png"):
             raise ValueError(f"'format' must be 'jpeg' or 'png', got {format!r}")
 
+        if transparent and format != "png":
+            raise ValueError(f"'transparent: true' requires 'format: png' (jpeg has no alpha channel), got {format!r}")
+
         return {
             "fps":             fps,
             "width":           width,
             "height":          height,
             "format":          format,
             "quality":         quality,
+            "transparent":     transparent,
             "render_timeout":  render_timeout,
             "filename_format": filename_format,
         }

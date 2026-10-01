@@ -19,7 +19,7 @@ from PIL import Image as PILImage
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_to_text.common import ImageToTextTaskAction
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.dsl.schema.action import ImageToTextModelActionConfig
+from mindor.dsl.schema.action import HuggingfaceImageToTextModelActionConfig, ImageToTextModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 
 
@@ -96,7 +96,7 @@ def _make_config(
         raw["prompt"] = text_expr
     if output is not None:
         raw["output"] = output
-    return ImageToTextModelActionConfig.model_validate(raw)
+    return HuggingfaceImageToTextModelActionConfig.model_validate(raw)
 
 
 async def _make_async_iter(items: list) -> AsyncIterator:

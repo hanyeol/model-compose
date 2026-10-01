@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Union, Optional, Dict, List, Protocol, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageToTextModelArchitecture
-from mindor.dsl.schema.action import ModelActionConfig, ImageToTextModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceImageToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
@@ -29,7 +29,7 @@ class WithTokenizer(Protocol):
 class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
     def __init__(
         self,
-        config: ImageToTextModelActionConfig,
+        config: HuggingfaceImageToTextModelActionConfig,
         model: PreTrainedModel,
         processor: ProcessorMixin,
         device: torch.device
@@ -43,28 +43,44 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        max_input_length     = await context.render_variable(self.config.max_input_length)
+        max_output_length    = await context.render_variable(self.config.max_output_length)
+        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
+        do_sample            = await context.render_variable(self.config.params.do_sample)
+        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
+        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
+        stop_sequences       = await context.render_variable(self.config.stop_sequences)
+
         processor_params: Dict[str, Any] = await self._resolve_processor_params()
-        if params["max_input_length"] is not None:
-            processor_params["max_length"] = params["max_input_length"]
+
+        if max_input_length is not None:
+            processor_params["max_length"] = max_input_length
             processor_params["truncation"] = True
 
         generation_params: Dict[str, Any] = await self._resolve_generation_params(context)
-        generation_params["num_return_sequences"] = params["num_return_sequences"]
-        generation_params["do_sample"] = params["do_sample"]
+        generation_params["num_return_sequences"] = num_return_sequences
+        generation_params["do_sample"] = do_sample
 
-        if params["max_output_length"] is not None:
-            generation_params["max_new_tokens"] = params["max_output_length"]
+        if max_output_length is not None:
+            generation_params["max_new_tokens"] = max_output_length
 
-        if params["do_sample"]:
-            if params["temperature"] is not None:
-                generation_params["temperature"] = params["temperature"]
-            if params["top_k"] is not None:
-                generation_params["top_k"] = params["top_k"]
-            if params["top_p"] is not None:
-                generation_params["top_p"] = params["top_p"]
+        if do_sample:
+            if temperature is not None:
+                generation_params["temperature"] = temperature
 
-        params["processor"]  = processor_params
-        params["generation"] = generation_params
+            if top_k is not None:
+                generation_params["top_k"] = top_k
+
+            if top_p is not None:
+                generation_params["top_p"] = top_p
+
+        params.update({
+            "num_return_sequences": num_return_sequences,
+            "stop_sequences":       stop_sequences,
+            "processor":            processor_params,
+            "generation":           generation_params,
+        })
 
         return params
 
@@ -91,6 +107,7 @@ class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
         if num_beams > 1:
             if length_penalty is not None:
                 params["length_penalty"] = length_penalty
+
             params["early_stopping"] = early_stopping
 
         return params

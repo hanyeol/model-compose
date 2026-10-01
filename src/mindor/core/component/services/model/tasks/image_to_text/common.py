@@ -67,31 +67,15 @@ class ImageToTextTaskAction(ComponentAction):
 
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
-    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
-        # Unwrap the single-sequence case so num_return_sequences=1 keeps its
-        # historical scalar shape; callers that ask for n>1 opt into the list.
-        return sequences[0] if len(sequences) == 1 else sequences
-
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length     = await context.render_variable(self.config.max_input_length)
-        max_output_length    = await context.render_variable(self.config.max_output_length)
-        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
-        do_sample            = await context.render_variable(self.config.params.do_sample)
-        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
-        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
-        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
-        stop_sequences       = await context.render_variable(self.config.stop_sequences)
+        return {}
 
-        return {
-            "max_input_length":     max_input_length,
-            "max_output_length":    max_output_length,
-            "num_return_sequences": num_return_sequences,
-            "do_sample":            do_sample,
-            "temperature":          temperature,
-            "top_k":                top_k,
-            "top_p":                top_p,
-            "stop_sequences":       stop_sequences,
-        }
+    def _process_sequences(
+        self,
+        sequences: Union[List[Union[str, Dict[str, Any]]], List[AsyncIterator[Union[str, Dict[str, Any]]]]],
+        streaming: bool,
+    ) -> Any:
+        return sequences[0] if len(sequences) == 1 else sequences
 
     @abstractmethod
     async def _generate_batch(
@@ -101,15 +85,17 @@ class ImageToTextTaskAction(ComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+    ) -> Union[List[List[Union[str, Dict[str, Any]]]], List[List[AsyncIterator[Union[str, Dict[str, Any]]]]]]:
         """Generate captions for each image, with `num_return_sequences` variants each.
 
         Contract:
-          - non-streaming: returns List[List[str]] — outer list is per-image,
-            inner list holds n captions per image.
-          - streaming: returns List[List[AsyncIterator[str]]] — one async
-            iterator per (image, sequence). Drivers whose native generator is
-            sync should wrap it with
+          - non-streaming: returns List[List[Union[str, Dict[str, Any]]]] —
+            outer list is per-image, inner list holds n captions per image.
+            Each caption is either a plain string or a structured dict for
+            drivers that emit richer output (e.g. OCR boxes with scores).
+          - streaming: returns List[List[AsyncIterator[Union[str, Dict[str, Any]]]]] —
+            one async iterator per (image, sequence). Drivers whose native
+            generator is sync should wrap it with
             SyncGeneratorStreamer(gen, asyncio.get_running_loop()) before returning.
         """
         pass

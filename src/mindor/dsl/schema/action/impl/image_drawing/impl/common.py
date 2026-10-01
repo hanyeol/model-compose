@@ -29,7 +29,11 @@ class TextAlign(str, Enum):
     CENTER = "center"
     RIGHT  = "right"
 
-Point = Tuple[Union[float, str], Union[float, str]]
+class PointConfig(BaseModel):
+    x: Union[float, str] = Field(..., description="X coordinate in pixels.")
+    y: Union[float, str] = Field(..., description="Y coordinate in pixels.")
+
+Point = Union[PointConfig, Tuple[Union[float, str], Union[float, str]]]
 
 class FontConfig(BaseModel):
     path: Optional[str] = Field(default=None, description="Path to a TrueType font file. Falls back to Pillow's default font when omitted.")

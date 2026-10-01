@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceTextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
     def __init__(
         self,
-        config: TextGenerationModelActionConfig,
+        config: HuggingfaceTextGenerationModelActionConfig,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
         device: torch.device,
@@ -38,9 +38,15 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        num_beams      = await context.render_variable(self.config.params.num_beams)
-        length_penalty = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
-        early_stopping = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
+        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
+        stop_sequences       = await context.render_variable(self.config.stop_sequences)
+        do_sample            = await context.render_variable(self.config.params.do_sample)
+        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
+        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
+        num_beams            = await context.render_variable(self.config.params.num_beams)
+        length_penalty       = await context.render_variable(self.config.params.length_penalty) if num_beams > 1 else None
+        early_stopping       = await context.render_variable(self.config.params.early_stopping) if num_beams > 1 else False
 
         tokenizer_params: Dict[str, Any] = {
             "return_tensors": "pt",
@@ -54,8 +60,8 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
 
         generation_params: Dict[str, Any] = {
             "min_length": params["min_output_length"],
-            "num_return_sequences": params["num_return_sequences"],
-            "do_sample": params["do_sample"],
+            "num_return_sequences": num_return_sequences,
+            "do_sample": do_sample,
             "num_beams": num_beams,
         }
 
@@ -67,21 +73,27 @@ class HuggingfaceTextGenerationTaskAction(TextGenerationTaskAction):
             if token_id is not None:
                 generation_params[token] = token_id
 
-        if params["do_sample"]:
-            if params["temperature"] is not None:
-                generation_params["temperature"] = params["temperature"]
-            if params["top_k"] is not None:
-                generation_params["top_k"] = params["top_k"]
-            if params["top_p"] is not None:
-                generation_params["top_p"] = params["top_p"]
+        if do_sample:
+            if temperature is not None:
+                generation_params["temperature"] = temperature
+
+            if top_k is not None:
+                generation_params["top_k"] = top_k
+
+            if top_p is not None:
+                generation_params["top_p"] = top_p
 
         if num_beams > 1:
             if length_penalty is not None:
                 generation_params["length_penalty"] = length_penalty
             generation_params["early_stopping"] = early_stopping
 
-        params["tokenizer"]  = tokenizer_params
-        params["generation"] = generation_params
+        params.update({
+            "num_return_sequences": num_return_sequences,
+            "stop_sequences":       stop_sequences,
+            "tokenizer":            tokenizer_params,
+            "generation":           generation_params,
+        })
 
         return params
 

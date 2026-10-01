@@ -1,3 +1,2 @@
-from .common import *
 from .rapidocr import *
 from .custom import *

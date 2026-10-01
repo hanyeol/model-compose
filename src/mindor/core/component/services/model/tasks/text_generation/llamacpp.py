@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Iterator, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceTextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.core.logger import logging
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
     def __init__(
         self,
-        config: TextGenerationModelActionConfig,
+        config: HuggingfaceTextGenerationModelActionConfig,
         model: Llama,
     ):
         super().__init__(config)
@@ -27,6 +27,13 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
+
+        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
+        stop_sequences       = await context.render_variable(self.config.stop_sequences)
+        do_sample            = await context.render_variable(self.config.params.do_sample)
+        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
+        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
 
         if params["max_input_length"] is not None:
             logging.warning("llama.cpp backend does not support max_input_length; ignoring configured value %r.", params["max_input_length"])
@@ -38,20 +45,25 @@ class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
             "max_tokens": params["max_output_length"],
         }
 
-        if params["do_sample"]:
-            if params["temperature"] is not None:
-                generation_params["temperature"] = params["temperature"]
-            if params["top_k"] is not None:
-                generation_params["top_k"] = params["top_k"]
-            if params["top_p"] is not None:
-                generation_params["top_p"] = params["top_p"]
+        if do_sample:
+            if temperature is not None:
+                generation_params["temperature"] = temperature
+
+            if top_k is not None:
+                generation_params["top_k"] = top_k
+
+            if top_p is not None:
+                generation_params["top_p"] = top_p
         else:
             generation_params["temperature"] = 0.0
 
-        if params["stop_sequences"]:
-            generation_params["stop"] = params["stop_sequences"] if isinstance(params["stop_sequences"], list) else [params["stop_sequences"]]
+        if stop_sequences:
+            generation_params["stop"] = stop_sequences if isinstance(stop_sequences, list) else [stop_sequences]
 
-        params["generation"] = generation_params
+        params.update({
+            "num_return_sequences": num_return_sequences,
+            "generation":           generation_params,
+        })
 
         return params
 

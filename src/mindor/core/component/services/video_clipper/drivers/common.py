@@ -46,7 +46,7 @@ class VideoClipperAction(ComponentAction):
                 async for batch_videos, batch_spans in BatchSourceIterator((video, spans), batch_size=batch_size or 1):
                     batch_results = await self._clip_batch(batch_videos, batch_spans, merge, precision, context.cancellation_token)
                     for result in batch_results:
-                        yield await self._format_result(result, merge, is_single_span, return_timestamp)
+                        yield await self._build_result(result, merge, is_single_span, return_timestamp)
 
             return _stream_output_generator()
         else:
@@ -54,7 +54,7 @@ class VideoClipperAction(ComponentAction):
             async for batch_videos, batch_spans in BatchSourceIterator((video, spans), batch_size=batch_size or 1):
                 batch_results = await self._clip_batch(batch_videos, batch_spans, merge, context.cancellation_token)
                 for result in batch_results:
-                    results.append(await self._format_result(result, merge, is_single_span, return_timestamp))
+                    results.append(await self._build_result(result, merge, is_single_span, return_timestamp))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -78,7 +78,7 @@ class VideoClipperAction(ComponentAction):
             yield { "start_time": start_time, "end_time": end_time }
 
     @staticmethod
-    async def _format_result(result: Any, merge: bool, is_single_span: bool, return_timestamp: bool) -> Any:
+    async def _build_result(result: Any, merge: bool, is_single_span: bool, return_timestamp: bool) -> Any:
         """Collapse or unwrap the driver's raw per-video result according to
         what the caller actually asked for:
           - merge: result is `{video, times: [...]}` (with `video=None,
@@ -95,21 +95,24 @@ class VideoClipperAction(ComponentAction):
 
         if is_single_span:
             first_clip: Optional[Dict[str, Any]] = None
+
             async for clip in result:
                 first_clip = clip
                 break
+
             if first_clip is None:
                 return None
+
             return first_clip if return_timestamp else first_clip["video"]
 
         if return_timestamp:
             return result
 
-        async def _unwrap_video(source=result):
+        async def _iterate_video(source=result):
             async for clip in source:
                 yield clip["video"]
 
-        return _unwrap_video()
+        return _iterate_video()
 
     @abstractmethod
     async def _clip_batch(

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.action import ModelActionConfig, ChatCompletionModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceChatCompletionModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.huggingface import HuggingfaceChatCompletionModelComponentConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
@@ -26,11 +26,11 @@ class HuggingfaceToolBuilder(ChatToolBuilder):
         }
 
 class HuggingfaceChatCompletionTaskAction(HuggingfaceTextGenerationTaskAction):
-    config: ChatCompletionModelActionConfig
+    config: HuggingfaceChatCompletionModelActionConfig
 
     def __init__(
         self,
-        config: ChatCompletionModelActionConfig,
+        config: HuggingfaceChatCompletionModelActionConfig,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
         device: torch.device,

@@ -1,8 +1,7 @@
-from typing import Type, Union, Optional, Dict, List, Tuple, Set, Annotated, TypeAlias, Any
+from typing import Union, Optional, Dict, List, TypeAlias, Any
 from pydantic import BaseModel, Field
-from pydantic import model_validator
 from mindor.dsl.schema.common.model.tool import ModelTool
-from .text_generation import CommonModelActionConfig, TextGenerationParamsConfig
+from ...common import CommonModelActionConfig
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="Role of the message sender (e.g., user, assistant, system, tool).")
@@ -20,14 +19,11 @@ class ChatCompletionMessage(ChatMessage):
 
 InputMessage: TypeAlias = Union[ChatMessage, Dict[str, Any]]
 
-class ChatCompletionModelActionConfig(CommonModelActionConfig):
+class CommonChatCompletionModelActionConfig(CommonModelActionConfig):
     messages: Union[InputMessage, List[InputMessage], List[List[InputMessage]]] = Field(..., description="Input chat messages the model generates a response for.")
     tools: Optional[Union[List[str], List[ModelTool]]] = Field(default=None, description="Tools the model may call during this action.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens accepted per input message.")
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens generated; unset uses the model or backend's configured limit.")
     min_output_length: Union[int, str] = Field(default=1, description="Minimum number of tokens generated before generation may stop.")
-    num_return_sequences: Union[int, str] = Field(default=1, description="Number of generated sequences returned per input.")
-    stop_sequences: Optional[Union[str, List[str]]] = Field(default=None, description="Sequences that terminate generation when produced.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input messages processed per batch.")
     streaming: Union[bool, str] = Field(default=False, description="Whether generated tokens are emitted incrementally as they are produced.")
-    params: TextGenerationParamsConfig = Field(default_factory=TextGenerationParamsConfig, description="Sampling and decoding parameters used for chat completion.")

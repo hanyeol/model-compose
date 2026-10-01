@@ -273,16 +273,22 @@ class ImageDrawingAction(ComponentAction):
             return None
 
         if not isinstance(value, (list, tuple)):
-            raise ValueError(f"'points' must be a list of (x, y) pairs, got {type(value).__name__}")
+            raise ValueError(f"'points' must be a list of (x, y) pairs or {{x, y}} objects, got {type(value).__name__}")
 
         points: List[Tuple[float, float]] = []
 
         for point in value:
-            if not isinstance(point, (list, tuple)) or len(point) != 2:
-                raise ValueError(f"Each point must be a 2-element (x, y) sequence, got {point!r}")
+            if isinstance(point, dict):
+                if "x" not in point or "y" not in point:
+                    raise ValueError(f"Each point object must have 'x' and 'y' keys, got {point!r}")
+                x = await context.render_scalar(point["x"], float)
+                y = await context.render_scalar(point["y"], float)
+            elif isinstance(point, (list, tuple)) and len(point) == 2:
+                x = await context.render_scalar(point[0], float)
+                y = await context.render_scalar(point[1], float)
+            else:
+                raise ValueError(f"Each point must be a 2-element (x, y) sequence or {{x, y}} object, got {point!r}")
 
-            x = await context.render_scalar(point[0], float)
-            y = await context.render_scalar(point[1], float)
             points.append((x, y))
 
         return points

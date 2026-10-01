@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.action import ModelActionConfig, TextGenerationModelActionConfig
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceTextGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
@@ -19,7 +19,7 @@ _STREAM_QUEUE_SIZE = 32
 class VllmTextGenerationTaskAction(TextGenerationTaskAction):
     def __init__(
         self,
-        config: TextGenerationModelActionConfig,
+        config: HuggingfaceTextGenerationModelActionConfig,
         engine: AsyncLLMEngine,
     ):
         super().__init__(config)
@@ -31,10 +31,17 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         params = await super()._resolve_params(context)
 
+        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
+        stop_sequences       = await context.render_variable(self.config.stop_sequences)
+        do_sample            = await context.render_variable(self.config.params.do_sample)
+        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
+        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
+        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
+
         if params["max_input_length"] is not None:
             logging.warning("vLLM backend does not support max_input_length; ignoring configured value %r.", params["max_input_length"])
 
-        sampling_params: Dict[str, Any] = { "n": params["num_return_sequences"] }
+        sampling_params: Dict[str, Any] = { "n": num_return_sequences }
 
         if params["max_output_length"] is not None:
             sampling_params["max_tokens"] = params["max_output_length"]
@@ -42,20 +49,25 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         if params["min_output_length"] and params["min_output_length"] > 1:
             sampling_params["min_tokens"] = params["min_output_length"]
 
-        if params["do_sample"]:
-            if params["temperature"] is not None:
-                sampling_params["temperature"] = params["temperature"]
-            if params["top_k"] is not None:
-                sampling_params["top_k"] = params["top_k"]
-            if params["top_p"] is not None:
-                sampling_params["top_p"] = params["top_p"]
+        if do_sample:
+            if temperature is not None:
+                sampling_params["temperature"] = temperature
+
+            if top_k is not None:
+                sampling_params["top_k"] = top_k
+
+            if top_p is not None:
+                sampling_params["top_p"] = top_p
         else:
             sampling_params["temperature"] = 0.0
 
-        if params["stop_sequences"]:
-            sampling_params["stop"] = params["stop_sequences"] if isinstance(params["stop_sequences"], list) else [params["stop_sequences"]]
+        if stop_sequences:
+            sampling_params["stop"] = stop_sequences if isinstance(stop_sequences, list) else [stop_sequences]
 
-        params["sampling"] = SamplingParams(**sampling_params)
+        params.update({
+            "num_return_sequences": num_return_sequences,
+            "sampling":             SamplingParams(**sampling_params),
+        })
 
         return params
 

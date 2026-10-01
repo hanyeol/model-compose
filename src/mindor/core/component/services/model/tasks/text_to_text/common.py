@@ -68,11 +68,6 @@ class TextToTextTaskAction(ComponentAction):
     async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str]]:
         return await context.render_text(self.config.text)
 
-    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
-        # Unwrap the single-sequence case so num_return_sequences=1 keeps its
-        # historical scalar shape; callers that ask for n>1 opt into the list.
-        return sequences[0] if len(sequences) == 1 else sequences
-
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         max_input_length     = await context.render_variable(self.config.max_input_length)
         max_output_length    = await context.render_variable(self.config.max_output_length)
@@ -93,6 +88,9 @@ class TextToTextTaskAction(ComponentAction):
             "top_p":                top_p,
             "stop_sequences":       stop_sequences,
         }
+
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+        return sequences[0] if len(sequences) == 1 else sequences
 
     @abstractmethod
     async def _generate_batch(

@@ -69,36 +69,17 @@ class TextGenerationTaskAction(ComponentAction):
         return await context.render_text(self.config.prompt)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_input_length     = await context.render_variable(self.config.max_input_length)
-        max_output_length    = await context.render_variable(self.config.max_output_length)
-        min_output_length    = await context.render_variable(self.config.min_output_length)
-        num_return_sequences = await context.render_variable(self.config.num_return_sequences)
-        do_sample            = await context.render_variable(self.config.params.do_sample)
-        temperature          = await context.render_variable(self.config.params.temperature) if do_sample else None
-        top_k                = await context.render_variable(self.config.params.top_k) if do_sample else None
-        top_p                = await context.render_variable(self.config.params.top_p) if do_sample else None
-        stop_sequences       = await context.render_variable(self.config.stop_sequences)
+        max_input_length  = await context.render_variable(self.config.max_input_length)
+        max_output_length = await context.render_variable(self.config.max_output_length)
+        min_output_length = await context.render_variable(self.config.min_output_length)
 
         return {
-            "max_input_length":     max_input_length,
-            "max_output_length":    max_output_length,
-            "min_output_length":    min_output_length,
-            "num_return_sequences": num_return_sequences,
-            "do_sample":            do_sample,
-            "temperature":          temperature,
-            "top_k":                top_k,
-            "top_p":                top_p,
-            "stop_sequences":       stop_sequences,
+            "max_input_length":  max_input_length,
+            "max_output_length": max_output_length,
+            "min_output_length": min_output_length,
         }
 
     def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
-        """Convert one prompt's n sequences into the task's user-facing shape.
-
-        num_return_sequences=1 unwraps to a scalar (str or AsyncIterator[str])
-        so the common single-completion case matches the pre-multi-sequence
-        contract; n>1 returns the list. Subclasses like chat-completion
-        override to wrap the sequences into a `choices` envelope.
-        """
         return sequences[0] if len(sequences) == 1 else sequences
 
     @abstractmethod

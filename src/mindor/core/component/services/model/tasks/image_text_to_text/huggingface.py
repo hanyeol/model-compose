@@ -59,8 +59,10 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         if params["do_sample"]:
             if params["temperature"] is not None:
                 generation_params["temperature"] = params["temperature"]
+
             if params["top_k"] is not None:
                 generation_params["top_k"] = params["top_k"]
+
             if params["top_p"] is not None:
                 generation_params["top_p"] = params["top_p"]
 

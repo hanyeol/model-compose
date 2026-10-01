@@ -50,7 +50,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         )
 
         duration = await self._get_page_duration()
-        frame_count = int(duration * fps + 1e-9) + 1
+        frame_count = int(duration * fps + 0.5)
 
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
 

@@ -98,21 +98,23 @@ class KimodoMotionGenerationModelGenerateAction(KimodoMotionGenerationTaskAction
                     progress_bar=lambda it, **_: it,
                 )
 
-                results.append(self._pack_npz(motion, fps))
+                results.append(self._build_motion_resource(motion, fps))
 
             return results
 
         return await self._run_in_executor(_generate)
 
-    def _pack_npz(self, motion: Dict[str, Any], fps: int) -> BytesStreamResource:
+    def _build_motion_resource(self, motion: Dict[str, Any], fps: int) -> BytesStreamResource:
         import numpy as np
 
         payload: Dict[str, Any] = { "fps": np.array(fps, dtype=np.int32) }
+
         for key, value in motion.items():
             payload[key] = np.asarray(value)
 
         buffer = io.BytesIO()
         np.savez(buffer, **payload)
+
         return BytesStreamResource(buffer.getvalue(), content_type="application/x-npz", filename="motion.npz")
 
 class KimodoMotionGenerationTaskDriver(ModelTaskDriver):

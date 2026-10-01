@@ -138,8 +138,8 @@ graph TD
 ### 인식 언어 변경
 
 `language`는 프로젝트 표준 ISO 639-1 / BCP 47 코드(`en`, `zh`, `zh-CN`, `ko`,
-`ja`)를 씁니다. 지원 코드 셋은 `preset`에 따라 다릅니다 — `v6-*`는 영어·중국어,
-`v5-*`는 한국어까지, `v4-*`는 일본어까지 커버합니다. 언어를 바꿀 때는 `preset`과
+`ja`)를 씁니다. 지원 코드 셋은 `model`에 따라 다릅니다 — `v6-*`는 영어·중국어,
+`v5-*`는 한국어까지, `v4-*`는 일본어까지 커버합니다. 언어를 바꿀 때는 `model`과
 `language`를 함께 교체하세요.
 
 ```yaml
@@ -149,19 +149,19 @@ components:
     task: image-to-text
     driver: custom
     family: rapidocr
-    preset: v5-mobile
+    model: v5-mobile
     language: ko
 ```
 
-| Preset | 지원 언어 |
-|--------|---------|
+| Model | 지원 언어 |
+|-------|---------|
 | `v6-small`(기본), `v6-tiny`, `v6-medium` | `en`, `zh`, `zh-CN` |
 | `v5-mobile` | `en`, `zh`, `zh-CN`, `ko` |
 | `v5-server` | `zh`, `zh-CN` 전용 |
 | `v4-mobile` | `en`, `zh`, `zh-CN`, `ja`, `ko` |
 | `v4-server` | `zh`, `zh-CN` 전용 |
 
-`*-server` preset은 중국어 recognizer만 번들합니다 — 다른 언어는 해당 버전의 `*-mobile` preset을 사용하세요.
+`*-server` 모델은 중국어 recognizer만 번들합니다 — 다른 언어는 해당 버전의 `*-mobile` 모델을 사용하세요.
 
 ### 검출 민감도 튜닝
 

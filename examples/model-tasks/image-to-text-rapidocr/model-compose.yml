@@ -77,13 +77,13 @@ components:
   # ONNX runtime port of PaddleOCR). The engine bundle is downloaded on first
   # use.
   #
-  # `preset` selects the PP-OCR version + size. `language` uses project-
-  # standard ISO 639-1 / BCP 47 codes (see docs/reference/compose/language-
-  # codes.md); which codes a preset accepts depends on which recognizers
-  # that version ships. Unsupported (preset, language) pairs raise at
-  # startup.
+  # `model` picks the PP-OCR variant (version + size) as a short name.
+  # `language` uses project-standard ISO 639-1 / BCP 47 codes (see
+  # docs/reference/compose/language-codes.md); which codes a model accepts
+  # depends on which recognizers that version ships. Unsupported
+  # (model, language) pairs raise at startup.
   #
-  #   preset       | version    | languages
+  #   model        | version    | languages
   #   -------------|------------|-----------------------------
   #   v6-small*    | PP-OCRv6   | en, zh, zh-CN
   #   v6-tiny      | PP-OCRv6   | en, zh, zh-CN
@@ -94,8 +94,8 @@ components:
   #   v4-server    | PP-OCRv4   | zh, zh-CN only
   #   (* default)
   #
-  # The `*-server` presets are Chinese-only — RapidOCR ships non-Chinese
-  # recognizers only in the mobile size. Pick the smallest preset that
+  # The `*-server` models are Chinese-only — RapidOCR ships non-Chinese
+  # recognizers only in the mobile size. Pick the smallest model that
   # covers your language.
   #
   # Two actions share the same loaded engine:
@@ -107,7 +107,7 @@ components:
     task: image-to-text
     driver: custom
     family: rapidocr
-    preset: v6-small
+    model: v6-small
     language: en
     max_concurrent_count: 1
     actions:

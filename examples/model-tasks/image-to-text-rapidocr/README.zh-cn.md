@@ -134,8 +134,8 @@ graph TD
 ### 切换识别语言
 
 `language` 使用项目标准 ISO 639-1 / BCP 47 代码（`en`、`zh`、`zh-CN`、`ko`、
-`ja`）。支持的代码集合取决于 `preset` —— `v6-*` 覆盖英语和中文，`v5-*` 增加
-韩语，`v4-*` 在此之上再增加日语。切换语言时请同步修改 `preset` 与 `language`：
+`ja`）。支持的代码集合取决于 `model` —— `v6-*` 覆盖英语和中文，`v5-*` 增加
+韩语，`v4-*` 在此之上再增加日语。切换语言时请同步修改 `model` 与 `language`：
 
 ```yaml
 components:
@@ -144,19 +144,19 @@ components:
     task: image-to-text
     driver: custom
     family: rapidocr
-    preset: v5-mobile
+    model: v5-mobile
     language: ko
 ```
 
-| Preset | 支持语言 |
-|--------|---------|
+| Model | 支持语言 |
+|-------|---------|
 | `v6-small`（默认）、`v6-tiny`、`v6-medium` | `en`、`zh`、`zh-CN` |
 | `v5-mobile` | `en`、`zh`、`zh-CN`、`ko` |
 | `v5-server` | 仅 `zh`、`zh-CN` |
 | `v4-mobile` | `en`、`zh`、`zh-CN`、`ja`、`ko` |
 | `v4-server` | 仅 `zh`、`zh-CN` |
 
-`*-server` preset 只捆绑中文识别器 —— 其他语言请使用对应版本的 `*-mobile` preset。
+`*-server` 模型只捆绑中文识别器 —— 其他语言请使用对应版本的 `*-mobile` 模型。
 
 ### 调整检测灵敏度
 

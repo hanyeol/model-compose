@@ -142,9 +142,9 @@ accepts that shape directly — no reshaping or custom glue is needed.
 ### Switch recognition language
 
 `language` uses project-standard ISO 639-1 / BCP 47 codes (`en`, `zh`,
-`zh-CN`, `ko`, `ja`). The set of supported codes depends on the `preset` —
+`zh-CN`, `ko`, `ja`). The set of supported codes depends on the `model` —
 `v6-*` covers English and Chinese, `v5-*` adds Korean, `v4-*` adds Japanese
-on top. Swap `preset` and `language` together when you change language:
+on top. Swap `model` and `language` together when you change language:
 
 ```yaml
 components:
@@ -153,19 +153,19 @@ components:
     task: image-to-text
     driver: custom
     family: rapidocr
-    preset: v5-mobile
+    model: v5-mobile
     language: ko
 ```
 
-| Preset | Languages |
-|--------|-----------|
+| Model | Languages |
+|-------|-----------|
 | `v6-small` (default), `v6-tiny`, `v6-medium` | `en`, `zh`, `zh-CN` |
 | `v5-mobile` | `en`, `zh`, `zh-CN`, `ko` |
 | `v5-server` | `zh`, `zh-CN` only |
 | `v4-mobile` | `en`, `zh`, `zh-CN`, `ja`, `ko` |
 | `v4-server` | `zh`, `zh-CN` only |
 
-The `*-server` presets ship Chinese recognizers only; for every other language use the matching `*-mobile` preset.
+The `*-server` models ship Chinese recognizers only; for every other language use the matching `*-mobile` model.
 
 ### Tune detection sensitivity
 

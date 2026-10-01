@@ -1,0 +1,137 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # -------------- Plain text OCR ----------------------------------------------
+  # Default workflow. Runs RapidOCR on the input image and returns the
+  # recognized text as a single newline-joined string — the same shape a
+  # generative image-to-text model (e.g. BLIP) would return, so this workflow
+  # is a drop-in OCR alternative for captioning pipelines.
+  - id: recognize-text
+    default: true
+    title: Recognize Text (RapidOCR)
+    description: Run RapidOCR on the image and return the joined text as a plain string.
+    job:
+      component: ocr
+      action: text-only
+      output:
+        text: ${output as text}
+
+  # -------------- OCR + polygon overlay ---------------------------------------
+  # Three-job pipeline:
+  #   1. `fanout-image` spools the upload so both branches can read it
+  #      independently (one for OCR, one as the drawing canvas).
+  #   2. `detect` runs RapidOCR with `return_polygons: true`, which emits
+  #      `{text, polygons: [{text, polygon, score}], width, height}`.
+  #   3. `annotate` folds one polygon per detected text line onto the source
+  #      image with an inline `accumulate` job. Each iteration takes the
+  #      running image (`${accumulator}`) and returns the same image with one
+  #      more red outline added. The `polygon` field is a list of `{x, y}`
+  #      objects, which `image-drawing`'s `points` field accepts directly —
+  #      no reshaping needed.
+  - id: annotate-text
+    title: Annotate Text Regions (RapidOCR + overlay)
+    description: Detect text with RapidOCR and draw red polygons around each recognized line.
+    jobs:
+      - id: fanout-image
+        type: fan-out
+        input: ${input.image as image}
+        output: [ for-detect, for-annotate ]
+        spool: true
+
+      - id: detect
+        component: ocr
+        action: with-polygons
+        input:
+          image: ${jobs.fanout-image.output.for-detect}
+        depends_on: [ fanout-image ]
+
+      - id: annotate
+        type: accumulate
+        input: ${jobs.detect.output.polygons}
+        accumulator: ${jobs.fanout-image.output.for-annotate}
+        depends_on: [ fanout-image, detect ]
+        do:
+          component: polygon-drawer
+          input:
+            image: ${accumulator}
+            points: ${item.polygon}
+            line_width: ${input.line_width as number | 2}
+
+    output:
+      annotated_image: ${jobs.annotate.output as image}
+      # Also surface the raw OCR records so callers can inspect per-line
+      # text and scores without re-running recognition.
+      text: ${jobs.detect.output.text as text}
+      lines: ${jobs.detect.output.polygons as json}
+
+components:
+  # ---- RapidOCR engine ----
+  # `driver: custom` + `family: rapidocr` selects the RapidOCR engine (an
+  # ONNX runtime port of PaddleOCR). The engine bundle is downloaded on first
+  # use.
+  #
+  # `preset` selects the PP-OCR version + size. `language` uses project-
+  # standard ISO 639-1 / BCP 47 codes (see docs/reference/compose/language-
+  # codes.md); which codes a preset accepts depends on which recognizers
+  # that version ships. Unsupported (preset, language) pairs raise at
+  # startup.
+  #
+  #   preset       | version    | languages
+  #   -------------|------------|-----------------------------
+  #   v6-small*    | PP-OCRv6   | en, zh, zh-CN
+  #   v6-tiny      | PP-OCRv6   | en, zh, zh-CN
+  #   v6-medium    | PP-OCRv6   | en, zh, zh-CN
+  #   v5-mobile    | PP-OCRv5   | en, zh, zh-CN, ko
+  #   v5-server    | PP-OCRv5   | zh, zh-CN only
+  #   v4-mobile    | PP-OCRv4   | en, zh, zh-CN, ja, ko
+  #   v4-server    | PP-OCRv4   | zh, zh-CN only
+  #   (* default)
+  #
+  # The `*-server` presets are Chinese-only — RapidOCR ships non-Chinese
+  # recognizers only in the mobile size. Pick the smallest preset that
+  # covers your language.
+  #
+  # Two actions share the same loaded engine:
+  #   - `text-only`:    returns a joined plain-text string (default shape).
+  #   - `with-polygons`: returns a structured dict with per-line polygons
+  #                      and scores, suitable for overlay drawing.
+  - id: ocr
+    type: model
+    task: image-to-text
+    driver: custom
+    family: rapidocr
+    preset: v6-small
+    language: en
+    max_concurrent_count: 1
+    actions:
+      - id: text-only
+        image: ${input.image as image}
+        output: ${result}
+
+      - id: with-polygons
+        image: ${input.image as image}
+        return_polygons: true
+        output: ${result}
+
+  # ---- Draw a single polygon outline per call ----
+  # Called once per detected text line by the inline `accumulate` job above.
+  # `${input.image}` is the running accumulator — the image with all
+  # previously-drawn polygons already on it. The `points` list is forwarded
+  # straight from the OCR result (`[{x, y}, ...]`), so no reshaping is
+  # required.
+  - id: polygon-drawer
+    type: image-drawing
+    driver: native
+    action:
+      method: polygon
+      image: ${input.image as image}
+      points: ${input.points}
+      outline: "#DC143C"
+      line_width: ${input.line_width}

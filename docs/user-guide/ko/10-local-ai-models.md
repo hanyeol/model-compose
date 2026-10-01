@@ -279,6 +279,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `music-beat-tracking` | 음악 비트 트래킹 | 음악 녹음의 비트와 다운비트 위치를 검출 |
 | `talking-head` | 초상화→비디오 립싱크 | 정지 초상화를 구동 오디오에 맞춰 움직임 (아이덴티티 합성) |
 | `lip-sync` | 비디오→비디오 립싱크 | 얼굴 비디오의 입 움직임을 새 오디오에 맞춰 재싱크 |
+| `motion-generation` | 모션 생성 | 텍스트 프롬프트로부터 3D 휴먼/휴머노이드 모션 시퀀스 생성 |
 
 ### 10.3.1 text-generation
 
@@ -1832,6 +1833,45 @@ component:
 오디오가 비디오보다 길면 Wav2Lip과 MuseTalk는 소스 프레임을 루프하여 타임라인을 채웁니다 (MuseTalk는 ping-pong, Wav2Lip은 순방향 반복). LatentSync는 오디오 길이와 정확히 일치하는 결과를 생성하고 소스 비디오를 맞춰 잘라냅니다.
 
 결과는 mp4 스트림(배치 입력에는 스트림 리스트)이며, 각각 `format: "mp4"`와 출력 프레임률에 맞는 `fps` 속성을 가집니다. 전체 패밀리별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#lip-sync)를 참고하세요.
+
+### 10.3.34 motion-generation
+
+텍스트 프롬프트로부터 3D 휴먼 또는 휴머노이드 모션 시퀀스를 생성합니다. 출력은 모델의 네이티브 프레임레이트로 디퓨전 샘플링된 관절 위치, 회전 행렬, 발 접촉 레이블의 시퀀스이며 NPZ 파일로 패키징됩니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
+
+```yaml
+component:
+  type: model
+  task: motion-generation
+  driver: custom
+  family: kimodo
+  preset: Kimodo-SOMA-RP-v1.1
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    seed: ${input.seed as integer}
+    params:
+      duration: 6.0
+      diffusion_steps: 20
+      cfg_weight: [2.0, 2.0]
+```
+
+**지원되는 패밀리:**
+
+| 패밀리 | 백엔드 | 비고 |
+|--------|--------|------|
+| `kimodo` | [NVIDIA Kimodo](https://research.nvidia.com/labs/sil/projects/kimodo/) | 약 700시간 모캡으로 학습된 kinematic 모션 디퓨전 모델. preset이 스켈레톤(SOMA, Unitree G1, SMPL-X)을 선택하며, 체크포인트는 첫 사용 시 `nvidia/<preset>`에서 자동 다운로드됩니다. |
+
+**Kimodo preset:**
+- `Kimodo-SOMA-RP-v1.1` *(기본)* — SOMA 77-관절 스켈레톤, Bones Rigplay 1 (700시간).
+- `Kimodo-SOMA-SEED-v1.1` — SOMA 스켈레톤, BONES-SEED 서브셋 (288시간).
+- `Kimodo-G1-RP-v1` — Unitree G1 로봇 스켈레톤, Bones Rigplay 1.
+- `Kimodo-G1-SEED-v1` — Unitree G1 스켈레톤, BONES-SEED 서브셋.
+- `Kimodo-SMPLX-RP-v1` — SMPL-X 스켈레톤 (research 라이선스).
+
+Kimodo는 CUDA(RTX 3090 / 4090 / A100, ~17 GiB VRAM)에서만 공식 테스트되었습니다. `text_encoder_device: cpu`를 설정하면 LLM2Vec 텍스트 인코더를 GPU에서 분리하여 VRAM 사용량을 ~3 GiB 미만으로 낮출 수 있습니다. macOS는 공식 지원되지 않습니다 — `device: cpu`는 동작하지만 느리고, `device: mps`는 지원되지 않는 연산자에서 추론 시점에 실패할 수 있습니다.
+
+결과는 입력당 content type `application/x-npz`를 가진 `BytesStreamResource`(배치 입력에는 리스트)입니다. NPZ 페이로드는 `posed_joints [T,J,3]`, `global_rot_mats` / `local_rot_mats [T,J,3,3]`, `foot_contacts [T,4]`, `root_positions`, `smooth_root_pos`, `global_root_heading`, `fps`를 포함합니다. Kinematic 제약 조건(풀바디 키프레임, 2D 웨이포인트, 엔드이펙터 타겟)은 Kimodo의 하부 API에서는 지원하지만 이 컴포넌트로는 아직 노출되지 않습니다. 전체 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#motion-generation)를 참고하세요.
 
 ---
 

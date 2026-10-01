@@ -279,6 +279,7 @@ model-compose 支持以下任务类型：
 | `music-beat-tracking` | 音乐节拍跟踪 | 检测音乐录音中的节拍和强拍位置 |
 | `talking-head` | 肖像到视频的对口型 | 用驱动音频让静态肖像动起来（身份合成） |
 | `lip-sync` | 视频到视频的对口型 | 将人脸视频的嘴部运动重新同步到新的音轨 |
+| `motion-generation` | 动作生成 | 从文本提示生成 3D 人体/人形动作序列 |
 
 ### 10.3.1 text-generation
 
@@ -1832,6 +1833,45 @@ component:
 若音频长于视频，Wav2Lip 和 MuseTalk 会循环源帧（MuseTalk 使用 ping-pong，Wav2Lip 使用正向重复）以填满时间线。LatentSync 精确生成与音频等长的时长，并裁剪源视频以匹配。
 
 结果是一个 mp4 流（批量输入则为流列表），每个都带 `format: "mp4"` 与匹配输出帧率的 `fps` 属性。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#lip-sync)。
+
+### 10.3.34 motion-generation
+
+从文本提示生成 3D 人体或人形动作序列。输出是以模型原生帧率扩散采样的关节位置、旋转矩阵和足部接触标签序列，打包为 NPZ 文件。使用 `driver: custom`，通过 `family` 字段选择模型后端。
+
+```yaml
+component:
+  type: model
+  task: motion-generation
+  driver: custom
+  family: kimodo
+  preset: Kimodo-SOMA-RP-v1.1
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    seed: ${input.seed as integer}
+    params:
+      duration: 6.0
+      diffusion_steps: 20
+      cfg_weight: [2.0, 2.0]
+```
+
+**支持的 family：**
+
+| Family | 后端 | 备注 |
+|--------|------|------|
+| `kimodo` | [NVIDIA Kimodo](https://research.nvidia.com/labs/sil/projects/kimodo/) | 基于约 700 小时动作捕捉数据训练的运动学动作扩散模型。preset 选择骨架（SOMA、Unitree G1、SMPL-X）；检查点在首次使用时从 `nvidia/<preset>` 自动拉取。 |
+
+**Kimodo preset：**
+- `Kimodo-SOMA-RP-v1.1` *(默认)* — SOMA 77 关节骨架，Bones Rigplay 1（700 小时）。
+- `Kimodo-SOMA-SEED-v1.1` — SOMA 骨架，BONES-SEED 子集（288 小时）。
+- `Kimodo-G1-RP-v1` — Unitree G1 机器人骨架，Bones Rigplay 1。
+- `Kimodo-G1-SEED-v1` — Unitree G1 骨架，BONES-SEED 子集。
+- `Kimodo-SMPLX-RP-v1` — SMPL-X 骨架（research 许可）。
+
+Kimodo 仅在 CUDA（RTX 3090 / 4090 / A100，约 17 GiB 显存）上经过官方测试。设置 `text_encoder_device: cpu` 可将 LLM2Vec 文本编码器从 GPU 分离，使显存使用降至约 3 GiB 以下。macOS 没有官方支持 —— `device: cpu` 可用但速度慢，`device: mps` 可能在不支持的运算符上推理时报错。
+
+结果是每个输入的 content type 为 `application/x-npz` 的 `BytesStreamResource`（批量输入则为列表）。NPZ 负载包含 `posed_joints [T,J,3]`、`global_rot_mats` / `local_rot_mats [T,J,3,3]`、`foot_contacts [T,4]`、`root_positions`、`smooth_root_pos`、`global_root_heading` 以及 `fps`。运动学约束（全身关键帧、2D 路径点、末端执行器目标）在 Kimodo 底层 API 中受支持，但尚未通过此组件公开。完整字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#motion-generation)。
 
 ---
 

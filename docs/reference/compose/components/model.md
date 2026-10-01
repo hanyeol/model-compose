@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -3612,6 +3612,106 @@ Returns a dict per input (or a list of dicts for batched inputs):
 
 - `beats` — a list of `{ "time", "is_downbeat", "beat_number" }` objects. `time` is the beat timestamp in seconds; `is_downbeat` is `true` when the beat starts a new measure; `beat_number` is the beat's position within its measure, 1-indexed from the most recent downbeat (`1` on downbeats, `2`, `3`, ... on subsequent beats). Beats occurring before the first detected downbeat (pickup notes / anacrusis) carry `beat_number: null`.
 - `duration` — the input audio duration in seconds (included when `return_metadata: true`).
+
+### Motion Generation
+
+Generate 3D human or humanoid motion sequences from text prompts. The action is diffusion-based: a natural-language prompt is denoised into a sequence of joint positions, rotation matrices, and foot-contact labels at the model's native frame rate. Uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `motion-generation` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (`kimodo`) |
+| `preset` | string | `Kimodo-SOMA-RP-v1.1` | Kimodo model short key or display name (`kimodo` only; e.g. `Kimodo-SOMA-RP-v1.1`, `Kimodo-G1-RP-v1`) |
+| `model` | string/object | derived from `preset` | Checkpoint source — a HuggingFace repo ID or a local directory; auto-derived to `nvidia/<preset>` when omitted |
+| `cfg_type` | string | `separated` | Classifier-free guidance strategy (`kimodo` only: `nocfg`, `regular`, `separated`) |
+| `text_encoder_device` | string | `null` | Device override for the text encoder (`kimodo` only; e.g. `cpu` to keep VRAM under ~3 GiB) |
+| `text_encoder_fp32` | bool | `false` | Run the text encoder in fp32 instead of the default bf16 (`kimodo` only) |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `method` | string | **required** | Operation: `generate` |
+| `seed` | int | `null` | Random seed for reproducible generation |
+| `batch_size` | int | `1` | Number of inputs processed per batch |
+
+#### `method: generate`
+
+Generate a motion sequence from a text prompt.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Natural-language description of the desired motion |
+| `params.duration` | float | `4.0` | Motion duration in seconds |
+| `params.num_samples` | int | `1` | Number of motion variations to generate |
+| `params.diffusion_steps` | int | `10` | Number of DDIM denoising steps |
+| `params.cfg_weight` | float/array | `2.0` | Classifier-free guidance weight; a two-element `[text, constraint]` list when driving `separated` CFG |
+| `params.post_processing` | bool | `true` | Apply foot-skate and constraint cleanup to the generated motion |
+
+```yaml
+action:
+  method: generate
+  prompt: ${input.prompt as text}
+  seed: ${input.seed as integer}
+  params:
+    duration: 6.0
+    diffusion_steps: 20
+    cfg_weight: [2.0, 2.0]
+```
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `kimodo` | [NVIDIA Kimodo](https://research.nvidia.com/labs/sil/projects/kimodo/) | Kinematic motion diffusion model trained on ~700 h of mocap. Supports SOMA, Unitree G1, and SMPL-X skeletons via different presets; checkpoint is auto-pulled from `nvidia/<preset>` on first use. |
+
+**Available Kimodo presets:**
+
+- `Kimodo-SOMA-RP-v1.1` *(default)* — SOMA 77-joint skeleton, Bones Rigplay 1 (700 h).
+- `Kimodo-SOMA-SEED-v1.1` — SOMA skeleton, BONES-SEED subset (288 h).
+- `Kimodo-G1-RP-v1` — Unitree G1 robot skeleton, Bones Rigplay 1.
+- `Kimodo-G1-SEED-v1` — Unitree G1 skeleton, BONES-SEED subset.
+- `Kimodo-SMPLX-RP-v1` — SMPL-X skeleton (research license).
+
+**System requirements:** Kimodo is officially tested only on CUDA (RTX 3090 / 4090 / A100). Full-GPU inference uses ~17 GiB VRAM; setting `text_encoder_device: cpu` drops GPU usage to under ~3 GiB at the cost of slower text encoding. macOS is not officially supported — `device: cpu` works but is slow (the 8B-parameter LLM2Vec text encoder dominates), and `device: mps` may fail at inference time on unsupported operators.
+
+**Result Shape:**
+
+Returns a `BytesStreamResource` with content type `application/x-npz` per input (or a list for batched inputs). The NPZ payload contains:
+
+- `posed_joints` — joint positions in world space, shape `[T, J, 3]`.
+- `global_rot_mats` / `local_rot_mats` — per-joint rotation matrices, shape `[T, J, 3, 3]`.
+- `foot_contacts` — binary labels `[left heel, left toe, right heel, right toe]`, shape `[T, 4]`.
+- `root_positions`, `smooth_root_pos`, `global_root_heading` — root trajectory and heading.
+- `fps` — frame rate the model generated at.
+
+`T` is the number of frames and `J` the number of joints for the chosen skeleton.
+
+**Full Example:**
+
+```yaml
+component:
+  type: model
+  task: motion-generation
+  driver: custom
+  family: kimodo
+  preset: Kimodo-SOMA-RP-v1.1
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    seed: ${input.seed as integer}
+    params:
+      duration: ${input.duration as number | 4.0}
+      diffusion_steps: 20
+      cfg_weight: [2.0, 2.0]
+      post_processing: true
+```
+
+Kinematic constraints (full-body keyframes, 2D waypoints, end-effector targets) are supported by Kimodo's underlying API but not yet exposed through this component. Text-only generation is the only supported mode today.
 
 ### Talking Head
 

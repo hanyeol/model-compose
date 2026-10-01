@@ -279,6 +279,7 @@ model-compose supports the following task types:
 | `music-beat-tracking` | Music beat tracking | Detect beat and downbeat positions in a music recording |
 | `talking-head` | Portrait-to-video lip-sync | Animate a still portrait with driving audio (identity synthesis) |
 | `lip-sync` | Video-to-video lip-sync | Re-sync a face video's mouth movements to a new audio track |
+| `motion-generation` | Motion generation | Generate 3D human / humanoid motion sequences from text prompts |
 
 ### 10.3.1 text-generation
 
@@ -1834,6 +1835,45 @@ component:
 If the audio is longer than the video, Wav2Lip and MuseTalk loop the source frames (ping-pong for MuseTalk, forward-repeat for Wav2Lip) to fill the timeline. LatentSync produces exactly the audio-length duration and trims the source video to match.
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate. See the [Model Component reference](../reference/compose/components/model.md#lip-sync) for the full per-family field list.
+
+### 10.3.34 motion-generation
+
+Generates 3D human or humanoid motion sequences from a text prompt. The output is a diffusion-sampled sequence of joint positions, rotation matrices, and foot-contact labels at the model's native frame rate, packaged as an NPZ file. Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: motion-generation
+  driver: custom
+  family: kimodo
+  preset: Kimodo-SOMA-RP-v1.1
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    seed: ${input.seed as integer}
+    params:
+      duration: 6.0
+      diffusion_steps: 20
+      cfg_weight: [2.0, 2.0]
+```
+
+**Supported families:**
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `kimodo` | [NVIDIA Kimodo](https://research.nvidia.com/labs/sil/projects/kimodo/) | Kinematic motion diffusion model trained on ~700 h of mocap. Preset selects the skeleton (SOMA, Unitree G1, SMPL-X); checkpoint is auto-pulled from `nvidia/<preset>` on first use. |
+
+**Kimodo presets:**
+- `Kimodo-SOMA-RP-v1.1` *(default)* — SOMA 77-joint skeleton, Bones Rigplay 1 (700 h).
+- `Kimodo-SOMA-SEED-v1.1` — SOMA skeleton, BONES-SEED subset (288 h).
+- `Kimodo-G1-RP-v1` — Unitree G1 robot skeleton, Bones Rigplay 1.
+- `Kimodo-G1-SEED-v1` — Unitree G1 skeleton, BONES-SEED subset.
+- `Kimodo-SMPLX-RP-v1` — SMPL-X skeleton (research license).
+
+Kimodo is officially tested only on CUDA (RTX 3090 / 4090 / A100, ~17 GiB VRAM). Set `text_encoder_device: cpu` to keep the LLM2Vec text encoder off the GPU and drop VRAM usage to under ~3 GiB. macOS is not officially supported — `device: cpu` works but is slow, and `device: mps` may fail at inference time on unsupported operators.
+
+The result is a `BytesStreamResource` with content type `application/x-npz` per input (or a list for batched inputs). The NPZ payload contains `posed_joints [T,J,3]`, `global_rot_mats` / `local_rot_mats [T,J,3,3]`, `foot_contacts [T,4]`, `root_positions`, `smooth_root_pos`, `global_root_heading`, and `fps`. Kinematic constraints (full-body keyframes, 2D waypoints, end-effector targets) are supported by Kimodo's underlying API but not yet exposed through this component. See the [Model Component reference](../reference/compose/components/model.md#motion-generation) for the full field list.
 
 ---
 

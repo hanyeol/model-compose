@@ -4,9 +4,9 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import RapidOcrImageToTextModelActionConfig
 from ..common import CommonImageToTextModelComponentConfig
 from .common import ImageToTextModelFamily
-from ....common import ModelDriverType, ModelConfig
+from ....common import ModelDriverType, ModelProvider, NamedModelConfig
 
-class RapidOcrPreset(str, Enum):
+class RapidOcrModel(str, Enum):
     V6_SMALL  = "v6-small"
     V6_TINY   = "v6-tiny"
     V6_MEDIUM = "v6-medium"
@@ -15,16 +15,22 @@ class RapidOcrPreset(str, Enum):
     V4_MOBILE = "v4-mobile"
     V4_SERVER = "v4-server"
 
+_DEFAULT_MODEL = RapidOcrModel.V6_SMALL
+
 class RapidOcrImageToTextModelComponentConfig(CommonImageToTextModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[ImageToTextModelFamily.RAPIDOCR]
-    model: Optional[ModelConfig] = Field(default=None, description="Not configurable; the model ships bundled with the rapidocr package.")
-    preset: RapidOcrPreset = Field(default=RapidOcrPreset.V6_SMALL, description="RapidOCR model preset selecting the PP-OCR version and size.")
-    language: Optional[str] = Field(default=None, description="Recognition language as an ISO 639-1 / BCP 47 code (en, ko, ja, zh-CN, ...). See docs/reference/compose/language-codes.md. Which languages a preset supports depends on the PP-OCR version it selects.")
+    model: NamedModelConfig = Field(..., description="RapidOCR preset selecting the PP-OCR version and size (e.g., v6-small, v5-mobile, v4-mobile). See the preset × language matrix in the docs.")
+    language: Optional[str] = Field(default=None, description="Recognition language as an ISO 639-1 / BCP 47 code (en, ko, ja, zh-CN, ...). See docs/reference/compose/language-codes.md. Which languages a model preset supports depends on the PP-OCR version it selects.")
     actions: List[RapidOcrImageToTextModelActionConfig] = Field(default_factory=list, description="Actions this image-to-text component exposes to workflows.")
 
     @model_validator(mode="before")
-    def reject_model_override(cls, values: Dict[str, Any]):
-        if values.get("model") is not None:
-            raise ValueError("RapidOCR ships its own model; the 'model' field is not configurable.")
+    def inflate_model(cls, values: Dict[str, Any]):
+        model = values.get("model")
+        if isinstance(model, str) or model is None:
+            name = model or _DEFAULT_MODEL.value
+            if name not in { variant.value for variant in RapidOcrModel }:
+                supported = ", ".join(variant.value for variant in RapidOcrModel)
+                raise ValueError(f"Unknown RapidOCR model {name!r}. Supported: {supported}.")
+            values["model"] = { "provider": ModelProvider.NAMED, "name": name }
         return values

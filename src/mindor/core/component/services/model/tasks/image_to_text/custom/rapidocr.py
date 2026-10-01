@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ModelComponentConfig, RapidOcrImageToTextModelComponentConfig, RapidOcrPreset
+from mindor.dsl.schema.component import ModelComponentConfig, RapidOcrImageToTextModelComponentConfig, RapidOcrModel
 from mindor.dsl.schema.action import ModelActionConfig, RapidOcrImageToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
@@ -14,36 +14,36 @@ from PIL import Image as PILImage
 if TYPE_CHECKING:
     from rapidocr import RapidOCR
 
-# RapidOCR preset → (PP-OCR version, model size). Kept as plain strings so the
-# module can be imported without the rapidocr package installed; the driver
-# resolves them to RapidOCR's OCRVersion / ModelType enums at load time.
-_RAPIDOCR_PRESET_MODELS: Dict[RapidOcrPreset, Tuple[str, str]] = {
-    RapidOcrPreset.V6_SMALL:  ("PP-OCRv6", "small"),
-    RapidOcrPreset.V6_TINY:   ("PP-OCRv6", "tiny"),
-    RapidOcrPreset.V6_MEDIUM: ("PP-OCRv6", "medium"),
-    RapidOcrPreset.V5_MOBILE: ("PP-OCRv5", "mobile"),
-    RapidOcrPreset.V5_SERVER: ("PP-OCRv5", "server"),
-    RapidOcrPreset.V4_MOBILE: ("PP-OCRv4", "mobile"),
-    RapidOcrPreset.V4_SERVER: ("PP-OCRv4", "server"),
+# RapidOCR model variant → (PP-OCR version, model size). Kept as plain strings
+# so the module can be imported without the rapidocr package installed; the
+# driver resolves them to RapidOCR's OCRVersion / ModelType enums at load time.
+_RAPIDOCR_MODEL_VARIANTS: Dict[RapidOcrModel, Tuple[str, str]] = {
+    RapidOcrModel.V6_SMALL:  ("PP-OCRv6", "small"),
+    RapidOcrModel.V6_TINY:   ("PP-OCRv6", "tiny"),
+    RapidOcrModel.V6_MEDIUM: ("PP-OCRv6", "medium"),
+    RapidOcrModel.V5_MOBILE: ("PP-OCRv5", "mobile"),
+    RapidOcrModel.V5_SERVER: ("PP-OCRv5", "server"),
+    RapidOcrModel.V4_MOBILE: ("PP-OCRv4", "mobile"),
+    RapidOcrModel.V4_SERVER: ("PP-OCRv4", "server"),
 }
 
 # ISO 639-1 / BCP 47 → RapidOCR (det_lang, rec_lang) per PP-OCR version.
 # Only lists combinations RapidOCR actually ships; unsupported pairs raise.
 # Det uses the version's native coverage ('multi' where available), Rec uses
 # the matching per-language recognizer.
-_RAPIDOCR_LANGUAGE_CODE_MAP: Dict[RapidOcrPreset, Dict[str, Tuple[str, str]]] = {
+_RAPIDOCR_LANGUAGE_CODE_MAP: Dict[RapidOcrModel, Dict[str, Tuple[str, str]]] = {
     # PP-OCRv6 only ships 'multi' det/rec in three sizes; it covers en/zh.
-    RapidOcrPreset.V6_SMALL: {
+    RapidOcrModel.V6_SMALL: {
         "en":    ("en", "en"),
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
     },
-    RapidOcrPreset.V6_TINY: {
+    RapidOcrModel.V6_TINY: {
         "en":    ("en", "en"),
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
     },
-    RapidOcrPreset.V6_MEDIUM: {
+    RapidOcrModel.V6_MEDIUM: {
         "en":    ("en", "en"),
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
@@ -51,26 +51,26 @@ _RAPIDOCR_LANGUAGE_CODE_MAP: Dict[RapidOcrPreset, Dict[str, Tuple[str, str]]] = 
     # v5 mobile has per-language rec (en, korean, ...); v5 server only has
     # Chinese rec/det. v5 ships no non-Chinese det models, so Latin-script
     # languages piggyback on the Chinese detector (works well enough).
-    RapidOcrPreset.V5_MOBILE: {
+    RapidOcrModel.V5_MOBILE: {
         "en":    ("ch", "en"),
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
         "ko":    ("ch", "korean"),
     },
-    RapidOcrPreset.V5_SERVER: {
+    RapidOcrModel.V5_SERVER: {
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
     },
     # v4 ships per-language rec (en/japan/korean/...) only in mobile size;
     # server only has Chinese. v4 does have a dedicated multi-language det.
-    RapidOcrPreset.V4_MOBILE: {
+    RapidOcrModel.V4_MOBILE: {
         "en":    ("en", "en"),
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
         "ja":    ("multi", "japan"),
         "ko":    ("multi", "korean"),
     },
-    RapidOcrPreset.V4_SERVER: {
+    RapidOcrModel.V4_SERVER: {
         "zh":    ("ch", "ch"),
         "zh-CN": ("ch", "ch"),
     },
@@ -183,7 +183,8 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
     async def _load_engine(self) -> RapidOCR:
         from rapidocr import RapidOCR
 
-        params = self._build_engine_params(self.config.preset, self.config.language)
+        model = RapidOcrModel(self.config.model.name)
+        params = self._build_engine_params(model, self.config.language)
 
         def _load() -> RapidOCR:
             return RapidOCR(params=params)
@@ -193,12 +194,12 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await RapidOcrImageToTextTaskAction(action, self.engine).run(context)
 
-    def _build_engine_params(self, preset: RapidOcrPreset, language: Optional[str]) -> Dict[str, Any]:
+    def _build_engine_params(self, model: RapidOcrModel, language: Optional[str]) -> Dict[str, Any]:
         from rapidocr.utils.typings import ModelType, OCRVersion
 
-        version_str, size_str = _RAPIDOCR_PRESET_MODELS[preset]
-        ocr_version, model_type = OCRVersion(version_str), ModelType(size_str)
-        det_lang, rec_lang = self._resolve_language(preset, language)
+        model_version, model_size = _RAPIDOCR_MODEL_VARIANTS[model]
+        ocr_version, model_type = OCRVersion(model_version), ModelType(model_size)
+        det_lang, rec_lang = self._resolve_language(model, language)
 
         return {
             "Det.ocr_version": ocr_version,
@@ -209,11 +210,11 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
             "Rec.lang_type":   rec_lang,
         }
 
-    def _resolve_language(self, preset: RapidOcrPreset, language: Optional[str]) -> Tuple[str, str]:
-        supported_languages = _RAPIDOCR_LANGUAGE_CODE_MAP[preset]
+    def _resolve_language(self, model: RapidOcrModel, language: Optional[str]) -> Tuple[str, str]:
+        supported_languages = _RAPIDOCR_LANGUAGE_CODE_MAP[model]
 
         # Prefer 'en' as the implicit default; fall back to the first supported
-        # language for preset tiers that don't carry an English recognizer
+        # language for model variants that don't carry an English recognizer
         # (e.g. v5-server / v4-server ship only Chinese).
         if not language:
             language = "en" if "en" in supported_languages else next(iter(supported_languages))
@@ -222,8 +223,8 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
             supported = ", ".join(sorted(supported_languages.keys()))
 
             raise ValueError(
-                f"RapidOCR preset {preset.value!r} does not support language {language!r}. "
-                f"Supported languages for this preset: {supported}."
+                f"RapidOCR model {model.value!r} does not support language {language!r}. "
+                f"Supported languages for this model: {supported}."
             )
 
         return supported_languages[language]

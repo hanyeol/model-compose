@@ -58,7 +58,7 @@ component:
       # sequence quadratically in attention cost.
       num_frames: ${input.num_frames as integer | 96}
       inference_steps: ${input.inference_steps as integer | 50}
-      guidance_scale: ${input.guidance_scale as float | 5.0}
+      guidance_scale: ${input.guidance_scale as number | 5.0}
       # Sol-Attn tuning overrides, only consulted when `backend: sol` is set
       # on the component above. The defaults below are already applied when
       # the backend is sol and this block is omitted.

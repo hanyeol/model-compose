@@ -591,7 +591,88 @@ Same generation parameter shape as text-generation, but defaults favor determini
 
 ### Image-to-Text
 
-Generate text descriptions from images:
+Generate text from an image. Covers two distinct use cases via the `driver` field:
+- `huggingface` (default): captioning / visual description with generative models (BLIP, GIT, Pix2Struct, Donut, Kosmos-2, …).
+- `custom`: specialized non-generative image-to-text models selected via the `family` field. Currently supports `rapidocr` for optical character recognition (OCR).
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-to-text` |
+| `driver` | string | `huggingface` | Model inference framework: `huggingface`, `custom` |
+| `architecture` | string | `auto` | HuggingFace model architecture when `driver: huggingface`: `auto`, `blip`, `blip2`, `git`, `pix2struct`, `donut`, `kosmos2` |
+| `family` | string | — | Required when `driver: custom`. Currently: `rapidocr` |
+| `model` | string | `v6-small` | For `family: rapidocr`: short name of the PP-OCR variant (version + size); see matrix below |
+| `language` | string | `null` | For `family: rapidocr`: recognition language as an ISO 639-1 / BCP 47 code (see [language codes](../language-codes.md)); which codes are accepted depends on `model` |
+
+**RapidOCR model × language support matrix:**
+
+| Model | PP-OCR version | Supported languages |
+|-------|----------------|---------------------|
+| `v6-small` (default), `v6-tiny`, `v6-medium` | PP-OCRv6 | `en`, `zh`, `zh-CN` |
+| `v5-mobile` | PP-OCRv5 | `en`, `zh`, `zh-CN`, `ko` |
+| `v5-server` | PP-OCRv5 | `zh`, `zh-CN` only |
+| `v4-mobile` | PP-OCRv4 | `en`, `zh`, `zh-CN`, `ja`, `ko` |
+| `v4-server` | PP-OCRv4 | `zh`, `zh-CN` only |
+
+Pick the smallest model that covers the languages you need. For English or Chinese pages, the default `v6-small` is fastest. For Korean switch to `v5-mobile`; for Japanese switch to `v4-mobile`. The `*-server` models are Chinese-only — RapidOCR ships non-Chinese recognizers only in the mobile size. Unsupported `(model, language)` pairs raise a clear error at component startup.
+
+**Common Action Fields** (both drivers):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | string/array | **required** | Input image or list of images |
+| `prompt` | string/array | `null` | Text prompt paired with each input image (ignored by OCR drivers) |
+| `max_input_length` | integer | `null` | Maximum tokens accepted per input prompt |
+| `max_output_length` | integer | `null` | Maximum tokens generated; unset uses the model's configured limit |
+| `min_output_length` | integer | `1` | Minimum tokens generated before generation may stop |
+| `batch_size` | integer | `1` | Number of input images processed per batch |
+| `streaming` | boolean | `false` | Emit generated tokens incrementally as they are produced (HuggingFace only; OCR drivers emit a single result per image) |
+
+**HuggingFace Action Fields** (`driver: huggingface`):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `num_return_sequences` | integer | `1` | Number of generated sequences returned per input |
+| `stop_sequences` | string/array | `null` | Sequences that terminate generation when produced |
+| `params.do_sample` | boolean | `true` | Enable sampling; disable for deterministic beam/greedy decoding |
+| `params.temperature` | float | `1.0` | Sampling temperature (used when `params.do_sample: true`) |
+| `params.top_k` | integer | `50` | Top-K sampling cutoff (used when `params.do_sample: true`) |
+| `params.top_p` | float | `0.9` | Nucleus sampling threshold (used when `params.do_sample: true`) |
+| `params.num_beams` | integer | `1` | Beam search width |
+| `params.length_penalty` | float | `1.0` | Length penalty applied during beam search |
+| `params.early_stopping` | boolean | `true` | Stop when all beams finish generating |
+
+**RapidOCR Action Fields** (`driver: custom`, `family: rapidocr`):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `return_polygons` | boolean | `false` | If `true`, emit a structured object with per-text polygons and scores; otherwise emit the joined recognized text as a plain string |
+| `params.text_score` | float | `0.5` | Minimum recognition confidence; regions below this are dropped |
+| `params.box_thresh` | float | `0.5` | Detection score threshold applied when forming text boxes |
+| `params.unclip_ratio` | float | `1.6` | Ratio used to expand detected polygons before recognition |
+| `params.use_cls` | boolean | `true` | Whether the angle classifier corrects rotated text before recognition |
+
+When `return_polygons: true`, each image result is an object of the form:
+
+```yaml
+text: "line 1\nline 2\n..."
+polygons:
+  - text: "line 1"
+    polygon:
+      - { x: 10, y: 20 }
+      - { x: 120, y: 20 }
+      - { x: 120, y: 48 }
+      - { x: 10, y: 48 }
+    score: 0.98
+width: 1024
+height: 768
+```
+
+The `polygon` list uses the `{x, y}` object form and can be fed directly into the [`image-drawing`](image-drawing.md) component's polygon/line/point `points` field.
+
+**Example — Caption with BLIP (HuggingFace):**
 
 ```yaml
 component:
@@ -599,9 +680,55 @@ component:
   task: image-to-text
   model: Salesforce/blip-image-captioning-base
   action:
-    image: ${input.image_url}
+    image: ${input.image as image}
     output:
-      caption: ${response.generated_text}
+      caption: ${result}
+```
+
+**Example — OCR with RapidOCR (English, plain text output):**
+
+```yaml
+component:
+  type: model
+  task: image-to-text
+  driver: custom
+  family: rapidocr
+  model: v6-small
+  language: en
+  action:
+    image: ${input.image as image}
+    output:
+      text: ${result}
+```
+
+**Example — Korean OCR (requires `v5-*` or `v4-*` model):**
+
+```yaml
+component:
+  type: model
+  task: image-to-text
+  driver: custom
+  family: rapidocr
+  model: v5-mobile
+  language: ko
+  action:
+    image: ${input.image as image}
+    output:
+      text: ${result}
+```
+
+**Example — OCR with RapidOCR returning polygons for downstream drawing:**
+
+```yaml
+component:
+  type: model
+  task: image-to-text
+  driver: custom
+  family: rapidocr
+  action:
+    image: ${input.image as image}
+    return_polygons: true
+    output: ${result}
 ```
 
 ### Image-Text-to-Text

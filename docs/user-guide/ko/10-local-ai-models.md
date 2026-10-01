@@ -529,7 +529,12 @@ component:
 
 ### 10.3.8 image-to-text
 
-이미지를 분석하여 텍스트를 생성합니다.
+이미지를 분석하여 텍스트를 생성합니다. 두 가지 드라이버가 있습니다.
+
+- `huggingface` (기본값): BLIP, GIT, Pix2Struct, Donut, Kosmos-2 등 생성형 캡셔닝/설명 모델.
+- `custom`: `family`로 선택하는 비생성형 특수 모델. 현재 `rapidocr`(OCR)를 지원합니다.
+
+**HuggingFace로 이미지 캡션 생성:**
 
 ```yaml
 component:
@@ -542,10 +547,42 @@ component:
     prompt: ${input.prompt as text}
 ```
 
-**지원 아키텍처:**
-- `blip`: 이미지 캡셔닝
+**지원 아키텍처 (HuggingFace):**
+- `blip`, `blip2`: 이미지 캡셔닝
 - `git`: Generative Image-to-Text
-- `vit-gpt2`: Vision Transformer + GPT-2
+- `pix2struct`: 문서/UI 이해
+- `donut`: 문서 이해 트랜스포머
+- `kosmos2`: 그라운디드 멀티모달 LM
+
+**RapidOCR로 OCR 수행:**
+
+```yaml
+component:
+  type: model
+  task: image-to-text
+  driver: custom
+  family: rapidocr
+  model: v6-small   # 언어에 맞게 선택 — 아래 매트릭스 참고
+  language: en      # ISO 639-1 / BCP 47 코드
+  action:
+    image: ${input.image as image}
+    output:
+      text: ${result}
+```
+
+`model`은 PP-OCR 버전+크기 조합의 짧은 이름입니다. 각 모델이 번들하는 언어 셋이 다릅니다.
+
+| Model | 지원 언어 |
+|-------|---------|
+| `v6-small`(기본), `v6-tiny`, `v6-medium` | `en`, `zh`, `zh-CN` |
+| `v5-mobile` | `en`, `zh`, `zh-CN`, `ko` |
+| `v5-server` | `zh`, `zh-CN` 전용 |
+| `v4-mobile` | `en`, `zh`, `zh-CN`, `ja`, `ko` |
+| `v4-server` | `zh`, `zh-CN` 전용 |
+
+`*-server` 모델은 중국어 recognizer만 번들합니다 — 다른 언어는 해당 버전의 `*-mobile` 모델을 사용하세요.
+
+기본적으로 RapidOCR는 인식된 텍스트를 줄바꿈으로 이어붙인 문자열을 반환하여 HuggingFace 캡션과 동일한 형태입니다. `return_polygons: true`로 설정하면 `{text, polygons: [{text, polygon, score}], width, height}` 구조로 반환되며, `polygon` 리스트는 `{x, y}` 포인트 형식이라 [`image-drawing`](../../reference/compose/components/image-drawing.md) 컴포넌트의 `points` 필드로 그대로 흘려 넣어 오버레이할 수 있습니다.
 
 ### 10.3.9 image-embedding
 

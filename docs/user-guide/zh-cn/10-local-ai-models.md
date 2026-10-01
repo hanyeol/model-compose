@@ -529,7 +529,12 @@ component:
 
 ### 10.3.8 image-to-text
 
-分析图像并生成文本。
+分析图像并生成文本。提供两种驱动：
+
+- `huggingface`（默认）：使用 BLIP、GIT、Pix2Struct、Donut、Kosmos-2 等生成式模型进行图像描述。
+- `custom`：通过 `family` 选择的非生成式专用模型。目前支持 `rapidocr`（光学字符识别）。
+
+**使用 HuggingFace 生成图像描述：**
 
 ```yaml
 component:
@@ -542,10 +547,42 @@ component:
     prompt: ${input.prompt as text}
 ```
 
-**支持的架构：**
-- `blip`：图像描述
+**支持的架构（HuggingFace）：**
+- `blip`、`blip2`：图像描述
 - `git`：生成式图像到文本
-- `vit-gpt2`：视觉转换器 + GPT-2
+- `pix2struct`：文档 / UI 理解
+- `donut`：文档理解 Transformer
+- `kosmos2`：接地式多模态语言模型
+
+**使用 RapidOCR 进行 OCR：**
+
+```yaml
+component:
+  type: model
+  task: image-to-text
+  driver: custom
+  family: rapidocr
+  model: v6-small   # 根据语言选择 —— 见下方矩阵
+  language: en      # ISO 639-1 / BCP 47 代码
+  action:
+    image: ${input.image as image}
+    output:
+      text: ${result}
+```
+
+`model` 是 PP-OCR 版本+规格组合的短名称。每个 model 捆绑的语言集不同：
+
+| Model | 支持语言 |
+|-------|---------|
+| `v6-small`（默认）、`v6-tiny`、`v6-medium` | `en`、`zh`、`zh-CN` |
+| `v5-mobile` | `en`、`zh`、`zh-CN`、`ko` |
+| `v5-server` | 仅 `zh`、`zh-CN` |
+| `v4-mobile` | `en`、`zh`、`zh-CN`、`ja`、`ko` |
+| `v4-server` | 仅 `zh`、`zh-CN` |
+
+`*-server` 模型只捆绑中文识别器 —— 其他语言请使用对应版本的 `*-mobile` 模型。
+
+默认情况下 RapidOCR 以换行拼接的字符串形式返回识别文本，与 HuggingFace 描述输出格式一致。设置 `return_polygons: true` 后将返回 `{text, polygons: [{text, polygon, score}], width, height}` 结构，其中 `polygon` 列表采用 `{x, y}` 点格式，可直接传入 [`image-drawing`](../../reference/compose/components/image-drawing.md) 组件的 `points` 字段用于叠加绘制。
 
 ### 10.3.9 image-embedding
 

@@ -48,7 +48,7 @@ Most methods share the same drawing-related fields:
 | `x`, `y` | number | Coordinates (top-left corner for bounding-box methods, center for `circle` / `regular-polygon`, anchor point for `text` / `multiline-text` / `bitmap`) |
 | `width`, `height` | number | Bounding-box dimensions in pixels (rectangle-like methods) |
 | `radius` | number | Circle radius, corner radius, or bounding-circle radius depending on the method |
-| `points` | list | Sequence of `(x, y)` pairs for point-list methods (`point`, `line`, `polygon`) |
+| `points` | list | Sequence of points for point-list methods (`point`, `line`, `polygon`). Each point is either an `[x, y]` pair or an `{x, y}` object (the latter lets you plug detector / OCR output in directly) |
 | `fill` | color | Interior fill color (or the pixel color for `point` / `line` / `text`). Accepts a name (`"red"`), hex string (`"#ff0000"`, `"#00000080"`), RGB tuple `[r, g, b]`, or RGBA tuple `[r, g, b, a]`. `null` means no fill. |
 | `outline` | color | Outline color for closed shapes. `null` means no outline. |
 | `line_width` | integer | Outline thickness in pixels (or line thickness for `line`). |
@@ -76,7 +76,7 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `points` | list | **required** | List of `(x, y)` pairs to plot |
+| `points` | list | **required** | List of points to plot. Each point is either `[x, y]` or `{x, y}` |
 | `fill` | color | `null` | Pixel color |
 
 ### Line
@@ -100,7 +100,7 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `points` | list | **required** | Vertex points connected in order |
+| `points` | list | **required** | Vertex points connected in order. Each point is either `[x, y]` or `{x, y}` |
 | `fill` | color | `null` | Line color |
 | `line_width` | integer | `1` | Line thickness in pixels |
 | `joint` | string | `null` | Segment joint style; `curve` rounds corners between segments |
@@ -319,12 +319,23 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `points` | list | **required** | Vertex points |
+| `points` | list | **required** | Vertex points. Each point is either `[x, y]` or `{x, y}` |
 | `fill` | color | `null` | Interior fill color |
 | `outline` | color | `null` | Outline color |
 | `line_width` | integer | `1` | Outline thickness in pixels |
 
-Use `polygon` for segmentation masks, pose skeleton outlines, or any hand-authored shape.
+Use `polygon` for segmentation masks, pose skeleton outlines, or any hand-authored shape. The `{x, y}` object form lets you feed detector output (e.g. [`face-detection`](model.md#face-detection) landmarks, or [`image-to-text`](model.md#image-to-text) OCR polygons from RapidOCR) directly into `points` without reshaping:
+
+```yaml
+component:
+  type: image-drawing
+  action:
+    method: polygon
+    image: ${input.image}
+    points: ${ocr.polygons[0].polygon}
+    outline: red
+    line_width: 2
+```
 
 ### Regular Polygon
 

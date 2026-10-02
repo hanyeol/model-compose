@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
+from mindor.dsl.schema.component import KevTypedDecisionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
@@ -9,9 +10,6 @@ from mindor.core.foundation.package.installer import install_package_from_github
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TypedDecisionTaskAction
 import os, sys, platform
-
-if TYPE_CHECKING:
-    from mindor.dsl.schema.component import KevTypedDecisionModelComponentConfig
 
 class KevTypedDecisionTaskAction(TypedDecisionTaskAction):
     def __init__(

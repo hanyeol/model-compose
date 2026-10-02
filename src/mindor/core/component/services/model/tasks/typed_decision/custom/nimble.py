@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Union, Dict, List, Any
+from mindor.dsl.schema.component import NimbleTypedDecisionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
@@ -11,7 +12,6 @@ from ..common import TypedDecisionTaskAction
 import os, sys, platform
 
 if TYPE_CHECKING:
-    from mindor.dsl.schema.component import NimbleTypedDecisionModelComponentConfig
     from nimble.scoring.parallel_scorer import ParallelScorer
     from nimble.scoring.cuda_scorer import CudaCandidateScorer
 

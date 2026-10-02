@@ -675,6 +675,8 @@ component:
 - `sdxl`：Stable Diffusion XL
 - `hunyuan`：HunyuanDiT
 
+**VAE 分块解码：**`huggingface` 驱动默认一次性解码整个 latent。如果在高分辨率下显存不足，可在组件上设置 `vae_tiling: true` 按分块解码；这样可以在较小的 GPU 上节省显存，但可能在分块边界留下淡淡的竖线或横线。
+
 ### 10.3.12 image-upscaling
 
 增强图像分辨率。

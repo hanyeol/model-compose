@@ -675,6 +675,8 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
+**VAE tiling:** the `huggingface` driver decodes the whole latent at once by default. If you run out of VRAM at high resolutions, set `vae_tiling: true` on the component to decode in tiles; this saves VRAM on smaller GPUs but can leave faint vertical or horizontal seams at tile boundaries.
+
 ### 10.3.12 image-upscaling
 
 Enhances image resolution.

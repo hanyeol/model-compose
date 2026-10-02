@@ -675,6 +675,8 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
+**VAE 타일링:** `huggingface` 드라이버는 기본적으로 latent 전체를 한 번에 디코딩합니다. 고해상도에서 VRAM이 부족하면 컴포넌트에 `vae_tiling: true`를 주어 타일 단위로 디코딩하세요. 작은 GPU에서도 VRAM을 아낄 수 있지만, 타일 경계에 옅은 세로·가로 줄이 남을 수 있습니다.
+
 ### 10.3.12 image-upscaling
 
 이미지 해상도를 향상시킵니다.

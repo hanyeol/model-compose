@@ -111,7 +111,6 @@ class ClefTypedDecisionTaskDriver(ModelTaskDriver):
         return [
             *torch_requirements("torch>=2.11"),
             "transformers>=5.10.2",
-            "pillow",
             "huggingface_hub",
         ]
 

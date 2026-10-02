@@ -82,7 +82,6 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         if sys.platform == "linux" and platform.machine() in ("x86_64", "aarch64"):
             requirements.extend([
                 *torch_requirements("torch>=2.8,<3"),
-                "accelerate==1.15.0",
                 "sentencepiece==0.2.2",
             ])
 
@@ -96,6 +95,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         requirements.extend([
             "transformers==5.17.0",
             "peft==0.21.0",
+            "accelerate==1.15.0",
             "huggingface_hub",
         ])
 

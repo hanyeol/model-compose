@@ -111,12 +111,13 @@ class ClefTypedDecisionTaskDriver(ModelTaskDriver):
         return [
             *torch_requirements("torch>=2.11"),
             "transformers>=5.10.2",
+            "accelerate",
             "huggingface_hub",
         ]
 
     async def _load_model(self) -> None:
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        device = self.config.device
+        device = self._resolve_device(self.config.device)
 
         def _load() -> Tuple[Any, Any, str]:
             # joint_schema_model lives at the snapshot root rather than as an installable package,
@@ -126,9 +127,7 @@ class ClefTypedDecisionTaskDriver(ModelTaskDriver):
 
             from joint_schema_model import load_release_model
 
-            resolved_device = device if device != "auto" else None
-            loaded_model, loaded_processor = load_release_model(model_path, device=resolved_device) if resolved_device else load_release_model(model_path)
-
+            loaded_model, loaded_processor = load_release_model(model_path, device=device)
             return loaded_model, loaded_processor, model_path
 
         self.model, self.processor, self.model_path = await self._run_in_executor(_load)

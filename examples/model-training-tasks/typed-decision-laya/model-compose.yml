@@ -1,0 +1,44 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Fine-tune Laya on a typed-decision dataset
+  description: Fine-tune a Laya encoder + per-question heads on a {state, schema, answers} dataset using the upstream RLCD + soft-target CE recipe. The output directory is a drop-in replacement for a convaiinnovations/laya snapshot.
+  jobs:
+    - id: train
+      component: trainer
+      input:
+        dataset:       ${input.dataset | ./train.jsonl}
+        output_dir:    ${input.output_dir | ./output/laya}
+        num_epochs:    ${input.num_epochs as integer | 4}
+        batch_size:    ${input.batch_size as integer | 2}
+        learning_rate: ${input.learning_rate as number | 1e-4}
+      output:
+        output_dir: ${output.output_dir}
+        train_loss: ${output.train_loss}
+        metrics:    ${output.metrics}
+
+components:
+  - id: trainer
+    type: model-trainer
+    task: typed-decision
+    driver: laya
+    model: convaiinnovations/laya
+    preset: typed-decisions
+    # freeze_encoder=true limits training to the per-question heads — faster
+    # and lighter on VRAM, which matches the inference-side 'heads-only' mode.
+    freeze_encoder: false
+    device: auto
+    action:
+      dataset: ${input.dataset}
+      output_dir: ${input.output_dir | ./output/laya}
+      num_epochs: ${input.num_epochs as integer | 4}
+      per_device_train_batch_size: ${input.batch_size as integer | 2}
+      gradient_accumulation_steps: 16
+      learning_rate: ${input.learning_rate as number | 1e-4}

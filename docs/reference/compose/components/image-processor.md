@@ -31,7 +31,7 @@ All image processor actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `concat`, `merge`, `overlay`, `mosaic` |
+| `method` | string | **required** | Processing method: `resize`, `crop`, `rotate`, `flip`, `grayscale`, `blur`, `sharpen`, `adjust-color`, `adjust-brightness`, `adjust-contrast`, `adjust-saturation`, `adjust-gamma`, `adjust-hue`, `concat`, `merge`, `overlay`, `mosaic` |
 | `image` | string / array | **required** | Input image(s) — a single image or a list of images |
 | `batch_size` | integer / string | `null` | Number of input images to process in a single batch |
 | `output` | any | `null` | Output variable mapping |
@@ -189,6 +189,34 @@ component:
 |-------|------|---------|-------------|
 | `factor` | number | `1.0` | Sharpening factor (1.0 = original, >1.0 = sharper) |
 
+### Adjust Color
+
+Apply multiple color adjustments in a single pass. Any field left unset is skipped; at least one must be set. Adjustments are applied in a fixed order (brightness → contrast → saturation → gamma → hue) so results stay reproducible and comparable with the equivalent `adjust-color` on `video-processor`.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: adjust-color
+    image: ${input.image}
+    brightness: 1.1
+    contrast:   1.2
+    saturation: 1.3
+    gamma:      1.0
+    hue:        15
+    output: ${output}
+```
+
+**Adjust Color Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `brightness` | number | `null` | Brightness multiplier (1.0 = original). Alpha channel is preserved |
+| `contrast` | number | `null` | Contrast multiplier (1.0 = original) |
+| `saturation` | number | `null` | Saturation multiplier (0.0 = grayscale, 1.0 = original) |
+| `gamma` | number | `null` | Gamma curve (1.0 = original, <1.0 brightens, >1.0 darkens). Must be positive |
+| `hue` | number | `null` | Hue rotation in degrees (0 = original) |
+
 ### Adjust Brightness
 
 Adjust image brightness:
@@ -248,6 +276,46 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `factor` | number | **required** | Saturation factor (0.0 = grayscale, 1.0 = original, >1.0 = more saturated) |
+
+### Adjust Gamma
+
+Apply a gamma curve to the image. The alpha channel is preserved.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: adjust-gamma
+    image: ${input.image}
+    gamma: 2.0
+    output: ${output}
+```
+
+**Gamma Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `gamma` | number | **required** | Gamma value (1.0 = original, <1.0 brightens, >1.0 darkens). Must be positive |
+
+### Adjust Hue
+
+Rotate the hue of each pixel in HSV space. The alpha channel is preserved.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: adjust-hue
+    image: ${input.image}
+    hue: 120
+    output: ${output}
+```
+
+**Hue Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `hue` | number | **required** | Hue rotation in degrees (0 = original, 120 shifts red toward green, 240 toward blue) |
 
 ### Concat
 

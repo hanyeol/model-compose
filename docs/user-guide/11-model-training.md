@@ -14,6 +14,7 @@ model-compose provides configurations for the following training tasks:
 
 - **SFT (Supervised Fine-Tuning)**: Supervised learning-based fine-tuning
 - **Classification**: Classification model training
+- **Typed Decision**: Fine-tune one of the typed-decision model families (`clef`, `laya`, `nimble`, `kev`) on a dataset shaped like the typed-decision inference input, plus a ground-truth `answers` map
 
 ### 11.1.2 Training Component Structure
 
@@ -21,17 +22,21 @@ model-compose provides configurations for the following training tasks:
 components:
   - id: trainer
     type: model-trainer
-    task: sft                      # or classification
+    task: sft                      # sft | text-classification | typed-decision
+    driver: huggingface            # backend; see the Supported Training Tasks table
+    model: Qwen/Qwen2.5-0.5B
 
     # LoRA configuration (optional)
-    peft_adapter: lora
-    lora_r: 8
-    lora_alpha: 16
+    lora:
+      rank: 8
+      alpha: 16
 
-    # Training parameters
-    learning_rate: 5e-5
-    num_epochs: 3
-    output_dir: ./trained-model
+    # Training parameters live inside `action:`
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 5e-5
+      num_epochs: 3
+      output_dir: ./trained-model
 ```
 
 ---
@@ -502,6 +507,82 @@ components:
 - Sample boundaries may not be clear
 - May reduce performance on some tasks
 
+### 11.4.3 Typed Decision Fine-Tuning
+
+The typed-decision task fine-tunes one of four model families (`clef`, `laya`, `nimble`, `kev`) on a dataset that matches the typed-decision inference input, plus a ground-truth `answers` map keyed by question id. Each family's trainer is published as a separate pip package (`mindor-<family>-trainer`) and is installed automatically on first use.
+
+**Component Configuration:**
+
+```yaml
+components:
+  - id: trainer
+    type: model-trainer
+    task: typed-decision
+    driver: clef                     # clef | laya | nimble | kev
+    model: Cloudflare/clef           # family-specific base checkpoint
+    device: auto
+    action:
+      dataset: ${input.dataset}
+      output_dir: ./output/clef
+      num_epochs: 3
+      per_device_train_batch_size: 4
+      learning_rate: 2e-5
+      bf16: true
+```
+
+**Dataset Format:**
+
+Each row carries three fields — the same shape typed-decision inference consumes at serving time, plus `answers`:
+
+```json
+{
+  "state": "User said: book me a flight to Tokyo tomorrow.",
+  "schema": {
+    "intent":   { "type": "choice", "options": ["buy", "ask", "complain"] },
+    "urgent":   { "type": "noul" },
+    "priority": { "type": "score", "options": ["low", "medium", "high"] }
+  },
+  "answers": {
+    "intent":   "buy",
+    "urgent":   true,
+    "priority": "high"
+  }
+}
+```
+
+Answer values are native (`"buy"` for `choice`, booleans for `noul`, option labels or indices for `score`). Soft targets — a full probability dict such as `{"true": 0.9, "false": 0.1}` — are also accepted on drivers that consume soft labels upstream (Laya, Kev).
+
+**Driver Overview:**
+
+| Driver | Upstream | What it trains | Output |
+|--------|----------|----------------|--------|
+| `clef` | Cloudflare/clef | `joint_schema_model` end-to-end | Drop-in replacement for a `Cloudflare/clef` snapshot |
+| `laya` | NandhaKishorM/laya | Encoder + per-question heads (RLCD + soft-target CE) | `laya.Agent`-compatible directory with fitted temperatures |
+| `nimble` | bespokelabsai/nimble | LoRA adapter on Qwen3.5-9B via candidate-token CE | HuggingFace-style LoRA adapter directory |
+| `kev` | jaredpalmer/kev | LoRA adapter + pointer head | LoRA adapter + `pointer_head.pt` |
+
+**Family-Specific Options:**
+
+- `clef`: `choice_loss_weight`, `noul_loss_weight`, `score_loss_weight`.
+- `laya`: `preset` (`english` / `multilingual` / `typed-decisions`), `freeze_encoder` for heads-only training, `max_seq_length`, `max_head_length`.
+- `nimble`: `base_model` (required — the Qwen backbone the LoRA attaches to), `max_seq_length`.
+- `kev`: `max_state_length`, `max_branch_length`, `train_pointer_head`.
+
+**Train → Infer Hand-Off:**
+
+The output directory for every family is a drop-in replacement for the corresponding inference-side `model` field. Point a typed-decision inference component at the trained path:
+
+```yaml
+components:
+  - id: scorer
+    type: model
+    task: typed-decision
+    family: clef                     # or laya | nimble | kev
+    model: ./output/clef
+```
+
+See [`examples/model-training-tasks/typed-decision-{clef,laya,nimble,kev}`](../../examples/model-training-tasks/) for runnable end-to-end examples.
+
 ---
 
 ## 11.5 LoRA Training
@@ -523,20 +604,20 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    # Enable LoRA
-    peft_adapter: lora
+    # LoRA hyperparameters live under `lora:`
+    lora:
+      rank: 8                       # LoRA rank (lower = more memory savings)
+      alpha: 16                     # LoRA scaling (typically 2x of rank)
+      dropout: 0.05                 # Dropout rate
 
-    # LoRA hyperparameters
-    lora_r: 8                       # LoRA rank (lower = more memory savings)
-    lora_alpha: 16                  # LoRA scaling (typically 2x of r)
-    lora_dropout: 0.05              # Dropout rate
-
-    # Dataset and training settings
-    dataset: ${input.dataset}
-    learning_rate: 1e-4             # LoRA typically uses higher learning rate
-    num_epochs: 3
-    output_dir: ./output/lora-adapter
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 1e-4           # LoRA typically uses a higher learning rate
+      num_epochs: 3
+      output_dir: ./output/lora-adapter
 ```
 
 ### 11.5.3 Target Module Configuration
@@ -546,17 +627,18 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
-    peft_adapter: lora
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    # Specify target modules
-    lora_target_modules:
-      - q_proj                      # Query projection
-      - v_proj                      # Value projection
-      - k_proj                      # Key projection
-      - o_proj                      # Output projection
-
-    lora_r: 16
-    lora_alpha: 32
+    lora:
+      rank: 16
+      alpha: 32
+      # Target modules the LoRA adapter attaches to; auto-detected when omitted.
+      target_modules:
+        - q_proj                    # Query projection
+        - v_proj                    # Value projection
+        - k_proj                    # Key projection
+        - o_proj                    # Output projection
 ```
 
 **Common Target Modules:**
@@ -576,9 +658,13 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
-    peft_adapter: lora
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    lora_bias: none                 # none, all, lora_only
+    lora:
+      rank: 8
+      alpha: 16
+      bias: none                    # none, all, lora_only
 ```
 
 **Bias Options:**
@@ -595,27 +681,32 @@ components:
   - id: qlora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
     # LoRA settings
-    peft_adapter: lora
-    lora_r: 64
-    lora_alpha: 16
+    lora:
+      rank: 64
+      alpha: 16
 
-    # 4-bit quantization
-    quantization: nf4               # int4 or nf4
-    bnb_4bit_compute_dtype: bfloat16
-    bnb_4bit_use_double_quant: true
+    # 4-bit quantization (bitsandbytes). Shorthand `quantization: nf4` is also
+    # accepted; expand to an object when you need `compute_dtype` or
+    # `double_quant` set explicitly.
+    quantization:
+      type: nf4                     # int4 or nf4
+      compute_dtype: bfloat16
+      double_quant: true
 
-    # Dataset and training
-    dataset: ${input.dataset}
-    learning_rate: 2e-4
-    num_epochs: 1
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 4
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 2e-4
+      num_epochs: 1
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 4
 
-    # Memory optimization
-    gradient_checkpointing: true
-    bf16: true
+      # Memory optimization
+      gradient_checkpointing: true
+      bf16: true
 ```
 
 **Quantization Options:**
@@ -624,7 +715,7 @@ components:
 - `int8`: 8-bit integer quantization
 
 **QLoRA Recommended Settings:**
-- Higher `lora_r` (64+)
+- Higher `lora.rank` (64+)
 - Higher learning rate (2e-4)
 - BF16 mixed precision
 - Gradient checkpointing
@@ -633,9 +724,9 @@ components:
 
 | Parameter | Low Value | High Value | Recommended Use |
 |---------|---------|---------|-----------|
-| `lora_r` | 4-8 | 64-128 | Standard: 8-16, QLoRA: 64 |
-| `lora_alpha` | 8-16 | 32-64 | Typically 2x of r |
-| `lora_dropout` | 0.0 | 0.1 | Small datasets: 0.05-0.1 |
+| `lora.rank` | 4-8 | 64-128 | Standard: 8-16, QLoRA: 64 |
+| `lora.alpha` | 8-16 | 32-64 | Typically 2x of rank |
+| `lora.dropout` | 0.0 | 0.1 | Small datasets: 0.05-0.1 |
 | `learning_rate` | 1e-5 | 5e-4 | Full FT: 5e-5, LoRA: 1e-4 |
 
 ---
@@ -766,31 +857,34 @@ components:
   - id: alpaca-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: meta-llama/Llama-3.2-1B
 
     # LoRA settings
-    peft_adapter: lora
-    lora_r: 16
-    lora_alpha: 32
-    lora_dropout: 0.05
-    lora_target_modules: [q_proj, v_proj]
+    lora:
+      rank: 16
+      alpha: 32
+      dropout: 0.05
+      target_modules: [q_proj, v_proj]
 
-    # Data settings
-    dataset: ${input.dataset}
-    prompt_column: instruction
-    response_column: output
-    max_seq_length: 512
+    action:
+      # Data settings
+      dataset: ${input.dataset}
+      prompt_column: instruction
+      response_column: output
+      max_seq_length: 512
 
-    # Training settings
-    learning_rate: 1e-4
-    num_epochs: 3
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 4
+      # Training settings
+      learning_rate: 1e-4
+      num_epochs: 3
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 4
 
-    # Optimization
-    gradient_checkpointing: true
-    fp16: true
+      # Optimization
+      gradient_checkpointing: true
+      fp16: true
 
-    output_dir: ./output/alpaca-lora
+      output_dir: ./output/alpaca-lora
 
 workflows:
   - id: train-alpaca
@@ -812,32 +906,36 @@ components:
   - id: qlora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: meta-llama/Llama-3.1-8B
 
     # QLoRA settings
-    peft_adapter: lora
-    lora_r: 64
-    lora_alpha: 16
-    quantization: nf4
-    bnb_4bit_compute_dtype: bfloat16
+    lora:
+      rank: 64
+      alpha: 16
+    quantization:
+      type: nf4
+      compute_dtype: bfloat16
 
-    # Data
-    dataset: ${input.dataset}
-    text_column: text
-    max_seq_length: 2048
-    packing: true
+    action:
+      # Data
+      dataset: ${input.dataset}
+      text_column: text
+      max_seq_length: 2048
+      packing: true
 
-    # Training
-    learning_rate: 2e-4
-    num_epochs: 1
-    per_device_train_batch_size: 1
-    gradient_accumulation_steps: 16
+      # Training
+      learning_rate: 2e-4
+      num_epochs: 1
+      per_device_train_batch_size: 1
+      gradient_accumulation_steps: 16
 
-    # Optimization
-    optimizer: adamw_8bit
-    gradient_checkpointing: true
-    bf16: true
+      # Optimization
+      optimizer: adamw_8bit
+      gradient_checkpointing: true
+      bf16: true
 
-    output_dir: ./output/qlora-model
+      output_dir: ./output/qlora-model
 ```
 
 ### 11.8.3 Custom Dataset Preparation and Training
@@ -858,20 +956,23 @@ components:
   - id: custom-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    peft_adapter: lora
-    lora_r: 8
-    lora_alpha: 16
+    lora:
+      rank: 8
+      alpha: 16
 
-    dataset: ${input.dataset}
-    prompt_column: user_input
-    response_column: assistant_response
+    action:
+      dataset: ${input.dataset}
+      prompt_column: user_input
+      response_column: assistant_response
 
-    learning_rate: 5e-5
-    num_epochs: 5
-    per_device_train_batch_size: 8
+      learning_rate: 5e-5
+      num_epochs: 5
+      per_device_train_batch_size: 8
 
-    output_dir: ./output/custom-model
+      output_dir: ./output/custom-model
 
 workflows:
   - id: train-custom

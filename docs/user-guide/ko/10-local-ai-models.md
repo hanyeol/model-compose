@@ -255,7 +255,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `image-embedding` | 이미지 임베딩 | 시각 검색, 이미지 중복 제거, 클러스터링 |
 | `video-embedding` | 비디오 임베딩 | 시맨틱 비디오 검색, 중복 제거, 클러스터링 |
 | `image-generation` | 이미지 생성 | 텍스트→이미지 변환 |
-| `image-upscale` | 이미지 업스케일 | 해상도 향상 |
+| `image-upscaling` | 이미지 업스케일 | 해상도 향상 |
 | `text-to-speech` | 텍스트 음성 합성 | 음성 생성, 복제, 디자인 |
 | `speech-to-text` | 음성 인식 | 자막 생성, 받아쓰기 |
 | `speaker-diarization` | 화자별 발화 구간 분할 | 회의·인터뷰의 화자별 턴 분할 |
@@ -499,14 +499,14 @@ workflow:
 - `choice` — N개의 명명된 옵션 중 하나 선택. `criteria`는 `{이름: 설명}` 맵입니다.
 - `score` — 순서형 스케일로 평점. `criteria`는 인덱스 0부터 시작하는 레벨 설명 리스트입니다. 결과는 레벨에 대한 softmax의 평균으로 계산된 **기대 레벨**(float)입니다.
 
-세 가지 패밀리가 지원됩니다 (모두 `driver: custom`). 컴포넌트당 하나를 선택하며, 여러 패밀리를 결합하려면 여러 컴포넌트를 실행하세요.
+네 가지 패밀리가 지원됩니다 (모두 `driver: custom`). 컴포넌트당 하나를 선택하며, 여러 패밀리를 결합하려면 여러 컴포넌트를 실행하세요.
 
 ```yaml
 component:
   type: model
   task: typed-decision
   driver: custom
-  family: laya                          # 'laya' | 'kev' | 'nimble'
+  family: laya                          # 'laya' | 'kev' | 'nimble' | 'clef'
   preset: multilingual                  # laya 전용: 'english' | 'multilingual' (기본값) | 'typed-decisions'
   action:
     text: ${input.text}
@@ -518,7 +518,7 @@ component:
 - `text`: 스코어러가 판단할 비정형 텍스트. 리스트를 넘기면 여러 입력을 한 호출에서 스코어링합니다.
 - `schema`: 질문 ID → 질문 스펙 맵. 각 스펙은 `type: noul | choice | score`, `instructions`, 그리고 (`noul`을 제외한 경우) `criteria`를 가집니다.
 - `return_probabilities`: 질문별 후보 점수를 `fields[qid].scores`에 포함합니다.
-- `return_logits`: 질문별 softmax 이전 원시 로짓 포함 (`nimble`은 API 레벨에서만 로짓을 노출).
+- `return_logits`: 질문별 softmax 이전 원시 로짓 포함 (`nimble`과 `clef`가 API 레벨에서 로짓을 노출).
 
 **결과 형태**: `{ decision: { qid: value }, fields?: { qid: { scores: {...} } } }`. `noul`은 boolean으로, `choice`는 승리한 옵션 이름으로, `score`는 기대 레벨로 해석됩니다.
 
@@ -527,6 +527,7 @@ component:
 - `laya` (Convai Innovations, [예제](../../examples/model-tasks/typed-decision-laya)) — ModernBERT/mmBERT 기반의 비자기회귀 스코어러로 RLCD로 학습된 디시전 헤드를 가집니다. `preset`으로 선택되는 세 개의 체크포인트를 제공합니다: `english` (ModernBERT-large, 512 토큰 컨텍스트), `multilingual` (mmBERT-base, 100+ 언어, 최대 1024 토큰 — `max_seq_length`으로 8192까지 확장 가능), `typed-decisions` (4개의 typed-decisions 워크플로우에 파인튜닝). CUDA, MPS (Apple Silicon), CPU에서 실행됩니다. Linux+x86_64에서는 `fast: true`로 TileLang 융합 CUDA 커널을 활성화할 수 있습니다.
 - `kev` (Jared Palmer, [예제](../../examples/model-tasks/typed-decision-kev)) — 고정된 Qwen3.5 베이스 위에 얹은 LoRA 어댑터, 포인터 스코어링 헤드, 메타데이터의 번들입니다 (베이스 모델 ID는 체크포인트의 `head.pt`에서 읽어오므로 수동 오버라이드가 필요 없습니다). 사이즈: 0.8B / 4B / 9B. 백엔드는 Apple Silicon에서 MLX, CUDA/CPU에서 Torch를 자동 선택하며, `max_state_length`와 `max_branch_length`가 공유 상태와 질문별 브랜치를 각각 독립적으로 제한합니다.
 - `nimble` (Bespoke Labs, [예제](../../examples/model-tasks/typed-decision-nimble)) — 첫 실행 시 베이스 모델(기본값 Qwen/Qwen3.5-9B)에 LoRA 어댑터를 병합한 스냅샷을 캐싱합니다. Apple Silicon에서는 MLX, Linux에서는 BF16을 지원하는 NVIDIA GPU가 필요하며, 드라이버가 백엔드를 자동 선택합니다.
+- `clef` (Cloudflare, [예제](../../examples/model-tasks/typed-decision-clef)) — Qwen3.8-27B 위에 구축된 27B 멀티모달 joint-schema 결정 모델입니다. `joint_schema_model` 모듈이 HF 리포 안에 포함되어 있으며, 드라이버가 스냅샷을 `sys.path`에 올리고 `load_release_model`로 로드합니다. 텍스트 상태와 함께 이미지 및 비디오 프레임도 수용합니다. BF16 추론은 ~55 GB VRAM이 필요하며, `device: cuda | mps | cpu`로 디바이스를 고정하거나 `auto`로 두어 device-map 오프로드를 사용할 수 있습니다.
 
 ### 10.3.8 image-to-text
 
@@ -674,14 +675,14 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 10.3.12 image-upscale
+### 10.3.12 image-upscaling
 
 이미지 해상도를 향상시킵니다.
 
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model: RealESRGAN_x4plus
   action:

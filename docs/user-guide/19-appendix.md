@@ -99,7 +99,7 @@ controller:
 components:
   - id: model-id
     type: model
-    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | typed-decision | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscale | face-detection | face-tracking | pose-detection | pose-tracking | object-detection | object-tracking | image-segmentation | face-embedding | music-generation | motion-generation
+    task: text-generation | chat-completion | text-to-text | text-embedding | text-classification | typed-decision | image-to-text | image-text-to-text | text-to-speech | speech-to-text | voice-activity-detection | image-generation | image-upscaling | face-detection | face-tracking | pose-detection | pose-tracking | object-detection | object-tracking | image-segmentation | face-embedding | music-generation | motion-generation
     driver: huggingface | unsloth | vllm | llamacpp | custom  # Default: huggingface
     model: model-name-or-path          # Or a `{ provider, repository/path, ... }` object
 
@@ -126,7 +126,7 @@ components:
       prompt: ${input.prompt as text}  # text-generation, image-to-text, image-generation, ...
       text: ${input.text as text}      # text-to-text, text-embedding, text-classification, text-to-speech
       messages: [ ... ]                # chat-completion
-      image: ${input.image as image}   # image-to-text, image-upscale, face-detection, ...
+      image: ${input.image as image}   # image-to-text, image-upscaling, face-detection, ...
       batch_size: 1                    # Action-level
       streaming: false                 # Action-level (text-generation / chat-completion / text-to-text / image-to-text only)
       params:

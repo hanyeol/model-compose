@@ -2,7 +2,7 @@
 
 > **Development Status**: The configuration schema is defined and stable, but the training execution backend is still under active development. Schema fields below reflect the current declarative interface; expect runtime support to land in upcoming releases.
 
-The model-trainer component declares supervised fine-tuning (SFT) and text-classification training jobs. It supports LoRA adapters, quantization, optimizer and scheduler selection, mixed-precision training, and gradient checkpointing — all configured declaratively so the same workflow can target different hardware profiles by swapping a few fields.
+The model-trainer component declares supervised fine-tuning (SFT), text-classification, and typed-decision training jobs. It supports LoRA adapters, quantization, optimizer and scheduler selection, mixed-precision training, and gradient checkpointing — all configured declaratively so the same workflow can target different hardware profiles by swapping a few fields.
 
 ## Basic Configuration
 
@@ -25,7 +25,8 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model-trainer` |
-| `task` | string | **required** | Training task: `sft`, `text-classification` |
+| `task` | string | **required** | Training task: `sft`, `text-classification`, `typed-decision` |
+| `driver` | string | **required** | Backend: `huggingface`, `unsloth`, `clef`, `laya`, `nimble`, `kev`. The valid value depends on `task` — SFT and text-classification use `huggingface` / `unsloth`; typed-decision uses one of `clef`, `laya`, `nimble`, `kev` |
 | `lora` | object | `null` | LoRA adapter configuration |
 | `quantization` | string/object | `null` | Model quantization configuration |
 
@@ -129,6 +130,70 @@ component:
     num_epochs: 5
     output_dir: ./output/classifier
 ```
+
+### Typed Decision
+
+Fine-tune one of the typed-decision model families (`clef`, `laya`, `nimble`, `kev`) on a dataset shaped exactly like the typed-decision inference input, plus a ground-truth `answers` map keyed by question id. The `driver` field picks the family; each family's trainer is published as a separate pip package (`mindor-<family>-trainer`) and auto-installed on first run.
+
+```yaml
+component:
+  type: model-trainer
+  task: typed-decision
+  driver: clef                       # clef | laya | nimble | kev
+  model: Cloudflare/clef
+  action:
+    dataset: ${input.dataset}
+    output_dir: ./output/clef
+    num_epochs: 3
+    per_device_train_batch_size: 4
+    learning_rate: 2e-5
+    bf16: true
+```
+
+Each row of the training dataset has three fields:
+
+```json
+{
+  "state": "User said: book me a flight to Tokyo tomorrow.",
+  "schema": {
+    "intent":   { "type": "choice", "options": ["buy", "ask", "complain"] },
+    "urgent":   { "type": "noul" },
+    "priority": { "type": "score", "options": ["low", "medium", "high"] }
+  },
+  "answers": {
+    "intent":   "buy",
+    "urgent":   true,
+    "priority": "high"
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `dataset` | string | **required** | Training dataset (HuggingFace repo id or local JSONL path) |
+| `evaluation_dataset` | string | `null` | Optional evaluation split |
+| `state_column` | string | `state` | Column holding the input state (text) |
+| `schema_column` | string | `schema` | Column holding the per-question schema dict |
+| `answers_column` | string | `answers` | Column holding ground-truth answers keyed by question id |
+| `max_seq_length` | integer | `null` | Maximum tokenized sequence length used during training |
+
+#### Driver matrix
+
+| Driver | Upstream | Trainer package | Component-level knobs | Output |
+|--------|----------|-----------------|-----------------------|--------|
+| `clef` | [Cloudflare/clef](https://huggingface.co/Cloudflare/clef) | [mindor-clef-trainer](https://github.com/hanyeol/mindor-clef-trainer) | `choice_loss_weight`, `noul_loss_weight`, `score_loss_weight` | drop-in replacement for a `Cloudflare/clef` snapshot (joint_schema_model + processor) |
+| `laya` | [NandhaKishorM/laya](https://github.com/NandhaKishorM/laya) | [mindor-laya-trainer](https://github.com/hanyeol/mindor-laya-trainer) | `preset` (`english` / `multilingual` / `typed-decisions`), `freeze_encoder`, `max_seq_length`, `max_head_length` | laya `Agent`-compatible checkpoint directory with fitted temperatures |
+| `nimble` | [bespokelabsai/nimble](https://github.com/bespokelabsai/nimble) | [mindor-nimble-trainer](https://github.com/hanyeol/mindor-nimble-trainer) | `base_model`, `max_seq_length` | HuggingFace-style LoRA adapter + `schema_config.json` |
+| `kev` | [jaredpalmer/kev](https://github.com/jaredpalmer/kev) | [mindor-kev-trainer](https://github.com/hanyeol/mindor-kev-trainer) | `max_state_length`, `max_branch_length`, `train_pointer_head` | LoRA adapter + `pointer_head.pt` (loadable via `kev.checkpoint.Checkpoint`) |
+
+#### Loss selection (per driver)
+
+- **Clef** — per-question loss: cross-entropy for `choice`, cross-entropy over `(true, false)` for `noul`, ordinal MSE on the chosen option index for `score`. Per-type weights are tunable via `choice_loss_weight`, `noul_loss_weight`, `score_loss_weight`.
+- **Laya** — upstream RLCD recipe: GRPO-style policy gradient over sampled logit noise with a strictly-proper-scoring-rule reward, mixed with soft-target cross-entropy. LBFGS temperature calibration runs after training on a held-out slice of the training set.
+- **Nimble** — candidate-token cross-entropy (`CandidateTrainer` from upstream). Rows are expanded into one training example per schema field; the field's gold option maps onto a single answer token in the LM's vocab.
+- **Kev** — per-question loss comes straight from `kev.train.question_loss`: cross-entropy for `choice` / `noul`, cross-entropy plus an ordinal ranked-probability-score term for `score` (tunable via `ord_weight`).
+
+The output directory for every family is a drop-in replacement for the corresponding typed-decision inference `model` field — point an inference `typed-decision` component at it to serve the fine-tuned model.
 
 ## Common Training Parameters
 
@@ -347,6 +412,7 @@ component:
 - **Instruction tuning**: Fine-tune a base model on instruction-following data with LoRA + 4-bit quantization
 - **Domain adaptation**: Continue training on domain-specific text to specialize a general model
 - **Text Classification**: Fine-tune encoder models for sentiment, intent, or topic classification
+- **Typed Decision**: Fine-tune Clef / Laya / Nimble / Kev scorers on domain-specific labelled decisions when zero-shot accuracy is not enough
 - **Style transfer**: Train on writing samples to capture a tone or persona
 
 ## Related Components

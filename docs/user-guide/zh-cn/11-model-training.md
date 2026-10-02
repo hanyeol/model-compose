@@ -14,6 +14,7 @@ model-compose 为以下训练任务提供配置：
 
 - **SFT（监督微调）**：基于监督学习的微调
 - **分类**：分类模型训练
+- **Typed Decision**：在与 typed-decision 推理输入结构一致、再附加标注 `answers` 映射的数据集上,微调 typed-decision 模型家族(`clef`、`laya`、`nimble`、`kev`)中的任一成员
 
 ### 11.1.2 训练组件结构
 
@@ -21,17 +22,21 @@ model-compose 为以下训练任务提供配置：
 components:
   - id: trainer
     type: model-trainer
-    task: sft                      # 或 classification
+    task: sft                      # sft | text-classification | typed-decision
+    driver: huggingface            # 后端;参见"支持的训练任务"表
+    model: Qwen/Qwen2.5-0.5B
 
-    # LoRA 配置（可选）
-    peft_adapter: lora
-    lora_r: 8
-    lora_alpha: 16
+    # LoRA 配置(可选)
+    lora:
+      rank: 8
+      alpha: 16
 
-    # 训练参数
-    learning_rate: 5e-5
-    num_epochs: 3
-    output_dir: ./trained-model
+    # 训练参数放在 `action:` 下
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 5e-5
+      num_epochs: 3
+      output_dir: ./trained-model
 ```
 
 ---
@@ -502,6 +507,82 @@ components:
 - 样本边界可能不清楚
 - 可能降低某些任务的性能
 
+### 11.4.3 Typed Decision 微调
+
+typed-decision 任务会在数据集(其结构与 typed-decision 推理输入一致,再附加标注 `answers` 映射)上微调四个模型家族(`clef`、`laya`、`nimble`、`kev`)之一。每个家族的训练器都作为独立 pip 包发布(`mindor-<family>-trainer`),并在首次使用时自动安装。
+
+**组件配置:**
+
+```yaml
+components:
+  - id: trainer
+    type: model-trainer
+    task: typed-decision
+    driver: clef                     # clef | laya | nimble | kev
+    model: Cloudflare/clef           # 家族特定的基础检查点
+    device: auto
+    action:
+      dataset: ${input.dataset}
+      output_dir: ./output/clef
+      num_epochs: 3
+      per_device_train_batch_size: 4
+      learning_rate: 2e-5
+      bf16: true
+```
+
+**数据集格式:**
+
+每一行包含三个字段 —— 与推理时 typed-decision 的输入结构一致,再加上标注 `answers`:
+
+```json
+{
+  "state": "User said: book me a flight to Tokyo tomorrow.",
+  "schema": {
+    "intent":   { "type": "choice", "options": ["buy", "ask", "complain"] },
+    "urgent":   { "type": "noul" },
+    "priority": { "type": "score", "options": ["low", "medium", "high"] }
+  },
+  "answers": {
+    "intent":   "buy",
+    "urgent":   true,
+    "priority": "high"
+  }
+}
+```
+
+答案值使用原生类型(`choice` 为 `"buy"`、`noul` 为布尔值、`score` 为选项标签或索引)。对于上游会消费软目标的驱动(Laya、Kev),也接受形如 `{"true": 0.9, "false": 0.1}` 的完整概率字典作为软目标。
+
+**驱动概览:**
+
+| 驱动 | 上游 | 训练对象 | 输出 |
+|-----|------|---------|------|
+| `clef`   | Cloudflare/clef | `joint_schema_model` 整体 | `Cloudflare/clef` 快照的直接替换品 |
+| `laya`   | NandhaKishorM/laya | 编码器 + 每问 head(RLCD + 软目标 CE) | 与 `laya.Agent` 兼容的目录(含校准后的温度) |
+| `nimble` | bespokelabsai/nimble | Qwen3.5-9B 上的 LoRA 适配器(candidate-token CE) | HuggingFace 风格的 LoRA 适配器目录 |
+| `kev`    | jaredpalmer/kev | LoRA 适配器 + pointer head | LoRA 适配器 + `pointer_head.pt` |
+
+**家族特定选项:**
+
+- `clef`: `choice_loss_weight`、`noul_loss_weight`、`score_loss_weight`。
+- `laya`: `preset`(`english` / `multilingual` / `typed-decisions`)、仅训练 head 的 `freeze_encoder`、`max_seq_length`、`max_head_length`。
+- `nimble`: `base_model`(必填 —— LoRA 挂载的 Qwen 底座)、`max_seq_length`。
+- `kev`: `max_state_length`、`max_branch_length`、`train_pointer_head`。
+
+**训练 → 推理衔接:**
+
+每个家族的输出目录都可以直接替换推理侧的 `model` 字段 —— 让 typed-decision 推理组件指向训练产物目录即可:
+
+```yaml
+components:
+  - id: scorer
+    type: model
+    task: typed-decision
+    family: clef                     # 或 laya | nimble | kev
+    model: ./output/clef
+```
+
+可运行的端到端示例见 [`examples/model-training-tasks/typed-decision-{clef,laya,nimble,kev}`](../../examples/model-training-tasks/)。
+
 ---
 
 ## 11.5 LoRA 训练
@@ -523,20 +604,20 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    # 启用 LoRA
-    peft_adapter: lora
+    # LoRA 超参数放在 `lora:` 下
+    lora:
+      rank: 8                       # LoRA 秩(越低越节省内存)
+      alpha: 16                     # LoRA 缩放(通常是 rank 的 2 倍)
+      dropout: 0.05                 # Dropout 率
 
-    # LoRA 超参数
-    lora_r: 8                       # LoRA 秩（越低越节省内存）
-    lora_alpha: 16                  # LoRA 缩放（通常是 r 的 2 倍）
-    lora_dropout: 0.05              # Dropout 率
-
-    # 数据集和训练设置
-    dataset: ${input.dataset}
-    learning_rate: 1e-4             # LoRA 通常使用更高的学习率
-    num_epochs: 3
-    output_dir: ./output/lora-adapter
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 1e-4           # LoRA 通常使用更高的学习率
+      num_epochs: 3
+      output_dir: ./output/lora-adapter
 ```
 
 ### 11.5.3 目标模块配置
@@ -546,17 +627,18 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
-    peft_adapter: lora
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    # 指定目标模块
-    lora_target_modules:
-      - q_proj                      # 查询投影
-      - v_proj                      # 值投影
-      - k_proj                      # 键投影
-      - o_proj                      # 输出投影
-
-    lora_r: 16
-    lora_alpha: 32
+    lora:
+      rank: 16
+      alpha: 32
+      # 目标模块;留空则自动检测
+      target_modules:
+        - q_proj                    # 查询投影
+        - v_proj                    # 值投影
+        - k_proj                    # 键投影
+        - o_proj                    # 输出投影
 ```
 
 **常见目标模块：**
@@ -576,9 +658,13 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
-    peft_adapter: lora
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    lora_bias: none                 # none, all, lora_only
+    lora:
+      rank: 8
+      alpha: 16
+      bias: none                    # none, all, lora_only
 ```
 
 **偏置选项：**
@@ -595,27 +681,31 @@ components:
   - id: qlora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
     # LoRA 设置
-    peft_adapter: lora
-    lora_r: 64
-    lora_alpha: 16
+    lora:
+      rank: 64
+      alpha: 16
 
-    # 4 位量化
-    quantization: nf4               # int4 或 nf4
-    bnb_4bit_compute_dtype: bfloat16
-    bnb_4bit_use_double_quant: true
+    # 4 位量化(bitsandbytes)。简写 `quantization: nf4` 也可以;
+    # 需要显式设置 `compute_dtype` 或 `double_quant` 时展开为对象形式。
+    quantization:
+      type: nf4                     # int4 或 nf4
+      compute_dtype: bfloat16
+      double_quant: true
 
-    # 数据集和训练
-    dataset: ${input.dataset}
-    learning_rate: 2e-4
-    num_epochs: 1
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 4
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 2e-4
+      num_epochs: 1
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 4
 
-    # 内存优化
-    gradient_checkpointing: true
-    bf16: true
+      # 内存优化
+      gradient_checkpointing: true
+      bf16: true
 ```
 
 **量化选项：**
@@ -624,7 +714,7 @@ components:
 - `int8`：8 位整数量化
 
 **QLoRA 推荐设置：**
-- 更高的 `lora_r`（64+）
+- 更高的 `lora.rank`(64+)
 - 更高的学习率（2e-4）
 - BF16 混合精度
 - 梯度检查点
@@ -633,9 +723,9 @@ components:
 
 | 参数 | 低值 | 高值 | 推荐用途 |
 |---------|---------|---------|-----------|
-| `lora_r` | 4-8 | 64-128 | 标准：8-16，QLoRA：64 |
-| `lora_alpha` | 8-16 | 32-64 | 通常是 r 的 2 倍 |
-| `lora_dropout` | 0.0 | 0.1 | 小数据集：0.05-0.1 |
+| `lora.rank` | 4-8 | 64-128 | 标准:8-16,QLoRA:64 |
+| `lora.alpha` | 8-16 | 32-64 | 通常是 rank 的 2 倍 |
+| `lora.dropout` | 0.0 | 0.1 | 小数据集:0.05-0.1 |
 | `learning_rate` | 1e-5 | 5e-4 | 完整 FT：5e-5，LoRA：1e-4 |
 
 ---
@@ -766,31 +856,34 @@ components:
   - id: alpaca-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: meta-llama/Llama-3.2-1B
 
     # LoRA 设置
-    peft_adapter: lora
-    lora_r: 16
-    lora_alpha: 32
-    lora_dropout: 0.05
-    lora_target_modules: [q_proj, v_proj]
+    lora:
+      rank: 16
+      alpha: 32
+      dropout: 0.05
+      target_modules: [q_proj, v_proj]
 
-    # 数据设置
-    dataset: ${input.dataset}
-    prompt_column: instruction
-    response_column: output
-    max_seq_length: 512
+    action:
+      # 数据设置
+      dataset: ${input.dataset}
+      prompt_column: instruction
+      response_column: output
+      max_seq_length: 512
 
-    # 训练设置
-    learning_rate: 1e-4
-    num_epochs: 3
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 4
+      # 训练设置
+      learning_rate: 1e-4
+      num_epochs: 3
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 4
 
-    # 优化
-    gradient_checkpointing: true
-    fp16: true
+      # 优化
+      gradient_checkpointing: true
+      fp16: true
 
-    output_dir: ./output/alpaca-lora
+      output_dir: ./output/alpaca-lora
 
 workflows:
   - id: train-alpaca
@@ -812,32 +905,36 @@ components:
   - id: qlora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: meta-llama/Llama-3.1-8B
 
     # QLoRA 设置
-    peft_adapter: lora
-    lora_r: 64
-    lora_alpha: 16
-    quantization: nf4
-    bnb_4bit_compute_dtype: bfloat16
+    lora:
+      rank: 64
+      alpha: 16
+    quantization:
+      type: nf4
+      compute_dtype: bfloat16
 
-    # 数据
-    dataset: ${input.dataset}
-    text_column: text
-    max_seq_length: 2048
-    packing: true
+    action:
+      # 数据
+      dataset: ${input.dataset}
+      text_column: text
+      max_seq_length: 2048
+      packing: true
 
-    # 训练
-    learning_rate: 2e-4
-    num_epochs: 1
-    per_device_train_batch_size: 1
-    gradient_accumulation_steps: 16
+      # 训练
+      learning_rate: 2e-4
+      num_epochs: 1
+      per_device_train_batch_size: 1
+      gradient_accumulation_steps: 16
 
-    # 优化
-    optimizer: adamw_8bit
-    gradient_checkpointing: true
-    bf16: true
+      # 优化
+      optimizer: adamw_8bit
+      gradient_checkpointing: true
+      bf16: true
 
-    output_dir: ./output/qlora-model
+      output_dir: ./output/qlora-model
 ```
 
 ### 11.8.3 自定义数据集准备和训练
@@ -858,20 +955,23 @@ components:
   - id: custom-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    peft_adapter: lora
-    lora_r: 8
-    lora_alpha: 16
+    lora:
+      rank: 8
+      alpha: 16
 
-    dataset: ${input.dataset}
-    prompt_column: user_input
-    response_column: assistant_response
+    action:
+      dataset: ${input.dataset}
+      prompt_column: user_input
+      response_column: assistant_response
 
-    learning_rate: 5e-5
-    num_epochs: 5
-    per_device_train_batch_size: 8
+      learning_rate: 5e-5
+      num_epochs: 5
+      per_device_train_batch_size: 8
 
-    output_dir: ./output/custom-model
+      output_dir: ./output/custom-model
 
 workflows:
   - id: train-custom

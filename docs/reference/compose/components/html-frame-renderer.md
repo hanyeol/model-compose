@@ -1,6 +1,6 @@
 # HTML Frame Renderer Component
 
-The HTML frame renderer component drives an HTML/CSS/JavaScript page as a time-based animation and captures each frame as a PIL image. The page implements a small `window.__renderer` contract that exposes the animation's `duration` and a `seek(t)` function; the engine steps time from 0 to `duration` at the configured `fps`, calling `seek(t)` and screenshotting after each step. Frames stream out one at a time (or collected into a list), ready to feed into `video-encoder` or any other frame-consuming component.
+The HTML frame renderer component drives an HTML/CSS/JavaScript page as a time-based animation and captures each frame as a PIL image. The page implements a small `window.__renderer` contract that exposes the animation's `duration` and a `seek(t)` function; the engine samples `round(duration * fps)` evenly spaced timestamps from `0` to `(frame_count - 1) / fps`, calling `seek(t)` and screenshotting after each step. The sampled range sits one frame short of `duration` so the encoded video's length matches `duration` exactly. Frames stream out one at a time (or collected into a list), ready to feed into `video-encoder` or any other frame-consuming component.
 
 ## Basic Configuration
 
@@ -42,7 +42,9 @@ component:
 | `height` | integer | `1080` | Rendering viewport height in CSS pixels |
 | `format` | string | `jpeg` | Image format of the captured frames (`jpeg` or `png`) |
 | `quality` | integer | `null` | JPEG quality from 0 to 100; applies only when `format` is `jpeg` |
-| `ready_timeout` | string | `30s` | Maximum time to wait for `window.__renderer.seek` to appear on the page |
+| `transparent` | boolean | `false` | Capture the viewport with a transparent background. Requires `format: png`; the page must leave `html` and `body` backgrounds unset (default stylesheets paint white) |
+| `ready_timeout` | string | `30s` | Maximum time to wait for `window.__renderer.seek` to be defined after the page loads |
+| `render_timeout` | string | `3s` | Maximum time to wait for each frame's `rendered()` call |
 | `filename_format` | string | `null` | Per-frame filename pattern (e.g. `frame-%04d.png`); when set, each frame includes a `filename` key |
 | `batch_size` | integer | `null` | Number of input HTMLs processed per batch when `html` is a list or stream |
 | `streaming` | boolean | `false` | Emit frames incrementally as they are rendered instead of collecting them into a list |
@@ -54,9 +56,9 @@ The rendered page must expose a `window.__renderer` object with:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `duration` | number | Total animation length in seconds. The engine reads this to compute frame count as `int(duration * fps)` |
-| `seek(t)` | function | Advance the page to time `t` (seconds from 0). Must render synchronously, or call `window.__renderer.ready(t)` when the frame is painted |
-| `ready(t)` *(injected)* | function | Signal that the frame for time `t` is fully painted. Provided by the engine; call this from `seek()` to enable the pipelined capture path |
+| `duration` | number | Total animation length in seconds. The engine samples `round(duration * fps)` frames at timestamps `0 .. (frame_count - 1) / fps`; the last sampled time sits one frame short of `duration` so the encoded video's length matches `duration` |
+| `seek(t)` | function | Advance the page to time `t` (seconds from 0). Must render synchronously, or call `window.__renderer.rendered(t)` when the frame is painted |
+| `rendered(t)` *(injected)* | function | Signal that the frame for time `t` is fully painted. Provided by the engine; call this from `seek()` to enable the pipelined capture path |
 | `props` *(injected)* | any | Read-only value of the action's `props` field, populated before any page script runs |
 
 Minimal example:
@@ -75,13 +77,13 @@ Minimal example:
     duration: 5.0,
     seek(t) {
       drawFrame(t);
-      window.__renderer.ready(t);  // enables pipelined capture; safe to omit
+      window.__renderer.rendered(t);  // enables pipelined capture; safe to omit
     },
   });
 </script>
 ```
 
-If `seek()` does not call `ready()`, the engine automatically falls back after `ready_timeout` to a sequential path that awaits each `seek()` before screenshotting. The output is identical; only throughput differs.
+If `seek()` does not call `rendered()`, the engine automatically falls back after `render_timeout` to a sequential path that awaits each `seek()` before screenshotting. The output is identical; only throughput differs.
 
 ## Supported Drivers
 
@@ -218,8 +220,10 @@ components:
 ## Best Practices
 
 1. **Set `duration` on the page, not in the workflow**: the engine reads `window.__renderer.duration` to determine frame count. Keeping the length inside the page keeps the animation self-describing.
-2. **Call `window.__renderer.ready(t)` after each render**: this unlocks the pipelined capture path. If your rendering is synchronous, add the call at the end of `seek()`. If you use `requestAnimationFrame`, call it inside the rAF callback.
+2. **Call `window.__renderer.rendered(t)` after each render**: this unlocks the pipelined capture path. If your rendering is synchronous, add the call at the end of `seek()`. If you use `requestAnimationFrame`, call it inside the rAF callback.
 3. **Prefer `streaming: true` for long animations**: the encoder can consume frames as they are produced without holding the entire animation in memory.
 4. **Use `props` to pass precomputed data**: heavy per-frame data (spectrum bins, motion paths, subtitles) should be computed once and injected via `props` rather than fetched from within the page.
 5. **Match viewport to output resolution**: `width` × `height` is what gets screenshotted. Set both to the target video resolution to avoid downstream rescaling.
 6. **Keep `seek(t)` deterministic**: given the same `t`, the frame must look the same. Do not rely on wall-clock time, `Math.random()` without a seed, or animation state that carries across frames.
+7. **For transparent output, leave `html` and `body` backgrounds unset**: `transparent: true` passes `omit_background` to the browser, but it only takes effect when the page itself does not paint a background. Encode the result with an alpha-capable codec (e.g. VP9 in webm) to preserve the alpha channel.
+8. **Webfonts load before the first frame**: the engine awaits `document.fonts.ready` after the page loads and before any `seek(t)`, so pages that declare `@font-face` or `<link rel="stylesheet">` fonts don't flash a fallback across early frames. Load failure doesn't block the render — the wait is bounded by `ready_timeout`.

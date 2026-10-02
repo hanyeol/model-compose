@@ -14,6 +14,7 @@ model-compose는 다음 훈련 태스크를 위한 설정을 제공합니다:
 
 - **SFT (Supervised Fine-Tuning)**: 지도 학습 기반 파인튜닝
 - **Classification**: 분류 모델 훈련
+- **Typed Decision**: typed-decision 모델 패밀리(`clef`, `laya`, `nimble`, `kev`) 중 하나를, 추론 입력과 동일한 모양에 정답 `answers` 맵이 추가된 데이터셋으로 파인튜닝합니다
 
 ### 11.1.2 훈련 컴포넌트 구조
 
@@ -21,17 +22,21 @@ model-compose는 다음 훈련 태스크를 위한 설정을 제공합니다:
 components:
   - id: trainer
     type: model-trainer
-    task: sft                      # 또는 classification
+    task: sft                      # sft | text-classification | typed-decision
+    driver: huggingface            # 백엔드. 지원 태스크 표 참고
+    model: Qwen/Qwen2.5-0.5B
 
     # LoRA 설정 (선택사항)
-    peft_adapter: lora
-    lora_r: 8
-    lora_alpha: 16
+    lora:
+      rank: 8
+      alpha: 16
 
-    # 훈련 파라미터
-    learning_rate: 5e-5
-    num_epochs: 3
-    output_dir: ./trained-model
+    # 훈련 파라미터는 `action:` 아래에 둡니다
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 5e-5
+      num_epochs: 3
+      output_dir: ./trained-model
 ```
 
 ---
@@ -502,6 +507,82 @@ components:
 - 샘플 경계가 명확하지 않을 수 있음
 - 일부 태스크에서 성능 저하 가능
 
+### 11.4.3 Typed Decision 파인튜닝
+
+typed-decision 태스크는 네 개 모델 패밀리(`clef`, `laya`, `nimble`, `kev`) 중 하나를, typed-decision 추론 입력과 동일한 모양에 정답 `answers` 맵이 추가된 데이터셋으로 파인튜닝합니다. 각 패밀리의 트레이너는 별도 pip 패키지(`mindor-<family>-trainer`)로 배포되며 첫 실행 시 자동 설치됩니다.
+
+**컴포넌트 설정:**
+
+```yaml
+components:
+  - id: trainer
+    type: model-trainer
+    task: typed-decision
+    driver: clef                     # clef | laya | nimble | kev
+    model: Cloudflare/clef           # 패밀리별 베이스 체크포인트
+    device: auto
+    action:
+      dataset: ${input.dataset}
+      output_dir: ./output/clef
+      num_epochs: 3
+      per_device_train_batch_size: 4
+      learning_rate: 2e-5
+      bf16: true
+```
+
+**데이터셋 포맷:**
+
+각 행은 세 개의 필드를 가지며, 추론 시점의 typed-decision 입력과 동일한 모양에 정답 `answers`가 추가됩니다:
+
+```json
+{
+  "state": "User said: book me a flight to Tokyo tomorrow.",
+  "schema": {
+    "intent":   { "type": "choice", "options": ["buy", "ask", "complain"] },
+    "urgent":   { "type": "noul" },
+    "priority": { "type": "score", "options": ["low", "medium", "high"] }
+  },
+  "answers": {
+    "intent":   "buy",
+    "urgent":   true,
+    "priority": "high"
+  }
+}
+```
+
+응답 값은 네이티브 타입입니다 (`choice`는 `"buy"`, `noul`은 불리언, `score`는 옵션 레이블 또는 인덱스). 상류가 soft label을 소비하는 드라이버(Laya, Kev)는 `{"true": 0.9, "false": 0.1}` 같은 전체 확률 딕셔너리 형태의 soft target도 받습니다.
+
+**드라이버 개요:**
+
+| 드라이버 | 상류(upstream) | 훈련 대상 | 출력 |
+|---------|---------------|----------|------|
+| `clef`   | Cloudflare/clef | `joint_schema_model` 전체 | `Cloudflare/clef` 스냅샷의 drop-in 대체물 |
+| `laya`   | NandhaKishorM/laya | 인코더 + 질문별 head (RLCD + soft-target CE) | `laya.Agent` 호환 디렉토리 (보정된 온도 포함) |
+| `nimble` | bespokelabsai/nimble | Qwen3.5-9B 위의 LoRA 어댑터 (candidate-token CE) | HuggingFace 스타일 LoRA 어댑터 디렉토리 |
+| `kev`    | jaredpalmer/kev | LoRA 어댑터 + pointer head | LoRA 어댑터 + `pointer_head.pt` |
+
+**패밀리별 옵션:**
+
+- `clef`: `choice_loss_weight`, `noul_loss_weight`, `score_loss_weight`.
+- `laya`: `preset` (`english` / `multilingual` / `typed-decisions`), head만 학습하기 위한 `freeze_encoder`, `max_seq_length`, `max_head_length`.
+- `nimble`: `base_model` (필수 — LoRA가 붙는 Qwen 백본), `max_seq_length`.
+- `kev`: `max_state_length`, `max_branch_length`, `train_pointer_head`.
+
+**학습 → 추론 핸드오프:**
+
+모든 패밀리의 출력 디렉토리는 추론 측의 `model` 필드를 그대로 대체할 수 있습니다. typed-decision 추론 컴포넌트가 학습 결과 경로를 가리키도록 설정하면 됩니다:
+
+```yaml
+components:
+  - id: scorer
+    type: model
+    task: typed-decision
+    family: clef                     # 또는 laya | nimble | kev
+    model: ./output/clef
+```
+
+실행 가능한 end-to-end 예제는 [`examples/model-training-tasks/typed-decision-{clef,laya,nimble,kev}`](../../examples/model-training-tasks/)를 참고하세요.
+
 ---
 
 ## 11.5 LoRA 훈련
@@ -523,20 +604,20 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    # LoRA 활성화
-    peft_adapter: lora
+    # LoRA 하이퍼파라미터는 `lora:` 아래에 둡니다
+    lora:
+      rank: 8                       # LoRA rank (낮을수록 메모리 절약)
+      alpha: 16                     # LoRA scaling (일반적으로 rank의 2배)
+      dropout: 0.05                 # 드롭아웃 비율
 
-    # LoRA 하이퍼파라미터
-    lora_r: 8                       # LoRA rank (낮을수록 메모리 절약)
-    lora_alpha: 16                  # LoRA scaling (일반적으로 r의 2배)
-    lora_dropout: 0.05              # 드롭아웃 비율
-
-    # 데이터셋 및 훈련 설정
-    dataset: ${input.dataset}
-    learning_rate: 1e-4             # LoRA는 일반적으로 높은 학습률
-    num_epochs: 3
-    output_dir: ./output/lora-adapter
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 1e-4           # LoRA는 일반적으로 높은 학습률
+      num_epochs: 3
+      output_dir: ./output/lora-adapter
 ```
 
 ### 11.5.3 타겟 모듈 설정
@@ -546,17 +627,18 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
-    peft_adapter: lora
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    # 타겟 모듈 지정
-    lora_target_modules:
-      - q_proj                      # Query projection
-      - v_proj                      # Value projection
-      - k_proj                      # Key projection
-      - o_proj                      # Output projection
-
-    lora_r: 16
-    lora_alpha: 32
+    lora:
+      rank: 16
+      alpha: 32
+      # 타겟 모듈. 비워 두면 자동 감지됩니다.
+      target_modules:
+        - q_proj                    # Query projection
+        - v_proj                    # Value projection
+        - k_proj                    # Key projection
+        - o_proj                    # Output projection
 ```
 
 **일반적인 타겟 모듈:**
@@ -576,9 +658,13 @@ components:
   - id: lora-trainer
     type: model-trainer
     task: sft
-    peft_adapter: lora
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    lora_bias: none                 # none, all, lora_only
+    lora:
+      rank: 8
+      alpha: 16
+      bias: none                    # none, all, lora_only
 ```
 
 **Bias 옵션:**
@@ -595,27 +681,31 @@ components:
   - id: qlora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
     # LoRA 설정
-    peft_adapter: lora
-    lora_r: 64
-    lora_alpha: 16
+    lora:
+      rank: 64
+      alpha: 16
 
-    # 4-bit 양자화
-    quantization: nf4               # int4 또는 nf4
-    bnb_4bit_compute_dtype: bfloat16
-    bnb_4bit_use_double_quant: true
+    # 4-bit 양자화 (bitsandbytes). 간단히 `quantization: nf4` 로도 쓸 수 있으며,
+    # `compute_dtype`이나 `double_quant`를 명시해야 할 때 객체 형태로 확장합니다.
+    quantization:
+      type: nf4                     # int4 또는 nf4
+      compute_dtype: bfloat16
+      double_quant: true
 
-    # 데이터셋 및 훈련
-    dataset: ${input.dataset}
-    learning_rate: 2e-4
-    num_epochs: 1
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 4
+    action:
+      dataset: ${input.dataset}
+      learning_rate: 2e-4
+      num_epochs: 1
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 4
 
-    # 메모리 최적화
-    gradient_checkpointing: true
-    bf16: true
+      # 메모리 최적화
+      gradient_checkpointing: true
+      bf16: true
 ```
 
 **양자화 옵션:**
@@ -624,7 +714,7 @@ components:
 - `int8`: 8-bit 정수 양자화
 
 **QLoRA 권장 설정:**
-- 더 높은 `lora_r` (64 이상)
+- 더 높은 `lora.rank` (64 이상)
 - 더 높은 학습률 (2e-4)
 - BF16 혼합 정밀도
 - 그래디언트 체크포인팅
@@ -633,9 +723,9 @@ components:
 
 | 파라미터 | 낮은 값 | 높은 값 | 권장 사용 |
 |---------|---------|---------|-----------|
-| `lora_r` | 4-8 | 64-128 | 일반: 8-16, QLoRA: 64 |
-| `lora_alpha` | 8-16 | 32-64 | 일반적으로 r의 2배 |
-| `lora_dropout` | 0.0 | 0.1 | 작은 데이터셋: 0.05-0.1 |
+| `lora.rank` | 4-8 | 64-128 | 일반: 8-16, QLoRA: 64 |
+| `lora.alpha` | 8-16 | 32-64 | 일반적으로 rank의 2배 |
+| `lora.dropout` | 0.0 | 0.1 | 작은 데이터셋: 0.05-0.1 |
 | `learning_rate` | 1e-5 | 5e-4 | Full FT: 5e-5, LoRA: 1e-4 |
 
 ---
@@ -766,31 +856,34 @@ components:
   - id: alpaca-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: meta-llama/Llama-3.2-1B
 
     # LoRA 설정
-    peft_adapter: lora
-    lora_r: 16
-    lora_alpha: 32
-    lora_dropout: 0.05
-    lora_target_modules: [q_proj, v_proj]
+    lora:
+      rank: 16
+      alpha: 32
+      dropout: 0.05
+      target_modules: [q_proj, v_proj]
 
-    # 데이터 설정
-    dataset: ${input.dataset}
-    prompt_column: instruction
-    response_column: output
-    max_seq_length: 512
+    action:
+      # 데이터 설정
+      dataset: ${input.dataset}
+      prompt_column: instruction
+      response_column: output
+      max_seq_length: 512
 
-    # 훈련 설정
-    learning_rate: 1e-4
-    num_epochs: 3
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 4
+      # 훈련 설정
+      learning_rate: 1e-4
+      num_epochs: 3
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 4
 
-    # 최적화
-    gradient_checkpointing: true
-    fp16: true
+      # 최적화
+      gradient_checkpointing: true
+      fp16: true
 
-    output_dir: ./output/alpaca-lora
+      output_dir: ./output/alpaca-lora
 
 workflows:
   - id: train-alpaca
@@ -812,32 +905,36 @@ components:
   - id: qlora-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: meta-llama/Llama-3.1-8B
 
     # QLoRA 설정
-    peft_adapter: lora
-    lora_r: 64
-    lora_alpha: 16
-    quantization: nf4
-    bnb_4bit_compute_dtype: bfloat16
+    lora:
+      rank: 64
+      alpha: 16
+    quantization:
+      type: nf4
+      compute_dtype: bfloat16
 
-    # 데이터
-    dataset: ${input.dataset}
-    text_column: text
-    max_seq_length: 2048
-    packing: true
+    action:
+      # 데이터
+      dataset: ${input.dataset}
+      text_column: text
+      max_seq_length: 2048
+      packing: true
 
-    # 훈련
-    learning_rate: 2e-4
-    num_epochs: 1
-    per_device_train_batch_size: 1
-    gradient_accumulation_steps: 16
+      # 훈련
+      learning_rate: 2e-4
+      num_epochs: 1
+      per_device_train_batch_size: 1
+      gradient_accumulation_steps: 16
 
-    # 최적화
-    optimizer: adamw_8bit
-    gradient_checkpointing: true
-    bf16: true
+      # 최적화
+      optimizer: adamw_8bit
+      gradient_checkpointing: true
+      bf16: true
 
-    output_dir: ./output/qlora-model
+      output_dir: ./output/qlora-model
 ```
 
 ### 11.8.3 커스텀 데이터셋 준비 및 훈련
@@ -858,20 +955,23 @@ components:
   - id: custom-trainer
     type: model-trainer
     task: sft
+    driver: huggingface
+    model: Qwen/Qwen2.5-0.5B
 
-    peft_adapter: lora
-    lora_r: 8
-    lora_alpha: 16
+    lora:
+      rank: 8
+      alpha: 16
 
-    dataset: ${input.dataset}
-    prompt_column: user_input
-    response_column: assistant_response
+    action:
+      dataset: ${input.dataset}
+      prompt_column: user_input
+      response_column: assistant_response
 
-    learning_rate: 5e-5
-    num_epochs: 5
-    per_device_train_batch_size: 8
+      learning_rate: 5e-5
+      num_epochs: 5
+      per_device_train_batch_size: 8
 
-    output_dir: ./output/custom-model
+      output_dir: ./output/custom-model
 
 workflows:
   - id: train-custom

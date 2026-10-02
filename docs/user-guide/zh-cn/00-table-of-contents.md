@@ -145,7 +145,7 @@
   - 10.3.6 [image-to-text](./10-local-ai-models.md#1036-image-to-text)
   - 10.3.7 [image-embedding](./10-local-ai-models.md#1037-image-embedding)
   - 10.3.8 [image-generation](./10-local-ai-models.md#1038-image-generation)
-  - 10.3.9 [image-upscale](./10-local-ai-models.md#1039-image-upscale)
+  - 10.3.9 [image-upscaling](./10-local-ai-models.md#1039-image-upscaling)
   - 10.3.10 [text-to-speech](./10-local-ai-models.md#10310-text-to-speech)
   - 10.3.11 [voice-activity-detection](./10-local-ai-models.md#10311-voice-activity-detection)
   - 10.3.12 [face-embedding](./10-local-ai-models.md#10312-face-embedding)

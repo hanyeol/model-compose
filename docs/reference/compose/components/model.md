@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscale`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -406,14 +406,14 @@ The output is a list of ranked-result lists, one per query.
 
 Answer a set of typed questions about a piece of text in a single forward pass. Each question is one of `noul` (yes/no), `choice` (one of N named options), or `score` (an ordered rating scale). The scorer reads candidate-answer logits directly, so the answer is always one of the values the schema allows — no free-form generation, no JSON parsing, no schema drift.
 
-Runs on `driver: custom` with one of three families: `laya`, `kev`, or `nimble`. Pick one per component; run two components if you need to combine them.
+Runs on `driver: custom` with one of four families: `laya`, `kev`, `nimble`, or `clef`. Pick one per component; run two components if you need to combine them.
 
 ```yaml
 component:
   type: model
   task: typed-decision
   driver: custom
-  family: laya                        # 'laya' | 'kev' | 'nimble'
+  family: laya                        # 'laya' | 'kev' | 'nimble' | 'clef'
   preset: multilingual                # laya-only: 'english' | 'multilingual' (default) | 'typed-decisions'
   action:
     text: ${input.text}
@@ -425,8 +425,8 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `family` | enum | **required** | `laya`, `kev`, or `nimble`. Picks the scoring backend. |
-| `model` | string \| object | family default | HuggingFace repo id or local checkpoint directory. Optional for `laya` (defaults to the `convaiinnovations/laya` bundle repo). Required for `kev` and `nimble`. |
+| `family` | enum | **required** | `laya`, `kev`, `nimble`, or `clef`. Picks the scoring backend. |
+| `model` | string \| object | family default | HuggingFace repo id or local checkpoint directory. Optional for `laya` (defaults to the `convaiinnovations/laya` bundle repo) and `clef` (defaults to `Cloudflare/clef`). Required for `kev` and `nimble`. |
 
 **Family-specific settings:**
 
@@ -445,6 +445,8 @@ component:
 - `base_model` (string, default `Qwen/Qwen3.5-9B`) — base model the adapter is merged onto. The driver merges the adapter once on first startup and caches the merged snapshot.
 - `max_seq_length` (int, default `4096`) — maximum sequence length the scorer accepts.
 
+`clef` has no family-specific settings beyond the common `device`/`model` fields.
+
 **Action Fields:**
 
 | Field | Type | Default | Description |
@@ -453,7 +455,7 @@ component:
 | `schema` | object | **required** | Map of question id to a question spec (see below). |
 | `batch_size` | integer | `1` | Number of texts the driver scores in a single forward pass when `text` is a list. |
 | `return_probabilities` | bool | `false` | Include per-candidate scores per question in `fields[qid].scores`. |
-| `return_logits` | bool | `false` | Include raw pre-softmax logits per question. Only `nimble` surfaces logits at the API level. |
+| `return_logits` | bool | `false` | Include raw pre-softmax logits per question. `nimble` and `clef` surface logits at the API level. |
 
 **Question specs** (values in `schema`):
 
@@ -513,7 +515,7 @@ component:
     return_probabilities: true
 ```
 
-Full examples: [`typed-decision-laya`](../../../../examples/model-tasks/typed-decision-laya), [`typed-decision-kev`](../../../../examples/model-tasks/typed-decision-kev), [`typed-decision-nimble`](../../../../examples/model-tasks/typed-decision-nimble).
+Full examples: [`typed-decision-laya`](../../../../examples/model-tasks/typed-decision-laya), [`typed-decision-kev`](../../../../examples/model-tasks/typed-decision-kev), [`typed-decision-nimble`](../../../../examples/model-tasks/typed-decision-nimble), [`typed-decision-clef`](../../../../examples/model-tasks/typed-decision-clef).
 
 ### Text to Text (Translation, Summarization, and other seq2seq tasks)
 
@@ -4383,6 +4385,7 @@ workflow:
 - **Laya** (`family: laya`): convaiinnovations/laya bundle — `english` (ModernBERT-large), `multilingual` (mmBERT-base, 100+ languages), `typed-decisions` (fine-tuned)
 - **Kev** (`family: kev`): jaredpalmer/kev-0.8b, kev-4b, kev-9b (LoRA adapter + pointer head on frozen Qwen3.5)
 - **Nimble** (`family: nimble`): bespokelabs/Bespoke-Nimble-9B (LoRA adapter merged onto Qwen/Qwen3.5-9B on first startup)
+- **Clef** (`family: clef`): Cloudflare/clef — 27B multimodal joint-schema decision model on Qwen3.8-27B (ships `joint_schema_model` module in-repo)
 
 ### Image Embedding Models
 - **CLIP Family**: openai/clip-vit-base-patch32, clip-vit-large-patch14 (uses `get_image_features`)

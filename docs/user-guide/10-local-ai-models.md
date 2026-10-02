@@ -255,7 +255,7 @@ model-compose supports the following task types:
 | `image-embedding` | Image embedding | Visual search, image dedup, clustering |
 | `video-embedding` | Video embedding | Semantic video search, dedup, clustering |
 | `image-generation` | Image generation | Text-to-image conversion |
-| `image-upscale` | Image upscaling | Resolution enhancement |
+| `image-upscaling` | Image upscaling | Resolution enhancement |
 | `text-to-speech` | Text-to-speech synthesis | Voice generation, cloning, design |
 | `speech-to-text` | Speech recognition | Transcription, subtitles |
 | `speaker-diarization` | Who spoke when | Per-speaker turns for meetings, interviews |
@@ -499,14 +499,14 @@ Returns a typed answer per question from a caller-supplied schema, plus per-cand
 - `choice` — pick one of N named options. `criteria` is a map of `{name: description}`.
 - `score` — rate on an ordinal scale. `criteria` is a list of level descriptions, index 0 first. The result is an **expected level** (float) averaged over the softmax across levels.
 
-Three families are supported (`driver: custom` for all). Pick one per component; run more than one component if you need to combine them.
+Four families are supported (`driver: custom` for all). Pick one per component; run more than one component if you need to combine them.
 
 ```yaml
 component:
   type: model
   task: typed-decision
   driver: custom
-  family: laya                          # 'laya' | 'kev' | 'nimble'
+  family: laya                          # 'laya' | 'kev' | 'nimble' | 'clef'
   preset: multilingual                  # laya-only: 'english' | 'multilingual' (default) | 'typed-decisions'
   action:
     text: ${input.text}
@@ -518,7 +518,7 @@ component:
 - `text`: Unstructured text the scorer judges. Pass a list to score many inputs in one call.
 - `schema`: Map of question id to a question spec. Each spec has `type: noul | choice | score`, `instructions`, and (except for `noul`) `criteria`.
 - `return_probabilities`: Include per-candidate scores per question in `fields[qid].scores`.
-- `return_logits`: Include raw pre-softmax logits per question (`nimble` only surfaces logits at the API level).
+- `return_logits`: Include raw pre-softmax logits per question (`nimble` and `clef` surface logits at the API level).
 
 **Result shape**: `{ decision: { qid: value }, fields?: { qid: { scores: {...} } } }`. `noul` resolves to a boolean, `choice` to the winning option name, `score` to the expected level.
 
@@ -527,6 +527,7 @@ component:
 - `laya` (Convai Innovations, [example](../../examples/model-tasks/typed-decision-laya)) — non-autoregressive ModernBERT/mmBERT-based scorer with an RLCD-trained decision head. Ships three checkpoints, selected by `preset`: `english` (ModernBERT-large, 512-token context), `multilingual` (mmBERT-base, 100+ languages, up to 1024 tokens — extendable to 8192 via `max_seq_length`), and `typed-decisions` (fine-tuned on four typed-decisions workflows). Runs on CUDA, MPS (Apple Silicon), or CPU. Enable `fast: true` on Linux+x86_64 for the TileLang fused CUDA kernels.
 - `kev` (Jared Palmer, [example](../../examples/model-tasks/typed-decision-kev)) — a bundle of a LoRA adapter, pointer scoring head, and metadata on top of a frozen Qwen3.5 base (base model id is read from the checkpoint's `head.pt`, no manual override needed). Sizes: 0.8B / 4B / 9B. Backend auto-selects MLX on Apple Silicon and Torch on CUDA/CPU; `max_state_length` and `max_branch_length` cap the shared state and per-question branches independently.
 - `nimble` (Bespoke Labs, [example](../../examples/model-tasks/typed-decision-nimble)) — a LoRA adapter merged onto a base model (Qwen/Qwen3.5-9B by default) on first startup; the merged snapshot is cached. Requires MLX on Apple Silicon or a BF16-capable NVIDIA GPU on Linux; the driver picks the backend automatically.
+- `clef` (Cloudflare, [example](../../examples/model-tasks/typed-decision-clef)) — a 27B multimodal joint-schema decision model built on Qwen3.8-27B. Ships the `joint_schema_model` module inside the HF repo; the driver puts the snapshot on `sys.path` and loads via `load_release_model`. Also accepts images and video frames alongside the text state. BF16 inference needs ~55 GB VRAM; set `device: cuda | mps | cpu` to pin placement or leave at `auto` for device-map offload.
 
 ### 10.3.8 image-to-text
 
@@ -674,14 +675,14 @@ component:
 - `sdxl`: Stable Diffusion XL
 - `hunyuan`: HunyuanDiT
 
-### 10.3.12 image-upscale
+### 10.3.12 image-upscaling
 
 Enhances image resolution.
 
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model: RealESRGAN_x4plus
   action:

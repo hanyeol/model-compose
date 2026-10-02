@@ -255,7 +255,7 @@ model-compose 支持以下任务类型：
 | `image-embedding` | 图像嵌入 | 视觉检索、图像去重、聚类 |
 | `video-embedding` | 视频嵌入 | 语义视频检索、去重、聚类 |
 | `image-generation` | 图像生成 | 文本到图像转换 |
-| `image-upscale` | 图像放大 | 分辨率增强 |
+| `image-upscaling` | 图像放大 | 分辨率增强 |
 | `text-to-speech` | 文本转语音合成 | 语音生成、克隆、设计 |
 | `speech-to-text` | 语音识别 | 转录、字幕 |
 | `speaker-diarization` | 谁在什么时候说话 | 会议、访谈的逐说话人分段 |
@@ -499,14 +499,14 @@ workflow:
 - `choice` — 从 N 个命名选项中选一个。`criteria` 是 `{name: description}` 映射。
 - `score` — 按有序刻度打分。`criteria` 是级别描述的列表，索引 0 在前。结果是**期望级别**（浮点数），由跨级别的 softmax 平均得到。
 
-支持三种系列（均使用 `driver: custom`）。每个组件挑选其中一个；如需组合，请运行多个组件。
+支持四种系列（均使用 `driver: custom`）。每个组件挑选其中一个；如需组合，请运行多个组件。
 
 ```yaml
 component:
   type: model
   task: typed-decision
   driver: custom
-  family: laya                          # 'laya' | 'kev' | 'nimble'
+  family: laya                          # 'laya' | 'kev' | 'nimble' | 'clef'
   preset: multilingual                  # 仅 laya：'english' | 'multilingual'（默认）| 'typed-decisions'
   action:
     text: ${input.text}
@@ -518,7 +518,7 @@ component:
 - `text`：评分器判断的非结构化文本。传入列表可一次评分多个输入。
 - `schema`：问题 ID 到问题规范的映射。每个规范包含 `type: noul | choice | score`、`instructions`，以及（`noul` 除外的）`criteria`。
 - `return_probabilities`：在 `fields[qid].scores` 中为每个问题返回逐候选项分数。
-- `return_logits`：返回每个问题 softmax 前的原始 logits（`nimble` 仅在 API 层暴露 logits）。
+- `return_logits`：返回每个问题 softmax 前的原始 logits（`nimble` 和 `clef` 会在 API 层暴露 logits）。
 
 **结果结构**：`{ decision: { qid: value }, fields?: { qid: { scores: {...} } } }`。`noul` 解析为布尔值，`choice` 解析为获胜选项名，`score` 解析为期望级别。
 
@@ -527,6 +527,7 @@ component:
 - `laya`（Convai Innovations，[示例](../../examples/model-tasks/typed-decision-laya)）— 基于 ModernBERT/mmBERT 的非自回归评分器，带 RLCD 训练的决策头。捆绑三个检查点，通过 `preset` 选择：`english`（ModernBERT-large，512-token 上下文）、`multilingual`（mmBERT-base，100+ 语言，最多 1024 token —— 通过 `max_seq_length` 可扩展至 8192）以及 `typed-decisions`（在四个 typed-decisions 工作流上微调）。可在 CUDA、MPS（Apple Silicon）或 CPU 上运行。在 Linux+x86_64 上启用 `fast: true` 可使用 TileLang 融合 CUDA 内核。
 - `kev`（Jared Palmer，[示例](../../examples/model-tasks/typed-decision-kev)）— LoRA 适配器、指针评分头与元数据的捆绑，架设在冻结的 Qwen3.5 基础模型之上（基础模型 ID 从检查点的 `head.pt` 读取，无需手动覆盖）。规格：0.8B / 4B / 9B。后端在 Apple Silicon 上自动选择 MLX，在 CUDA/CPU 上选择 Torch；`max_state_length` 与 `max_branch_length` 分别限制共享状态和每个问题分支的长度。
 - `nimble`（Bespoke Labs，[示例](../../examples/model-tasks/typed-decision-nimble)）— 首次启动时将 LoRA 适配器合并到基础模型（默认 Qwen/Qwen3.5-9B），合并后的快照会被缓存。在 Apple Silicon 上需要 MLX，在 Linux 上需要支持 BF16 的 NVIDIA GPU；驱动会自动选择后端。
+- `clef`（Cloudflare，[示例](../../examples/model-tasks/typed-decision-clef)）— 基于 Qwen3.8-27B 构建的 27B 多模态 joint-schema 决策模型。`joint_schema_model` 模块包含在 HF 仓库内；驱动将快照加入 `sys.path` 并通过 `load_release_model` 加载。可同时接受文本状态与图像、视频帧。BF16 推理需约 55 GB VRAM；可通过 `device: cuda | mps | cpu` 固定设备，或保留 `auto` 让 device-map 自动分流。
 
 ### 10.3.8 image-to-text
 
@@ -674,14 +675,14 @@ component:
 - `sdxl`：Stable Diffusion XL
 - `hunyuan`：HunyuanDiT
 
-### 10.3.12 image-upscale
+### 10.3.12 image-upscaling
 
 增强图像分辨率。
 
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model: RealESRGAN_x4plus
   action:

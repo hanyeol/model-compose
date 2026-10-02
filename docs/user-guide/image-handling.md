@@ -330,6 +330,6 @@ workflows:
 - [CLI Reference](../cli.md)
 - [Model Component](../compose/components/model.md)
 - [Image-to-Text Example](../../examples/model-tasks/image-to-text/README.md)
-- [Image Upscaling Example](../../examples/model-tasks/image-upscale/README.md)
+- [Image Upscaling Example](../../examples/model-tasks/image-upscaling/README.md)
 - [Computer Vision Guide](computer-vision.md)
 - [Performance Optimization](performance/optimization.md)

@@ -216,10 +216,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             if timestamps is not None:
                 # VFR → CFR pacing: emit each frame `round(t[i+1]*fps) - round(t[i]*fps)` times.
                 # The first timestamp is normalized to 0, so audio muxed separately may need its own offset.
+                # The final frame has no successor to size against; repeat it by the prior interval so
+                # a run of N evenly-spaced timestamps covers N full slots instead of N-1 + 1.
                 first_timestamp: Optional[float] = None
                 previous_frame_bytes: Optional[bytes] = None
                 previous_frame_index = 0
                 previous_timestamp = 0.0
+                last_interval = 0
 
                 async for frame, timestamp in async_zip(_stream_frames(), timestamps):
                     timestamp = float(timestamp)
@@ -237,8 +240,13 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                     current_frame_index = round(timestamp * float(frame_rate))
 
                     if previous_frame_bytes is not None:
-                        for _ in range(current_frame_index - previous_frame_index):
+                        interval = current_frame_index - previous_frame_index
+
+                        for _ in range(interval):
                             yield previous_frame_bytes
+
+                        if interval > 0:
+                            last_interval = interval
 
                     frame_bytes = bytearray()
 
@@ -250,9 +258,11 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                     previous_frame_index = current_frame_index
                     previous_timestamp = timestamp
 
-                # Final frame has no successor to size against; emit once.
                 if previous_frame_bytes is not None:
-                    yield previous_frame_bytes
+                    tail = last_interval if last_interval > 0 else 1
+
+                    for _ in range(tail):
+                        yield previous_frame_bytes
             else:
                 # No timestamps: CFR path — pipe raw frame bytes through at `frame_rate`.
                 async for frame in _stream_frames():

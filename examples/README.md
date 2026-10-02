@@ -149,7 +149,7 @@ Local model execution via HuggingFace, llama.cpp, or vLLM.
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — VLM (Qwen2.5-VL) via HuggingFace
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — VLM OCR (olmOCR) via vLLM
 - [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — Image generation with Qwen-Image 2.1
-- [image-upscale](./model-tasks/image-upscale/) — Upscale images
+- [image-upscaling](./model-tasks/image-upscaling/) — Upscale images
 - [image-background-removal](./model-tasks/image-background-removal/) — Remove image backgrounds
 - [image-segmentation](./model-tasks/image-segmentation/) — Segmentation masks with SAM
 - [face-swap](./model-tasks/face-swap/) — Face swapping

@@ -149,7 +149,7 @@ HuggingFace, llama.cpp, vLLM을 통한 로컬 모델 실행.
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — HuggingFace VLM (Qwen2.5-VL)
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — vLLM 기반 VLM OCR (olmOCR)
 - [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — Qwen-Image 2.1로 이미지 생성
-- [image-upscale](./model-tasks/image-upscale/) — 이미지 업스케일
+- [image-upscaling](./model-tasks/image-upscaling/) — 이미지 업스케일
 - [image-background-removal](./model-tasks/image-background-removal/) — 배경 제거
 - [image-segmentation](./model-tasks/image-segmentation/) — SAM 기반 세그멘테이션 마스크
 - [face-swap](./model-tasks/face-swap/) — 얼굴 스왑

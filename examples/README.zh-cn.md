@@ -149,7 +149,7 @@ HUGGINGFACE_TOKEN=your-token-here
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — HuggingFace VLM (Qwen2.5-VL)
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — 基于 vLLM 的 VLM OCR (olmOCR)
 - [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — 使用 Qwen-Image 2.1 生成图像
-- [image-upscale](./model-tasks/image-upscale/) — 图像放大
+- [image-upscaling](./model-tasks/image-upscaling/) — 图像放大
 - [image-background-removal](./model-tasks/image-background-removal/) — 去除图像背景
 - [image-segmentation](./model-tasks/image-segmentation/) — 基于 SAM 的分割掩码
 - [face-swap](./model-tasks/face-swap/) — 人脸替换

@@ -398,9 +398,10 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             # is the weight given to the previous frame (0 disables, 1 freezes).
             if in_same_segment and params["bounding_box_smoothing"] and track["last_bbox"] is not None:
                 bounding_box = self._blend_bounding_box(track["last_bbox"], pose["bounding_box"], params["bounding_box_smoothing"])
-                pose = { **pose, "bounding_box": bounding_box }
-
-            track["last_bbox"] = pose["bounding_box"]
+                track["last_bbox"] = bounding_box
+                pose = { **pose, "bounding_box": tuple(int(round(value)) for value in bounding_box) }
+            else:
+                track["last_bbox"] = tuple(float(value) for value in pose["bounding_box"])
 
             if in_same_segment:
                 current["end"] = timestamp
@@ -429,20 +430,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             tracked_poses.append((pose, track_id))
 
         return tracked_poses, tracked_segments
-
-    @staticmethod
-    def _blend_bounding_box(
-        prev_bounding_box: Tuple[int, int, int, int],
-        new_bounding_box: Tuple[int, int, int, int],
-        smoothing: float,
-    ) -> Tuple[int, int, int, int]:
-        """EMA-blend `new_bounding_box` toward `prev_bounding_box` and re-quantize to int pixels.
-
-        `smoothing` is the weight given to the previous frame's box, so a
-        larger value produces a heavier tail and a slower response to
-        movement (0 disables, 1 freezes on `prev_bounding_box`).
-        """
-        return tuple(int(round(smoothing * prev_bounding_box[i] + (1.0 - smoothing) * new_bounding_box[i])) for i in range(4))
 
     def _sweep_idle_tracks(
         self,
@@ -912,6 +899,20 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         x1, y1, x2, y2 = bounding_box
 
         return { "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1 }
+
+    @staticmethod
+    def _blend_bounding_box(
+        prev_bounding_box: Tuple[float, float, float, float],
+        new_bounding_box: Tuple[float, float, float, float],
+        smoothing: float,
+    ) -> Tuple[float, float, float, float]:
+        """EMA-blend `new_bounding_box` toward `prev_bounding_box` as floats.
+
+        `smoothing` is the weight given to the previous frame's box, so a
+        larger value produces a heavier tail and a slower response to
+        movement (0 disables, 1 freezes on `prev_bounding_box`).
+        """
+        return tuple(smoothing * prev_bounding_box[n] + (1.0 - smoothing) * new_bounding_box[n] for n in range(4))
 
     @staticmethod
     def _bounding_box_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:

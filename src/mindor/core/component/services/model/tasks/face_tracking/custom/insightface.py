@@ -521,9 +521,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         if in_same_segment and bounding_box_smoothing and track["last_bbox"] is not None:
             bounding_box = self._blend_bounding_box(track["last_bbox"], face["bounding_box"], bounding_box_smoothing)
-            face = { **face, "bounding_box": bounding_box }
-
-        track["last_bbox"] = face["bounding_box"]
+            track["last_bbox"] = bounding_box
+            face = { **face, "bounding_box": tuple(int(round(value)) for value in bounding_box) }
+        else:
+            track["last_bbox"] = tuple(float(value) for value in face["bounding_box"])
         track["last_seen"] = timestamp
 
         if in_same_segment:
@@ -1076,17 +1077,17 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
     @staticmethod
     def _blend_bounding_box(
-        prev_bounding_box: Tuple[int, int, int, int],
-        new_bounding_box: Tuple[int, int, int, int],
+        prev_bounding_box: Tuple[float, float, float, float],
+        new_bounding_box: Tuple[float, float, float, float],
         smoothing: float,
-    ) -> Tuple[int, int, int, int]:
-        """EMA-blend `new_bounding_box` toward `prev_bounding_box` and re-quantize to int pixels.
+    ) -> Tuple[float, float, float, float]:
+        """EMA-blend `new_bounding_box` toward `prev_bounding_box` as floats.
 
         `smoothing` is the weight given to the previous frame's box, so a
         larger value produces a heavier tail and a slower response to
         movement (0 disables, 1 freezes on `prev_bounding_box`).
         """
-        return tuple(int(round(smoothing * prev_bounding_box[n] + (1.0 - smoothing) * new_bounding_box[n])) for n in range(4))
+        return tuple(smoothing * prev_bounding_box[n] + (1.0 - smoothing) * new_bounding_box[n] for n in range(4))
 
     @staticmethod
     def _bounding_box_center_distance(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> float:

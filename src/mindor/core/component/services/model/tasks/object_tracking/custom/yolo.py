@@ -419,9 +419,10 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
             # is the weight given to the previous frame (0 disables, 1 freezes).
             if in_same_segment and params["bounding_box_smoothing"] and track["last_bbox"] is not None:
                 bounding_box = self._blend_bounding_box(track["last_bbox"], object["bounding_box"], params["bounding_box_smoothing"])
-                object = { **object, "bounding_box": bounding_box }
-
-            track["last_bbox"] = object["bounding_box"]
+                track["last_bbox"] = bounding_box
+                object = { **object, "bounding_box": tuple(int(round(value)) for value in bounding_box) }
+            else:
+                track["last_bbox"] = tuple(float(value) for value in object["bounding_box"])
 
             if in_same_segment:
                 current["end"] = timestamp
@@ -870,17 +871,17 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
     @staticmethod
     def _blend_bounding_box(
-        prev_bounding_box: Tuple[int, int, int, int],
-        new_bounding_box: Tuple[int, int, int, int],
+        prev_bounding_box: Tuple[float, float, float, float],
+        new_bounding_box: Tuple[float, float, float, float],
         smoothing: float,
-    ) -> Tuple[int, int, int, int]:
-        """EMA-blend `new_bounding_box` toward `prev_bounding_box` and re-quantize to int pixels.
+    ) -> Tuple[float, float, float, float]:
+        """EMA-blend `new_bounding_box` toward `prev_bounding_box` as floats.
 
         `smoothing` is the weight given to the previous frame's box, so a
         larger value produces a heavier tail and a slower response to
         movement (0 disables, 1 freezes on `prev_bounding_box`).
         """
-        return tuple(int(round(smoothing * prev_bounding_box[i] + (1.0 - smoothing) * new_bounding_box[i])) for i in range(4))
+        return tuple(smoothing * prev_bounding_box[n] + (1.0 - smoothing) * new_bounding_box[n] for n in range(4))
 
     @staticmethod
     def _bounding_box_meets_min_size(bounding_box: Tuple[int, int, int, int], min_size: int) -> bool:

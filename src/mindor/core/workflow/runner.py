@@ -237,7 +237,7 @@ class WorkflowRunner:
 
                     if self._is_terminal_job(completed_job_id):
                         if isinstance(output, dict) and isinstance(completed_job_output, dict):
-                            output.update(completed_job_output)
+                            output = { **output, **completed_job_output }
                         else:
                             output = completed_job_output
 

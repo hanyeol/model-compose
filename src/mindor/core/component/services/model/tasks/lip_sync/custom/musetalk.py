@@ -274,11 +274,14 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
 
         capture = cv2.VideoCapture(path)
         frames: List[Any] = []
+
         try:
             while True:
                 ok, frame = capture.read()
+
                 if not ok:
                     break
+
                 frames.append(frame)
         finally:
             capture.release()

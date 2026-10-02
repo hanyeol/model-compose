@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
-from typing import Optional, Union, Dict, List, Tuple, Any
+from typing import Optional, Union, Dict, List, Tuple, Any, Callable
 from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceTrackingModelActionConfig
@@ -15,6 +15,7 @@ from mindor.core.logger import logging
 from ..common import FaceTrackingTaskAction, FaceEmbedding
 from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
+from functools import partial
 import os, shutil
 
 if TYPE_CHECKING:
@@ -22,12 +23,11 @@ if TYPE_CHECKING:
     from insightface.app.common import Face
     import numpy as np
 
-# Sub-crop margin around the raw detection bbox when stashing image_source.
-# Sized so any downstream `_crop_face_image(padding=...)` up to this ratio
-# produces pixel-identical output to cropping the full frame; a tracked face
-# that lingers in `tracked_frames` / `last_face_by_cluster` / interpolated
-# copies then holds ~1/16 of a full frame instead of the whole ndarray.
-_IMAGE_SOURCE_MARGIN: float = 0.5
+    # Per-frame image_source extractor passed into clustering. Binds the frame's
+    # numpy buffer and padding into a closure so the tracking path never touches
+    # the raw ndarray; the callback is only valid for the duration of its
+    # originating `_track_frame` call and must not be stashed on any track state.
+    ExtractImageSourceCallable = Callable[[Tuple[int, int, int, int]], Tuple[Optional[np.ndarray], Tuple[int, int]]]
 
 class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     config: InsightfaceFaceTrackingModelActionConfig
@@ -118,14 +118,16 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frame_count = 0
 
         def _track_frame(image: PILImage.Image, timestamp: float, frame_period: float) -> Dict[str, Any]:
-            faces = self._detect_faces_in_frame(image, params)
+            faces, image_cv = self._detect_faces_in_frame(image, params)
+            extract_image_source = self._image_source_extractor(image_cv, params) if params["return_track_image"] else None
             tracked_faces, _ = self._cluster_faces(
                 faces,
                 timestamp,
                 frame_period,
                 centroids_state,
                 cluster_tracks,
-                params
+                params,
+                extract_image_source,
             )
 
             tracked_frame: Dict[str, Any] = {
@@ -147,6 +149,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             if timestamp is not None:
                 timestamp = float(timestamp)
+
                 if previous_frame_timestamp is not None:
                     frame_period = timestamp - previous_frame_timestamp
             else:
@@ -200,14 +203,16 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         last_face_by_cluster: Dict[int, Tuple[float, Dict[str, Any]]] = {}
 
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
-            faces = self._detect_faces_in_frame(image, params)
+            faces, image_cv = self._detect_faces_in_frame(image, params)
+            extract_image_source = self._image_source_extractor(image_cv, params) if params["return_track_image"] else None
             tracked_faces, tracked_segments = self._cluster_faces(
                 faces,
                 timestamp,
                 frame_period,
                 centroids_state,
                 cluster_tracks,
-                params
+                params,
+                extract_image_source,
             )
 
             tracked_frame: Dict[str, Any] = {
@@ -268,8 +273,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             if params["return_detections"]:
                 for face, cluster_id in tracked_frame["tracked_faces"]:
                     last_face = last_face_by_cluster.get(cluster_id)
+
                     if last_face is not None:
                         prev_timestamp, prev_face = last_face
+
                         if timestamp - prev_timestamp <= merge_gap + frame_period + 1e-6:
                             self._interpolate_between_faces(
                                 pending_frames,
@@ -283,6 +290,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                                 frame_period,
                                 max_track_distance,
                             )
+
                     last_face_by_cluster[cluster_id] = (timestamp, face)
 
                 pending_frames.append(tracked_frame)
@@ -300,9 +308,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 # long-idle cluster every frame — a fresh detection resets it
                 # in `_add_face_to_track` so the next idle period fires again.
                 idle_track_chunks = self._sweep_idle_tracks(cluster_tracks, centroids_state, timestamp, frame_period, merge_gap, params)
+
                 for cluster_id, segment_chunk, track_chunk in idle_track_chunks:
                     if segment_chunk is not None:
                         yield segment_chunk
+
                     yield track_chunk
 
         if params["return_detections"]:
@@ -315,6 +325,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             for cluster_id, segment_chunk, track_chunk in self._flush_remaining_tracks(cluster_tracks, centroids_state, params):
                 if segment_chunk is not None:
                     yield segment_chunk
+
                 yield track_chunk
         else:
             for track in cluster_tracks.values():
@@ -327,7 +338,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if params["return_metadata"]:
             yield { "type": "metadata", "frame_count": frame_count }
 
-    def _detect_faces_in_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _detect_faces_in_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], np.ndarray]:
         import numpy as np
         import cv2
 
@@ -338,7 +349,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
         detections = self.model.get(image_cv)
 
-        return self._build_detected_faces(detections, image_cv, params["return_track_image"], params["return_gender_age"])
+        faces = self._build_detected_faces(detections, params["return_gender_age"])
+
+        return faces, image_cv
 
     def _cluster_faces(
         self,
@@ -348,6 +361,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         centroids_state: Dict[str, Any],
         cluster_tracks: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
+        extract_image_source: Optional[ExtractImageSourceCallable] = None,
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
         import numpy as np
 
@@ -385,6 +399,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         for face_index, embedding in enumerate(embeddings):
             face_bbox = candidates[face_index]["bounding_box"]
+
             for cluster_id, centroid in enumerate(centroids):
                 similarity = float(np.dot(embedding, centroid))
 
@@ -440,7 +455,17 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 counts.append(1)
                 cluster_id = len(centroids) - 1
 
-            face, tracked_segment = self._add_face_to_track(cluster_tracks, cluster_id, timestamp, face, merge_gap, frame_period, bounding_box_padding, bounding_box_smoothing)
+            face, tracked_segment = self._add_face_to_track(
+                cluster_tracks,
+                cluster_id,
+                timestamp,
+                face,
+                merge_gap,
+                frame_period,
+                bounding_box_padding,
+                bounding_box_smoothing,
+                extract_image_source
+            )
 
             if tracked_segment is not None:
                 tracked_segments.append((cluster_id, tracked_segment))
@@ -473,6 +498,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frame_period: float,
         bounding_box_padding: float,
         bounding_box_smoothing: Optional[float],
+        extract_image_source: Optional[ExtractImageSourceCallable] = None,
     ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         """Fold a new detection into its cluster's segment history. The
         cluster's `current` segment is extended if this frame is within one
@@ -487,7 +513,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         The face crop is materialized here (lazily) rather than up-front in
         `_build_detected_faces`, so frames that never become a segment's best
-        never pay the crop / PIL-conversion cost.
+        never pay the crop / PIL-conversion cost. `extract_image_source` runs after
+        smoothing to stash a bbox-sized sub-crop around the final (post-smoothing)
+        box; stashing before smoothing would need a wider margin to absorb drift
+        and could still clip under fast motion.
 
         When `bounding_box_smoothing` is set and this detection extends the
         current segment, the face's bounding box is EMA-blended with the
@@ -526,6 +555,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         else:
             track["last_bbox"] = tuple(float(value) for value in face["bounding_box"])
         track["last_seen"] = timestamp
+
+        if extract_image_source is not None:
+            image_source, origin = extract_image_source(face["bounding_box"])
+
+            if image_source is not None:
+                face = { **face, "image_source": image_source, "image_source_origin": origin }
 
         if in_same_segment:
             current["end"] = timestamp
@@ -762,23 +797,24 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             )
             frame["interpolated_faces"].append(({ **prev_face, "bounding_box": interpolated_bbox, "interpolated": True }, cluster_id))
 
-    def _build_detected_faces(
-        self,
-        detections: List[Face],
-        image_cv: np.ndarray,
-        return_track_image: bool,
-        return_gender_age: bool,
-    ) -> List[Dict[str, Any]]:
-        # Defer cropping to _add_face_to_track: only the frames that actually
-        # become a segment's representative are worth converting to PIL, so we
-        # stash a small BGR sub-crop around each detection (cheap to hold on
-        # to) instead of eagerly producing an RGB PIL crop for every one.
-        # We deliberately do NOT stash the full frame — a long track keeps
-        # every referenced face alive via `tracked_frames`,
-        # `last_face_by_cluster`, and interpolation copies, so a full-frame
-        # reference balloons into gigabytes on hour-long inputs.
+    def _image_source_extractor(self, image_cv: np.ndarray, params: Dict[str, Any]) -> ExtractImageSourceCallable:
+        """Bind the current frame and padding into an image_source extractor.
+
+        Valid only while the originating `_track_frame` call runs; never store
+        the returned callable on track state, or the frame buffer outlives it.
+        """
+        return partial(self._extract_face_region, image_cv, bounding_box_padding=params["bounding_box_padding"] or 0.0)
+
+    def _build_detected_faces(self, detections: List[Face], return_gender_age: bool) -> List[Dict[str, Any]]:
+        # image_source stashing happens later in `_add_face_to_track`, once the
+        # final (post-smoothing) bbox is known, so the stashed sub-crop can be
+        # sized exactly to `bounding_box_padding` instead of guessing a margin
+        # that compensates for both padding and smoothing drift. We deliberately
+        # never stash the full frame — a long track keeps every referenced face
+        # alive via `tracked_frames`, `last_face_by_cluster`, and interpolation
+        # copies, so a full-frame reference balloons into gigabytes on hour-long
+        # inputs.
         faces: List[Dict[str, Any]] = []
-        height, width = image_cv.shape[:2] if return_track_image else (0, 0)
 
         for detection in detections:
             embedding = getattr(detection, "normed_embedding", None)
@@ -794,13 +830,6 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 "bounding_box": bounding_box,
                 "score":        float(getattr(detection, "det_score", 0.0)),
             }
-
-            if return_track_image:
-                image_source, origin = self._extract_face_region(image_cv, bounding_box, width, height)
-
-                if image_source is not None:
-                    face["image_source"] = image_source
-                    face["image_source_origin"] = origin
 
             if return_gender_age:
                 gender = getattr(detection, "gender", None)
@@ -1133,18 +1162,22 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         cls,
         image_cv: np.ndarray,
         bounding_box: Tuple[int, int, int, int],
-        width: int,
-        height: int,
+        bounding_box_padding: float = 0.0,
     ) -> Tuple[Optional[np.ndarray], Tuple[int, int]]:
-        """Copy the region of `image_cv` around `bounding_box` expanded by
-        `_IMAGE_SOURCE_MARGIN` on each side, returning `(sub_crop, (ox, oy))`.
+        """Copy the region of `image_cv` around `bounding_box` grown by
+        `bounding_box_padding` on each side, returning `(sub_crop, (ox, oy))`.
+        Callers invoke this after smoothing is applied so the sub-crop is sized
+        to exactly match `_crop_face_image(padding=...)`; margin and crop share
+        the same `int(w * padding)` / `int(h * padding)` truncation, so pixels
+        line up at the boundary with no "pixel-identical only on paper" caveat.
         The copy — not a view — is what lets the caller drop the original
         frame while retaining just the face's neighborhood; a numpy slice
         keeps the parent buffer alive and defeats the point of this fix.
         Returns `(None, (0, 0))` if the padded box has no valid overlap with
         the frame."""
+        height, width = image_cv.shape[:2]
         x1, y1, x2, y2 = bounding_box
-        margin = _IMAGE_SOURCE_MARGIN
+        margin = max(0.0, bounding_box_padding)
 
         mx1 = max(0, x1 - int((x2 - x1) * margin))
         my1 = max(0, y1 - int((y2 - y1) * margin))

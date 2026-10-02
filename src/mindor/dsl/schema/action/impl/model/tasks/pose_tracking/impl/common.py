@@ -16,7 +16,7 @@ class CommonPoseTrackingParamsConfig(BaseModel):
 class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
     frames: Union[Any, List[Any], List[List[Any]], str] = Field(..., description="Frame images to analyze; a single frame, flat list, list of batches, or stream of batches.")
     timestamps: Optional[Union[float, List[float], List[List[float]], str]] = Field(default=None, description="Per-frame timestamps in seconds paired with `frames`; overrides `frame_rate`/`time_offset` when set.")
-    frame_rate: Union[float, str] = Field(..., description="Frame rate in frames per second used to derive per-frame timestamps when `timestamps` is unset.")
+    frame_rate: Optional[Union[float, str]] = Field(default=None, description="Frames per second; required when `timestamps` is unset to derive per-frame timestamps.")
     time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch; scalar values broadcast, lists pair per batch.")
     skeleton_format: Union[Literal[ "natural", "openpose" ], str] = Field(default="natural", description="Layout used when rendering the skeleton image.")
     skeleton_background: Optional[Union[Color, str]] = Field(default=None, description="Skeleton canvas background: None yields a transparent RGBA PNG; a color (e.g. '#000000') flattens to that solid RGB fill.")
@@ -38,4 +38,10 @@ class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
             raise ValueError("Either 'return_tracks' or 'return_detections' must be true.")
         if self.return_frame_image is True and self.return_detections is False:
             raise ValueError("'return_frame_image' requires 'return_detections' to be true.")
+        return self
+
+    @model_validator(mode="after")
+    def validate_timestamps_or_frame_rate(self):
+        if self.timestamps is None and self.frame_rate is None:
+            raise ValueError("Either 'timestamps' or 'frame_rate' must be set.")
         return self

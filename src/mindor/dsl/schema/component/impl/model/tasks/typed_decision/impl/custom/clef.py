@@ -20,7 +20,6 @@ class ClefTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentCon
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TypedDecisionModelFamily.CLEF]
     model: ClefTypedDecisionModelConfig = Field(..., description="Clef checkpoint — a HuggingFace repo ID or a local directory bundling the joint_schema_model module.")
-    device: str = Field(default="auto", description="Device placement passed to joint_schema_model.load_release_model.")
     actions: List[TypedDecisionModelActionConfig] = Field(default_factory=list, description="Actions this typed decision component exposes to workflows.")
 
     @model_validator(mode="before")

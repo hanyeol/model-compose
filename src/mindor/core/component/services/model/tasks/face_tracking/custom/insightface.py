@@ -163,7 +163,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 tracked_frames.append(tracked_frame)
 
         if params["return_detections"]:
-            self._interpolate_missing_faces(tracked_frames, frame_rate, params["merge_gap"] or 0.0, params["max_track_distance"] or 0.0)
+            self._interpolate_missing_faces(tracked_frames, params["merge_gap"] or 0.0, params["max_track_distance"] or 0.0)
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -689,18 +689,18 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     def _interpolate_missing_faces(
         self,
         tracked_frames: List[Dict[str, Any]],
-        frame_rate: float,
         merge_gap: float,
         max_track_distance: float,
     ) -> None:
         """Walk every frame in chronological order, and for each cluster,
         interpolate bounding boxes between consecutive detections whose gap is
-        within `merge_gap` + one frame period. Interpolated faces are merged
-        into each frame's `tracked_faces` in place; `interpolated_faces` is stripped
-        so downstream code sees a single unified list."""
-        frame_period = 1.0 / frame_rate
-        threshold = merge_gap + frame_period + 1e-6
-
+        within `merge_gap` + the current frame's prior interval. The threshold
+        and the `max_track_distance` allowance both ride the per-frame interval
+        so this mirrors the streaming path's `in_same_segment` verdict —
+        including VFR inputs where no fixed `frame_rate` captures the real
+        cadence. Interpolated faces are merged into each frame's
+        `tracked_faces` in place; `interpolated_faces` is stripped so
+        downstream code sees a single unified list."""
         # Track each cluster's most recent detection's frame index too so we
         # can hand the interpolator a bounded [start, end) range instead of
         # re-scanning every frame per anchor pair — otherwise the cost is
@@ -712,6 +712,9 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         for current_index, frame in enumerate(tracked_frames):
             timestamp = frame["timestamp"]
+            frame_period = timestamp - tracked_frames[current_index - 1]["timestamp"] if current_index > 0 else 0.0
+            threshold = merge_gap + frame_period + 1e-6
+
             for face, cluster_id in frame["tracked_faces"]:
                 last_face = last_face_by_cluster.get(cluster_id)
                 if last_face is not None:

@@ -163,7 +163,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
                 tracked_frames.append(tracked_frame)
 
         if params["return_detections"]:
-            self._interpolate_missing_objects(tracked_frames, frame_rate, merge_gap)
+            self._interpolate_missing_objects(tracked_frames, merge_gap)
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -545,16 +545,17 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
     def _interpolate_missing_objects(
         self,
         tracked_frames: List[Dict[str, Any]],
-        frame_rate: float,
         merge_gap: float,
     ) -> None:
         """Walk every frame in chronological order, and for each track,
         interpolate bounding boxes between consecutive detections whose gap is
-        within `merge_gap` + one frame period. Interpolated objects are merged
-        into each frame's `tracked_objects` in place; `interpolated_objects` is
-        stripped so downstream code sees a single unified list."""
-        frame_period = 1.0 / frame_rate
-        threshold = merge_gap + frame_period + 1e-6
+        within `merge_gap` + the current frame's prior interval. The threshold
+        mirrors the streaming path's per-frame `frame_period` so both modes
+        reach the same `in_same_segment` verdict on the same data — including
+        VFR inputs where no fixed `frame_rate` captures the real cadence.
+        Interpolated objects are merged into each frame's `tracked_objects`
+        in place; `interpolated_objects` is stripped so downstream code sees
+        a single unified list."""
         # Track each track's most recent detection's frame index too so we
         # can hand the interpolator a bounded [start, end) range instead of
         # re-scanning every frame per anchor pair — otherwise the cost is
@@ -566,6 +567,12 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
         for current_index, frame in enumerate(tracked_frames):
             timestamp = frame["timestamp"]
+            frame_period = (
+                timestamp - tracked_frames[current_index - 1]["timestamp"]
+                if current_index > 0 else 0.0
+            )
+            threshold = merge_gap + frame_period + 1e-6
+
             for object, track_id in frame["tracked_objects"]:
                 last_object = last_object_by_track.get(track_id)
                 if last_object is not None:

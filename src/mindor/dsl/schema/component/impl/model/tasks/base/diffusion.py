@@ -13,7 +13,7 @@ class DiffusionSubmodule(str, Enum):
     VAE            = "vae"
     IMAGE_ENCODER  = "image_encoder"
 
-DiffusionCpuOffload = Union[Literal["model", "sequential"], List[DiffusionSubmodule]]
+DiffusionCpuOffload = Union[Literal[ "model", "sequential" ], List[DiffusionSubmodule]]
 
 class DiffusionVaeConfig(BaseModel):
     model: ModelConfig = Field(..., description="VAE model identifier — a HuggingFace repo ID or a local path.")

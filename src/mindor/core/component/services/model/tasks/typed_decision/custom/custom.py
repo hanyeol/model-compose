@@ -16,4 +16,8 @@ class CustomTypedDecisionTaskDriver:
             from .laya import LayaTypedDecisionTaskDriver
             return LayaTypedDecisionTaskDriver(id, config, daemon)
 
+        if config.family == TypedDecisionModelFamily.CLEF:
+            from .clef import ClefTypedDecisionTaskDriver
+            return ClefTypedDecisionTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

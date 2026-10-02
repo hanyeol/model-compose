@@ -4,3 +4,4 @@ class TypedDecisionModelFamily(str, Enum):
     KEV    = "kev"
     NIMBLE = "nimble"
     LAYA   = "laya"
+    CLEF   = "clef"

@@ -123,6 +123,18 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return await self._run_in_executor(_adjust_saturation)
 
+    async def _adjust_gamma(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _adjust_gamma() -> PILImage.Image:
+            return self._apply_gamma(image, params["gamma"])
+
+        return await self._run_in_executor(_adjust_gamma)
+
+    async def _adjust_hue(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _adjust_hue() -> PILImage.Image:
+            return self._apply_hue_rotation(image, params["hue"])
+
+        return await self._run_in_executor(_adjust_hue)
+
     async def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
         def _concat() -> PILImage.Image:
             mode       = params["mode"]
@@ -422,11 +434,13 @@ class NativeImageProcessorAction(ImageProcessorAction):
             h, s, v = rgb.convert("HSV").split()
             h = h.point(lambda value, shift=shift: (value + shift) & 0xFF)
             rotated = PILImage.merge("HSV", (h, s, v)).convert("RGB")
+
             return PILImage.merge("RGBA", (*rotated.split(), a))
 
         source = image if image.mode == "RGB" else image.convert("RGB")
         h, s, v = source.convert("HSV").split()
         h = h.point(lambda value, shift=shift: (value + shift) & 0xFF)
+
         return PILImage.merge("HSV", (h, s, v)).convert("RGB")
 
 @register_image_processor_driver(ImageProcessorDriverType.NATIVE)

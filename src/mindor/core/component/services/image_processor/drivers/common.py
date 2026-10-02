@@ -163,6 +163,22 @@ class ImageProcessorAction(ComponentAction):
 
             return { "factor": factor }
 
+        if method == ImageProcessorActionMethod.ADJUST_GAMMA:
+            gamma = await context.render_scalar(self.config.gamma, float)
+
+            if gamma is None or gamma <= 0:
+                raise ValueError("'gamma' must be a positive number for 'adjust-gamma' method")
+
+            return { "gamma": gamma }
+
+        if method == ImageProcessorActionMethod.ADJUST_HUE:
+            hue = await context.render_scalar(self.config.hue, float)
+
+            if hue is None:
+                raise ValueError("'hue' must be specified for 'adjust-hue' method")
+
+            return { "hue": hue }
+
         if method == ImageProcessorActionMethod.CONCAT:
             mode       = await context.render_variable(self.config.mode)
             columns    = await context.render_scalar(self.config.columns, int)
@@ -353,6 +369,12 @@ class ImageProcessorAction(ComponentAction):
         if method == ImageProcessorActionMethod.ADJUST_SATURATION:
             return await self._adjust_saturation(image, params)
 
+        if method == ImageProcessorActionMethod.ADJUST_GAMMA:
+            return await self._adjust_gamma(image, params)
+
+        if method == ImageProcessorActionMethod.ADJUST_HUE:
+            return await self._adjust_hue(image, params)
+
         if method == ImageProcessorActionMethod.CONCAT:
             return await self._concat(await image.collect(), params)
 
@@ -409,6 +431,14 @@ class ImageProcessorAction(ComponentAction):
 
     @abstractmethod
     async def _adjust_saturation(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    async def _adjust_gamma(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        pass
+
+    @abstractmethod
+    async def _adjust_hue(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         pass
 
     @abstractmethod

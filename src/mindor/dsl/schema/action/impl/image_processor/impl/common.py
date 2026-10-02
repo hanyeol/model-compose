@@ -18,6 +18,8 @@ class ImageProcessorActionMethod(str, Enum):
     ADJUST_BRIGHTNESS = "adjust-brightness"
     ADJUST_CONTRAST   = "adjust-contrast"
     ADJUST_SATURATION = "adjust-saturation"
+    ADJUST_GAMMA      = "adjust-gamma"
+    ADJUST_HUE        = "adjust-hue"
     CONCAT            = "concat"
     MERGE             = "merge"
     OVERLAY           = "overlay"
@@ -115,6 +117,14 @@ class ImageProcessorAdjustContrastActionConfig(CommonImageProcessorActionConfig)
 class ImageProcessorAdjustSaturationActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.ADJUST_SATURATION]
     factor: Union[float, str] = Field(..., description="Saturation multiplier; 1.0 leaves the image unchanged.")
+
+class ImageProcessorAdjustGammaActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.ADJUST_GAMMA]
+    gamma: Union[float, str] = Field(..., description="Gamma value; 1.0 leaves the image unchanged, <1.0 brightens, >1.0 darkens.")
+
+class ImageProcessorAdjustHueActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[ImageProcessorActionMethod.ADJUST_HUE]
+    hue: Union[float, str] = Field(..., description="Hue rotation in degrees; 0 leaves the image unchanged.")
 
 class ImageProcessorConcatActionConfig(CommonImageProcessorActionConfig):
     method: Literal[ImageProcessorActionMethod.CONCAT]

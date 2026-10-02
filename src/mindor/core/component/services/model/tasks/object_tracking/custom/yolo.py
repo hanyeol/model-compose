@@ -567,16 +567,15 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
         for current_index, frame in enumerate(tracked_frames):
             timestamp = frame["timestamp"]
-            frame_period = (
-                timestamp - tracked_frames[current_index - 1]["timestamp"]
-                if current_index > 0 else 0.0
-            )
+            frame_period = timestamp - tracked_frames[current_index - 1]["timestamp"] if current_index > 0 else 0.0
             threshold = merge_gap + frame_period + 1e-6
 
             for object, track_id in frame["tracked_objects"]:
                 last_object = last_object_by_track.get(track_id)
+
                 if last_object is not None:
                     prev_index, prev_timestamp, prev_object = last_object
+
                     if timestamp - prev_timestamp <= threshold:
                         self._interpolate_between_objects(
                             tracked_frames,
@@ -588,6 +587,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
                             timestamp,
                             object
                         )
+
                 last_object_by_track[track_id] = (current_index, timestamp, object)
 
         for frame in tracked_frames:

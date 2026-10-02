@@ -9,10 +9,15 @@ from ...model import ModelConfig, ModelProvider, ModelPrecision, ModelQuantizati
 class ModelTrainerTaskType(str, Enum):
     SFT                 = "sft"
     TEXT_CLASSIFICATION = "text-classification"
+    TYPED_DECISION      = "typed-decision"
 
 class ModelTrainerDriverType(str, Enum):
     HUGGINGFACE = "huggingface"
     UNSLOTH     = "unsloth"
+    NIMBLE      = "nimble"
+    CLEF        = "clef"
+    KEV         = "kev"
+    LAYA        = "laya"
 
 class ModelTrainerLoraConfig(BaseModel):
     rank: int = Field(default=8, description="Rank of the LoRA decomposition.")

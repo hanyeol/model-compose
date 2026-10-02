@@ -51,7 +51,7 @@ class ModelTrainerTaskAction(ComponentAction):
             # Already a dict-like or list-like from an upstream `datasets` component.
             return source
 
-        def _pick_evaluation_dataset(dataset: DatasetDict) -> Optional[Dataset]:
+        def _select_evaluation_dataset(dataset: DatasetDict) -> Optional[Dataset]:
             for name in ("validation", "eval", "test"):
                 candidate = dataset.get(name)
 
@@ -74,16 +74,16 @@ class ModelTrainerTaskAction(ComponentAction):
         evaluation_dataset = _load_dataset(evaluation_dataset)
 
         if isinstance(train_dataset, DatasetDict):
-            evaluation_dataset = evaluation_dataset or _pick_evaluation_dataset(train_dataset)
+            evaluation_dataset = evaluation_dataset or _select_evaluation_dataset(train_dataset)
             train_dataset      = train_dataset["train"] if "train" in train_dataset else next(iter(train_dataset.values()))
         # If train_dataset came in as a bare Dataset, evaluation_dataset stays
         # whatever the user supplied (possibly None). Do not call .get() on a Dataset.
 
         if isinstance(evaluation_dataset, DatasetDict):
             # No arbitrary fallback — if every candidate was rejected by
-            # _pick_evaluation_dataset, evaluation_dataset becomes None and
+            # _select_evaluation_dataset, evaluation_dataset becomes None and
             # evaluation is skipped.
-            evaluation_dataset = _pick_evaluation_dataset(evaluation_dataset)
+            evaluation_dataset = _select_evaluation_dataset(evaluation_dataset)
 
         return train_dataset, evaluation_dataset
 

@@ -26,8 +26,8 @@ LayaTypedDecisionModelConfig = Annotated[
 class LayaTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TypedDecisionModelFamily.LAYA]
-    preset: LayaPreset = Field(default=LayaPreset.MULTILINGUAL, description="Laya checkpoint: 'english' (ModernBERT-large), 'multilingual' (mmBERT-base, 100+ languages), or 'typed-decisions' (fine-tuned on the typed-decisions workflows).")
     model: LayaTypedDecisionModelConfig = Field(..., description="Laya checkpoint — a HuggingFace repo ID or a local directory. Defaults to the bundle repo hosting all three presets.")
+    preset: LayaPreset = Field(default=LayaPreset.MULTILINGUAL, description="Laya checkpoint: 'english' (ModernBERT-large), 'multilingual' (mmBERT-base, 100+ languages), or 'typed-decisions' (fine-tuned on the typed-decisions workflows).")
     max_seq_length: Optional[int] = Field(default=None, description="Per-call encoder token budget; overrides the checkpoint default.")
     max_head_length: Optional[int] = Field(default=None, description="Per-call per-question head token budget; overrides the checkpoint default.")
     fast: bool = Field(default=False, description="Enable the TileLang CUDA fast path (requires laya[fast]).")

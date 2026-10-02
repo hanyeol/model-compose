@@ -5,7 +5,8 @@ from .tasks import *
 ModelTrainerComponentConfig = Annotated[
     Union[
         SftModelTrainerComponentConfig,
-        TextClassificationModelTrainerComponentConfig
+        TextClassificationModelTrainerComponentConfig,
+        TypedDecisionModelTrainerComponentConfig,
     ],
     Field(discriminator="task")
 ]

@@ -66,6 +66,7 @@ def _make_context(
     frames_value: Any = None,
     video_value: Any = None,
     audio_value: Any = None,
+    timestamps_value: Any = None,
 ) -> ComponentActionContext:
     """Build a mock ComponentActionContext.
 
@@ -151,10 +152,24 @@ def _make_context(
             return [_resolve_audio(a) for a in target]
         return _resolve_audio(target)
 
+    async def render_array(value, single_as_array=False):
+        from mindor.core.foundation.variable.array import ArrayValue
+
+        target = timestamps_value if timestamps_value is not None else value
+
+        if isinstance(target, ArrayValue):
+            return target
+
+        if isinstance(target, (list, tuple)):
+            return ArrayValue(list(target))
+
+        return target
+
     ctx.render_variable = AsyncMock(side_effect=render_variable)
     ctx.render_image_array = AsyncMock(side_effect=render_image_array)
     ctx.render_video = AsyncMock(side_effect=render_video)
     ctx.render_audio = AsyncMock(side_effect=render_audio)
+    ctx.render_array = AsyncMock(side_effect=render_array)
 
     async def render_scalar(value, cast, default=None):
         if value is None:
@@ -182,6 +197,7 @@ def _make_config(
     video: Any = None,
     frames: Any = None,
     frame_rate: Any = None,
+    timestamps: Any = None,
     audio: Any = None,
     encoding: Optional[VideoAudioEncodingConfig] = None,
     streaming: bool = False,
@@ -195,6 +211,8 @@ def _make_config(
         kwargs["frames"] = frames
     if frame_rate is not None:
         kwargs["frame_rate"] = frame_rate
+    if timestamps is not None:
+        kwargs["timestamps"] = timestamps
     if audio is not None:
         kwargs["audio"] = audio
     if encoding is not None:
@@ -382,6 +400,109 @@ class TestEncodeFromFrames:
         for item in items:
             assert isinstance(item, VideoStreamResource)
             await item.close()
+
+
+def _probe_frame_count(path: str) -> int:
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-count_packets",
+            "-show_entries", "stream=nb_read_packets",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            path,
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    return int(result.stdout.strip())
+
+
+@ffmpeg_required
+class TestEncodeFromFramesWithTimestamps:
+    """VFR→CFR pacing driven by per-frame timestamps."""
+
+    @pytest.mark.anyio
+    async def test_duplicate_to_fill_grid(self):
+        # 3 source frames at t=[0, 1, 2] encoded at 10 fps → the first two
+        # frames each repeat 10 times (slots 0..9, 10..19), the last emits
+        # once → 21 output frames.
+        frames = _make_frames(count=3)
+        config = _make_config(
+            frames="${frames}",
+            frame_rate=10,
+            timestamps=[0.0, 1.0, 2.0],
+        )
+        ctx = _make_context(frames_value=[frames])
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
+        path = await _drain_resource_to_file(result[0])
+        try:
+            assert _probe_frame_count(path) == 21
+        finally:
+            os.unlink(path)
+
+    @pytest.mark.anyio
+    async def test_drop_when_timestamps_collide_in_same_slot(self):
+        # Two frames within one grid slot (<1/fps apart) collapse into one.
+        # t=[0.0, 0.02, 0.04, 1.0] at 10 fps rounds to slots [0, 0, 0, 10] →
+        # the first and second frames drop (count 0), the third emits 10
+        # times (slots 0..9), the last emits once → 11 output frames.
+        frames = _make_frames(count=4)
+        config = _make_config(
+            frames="${frames}",
+            frame_rate=10,
+            timestamps=[0.0, 0.02, 0.04, 1.0],
+        )
+        ctx = _make_context(frames_value=[frames])
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
+        path = await _drain_resource_to_file(result[0])
+        try:
+            assert _probe_frame_count(path) == 11
+        finally:
+            os.unlink(path)
+
+    @pytest.mark.anyio
+    async def test_first_timestamp_normalized_to_zero(self):
+        # Starting offset should not pad the front: t=[5, 6] at 10 fps
+        # produces exactly 11 frames (10 from the first, 1 from the last),
+        # same as t=[0, 1].
+        frames = _make_frames(count=2)
+        config = _make_config(
+            frames="${frames}",
+            frame_rate=10,
+            timestamps=[5.0, 6.0],
+        )
+        ctx = _make_context(frames_value=[frames])
+        result = await FFmpegVideoEncoderAction(config).run(ctx)
+        path = await _drain_resource_to_file(result[0])
+        try:
+            assert _probe_frame_count(path) == 11
+        finally:
+            os.unlink(path)
+
+    @pytest.mark.anyio
+    async def test_non_monotonic_timestamps_raise(self):
+        frames = _make_frames(count=3)
+        config = _make_config(
+            frames="${frames}",
+            frame_rate=10,
+            timestamps=[0.0, 1.0, 0.5],
+        )
+        ctx = _make_context(frames_value=[frames])
+        with pytest.raises(ValueError, match="non-decreasing"):
+            await FFmpegVideoEncoderAction(config).run(ctx)
+
+    @pytest.mark.anyio
+    async def test_length_mismatch_raises(self):
+        # async_zip enforces equal lengths between frames and timestamps.
+        frames = _make_frames(count=3)
+        config = _make_config(
+            frames="${frames}",
+            frame_rate=10,
+            timestamps=[0.0, 1.0],
+        )
+        ctx = _make_context(frames_value=[frames])
+        with pytest.raises(ValueError, match="different lengths"):
+            await FFmpegVideoEncoderAction(config).run(ctx)
 
 
 @ffmpeg_required

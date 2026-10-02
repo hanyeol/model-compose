@@ -4092,3 +4092,140 @@ class TestRenderJoin:
         renderer = VariableRenderer(make_source_resolver({}))
         result = await renderer.render({"+": ["a", "b"], "other": 1})
         assert result == {"+": ["a", "b"], "other": 1}
+
+
+class TestRenderSplit:
+    """`|` splits one source into N parallel tracks keyed by template fields.
+    The streaming path matters most: an upstream like `extractor` that emits
+    `{image, timestamp}` must be scrubbable into separate `image` and
+    `timestamp` streams without consuming the source twice."""
+
+    @pytest.mark.anyio
+    async def test_streaming_split_pairs_image_and_timestamp(self):
+        """extractor-shaped stream splits into two aligned tracks."""
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+        async def _frames():
+            for index in range(5):
+                yield {"image": f"img{index}", "timestamp": index * 0.1}
+
+        source = StreamChunkIterator(_frames(), is_fragmented=True)
+        renderer = VariableRenderer(make_source_resolver({"frames": source}))
+
+        result = await renderer.render({
+            "|":         "${frames}",
+            "image":     "${item.image}",
+            "timestamp": "${item.timestamp}",
+        })
+
+        assert set(result.keys()) == {"image", "timestamp"}
+        images     = await collect_async(result["image"])
+        timestamps = await collect_async(result["timestamp"])
+
+        assert images == [f"img{i}" for i in range(5)]
+        assert timestamps == [pytest.approx(i * 0.1) for i in range(5)]
+
+    @pytest.mark.anyio
+    async def test_streaming_split_source_pulled_once_per_item(self):
+        """Each upstream item must be observed by both branches off a single pull —
+        no double consumption, no missed items."""
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+        pull_count = 0
+
+        async def _frames():
+            nonlocal pull_count
+            for index in range(3):
+                pull_count += 1
+                yield {"image": f"img{index}", "timestamp": index * 0.5}
+
+        source = StreamChunkIterator(_frames(), is_fragmented=True)
+        renderer = VariableRenderer(make_source_resolver({"frames": source}))
+
+        result = await renderer.render({
+            "|":         "${frames}",
+            "image":     "${item.image}",
+            "timestamp": "${item.timestamp}",
+        })
+
+        images     = await collect_async(result["image"])
+        timestamps = await collect_async(result["timestamp"])
+
+        assert pull_count == 3
+        assert len(images) == 3 and len(timestamps) == 3
+
+    @pytest.mark.anyio
+    async def test_streaming_split_interleaved_consumption(self):
+        """One branch may advance ahead of the other; the laggard still sees
+        every item in order via its buffer."""
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+
+        async def _frames():
+            for index in range(4):
+                yield {"image": f"img{index}", "timestamp": index * 0.25}
+
+        source = StreamChunkIterator(_frames(), is_fragmented=True)
+        renderer = VariableRenderer(make_source_resolver({"frames": source}))
+
+        result = await renderer.render({
+            "|":         "${frames}",
+            "image":     "${item.image}",
+            "timestamp": "${item.timestamp}",
+        })
+
+        image_iter     = result["image"].__aiter__()
+        timestamp_iter = result["timestamp"].__aiter__()
+
+        # Drain image fully first — timestamp buffer must retain every item.
+        images = [item async for item in image_iter]
+        timestamps = [item async for item in timestamp_iter]
+
+        assert images == [f"img{i}" for i in range(4)]
+        assert timestamps == [pytest.approx(i * 0.25) for i in range(4)]
+
+    @pytest.mark.anyio
+    async def test_list_split_eagerly_fans_out(self):
+        """List inputs stay eager — one dict of key→list."""
+        renderer = VariableRenderer(make_source_resolver({
+            "frames": [
+                {"image": "img0", "timestamp": 0.0},
+                {"image": "img1", "timestamp": 0.1},
+            ],
+        }))
+
+        result = await renderer.render({
+            "|":         "${frames}",
+            "image":     "${item.image}",
+            "timestamp": "${item.timestamp}",
+        })
+
+        assert result == {
+            "image":     ["img0", "img1"],
+            "timestamp": [0.0, 0.1],
+        }
+
+    @pytest.mark.anyio
+    async def test_streaming_split_preserves_order_under_async_yield(self):
+        """Upstream yields interleaved with awaits still pair correctly across tracks."""
+        from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+        import asyncio as aio
+
+        async def _frames():
+            for index in range(6):
+                await aio.sleep(0)  # cooperative yield between items
+                yield {"image": f"img{index}", "timestamp": index / 30.0}
+
+        source = StreamChunkIterator(_frames(), is_fragmented=True)
+        renderer = VariableRenderer(make_source_resolver({"frames": source}))
+
+        result = await renderer.render({
+            "|":         "${frames}",
+            "image":     "${item.image}",
+            "timestamp": "${item.timestamp}",
+        })
+
+        images     = await collect_async(result["image"])
+        timestamps = await collect_async(result["timestamp"])
+
+        assert images == [f"img{i}" for i in range(6)]
+        assert timestamps == [pytest.approx(i / 30.0) for i in range(6)]

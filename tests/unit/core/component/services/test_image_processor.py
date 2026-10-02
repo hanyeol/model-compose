@@ -349,6 +349,116 @@ class TestImageProcessorAllMethods:
         assert result.size == (8, 8)
 
     @pytest.mark.anyio
+    async def test_adjust_gamma_applies_power_curve(self):
+        source = PILImage.new("RGB", (4, 4), (64, 64, 64))
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-gamma", "image": "${input.image}", "gamma": 2.0,
+        })
+        context = ComponentActionContext("adjust-gamma", { "image": source })
+        result = await ImageProcessorAction(config).run(context)
+
+        # Same formula as adjust-color gamma path; 64 → ~128.
+        assert all(abs(channel - 128) <= 1 for channel in result.getpixel((0, 0)))
+
+    @pytest.mark.anyio
+    async def test_adjust_gamma_rejects_non_positive(self):
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-gamma", "image": "${input.image}", "gamma": 0,
+        })
+        context = ComponentActionContext("adjust-gamma-zero", { "image": _make_image() })
+        with pytest.raises(ValueError, match="gamma.*positive"):
+            await ImageProcessorAction(config).run(context)
+
+    @pytest.mark.anyio
+    async def test_adjust_hue_rotates_red_to_green(self):
+        red = PILImage.new("RGB", (4, 4), (255, 0, 0))
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-hue", "image": "${input.image}", "hue": 120,
+        })
+        context = ComponentActionContext("adjust-hue", { "image": red })
+        result = await ImageProcessorAction(config).run(context)
+
+        pixel = result.getpixel((0, 0))
+        assert pixel[1] > 240 and pixel[0] < 10 and pixel[2] < 10
+
+    @pytest.mark.anyio
+    async def test_adjust_color_requires_at_least_one_field(self):
+        with pytest.raises(Exception, match="at least one"):
+            TypeAdapter(ImageProcessorActionConfig).validate_python({
+                "method": "adjust-color", "image": "${input.image}",
+            })
+
+    @pytest.mark.anyio
+    async def test_adjust_color_rejects_non_positive_gamma(self):
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-color", "image": "${input.image}", "gamma": 0,
+        })
+        context = ComponentActionContext("run-c5-gamma", { "image": _make_image() })
+        with pytest.raises(ValueError, match="gamma.*positive"):
+            await ImageProcessorAction(config).run(context)
+
+    @pytest.mark.anyio
+    async def test_adjust_color_brightness_only_scales_pixels(self):
+        # Brightness is a true multiplier via PIL ImageEnhance: pixel value * factor.
+        source = PILImage.new("RGB", (4, 4), (100, 100, 100))
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-color", "image": "${input.image}", "brightness": 0.5,
+        })
+        context = ComponentActionContext("run-c5-bright", { "image": source })
+        result = await ImageProcessorAction(config).run(context)
+
+        assert isinstance(result, PILImage.Image)
+        assert result.getpixel((0, 0)) == (50, 50, 50)
+
+    @pytest.mark.anyio
+    async def test_adjust_color_gamma_matches_formula(self):
+        # out = 255 * (in/255) ** (1/gamma). For gamma=2.0 and in=64 → ~128.
+        source = PILImage.new("RGB", (4, 4), (64, 64, 64))
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-color", "image": "${input.image}", "gamma": 2.0,
+        })
+        context = ComponentActionContext("run-c5-gamma-apply", { "image": source })
+        result = await ImageProcessorAction(config).run(context)
+
+        pixel = result.getpixel((0, 0))
+        assert all(abs(channel - 128) <= 1 for channel in pixel)
+
+    @pytest.mark.anyio
+    async def test_adjust_color_hue_rotates_channels(self):
+        # Pure red rotated 120° becomes green; 240° becomes blue.
+        red = PILImage.new("RGB", (4, 4), (255, 0, 0))
+        config_green = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-color", "image": "${input.image}", "hue": 120,
+        })
+        config_blue = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-color", "image": "${input.image}", "hue": 240,
+        })
+
+        green_pixel = (await ImageProcessorAction(config_green).run(
+            ComponentActionContext("hue-green", { "image": red })
+        )).getpixel((0, 0))
+
+        blue_pixel = (await ImageProcessorAction(config_blue).run(
+            ComponentActionContext("hue-blue", { "image": red })
+        )).getpixel((0, 0))
+
+        # Dominant channel shifts R → G → B. Allow a few counts of quantization slack.
+        assert green_pixel[1] > 240 and green_pixel[0] < 10 and green_pixel[2] < 10
+        assert blue_pixel[2]  > 240 and blue_pixel[0] < 10 and blue_pixel[1] < 10
+
+    @pytest.mark.anyio
+    async def test_adjust_color_preserves_alpha(self):
+        source = PILImage.new("RGBA", (4, 4), (200, 100, 50, 128))
+        config = TypeAdapter(ImageProcessorActionConfig).validate_python({
+            "method": "adjust-color", "image": "${input.image}", "brightness": 0.5, "gamma": 1.5, "hue": 90,
+        })
+        context = ComponentActionContext("alpha", { "image": source })
+        result = await ImageProcessorAction(config).run(context)
+
+        assert result.mode == "RGBA"
+        assert result.getpixel((0, 0))[3] == 128
+
+    @pytest.mark.anyio
     async def test_flip_vertical(self):
         config = TypeAdapter(ImageProcessorActionConfig).validate_python({
             "method": "flip", "image": "${input.image}", "direction": "vertical",

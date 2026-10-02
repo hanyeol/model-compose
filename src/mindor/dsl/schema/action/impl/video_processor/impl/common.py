@@ -8,18 +8,23 @@ from ...common import CommonActionConfig
 from ...media import VideoAudioEncodingConfig
 
 class VideoProcessorActionMethod(str, Enum):
-    RESIZE       = "resize"
-    CROP         = "crop"
-    PAD          = "pad"
-    FLIP         = "flip"
-    ROTATE       = "rotate"
-    SPEED        = "speed"
-    FADE_IN      = "fade-in"
-    FADE_OUT     = "fade-out"
-    FREEZE       = "freeze"
-    REVERSE      = "reverse"
-    RESAMPLE     = "resample"
-    ADJUST_COLOR = "adjust-color"
+    RESIZE            = "resize"
+    CROP              = "crop"
+    PAD               = "pad"
+    FLIP              = "flip"
+    ROTATE            = "rotate"
+    SPEED             = "speed"
+    FADE_IN           = "fade-in"
+    FADE_OUT          = "fade-out"
+    FREEZE            = "freeze"
+    REVERSE           = "reverse"
+    RESAMPLE          = "resample"
+    ADJUST_COLOR      = "adjust-color"
+    ADJUST_BRIGHTNESS = "adjust-brightness"
+    ADJUST_CONTRAST   = "adjust-contrast"
+    ADJUST_SATURATION = "adjust-saturation"
+    ADJUST_GAMMA      = "adjust-gamma"
+    ADJUST_HUE        = "adjust-hue"
 
 class VideoFreezePosition(str, Enum):
     START = "start"
@@ -111,3 +116,23 @@ class VideoProcessorAdjustColorActionConfig(CommonVideoProcessorActionConfig):
         if all(getattr(self, field) is None for field in ("brightness", "contrast", "saturation", "gamma", "hue")):
             raise ValueError("'adjust-color' requires at least one of brightness, contrast, saturation, gamma, hue")
         return self
+
+class VideoProcessorAdjustBrightnessActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ADJUST_BRIGHTNESS]
+    factor: Union[float, str] = Field(..., description="Brightness multiplier; 1.0 leaves the video unchanged.")
+
+class VideoProcessorAdjustContrastActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ADJUST_CONTRAST]
+    factor: Union[float, str] = Field(..., description="Contrast multiplier; 1.0 leaves the video unchanged.")
+
+class VideoProcessorAdjustSaturationActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ADJUST_SATURATION]
+    factor: Union[float, str] = Field(..., description="Saturation multiplier; 1.0 leaves the video unchanged.")
+
+class VideoProcessorAdjustGammaActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ADJUST_GAMMA]
+    gamma: Union[float, str] = Field(..., description="Gamma value; 1.0 leaves the video unchanged, <1.0 brightens, >1.0 darkens.")
+
+class VideoProcessorAdjustHueActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ADJUST_HUE]
+    hue: Union[float, str] = Field(..., description="Hue rotation in degrees; 0 leaves the video unchanged.")

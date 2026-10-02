@@ -147,30 +147,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
 
-    @staticmethod
-    def _right_angle_rotate_filter(angle: float) -> Optional[str]:
-        """Return a `transpose`/`hflip` chain for multiples of 90°, or None.
-
-        Angles are counter-clockwise degrees; ffmpeg's `transpose=1` is 90°
-        clockwise, so the mapping inverts. Non-multiples fall through to the
-        caller's generic `rotate` path.
-        """
-        angle = angle % 360
-
-        if angle == 0:
-            return "null"
-
-        if angle == 90:
-            return "transpose=2"
-
-        if angle == 180:
-            return "hflip,vflip"
-
-        if angle == 270:
-            return "transpose=1"
-
-        return None
-
     async def _speed(
         self,
         video: MediaSource,
@@ -254,8 +230,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        # `fps` resamples onto a uniform grid, duplicating or dropping frames
-        # as needed. Audio is untouched — timing stays anchored to seconds.
         return await self._run_ffmpeg_filter(video, f"fps={fps}", None, encoding, cancellation_token)
 
     async def _adjust_color(
@@ -295,6 +269,51 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             chain.append(f"hue=h={hue}")
 
         return await self._run_ffmpeg_filter(video, ",".join(chain), None, encoding, cancellation_token)
+
+    async def _adjust_brightness(
+        self,
+        video: MediaSource,
+        factor: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        return await self._run_ffmpeg_filter(video, f"curves=all='0/0 1/{factor}'", None, encoding, cancellation_token)
+
+    async def _adjust_contrast(
+        self,
+        video: MediaSource,
+        factor: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        return await self._run_ffmpeg_filter(video, f"eq=contrast={factor}", None, encoding, cancellation_token)
+
+    async def _adjust_saturation(
+        self,
+        video: MediaSource,
+        factor: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        return await self._run_ffmpeg_filter(video, f"eq=saturation={factor}", None, encoding, cancellation_token)
+
+    async def _adjust_gamma(
+        self,
+        video: MediaSource,
+        gamma: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        return await self._run_ffmpeg_filter(video, f"eq=gamma={gamma}", None, encoding, cancellation_token)
+
+    async def _adjust_hue(
+        self,
+        video: MediaSource,
+        hue: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        return await self._run_ffmpeg_filter(video, f"hue=h={hue}", None, encoding, cancellation_token)
 
     async def _run_ffmpeg_filter(
         self,
@@ -550,6 +569,30 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         stages.append(f"atempo={atempo}")
 
         return ",".join(stages)
+
+    @staticmethod
+    def _right_angle_rotate_filter(angle: float) -> Optional[str]:
+        """Return a `transpose`/`hflip` chain for multiples of 90°, or None.
+
+        Angles are counter-clockwise degrees; ffmpeg's `transpose=1` is 90°
+        clockwise, so the mapping inverts. Non-multiples fall through to the
+        caller's generic `rotate` path.
+        """
+        angle = angle % 360
+
+        if angle == 0:
+            return "null"
+
+        if angle == 90:
+            return "transpose=2"
+
+        if angle == 180:
+            return "hflip,vflip"
+
+        if angle == 270:
+            return "transpose=1"
+
+        return None
 
     @staticmethod
     def _format_color(color: Any) -> str:

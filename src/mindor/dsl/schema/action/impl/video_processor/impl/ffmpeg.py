@@ -13,6 +13,11 @@ from .common import (
     VideoProcessorReverseActionConfig,
     VideoProcessorResampleActionConfig,
     VideoProcessorAdjustColorActionConfig,
+    VideoProcessorAdjustBrightnessActionConfig,
+    VideoProcessorAdjustContrastActionConfig,
+    VideoProcessorAdjustSaturationActionConfig,
+    VideoProcessorAdjustGammaActionConfig,
+    VideoProcessorAdjustHueActionConfig,
 )
 
 FFmpegVideoProcessorActionConfig = Annotated[
@@ -29,6 +34,11 @@ FFmpegVideoProcessorActionConfig = Annotated[
         VideoProcessorReverseActionConfig,
         VideoProcessorResampleActionConfig,
         VideoProcessorAdjustColorActionConfig,
+        VideoProcessorAdjustBrightnessActionConfig,
+        VideoProcessorAdjustContrastActionConfig,
+        VideoProcessorAdjustSaturationActionConfig,
+        VideoProcessorAdjustGammaActionConfig,
+        VideoProcessorAdjustHueActionConfig,
     ],
     Field(discriminator="method")
 ]

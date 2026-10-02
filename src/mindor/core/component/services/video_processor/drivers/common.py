@@ -183,6 +183,34 @@ class VideoProcessorAction(ComponentAction):
                 "hue":        hue,
             }
 
+        if method in (
+            VideoProcessorActionMethod.ADJUST_BRIGHTNESS,
+            VideoProcessorActionMethod.ADJUST_CONTRAST,
+            VideoProcessorActionMethod.ADJUST_SATURATION,
+        ):
+            factor = await context.render_scalar(self.config.factor, float)
+
+            if factor is None:
+                raise ValueError(f"'factor' must be specified for '{method.value}' method")
+
+            return { "encoding": encoding, "factor": factor }
+
+        if method == VideoProcessorActionMethod.ADJUST_GAMMA:
+            gamma = await context.render_scalar(self.config.gamma, float)
+
+            if gamma is None or gamma <= 0:
+                raise ValueError("'gamma' must be a positive number for 'adjust-gamma' method")
+
+            return { "encoding": encoding, "gamma": gamma }
+
+        if method == VideoProcessorActionMethod.ADJUST_HUE:
+            hue = await context.render_scalar(self.config.hue, float)
+
+            if hue is None:
+                raise ValueError("'hue' must be specified for 'adjust-hue' method")
+
+            return { "encoding": encoding, "hue": hue }
+
         raise ValueError(f"Unsupported video processing action method: {method}")
 
     async def _process_batch(
@@ -312,6 +340,46 @@ class VideoProcessorAction(ComponentAction):
                 params["contrast"],
                 params["saturation"],
                 params["gamma"],
+                params["hue"],
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ADJUST_BRIGHTNESS:
+            return await self._adjust_brightness(
+                video,
+                params["factor"],
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ADJUST_CONTRAST:
+            return await self._adjust_contrast(
+                video,
+                params["factor"],
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ADJUST_SATURATION:
+            return await self._adjust_saturation(
+                video,
+                params["factor"],
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ADJUST_GAMMA:
+            return await self._adjust_gamma(
+                video,
+                params["gamma"],
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ADJUST_HUE:
+            return await self._adjust_hue(
+                video,
                 params["hue"],
                 params["encoding"],
                 cancellation_token,
@@ -452,6 +520,56 @@ class VideoProcessorAction(ComponentAction):
         saturation: Optional[float],
         gamma: Optional[float],
         hue: Optional[float],
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _adjust_brightness(
+        self,
+        video: MediaSource,
+        factor: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _adjust_contrast(
+        self,
+        video: MediaSource,
+        factor: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _adjust_saturation(
+        self,
+        video: MediaSource,
+        factor: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _adjust_gamma(
+        self,
+        video: MediaSource,
+        gamma: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _adjust_hue(
+        self,
+        video: MediaSource,
+        hue: float,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

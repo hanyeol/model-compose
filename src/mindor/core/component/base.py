@@ -164,12 +164,22 @@ class ComponentService(AsyncService):
         try:
             if self.work_queue:
                 output = await (await self.work_queue.schedule(action, context))
+
+                # WorkQueue's own counter releases when the handler returns, i.e.
+                # before iteration starts. Hold the component counter until the
+                # consumer drains the stream so shutdown waits for it.
+                if isinstance(output, (StreamIterator, AsyncIterator)):
+                    self._active_counter.acquire()
             else:
                 self._active_counter.acquire()
                 try:
                     output = await self._run(action, context)
-                finally:
+
+                    if not isinstance(output, (StreamIterator, AsyncIterator)):
+                        self._active_counter.release()
+                except:
                     self._active_counter.release()
+                    raise
         except asyncio.CancelledError:
             await context.event_notifier.notify("cancelled", elapsed=time_tracker.elapsed())
             raise
@@ -179,12 +189,15 @@ class ComponentService(AsyncService):
 
         if isinstance(output, (StreamIterator, AsyncIterator)):
             async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str]) -> None:
-                if event == "completed":
-                    await context.event_notifier.notify("completed", elapsed=time_tracker.elapsed(), output=None)
-                elif event == "cancelled":
-                    await context.event_notifier.notify("cancelled", elapsed=time_tracker.elapsed())
-                else:
-                    await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=error)
+                try:
+                    if event == "completed":
+                        await context.event_notifier.notify("completed", elapsed=time_tracker.elapsed(), output=None)
+                    elif event == "cancelled":
+                        await context.event_notifier.notify("cancelled", elapsed=time_tracker.elapsed())
+                    else:
+                        await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=error)
+                finally:
+                    self._active_counter.release()
 
             return ComponentOutputStreamIterator(output, _on_terminated)
 

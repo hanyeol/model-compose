@@ -20,6 +20,7 @@ class HuggingfaceImageGenerationModelArchitecture(str, Enum):
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.HUGGINGFACE]
     cpu_offload: Optional[DiffusionCpuOffload] = Field(default=None, description="CPU offload strategy: 'model'/'sequential' for whole pipeline, or list of submodule names for selective offload.")
+    vae_tiling: bool = Field(default=False, description="Decode the VAE in tiles to reduce VRAM on smaller GPUs, at the cost of possible seam artifacts at tile boundaries.")
 
 class SdxlHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.SDXL]

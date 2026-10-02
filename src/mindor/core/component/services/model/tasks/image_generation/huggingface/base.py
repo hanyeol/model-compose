@@ -273,3 +273,6 @@ class HuggingfaceImageGenerationBaseDriver(HuggingfaceDiffusionPipelineTaskDrive
 
     def _get_cpu_offload(self) -> Optional[DiffusionCpuOffload]:
         return self.config.cpu_offload
+
+    def _get_vae_tiling(self) -> bool:
+        return self.config.vae_tiling

@@ -121,6 +121,21 @@ class TestArchitectureDefaults:
         assert p.guidance_scale == 9.0
 
 
+class TestVaeTiling:
+    """``vae_tiling`` is off by default, matching diffusers, unless enabled."""
+
+    def test_defaults_to_disabled(self):
+        cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl"))
+        assert cfg.vae_tiling is False
+
+    def test_can_be_enabled(self):
+        cfg = COMPONENT_ADAPTER.validate_python(_base("qwen-image", {
+            "model": "Qwen/Qwen-Image",
+            "vae_tiling": True,
+        }))
+        assert cfg.vae_tiling is True
+
+
 class TestActionSchema:
     def test_action_has_no_architecture_field(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("sdxl", {

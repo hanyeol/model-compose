@@ -57,6 +57,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
         submodules = await self._load_pipeline_submodules(device, dtype)
         cpu_offload = self._get_cpu_offload()
+        vae_tiling = self._get_vae_tiling()
         adapter_configs = self.config.peft_adapters or []
         adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapter_configs ]
 
@@ -80,7 +81,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
                 base_pipeline = base_pipeline.to(device)
 
             self._attach_peft_adapters(base_pipeline, adapter_configs, adapter_paths)
-            self._configure_memory(base_pipeline, device, cpu_offload)
+            self._configure_memory(base_pipeline, device, cpu_offload, vae_tiling)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
 
@@ -90,7 +91,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
                 else:
                     logging.info(f"Component '{self.id}': deriving {pipeline_class.__name__} from {base_pipeline_class.__name__}")
                     derived_pipeline = pipeline_class.from_pipe(base_pipeline)
-                    self._configure_memory(derived_pipeline, device, cpu_offload)
+                    self._configure_memory(derived_pipeline, device, cpu_offload, vae_tiling)
                     pipelines[method] = derived_pipeline
 
             return pipelines
@@ -147,6 +148,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         pipeline: DiffusionPipeline,
         device: torch.device,
         cpu_offload: Optional[DiffusionCpuOffload],
+        vae_tiling: bool,
     ) -> None:
         if device.type == "cuda":
             if isinstance(cpu_offload, list):
@@ -159,11 +161,12 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             if cpu_offload is not None:
                 logging.warning(f"Component '{self.id}': cpu_offload requires CUDA (device={device}); ignoring.")
 
-        # Auto: VAE tiling/slicing — cheap wins with essentially no downside.
+        # VAE slicing is free. Tiling saves VRAM but can leave visible seams
+        # at tile boundaries, so it is configurable.
         vae = getattr(pipeline, "vae", None)
 
         if vae is not None:
-            if hasattr(vae, "enable_tiling"):
+            if vae_tiling and hasattr(vae, "enable_tiling"):
                 vae.enable_tiling()
 
             if hasattr(vae, "enable_slicing"):
@@ -262,3 +265,6 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
     def _get_cpu_offload(self) -> Optional[DiffusionCpuOffload]:
         return None
+
+    def _get_vae_tiling(self) -> bool:
+        return True

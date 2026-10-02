@@ -7,7 +7,8 @@ VectorStoreComponentConfig = Annotated[
         MilvusVectorStoreComponentConfig,
         QdrantVectorStoreComponentConfig,
         FaissVectorStoreComponentConfig,
-        ChromaVectorStoreComponentConfig
+        ChromaVectorStoreComponentConfig,
+        PineconeVectorStoreComponentConfig
     ],
     Field(discriminator="driver")
 ]

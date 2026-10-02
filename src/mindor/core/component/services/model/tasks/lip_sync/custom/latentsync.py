@@ -90,8 +90,8 @@ class LatentSyncLipSyncTaskAction(LipSyncTaskAction):
                     os.remove(path)
 
     def _render(self, video_path: str, audio_path: str, params: Dict[str, Any]) -> VideoStreamResource:
-        import torch
         from accelerate.utils import set_seed
+        import torch
 
         seed = params["seed"] if params["seed"] is not None else 1247
         set_seed(int(seed))
@@ -105,6 +105,7 @@ class LatentSyncLipSyncTaskAction(LipSyncTaskAction):
 
         if params["enable_deepcache"]:
             from DeepCache import DeepCacheSDHelper
+
             deepcache_helper = DeepCacheSDHelper(pipe=self.pipeline)
             deepcache_helper.set_params(cache_interval=3, cache_branch_id=0)
             deepcache_helper.enable()

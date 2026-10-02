@@ -57,8 +57,8 @@ class SwinIRImageUpscalingTaskAction(ImageUpscalingTaskAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         def _upscale() -> List[PILImage.Image]:
-            import torch
             import numpy as np
+            import torch
 
             results: List[PILImage.Image] = []
 

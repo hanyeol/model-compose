@@ -48,8 +48,8 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
         def _predict_masks() -> List[PILImage.Image]:
-            import torch
             from torchvision import transforms
+            import torch
 
             input_size = params["input_size"]
 

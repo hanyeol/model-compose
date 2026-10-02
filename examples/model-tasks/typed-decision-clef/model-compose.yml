@@ -19,10 +19,10 @@ component:
   task: typed-decision
   driver: custom
   family: clef
-  # model:
-  #   provider: huggingface
-  #   repository: Cloudflare/clef
-  #   token: ${env.HF_TOKEN}
+  model:
+    provider: huggingface
+    repository: Cloudflare/clef
+    token: ${env.HF_TOKEN}
   max_concurrent_count: 1
   runtime:
     type: virtualenv

@@ -123,4 +123,4 @@
 - **v2 포즈 시퀀스**: v2는 `pose` 디렉토리 없이는 렌더링을 거부합니다. upstream repo는 `dwpose_util/` 아래에 참조 비디오에서 포즈를 추출하는 헬퍼 스크립트를 포함합니다.
 - **컨텍스트 윈도우**: 더 큰 `context_frames`는 더 부드러운 모션을 주지만 VRAM 비용이 증가; `context_overlap`은 `context_frames`의 약 25%가 좋은 기본값.
 - **프리셋 전환**: `preset`을 `v1`에서 `v2`로 바꾸면 `model` repo id도 `BadToBest/EchoMimicV2` (또는 해당 로컬 스냅샷)로 바꿔야 합니다.
-- **파이프라인 조합**: 상류에 `text-to-speech`를 두어 생성된 음성을 `audio`로 전달하고, 하류에 `image-upscale`을 두면 완전한 로컬 텍스트-투-아바타 파이프라인을 구성할 수 있습니다.
+- **파이프라인 조합**: 상류에 `text-to-speech`를 두어 생성된 음성을 `audio`로 전달하고, 하류에 `image-upscaling`을 두면 완전한 로컬 텍스트-투-아바타 파이프라인을 구성할 수 있습니다.

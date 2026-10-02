@@ -116,6 +116,6 @@ Unlike cloud talking-head services, running Float locally provides:
 - **First run is slow**: The controller has to fetch the Float source, install its dependencies, and download the checkpoint bundle. Subsequent runs reuse the cached install and model files.
 - **`S2E` vs explicit emotion**: For English speech, `S2E` gives natural results; for other languages, explicit labels (`happy`, `sad`, ...) avoid mispredictions from the English-centric emotion head.
 - **`e_cfg_scale`**: Raising this makes the emotion conditioning more literal; combine with an explicit `emotion` label for strongly stylized outputs.
-- **`crop: false`**: If the input portrait is already tightly cropped (e.g. from an upstream `image-upscale` component), skip Float's face-crop step for cleaner framing.
+- **`crop: false`**: If the input portrait is already tightly cropped (e.g. from an upstream `image-upscaling` component), skip Float's face-crop step for cleaner framing.
 - **Face detection failure**: If no face is detected in the source image, Float's built-in preprocessor raises an alignment error. Use a clearer, larger, front-facing portrait.
-- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscale` downstream for a fully local text-to-avatar pipeline.
+- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscaling` downstream for a fully local text-to-avatar pipeline.

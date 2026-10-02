@@ -10,7 +10,7 @@
 
 1. `audio-extractor`로 입력 비디오에서 **오디오 트랙을 분리**합니다 (변경 없이 보존).
 2. `video-frame-extractor`로 **모든 프레임을 정지 이미지로 추출**합니다.
-3. **각 프레임에 대해** `for-each` job을 통해 `image-upscale`(Real-ESRGAN x4)을 실행합니다.
+3. **각 프레임에 대해** `for-each` job을 통해 `image-upscaling`(Real-ESRGAN x4)을 실행합니다.
 4. `video-encoder`로 **업스케일된 프레임을 다시 인코딩**하며, 추출한 오디오를 출력에 먹싱합니다.
 
 ## 준비사항
@@ -76,7 +76,7 @@
 - **기능**: 비디오를 모든 프레임의 리스트로 디코딩합니다 (`frame_interval: 1`, 타임스탬프 포함). `streaming: false`이므로 `for-each` job이 실체화된 리스트를 순회할 수 있습니다.
 
 ### Upscaler (`upscaler`)
-- **유형**: `model` — `image-upscale` 태스크
+- **유형**: `model` — `image-upscaling` 태스크
 - **드라이버**: `custom` (Real-ESRGAN family)
 - **모델**: Hugging Face의 `ai-forever/Real-ESRGAN`에서 가져온 `RealESRGAN_x4.pth`
 - **스케일**: 4x
@@ -91,5 +91,5 @@
 
 - **비용**: 모든 프레임에 Real-ESRGAN x4는 무겁습니다. 10초 30fps 클립 = 300회의 모델 호출. 짧은 클립부터 시작하세요.
 - **프레임 레이트**: 소스와 출력 프레임 레이트가 다르면 오디오와 비디오가 어긋납니다. 소스의 실제 fps를 `frame_rate`로 전달하세요 (기본 `30`은 폴백입니다).
-- **다른 업스케일러 선택**: `family: real-esrgan`과 모델 파일을 다른 지원 family (`esrgan`, `swinir`, `ldsr`)로 교체하세요. 각 family는 자체 타일링 매개변수를 노출합니다 — `image-upscale` 문서를 참조하세요.
+- **다른 업스케일러 선택**: `family: real-esrgan`과 모델 파일을 다른 지원 family (`esrgan`, `swinir`, `ldsr`)로 교체하세요. 각 family는 자체 타일링 매개변수를 노출합니다 — `image-upscaling` 문서를 참조하세요.
 - **배칭**: `for-each` job은 기본적으로 프레임을 순차 실행합니다. `for-each` job에 `batch_size`를 설정하여 프레임을 동시 처리할 수 있습니다 (GPU 메모리에 의해 제한).

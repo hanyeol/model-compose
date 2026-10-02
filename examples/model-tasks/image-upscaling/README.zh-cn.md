@@ -42,7 +42,7 @@
 
 1. 导航到此示例目录：
    ```bash
-   cd examples/model-tasks/image-upscale
+   cd examples/model-tasks/image-upscaling
    ```
 
 2. 无需额外的环境配置 - 模型和依赖项会自动管理。
@@ -69,7 +69,7 @@
 
    **使用 CLI：**
    ```bash
-   model-compose run image-upscale --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
+   model-compose run image-upscaling --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
    ```
 
 ## 组件详情
@@ -179,7 +179,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   family: real-esrgan
   model:
     provider: huggingface
@@ -195,7 +195,7 @@ component:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   family: esrgan
   model:
     provider: huggingface
@@ -213,7 +213,7 @@ workflow:
   title: Batch Image Upscaling
   jobs:
     - id: upscale-images
-      component: image-upscaler
+      component: image-upscalingr
       repeat_count: ${input.image_count}
       input:
         image: ${input.images[${index}]}
@@ -234,7 +234,7 @@ workflow:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   family: real-esrgan
   model:
     provider: huggingface
@@ -270,7 +270,7 @@ workflows:
   - id: photo-restoration
     jobs:
       - id: upscale
-        component: image-upscaler
+        component: image-upscalingr
         input:
           image: ${input.image}
       - id: denoise
@@ -289,7 +289,7 @@ workflow:
   title: Upscale with Quality Check
   jobs:
     - id: upscale
-      component: image-upscaler
+      component: image-upscalingr
       input:
         image: ${input.image}
     - id: quality-check

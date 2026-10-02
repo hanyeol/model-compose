@@ -123,4 +123,4 @@ Unlike cloud talking-head services, running EchoMimic locally provides:
 - **v2 pose sequence**: v2 refuses to render without a `pose` directory. The upstream repo ships helper scripts under `dwpose_util/` to extract poses from a reference video.
 - **Context window**: Larger `context_frames` gives smoother motion at higher VRAM cost; `context_overlap` around 25% of `context_frames` is a good default.
 - **Preset switch**: Changing `preset` from `v1` to `v2` also requires changing the `model` repo id to `BadToBest/EchoMimicV2` (or the corresponding local snapshot).
-- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscale` downstream for a fully local text-to-avatar pipeline.
+- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscaling` downstream for a fully local text-to-avatar pipeline.

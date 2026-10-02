@@ -1,6 +1,6 @@
 # Image Upscale Model Task 예제
 
-이 예제는 Real-ESRGAN을 사용한 model-compose의 내장 image-upscale task로 로컬 super-resolution 모델을 사용하여 오프라인 이미지 향상 기능을 제공하는 방법을 보여줍니다.
+이 예제는 Real-ESRGAN을 사용한 model-compose의 내장 image-upscaling task로 로컬 super-resolution 모델을 사용하여 오프라인 이미지 향상 기능을 제공하는 방법을 보여줍니다.
 
 ## 개요
 
@@ -42,7 +42,7 @@
 
 1. 이 예제 디렉토리로 이동:
    ```bash
-   cd examples/model-tasks/image-upscale
+   cd examples/model-tasks/image-upscaling
    ```
 
 2. 추가 환경 구성 불필요 - 모델 및 의존성 자동 관리
@@ -69,13 +69,13 @@
 
    **CLI 사용:**
    ```bash
-   model-compose run image-upscale --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
+   model-compose run image-upscaling --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
    ```
 
 ## 컴포넌트 세부사항
 
 ### Image Upscale Model 컴포넌트 (기본)
-- **유형**: image-upscale task를 가진 Model 컴포넌트
+- **유형**: image-upscaling task를 가진 Model 컴포넌트
 - **목적**: 로컬 이미지 super-resolution 및 향상
 - **모델**: ai-forever/Real-ESRGAN (RealESRGAN_x4.pth)
 - **아키텍처**: Real-ESRGAN (Real Enhanced Super-Resolution GAN)
@@ -179,7 +179,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model:
     provider: huggingface
@@ -195,7 +195,7 @@ component:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: esrgan
   model:
     provider: huggingface
@@ -221,7 +221,7 @@ component:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model:
     provider: huggingface

@@ -119,4 +119,4 @@
 - **提示调优**：T5-xxl 文本编码器强大但敏感 — 从简短的电影风格描述符（"cinematic portrait, soft key light"）开始迭代。非常长的提示（>226 个 token）会被截断。
 - **`long_video`**：任何长于一个 DiT 窗口（默认设置下约 4 秒）的输入都要保持开启。关闭它会将音频裁剪到单个窗口。
 - **`resolution`**：提升到 720 会显著增加 VRAM 和延迟；默认 `480` 在 24 GB GPU 上是良好的预览/生产平衡。
-- **管道搭配**：上游搭配 `text-to-speech`（将生成的语音作为 `audio` 传入），下游搭配 `image-upscale`，即可构建完全本地的文本到头像流水线。
+- **管道搭配**：上游搭配 `text-to-speech`（将生成的语音作为 `audio` 传入），下游搭配 `image-upscaling`，即可构建完全本地的文本到头像流水线。

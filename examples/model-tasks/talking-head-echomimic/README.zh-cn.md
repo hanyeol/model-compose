@@ -123,4 +123,4 @@
 - **v2 姿态序列**：v2 没有 `pose` 目录就拒绝渲染。上游 repo 在 `dwpose_util/` 下提供了从参考视频提取姿态的辅助脚本。
 - **上下文窗口**：更大的 `context_frames` 提供更平滑的运动，但 VRAM 成本增加；`context_overlap` 约为 `context_frames` 的 25% 是不错的默认值。
 - **预设切换**：将 `preset` 从 `v1` 改为 `v2` 时，还需要将 `model` repo id 改为 `BadToBest/EchoMimicV2`（或对应的本地快照）。
-- **管道搭配**：上游搭配 `text-to-speech`（将生成的语音作为 `audio` 传入），下游搭配 `image-upscale`，即可构建完全本地的文本到头像流水线。
+- **管道搭配**：上游搭配 `text-to-speech`（将生成的语音作为 `audio` 传入），下游搭配 `image-upscaling`，即可构建完全本地的文本到头像流水线。

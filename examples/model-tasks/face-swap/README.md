@@ -111,4 +111,4 @@ Unlike cloud face-swap services, running InsightFace locally provides:
 - **Source image**: The action picks the single face with the highest detection score. If no face is detected in the source, the workflow fails with a clear error.
 - **Target image with no face**: The original target is returned unchanged — useful when running frame-by-frame over video where some frames may not contain a person.
 - **Batch / video use**: `target_image` accepts a list of images or a stream, so this component drops into a video pipeline (e.g. after motion-transfer generation) without extra glue.
-- **Post-processing**: For higher fidelity at high resolution, chain an `image-upscale` (or a face-restoration) component after this one.
+- **Post-processing**: For higher fidelity at high resolution, chain an `image-upscaling` (or a face-restoration) component after this one.

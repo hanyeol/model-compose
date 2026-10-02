@@ -114,4 +114,4 @@
 - **`dynamic_scale`**：提升到 1.0 以上会让头部/面部动作更戏剧化；过高的值（>1.7）可能看起来诡异。
 - **`keep_resolution`**：保留源分辨率对高质量人像可以提高保真度，但会带来额外的延迟和 VRAM 消耗。
 - **人脸检测失败**：如果源图像中未检测到人脸，工作流会抛出 "Sonic failed to render the talking-head video"。请使用更清晰、更大、正面朝向的人像。
-- **管道搭配**：上游搭配 `text-to-speech`（将生成的语音作为 `audio` 传入），下游搭配 `image-upscale`，即可构建完全本地的文本到头像流水线。
+- **管道搭配**：上游搭配 `text-to-speech`（将生成的语音作为 `audio` 传入），下游搭配 `image-upscaling`，即可构建完全本地的文本到头像流水线。

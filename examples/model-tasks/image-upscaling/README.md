@@ -1,6 +1,6 @@
 # Image Upscale Model Task Example
 
-This example demonstrates how to use local super-resolution models for image upscaling using model-compose's built-in image-upscale task with Real-ESRGAN, providing offline image enhancement capabilities.
+This example demonstrates how to use local super-resolution models for image upscaling using model-compose's built-in image-upscaling task with Real-ESRGAN, providing offline image enhancement capabilities.
 
 ## Overview
 
@@ -42,7 +42,7 @@ Unlike cloud-based image enhancement APIs, local model execution provides:
 
 1. Navigate to this example directory:
    ```bash
-   cd examples/model-tasks/image-upscale
+   cd examples/model-tasks/image-upscaling
    ```
 
 2. No additional environment configuration required - model and dependencies are managed automatically.
@@ -69,13 +69,13 @@ Unlike cloud-based image enhancement APIs, local model execution provides:
 
    **Using CLI:**
    ```bash
-   model-compose run image-upscale --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
+   model-compose run image-upscaling --input '{"image": "/path/to/your/low-resolution-image.jpg"}'
    ```
 
 ## Component Details
 
 ### Image Upscale Model Component (Default)
-- **Type**: Model component with image-upscale task
+- **Type**: Model component with image-upscaling task
 - **Purpose**: Local image super-resolution and enhancement
 - **Model**: ai-forever/Real-ESRGAN (RealESRGAN_x4.pth)
 - **Architecture**: Real-ESRGAN (Real Enhanced Super-Resolution GAN)
@@ -179,7 +179,7 @@ While this example uses 4x scaling, you can modify for different models:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model:
     provider: huggingface
@@ -195,7 +195,7 @@ component:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: esrgan
   model:
     provider: huggingface
@@ -213,7 +213,7 @@ workflow:
   title: Batch Image Upscaling
   jobs:
     - id: upscale-images
-      component: image-upscaler
+      component: image-upscalingr
       repeat_count: ${input.image_count}
       input:
         image: ${input.images[${index}]}
@@ -234,7 +234,7 @@ workflow:
 ```yaml
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   architecture: real-esrgan
   model:
     provider: huggingface
@@ -270,7 +270,7 @@ workflows:
   - id: photo-restoration
     jobs:
       - id: upscale
-        component: image-upscaler
+        component: image-upscalingr
         input:
           image: ${input.image}
       - id: denoise
@@ -289,7 +289,7 @@ workflow:
   title: Upscale with Quality Check
   jobs:
     - id: upscale
-      component: image-upscaler
+      component: image-upscalingr
       input:
         image: ${input.image}
     - id: quality-check

@@ -10,7 +10,7 @@ The strategy is:
 
 1. **Split the audio track** out of the input video with `audio-extractor` (preserved unchanged).
 2. **Extract every frame** as a still image with `video-frame-extractor`.
-3. **For each frame**, run `image-upscale` (Real-ESRGAN x4) via a `for-each` job.
+3. **For each frame**, run `image-upscaling` (Real-ESRGAN x4) via a `for-each` job.
 4. **Encode the upscaled frames** back into a video with `video-encoder`, muxing the extracted audio into the output.
 
 ## Preparation
@@ -76,7 +76,7 @@ The strategy is:
 - **Function**: Decodes the video into a list of every frame (`frame_interval: 1`) with timestamps. `streaming: false` so the `for-each` job can iterate over a materialized list.
 
 ### Upscaler (`upscaler`)
-- **Type**: `model` — `image-upscale` task
+- **Type**: `model` — `image-upscaling` task
 - **Driver**: `custom` (Real-ESRGAN family)
 - **Model**: `RealESRGAN_x4.pth` from `ai-forever/Real-ESRGAN` on Hugging Face
 - **Scale**: 4x
@@ -91,5 +91,5 @@ The strategy is:
 
 - **Cost**: Real-ESRGAN x4 on every frame is heavy. A 10-second 30 fps clip = 300 model invocations. Start with short clips.
 - **Frame rate**: If the source and output frame rates differ, the audio and video will drift. Pass the source's true fps as `frame_rate` (the default `30` is a fallback).
-- **Choosing a different upscaler**: Swap `family: real-esrgan` and the model file for another supported family (`esrgan`, `swinir`, `ldsr`). Each family exposes its own tiling parameters — see the `image-upscale` docs.
+- **Choosing a different upscaler**: Swap `family: real-esrgan` and the model file for another supported family (`esrgan`, `swinir`, `ldsr`). Each family exposes its own tiling parameters — see the `image-upscaling` docs.
 - **Batching**: The `for-each` job runs frames sequentially by default. Set `batch_size` on the `for-each` job to process frames concurrently (bounded by GPU memory).

@@ -27,7 +27,7 @@ Unlike cloud talking-head services, running Hallo3 locally provides:
 - **Privacy**: Portraits and voice recordings never leave the machine
 - **Cost**: No per-second or per-render API fees; the same portrait can be re-driven cheaply
 - **Offline**: Works without an internet connection after the initial checkpoint download
-- **Pipeline Friendly**: Composes cleanly with other model-compose tasks (text-to-speech upstream, image-upscale downstream, etc.) for end-to-end avatar pipelines
+- **Pipeline Friendly**: Composes cleanly with other model-compose tasks (text-to-speech upstream, image-upscaling downstream, etc.) for end-to-end avatar pipelines
 
 **Trade-offs:**
 - **Hardware Requirements**: Needs ~24 GB VRAM at the default resolution; the first run also downloads ~15 GB of CogVideoX weights
@@ -119,4 +119,4 @@ Unlike cloud talking-head services, running Hallo3 locally provides:
 - **Prompt tuning**: The T5-xxl text encoder is powerful but sensitive — start with short cinematic descriptors ("cinematic portrait, soft key light") and iterate. Very long prompts (>226 tokens) are truncated.
 - **`long_video`**: Leave this on for anything longer than one DiT window (~4 seconds at default settings). Turning it off will crop audio to a single window.
 - **`resolution`**: Bumping to 720 substantially increases VRAM and latency; the default `480` is a good preview/production balance on a 24 GB GPU.
-- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscale` downstream for a fully local text-to-avatar pipeline.
+- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscaling` downstream for a fully local text-to-avatar pipeline.

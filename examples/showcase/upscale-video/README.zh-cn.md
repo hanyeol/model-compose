@@ -10,7 +10,7 @@
 
 1. 使用 `audio-extractor` 从输入视频中**分离音频轨**（保持不变）。
 2. 使用 `video-frame-extractor` 将**每一帧提取为静止图像**。
-3. **对每一帧**通过 `for-each` 作业运行 `image-upscale`（Real-ESRGAN x4）。
+3. **对每一帧**通过 `for-each` 作业运行 `image-upscaling`（Real-ESRGAN x4）。
 4. 使用 `video-encoder` 将**放大后的帧重新编码**为视频，并将提取的音频混入输出。
 
 ## 准备工作
@@ -76,7 +76,7 @@
 - **功能**：将视频解码为每一帧的列表（`frame_interval: 1`，含时间戳）。`streaming: false`，以便 `for-each` 作业可迭代实体化列表。
 
 ### 放大器 (`upscaler`)
-- **类型**：`model` —— `image-upscale` 任务
+- **类型**：`model` —— `image-upscaling` 任务
 - **驱动**：`custom`（Real-ESRGAN family）
 - **模型**：来自 Hugging Face `ai-forever/Real-ESRGAN` 的 `RealESRGAN_x4.pth`
 - **缩放**：4x
@@ -91,5 +91,5 @@
 
 - **成本**：对每一帧运行 Real-ESRGAN x4 非常耗时。10 秒 30 fps 的片段 = 300 次模型调用。建议从短片开始。
 - **帧率**：如果源与输出帧率不同，音频与视频将不同步。将源真实 fps 作为 `frame_rate` 传入（默认 `30` 是回退值）。
-- **选择其他放大器**：将 `family: real-esrgan` 和模型文件替换为其他支持的 family（`esrgan`、`swinir`、`ldsr`）。每种 family 暴露各自的切片参数 —— 请参见 `image-upscale` 文档。
+- **选择其他放大器**：将 `family: real-esrgan` 和模型文件替换为其他支持的 family（`esrgan`、`swinir`、`ldsr`）。每种 family 暴露各自的切片参数 —— 请参见 `image-upscaling` 文档。
 - **批处理**：`for-each` 作业默认按顺序运行帧。在 `for-each` 作业上设置 `batch_size` 可并发处理帧（受 GPU 内存限制）。

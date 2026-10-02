@@ -16,7 +16,7 @@ workflow:
     Pipeline:
       1. Split the audio track out of the input video (preserved unchanged).
       2. Extract every frame as a still image (with its timestamp).
-      3. For each frame, run image-upscale (Real-ESRGAN x4).
+      3. For each frame, run image-upscaling (Real-ESRGAN x4).
       4. Encode the upscaled frames back into a video and mux the audio in.
   jobs:
     - id: extract-audio
@@ -68,7 +68,7 @@ components:
   # ---- Per-frame super-resolution (Real-ESRGAN 4x) ----
   - id: upscaler
     type: model
-    task: image-upscale
+    task: image-upscaling
     driver: custom
     family: real-esrgan
     model:

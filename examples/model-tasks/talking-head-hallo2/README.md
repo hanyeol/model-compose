@@ -27,7 +27,7 @@ Unlike cloud talking-head services, running Hallo2 locally provides:
 - **Privacy**: Portraits and voice recordings never leave the machine
 - **Cost**: No per-second or per-render API fees; the same portrait can be re-driven cheaply
 - **Offline**: Works without an internet connection after the initial checkpoint download
-- **Pipeline Friendly**: Composes cleanly with other model-compose tasks (text-to-speech upstream, image-upscale downstream, etc.) for end-to-end avatar pipelines
+- **Pipeline Friendly**: Composes cleanly with other model-compose tasks (text-to-speech upstream, image-upscaling downstream, etc.) for end-to-end avatar pipelines
 
 **Trade-offs:**
 - **Hardware Requirements**: Needs ~12 GB VRAM at the default resolution; the first run also downloads several GB of checkpoints
@@ -119,4 +119,4 @@ Unlike cloud talking-head services, running Hallo2 locally provides:
 - **Motion weights**: Bumping `lip_weight` and `face_weight` above 1.0 makes speech-driven motion more pronounced at the cost of identity fidelity. `pose_weight` controls how much head motion the model is willing to introduce.
 - **`long_video`**: Leave this on for anything longer than the default motion window — Hallo2's segment/stitch pipeline is what makes multi-minute output possible.
 - **`high_resolution`**: The upsampler is a separate diffusion pass; expect roughly doubled latency and VRAM when enabled.
-- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscale` downstream for a fully local text-to-avatar pipeline.
+- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscaling` downstream for a fully local text-to-avatar pipeline.

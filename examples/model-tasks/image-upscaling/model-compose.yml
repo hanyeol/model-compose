@@ -16,7 +16,7 @@ workflow:
 
 component:
   type: model
-  task: image-upscale
+  task: image-upscaling
   driver: custom
   family: real-esrgan
   model:

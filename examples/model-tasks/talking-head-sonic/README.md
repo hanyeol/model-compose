@@ -114,4 +114,4 @@ Unlike cloud talking-head services, running Sonic locally provides:
 - **`dynamic_scale`**: Bumping above 1.0 makes head/facial motion more dramatic; excessive values (>1.7) can look uncanny.
 - **`keep_resolution`**: Keeping the source resolution can improve fidelity for high-quality portraits at the cost of extra latency and VRAM.
 - **Face detection failure**: If no face is detected in the source image, the workflow raises "Sonic failed to render the talking-head video". Use a clearer, larger, front-facing portrait.
-- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscale` downstream for a fully local text-to-avatar pipeline.
+- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscaling` downstream for a fully local text-to-avatar pipeline.

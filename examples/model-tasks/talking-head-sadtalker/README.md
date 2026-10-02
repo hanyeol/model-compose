@@ -28,7 +28,7 @@ Unlike cloud talking-head services, running SadTalker locally provides:
 - **Privacy**: Portraits and voice recordings never leave the machine
 - **Cost**: No per-second or per-render API fees; the same portrait can be re-driven cheaply
 - **Offline**: Works without an internet connection after the initial checkpoint download
-- **Pipeline Friendly**: Composes cleanly with other model-compose tasks (text-to-speech upstream, image-upscale downstream, etc.) for end-to-end avatar pipelines
+- **Pipeline Friendly**: Composes cleanly with other model-compose tasks (text-to-speech upstream, image-upscaling downstream, etc.) for end-to-end avatar pipelines
 
 **Trade-offs:**
 - **Hardware Requirements**: The 256 preset needs ~6 GB VRAM; the 512 preset ~12 GB. First run also downloads several GB of checkpoints
@@ -124,4 +124,4 @@ Unlike cloud talking-head services, running SadTalker locally provides:
 - **Face detection failures**: If no face is detected in the source image, the workflow raises "SadTalker failed to detect a face in the input image". Use a clearer, larger, front-facing portrait.
 - **Full-frame photos**: For photos where the person occupies only part of the frame, use `preprocess: full` together with `still: true` so the background stays static while the mouth animates in place.
 - **Enhancers cost time**: GFPGAN adds meaningful per-frame latency. Turn it off for previews and enable it only for final renders.
-- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscale` downstream for a fully local text-to-avatar pipeline.
+- **Pipeline pairing**: Pair with `text-to-speech` upstream (feed generated speech as `audio`) and `image-upscaling` downstream for a fully local text-to-avatar pipeline.

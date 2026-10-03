@@ -76,7 +76,11 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
                     # into a shared space via get_text_features; the projection
                     # already collapses the sequence into a single vector, so
                     # skip pooling.
-                    embeddings = self.model.get_text_features(**inputs)
+                    embeddings = self._resolve_text_features(
+                        self.model.get_text_features(**inputs),
+                        inputs.get("attention_mask", None),
+                        params["pooling"],
+                    )
                 else:
                     outputs: BaseModelOutput = self.model(**inputs)
                     embeddings = self._pool_hidden_state(
@@ -91,6 +95,22 @@ class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
             return [ TextEmbedding(vector) for vector in embeddings.cpu().tolist() ]
 
         return await self._run_in_executor(_embed)
+
+    def _resolve_text_features(self, features: Any, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
+        # transformers 5.x returns BaseModelOutputWithPooling from get_text_features;
+        # older versions return a bare tensor. Handle both.
+        import torch
+
+        if isinstance(features, torch.Tensor):
+            return features
+
+        if getattr(features, "pooler_output", None) is not None:
+            return features.pooler_output
+
+        if getattr(features, "last_hidden_state", None) is not None:
+            return self._pool_hidden_state(features.last_hidden_state, attention_mask, pooling)
+
+        raise ValueError(f"Cannot extract text features from output of type {type(features).__name__}")
 
     def _pool_hidden_state(self, last_hidden_state: Tensor, attention_mask: Optional[Tensor], pooling: str) -> Tensor:
         import torch

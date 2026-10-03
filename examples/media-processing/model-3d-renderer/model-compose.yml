@@ -1,0 +1,57 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: turntable
+    title: 3D Model Turntable
+    description: Render a 12-frame turntable (yaw 0°-330° in 30° steps) of a 3D model
+    job:
+      component: renderer
+      input:
+        model_3d: ${input.model_3d as model-3d}
+        pitch: ${input.pitch as number | 20}
+        width: ${input.width as number | 512}
+        height: ${input.height as number | 512}
+      output:
+        images: ${output as image[];path}
+
+components:
+  - id: renderer
+    type: model-3d-renderer
+    # driver: native   # default; uses trimesh + moderngl under the hood
+    action:
+      model_3d: ${input.model_3d}
+      format: png
+      width: ${input.width}
+      height: ${input.height}
+      camera:
+        - yaw:   0
+          pitch: ${input.pitch}
+        - yaw:  30
+          pitch: ${input.pitch}
+        - yaw:  60
+          pitch: ${input.pitch}
+        - yaw:  90
+          pitch: ${input.pitch}
+        - yaw: 120
+          pitch: ${input.pitch}
+        - yaw: 150
+          pitch: ${input.pitch}
+        - yaw: 180
+          pitch: ${input.pitch}
+        - yaw: 210
+          pitch: ${input.pitch}
+        - yaw: 240
+          pitch: ${input.pitch}
+        - yaw: 270
+          pitch: ${input.pitch}
+        - yaw: 300
+          pitch: ${input.pitch}
+        - yaw: 330
+          pitch: ${input.pitch}

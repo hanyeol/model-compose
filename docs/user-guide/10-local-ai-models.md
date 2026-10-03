@@ -253,6 +253,7 @@ model-compose supports the following task types:
 | `image-to-text` | Image captioning | Image description, VQA |
 | `image-text-to-text` | Multimodal image + text generation | Visual reasoning, multimodal chat |
 | `image-embedding` | Image embedding | Visual search, image dedup, clustering |
+| `image-text-scoring` | Image-caption alignment score | CLIPScore quality gate, caption ranking, zero-shot classification |
 | `video-embedding` | Video embedding | Semantic video search, dedup, clustering |
 | `image-generation` | Image generation | Text-to-image conversion |
 | `image-upscaling` | Image upscaling | Resolution enhancement |
@@ -614,7 +615,36 @@ CLIP and SigLIP have built-in poolers so `params.pooling` is ignored for them. F
 
 Result: single vector per image (`List[float]`); with a list input, a list of vectors; with an async stream input, an async iterator of vectors.
 
-### 10.3.10 video-embedding
+### 10.3.10 image-text-scoring
+
+Scores the semantic alignment between images and captions — a dense cosine similarity rather than an embedding. Use this for CLIPScore-style quality gates on generated images, caption ranking, or zero-shot classification by scoring one image against several candidate captions.
+
+```yaml
+component:
+  type: model
+  task: image-text-scoring
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.image as image}
+    text: ${input.prompt}
+```
+
+**Supported architectures:**
+- `clip`: OpenAI CLIP — joint image/text projections with logit-scale softmax
+- `siglip`: Google SigLIP — same shape as CLIP; pair with its own tokenizer/processor
+
+**Scoring modes (resolved from input lengths):**
+- `pairwise` — `len(image) == len(text)`. One cosine per pair (scalar when both are 1).
+- `texts_to_image` — one image × N captions. Cosines across the text axis; `softmax` ranks the captions.
+- `images_to_text` — N images × one caption. Cosines across the image axis; `softmax` ranks the images.
+
+Mismatched lengths raise an error. Enable `params.return_logit` for the pre-softmax logit (cosine × logit_scale); `params.return_softmax` (on by default) adds probabilities whenever the job has two or more pairs. `params.softmax_axis` picks the normalization axis (`text` or `image`) in the broadcast modes.
+
+Result: each scoring job returns an `ImageTextScore` dict with at least a `cosine` field. For list/stream input, the outer shape mirrors the input: one result per job.
+
+### 10.3.11 video-embedding
 
 Encodes a sequence of video frames into a single fixed-size vector, suitable for semantic video search, dedup, or clustering. Pair with `video-frame-extractor` to sample frames from a source video first.
 
@@ -652,7 +682,7 @@ Result shape:
 
 Typical pipeline: `video-frame-extractor` → `video-embedding` → `vector-store` for retrieval.
 
-### 10.3.11 image-generation
+### 10.3.12 image-generation
 
 Generates images from text prompts.
 
@@ -677,7 +707,7 @@ component:
 
 **VAE tiling:** the `huggingface` driver decodes the whole latent at once by default. If you run out of VRAM at high resolutions, set `vae_tiling: true` on the component to decode in tiles; this saves VRAM on smaller GPUs but can leave faint vertical or horizontal seams at tile boundaries.
 
-### 10.3.12 image-upscaling
+### 10.3.13 image-upscaling
 
 Enhances image resolution.
 
@@ -699,7 +729,7 @@ component:
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
 
-### 10.3.13 text-to-speech
+### 10.3.14 text-to-speech
 
 Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to pick the model family and a `method` field on the action to choose the generation method. Seven families are supported: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`.
 
@@ -1000,7 +1030,7 @@ component:
 
 Edit modes: `semantic` for free-form content edits, `acoustic` for template instructions like `adjust the speed to 1.2`. Output sample rate: 24 kHz for both presets. Calling `design`/`edit` on the `base` preset raises a runtime error.
 
-### 10.3.14 speech-to-text
+### 10.3.15 speech-to-text
 
 Transcribes audio into text, optionally with per-segment or per-word timestamps. Supports the HuggingFace transformers backend (Whisper family) and several `custom` families (faster-whisper, crisper-whisper, fun-asr, vibevoice).
 
@@ -1066,7 +1096,7 @@ With `streaming: true`, Whisper-family backends stream token-level chunks as dec
 
 The HuggingFace `whisper` driver runs stock Whisper checkpoints via `transformers`; use it when you need the transformers ecosystem (LoRA adapters, quantization) rather than the CT2-backed `faster-whisper` fast path.
 
-### 10.3.15 speaker-diarization
+### 10.3.16 speaker-diarization
 
 Segments an audio file by speaker and returns per-speaker turns with start/end times and a speaker label. Runs the `pyannote.audio` speaker-diarization pipeline.
 
@@ -1126,7 +1156,7 @@ The default `pyannote/speaker-diarization-3.1` checkpoint is gated on HuggingFac
 |--------|---------|-------|
 | `pyannote` | [pyannote/pyannote-audio](https://github.com/pyannote/pyannote-audio) | Runs any `pyannote.audio` diarization pipeline; requires accepting the HuggingFace license |
 
-### 10.3.16 voice-activity-detection
+### 10.3.17 voice-activity-detection
 
 Detects speech segments in an audio file and returns their start/end timestamps with a confidence score. Silent regions are omitted from the result. Commonly used as a pre-processing step before speech-to-text to skip silence and reduce hallucinations.
 
@@ -1176,7 +1206,7 @@ With `streaming: true`, per-input results are async iterators that yield one seg
 |--------|---------|-------|
 | `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | Lightweight CNN (~1MB); the model ships inside the pip package |
 
-### 10.3.17 face-embedding
+### 10.3.18 face-embedding
 
 Extracts feature vectors from face images.
 
@@ -1189,7 +1219,7 @@ component:
     image: ${input.image as image}
 ```
 
-### 10.3.18 face-tracking
+### 10.3.19 face-tracking
 
 Tracks faces across a sequence of video frames. Per-frame detections are grouped into identity tracks by cosine similarity on the face embedding, and consecutive hits for the same identity are merged into timecoded segments. Uses InsightFace.
 
@@ -1214,7 +1244,7 @@ component:
 
 Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
 
-### 10.3.19 pose-tracking
+### 10.3.20 pose-tracking
 
 Tracks people (as poses) across a sequence of video frames. Per-frame pose detections are grouped by the underlying tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments. Uses Ultralytics YOLO-pose.
 
@@ -1237,7 +1267,7 @@ component:
 
 Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#pose-tracking) for the full option list, streaming chunk schema, and result shape.
 
-### 10.3.20 object-tracking
+### 10.3.21 object-tracking
 
 Tracks objects across a sequence of video frames. Per-frame detections are grouped by the tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments with optional interpolation across small gaps. Uses Ultralytics YOLO.
 
@@ -1261,7 +1291,7 @@ component:
 
 Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#object-tracking) for the full option list, streaming chunk schema, and result shape.
 
-### 10.3.21 object-detection
+### 10.3.22 object-detection
 
 Detects objects in an image and returns per-object bounding boxes with class labels and confidence scores. Uses Ultralytics YOLO.
 
@@ -1281,7 +1311,7 @@ component:
 
 Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
 
-### 10.3.22 image-segmentation
+### 10.3.23 image-segmentation
 
 Generates per-region binary segmentation masks from an image. Runs in **automatic mode** (masks every distinct region) or **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from `object-detection`). Uses Meta's Segment Anything Model (SAM) via Ultralytics.
 
@@ -1301,7 +1331,7 @@ component:
 
 Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.
 
-### 10.3.23 text-to-video
+### 10.3.24 text-to-video
 
 Generates a short video clip from a text prompt. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 
@@ -1359,7 +1389,7 @@ component:
 
 The result is a single mp4 stream (or a list of mp4 streams for batched prompts); when the family is `minimax-h3` the mp4 carries both video and audio tracks. See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
 
-### 10.3.24 image-to-video
+### 10.3.25 image-to-video
 
 Generates a short video clip that animates an input image, optionally guided by a text prompt.
 
@@ -1389,7 +1419,7 @@ component:
 
 `width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
 
-### 10.3.25 video-to-video
+### 10.3.26 video-to-video
 
 Transforms an existing video clip. Two driver families are supported:
 
@@ -1471,7 +1501,7 @@ component:
 
 The result is an mp4 stream per input (or a list for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#video-to-video) for the full option list.
 
-### 10.3.26 image-to-3d
+### 10.3.27 image-to-3d
 
 Generates a 3D GLB asset from a single image. `family: pixal3d` chains sparse-structure, shape, and texture flow-matching stages to produce a mesh with baked PBR maps; `family: anigen` produces a rigged mesh (bones + skin weights baked into a standard glTF skinned-mesh) plus a stand-alone skeleton visualization.
 
@@ -1526,7 +1556,7 @@ component:
 
 For Pixal3D, `low_vram: true` swaps peak VRAM for latency by keeping stage models on CPU and paging each to GPU on demand; `manual_fov` (in radians) overrides the MoGe-based camera FOV auto-estimation. For AniGen, `slat_variant: control` respects `params.joints_density` (0-4); the default `auto` picks joint count on its own. The output shape depends on the family: `pixal3d` returns a single `.glb` stream per input (`model/gltf-binary`); `anigen` returns a dict per input with `mesh` and `skeleton` GLB streams (and optionally `image` when `return_image: true`). See the [Model Component reference](../reference/compose/components/model.md#image-to-3d) for the full option list.
 
-### 10.3.27 shot-boundary-detection
+### 10.3.28 shot-boundary-detection
 
 Detects shot boundaries (hard cuts and transitions) in a video and returns per-shot start/end timecodes and frame indices. Uses a deep learning model to identify precise cut points frame-by-frame. Uses `driver: custom` with a `family` field to select the model family.
 
@@ -1592,7 +1622,7 @@ With `streaming: true`, per-input results are async iterators that yield one sho
 
 Compared with the `video-scene-detector` component (which uses classical CV heuristics via PySceneDetect/FFmpeg to group semantically similar frames), `shot-boundary-detection` runs a neural network trained specifically to localize cut points and is generally more accurate on modern edited content.
 
-### 10.3.28 music-generation
+### 10.3.29 music-generation
 
 Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `nar`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`, and `peft_adapters` (AR LoRAs).
 
@@ -1683,7 +1713,7 @@ component:
 
 Audio-producing methods return a PCM audio stream per input (or a list for batched inputs). YuE2's `score` returns `{ abc, truncated }` instead. See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.
 
-### 10.3.29 music-source-separation
+### 10.3.30 music-source-separation
 
 Splits a mixed recording into individual instrument stems (vocals, drums, bass, other). Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1716,7 +1746,7 @@ When one stem is requested, the action returns a single audio stream. When multi
 
 Chain with `music-transcription` to transcribe each stem into its own MIDI, or with `speech-to-text` on the vocal stem for cleaner lyric transcription. See the [Model Component reference](../reference/compose/components/model.md#music-source-separation) for the full per-family field list.
 
-### 10.3.30 music-transcription
+### 10.3.31 music-transcription
 
 Transcribes recorded audio into a MIDI file and a JSON list of note events (start time, end time, pitch, velocity). Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1747,7 +1777,7 @@ The action returns a dict with two fields per input: `midi` (a MIDI file) and `n
 
 Chain with `music-source-separation` to transcribe each stem of a mix independently (e.g. transcribe the vocal line and the accompaniment as separate parts). See the [Model Component reference](../reference/compose/components/model.md#music-transcription) for the full per-family field list.
 
-### 10.3.31 music-beat-tracking
+### 10.3.32 music-beat-tracking
 
 Detects beat and downbeat positions in a music recording. Each detected beat carries its position within the measure — useful for beat-synchronised editing, tempo/meter analysis, DJ-style warping, and structural segmentation. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1775,7 +1805,7 @@ The action returns a dict per input with a `beats` list — each event carries `
 
 See the [Model Component reference](../reference/compose/components/model.md#music-beat-tracking) for the full per-family field list.
 
-### 10.3.32 talking-head
+### 10.3.33 talking-head
 
 Animates a still portrait so it lip-syncs (and moves the head) to a driving audio clip. In contrast to `lip-sync` — which edits the mouth of an existing video — `talking-head` synthesises head motion and expression from a single image. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1821,7 +1851,7 @@ component:
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate. See the [Model Component reference](../reference/compose/components/model.md#talking-head) for the full per-family field list.
 
-### 10.3.33 lip-sync
+### 10.3.34 lip-sync
 
 Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth region is regenerated; identity, expression, head pose, and background come straight from the source video. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1865,7 +1895,7 @@ If the audio is longer than the video, Wav2Lip and MuseTalk loop the source fram
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate. See the [Model Component reference](../reference/compose/components/model.md#lip-sync) for the full per-family field list.
 
-### 10.3.34 motion-generation
+### 10.3.35 motion-generation
 
 Generates 3D human or humanoid motion sequences from a text prompt. The output is a diffusion-sampled sequence of joint positions, rotation matrices, and foot-contact labels at the model's native frame rate, packaged as an NPZ file. Uses `driver: custom` with a `family` field to select the model backend.
 

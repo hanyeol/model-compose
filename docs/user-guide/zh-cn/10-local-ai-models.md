@@ -253,6 +253,7 @@ model-compose 支持以下任务类型：
 | `image-to-text` | 图像描述 | 图像描述、VQA |
 | `image-text-to-text` | 多模态图像 + 文本生成 | 视觉推理、多模态对话 |
 | `image-embedding` | 图像嵌入 | 视觉检索、图像去重、聚类 |
+| `image-text-scoring` | 图像与文本的匹配评分 | CLIPScore 质量门控、文本排序、零样本分类 |
 | `video-embedding` | 视频嵌入 | 语义视频检索、去重、聚类 |
 | `image-generation` | 图像生成 | 文本到图像转换 |
 | `image-upscaling` | 图像放大 | 分辨率增强 |
@@ -614,7 +615,36 @@ CLIP 和 SigLIP 具有内置池化，因此 `params.pooling` 被忽略。DINOv2�
 
 结果：每张图像返回一个向量（`List[float]`）。列表输入返回向量列表；异步流输入返回按序产出向量的异步迭代器。
 
-### 10.3.10 video-embedding
+### 10.3.10 image-text-scoring
+
+以余弦相似度为图像与文本的语义匹配打分（密集分数，而非嵌入）。适用于生成图像的 CLIPScore 质量门控、候选文本排序，或以多个候选文本对一张图像进行打分的零样本分类。
+
+```yaml
+component:
+  type: model
+  task: image-text-scoring
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.image as image}
+    text: ${input.prompt}
+```
+
+**支持的架构：**
+- `clip`：OpenAI CLIP — 图像/文本联合投影，带 logit-scale 的 softmax
+- `siglip`：Google SigLIP — 与 CLIP 相同形状；需搭配自身的 tokenizer/processor
+
+**评分模式（由输入长度决定）：**
+- `pairwise` — `len(image) == len(text)`。按对返回余弦（两者皆为 1 时为标量）。
+- `texts_to_image` — 1 张图像 × N 个文本。沿文本轴返回余弦列表；`softmax` 对文本进行排序。
+- `images_to_text` — N 张图像 × 1 个文本。沿图像轴返回余弦列表；`softmax` 对图像进行排序。
+
+长度不匹配时抛出错误。开启 `params.return_logit` 可同时返回 softmax 前的 logit（余弦 × logit_scale）。`params.return_softmax`（默认开启）在成对数 ≥ 2 时附带概率。广播模式下通过 `params.softmax_axis`（`text` 或 `image`）选择归一化轴。
+
+结果：每个评分任务返回包含 `cosine` 字段的 `ImageTextScore` 字典。列表 / 流输入时，外层形状与输入一致——每个任务一个结果。
+
+### 10.3.11 video-embedding
 
 将视频帧序列编码为单个固定大小的向量，适用于语义视频检索、去重或聚类。通常与 `video-frame-extractor` 搭配，先从源视频中采样帧。
 
@@ -652,7 +682,7 @@ component:
 
 典型流水线：`video-frame-extractor` → `video-embedding` → `vector-store` 进行检索。
 
-### 10.3.11 image-generation
+### 10.3.12 image-generation
 
 从文本提示生成图像。
 
@@ -677,7 +707,7 @@ component:
 
 **VAE 分块解码：**`huggingface` 驱动默认一次性解码整个 latent。如果在高分辨率下显存不足，可在组件上设置 `vae_tiling: true` 按分块解码；这样可以在较小的 GPU 上节省显存，但可能在分块边界留下淡淡的竖线或横线。
 
-### 10.3.12 image-upscaling
+### 10.3.13 image-upscaling
 
 增强图像分辨率。
 
@@ -699,7 +729,7 @@ component:
 - `swinir`：SwinIR
 - `ldsr`：潜在扩散超分辨率
 
-### 10.3.13 text-to-speech
+### 10.3.14 text-to-speech
 
 从文本合成语音音频。此任务使用 `driver: custom`，通过 `family` 字段选择模型系列，通过动作的 `method` 字段选择生成方式。支持七个系列：`qwen`、`kokoro`、`chatterbox`、`luxtts`、`tada`、`cosyvoice`、`fireredtts3`。
 
@@ -1000,7 +1030,7 @@ component:
 
 编辑模式：`semantic` 用于自由格式的内容编辑，`acoustic` 用于诸如 `adjust the speed to 1.2` 之类的模板指令。两个预设的输出采样率均为 24 kHz。在 `base` 预设上调用 `design`/`edit` 会抛出运行时错误。
 
-### 10.3.14 speech-to-text
+### 10.3.15 speech-to-text
 
 将音频转录为文本，可选带逐段或逐词时间戳。支持 HuggingFace transformers 后端（Whisper 系列）以及若干 `custom` 系列（faster-whisper、crisper-whisper、fun-asr、vibevoice）。
 
@@ -1066,7 +1096,7 @@ component:
 
 HuggingFace 的 `whisper` 驱动通过 `transformers` 运行原版 Whisper 检查点；当你需要 transformers 生态（LoRA 适配器、量化）而非 CT2 加速的 `faster-whisper` 时选它。
 
-### 10.3.15 speaker-diarization
+### 10.3.16 speaker-diarization
 
 按说话人对音频文件分段，返回带起止时间和说话人标签的逐说话人语段。运行 `pyannote.audio` 说话人分割流水线。
 
@@ -1126,7 +1156,7 @@ Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
 |------|------|------|
 | `pyannote` | [pyannote/pyannote-audio](https://github.com/pyannote/pyannote-audio) | 运行任意 `pyannote.audio` 分割流水线；需要接受 HuggingFace 许可 |
 
-### 10.3.16 voice-activity-detection
+### 10.3.17 voice-activity-detection
 
 检测音频文件中的语音片段，返回每个片段的起止时间和置信度。静音区域从结果中省略。通常用作 speech-to-text 前的预处理步骤，以跳过静音并减少幻觉。
 
@@ -1176,7 +1206,7 @@ Duration 字段接受 `"250ms"`、`"0.5s"` 或纯数字（秒）格式。
 |------|------|------|
 | `silero` | [snakers4/silero-vad](https://github.com/snakers4/silero-vad) (pip) | 轻量级 CNN (~1MB)；模型捆绑在 pip 包中 |
 
-### 10.3.17 face-embedding
+### 10.3.18 face-embedding
 
 从人脸图像中提取特征向量。
 
@@ -1189,7 +1219,7 @@ component:
     image: ${input.image as image}
 ```
 
-### 10.3.18 face-tracking
+### 10.3.19 face-tracking
 
 在视频帧序列中追踪人脸。逐帧检测结果按人脸嵌入的余弦相似度归入身份轨迹，同一身份的连续命中合并为时间码片段。使用 InsightFace。
 
@@ -1214,7 +1244,7 @@ component:
 
 接受单个帧序列、序列列表或帧批次的 async 流；对流式输入延迟运行，不缓存整个视频。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#face-tracking)。
 
-### 10.3.19 pose-tracking
+### 10.3.20 pose-tracking
 
 在视频帧序列中追踪人物（姿态）。逐帧姿态检测按底层追踪器的持久 `track_id` 分组，同一轨迹的连续命中合并为时间码片段。使用 Ultralytics YOLO-pose。
 
@@ -1237,7 +1267,7 @@ component:
 
 接受与 face-tracking 相同的输入形态。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#pose-tracking)。
 
-### 10.3.20 object-tracking
+### 10.3.21 object-tracking
 
 在视频帧序列中追踪目标。逐帧检测按追踪器的持久 `track_id` 分组，同一轨迹的连续命中合并为时间码片段，可选对小间隔进行插值。使用 Ultralytics YOLO。
 
@@ -1261,7 +1291,7 @@ component:
 
 接受与 face-tracking 相同的输入形态。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#object-tracking)。
 
-### 10.3.21 object-detection
+### 10.3.22 object-detection
 
 在图像中检测目标，返回每个目标的边界框、类别标签和置信度分数。使用 Ultralytics YOLO。
 
@@ -1281,7 +1311,7 @@ component:
 
 支持任意 Ultralytics YOLO 检测（或分割）`.pt` 检查点。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#object-detection)。
 
-### 10.3.22 image-segmentation
+### 10.3.23 image-segmentation
 
 从图像中生成分区二值分割掩码。支持**自动模式**（对每个不同区域生成掩码）和**框提示模式**（在用户提供的边界框周围优化掩码，例如来自 `object-detection` 的输出）。通过 Ultralytics 使用 Meta 的 Segment Anything Model (SAM)。
 
@@ -1301,7 +1331,7 @@ component:
 
 支持任意 Ultralytics SAM 检查点（`sam_b.pt`、`sam2_b.pt`、`mobile_sam.pt` 等）。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#image-segmentation)。
 
-### 10.3.23 text-to-video
+### 10.3.24 text-to-video
 
 从文本提示生成短视频片段。使用 `driver: custom`，通过 `family` 字段选择模型系列，并通过 `preset` 字段选择检查点变体。
 
@@ -1359,7 +1389,7 @@ component:
 
 结果是每个提示对应一个 mp4 流（批量提示则为 mp4 流列表）；当系列为 `minimax-h3` 时，mp4 同时包含视频与音频轨道。完整选项请参见 [Model Component 参考](../reference/compose/components/model.md#text-to-video)。
 
-### 10.3.24 image-to-video
+### 10.3.25 image-to-video
 
 生成让输入图像动起来的短视频片段，可选由文本提示引导。
 
@@ -1389,7 +1419,7 @@ component:
 
 `width`/`height` 可选；省略时使用输入图像的尺寸。结果形态与 `text-to-video` 相同（每个输入一个 mp4 流）。
 
-### 10.3.25 video-to-video
+### 10.3.26 video-to-video
 
 变换现有视频片段。支持两个驱动系列：
 
@@ -1471,7 +1501,7 @@ component:
 
 结果是每个输入对应一个 mp4 流（批量输入则为列表）。完整选项请参见 [Model Component 参考](../reference/compose/components/model.md#video-to-video)。
 
-### 10.3.26 image-to-3d
+### 10.3.27 image-to-3d
 
 从单张图像生成 3D GLB 资产。`family: pixal3d` 将 sparse-structure / shape / texture flow-matching 各阶段串联起来生成带烘焙 PBR 贴图的网格；`family: anigen` 生成绑定网格（骨骼 + 蒙皮权重烘焙进标准 glTF skinned-mesh）以及独立的骨架可视化。
 
@@ -1526,7 +1556,7 @@ component:
 
 对 Pixal3D，`low_vram: true` 会将各阶段模型保留在 CPU、按需迁到 GPU，用推理延迟换取更低峰值 VRAM；`manual_fov`（弧度）用于替代基于 MoGe 的自动 FOV 估计。对 AniGen，`slat_variant: control` 遵循 `params.joints_density`（0-4），默认 `auto` 会自选关节数。输出形态取决于系列 —— `pixal3d` 每个输入返回一个 `.glb` 流（`model/gltf-binary`）；`anigen` 每个输入返回一个包含 `mesh` 与 `skeleton` GLB 流的 dict（若 `return_image: true` 还包含 `image`）。完整选项请参见 [Model Component 参考](../reference/compose/components/model.md#image-to-3d)。
 
-### 10.3.27 shot-boundary-detection
+### 10.3.28 shot-boundary-detection
 
 检测视频中的镜头边界（硬切换和转场），返回每个镜头的起止时间码和帧号。使用深度学习模型逐帧识别精确的切换点。使用 `driver: custom`，通过 `family` 字段选择模型系列。
 
@@ -1592,7 +1622,7 @@ component:
 
 与 `video-scene-detector` 组件（通过 PySceneDetect/FFmpeg 使用经典 CV 启发式规则聚合语义相似帧）相比，`shot-boundary-detection` 运行专门训练用于定位切换点的神经网络，在现代剪辑内容上通常更准确。
 
-### 10.3.28 music-generation
+### 10.3.29 music-generation
 
 生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `cpu_offload`。
 
@@ -1681,7 +1711,7 @@ component:
 
 生成音频的方法返回每个输入的 PCM 音频流（批处理输入则返回流列表）；YuE2 的 `score` 则返回 `{ abc, truncated }`。每个 method 的完整字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-generation)。
 
-### 10.3.29 music-source-separation
+### 10.3.30 music-source-separation
 
 将混合录音分离为独立的乐器音轨（人声、鼓、贝斯、其他）。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
 
@@ -1714,7 +1744,7 @@ component:
 
 与 `music-transcription` 组合使用可将每个音轨转录为独立的 MIDI，或对人声音轨使用 `speech-to-text` 以获得更清晰的歌词转录。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-source-separation)。
 
-### 10.3.30 music-transcription
+### 10.3.31 music-transcription
 
 将录制的音频转录为 MIDI 文件和音符事件（起始时间、结束时间、音高、力度）的 JSON 列表。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
 
@@ -1745,7 +1775,7 @@ component:
 
 与 `music-source-separation` 组合使用，可对混音中的每个音轨独立转录（例如将人声与伴奏作为不同声部分别转录）。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-transcription)。
 
-### 10.3.31 music-beat-tracking
+### 10.3.32 music-beat-tracking
 
 检测音乐录音中的节拍和强拍位置。每个检测到的节拍都会记录其在小节中的位置——可用于节拍同步剪辑、速度/拍号分析、DJ 风格的时间伸缩以及结构分段。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
 
@@ -1773,7 +1803,7 @@ component:
 
 完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-beat-tracking)。
 
-### 10.3.32 talking-head
+### 10.3.33 talking-head
 
 让静态肖像跟随驱动音频片段进行对口型（并带头部运动）。与编辑现有视频嘴部的 `lip-sync` 不同，`talking-head` 从单张图像合成头部运动和表情。使用 `driver: custom`，通过 `family` 字段选择模型后端。
 
@@ -1819,7 +1849,7 @@ component:
 
 结果是一个 mp4 流（批量输入则为流列表），每个都带 `format: "mp4"` 与匹配所请求帧率的 `fps` 属性。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#talking-head)。
 
-### 10.3.33 lip-sync
+### 10.3.34 lip-sync
 
 将人脸视频的嘴部运动重新同步到驱动音频片段。仅重新生成嘴部区域；身份、表情、头部姿态和背景直接来自源视频。使用 `driver: custom`，通过 `family` 字段选择模型后端。
 
@@ -1863,7 +1893,7 @@ component:
 
 结果是一个 mp4 流（批量输入则为流列表），每个都带 `format: "mp4"` 与匹配输出帧率的 `fps` 属性。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#lip-sync)。
 
-### 10.3.34 motion-generation
+### 10.3.35 motion-generation
 
 从文本提示生成 3D 人体或人形动作序列。输出是以模型原生帧率扩散采样的关节位置、旋转矩阵和足部接触标签序列，打包为 NPZ 文件。使用 `driver: custom`，通过 `family` 字段选择模型后端。
 

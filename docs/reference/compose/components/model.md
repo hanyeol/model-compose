@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -923,6 +923,102 @@ workflows:
           id: ${input.id}
           vector: ${jobs.embed.output}
         depends_on: [ embed ]
+```
+
+### Image-Text Scoring
+
+Score the semantic alignment between images and captions. Use this for CLIPScore-style evaluation of generated images, prompt-vs-output checks in a quality gate, or zero-shot classification by scoring one image against several candidate captions. Produces cosine similarity (and optionally the raw logit and softmax probabilities) rather than embeddings.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-text-scoring` |
+| `driver` | string | `huggingface` | Model inference framework: `huggingface`, `custom` |
+| `architecture` | string | **required** | HuggingFace model architecture: `clip`, `siglip` |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | string \| list \| stream | **required** | Input image (path, URL, or base64), a list of images, or an async stream of per-job image arrays. |
+| `text` | string \| list \| stream | **required** | Input caption, a list of captions, or an async stream of per-job text arrays. |
+| `batch_size` | integer | `8` | Number of scoring jobs processed per batch. |
+| `params.return_logit` | bool | `false` | Include the raw logit (cosine × logit_scale) alongside the cosine score. |
+| `params.return_softmax` | bool | `true` | Include softmax probabilities when the job scores two or more pairs. |
+| `params.softmax_axis` | string | `text` | Axis along which softmax is normalized when one side has length 1: `text` or `image`. |
+
+**Scoring modes (resolved from the length pair):**
+
+- `pairwise` — `len(image) == len(text)`. Score each `(image[i], text[i])` pair. For `len == 1`, `cosine` is a scalar; otherwise it is a list of per-pair cosines.
+- `texts_to_image` — one image against N captions. `cosine` is a list across the text axis; softmax (when enabled) ranks the captions for the image.
+- `images_to_text` — N images against one caption. `cosine` is a list across the image axis; softmax (when enabled) ranks the images for the caption.
+
+Mismatched lengths (e.g. 2 images × 3 texts) raise an error.
+
+**Result Shape:**
+
+Each scoring job returns an `ImageTextScore` dict with at least a `cosine` field; `logit` and `softmax` appear per the params above. Single-pair pairwise returns a scalar `cosine`; every other mode returns a list. For list / stream input, the outer shape mirrors the input: one result per job.
+
+**Example — CLIPScore for a generated image:**
+
+```yaml
+component:
+  type: model
+  task: image-text-scoring
+  driver: huggingface
+  architecture: clip
+  model: openai/clip-vit-base-patch32
+  action:
+    image: ${input.image}
+    text: ${input.prompt}
+```
+
+**Example — rank candidate captions for one image (zero-shot classification):**
+
+```yaml
+component:
+  type: model
+  task: image-text-scoring
+  driver: huggingface
+  architecture: siglip
+  model: google/siglip-base-patch16-224
+  action:
+    image: ${input.image}
+    text: [ "a photo of a cat", "a photo of a dog", "a photo of a car" ]
+    params:
+      return_softmax: true
+      softmax_axis: text
+```
+
+**Example — gate a generated image on prompt alignment:**
+
+```yaml
+components:
+  - id: generator
+    type: model
+    task: image-generation
+    # ... (image generator config)
+
+  - id: scorer
+    type: model
+    task: image-text-scoring
+    driver: huggingface
+    architecture: clip
+    model: openai/clip-vit-base-patch32
+
+workflows:
+  - id: generate-with-score
+    jobs:
+      - id: generate
+        component: generator
+        input: { prompt: ${input.prompt} }
+      - id: score
+        component: scorer
+        input:
+          image: ${jobs.generate.output}
+          text: ${input.prompt}
+        depends_on: [ generate ]
 ```
 
 ### Video Embedding
@@ -4213,7 +4309,7 @@ component:
 
 ### Streaming Text Generation
 
-The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, and `shot-boundary-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `video-embedding`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, and `shot-boundary-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `image-text-scoring`, `video-embedding`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
 
 **Output vs input streaming.** `streaming: true` controls only the *output* shape: results are emitted as an `AsyncIterator` of chunks instead of a single value. The *input* is still consumed in whatever shape the backend requires:
 

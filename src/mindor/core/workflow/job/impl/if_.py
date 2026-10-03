@@ -11,17 +11,23 @@ class IfJob(Job):
     def __init__(self, id: str, config: IfJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
+        input = await context.render_variable(run_id, self.config.input) if self.config.input is not None else self._default_input(context, default_input)
 
         await self._started(input)
 
-        input = await self._before_run(context, None, input)
+        input = await self._before_run(context, run_id, input)
 
         target: Optional[str] = None
 
         for condition in self.config.conditions:
-            value = await context.render_variable(None, condition.value)
+            value = await context.render_variable(run_id, condition.value)
 
             logging.debug(
                 "[task-%s] Evaluating condition: %s %s %s",
@@ -41,8 +47,8 @@ class IfJob(Job):
                     break
 
         if target is None:
-            target = await context.render_variable(None, self.config.otherwise)
+            target = await context.render_variable(run_id, self.config.otherwise)
 
-        await self._after_run(context, None, input, None)
+        await self._after_run(context, run_id, input, None)
 
         return RoutingTarget(target)

@@ -13,31 +13,40 @@ class ComponentJob(ComponentRunnerJob):
     def __init__(self, id: str, config: ComponentJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool
+    ) -> Union[Any, RoutingTarget]:
         component: ComponentService = await self._create_component(self.id, self.config.component)
 
-        input        = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
-        repeat_count = await context.render_variable(None, self.config.repeat_count) if self.config.repeat_count is not None else None
+        input        = await context.render_variable(run_id, self.config.input) if self.config.input is not None else self._default_input(context, default_input)
+        repeat_count = await context.render_variable(run_id, self.config.repeat_count) if self.config.repeat_count is not None else None
 
         await self._started(input)
 
-        outputs = await asyncio.gather(*[ self._run_once(input, component, context) for _ in range(int(repeat_count or 1)) ])
+        outputs = await asyncio.gather(*[
+            self._run_once(input, component, context, run_id or ulid.ulid(), is_terminal)
+            for _ in range(int(repeat_count or 1))
+        ])
 
         output = outputs[0] if len(outputs) == 1 else outputs or None
 
-        # Only publish to the global scope when this ComponentJob is the outermost
-        # job — inline invocations from a composite must not shadow the outer
-        # job's `${output}` binding.
-        if not context._run_id_stack:
+        if run_id is None:
             context.register_source(None, "output", output)
 
         return output
 
-    async def _run_once(self, input: Any, component: ComponentService, context: JobContext) -> Any:
-        # When invoked inline from a composite, reuse the outer's run_id so that
-        # this component's `output` template can resolve names the outer job
-        # registered on its iteration scope (e.g., `${item}`, `${accumulator}`).
-        run_id: str = context._run_id_stack[-1] if context._run_id_stack else ulid.ulid()
+    async def _run_once(
+        self,
+        input: Any,
+        component: ComponentService,
+        context: JobContext,
+        run_id: str,
+        is_terminal: bool,
+    ) -> Any:
         context.workflow.record_run_id(self.id, run_id)
 
         job_time_tracker = TimeTracker()
@@ -59,7 +68,7 @@ class ComponentJob(ComponentRunnerJob):
 
         if not is_direct_output:
             context.register_source(run_id, "output", output)
-            output = await context.render_variable(run_id, self.config.output, skip_decode=context.is_terminal)
+            output = await context.render_variable(run_id, self.config.output, skip_decode=is_terminal)
 
         logging.debug(
             "[task-%s] Run '%s:%s' for job '%s:%s' completed in %.2f seconds.",

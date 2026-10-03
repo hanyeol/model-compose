@@ -140,16 +140,16 @@ class NativeImageProcessorAction(ImageProcessorAction):
             mode       = params["mode"]
             spacing    = params["spacing"]
             background = params["background"]
-            converted  = [ image.convert("RGBA") for image in images if image is not None ]
+            images     = [ image.convert("RGBA") for image in images if image is not None ]
 
             if mode == ImageConcatMode.HORIZONTAL:
-                return self._concat_horizontal(converted, spacing, background)
+                return self._concat_horizontal(images, spacing, background)
 
             if mode == ImageConcatMode.VERTICAL:
-                return self._concat_vertical(converted, spacing, background)
+                return self._concat_vertical(images, spacing, background)
 
             if mode == ImageConcatMode.GRID:
-                return self._concat_grid(converted, params["columns"], params["rows"], spacing, background)
+                return self._concat_grid(images, params["columns"], params["rows"], spacing, background)
 
             raise ValueError(f"Unsupported concat mode: {mode}")
 
@@ -159,15 +159,15 @@ class NativeImageProcessorAction(ImageProcessorAction):
         def _merge() -> PILImage.Image:
             anchor     = params["anchor"]
             background = params["background"]
-            converted  = [ image.convert("RGBA") for image in images if image is not None ]
+            images     = [ image.convert("RGBA") for image in images if image is not None ]
 
-            max_width  = max(image.width  for image in converted)
-            max_height = max(image.height for image in converted)
+            max_width  = max(image.width  for image in images)
+            max_height = max(image.height for image in images)
             canvas     = PILImage.new("RGBA", (max_width, max_height), background)
 
             anchor_x, anchor_y = self._resolve_anchor_point(anchor, canvas.size)
 
-            for image in converted:
+            for image in images:
                 offset_x, offset_y = self._resolve_anchor_offset(anchor, anchor_x, anchor_y, image.size)
                 canvas.alpha_composite(image, (offset_x, offset_y))
 

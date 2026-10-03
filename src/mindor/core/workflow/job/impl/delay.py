@@ -13,33 +13,39 @@ class DelayJob(Job):
     def __init__(self, id: str, config: DelayJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Any:
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Any:
         is_direct_output = not self.config.output or self.config.output == "${output}"
 
         await self._started(None)
 
-        await self._before_run(context, None, None)
+        await self._before_run(context, run_id, None)
 
-        output = await self._delay(self.config.mode, context)
-        output = await self._after_run(context, None, None, output)
+        output = await self._delay(self.config.mode, context, run_id)
+        output = await self._after_run(context, run_id, None, output)
 
         if not is_direct_output:
-            context.register_source(None, "output", output)
-            output = await context.render_variable(None, self.config.output)
+            context.register_source(run_id, "output", output)
+            output = await context.render_variable(run_id, self.config.output, skip_decode=is_terminal)
 
         return output
 
-    async def _delay(self, mode: DelayJobMode, context: JobContext) -> Any:
+    async def _delay(self, mode: DelayJobMode, context: JobContext, run_id: Optional[str]) -> Any:
         if mode == DelayJobMode.TIME_INTERVAL:
-            return await self._delay_for_time_interval(context)
+            return await self._delay_for_time_interval(context, run_id)
 
         if mode == DelayJobMode.SPECIFIC_TIME:
-            return await self._delay_until_specific_time(context)
+            return await self._delay_until_specific_time(context, run_id)
 
         raise ValueError(f"Unsupported delay mode: {mode}")
 
-    async def _delay_for_time_interval(self, context: JobContext) -> Any:
-        duration = parse_time(await context.render_variable(None, self.config.duration) or 0.0)
+    async def _delay_for_time_interval(self, context: JobContext, run_id: Optional[str]) -> Any:
+        duration = parse_time(await context.render_variable(run_id, self.config.duration) or 0.0)
 
         job_time_tracker = TimeTracker()
         logging.debug(
@@ -59,9 +65,9 @@ class DelayJob(Job):
 
         return None
 
-    async def _delay_until_specific_time(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        timezone = await context.render_variable(None, self.config.timezone)
-        time = parse_datetime(await context.render_variable(None, self.config.time) or datetime(2000, 1, 1, 0, 0, 0), timezone)
+    async def _delay_until_specific_time(self, context: JobContext, run_id: Optional[str]) -> Union[Any, RoutingTarget]:
+        timezone = await context.render_variable(run_id, self.config.timezone)
+        time = parse_datetime(await context.render_variable(run_id, self.config.time) or datetime(2000, 1, 1, 0, 0, 0), timezone)
 
         now = datetime.now(tz=time.tzinfo)
         duration = max((time - now).total_seconds(), 0.0)

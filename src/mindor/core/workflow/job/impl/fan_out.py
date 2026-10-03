@@ -230,15 +230,21 @@ class FanOutJob(ComponentRunnerJob):
     def __init__(self, id: str, config: FanOutJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input       = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
-        output      = await context.render_variable(None, self.config.output)
-        buffer_size = await context.render_variable(None, self.config.buffer_size)
-        spool       = await context.render_variable(None, self.config.spool)
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
+        input       = await context.render_variable(run_id, self.config.input) if self.config.input is not None else self._default_input(context, default_input)
+        output      = await context.render_variable(run_id, self.config.output)
+        buffer_size = await context.render_variable(run_id, self.config.buffer_size)
+        spool       = await context.render_variable(run_id, self.config.spool)
 
         await self._started(input)
 
-        input = await self._before_run(context, None, input)
+        input = await self._before_run(context, run_id, input)
 
         if isinstance(input, StreamResource):
             if input.copyable():
@@ -272,6 +278,6 @@ class FanOutJob(ComponentRunnerJob):
                 branches = sources
 
         output = { name: branch for name, branch in zip(output, branches) }
-        output = await self._after_run(context, None, input, output)
+        output = await self._after_run(context, run_id, input, output)
 
         return output

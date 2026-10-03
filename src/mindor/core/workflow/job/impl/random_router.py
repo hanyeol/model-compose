@@ -10,22 +10,28 @@ class RandomRouterJob(Job):
     def __init__(self, id: str, config: RandomRouterJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
         await self._started(None)
 
-        await self._before_run(context, None, None)
+        await self._before_run(context, run_id, None)
 
-        target = await self._select_target(context)
+        target = await self._select_target(context, run_id)
 
-        await self._after_run(context, None, None, None)
+        await self._after_run(context, run_id, None, None)
 
         return RoutingTarget(target)
 
-    async def _select_target(self, context: JobContext) -> str:
+    async def _select_target(self, context: JobContext, run_id: Optional[str]) -> str:
         if self.config.mode == RandomRoutingMode.WEIGHTED:
             weights, targets = [], []
             for routing in self.config.routings:
-                weight = await context.render_variable(None, routing.weight)
+                weight = await context.render_variable(run_id, routing.weight)
                 if weight is not None and weight > 0.0:
                     weights.append(weight)
                     targets.append(routing.to)

@@ -1,4 +1,4 @@
-from typing import Union, Any
+from typing import Union, Optional, Any
 from mindor.dsl.schema.job import PipelineJobConfig, InlineJobConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.time import TimeTracker
@@ -12,12 +12,18 @@ class PipelineJob(CompositeJob):
     def __init__(self, id: str, config: PipelineJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
+        input = await context.render_variable(run_id, self.config.input) if self.config.input is not None else self._default_input(context, default_input)
 
         await self._started(input)
 
-        input = await self._before_run(context, None, input)
+        input = await self._before_run(context, run_id, input)
         cancellation_token = context.cancellation_token
 
         is_direct_output = not self.config.output or self.config.output == "${output}"
@@ -30,13 +36,13 @@ class PipelineJob(CompositeJob):
                 raise asyncio.CancelledError(cancellation_token.reason or "cancelled")
 
             is_last_step = bool(index == last_step_index)
-            output = await self._run_step(step, index, input, output, context, is_last=is_last_step)
+            output = await self._run_step(step, index, input, output, context, is_last=is_last_step, is_terminal=is_terminal)
 
-        output = await self._after_run(context, None, input, output)
+        output = await self._after_run(context, run_id, input, output)
 
         if not is_direct_output:
-            context.register_source(None, "output", output)
-            output = await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)
+            context.register_source(run_id, "output", output)
+            output = await context.render_variable(run_id, self.config.output, skip_decode=is_terminal)
 
         return output
 
@@ -48,6 +54,7 @@ class PipelineJob(CompositeJob):
         previous_output: Any,
         context: JobContext,
         is_last: bool,
+        is_terminal: bool,
     ) -> Any:
         run_id: str = ulid.ulid()
         context.workflow.record_run_id(self.id, run_id)
@@ -77,7 +84,7 @@ class PipelineJob(CompositeJob):
                 run_id,
                 f"step:{index}",
                 input=input,
-                is_terminal=(is_last and context.is_terminal),
+                is_terminal=(is_last and is_terminal),
             )
 
             logging.debug(

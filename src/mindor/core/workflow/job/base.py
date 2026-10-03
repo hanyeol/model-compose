@@ -31,6 +31,9 @@ class Job(ABC):
         self,
         context: JobContext,
         on_start: Optional[OnStartCallback] = None,
+        run_id: Optional[str] = None,
+        default_input: Any = None,
+        is_terminal: bool = False,
     ) -> Union[Any, RoutingTarget]:
         max_attempt_count = self.config.retry.max_attempt_count if self.config.retry else 1
         attempt = 0
@@ -42,7 +45,7 @@ class Job(ABC):
             attempt += 1
 
             try:
-                return await self._run(context)
+                return await self._run(context, run_id, default_input, is_terminal)
             except Exception as e:
                 if attempt < max_attempt_count:
                     delay = self._resolve_retry_delay(attempt)
@@ -69,13 +72,19 @@ class Job(ABC):
                     return RoutingTarget(self.config.on_error.to)
 
                 if self.config.on_error.output is not None:
-                    context.register_source(None, "error", { "message": str(e) })
-                    return await context.render_variable(None, self.config.on_error.output)
+                    context.register_source(run_id, "error", { "message": str(e) })
+                    return await context.render_variable(run_id, self.config.on_error.output)
 
                 return None
 
     @abstractmethod
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
         pass
 
     async def _started(self, input: Any) -> None:
@@ -204,8 +213,8 @@ class Job(ABC):
 
         return max(delay, 0.0)
 
-    def _default_input(self, context: JobContext) -> Any:
-        return context.workflow.input
+    def _default_input(self, context: JobContext, default_input: Any = None) -> Any:
+        return default_input if default_input is not None else context.workflow.input
 
 def register_job(type: JobType):
     def decorator(cls: Type[Job]) -> Type[Job]:

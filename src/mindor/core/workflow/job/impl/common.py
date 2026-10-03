@@ -37,5 +37,4 @@ class CompositeJob(ComponentRunnerJob):
     ) -> Any:
         job = create_job(f"{self.id}[{tag}]", config, self.global_configs)
 
-        with context.use_inline_scope(run_id, input, is_terminal):
-            return await job.run(context)
+        return await job.run(context, run_id=run_id, default_input=input, is_terminal=is_terminal)

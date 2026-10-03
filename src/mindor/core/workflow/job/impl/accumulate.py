@@ -1,4 +1,4 @@
-from typing import Union, Any
+from typing import Union, Optional, Any
 from mindor.dsl.schema.job import AccumulateJobConfig
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -13,13 +13,19 @@ class AccumulateJob(CompositeJob):
     def __init__(self, id: str, config: AccumulateJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input       = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
-        accumulator = await context.render_variable(None, self.config.accumulator)
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
+        input       = await context.render_variable(run_id, self.config.input) if self.config.input is not None else self._default_input(context, default_input)
+        accumulator = await context.render_variable(run_id, self.config.accumulator)
 
         await self._started(input)
 
-        input = await self._before_run(context, None, input)
+        input = await self._before_run(context, run_id, input)
         cancellation_token = context.cancellation_token
 
         is_direct_output = not self.config.output or self.config.output == "${output}"
@@ -33,11 +39,11 @@ class AccumulateJob(CompositeJob):
                 accumulator = await self._run_item(item, index, accumulator, context)
                 index += 1
 
-        output = await self._after_run(context, None, input, accumulator)
+        output = await self._after_run(context, run_id, input, accumulator)
 
         if not is_direct_output:
-            context.register_source(None, "output", output)
-            output = await context.render_variable(None, self.config.output, skip_decode=context.is_terminal)
+            context.register_source(run_id, "output", output)
+            output = await context.render_variable(run_id, self.config.output, skip_decode=is_terminal)
 
         return output
 

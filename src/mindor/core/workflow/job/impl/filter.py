@@ -15,13 +15,19 @@ class FilterJob(Job):
     def __init__(self, id: str, config: FilterJobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-    async def _run(self, context: JobContext) -> Union[Any, RoutingTarget]:
-        input     = await context.render_variable(None, self.config.input) if self.config.input is not None else context.default_input
-        streaming = await context.render_variable(None, self.config.streaming)
+    async def _run(
+        self,
+        context: JobContext,
+        run_id: Optional[str],
+        default_input: Any,
+        is_terminal: bool,
+    ) -> Union[Any, RoutingTarget]:
+        input     = await context.render_variable(run_id, self.config.input) if self.config.input is not None else self._default_input(context, default_input)
+        streaming = await context.render_variable(run_id, self.config.streaming)
 
         await self._started(input)
 
-        input = await self._before_run(context, None, input)
+        input = await self._before_run(context, run_id, input)
 
         is_single_input  = not isinstance(input, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${output}"
@@ -48,11 +54,11 @@ class FilterJob(Job):
 
             output = results[0] if is_single_input else results
 
-        output = await self._after_run(context, None, input, output)
+        output = await self._after_run(context, run_id, input, output)
 
         if not is_direct_output:
-            context.register_source(None, "output", output)
-            output = await context.render_variable(None, self.config.output)
+            context.register_source(run_id, "output", output)
+            output = await context.render_variable(run_id, self.config.output, skip_decode=is_terminal)
 
         return output
 

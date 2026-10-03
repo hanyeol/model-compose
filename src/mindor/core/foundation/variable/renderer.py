@@ -1,6 +1,12 @@
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator, AsyncIterable
+from dataclasses import dataclass, replace
 from pydantic import BaseModel
+from mindor.dsl.schema.common.operator.condition import ConditionOperator
+from mindor.core.utils.files import get_file_extension
+from mindor.core.utils.transport.http_client import create_stream_with_url
+from mindor.core.utils.url import parse_data_uri
+from mindor.core.foundation.condition import evaluate_condition, evaluate_where
 from ..streaming.resources import StreamResource
 from ..streaming.file import UploadFileStreamResource, FileStreamResource
 from ..streaming.base64 import Base64StreamResource, encode_value_to_base64, decode_base64_value
@@ -12,11 +18,6 @@ from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamR
 from ..streaming.video import VideoStreamResource
 from ..streaming.model_3d import Model3DStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
-from mindor.core.utils.files import get_file_extension
-from mindor.core.utils.transport.http_client import create_stream_with_url
-from mindor.core.utils.url import parse_data_uri
-from mindor.core.foundation.condition import evaluate_condition, evaluate_where
-from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from starlette.datastructures import UploadFile
 from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
@@ -72,6 +73,18 @@ class FieldResolver:
 
         return value
 
+_MISSING: Any = object()
+
+@dataclass(frozen=True)
+class RenderState:
+    scope: Optional[str] = None
+    skip_decode: bool = False
+    item: Any = _MISSING
+    index: Optional[int] = None
+
+    def with_item(self, item: Any, index: int) -> "RenderState":
+        return replace(self, item=item, index=index)
+
 class VariableRenderer:
     def __init__(self, source_resolver: Callable[[str, Optional[Union[int, slice]], Optional[str]], Awaitable[Any]]):
         self.source_resolver: Callable[[str, Optional[Union[int, slice]], Optional[str]], Awaitable[Any]] = source_resolver
@@ -90,55 +103,52 @@ class VariableRenderer:
             "spread": re.compile(r"^\.\.\.\$\{[^}]+\}$"),
         }
 
-        self._item_stack: List[Any] = []
-        self._index_stack: List[int] = []
-
     async def render(self, value: Any, scope: Optional[str] = None, skip_decode: bool = False) -> Any:
-        return await self._render_element(value, scope, skip_decode)
+        return await self._render_element(RenderState(scope=scope, skip_decode=skip_decode), value)
 
-    async def _render_element(self, value: Any, scope: Optional[str], skip_decode: bool) -> Any:
+    async def _render_element(self, state: RenderState, value: Any) -> Any:
         if isinstance(value, str):
-            return await self._render_text(value, scope, skip_decode)
+            return await self._render_text(state, value)
 
         if isinstance(value, BaseModel):
-            return await self._render_element(value.model_dump(by_alias=True), scope, skip_decode)
+            return await self._render_element(state, value.model_dump(by_alias=True))
 
         if isinstance(value, dict):
             if "?" in value and len(value) == 1:
-                return await self._render_conditional(value["?"], scope, skip_decode)
+                return await self._render_conditional(state, value["?"])
 
             if "+" in value and len(value) == 1:
-                return await self._render_join(value["+"], scope, skip_decode)
+                return await self._render_join(state, value["+"])
 
             if "&" in value and len(value) == 1:
-                return await self._render_zip(value["&"], scope, skip_decode)
+                return await self._render_zip(state, value["&"])
 
             if "*" in value:
-                return await self._render_map(value, scope, skip_decode)
+                return await self._render_map(state, value)
 
             if "|" in value:
-                return await self._render_split(value, scope, skip_decode)
+                return await self._render_split(state, value)
 
-            return await self._render_dict(value, scope, skip_decode)
+            return await self._render_dict(state, value)
 
         if isinstance(value, (list, tuple)):
-            return await self._render_list(value, scope, skip_decode)
+            return await self._render_list(state, value)
 
         return value
 
-    async def _render_dict(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Dict[str, Any]:
+    async def _render_dict(self, state: RenderState, entries: dict) -> Dict[str, Any]:
         values = {}
 
         for key, value in entries.items():
             if key == "...":
-                value = await self._render_element(value, scope, skip_decode)
+                value = await self._render_element(state, value)
 
                 if isinstance(value, dict) or value is None:
                     values.update(value or {})
                 else:
                     raise TypeError(f"Spread in dict must resolve to a dict, got {type(value).__name__}")
             elif key == "?":
-                result = await self._render_conditional(value, scope, skip_decode)
+                result = await self._render_conditional(state, value)
 
                 if result is None:
                     continue
@@ -148,27 +158,27 @@ class VariableRenderer:
 
                 values.update(result)
             else:
-                values[key] = await self._render_element(value, scope, skip_decode)
+                values[key] = await self._render_element(state, value)
 
         return values
 
-    async def _render_list(self, entries: list, scope: Optional[str], skip_decode: bool) -> list:
+    async def _render_list(self, state: RenderState, entries: list) -> list:
         values = []
 
         for item in entries:
             if isinstance(item, str) and self._is_spread_expression(item):
-                value = await self._render_text(item[3:], scope, skip_decode)
+                value = await self._render_text(state, item[3:])
 
                 if isinstance(value, (list, tuple)) or value is None:
                     values.extend(value or [])
                 else:
                     raise TypeError(f"Spread in list must resolve to a list, got {type(value).__name__}: {item}")
             else:
-                values.append(await self._render_element(item, scope, skip_decode))
+                values.append(await self._render_element(state, item))
 
         return values
 
-    async def _render_text(self, text: str, scope: Optional[str], skip_decode: bool) -> Any:
+    async def _render_text(self, state: RenderState, text: str) -> Any:
         matches = list(self.patterns["variable"].finditer(text))
 
         for m in reversed(matches):
@@ -177,18 +187,18 @@ class VariableRenderer:
             is_list = bool(is_list)
 
             if attrs:
-                attrs = await self._render_attrs(attrs, scope)
+                attrs = await self._render_attrs(state, attrs)
 
             try:
-                value = self.field_resolver.resolve(await self._resolve_source(key, index, scope), path)
+                value = self.field_resolver.resolve(await self._resolve_source(state, key, index), path)
             except Exception:
                 value = None
 
             if value is None and default is not None:
-                value = await self._render_element(default, scope, skip_decode)
+                value = await self._render_element(state, default)
 
             if type and value is not None:
-                value = await self._convert_value_to_type(value, type, is_list, subtype, attrs, format, skip_decode)
+                value = await self._convert_value_to_type(state, value, type, is_list, subtype, attrs, format)
 
             start, end = m.span()
 
@@ -199,15 +209,15 @@ class VariableRenderer:
 
         return text
 
-    async def _render_conditional(self, entries: Any, scope: Optional[str], skip_decode: bool) -> Any:
+    async def _render_conditional(self, state: RenderState, entries: Any) -> Any:
         conditions = entries if isinstance(entries, list) else [entries]
 
         for condition in conditions:
             if not isinstance(condition, dict):
                 raise TypeError(f"Conditional `?` entry must be a dict, got {type(condition).__name__}")
 
-            input    = await self._render_element(condition.get("input"), scope, skip_decode)
-            value    = await self._render_element(condition.get("value"), scope, skip_decode)
+            input    = await self._render_element(state, condition.get("input"))
+            value    = await self._render_element(state, condition.get("value"))
             operator = condition.get("operator", ConditionOperator.EQ.value)
 
             try:
@@ -216,22 +226,22 @@ class VariableRenderer:
                 raise ValueError(f"Unsupported operator in conditional expression: {operator}") from e
 
             if evaluate_condition(operator, input, value):
-                return await self._render_element(condition.get("if_true"), scope, skip_decode)
+                return await self._render_element(state, condition.get("if_true"))
 
             if "if_false" in condition:
-                return await self._render_element(condition["if_false"], scope, skip_decode)
+                return await self._render_element(state, condition["if_false"])
 
         return None
 
-    async def _render_map(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
+    async def _render_map(self, state: RenderState, entries: dict) -> Any:
         source, where = None, None
         value = entries["*"]
 
         if isinstance(value, dict):
-            source = await self._render_element(value.get("input"), scope, skip_decode)
+            source = await self._render_element(state, value.get("input"))
             where = value.get("where")
         else:
-            source = await self._render_element(value, scope, skip_decode)
+            source = await self._render_element(state, value)
 
         if source is None:
             return []
@@ -245,20 +255,15 @@ class VariableRenderer:
             values: List[Any] = []
 
             for index, item in enumerate(source):
-                self._item_stack.append(item)
-                self._index_stack.append(index)
+                item_state = state.with_item(item, index)
 
-                try:
-                    if where is not None and not await self._matches_where(where, scope, skip_decode):
-                        continue
+                if where is not None and not await self._matches_where(item_state, where):
+                    continue
 
-                    if template:
-                        values.append(await self._render_dict(template, scope, skip_decode))
-                    else:
-                        values.append(item)
-                finally:
-                    self._item_stack.pop()
-                    self._index_stack.pop()
+                if template:
+                    values.append(await self._render_dict(item_state, template))
+                else:
+                    values.append(item)
 
             return values
 
@@ -270,21 +275,16 @@ class VariableRenderer:
                 index = 0
 
                 async for item in source:
-                    self._item_stack.append(item)
-                    self._index_stack.append(index)
+                    item_state = state.with_item(item, index)
+                    index += 1
 
-                    try:
-                        if where is not None and not await self._matches_where(where, scope, skip_decode):
-                            continue
+                    if where is not None and not await self._matches_where(item_state, where):
+                        continue
 
-                        if template:
-                            yield await self._render_dict(template, scope, skip_decode)
-                        else:
-                            yield item
-                    finally:
-                        self._item_stack.pop()
-                        self._index_stack.pop()
-                        index += 1
+                    if template:
+                        yield await self._render_dict(item_state, template)
+                    else:
+                        yield item
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(source, StreamChunkIterator):
@@ -294,8 +294,8 @@ class VariableRenderer:
 
         raise TypeError(f"Map source (`*`) must resolve to a list or iterator, got {type(source).__name__}")
 
-    async def _render_join(self, entries: Any, scope: Optional[str], skip_decode: bool) -> Any:
-        parts = await self._render_element(entries, scope, skip_decode)
+    async def _render_join(self, state: RenderState, entries: Any) -> Any:
+        parts = await self._render_element(state, entries)
 
         if parts is None:
             return None
@@ -360,8 +360,8 @@ class VariableRenderer:
 
         raise TypeError(f"Join `+` source must resolve to a list or iterator, got {type(parts).__name__}")
 
-    async def _render_zip(self, entries: Any, scope: Optional[str], skip_decode: bool) -> Any:
-        sources = await self._render_element(entries, scope, skip_decode)
+    async def _render_zip(self, state: RenderState, entries: Any) -> Any:
+        sources = await self._render_element(state, entries)
 
         if sources is None:
             return None
@@ -413,8 +413,8 @@ class VariableRenderer:
 
         raise TypeError(f"Zip `&` source must resolve to a dict, got {type(sources).__name__}")
 
-    async def _render_split(self, entries: dict, scope: Optional[str], skip_decode: bool) -> Any:
-        source = await self._render_element(entries["|"], scope, skip_decode)
+    async def _render_split(self, state: RenderState, entries: dict) -> Any:
+        source = await self._render_element(state, entries["|"])
         template = { key: value for key, value in entries.items() if key != "|" }
 
         if not template:
@@ -427,15 +427,10 @@ class VariableRenderer:
             value: Dict[str, List[Any]] = { key: [] for key in template }
 
             for index, item in enumerate(source):
-                self._item_stack.append(item)
-                self._index_stack.append(index)
+                item_state = state.with_item(item, index)
 
-                try:
-                    for key in template:
-                        value[key].append(await self._render_element(template[key], scope, skip_decode))
-                finally:
-                    self._item_stack.pop()
-                    self._index_stack.pop()
+                for key in template:
+                    value[key].append(await self._render_element(item_state, template[key]))
 
             return value
 
@@ -469,16 +464,11 @@ class VariableRenderer:
                         error = e
                         raise
 
-                    self._item_stack.append(item)
-                    self._index_stack.append(index)
+                    item_state = state.with_item(item, index)
+                    index += 1
 
-                    try:
-                        for key in template:
-                            buffers[key].append(await self._render_element(template[key], scope, skip_decode))
-                    finally:
-                        self._item_stack.pop()
-                        self._index_stack.pop()
-                        index += 1
+                    for key in template:
+                        buffers[key].append(await self._render_element(item_state, template[key]))
 
                     return True
 
@@ -498,13 +488,13 @@ class VariableRenderer:
 
         raise TypeError(f"Split `|` source must resolve to a list or iterator, got {type(source).__name__}")
 
-    async def _matches_where(self, where: Any, scope: Optional[str], skip_decode: bool) -> bool:
+    async def _matches_where(self, state: RenderState, where: Any) -> bool:
         if not isinstance(where, dict):
             raise TypeError(f"Map `where` must be a dict, got {type(where).__name__}")
 
         async def _evaluate_condition(condition: Any) -> bool:
-            input    = await self._render_element(condition.get("input"), scope, skip_decode)
-            value    = await self._render_element(condition.get("value"), scope, skip_decode)
+            input    = await self._render_element(state, condition.get("input"))
+            value    = await self._render_element(state, condition.get("value"))
             operator = condition.get("operator", ConditionOperator.EQ.value)
 
             try:
@@ -516,42 +506,44 @@ class VariableRenderer:
 
         return await evaluate_where(where, _evaluate_condition)
 
-    async def _resolve_source(self, key: str, index: Optional[Union[int, slice]], scope: Optional[str]) -> Any:
-        if key == "item" and self._item_stack:
-            value = self._item_stack[-1]
+    async def _resolve_source(self, state: RenderState, key: str, index: Optional[Union[int, slice]]) -> Any:
+        if key == "item" and state.item is not _MISSING:
+            value = state.item
 
             if index is not None and isinstance(value, list):
                 return value[index]
 
             return value
 
-        if key == "index" and self._index_stack:
-            return self._index_stack[-1]
+        if key == "index" and state.index is not None:
+            return state.index
 
-        return await self.source_resolver(key, index, scope)
+        return await self.source_resolver(key, index, state.scope)
 
     async def _convert_value_to_type(
         self,
+        state: RenderState,
         value: Any,
         type: str,
         is_list: bool,
         subtype: Optional[str],
         attrs: Optional[Dict[str, Any]],
         format: Optional[str],
-        skip_decode: bool = False,
     ) -> Any:
+        skip_decode = state.skip_decode
+
         if is_list:
             if isinstance(value, (StreamIterator, AsyncIterator)):
                 async def _iterate():
                     async for item in value:
-                        yield await self._convert_value_to_type(item, type, False, subtype, attrs, format, skip_decode)
+                        yield await self._convert_value_to_type(state, item, type, False, subtype, attrs, format)
 
                 return _iterate()
 
             if not isinstance(value, (list, tuple)):
                 raise ValueError(f"`{type}[]` requires a list/tuple or stream input, got {value.__class__.__name__}")
 
-            return [ await self._convert_value_to_type(v, type, False, subtype, attrs, format, skip_decode) for v in value ]
+            return [ await self._convert_value_to_type(state, v, type, False, subtype, attrs, format) for v in value ]
 
         # `path` is intentionally excluded: it refers to a local filesystem location and is not
         # self-contained, so it cannot be passed through to consumers as-is. It must be loaded
@@ -733,14 +725,15 @@ class VariableRenderer:
 
         raise ValueError(f"Unknown format: {format}")
 
-    async def _render_attrs(self, value: str, scope: Optional[str]) -> Dict[str, Any]:
+    async def _render_attrs(self, state: RenderState, value: str) -> Dict[str, Any]:
         attrs: Dict[str, Any] = {}
+        attr_state = replace(state, skip_decode=False)
 
         for pair in self._split_attrs(value):
             pair = pair.strip()
             if "=" in pair:
                 k, _, v = pair.partition("=")
-                attrs[k.strip()] = await self._render_text(v.strip(), scope, skip_decode=False)
+                attrs[k.strip()] = await self._render_text(attr_state, v.strip())
 
         return attrs
 

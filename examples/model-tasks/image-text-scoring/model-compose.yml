@@ -1,0 +1,77 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # -------------- CLIPScore (pairwise) ----------------------------------------
+  # Default workflow. Scores one image against one caption and returns the
+  # cosine similarity as a single scalar. The classic CLIPScore use case —
+  # a quality gate for generated images or captions.
+  - id: clip-score
+    default: true
+    title: CLIPScore (pairwise)
+    description: Score a single image against a single caption and return cosine similarity.
+    job:
+      component: scorer
+      action: score
+      input:
+        image: ${input.image as image}
+        text: ${input.text as text}
+      output:
+        cosine: ${output.cosine}
+
+  # -------------- Rank candidates (broadcast) ---------------------------------
+  # Non-default workflow. The scoring mode is picked automatically from input
+  # lengths:
+  #   - one image + many captions  → `texts_to_image` (rank the captions)
+  #   - many images + one caption  → `images_to_text` (rank the images)
+  # The result carries one cosine per candidate and softmax probabilities
+  # across the many-side, which collapses the task into zero-shot
+  # classification without any training.
+  - id: rank-candidates
+    title: Rank candidates (broadcast)
+    description: Rank many candidates on one side against a single counterpart on the other.
+    job:
+      component: scorer
+      action: rank
+      input:
+        image: ${input.image as image[]}
+        text: ${input.text as text[]}
+      output:
+        cosine: ${output.cosine}
+        softmax: ${output.softmax}
+
+components:
+  # ---- CLIP image-text scorer ----
+  # One component, two actions sharing the same loaded model:
+  #   - `score`: default (both sides scalar) → pairwise, scalar cosine
+  #   - `rank` : many on one side, one on the other → broadcast, list cosine +
+  #             softmax ranking across the many-side
+  # `openai/clip-vit-base-patch32` is the smallest reasonable CLIP checkpoint
+  # (~600MB). Swap for `openai/clip-vit-large-patch14` for higher accuracy or
+  # `google/siglip-base-patch16-224` with `architecture: siglip` for a SigLIP
+  # scorer with the same action shapes.
+  - id: scorer
+    type: model
+    task: image-text-scoring
+    driver: huggingface
+    architecture: clip
+    model: openai/clip-vit-base-patch32
+    max_concurrent_count: 1
+    actions:
+      - id: score
+        image: ${input.image}
+        text: ${input.text}
+        output: ${result}
+
+      - id: rank
+        image: ${input.image}
+        text: ${input.text}
+        params:
+          return_softmax: true
+        output: ${result}

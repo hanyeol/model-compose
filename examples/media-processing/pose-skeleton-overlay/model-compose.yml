@@ -52,15 +52,15 @@ workflows:
         depends_on: [ fanout-video ]
 
       # 4. Pose-tracking runs on the frame stream and re-emits a chunk stream.
-      #    Each extractor chunk is `{image, timestamp}`; the `|` split under
-      #    `stream:` reuses that single stream to feed `frames` and `timestamps`
-      #    in lockstep without fanning the stream out. Keep the split nested —
-      #    sibling keys next to `"|"` are treated as additional lanes and get
-      #    replicated per source chunk, so scalars like `min_confidence` would
-      #    silently fan out across every frame. With `timestamps` set the
-      #    tracker uses the real pts for every per-frame decision, so no
-      #    `frame_rate` is needed here and the pipeline stays correct on VFR
-      #    input.
+      #    Each extractor chunk is `{image, timestamp}`; the `|` split inlines
+      #    its lanes into the parent input via the `"..."` placeholder, so the
+      #    component receives flat `frames` and `timestamps` fields. Scalars
+      #    like `min_confidence` sit outside the placeholder and stay scalar —
+      #    putting them next to `"|"` would turn them into additional lanes
+      #    and silently fan them out across every frame. With `timestamps`
+      #    set the tracker uses the real pts for every per-frame decision, so
+      #    no `frame_rate` is needed here and the pipeline stays correct on
+      #    VFR input.
       #
       #    We disable tracks/metadata and enable detection chunks (with the
       #    source image + per-pose skeleton renders) so the downstream stream
@@ -70,7 +70,7 @@ workflows:
       - id: track-poses
         component: pose-tracker
         input:
-          stream:
+          "...":
             "|": ${jobs.extract-frames.output}
             frames: ${item.image}
             timestamps: ${item.timestamp}
@@ -89,7 +89,12 @@ workflows:
       #    below.
       - id: overlay-skeletons
         type: for-each
-        input: ${jobs.track-poses.output}
+        input:
+          "*":
+            input: ${jobs.track-poses.output}
+            where:
+              input: ${item.type}
+              value: detection
         batch_size: 8
         depends_on: [ track-poses ]
         do:
@@ -107,18 +112,18 @@ workflows:
             timestamp: ${item.timestamp}
 
       # 6. Reassemble the overlaid frame stream + the original audio into mp4.
-      #    The `|` split under `stream:` reuses the overlay stream to feed
-      #    `frames` and `timestamps` in lockstep: the encoder snaps each
-      #    merged frame to the real pts of its source chunk, so the output
-      #    timeline tracks the extractor's pts even on VFR input or sub-
-      #    sampled strides. Keep the split nested — a sibling `audio:` or
-      #    `frame_rate:` next to `"|"` would be read as another lane and
-      #    replicated per frame. `frame_rate` stays — it is the output CFR
-      #    grid, not a per-frame timing cue.
+      #    The `|` split inlines its lanes into the parent input via the
+      #    `"..."` placeholder, feeding `frames` and `timestamps` in lockstep
+      #    so the encoder snaps each merged frame to the real pts of its
+      #    source chunk — the output timeline tracks the extractor's pts even
+      #    on VFR input or sub-sampled strides. `audio:` and `frame_rate:`
+      #    sit outside the placeholder; next to `"|"` they would become per-
+      #    frame lanes. `frame_rate` stays — it is the output CFR grid, not
+      #    a per-frame timing cue.
       - id: encode-video
         component: encoder
         input:
-          stream:
+          "...":
             "|": ${jobs.overlay-skeletons.output}
             frames: ${item.image}
             timestamps: ${item.timestamp}
@@ -172,8 +177,8 @@ components:
       provider: local
       url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n-pose.pt
     action:
-      frames: ${input.stream.frames as image}
-      timestamps: ${input.stream.timestamps}
+      frames: ${input.frames}
+      timestamps: ${input.timestamps}
       streaming: true
       return_tracks: false
       return_detections: true
@@ -194,7 +199,7 @@ components:
     driver: native
     action:
       method: merge
-      image: ${input.images as image[]}
+      image: ${input.images}
       anchor: top-left
 
   # ---- Reassemble overlaid frames + original audio into an mp4 ----
@@ -202,8 +207,8 @@ components:
     type: video-encoder
     driver: ffmpeg
     action:
-      frames: ${input.stream.frames as image}
-      timestamps: ${input.stream.timestamps}
+      frames: ${input.frames}
+      timestamps: ${input.timestamps}
       frame_rate: ${input.frame_rate}
       audio: ${input.audio}
       encoding:

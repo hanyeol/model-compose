@@ -20,14 +20,12 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
     def __init__(
         self,
         config: ImageTextScoringModelActionConfig,
-        architecture: HuggingfaceImageTextScoringModelArchitecture,
         model: PreTrainedModel,
         processor: ProcessorMixin,
         device: torch.device,
     ):
         super().__init__(config)
 
-        self.architecture: HuggingfaceImageTextScoringModelArchitecture = architecture
         self.model: PreTrainedModel = model
         self.processor: ProcessorMixin = processor
         self.device: torch.device = device
@@ -49,6 +47,39 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
             return self._build_cross_result(cosines, logits, mode, params)
 
         return await self._run_in_executor(_score)
+
+    def _forward(self, images: List[PILImage.Image], texts: List[str]) -> tuple[Tensor, Optional[Tensor]]:
+        """Return (cosines, logits) as N_img × N_text tensors. logits is None if the model has no logit_scale."""
+        import torch
+
+        inputs = self.processor(images=images, text=texts, return_tensors="pt", padding=True, truncation=True)
+        inputs = { key: value.to(self.device) for key, value in inputs.items() }
+
+        with torch.inference_mode():
+            outputs = self.model(**inputs)
+
+        logits = getattr(outputs, "logits_per_image", None)
+        logit_scale = getattr(self.model, "logit_scale", None)
+
+        if logits is not None and logit_scale is not None:
+            scale = logit_scale.exp()
+            cosines = logits / scale
+
+            return cosines.detach().cpu(), logits.detach().cpu()
+
+        # Fallback: compute cosines from projected features directly.
+        image_features = self.model.get_image_features(pixel_values=inputs["pixel_values"])
+        text_features = self.model.get_text_features(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs.get("attention_mask", None),
+        )
+        image_features = self._as_tensor(image_features)
+        text_features = self._as_tensor(text_features)
+        image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
+        text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
+        cosines = image_features @ text_features.T
+
+        return cosines.detach().cpu(), None
 
     def _build_pairwise_result(self, cosines: Tensor, logits: Optional[Tensor], params: Dict[str, Any]) -> Dict[str, Any]:
         # Diagonal: (image[index], text[index]) scores.
@@ -101,39 +132,6 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
 
         return result
 
-    def _forward(self, images: List[PILImage.Image], texts: List[str]) -> tuple[Tensor, Optional[Tensor]]:
-        """Return (cosines, logits) as N_img × N_text tensors. logits is None if the model has no logit_scale."""
-        import torch
-
-        inputs = self.processor(images=images, text=texts, return_tensors="pt", padding=True, truncation=True)
-        inputs = { key: value.to(self.device) for key, value in inputs.items() }
-
-        with torch.inference_mode():
-            outputs = self.model(**inputs)
-
-        logits = getattr(outputs, "logits_per_image", None)
-        logit_scale = getattr(self.model, "logit_scale", None)
-
-        if logits is not None and logit_scale is not None:
-            scale = logit_scale.exp()
-            cosines = logits / scale
-
-            return cosines.detach().cpu(), logits.detach().cpu()
-
-        # Fallback: compute cosines from projected features directly.
-        image_features = self.model.get_image_features(pixel_values=inputs["pixel_values"])
-        text_features = self.model.get_text_features(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs.get("attention_mask", None),
-        )
-        image_features = self._as_tensor(image_features)
-        text_features = self._as_tensor(text_features)
-        image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
-        text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
-        cosines = image_features @ text_features.T
-
-        return cosines.detach().cpu(), None
-
     def _as_tensor(self, features: Any) -> Tensor:
         import torch
 
@@ -175,7 +173,6 @@ class HuggingfaceImageTextScoringTaskDriver(HuggingfaceMultimodalModelTaskDriver
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await HuggingfaceImageTextScoringTaskAction(
             action,
-            self.config.architecture,
             self.model,
             self.processor,
             self.device,

@@ -840,10 +840,13 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         if params["return_keypoints"] and "keypoints" in best_pose:
             chunk["keypoints"] = best_pose["keypoints"]
+
         if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
             chunk["openpose_keypoints"] = best_pose["openpose_keypoints"]
+
         if params["return_skeleton_image"]:
             chunk["skeleton_image"] = self._render_skeleton(best_pose, params)
+
         if params["return_track_image"]:
             chunk["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
 
@@ -883,15 +886,24 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         if params["return_keypoints"] and "keypoints" in tracked_pose:
             pose["keypoints"] = tracked_pose["keypoints"]
+
         if params["return_openpose_keypoints"] and "openpose_keypoints" in tracked_pose:
             pose["openpose_keypoints"] = tracked_pose["openpose_keypoints"]
+
         if params["return_skeleton_image"]:
-            pose["skeleton_image"] = self._render_skeleton(tracked_pose, params)
+            if not tracked_pose.get("interpolated"):
+                pose["skeleton_image"] = self._render_skeleton(tracked_pose, params)
+            else:
+                pose["skeleton_image"] = None
+
         if params["return_track_image"]:
             # Interpolated poses carry the anchor frame's `image_source`, so
             # cropping at the interpolated bbox would show the person from the
             # wrong frame; skip the crop for those and rely on the real anchors.
-            pose["image"] = self._crop_pose_image(tracked_pose, params["bounding_box_padding"]) if not tracked_pose.get("interpolated") else None
+            if not tracked_pose.get("interpolated"):
+                pose["image"] = self._crop_pose_image(tracked_pose, params["bounding_box_padding"])
+            else:
+                pose["image"] = None
 
         if tracked_pose.get("interpolated"):
             pose["interpolated"] = True

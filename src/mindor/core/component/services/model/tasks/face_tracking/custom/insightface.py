@@ -1093,6 +1093,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if params["return_gender_age"]:
             if "gender" in tracked_face:
                 face["gender"] = self._gender_to_label(tracked_face["gender"])
+
             if "age" in tracked_face:
                 face["age"] = tracked_face["age"]
 

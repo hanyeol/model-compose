@@ -2,7 +2,7 @@ from typing import Union, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.job import ForEachJobConfig
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
@@ -38,7 +38,8 @@ class ForEachJob(CompositeJob):
                     for result in batch_results:
                         yield result
 
-            output = _stream_output_generator()
+            is_fragmented = isinstance(input, StreamChunkIterator) and input.is_fragmented
+            output = StreamChunkIterator(_stream_output_generator(), is_fragmented=is_fragmented)
         else:
             results = []
             async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):
@@ -65,6 +66,8 @@ class ForEachJob(CompositeJob):
     async def _run_item(self, item: Any, context: JobContext) -> Any:
         run_id: str = ulid.ulid()
         context.workflow.record_run_id(self.id, run_id)
+        if isinstance(item, dict) and "timestamp" in item:
+            print(f"[FOREACH IN] run_id={run_id[-6:]} item.timestamp={item['timestamp']!r:.40}", flush=True)
 
         job_time_tracker = TimeTracker()
         logging.debug(
@@ -79,6 +82,8 @@ class ForEachJob(CompositeJob):
             context.register_source(run_id, "item", item)
 
             output = await self._run_inline_job(self.config.do, context, run_id, "do", input=item)
+            if isinstance(output, dict) and "timestamp" in output:
+                print(f"[FOREACH OUT] run_id={run_id[-6:]} output.timestamp={output['timestamp']!r:.40}", flush=True)
 
             logging.debug(
                 "[task-%s] Run '%s' for job '%s:%s' completed in %.2f seconds.",

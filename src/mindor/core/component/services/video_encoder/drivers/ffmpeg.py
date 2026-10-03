@@ -28,6 +28,7 @@ from mindor.core.utils.ffmpeg.codecs import (
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
+from mindor.core.utils.time import parse_timecode
 from mindor.core.logger import logging
 from ....action.media import MediaInputPathResolver
 from ..base import VideoEncoderDriver, register_video_encoder_driver
@@ -224,8 +225,23 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 previous_timestamp = 0.0
                 last_interval = 0
 
-                async for frame, timestamp in async_zip(_stream_frames(), timestamps):
-                    timestamp = float(timestamp)
+                async def _traced_frames():
+                    n = 0
+                    async for f in _stream_frames():
+                        n += 1
+                        yield f
+                    print(f"[ZIP] frames exhausted total={n}", flush=True)
+
+                async def _traced_timestamps():
+                    n = 0
+                    async for t in timestamps:
+                        n += 1
+                        if n <= 10 or n >= 415: print(f"[ZIP] ts #{n} v={t!r:.80}", flush=True)
+                        yield t
+                    print(f"[ZIP] timestamps exhausted total={n}", flush=True)
+
+                async for frame, timestamp in async_zip(_traced_frames(), _traced_timestamps()):
+                    timestamp = parse_timecode(timestamp) if isinstance(timestamp, str) else float(timestamp)
 
                     if first_timestamp is None:
                         first_timestamp = timestamp
@@ -234,7 +250,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
 
                     if timestamp < previous_timestamp:
                         raise ValueError(
-                            f"timestamps must be non-decreasing; got {timestamp + first_timestamp} after {previous_timestamp + first_timestamp}"
+                            f"timestamps must be non-decreasing; got {timestamp + first_timestamp} "
+                            f"after {previous_timestamp + first_timestamp}"
                         )
 
                     current_frame_index = round(timestamp * float(frame_rate))

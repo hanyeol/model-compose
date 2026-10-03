@@ -135,12 +135,12 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return await self._run_in_executor(_adjust_hue)
 
-    async def _concat(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+    async def _concat(self, images: List[Optional[PILImage.Image]], params: Dict[str, Any]) -> PILImage.Image:
         def _concat() -> PILImage.Image:
             mode       = params["mode"]
             spacing    = params["spacing"]
             background = params["background"]
-            converted  = [ image.convert("RGBA") for image in images ]
+            converted  = [ image.convert("RGBA") for image in images if image is not None ]
 
             if mode == ImageConcatMode.HORIZONTAL:
                 return self._concat_horizontal(converted, spacing, background)
@@ -155,11 +155,11 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return await self._run_in_executor(_concat)
 
-    async def _merge(self, images: List[PILImage.Image], params: Dict[str, Any]) -> PILImage.Image:
+    async def _merge(self, images: List[Optional[PILImage.Image]], params: Dict[str, Any]) -> PILImage.Image:
         def _merge() -> PILImage.Image:
             anchor     = params["anchor"]
             background = params["background"]
-            converted  = [ image.convert("RGBA") for image in images ]
+            converted  = [ image.convert("RGBA") for image in images if image is not None ]
 
             max_width  = max(image.width  for image in converted)
             max_height = max(image.height for image in converted)

@@ -1,11 +1,10 @@
-from typing import Union, Literal, Optional, List
+from typing import Union, List
 from pydantic import BaseModel, Field
 from .common import CommonModelActionConfig
 
 class ImageTextScoringParamsConfig(BaseModel):
     return_logit: Union[bool, str] = Field(default=False, description="Whether the raw logit (cosine × logit_scale) is included alongside the cosine score.")
     return_softmax: Union[bool, str] = Field(default=True, description="Whether softmax probabilities are included when scoring produces two or more pairs.")
-    softmax_axis: Literal[ "text", "image" ] = Field(default="text", description="Axis along which softmax is normalized when broadcasting.")
 
 class ImageTextScoringModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images (path, URL, or base64) to score against text.")

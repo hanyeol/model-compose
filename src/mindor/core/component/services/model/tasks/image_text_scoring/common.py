@@ -82,12 +82,10 @@ class ImageTextScoringTaskAction(ComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return_logit   = await context.render_variable(self.config.params.return_logit)
         return_softmax = await context.render_variable(self.config.params.return_softmax)
-        softmax_axis   = await context.render_variable(self.config.params.softmax_axis)
 
         return {
             "return_logit":   return_logit,
             "return_softmax": return_softmax,
-            "softmax_axis":   softmax_axis,
         }
 
     def _resolve_scoring_mode(self, num_images: int, num_texts: int) -> str:

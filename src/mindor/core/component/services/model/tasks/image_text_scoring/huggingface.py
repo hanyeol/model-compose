@@ -57,29 +57,24 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
 
         with torch.inference_mode():
             outputs = self.model(**inputs)
+            logits = getattr(outputs, "logits_per_image", None)
+            logit_scale = getattr(self.model, "logit_scale", None)
 
-        logits = getattr(outputs, "logits_per_image", None)
-        logit_scale = getattr(self.model, "logit_scale", None)
+            if logits is not None and logit_scale is not None:
+                cosines = logits / logit_scale.exp()
+                return cosines.detach().cpu(), logits.detach().cpu()
 
-        if logits is not None and logit_scale is not None:
-            scale = logit_scale.exp()
-            cosines = logits / scale
+            # Fallback: compute cosines from projected features directly.
+            image_features = self._as_tensor(self.model.get_image_features(pixel_values=inputs["pixel_values"]))
+            text_features = self._as_tensor(self.model.get_text_features(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs.get("attention_mask", None),
+            ))
+            image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
+            text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
+            cosines = image_features @ text_features.T
 
-            return cosines.detach().cpu(), logits.detach().cpu()
-
-        # Fallback: compute cosines from projected features directly.
-        image_features = self.model.get_image_features(pixel_values=inputs["pixel_values"])
-        text_features = self.model.get_text_features(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs.get("attention_mask", None),
-        )
-        image_features = self._as_tensor(image_features)
-        text_features = self._as_tensor(text_features)
-        image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
-        text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True).clamp(min=1e-12)
-        cosines = image_features @ text_features.T
-
-        return cosines.detach().cpu(), None
+            return cosines.detach().cpu(), None
 
     def _build_pairwise_result(self, cosines: Tensor, logits: Optional[Tensor], params: Dict[str, Any]) -> Dict[str, Any]:
         # Diagonal: (image[index], text[index]) scores.
@@ -105,30 +100,26 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
     def _build_cross_result(self, cosines: Tensor, logits: Optional[Tensor], mode: str, params: Dict[str, Any]) -> Dict[str, Any]:
         import torch
 
+        # Softmax is always normalized along the many-axis — the row/column with
+        # more than one element. The one-length axis would collapse to [1.0, ...].
         if mode == "texts_to_image":
-            # 1 image × N texts → single row.
-            cosine_row = cosines[0].tolist()
-            logit_row = logits[0].tolist() if logits is not None else None
+            # 1 image × N texts → row across the text axis.
+            cosine_row = cosines[0]
+            logit_row = logits[0] if logits is not None else None
+            softmax_row = torch.softmax(logit_row, dim=-1) if logit_row is not None and params["return_softmax"] else None
         else:
-            # N images × 1 text → single column.
-            cosine_row = cosines[:, 0].tolist()
-            logit_row = logits[:, 0].tolist() if logits is not None else None
+            # N images × 1 text → column across the image axis.
+            cosine_row = cosines[:, 0]
+            logit_row = logits[:, 0] if logits is not None else None
+            softmax_row = torch.softmax(logit_row, dim=-1) if logit_row is not None and params["return_softmax"] else None
 
-        result: Dict[str, Any] = { "cosine": [ float(cosine) for cosine in cosine_row ] }
+        result: Dict[str, Any] = { "cosine": [ float(cosine) for cosine in cosine_row.tolist() ] }
 
         if params["return_logit"] and logit_row is not None:
-            result["logit"] = [ float(logit) for logit in logit_row ]
+            result["logit"] = [ float(logit) for logit in logit_row.tolist() ]
 
-        if params["return_softmax"] and logits is not None:
-            softmax_source = logits if params["softmax_axis"] == "text" else logits.transpose(0, 1)
-            probs = torch.softmax(softmax_source, dim=-1)
-
-            if mode == "texts_to_image":
-                probs_row = (probs[0] if params["softmax_axis"] == "text" else probs[:, 0]).tolist()
-            else:
-                probs_row = (probs[:, 0] if params["softmax_axis"] == "text" else probs[0]).tolist()
-
-            result["softmax"] = [ float(prob) for prob in probs_row ]
+        if softmax_row is not None:
+            result["softmax"] = [ float(prob) for prob in softmax_row.tolist() ]
 
         return result
 

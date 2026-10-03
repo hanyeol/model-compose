@@ -566,9 +566,13 @@ class GradioWebUIBuilder:
             return gr.Textbox(label=label, value="", info=info, placeholder="Enter a base64-encoded string")
 
         if variable.type == WorkflowVariableType.STRING:
+            if variable.is_list:
+                return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info, placeholder="One per line")
             return gr.Textbox(label=label, value="", info=info)
 
         if variable.type == WorkflowVariableType.TEXT:
+            if variable.is_list:
+                return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info, placeholder="One per line")
             return gr.Textbox(label=label, value="", lines=5, max_lines=15, info=info)
 
         if variable.type == WorkflowVariableType.INTEGER:
@@ -642,6 +646,9 @@ class GradioWebUIBuilder:
 
         if variable.type == WorkflowVariableType.INTEGER:
             return int(value) if value != "" else None
+
+        if variable.is_list and variable.type in (WorkflowVariableType.STRING, WorkflowVariableType.TEXT) and isinstance(value, str):
+            return [ line.strip() for line in value.splitlines() if line.strip() ] or None
 
         return value if value != "" else None
 

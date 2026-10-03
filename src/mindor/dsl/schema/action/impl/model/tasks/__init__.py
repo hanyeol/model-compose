@@ -11,6 +11,7 @@ from .image_to_text import *
 from .image_text_to_text import *
 from .image_embedding import *
 from .video_embedding import *
+from .image_text_scoring import *
 from .image_upscaling import *
 from .image_background_removal import *
 from .image_segmentation import *

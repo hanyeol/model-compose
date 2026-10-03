@@ -12,7 +12,7 @@ from mindor.core.foundation.variable.video import VideoValueRenderer, VideoArray
 from mindor.core.foundation.variable.model_3d import Model3DValueRenderer, Model3DArrayValue
 from mindor.core.foundation.variable.media import MediaValueRenderer, MediaArrayValue
 from mindor.core.foundation.variable.file import FileValueRenderer, FileArrayValue
-from mindor.core.foundation.variable.text import TextValueRenderer
+from mindor.core.foundation.variable.text import TextValueRenderer, TextArrayValue
 from mindor.core.foundation.variable.size import parse_size
 from mindor.core.foundation.variable.time import TimeValueRenderer, parse_time
 from mindor.core.foundation.variable.decimal import parse_decimal
@@ -138,6 +138,13 @@ class ComponentActionContext:
         collect: bool = True
     ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
         return await TextValueRenderer().render(await self.render_variable(value), collect)
+
+    async def render_text_array(
+        self,
+        value: Any,
+        single_as_array: bool = False,
+    ) -> Optional[Union[TextArrayValue, List[Optional[TextArrayValue]], AsyncIterator[Optional[TextArrayValue]]]]:
+        return await TextValueRenderer().render_array(await self.render_variable(value), single_as_array)
 
     async def render_image(
         self,

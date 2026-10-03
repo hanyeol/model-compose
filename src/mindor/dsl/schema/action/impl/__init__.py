@@ -56,6 +56,7 @@ from .music_segment_detector import *
 from .music_analyzer import *
 from .music_synthesizer import *
 from .model_3d_converter import *
+from .model_3d_renderer import *
 from .camera_pose_estimator import *
 from .key_value_store import *
 from .graph_store import *

@@ -60,6 +60,7 @@ class ComponentType(str, Enum):
     MUSIC_ANALYZER          = "music-analyzer"
     MUSIC_SYNTHESIZER       = "music-synthesizer"
     MODEL_3D_CONVERTER      = "model-3d-converter"
+    MODEL_3D_RENDERER       = "model-3d-renderer"
     CAMERA_POSE_ESTIMATOR   = "camera-pose-estimator"
     KEY_VALUE_STORE         = "key-value-store"
     GRAPH_STORE             = "graph-store"

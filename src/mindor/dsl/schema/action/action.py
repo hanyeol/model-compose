@@ -51,6 +51,7 @@ ActionConfig = Union[
     AudioPlaybackActionConfig,
     AudioMixerActionConfig,
     Model3DConverterActionConfig,
+    Model3DRendererActionConfig,
     CameraPoseEstimatorActionConfig,
     KeyValueStoreActionConfig,
     GraphStoreActionConfig,

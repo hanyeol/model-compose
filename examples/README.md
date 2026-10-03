@@ -148,6 +148,7 @@ Local model execution via HuggingFace, llama.cpp, or vLLM.
 - [image-to-text](./model-tasks/image-to-text/) — Image captioning
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — VLM (Qwen2.5-VL) via HuggingFace
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — VLM OCR (olmOCR) via vLLM
+- [image-text-scoring](./model-tasks/image-text-scoring/) — CLIPScore + caption ranking (CLIP)
 - [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — Image generation with Qwen-Image 2.1
 - [image-upscaling](./model-tasks/image-upscaling/) — Upscale images
 - [image-background-removal](./model-tasks/image-background-removal/) — Remove image backgrounds

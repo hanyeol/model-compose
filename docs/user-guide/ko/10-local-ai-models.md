@@ -640,7 +640,7 @@ component:
 - `texts_to_image` — 이미지 1개 × 캡션 N개. 텍스트 축의 코사인 리스트; `softmax`는 캡션을 랭킹.
 - `images_to_text` — 이미지 N개 × 캡션 1개. 이미지 축의 코사인 리스트; `softmax`는 이미지를 랭킹.
 
-길이 불일치는 오류입니다. `params.return_logit`을 켜면 소프트맥스 이전 로짓(코사인 × logit_scale)이 함께 반환됩니다. `params.return_softmax`(기본값 켜짐)은 쌍이 2개 이상일 때 확률을 포함합니다. broadcast 모드에서는 `params.softmax_axis`(`text` 또는 `image`)로 정규화 축을 선택합니다.
+길이 불일치는 오류입니다. `params.return_logit`을 켜면 소프트맥스 이전 로짓(코사인 × logit_scale)이 함께 반환됩니다. `params.return_softmax`(기본값 켜짐)은 쌍이 2개 이상일 때 확률을 포함합니다. broadcast 모드에서 softmax는 항상 다수 축을 따라 정규화됩니다.
 
 결과: 각 scoring job은 `cosine` 필드를 포함하는 `ImageTextScore` 딕셔너리를 반환합니다. 리스트/스트림 입력이면 외부 shape은 입력을 따라 job별로 하나씩 결과가 나옵니다.
 

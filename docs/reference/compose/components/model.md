@@ -946,7 +946,6 @@ Score the semantic alignment between images and captions. Use this for CLIPScore
 | `batch_size` | integer | `8` | Number of scoring jobs processed per batch. |
 | `params.return_logit` | bool | `false` | Include the raw logit (cosine × logit_scale) alongside the cosine score. |
 | `params.return_softmax` | bool | `true` | Include softmax probabilities when the job scores two or more pairs. |
-| `params.softmax_axis` | string | `text` | Axis along which softmax is normalized when one side has length 1: `text` or `image`. |
 
 **Scoring modes (resolved from the length pair):**
 
@@ -988,7 +987,6 @@ component:
     text: [ "a photo of a cat", "a photo of a dog", "a photo of a car" ]
     params:
       return_softmax: true
-      softmax_axis: text
 ```
 
 **Example — gate a generated image on prompt alignment:**

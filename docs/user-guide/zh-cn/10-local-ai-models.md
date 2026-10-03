@@ -640,7 +640,7 @@ component:
 - `texts_to_image` — 1 张图像 × N 个文本。沿文本轴返回余弦列表；`softmax` 对文本进行排序。
 - `images_to_text` — N 张图像 × 1 个文本。沿图像轴返回余弦列表；`softmax` 对图像进行排序。
 
-长度不匹配时抛出错误。开启 `params.return_logit` 可同时返回 softmax 前的 logit（余弦 × logit_scale）。`params.return_softmax`（默认开启）在成对数 ≥ 2 时附带概率。广播模式下通过 `params.softmax_axis`（`text` 或 `image`）选择归一化轴。
+长度不匹配时抛出错误。开启 `params.return_logit` 可同时返回 softmax 前的 logit（余弦 × logit_scale）。`params.return_softmax`（默认开启）在成对数 ≥ 2 时附带概率。广播模式下 softmax 始终沿多侧轴归一化。
 
 结果：每个评分任务返回包含 `cosine` 字段的 `ImageTextScore` 字典。列表 / 流输入时，外层形状与输入一致——每个任务一个结果。
 

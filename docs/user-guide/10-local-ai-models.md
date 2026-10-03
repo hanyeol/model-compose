@@ -640,7 +640,7 @@ component:
 - `texts_to_image` — one image × N captions. Cosines across the text axis; `softmax` ranks the captions.
 - `images_to_text` — N images × one caption. Cosines across the image axis; `softmax` ranks the images.
 
-Mismatched lengths raise an error. Enable `params.return_logit` for the pre-softmax logit (cosine × logit_scale); `params.return_softmax` (on by default) adds probabilities whenever the job has two or more pairs. `params.softmax_axis` picks the normalization axis (`text` or `image`) in the broadcast modes.
+Mismatched lengths raise an error. Enable `params.return_logit` for the pre-softmax logit (cosine × logit_scale); `params.return_softmax` (on by default) adds probabilities whenever the job has two or more pairs. In the broadcast modes softmax is always normalized along the many-axis.
 
 Result: each scoring job returns an `ImageTextScore` dict with at least a `cosine` field. For list/stream input, the outer shape mirrors the input: one result per job.
 

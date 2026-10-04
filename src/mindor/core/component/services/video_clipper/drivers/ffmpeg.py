@@ -428,7 +428,7 @@ class FFmpegVideoClipperAction(VideoClipperAction):
             try:
                 async with stream_subprocess(
                     command,
-                    source=None,
+                    stdin=None,
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
                 ) as (process, chunks, _):

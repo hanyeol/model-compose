@@ -175,7 +175,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
             try:
                 async with stream_subprocess(
                     command,
-                    source=source.stream if input_path is None else None,
+                    stdin=source.stream if input_path is None else None,
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
                 ) as (process, chunks, _):

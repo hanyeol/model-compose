@@ -40,19 +40,28 @@ async def run_command(
 
 async def run_command_foreground(
     command: List[str],
+    input: Optional[bytes] = None,
     working_dir: Optional[str] = None,
-    env: Dict[str, str] = None
+    env: Optional[Dict[str, str]] = None,
+    timeout: Optional[float] = None,
 ) -> int:
     process = await asyncio.create_subprocess_exec(
         *command,
         cwd=working_dir or os.getcwd(),
         env={ **os.environ, **(env or {}) },
+        stdin=asyncio.subprocess.PIPE if input is not None else None,
         stdout=sys.stdout,
-        stderr=sys.stderr
+        stderr=sys.stderr,
     )
 
     try:
-        await process.wait()
+        if input is not None:
+            await asyncio.wait_for(process.communicate(input=input), timeout=timeout)
+        else:
+            await asyncio.wait_for(process.wait(), timeout=timeout)
+    except asyncio.TimeoutError:
+        if await kill_process(process, timeout=2.0):
+            raise TimeoutError(f"Command timed out: {' '.join(command)}")
     except BaseException:
         # Includes asyncio.CancelledError: don't leave an orphaned child.
         await kill_process(process, timeout=2.0)
@@ -62,7 +71,7 @@ async def run_command_foreground(
 
 async def run_subprocess(
     command: List[str],
-    source: Optional[AsyncIterable[bytes]] = None,
+    stdin: Optional[AsyncIterable[bytes]] = None,
     stdout_handler: Optional[Callable[[asyncio.StreamReader], Awaitable[Any]]] = None,
     stderr_handler: Optional[Callable[[asyncio.StreamReader], Awaitable[Any]]] = None,
     working_dir: Optional[str] = None,
@@ -70,7 +79,7 @@ async def run_subprocess(
     pass_fds: Tuple[int, ...] = (),
     on_started: Optional[Callable[[], Awaitable[None]]] = None,
 ) -> Tuple[Process, Any, Any]:
-    """Run a command, optionally feeding stdin from `source`.
+    """Run a command, optionally feeding the child's stdin from `stdin`.
 
     `pass_fds` hands additional descriptors to the child (for tools like
     ffmpeg that can read a `pipe:<fd>` input beyond stdin). `on_started`
@@ -81,7 +90,7 @@ async def run_subprocess(
         *command,
         cwd=working_dir or os.getcwd(),
         env={ **os.environ, **(env or {}) },
-        stdin=asyncio.subprocess.PIPE if source is not None else None,
+        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
         stdout=asyncio.subprocess.PIPE if stdout_handler is not None else None,
         stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
         pass_fds=pass_fds,
@@ -96,7 +105,7 @@ async def run_subprocess(
     async def _feed_stdin() -> None:
         nonlocal feed_error
         try:
-            async for chunk in source:
+            async for chunk in stdin:
                 try:
                     process.stdin.write(chunk)
                     await process.stdin.drain()
@@ -115,7 +124,7 @@ async def run_subprocess(
     stdout_task = asyncio.create_task(stdout_handler(process.stdout)) if stdout_handler is not None else None
     stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
 
-    stdin_feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
+    stdin_feeder = asyncio.create_task(_feed_stdin()) if stdin is not None else None
 
     stdout_result: Any = None
     stderr_result: Any = None
@@ -148,7 +157,7 @@ async def run_subprocess(
 @asynccontextmanager
 async def stream_subprocess(
     command: List[str],
-    source: Optional[AsyncIterable[bytes]] = None,
+    stdin: Optional[AsyncIterable[bytes]] = None,
     stdout_handler: Optional[Callable[[asyncio.StreamReader], AsyncIterator[Any]]] = None,
     stderr_handler: Optional[Callable[[asyncio.StreamReader], Awaitable[None]]] = None,
     working_dir: Optional[str] = None,
@@ -176,7 +185,7 @@ async def stream_subprocess(
         *command,
         cwd=working_dir or os.getcwd(),
         env={ **os.environ, **(env or {}) },
-        stdin=asyncio.subprocess.PIPE if source is not None else None,
+        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE if stderr_handler is not None else None,
         pass_fds=pass_fds,
@@ -191,7 +200,7 @@ async def stream_subprocess(
     async def _feed_stdin() -> None:
         nonlocal feed_error
         try:
-            async for chunk in source:
+            async for chunk in stdin:
                 try:
                     process.stdin.write(chunk)
                     await process.stdin.drain()
@@ -207,7 +216,7 @@ async def stream_subprocess(
             except Exception:
                 pass
 
-    stdin_feeder = asyncio.create_task(_feed_stdin()) if source is not None else None
+    stdin_feeder = asyncio.create_task(_feed_stdin()) if stdin is not None else None
     stderr_task = asyncio.create_task(stderr_handler(process.stderr)) if stderr_handler is not None else None
 
     if stdout_handler is not None:

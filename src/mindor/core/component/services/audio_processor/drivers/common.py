@@ -22,11 +22,12 @@ class AudioProcessorAction(ComponentAction):
 
         params = await self._resolve_params(self.config.method, context)
 
-        is_fragmented    = isinstance(audio, StreamChunkIterator) and audio.is_fragmented
-        is_single_input  = is_fragmented or not isinstance(audio, (list, StreamIterator, AsyncIterator))
+        is_audio_fragmented = isinstance(audio, StreamChunkIterator) and audio.is_fragmented
+
+        is_single_input  = is_audio_fragmented or not isinstance(audio, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(audio, (StreamIterator, AsyncIterator)) and not is_fragmented:
+        if isinstance(audio, (StreamIterator, AsyncIterator)) and not is_audio_fragmented:
             async def _stream_output_generator():
                 async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(self.config.method, batch_audios, params)
@@ -37,7 +38,7 @@ class AudioProcessorAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[Optional[PcmStreamResource]] = []
-            async for batch_audios in BatchSourceIterator([ audio ] if is_fragmented else audio, batch_size=batch_size or 1):
+            async for batch_audios in BatchSourceIterator([ audio ] if is_audio_fragmented else audio, batch_size=batch_size or 1):
                 batch_results = await self._process_batch(self.config.method, batch_audios, params)
                 results.extend(batch_results)
 

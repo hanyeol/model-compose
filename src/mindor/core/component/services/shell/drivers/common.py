@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, List, Any
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ShellActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
@@ -25,18 +25,21 @@ class ShellAction(ComponentAction):
 
     async def run(self, context: ComponentActionContext) -> Any:
         command    = await context.render_array(self.config.command)
+        stdin      = await context.render_variable(self.config.stdin) if self.config.stdin is not None else None
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
+
+        is_stdin_fragmented = isinstance(stdin, StreamChunkIterator) and stdin.is_fragmented
 
         is_single_input  = not isinstance(command, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(command, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
-                    batch_results = await self._process_batch(batch_commands, params, streaming, context.cancellation_token)
+                async for batch_commands, batch_stdins in BatchSourceIterator((command, [ stdin ] if is_stdin_fragmented else stdin), batch_size=batch_size or 1):
+                    batch_results = await self._process_batch(batch_commands, batch_stdins, params, streaming, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -51,8 +54,8 @@ class ShellAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_commands in BatchSourceIterator(command, batch_size=batch_size or 1):
-                batch_results = await self._process_batch(batch_commands, params, streaming, context.cancellation_token)
+            async for batch_commands, batch_stdins in BatchSourceIterator((command, [ stdin ] if is_stdin_fragmented else stdin), batch_size=batch_size or 1):
+                batch_results = await self._process_batch(batch_commands, batch_stdins, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -94,20 +97,38 @@ class ShellAction(ComponentAction):
 
         return working_dir
 
+    def _as_stdin_stream(self, stdin: Any) -> Optional[AsyncIterable[bytes]]:
+        if isinstance(stdin, str):
+            stdin = stdin.encode("utf-8")
+
+        if isinstance(stdin, (bytes, bytearray)):
+            async def _once() -> AsyncIterator[bytes]:
+                yield bytes(stdin)
+
+            return _once()
+
+        if isinstance(stdin, AsyncIterable):
+            return stdin
+
+        raise TypeError(f"shell stdin must be bytes, str, or an async byte stream; got {type(stdin).__name__}")
+
     async def _process_batch(
         self,
         commands: List[ArrayValue],
+        stdins: List[Any],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Any]:
         return await asyncio.gather(*[
-            self._process(command, params, streaming, cancellation_token) for command in commands
+            self._process(command, stdin, params, streaming, cancellation_token)
+            for command, stdin in zip(commands, stdins)
         ])
 
     async def _process(
         self,
         command: ArrayValue,
+        stdin: Any,
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
@@ -115,15 +136,16 @@ class ShellAction(ComponentAction):
         command = await command.collect()
 
         if streaming:
-            return self._stream_command(command, params=params, cancellation_token=cancellation_token)
+            return self._stream_command(command, stdin=stdin, params=params, cancellation_token=cancellation_token)
 
-        return await self._run_command(command, params=params, cancellation_token=cancellation_token)
+        return await self._run_command(command, stdin=stdin, params=params, cancellation_token=cancellation_token)
 
     @abstractmethod
     async def _run_command(
         self,
         command: List[str],
         *,
+        stdin: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
@@ -134,6 +156,7 @@ class ShellAction(ComponentAction):
         self,
         command: List[str],
         *,
+        stdin: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> AsyncIterator[str]:

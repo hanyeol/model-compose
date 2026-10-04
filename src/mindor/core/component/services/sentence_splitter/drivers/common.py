@@ -38,11 +38,12 @@ class SentenceSplitterAction(ComponentAction):
 
         params = await self._resolve_params(context)
 
-        is_fragmented    = isinstance(text, StreamChunkIterator) and text.is_fragmented
-        is_single_input  = is_fragmented or not isinstance(text, (list, StreamIterator, AsyncIterator))
+        is_text_fragmented = isinstance(text, StreamChunkIterator) and text.is_fragmented
+
+        is_single_input  = is_text_fragmented or not isinstance(text, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(text, (StreamIterator, AsyncIterator)) and not is_fragmented:
+        if isinstance(text, (StreamIterator, AsyncIterator)) and not is_text_fragmented:
             async def _stream_output_generator():
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._split_batch(batch_texts, params, streaming, context.cancellation_token)
@@ -60,7 +61,7 @@ class SentenceSplitterAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_texts in BatchSourceIterator([ text ] if is_fragmented else text, batch_size=batch_size or 1):
+            async for batch_texts in BatchSourceIterator([ text ] if is_text_fragmented else text, batch_size=batch_size or 1):
                 batch_results = await self._split_batch(batch_texts, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if streaming:

@@ -444,7 +444,7 @@ class AudioDecodingStreamer:
         async def _stream() -> AsyncIterator[bytes]:
             async with stream_subprocess(
                 command,
-                source=stdin_source,
+                stdin=stdin_source,
                 stdout_handler=_handle_stdout,
                 stderr_handler=_handle_stderr,
             ) as (process, chunks, error):

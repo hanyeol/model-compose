@@ -42,16 +42,18 @@ class SshShellAction(ShellAction):
         self,
         command: List[str],
         *,
+        stdin: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        working_dir = params["working_dir"]
+        stdin = self._as_stdin_stream(stdin) if stdin is not None else None
 
-        logging.debug("[shell] Running remote command: %s (cwd: %s)", " ".join(command), working_dir)
+        logging.debug("[shell] Running remote command: %s (cwd: %s)", " ".join(command), params["working_dir"])
 
         stdout, stderr, exit_code = await self.client.run_command(
             command,
-            working_dir=working_dir or None,
+            stdin=stdin,
+            working_dir=params["working_dir"] or None,
             env=params["env"],
             timeout=params["timeout"],
         )
@@ -68,16 +70,18 @@ class SshShellAction(ShellAction):
         self,
         command: List[str],
         *,
+        stdin: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> AsyncIterator[str]:
-        working_dir = params["working_dir"]
+        stdin = self._as_stdin_stream(stdin) if stdin is not None else None
 
-        logging.debug("[shell] Streaming remote command: %s (cwd: %s)", " ".join(command), working_dir)
+        logging.debug("[shell] Streaming remote command: %s (cwd: %s)", " ".join(command), params["working_dir"])
 
         async for line in self.client.stream_command(
             command,
-            working_dir=working_dir or None,
+            stdin=stdin,
+            working_dir=params["working_dir"] or None,
             env=params["env"],
             timeout=params["timeout"],
         ):

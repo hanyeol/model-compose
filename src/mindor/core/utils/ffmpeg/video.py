@@ -79,7 +79,7 @@ async def encode_video_from_frames(
 
     async with stream_subprocess(
         command,
-        source=_feed(),
+        stdin=_feed(),
         stdout_handler=_stdout,
         stderr_handler=_stderr,
     ) as (process, chunks, _):

@@ -95,7 +95,7 @@ class ExiftoolMediaInspectorAction(MediaInspectorAction):
         else:
             process, stdout, stderr = await run_subprocess(
                 command,
-                source=source.stream,
+                stdin=source.stream,
                 stdout_handler=lambda r: r.read(),
                 stderr_handler=lambda r: r.read(),
             )

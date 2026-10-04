@@ -39,7 +39,7 @@ class ImageTextScoringTaskAction(ComponentAction):
         # Wrap a single (image_array, text_array) pair as one scoring job so the
         # BatchSourceIterator below iterates jobs, not elements within the array.
         image = [ image ] if is_single_input else image
-        text  = [ text ] if is_single_input else text
+        text  = [ text  ] if is_single_input else text
 
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
@@ -63,18 +63,20 @@ class ImageTextScoringTaskAction(ComponentAction):
 
     async def _score_batch(
         self,
-        batch_images: List[ImageArrayValue],
-        batch_texts: List[TextArrayValue],
+        images_arrays: List[ImageArrayValue],
+        texts_arrays: List[TextArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[ImageTextScore]:
         results: List[ImageTextScore] = []
 
-        for images_array, texts_array in zip(batch_images, batch_texts):
+        for images_array, texts_array in zip(images_arrays, texts_arrays):
             images = await images_array.collect()
             texts  = await texts_array.collect()
-            mode   = self._resolve_scoring_mode(len(images), len(texts))
-            score  = await self._score(images, texts, mode, params, cancellation_token)
+
+            mode = self._resolve_scoring_mode(len(images), len(texts))
+            score = await self._score(images, texts, mode, params, cancellation_token)
+
             results.append(ImageTextScore(score))
 
         return results

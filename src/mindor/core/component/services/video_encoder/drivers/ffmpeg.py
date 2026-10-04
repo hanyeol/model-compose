@@ -399,7 +399,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
             try:
                 async with stream_subprocess(
                     command,
-                    source=source,
+                    stdin=source,
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
                     pass_fds=tuple(channel.read_fd for channel in fd_channels),

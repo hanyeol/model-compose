@@ -2,13 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Tuple, Union, Any
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterable, AsyncIterator
 from enum import Enum
 from dataclasses import dataclass
 from mindor.core.logger import logging
 import asyncio, os, shlex, threading
 
 if TYPE_CHECKING:
+    from paramiko.channel import ChannelStdinFile
     import paramiko
 
 class SshAuthType(str, Enum):
@@ -126,6 +127,7 @@ class SshClient:
     async def run_command(
         self,
         command: List[str],
+        stdin: Optional[AsyncIterable[bytes]] = None,
         working_dir: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         timeout: Optional[float] = None,
@@ -134,19 +136,40 @@ class SshClient:
 
         argv is joined with shlex.quote; working_dir and env are applied by
         prefixing `cd ... && VAR=... exec ...` since paramiko's exec_command
-        runs a single shell command string.
+        runs a single shell command string. `stdin` is an optional async
+        byte stream fed to the remote process's standard input.
         """
-        shell_command = self._build_shell_command(command, working_dir, env)
+        remote_command = self._build_remote_command(command, working_dir, env)
+        remote_stdin, remote_stdout, remote_stderr = await asyncio.to_thread(
+            self.client.exec_command,
+            remote_command,
+            timeout=timeout
+        )
 
-        def _exec() -> Tuple[bytes, bytes, int]:
-            _, stdout, stderr = self.client.exec_command(shell_command, timeout=timeout)
-            return stdout.read(), stderr.read(), stdout.channel.recv_exit_status()
+        stdin_feeder = asyncio.create_task(self._feed_remote_stdin(remote_stdin, stdin)) if stdin is not None else None
 
-        return await asyncio.to_thread(_exec)
+        try:
+            stdout, stderr = await asyncio.gather(
+                asyncio.to_thread(remote_stdout.read),
+                asyncio.to_thread(remote_stderr.read),
+            )
+
+            exit_code = await asyncio.to_thread(remote_stdout.channel.recv_exit_status)
+        finally:
+            if stdin_feeder is not None and not stdin_feeder.done():
+                stdin_feeder.cancel()
+
+                try:
+                    await stdin_feeder
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+        return stdout, stderr, exit_code
 
     async def stream_command(
         self,
         command: List[str],
+        stdin: Optional[AsyncIterable[bytes]] = None,
         working_dir: Optional[str] = None,
         env: Optional[Dict[str, str]] = None,
         timeout: Optional[float] = None,
@@ -154,29 +177,45 @@ class SshClient:
         """Yield stdout lines from a remote command as they are produced.
 
         `timeout` acts as a per-line idle timeout, matching the local shell
-        driver's semantics.
+        driver's semantics. `stdin` is an optional async byte stream fed to
+        the remote process's standard input.
         """
-        shell_command = self._build_shell_command(command, working_dir, env)
+        remote_command = self._build_remote_command(command, working_dir, env)
+        remote_stdin, remote_stdout, remote_stderr = await asyncio.to_thread(
+            self.client.exec_command,
+            remote_command,
+            timeout=timeout
+        )
 
-        def _exec():
-            _, stdout, _ = self.client.exec_command(shell_command)
+        logging.debug(f"Streaming remote command on {self.params.host}:{self.params.port}: {remote_command}")
 
-            logging.debug(f"Streaming remote command on {self.params.host}:{self.params.port}: {shell_command}")
-
-            return stdout
-
-        stdout = await asyncio.to_thread(_exec)
-        channel = stdout.channel
+        stdin_feeder = asyncio.create_task(self._feed_remote_stdin(remote_stdin, stdin)) if stdin is not None else None
 
         try:
             while True:
-                line = await asyncio.wait_for(asyncio.to_thread(stdout.readline), timeout=timeout) \
-                    if timeout is not None else await asyncio.to_thread(stdout.readline)
+                line = await asyncio.wait_for(asyncio.to_thread(remote_stdout.readline), timeout=timeout)
+
                 if not line:
                     break
+
                 yield line
         finally:
-            await asyncio.to_thread(channel.recv_exit_status)
+            if stdin_feeder is not None and not stdin_feeder.done():
+                stdin_feeder.cancel()
+
+                try:
+                    await stdin_feeder
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+            exit_code = await asyncio.to_thread(remote_stdout.channel.recv_exit_status)
+
+            if exit_code != 0:
+                stderr = await asyncio.to_thread(remote_stderr.read)
+
+                logging.warning(
+                    f"Remote command exited with code {exit_code}: {stderr.decode(errors='replace').strip()}"
+                )
 
     async def start_remote_port_forwarding(
         self,
@@ -193,7 +232,7 @@ class SshClient:
             local_host: Local host address (default: localhost)
 
         Returns:
-            The actual remote port bound (may differ if remote_port was 0)
+            The remote port actually bound (may differ if remote_port was 0)
         """
         def _start_forwarding():
             # Define handler for this specific port forward
@@ -201,10 +240,10 @@ class SshClient:
                 """Handler called when a connection is made to the forwarded port"""
                 server_port = server_addr[1]
                 if server_port in self.port_forwards:
-                    fwd_local_host, fwd_local_port = self.port_forwards[server_port]
+                    forward_local_host, forward_local_port = self.port_forwards[server_port]
                     forward_thread = threading.Thread(
-                        target=self._handle_forward,
-                        args=(channel, fwd_local_host, fwd_local_port),
+                        target=self._handle_forward_channel,
+                        args=(channel, forward_local_host, forward_local_port),
                         daemon=True
                     )
                     forward_thread.start()
@@ -213,19 +252,19 @@ class SshClient:
                     logging.warning(f"Unknown remote port: {server_port}, closing channel")
                     channel.close()
 
-            actual_remote_port = self.transport.request_port_forward(
+            bound_remote_port = self.transport.request_port_forward(
                 address="0.0.0.0",  # Bind to all interfaces on remote
                 port=remote_port,
                 handler=_port_forward_handler
             )
 
-            self.port_forwards[actual_remote_port] = (local_host, local_port)
+            self.port_forwards[bound_remote_port] = (local_host, local_port)
 
             logging.debug(
-                f"Remote port forwarding: {self.params.host}:{actual_remote_port} -> {local_host}:{local_port}"
+                f"Remote port forwarding: {self.params.host}:{bound_remote_port} -> {local_host}:{local_port}"
             )
 
-            return actual_remote_port
+            return bound_remote_port
 
         return await asyncio.to_thread(_start_forwarding)
 
@@ -261,7 +300,7 @@ class SshClient:
         """Check if SSH connection is active"""
         return self.client is not None and self.transport is not None and self.transport.is_active()
 
-    def _build_shell_command(
+    def _build_remote_command(
         self,
         command: List[str],
         working_dir: Optional[str],
@@ -281,7 +320,25 @@ class SshClient:
 
         return " ".join(parts)
 
-    def _handle_forward(
+    async def _feed_remote_stdin(self, stdin: ChannelStdinFile, source: AsyncIterable[bytes]) -> None:
+        try:
+            async for chunk in source:
+                try:
+                    await asyncio.to_thread(stdin.write, chunk)
+                    await asyncio.to_thread(stdin.flush)
+                except (OSError, EOFError):
+                    break
+        finally:
+            try:
+                await asyncio.to_thread(stdin.channel.shutdown_write)
+            except Exception:
+                pass
+            try:
+                await asyncio.to_thread(stdin.close)
+            except Exception:
+                pass
+
+    def _handle_forward_channel(
         self,
         remote_channel: paramiko.Channel,
         local_host: str,

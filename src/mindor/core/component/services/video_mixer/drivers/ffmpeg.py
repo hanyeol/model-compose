@@ -317,7 +317,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
 
         process_task = asyncio.create_task(run_subprocess(
             command,
-            source=None,
+            stdin=None,
             stderr_handler=lambda r: r.read(),
         ))
 
@@ -389,7 +389,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             try:
                 async with stream_subprocess(
                     command,
-                    source=None,
+                    stdin=None,
                     stdout_handler=_handle_stdout,
                     stderr_handler=_handle_stderr,
                 ) as (process, chunks, _):

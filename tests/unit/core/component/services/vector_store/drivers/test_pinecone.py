@@ -24,7 +24,6 @@ def test_vector_store_component_loads_pinecone():
     config = PineconeVectorStoreComponentConfig(
         type=ComponentType.VECTOR_STORE,
         driver=VectorStoreDriverType.PINECONE,
-        index_name="test-index",
         api_key="test-key",
     )
     global_configs = MagicMock()
@@ -39,13 +38,11 @@ def test_pinecone_filter_builder():
 
     # EQ
     cond1 = VectorStoreFilterCondition(field="status", operator=VectorStoreFilterOperator.EQ, value="active").model_dump()
-    res1 = builder.build(cond1)
-    assert res1 == {"status": {"$eq": "active"}}
+    assert builder.build(cond1) == {"status": {"$eq": "active"}}
 
     # NEQ
     cond2 = VectorStoreFilterCondition(field="status", operator=VectorStoreFilterOperator.NEQ, value="inactive").model_dump()
-    res2 = builder.build(cond2)
-    assert res2 == {"status": {"$ne": "inactive"}}
+    assert builder.build(cond2) == {"status": {"$ne": "inactive"}}
 
     # GT / GTE / LT / LTE
     cond3 = VectorStoreFilterCondition(field="score", operator=VectorStoreFilterOperator.GT, value=10).model_dump()
@@ -79,7 +76,6 @@ def test_pinecone_action_execution():
         mock_client = MagicMock()
         mock_client.Index.return_value = mock_index
 
-        # Setup query mock return
         mock_index.query.return_value = {
             "matches": [
                 {
@@ -91,15 +87,10 @@ def test_pinecone_action_execution():
             ]
         }
 
-        component_config = PineconeVectorStoreComponentConfig(
-            type=ComponentType.VECTOR_STORE,
-            driver=VectorStoreDriverType.PINECONE,
-            index_name="my-index",
-            namespace="prod",
-        )
         action_config = MagicMock()
+        action_config.namespace = "prod"
 
-        action = PineconeVectorStoreAction(config=action_config, client=mock_client, component_config=component_config)
+        action = PineconeVectorStoreAction(config=action_config, client=mock_client)
 
         # Insert
         res_ins = await action._insert("my-index", vector_ids=["vec1"], vectors=[[0.1, 0.2, 0.3]], metadatas=[{"category": "A"}], params={}, cancellation_token=None)
@@ -112,7 +103,7 @@ def test_pinecone_action_execution():
 
         # Search
         mock_index.reset_mock()
-        res_search = await action._search("my-index", queries=[[0.1, 0.2, 0.3]], params={"top_k": 5, "output_fields": ["category"]}, cancellation_token=None)
+        res_search = await action._search("my-index", queries=[[0.1, 0.2, 0.3]], params={"top_k": 5, "filter": None, "output_fields": ["category"]}, cancellation_token=None)
         assert len(res_search) == 1
         assert len(res_search[0]) == 1
         assert res_search[0][0]["id"] == "vec1"
@@ -130,7 +121,7 @@ def test_pinecone_action_execution():
 
         # Delete by IDs
         mock_index.reset_mock()
-        res_del = await action._delete("my-index", vector_ids=["vec1"], params={}, cancellation_token=None)
+        res_del = await action._delete("my-index", vector_ids=["vec1"], params={"filter": None}, cancellation_token=None)
         assert res_del["affected_rows"] == 1
         mock_index.delete.assert_called_once_with(ids=["vec1"], namespace="prod")
 

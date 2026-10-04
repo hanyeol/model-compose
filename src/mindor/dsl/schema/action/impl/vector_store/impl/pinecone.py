@@ -1,30 +1,30 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from pydantic import BaseModel, Field
 from .common import (
-    CommonVectorInsertActionConfig, 
-    CommonVectorUpdateActionConfig, 
-    CommonVectorSearchActionConfig, 
+    CommonVectorInsertActionConfig,
+    CommonVectorUpdateActionConfig,
+    CommonVectorSearchActionConfig,
     CommonVectorDeleteActionConfig
 )
 
 class PineconeVectorInsertActionConfig(CommonVectorInsertActionConfig):
-    index_name: Optional[str] = Field(default=None, description="Pinecone index name. Overrides component level index_name.")
-    namespace: Optional[str] = Field(default=None, description="Pinecone namespace.")
+    collection: str = Field(..., description="Pinecone index that receives the inserted vectors.")
+    namespace: Optional[str] = Field(default=None, description="Pinecone namespace. Overrides component-level namespace.")
 
 class PineconeVectorUpdateActionConfig(CommonVectorUpdateActionConfig):
-    index_name: Optional[str] = Field(default=None, description="Pinecone index name. Overrides component level index_name.")
-    namespace: Optional[str] = Field(default=None, description="Pinecone namespace.")
+    collection: str = Field(..., description="Pinecone index containing the vectors to update.")
+    namespace: Optional[str] = Field(default=None, description="Pinecone namespace. Overrides component-level namespace.")
 
 class PineconeVectorSearchActionConfig(CommonVectorSearchActionConfig):
-    index_name: Optional[str] = Field(default=None, description="Pinecone index name. Overrides component level index_name.")
-    namespace: Optional[str] = Field(default=None, description="Pinecone namespace.")
+    collection: str = Field(..., description="Pinecone index searched for similar vectors.")
+    namespace: Optional[str] = Field(default=None, description="Pinecone namespace. Overrides component-level namespace.")
 
 class PineconeVectorDeleteActionConfig(CommonVectorDeleteActionConfig):
-    index_name: Optional[str] = Field(default=None, description="Pinecone index name. Overrides component level index_name.")
-    namespace: Optional[str] = Field(default=None, description="Pinecone namespace.")
+    collection: str = Field(..., description="Pinecone index that vectors are deleted from.")
+    namespace: Optional[str] = Field(default=None, description="Pinecone namespace. Overrides component-level namespace.")
 
 PineconeVectorStoreActionConfig = Annotated[
-    Union[ 
+    Union[
         PineconeVectorInsertActionConfig,
         PineconeVectorUpdateActionConfig,
         PineconeVectorSearchActionConfig,

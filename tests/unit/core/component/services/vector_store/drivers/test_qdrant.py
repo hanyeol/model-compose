@@ -128,9 +128,8 @@ def test_qdrant_action_search_mocked():
         mock_hit1.score = 0.95
         mock_hit1.vector = [0.1, 0.2, 0.3]
         mock_hit1.payload = {"name": "doc1"}
-        mock_resp = MagicMock()
-        mock_resp.points = [mock_hit1]
-        mock_client.query_points.return_value = mock_resp
+
+        mock_client.search.return_value = [mock_hit1]
 
         config = MagicMock()
         action = QdrantVectorStoreAction(config=config, client=mock_client)

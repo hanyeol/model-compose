@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import VectorStoreComponentConfig
@@ -41,41 +41,14 @@ class QdrantFilterSpecBuilder:
 
             return must, must_not
 
-        if isinstance(filter, VectorStoreFilterCondition):
-            condition, is_negated = self._build_field_condition(filter)
+        if isinstance(filter, dict):
+            condition = VectorStoreFilterCondition.model_validate(filter)
+            condition, is_negated = self._build_field_condition(condition)
 
             if condition is None:
                 return [], []
 
             return ([], [ condition ]) if is_negated else ([ condition ], [])
-
-        if isinstance(filter, dict):
-            if not filter:
-                return [], []
-
-            if "field" in filter and "operator" in filter:
-                condition = VectorStoreFilterCondition.model_validate(filter)
-                condition, is_negated = self._build_field_condition(condition)
-
-                if condition is None:
-                    return [], []
-
-                return ([], [ condition ]) if is_negated else ([ condition ], [])
-
-            must: List[Any] = []
-            must_not: List[Any] = []
-
-            for k, v in filter.items():
-                cond = VectorStoreFilterCondition(field=k, operator=VectorStoreFilterOperator.EQ, value=v)
-                c, is_neg = self._build_field_condition(cond)
-
-                if c:
-                    if is_neg:
-                        must_not.append(c)
-                    else:
-                        must.append(c)
-
-            return must, must_not
 
         return [], []
 
@@ -256,7 +229,7 @@ class QdrantVectorStoreService(VectorStoreDriver):
 
         self.client: Optional[AsyncQdrantClient] = None
 
-    def _get_setup_requirements(self) -> Optional[List[str]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "qdrant-client" ]
 
     async def _start(self) -> None:

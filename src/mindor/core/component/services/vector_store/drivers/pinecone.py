@@ -16,9 +16,6 @@ if TYPE_CHECKING:
 
 class PineconeFilterBuilder:
     def build(self, filter: Any) -> Optional[Dict[str, Any]]:
-        if not filter:
-            return None
-
         conditions = self._build_conditions(filter)
 
         if not conditions:
@@ -34,8 +31,7 @@ class PineconeFilterBuilder:
             conditions: List[Dict[str, Any]] = []
 
             for item in filter:
-                item_conditions = self._build_conditions(item)
-                conditions.extend(item_conditions)
+                conditions.extend(self._build_conditions(item))
 
             return conditions
 
@@ -43,72 +39,43 @@ class PineconeFilterBuilder:
             condition = VectorStoreFilterCondition.model_validate(filter)
             built = self._build_field_condition(condition)
 
-            if built:
-                return [ built ]
-
-            return []
+            return [ built ] if built else []
 
         return []
 
     def _build_field_condition(self, condition: VectorStoreFilterCondition) -> Optional[Dict[str, Any]]:
-        field = condition.field
-        val = condition.value
-        op = condition.operator
+        operator_map = {
+            VectorStoreFilterOperator.EQ:  "$eq",
+            VectorStoreFilterOperator.NEQ: "$ne",
+            VectorStoreFilterOperator.GT:  "$gt",
+            VectorStoreFilterOperator.GTE: "$gte",
+            VectorStoreFilterOperator.LT:  "$lt",
+            VectorStoreFilterOperator.LTE: "$lte",
+        }
 
-        if op == VectorStoreFilterOperator.EQ:
-            return { field: { "$eq": val } }
+        operator = operator_map.get(condition.operator)
 
-        if op == VectorStoreFilterOperator.NEQ:
-            return { field: { "$ne": val } }
+        if operator:
+            return { condition.field: { operator: condition.value } }
 
-        if op == VectorStoreFilterOperator.GT:
-            return { field: { "$gt": val } }
+        if condition.operator == VectorStoreFilterOperator.IN:
+            values = list(condition.value) if isinstance(condition.value, (list, tuple, set)) else [ condition.value ]
+            return { condition.field: { "$in": values } }
 
-        if op == VectorStoreFilterOperator.GTE:
-            return { field: { "$gte": val } }
-
-        if op == VectorStoreFilterOperator.LT:
-            return { field: { "$lt": val } }
-
-        if op == VectorStoreFilterOperator.LTE:
-            return { field: { "$lte": val } }
-
-        if op == VectorStoreFilterOperator.IN:
-            values = list(val) if isinstance(val, (list, tuple, set)) else [ val ]
-            return { field: { "$in": values } }
-
-        if op == VectorStoreFilterOperator.NOT_IN:
-            values = list(val) if isinstance(val, (list, tuple, set)) else [ val ]
-            return { field: { "$nin": values } }
+        if condition.operator == VectorStoreFilterOperator.NOT_IN:
+            values = list(condition.value) if isinstance(condition.value, (list, tuple, set)) else [ condition.value ]
+            return { condition.field: { "$nin": values } }
 
         return None
 
 class PineconeVectorStoreAction(VectorStoreAction):
-    def __init__(self, config: VectorStoreActionConfig, client: Any, component_config: VectorStoreComponentConfig):
-        super().__init__(config, client)
-
-        self.component_config: VectorStoreComponentConfig = component_config
-
-    def _resolve_index_name(self, collection: Any) -> str:
-        index_name = getattr(self.config, "index_name", None)
-        if not isinstance(index_name, str) or not index_name:
-            index_name = collection
-        if not isinstance(index_name, str) or not index_name:
-            index_name = getattr(self.component_config, "index_name", None)
-
-        if not isinstance(index_name, str) or not index_name:
-            raise ValueError("Pinecone index_name must be specified in action config, collection parameter, or component config")
-
-        return str(index_name)
-
-    def _resolve_namespace(self) -> str:
+    def _resolve_namespace(self) -> Optional[str]:
         namespace = getattr(self.config, "namespace", None)
-        if not isinstance(namespace, str):
-            namespace = getattr(self.component_config, "namespace", None)
-        if not isinstance(namespace, str):
-            namespace = ""
 
-        return str(namespace)
+        if namespace:
+            return namespace
+
+        return None
 
     async def _insert(
         self,
@@ -120,29 +87,21 @@ class PineconeVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        index_name = self._resolve_index_name(collection)
-        namespace = self._resolve_namespace()
+        def _insert() -> Dict[str, Any]:
+            ids = [ str(vector_id) for vector_id in vector_ids ] if vector_ids is not None else [ str(ulid.new()) for _ in vectors ]
+            meta_list = metadatas or [ {} for _ in vectors ]
 
-        ids = [ str(vector_id) for vector_id in vector_ids ] if vector_ids is not None else [ str(ulid.new()) for _ in vectors ]
-        meta_list = metadatas or [ {} for _ in vectors ]
+            records = [
+                { "id": id, "values": vector, "metadata": metadata or {} }
+                for id, vector, metadata in zip(ids, vectors, meta_list)
+            ]
 
-        records = [
-            {
-                "id": str_id,
-                "values": vector,
-                "metadata": metadata or {}
-            }
-            for str_id, vector, metadata in zip(ids, vectors, meta_list)
-        ]
+            index = self.client.Index(collection)
+            index.upsert(vectors=records, namespace=self._resolve_namespace())
 
-        def _upsert() -> int:
-            index = self.client.Index(index_name)
-            index.upsert(vectors=records, namespace=namespace)
-            return len(records)
+            return { "ids": ids, "affected_rows": len(ids) }
 
-        affected_rows = await self._run_in_executor(_upsert)
-
-        return { "ids": ids, "affected_rows": affected_rows }
+        return await self._run_in_executor(_insert)
 
     async def _update(
         self,
@@ -154,41 +113,36 @@ class PineconeVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        index_name = self._resolve_index_name(collection)
-        namespace = self._resolve_namespace()
-
-        str_ids = [ str(vector_id) for vector_id in vector_ids ]
-
-        def _update() -> int:
-            index = self.client.Index(index_name)
+        def _update() -> Dict[str, Any]:
+            namespace = self._resolve_namespace()
+            ids = [ str(vector_id) for vector_id in vector_ids ]
+            index = self.client.Index(collection)
 
             if vectors:
                 records = []
 
-                for index_idx, str_id in enumerate(str_ids):
-                    vec = vectors[index_idx] if index_idx < len(vectors) else None
-                    meta = metadatas[index_idx] if metadatas and index_idx < len(metadatas) else {}
+                for position, id in enumerate(ids):
+                    vector   = vectors[position] if position < len(vectors) else None
+                    metadata = metadatas[position] if metadatas and position < len(metadatas) else {}
 
-                    if vec is not None:
-                        record: Dict[str, Any] = { "id": str_id, "values": vec }
+                    if vector is not None:
+                        record: Dict[str, Any] = { "id": id, "values": vector }
 
-                        if meta:
-                            record["metadata"] = meta
+                        if metadata:
+                            record["metadata"] = metadata
 
                         records.append(record)
 
                 if records:
                     index.upsert(vectors=records, namespace=namespace)
             elif metadatas:
-                for str_id, meta in zip(str_ids, metadatas):
-                    if meta:
-                        index.update(id=str_id, set_metadata=meta, namespace=namespace)
+                for id, metadata in zip(ids, metadatas):
+                    if metadata:
+                        index.update(id=id, set_metadata=metadata, namespace=namespace)
 
-            return len(str_ids)
+            return { "affected_rows": len(ids) }
 
-        affected_rows = await self._run_in_executor(_update)
-
-        return { "affected_rows": affected_rows }
+        return await self._run_in_executor(_update)
 
     async def _search(
         self,
@@ -198,45 +152,42 @@ class PineconeVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> List[List[Dict[str, Any]]]:
-        index_name = self._resolve_index_name(collection)
-        namespace = self._resolve_namespace()
+        def _search() -> List[List[Dict[str, Any]]]:
+            top_k         = params["top_k"]
+            filter        = params["filter"]
+            output_fields = params["output_fields"]
+            namespace     = self._resolve_namespace()
 
-        top_k = int(params.get("top_k") or 10)
-        raw_filter = params.get("filter")
-        output_fields = params.get("output_fields")
-
-        query_filter = PineconeFilterBuilder().build(raw_filter)
-
-        def _query() -> List[List[Dict[str, Any]]]:
-            index = self.client.Index(index_name)
+            query_filter = PineconeFilterBuilder().build(filter)
+            index = self.client.Index(collection)
             results = []
 
             for query_vector in queries:
                 response = index.query(
                     vector=query_vector,
-                    top_k=top_k,
+                    top_k=int(top_k),
                     include_metadata=True,
                     include_values=True,
                     filter=query_filter,
                     namespace=namespace
                 )
 
-                hits = []
                 matches = response.get("matches", []) if isinstance(response, dict) else getattr(response, "matches", [])
+                hits = []
 
                 for match in matches:
-                    match_id = match.get("id") if isinstance(match, dict) else getattr(match, "id", None)
-                    match_score = match.get("score") if isinstance(match, dict) else getattr(match, "score", 0.0)
-                    match_values = match.get("values") if isinstance(match, dict) else getattr(match, "values", None)
+                    id       = match.get("id") if isinstance(match, dict) else getattr(match, "id", None)
+                    score    = match.get("score") if isinstance(match, dict) else getattr(match, "score", 0.0)
+                    vector   = match.get("values") if isinstance(match, dict) else getattr(match, "values", None)
                     metadata = (match.get("metadata") if isinstance(match, dict) else getattr(match, "metadata", None)) or {}
 
                     if output_fields:
-                        metadata = { field: metadata[field] for field in output_fields if field in metadata }
+                        metadata = { key: metadata[key] for key in output_fields if key in metadata }
 
                     hits.append({
-                        "id": match_id,
-                        "score": float(match_score),
-                        "vector": match_values,
+                        "id":       id,
+                        "score":    float(score) if score is not None else 0.0,
+                        "vector":   vector,
                         "metadata": metadata
                     })
 
@@ -244,7 +195,7 @@ class PineconeVectorStoreAction(VectorStoreAction):
 
             return results
 
-        return await self._run_in_executor(_query)
+        return await self._run_in_executor(_search)
 
     async def _delete(
         self,
@@ -254,38 +205,33 @@ class PineconeVectorStoreAction(VectorStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        index_name = self._resolve_index_name(collection)
-        namespace = self._resolve_namespace()
-
-        raw_filter = params.get("filter")
-        query_filter = PineconeFilterBuilder().build(raw_filter)
-
-        def _delete() -> int:
-            index = self.client.Index(index_name)
+        def _delete() -> Dict[str, Any]:
+            namespace = self._resolve_namespace()
+            index = self.client.Index(collection)
 
             if vector_ids:
-                str_ids = [ str(vector_id) for vector_id in vector_ids ]
-                index.delete(ids=str_ids, namespace=namespace)
-                return len(str_ids)
+                ids = [ str(vector_id) for vector_id in vector_ids ]
+                index.delete(ids=ids, namespace=namespace)
+                return { "affected_rows": len(ids) }
+
+            query_filter = PineconeFilterBuilder().build(params["filter"])
 
             if query_filter:
                 index.delete(filter=query_filter, namespace=namespace)
 
-            return 0
+            return { "affected_rows": 0 }
 
-        affected_rows = await self._run_in_executor(_delete)
-
-        return { "affected_rows": affected_rows }
+        return await self._run_in_executor(_delete)
 
 @register_vector_store_driver(VectorStoreDriverType.PINECONE)
 class PineconeVectorStoreService(VectorStoreDriver):
     def __init__(self, id: str, config: VectorStoreComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.client: Optional[Any] = None
+        self.client: Optional[Pinecone] = None
 
     def _get_setup_requirements(self) -> Optional[List[str]]:
-        return [ "pinecone-client" ]
+        return [ "pinecone" ]
 
     async def _start(self) -> None:
         from pinecone import Pinecone
@@ -298,7 +244,7 @@ class PineconeVectorStoreService(VectorStoreDriver):
         if self.config.environment:
             init_kwargs["environment"] = self.config.environment
 
-        if hasattr(self.config, "pool_threads") and self.config.pool_threads:
+        if self.config.pool_threads:
             init_kwargs["pool_threads"] = self.config.pool_threads
 
         self.client = Pinecone(**init_kwargs)
@@ -307,7 +253,9 @@ class PineconeVectorStoreService(VectorStoreDriver):
 
     async def _stop(self) -> None:
         await super()._stop()
-        self.client = None
+
+        if self.client:
+            self.client = None
 
     async def _run(self, action: VectorStoreActionConfig, context: ComponentActionContext) -> Any:
-        return await PineconeVectorStoreAction(action, self.client, self.config).run(context)
+        return await PineconeVectorStoreAction(action, self.client).run(context)

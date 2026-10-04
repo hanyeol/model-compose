@@ -895,27 +895,36 @@ class ControllerService(AsyncService):
     async def _wait_for_terminal_state(self, task_id: str, include_streaming: bool = False) -> TaskState:
         if task_id not in self.task_events:
             self.task_events[task_id] = asyncio.Event()
+
         event = self.task_events[task_id]
 
         while True:
             state = self.get_task_state(task_id)
+
             if self._is_terminal_state(state, include_streaming):
                 self.task_events.pop(task_id, None)
                 await self._event_dispatcher.join(("callback", task_id))
+
                 return state
+
             event.clear()
             state = self.get_task_state(task_id)
+
             if self._is_terminal_state(state, include_streaming):
                 self.task_events.pop(task_id, None)
                 await self._event_dispatcher.join(("callback", task_id))
+
                 return state
+
             await event.wait()
 
     def _is_terminal_state(self, state: TaskState, include_streaming: bool = False) -> bool:
         if state.status in (TaskStatus.INTERRUPTED, TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
             return True
+
         if include_streaming and state.status == TaskStatus.STREAMING:
             return True
+
         return False
 
     async def _render_task_output(self, output: Any) -> Any:
@@ -1003,16 +1012,19 @@ class ControllerService(AsyncService):
 
     def _notify_task_state_change(self, task_id: str) -> None:
         state = self.get_task_state(task_id)
+
         if not state:
             return
 
         previous_status = self._task_previous_status.get(task_id)
+
         if state.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
             self._task_previous_status.pop(task_id, None)
         else:
             self._task_previous_status[task_id] = state.status
 
         callback = self._task_event_callbacks.get(task_id)
+
         if callback:
             self._event_dispatcher.dispatch(
                 ("callback", task_id),
@@ -1026,27 +1038,21 @@ class ControllerService(AsyncService):
             )
 
         event = self._derive_task_event(state, previous_status)
+
         if event is not None:
             self._notify_task_event(event)
 
     def _derive_task_event(self, state: TaskState, previous_status: Optional[TaskStatus]) -> Optional[TaskEvent]:
+        if state.status in (TaskStatus.PENDING, TaskStatus.CANCELLING):
+            return None
+        
         if state.status == TaskStatus.PROCESSING:
             if previous_status == TaskStatus.INTERRUPTED:
                 event = "resumed"
             else:
                 event = "started"
-        elif state.status == TaskStatus.INTERRUPTED:
-            event = "interrupted"
-        elif state.status == TaskStatus.CANCELLED:
-            event = "cancelled"
-        elif state.status == TaskStatus.STREAMING:
-            event = "streaming"
-        elif state.status == TaskStatus.COMPLETED:
-            event = "completed"
-        elif state.status == TaskStatus.FAILED:
-            event = "failed"
         else:
-            return None
+            event = state.status.value
 
         return TaskEvent(
             task_id=state.task_id,
@@ -1064,6 +1070,7 @@ class ControllerService(AsyncService):
 
     def _notify_task_event(self, event: TaskEvent) -> None:
         callback = self._task_event_callbacks.get(event.task_id)
+
         if callback:
             self._event_dispatcher.dispatch(
                 ("callback", event.task_id),

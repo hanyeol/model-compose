@@ -564,7 +564,7 @@ Answer values are native (`"buy"` for `choice`, booleans for `noul`, option labe
 **Family-Specific Options:**
 
 - `clef`: `choice_loss_weight`, `noul_loss_weight`, `score_loss_weight`.
-- `laya`: `preset` (`english` / `multilingual` / `typed-decisions`), `freeze_encoder` for heads-only training, `max_seq_length`, `max_head_length`.
+- `laya`: `preset` (optional — `english` / `multilingual` / `typed-decisions`; selects a subfolder inside the `convaiinnovations/laya` bundle. Leave unset when `model` points at a standalone checkpoint; omitting both falls back to the bundle repo + `preset: multilingual`), `freeze_encoder` for heads-only training, `max_seq_length`, `max_head_length`.
 - `nimble`: `base_model` (required — the Qwen backbone the LoRA attaches to), `max_seq_length`.
 - `kev`: `max_state_length`, `max_branch_length`, `train_pointer_head`.
 

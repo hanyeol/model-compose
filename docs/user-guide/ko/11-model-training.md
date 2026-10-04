@@ -564,7 +564,7 @@ components:
 **패밀리별 옵션:**
 
 - `clef`: `choice_loss_weight`, `noul_loss_weight`, `score_loss_weight`.
-- `laya`: `preset` (`english` / `multilingual` / `typed-decisions`), head만 학습하기 위한 `freeze_encoder`, `max_seq_length`, `max_head_length`.
+- `laya`: `preset` (선택 — `english` / `multilingual` / `typed-decisions`; `convaiinnovations/laya` 번들의 서브폴더를 선택. `model`에 스탠드얼론 체크포인트를 지정할 때는 비워 두고, 둘 다 생략하면 번들 리포 + `preset: multilingual`로 폴백), head만 학습하기 위한 `freeze_encoder`, `max_seq_length`, `max_head_length`.
 - `nimble`: `base_model` (필수 — LoRA가 붙는 Qwen 백본), `max_seq_length`.
 - `kev`: `max_state_length`, `max_branch_length`, `train_pointer_head`.
 

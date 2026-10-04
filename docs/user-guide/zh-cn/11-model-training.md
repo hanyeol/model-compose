@@ -564,7 +564,7 @@ components:
 **家族特定选项:**
 
 - `clef`: `choice_loss_weight`、`noul_loss_weight`、`score_loss_weight`。
-- `laya`: `preset`(`english` / `multilingual` / `typed-decisions`)、仅训练 head 的 `freeze_encoder`、`max_seq_length`、`max_head_length`。
+- `laya`: `preset`（可选 —— `english` / `multilingual` / `typed-decisions`；选择 `convaiinnovations/laya` 捆绑仓库的子文件夹。若 `model` 指向独立检查点请留空；两者都省略时回退到捆绑仓库 + `preset: multilingual`）、仅训练 head 的 `freeze_encoder`、`max_seq_length`、`max_head_length`。
 - `nimble`: `base_model`(必填 —— LoRA 挂载的 Qwen 底座)、`max_seq_length`。
 - `kev`: `max_state_length`、`max_branch_length`、`train_pointer_head`。
 

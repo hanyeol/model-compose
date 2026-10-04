@@ -1007,6 +1007,7 @@ class ControllerService(AsyncService):
 
     def _signal_task_state_change(self, task_id: str) -> None:
         event = self.task_events.get(task_id)
+
         if event:
             event.set()
 

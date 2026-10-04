@@ -1,9 +1,10 @@
-from typing import Union, Optional, Dict, List
+from typing import Any, Union, Optional, Dict, List
 from pydantic import Field
 from ...common import CommonActionConfig
 
 class CommonShellActionConfig(CommonActionConfig):
     command: Union[List[str], List[List[str]]] = Field(..., description="Shell command or list of commands to execute.")
+    stdin: Optional[Any] = Field(default=None, description="Bytes, text, or byte-stream resource piped to the command's standard input.")
     working_dir: Optional[str] = Field(default=None, description="Working directory the command runs from.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables set for the command process.")
     timeout: Optional[Union[str, int, float]] = Field(default=None, description="Maximum time to wait for the command to complete before failing.")

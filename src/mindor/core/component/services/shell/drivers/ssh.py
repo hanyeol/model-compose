@@ -29,13 +29,10 @@ class SshShellAction(ShellAction):
 
         self.client: SshClient = client
 
-    async def _resolve_working_directory(self) -> str:
+    def _resolve_working_directory(self, working_dir: Optional[str]) -> str:
         # Remote paths are interpreted by the login shell; no local expansion.
-        working_dir = self.config.working_dir
-
         if working_dir and self.base_dir and not working_dir.startswith("/"):
             return f"{self.base_dir.rstrip('/')}/{working_dir}"
-
         return working_dir or self.base_dir or ""
 
     async def _run_command(

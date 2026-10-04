@@ -309,7 +309,7 @@ class SshClient:
         parts: List[str] = []
 
         if working_dir:
-            parts.append(f"cd {shlex.quote(working_dir)} &&")
+            parts.append(f"cd {self._quote_remote_path(working_dir)} &&")
 
         if env:
             for name, value in env.items():
@@ -388,3 +388,16 @@ class SshClient:
             except Exception:
                 pass
 
+    def _quote_remote_path(self, path: str) -> str:
+        # Preserve a leading `~` / `~user` segment unquoted so the remote login
+        # shell performs tilde expansion; quote the rest so spaces and metachars
+        # in the path can't break the command.
+        if path.startswith("~"):
+            head, separator, tail = path.partition("/")
+
+            if separator and tail:
+                return head + separator + shlex.quote(tail)
+
+            return head
+
+        return shlex.quote(path)

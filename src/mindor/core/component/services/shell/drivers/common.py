@@ -10,7 +10,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
 from ....action.base import ComponentAction
-import asyncio, os
+import asyncio
 
 class ShellAction(ComponentAction):
     def __init__(
@@ -73,9 +73,11 @@ class ShellAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        working_dir = await self._resolve_working_directory()
+        working_dir = await context.render_variable(self.config.working_dir)
         env         = await context.render_variable({ **(self.env or {}), **(self.config.env or {}) })
         timeout     = await context.render_scalar(self.config.timeout, "time") if self.config.timeout else None
+
+        working_dir = self._resolve_working_directory(working_dir)
 
         return {
             "working_dir": working_dir,
@@ -83,18 +85,7 @@ class ShellAction(ComponentAction):
             "timeout":     timeout,
         }
 
-    async def _resolve_working_directory(self) -> str:
-        working_dir = self.config.working_dir
-
-        if working_dir:
-            working_dir = os.path.expanduser(working_dir)
-            if self.base_dir:
-                working_dir = os.path.abspath(os.path.join(self.base_dir, working_dir))
-            else:
-                working_dir = os.path.abspath(working_dir)
-        else:
-            working_dir = self.base_dir or os.getcwd()
-
+    def _resolve_working_directory(self, working_dir: Optional[str]) -> Optional[str]:
         return working_dir
 
     def _as_stdin_stream(self, stdin: Any) -> Optional[AsyncIterable[bytes]]:

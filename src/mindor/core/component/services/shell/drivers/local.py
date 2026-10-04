@@ -8,7 +8,7 @@ from mindor.core.logger import logging
 from ..base import ShellDriver, ShellDriverType, register_shell_driver
 from ..base import ComponentActionContext
 from .common import ShellAction
-import asyncio
+import asyncio, os
 
 class LocalShellAction(ShellAction):
     async def _run_command(
@@ -86,6 +86,17 @@ class LocalShellAction(ShellAction):
             await process.wait()
 
             logging.debug("[shell] Streaming command exited with code %d", process.returncode)
+
+    def _resolve_working_directory(self, working_dir: Optional[str]) -> str:
+        if working_dir:
+            working_dir = os.path.expanduser(working_dir)
+
+            if self.base_dir:
+                return os.path.abspath(os.path.join(self.base_dir, working_dir))
+
+            return os.path.abspath(working_dir)
+
+        return self.base_dir or os.getcwd()
 
 @register_shell_driver(ShellDriverType.LOCAL)
 class LocalShellService(ShellDriver):

@@ -132,9 +132,13 @@ class LayaTypedDecisionTaskDriver(ModelTaskDriver):
 
         # 'english' is the bundle's root checkpoint (no subfolder); every other preset is
         # both the folder name inside the bundle and the standalone-repo suffix, so
-        # forwarding the preset value directly to laya.Agent works either way.
-        preset = self.config.preset
-        subfolder = None if preset == LayaPreset.ENGLISH else preset.value
+        # forwarding the preset value directly to laya.Agent works either way. When the
+        # user supplies their own `model` without a preset, we pass no subfolder and let
+        # the checkpoint stand on its own.
+        if self.config.preset is not None and self.config.preset != LayaPreset.ENGLISH:
+            subfolder = self.config.preset.value
+        else:
+            subfolder = None
 
         return Agent(
             model_id_or_path=self._resolve_model_id(),

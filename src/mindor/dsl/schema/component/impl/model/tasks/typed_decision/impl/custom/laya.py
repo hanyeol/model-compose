@@ -11,9 +11,10 @@ class LayaPreset(str, Enum):
     MULTILINGUAL    = "multilingual"
     TYPED_DECISIONS = "typed-decisions"
 
-# Convai Innovations ships all three checkpoints in a single bundle repo, one
-# per subfolder; the driver uses the preset to pick which subfolder to load.
-_BUNDLE_REPOSITORY = "convaiinnovations/laya"
+# Convai Innovations ships all three checkpoints in a single repo, one per
+# subfolder. Used as the fallback when the user provides neither `model` nor
+# `preset`; the driver reads `preset` to pick which subfolder to load.
+_DEFAULT_REPOSITORY = "convaiinnovations/laya"
 
 LayaTypedDecisionModelConfig = Annotated[
     Union[
@@ -27,7 +28,7 @@ class LayaTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentCon
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[TypedDecisionModelFamily.LAYA]
     model: LayaTypedDecisionModelConfig = Field(..., description="Laya checkpoint — a HuggingFace repo ID or a local directory. Defaults to the bundle repo hosting all three presets.")
-    preset: LayaPreset = Field(default=LayaPreset.MULTILINGUAL, description="Laya checkpoint: 'english' (ModernBERT-large), 'multilingual' (mmBERT-base, 100+ languages), or 'typed-decisions' (fine-tuned on the typed-decisions workflows).")
+    preset: Optional[LayaPreset] = Field(default=None, description="Laya checkpoint: 'english' (ModernBERT-large), 'multilingual' (mmBERT-base, 100+ languages), or 'typed-decisions' (fine-tuned on the typed-decisions workflows).")
     max_seq_length: Optional[int] = Field(default=None, description="Per-call encoder token budget; overrides the checkpoint default.")
     max_head_length: Optional[int] = Field(default=None, description="Per-call per-question head token budget; overrides the checkpoint default.")
     fast: bool = Field(default=False, description="Enable the TileLang CUDA fast path (requires laya[fast]).")
@@ -35,12 +36,15 @@ class LayaTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentCon
 
     @model_validator(mode="before")
     def inflate_model_from_preset(cls, values: Dict[str, Any]):
-        # Fill in a default `model` config that points at the bundle repo when
-        # the user hasn't specified one. The bundle hosts all three presets;
-        # the driver reads `preset` to pick the right subfolder to snapshot.
+        # When the user supplies their own `model`, trust it as-is and leave
+        # `preset` untouched. Only when neither is given do we fall back to
+        # the bundle repo + a default preset so the driver has something to
+        # snapshot.
         if values.get("model") is None:
+            if values.get("preset") is None:
+                values["preset"] = LayaPreset.MULTILINGUAL
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
-                "repository": _BUNDLE_REPOSITORY,
+                "repository": _DEFAULT_REPOSITORY,
             }
         return values

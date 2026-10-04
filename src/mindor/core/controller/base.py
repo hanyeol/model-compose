@@ -987,6 +987,7 @@ class ControllerService(AsyncService):
             return
 
         state = self.get_task_state(task_id)
+
         if state and state.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
             return
 

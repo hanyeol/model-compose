@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -1068,6 +1068,96 @@ A single vector per video (list of floats). When the input is a list of per-vide
 - `videomae` — VideoMAE (masked autoencoder for video; e.g., `MCG-NJU/videomae-base`).
 
 Typical pairing: chain `video-frame-extractor` to sample frames from a source video, feed those frames into `video-embedding`, then insert the vector into a `vector-store`.
+
+### Video-Text Scoring
+
+Score the semantic alignment between videos and captions. X-CLIP's forward conditions its text embeddings on the video, so the scores are not reproducible by embedding the two sides separately — this task calls the full forward directly. Use it for video-prompt alignment on text-to-video output, caption ranking (zero-shot video classification), or video retrieval ranking.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `video-text-scoring` |
+| `driver` | string | `huggingface` | Model inference framework: `huggingface`, `custom` |
+| `architecture` | string | **required** | HuggingFace model architecture: `xclip` |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image \| list \| stream | **required** | A single video's frames, a list of per-video frame batches, or a stream of per-video frame batches. |
+| `text` | string \| list | **required** | Input caption or list of captions to score against the video(s). |
+| `batch_size` | integer | `1` | Number of scoring jobs processed per batch (stream-mode only). |
+| `params.return_logit` | bool | `false` | Include the raw logit (cosine × logit_scale) alongside the cosine score. |
+| `params.return_softmax` | bool | `true` | Include softmax probabilities when the job scores two or more pairs. |
+
+**Scoring modes (resolved from the length pair):**
+
+- `pairwise` — `N videos == K texts`. Score each `(video[i], text[i])` pair. For a single pair, `cosine` is a scalar; otherwise it is a list.
+- `texts_to_video` — one video against K captions. `cosine` is a list across the text axis; softmax (when enabled) ranks the captions for the video.
+- `videos_to_text` — N videos against one caption. `cosine` is a list across the video axis; softmax (when enabled) ranks the videos for the caption.
+
+Mismatched lengths (e.g. 2 videos × 3 texts) raise an error.
+
+**Input shape rules:**
+
+- Flat frame list `[frame, frame, …]` → one video in this job.
+- Nested frame lists `[[frame, …], [frame, …]]` → N videos packed into one job (one X-CLIP forward over the full N × K cross matrix).
+- Async stream of frame batches → one scoring job per tick.
+
+Collect-mode (flat or nested) always produces exactly one result because every video on the input gets packed into a single forward. Stream-mode produces one result per tick.
+
+**Result Shape:**
+
+Each scoring job returns a `VideoTextScore` dict with at least a `cosine` field; `logit` and `softmax` appear per the params above. Single-pair pairwise returns a scalar `cosine`; every other mode returns a list.
+
+**Example — one video × one caption (CLIPScore for text-to-video output):**
+
+```yaml
+component:
+  type: model
+  task: video-text-scoring
+  driver: huggingface
+  architecture: xclip
+  model: microsoft/xclip-base-patch32
+  action:
+    frames: ${input.frames}
+    text: ${input.prompt}
+```
+
+**Example — rank candidate captions for one video (zero-shot video classification):**
+
+```yaml
+component:
+  type: model
+  task: video-text-scoring
+  driver: huggingface
+  architecture: xclip
+  model: microsoft/xclip-base-patch32
+  action:
+    frames: ${input.frames}
+    text: [ "a cooking video", "a sports highlight", "an animated short" ]
+    params:
+      return_softmax: true
+```
+
+**Example — rank videos against one caption (video retrieval):**
+
+```yaml
+component:
+  type: model
+  task: video-text-scoring
+  driver: huggingface
+  architecture: xclip
+  model: microsoft/xclip-base-patch32
+  action:
+    frames: ${input.video_frames}      # nested: list of per-video frame lists
+    text: ${input.query}
+    params:
+      return_softmax: true
+```
+
+Typical pairing: chain `video-frame-extractor` upstream to sample frames from each source video, then feed the per-video frame lists into `video-text-scoring`.
 
 ### Face Detection
 
@@ -4307,7 +4397,7 @@ component:
 
 ### Streaming Text Generation
 
-The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, and `shot-boundary-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `image-text-scoring`, `video-embedding`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
+The `streaming` action field is available on tasks that produce time-series output one chunk at a time: `text-generation`, `chat-completion`, `text-to-text`, `image-to-text`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, and `shot-boundary-detection`. Other tasks (such as `text-embedding`, `text-classification`, `text-reranking`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`) return their result atomically and do not accept a `streaming` field. Streaming also requires `batch_size: 1` with a single input.
 
 **Output vs input streaming.** `streaming: true` controls only the *output* shape: results are emitted as an `AsyncIterator` of chunks instead of a single value. The *input* is still consumed in whatever shape the backend requires:
 

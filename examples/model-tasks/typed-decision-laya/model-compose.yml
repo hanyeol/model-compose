@@ -19,8 +19,8 @@ component:
   task: typed-decision
   driver: custom
   family: laya
-  preset: multilingual                         # 'english' | 'multilingual' (default, 100+ langs) | 'typed-decisions' (fine-tuned on the typed-decisions workflows)
-  # model: convaiinnovations/laya              # optional override; defaults to the bundle repo hosting all three presets
+  preset: multilingual                         # optional: 'english' | 'multilingual' (100+ langs) | 'typed-decisions' (fine-tuned on the typed-decisions workflows); selects the subfolder inside the bundle repo
+  # model: convaiinnovations/laya              # optional override; omit `preset` when pointing at a standalone checkpoint. Omitting both falls back to the bundle repo + preset: multilingual
   # max_seq_length: 8192                       # override per-call encoder token budget; 'multilingual' supports up to 8192
   # max_head_length: 192                       # override per-question head token budget
   fast: false                                  # enable the TileLang CUDA fast path (requires laya[fast])

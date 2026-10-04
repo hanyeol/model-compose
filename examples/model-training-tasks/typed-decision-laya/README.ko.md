@@ -56,4 +56,6 @@ components:
 
 ## Preset
 
-`preset` 필드는 Laya 번들의 어느 서브폴더에서 warm-start 할지 결정합니다 (`english`, `multilingual`, `typed-decisions`). `typed-decisions` 체크포인트는 이미 typed-decision 태스크 패밀리에 파인튜닝되어 있어, 호환되는 데이터에서 가장 빨리 수렴합니다.
+`preset` 필드는 선택이며 Laya 번들의 어느 서브폴더에서 warm-start 할지 결정합니다 (`english`, `multilingual`, `typed-decisions`). `typed-decisions` 체크포인트는 이미 typed-decision 태스크 패밀리에 파인튜닝되어 있어, 호환되는 데이터에서 가장 빨리 수렴합니다.
+
+`model`에 스탠드얼론 체크포인트를 지정할 때는 `preset`을 비워 두세요 — 드라이버가 체크포인트 루트에서 warm-start 합니다. `model`과 `preset`을 모두 생략하면 번들 리포 + `preset: multilingual`로 폴백합니다.

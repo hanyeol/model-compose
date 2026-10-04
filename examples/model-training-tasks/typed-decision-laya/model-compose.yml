@@ -29,8 +29,8 @@ components:
     type: model-trainer
     task: typed-decision
     driver: laya
-    model: convaiinnovations/laya
-    preset: typed-decisions
+    model: convaiinnovations/laya                # warm-start checkpoint (HuggingFace repo or local dir); omit together with `preset` to fall back to the bundle repo + preset: multilingual
+    preset: typed-decisions                      # optional: 'english' | 'multilingual' | 'typed-decisions'; selects the subfolder inside the bundle repo. Leave unset when `model` points at a standalone checkpoint
     # freeze_encoder=true limits training to the per-question heads — faster
     # and lighter on VRAM, which matches the inference-side 'heads-only' mode.
     freeze_encoder: false

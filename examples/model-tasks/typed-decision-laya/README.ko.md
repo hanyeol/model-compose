@@ -125,19 +125,19 @@
 ### Typed Decision 모델 컴포넌트 (기본)
 - **타입**: typed-decision 태스크를 가진 모델 컴포넌트
 - **목적**: 로컬 원샷 타입드 결정과 보정된 후보 확률
-- **모델**: convaiinnovations/laya (번들 리포. 영어, 다국어, typed-decisions 체크포인트를 `preset`으로 선택)
+- **모델**: convaiinnovations/laya (기본 폴백 번들 리포. 영어, 다국어, typed-decisions 체크포인트를 서브폴더로 번들링 — `preset`으로 선택하거나, `model`에 스탠드얼론 체크포인트를 지정)
 - **패밀리**: laya
 - **기능**:
-  - 요청한 preset으로 필터된 자동 체크포인트 다운로드
+  - 선택된 preset만 필터해 자동 체크포인트 다운로드 (`model`에 스탠드얼론 리포를 지정한 경우에는 전체 체크포인트)
   - 자동 디바이스 선택(CUDA → MPS → CPU)과 디바이스가 지원할 때의 autocast
   - `noul`, `choice`, `score` 질문 타입별 후보 확률
   - 단일 요청 내 모든 질문에 대한 공유 상태 인코딩
 
 ### 모델 정보: Laya
 - **개발자**: Convai Innovations
-- **체크포인트** (`preset`으로 선택):
-  - `preset: english` — ModernBERT-large, 421M 파라미터, 512 토큰 컨텍스트, 영어
-  - `preset: multilingual` (기본값) — mmBERT-base, 322M 파라미터, 1024 토큰 컨텍스트(`max_seq_length`으로 최대 8192), 100+ 언어
+- **체크포인트** (번들 리포에서 로드할 때 `preset`으로 선택. `preset`을 비워 두면 폴백 `multilingual` 사용):
+  - `preset: english` — ModernBERT-large, 421M 파라미터, 512 토큰 컨텍스트, 영어 (번들 리포 루트에서 로드)
+  - `preset: multilingual` — mmBERT-base, 322M 파라미터, 1024 토큰 컨텍스트(`max_seq_length`으로 최대 8192), 100+ 언어
   - `preset: typed-decisions` — ModernBERT-large, 421M 파라미터, 1024 토큰 컨텍스트, 4개의 typed-decisions 워크플로우에 파인튜닝
 - **타입**: RLCD로 학습된 디시전 헤드를 가진 비자기회귀 인코더
 - **능력**: `noul`(예/아니오), `choice`(명명 옵션), `score`(순서 레벨)
@@ -228,12 +228,15 @@ component:
   # preset: typed-decisions            # 4개의 typed-decisions 워크플로우에 파인튜닝
 ```
 
-혹은 `model`을 오버라이드해 스탠드얼론 리포지토리를 직접 지정 — preset은 서브폴더 이름으로 계속 사용되므로 번들 구조와 동일한 layout이라면 `preset: multilingual`도 그대로 동작:
+혹은 `model`을 스탠드얼론 체크포인트로 지정 — 체크포인트가 리포 루트에서 로드되도록 `preset`은 비워 두세요:
 
 ```yaml
 component:
   model: convaiinnovations/laya-multilingual
+  # preset: unset
 ```
+
+`model`과 `preset`을 모두 생략하면 번들 리포 + `preset: multilingual` 조합으로 폴백합니다.
 
 ### 컨텍스트 예산 확장
 

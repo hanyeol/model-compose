@@ -1,0 +1,103 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # -------------- Video × prompt score (pairwise) -----------------------------
+  # Default workflow. Scores one video against one caption and returns a
+  # scalar cosine similarity. The typical text-to-video quality gate — judge
+  # whether a generated clip matches its prompt.
+  - id: score-video
+    default: true
+    title: Score Video × Prompt (pairwise)
+    description: Score a single video against a single caption and return cosine similarity.
+    jobs:
+      - id: extract-frames
+        component: frame-sampler
+        input:
+          video: ${input.video as video}
+
+      - id: score
+        component: scorer
+        action: score
+        input:
+          frames: ${jobs.extract-frames.output}
+          text: ${input.text}
+        depends_on: [ extract-frames ]
+
+    output:
+      cosine: ${jobs.score.output.cosine}
+
+  # -------------- Zero-shot video classification ------------------------------
+  # Non-default workflow. Scores one video against a list of candidate
+  # captions and returns per-caption cosines plus softmax probabilities.
+  # Treat the labels as captions and the softmax as the class distribution —
+  # X-CLIP's video-conditioned text embeddings make this a native zero-shot
+  # video classifier, no training needed.
+  - id: classify-video
+    title: Zero-shot video classification
+    description: Rank candidate captions against one video and return per-caption probabilities.
+    jobs:
+      - id: extract-frames
+        component: frame-sampler
+        input:
+          video: ${input.video as video}
+
+      - id: score
+        component: scorer
+        action: rank
+        input:
+          frames: ${jobs.extract-frames.output}
+          text: ${input.text}
+        depends_on: [ extract-frames ]
+
+    output:
+      cosine: ${jobs.score.output.cosine}
+      softmax: ${jobs.score.output.softmax}
+
+components:
+  # ---- X-CLIP video-text scorer ----
+  # One component, two actions sharing the same loaded model:
+  #   - `score`: one video × one caption → pairwise, scalar cosine
+  #   - `rank` : one video × N captions  → texts_to_video, list cosine +
+  #             softmax ranking across the captions
+  # `microsoft/xclip-base-patch32` is the smallest X-CLIP checkpoint (~600MB).
+  # X-CLIP's forward conditions text embeddings on the video, so scores from
+  # this task cannot be reproduced by embedding the two sides separately via
+  # video-embedding + text-embedding.
+  - id: scorer
+    type: model
+    task: video-text-scoring
+    driver: huggingface
+    architecture: xclip
+    model: microsoft/xclip-base-patch32
+    max_concurrent_count: 1
+    actions:
+      - id: score
+        frames: ${input.frames}
+        text: ${input.text}
+        output: ${result}
+
+      - id: rank
+        frames: ${input.frames}
+        text: ${input.text}
+        params:
+          return_softmax: true
+        output: ${result}
+
+  # ---- Frame sampler ----
+  # Pulls a small set of frames out of the source video. X-CLIP's base
+  # checkpoint expects 8 frames; the scorer re-samples internally, so you
+  # can over-sample here and let X-CLIP pick the strides.
+  - id: frame-sampler
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video as video}
+      fps: 2
+      max_frame_count: 32

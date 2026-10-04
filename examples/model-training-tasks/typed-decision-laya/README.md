@@ -67,7 +67,11 @@ per-question heads. The encoder's optimizer learning rate is zeroed (not
 
 ## Preset
 
-The `preset` field selects which Laya bundle subfolder to warm-start from
-(`english`, `multilingual`, or `typed-decisions`). The `typed-decisions`
-checkpoint is already fine-tuned for the typed-decision task family, so it
-converges fastest on compatible data.
+The `preset` field is optional and selects which Laya bundle subfolder to
+warm-start from (`english`, `multilingual`, or `typed-decisions`). The
+`typed-decisions` checkpoint is already fine-tuned for the typed-decision
+task family, so it converges fastest on compatible data.
+
+Leave `preset` unset when `model` points at a standalone checkpoint — the
+driver then warm-starts from the checkpoint root. Omitting both `model` and
+`preset` falls back to the bundle repo + `preset: multilingual`.

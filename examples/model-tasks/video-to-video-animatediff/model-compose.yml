@@ -51,14 +51,14 @@ component:
       # Number of frames to sample from the input video. Leave unset to
       # consume every input frame — FreeNoise (always on for AnimateDiff
       # here) processes long clips through sliding context windows.
-      num_frames: ${input.num_frames as integer}
+      num_frames: ${input.num_frames as integer | 32}
       # Output frame rate. Leave unset to inherit the input video's fps so
       # the output preserves the source playback duration.
       fps: ${input.fps as integer}
       # Output resolution. Leave unset to inherit the input video's dimensions.
       # SD 1.5 is trained around 512×512, so odd aspect ratios may degrade quality.
-      # width: ${input.width as integer | 512}
-      # height: ${input.height as integer | 512}
+      width: ${input.width as integer | 512}
+      height: ${input.height as integer | 512}
       # Number of diffusion inference steps per frame.
       inference_steps: ${input.inference_steps as integer | 25}
       # Classifier-free guidance scale.

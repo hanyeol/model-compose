@@ -125,19 +125,19 @@ Compared to prompting a general chat model to return JSON, Laya is purpose-built
 ### Typed Decision Model Component (Default)
 - **Type**: Model component with typed-decision task
 - **Purpose**: Local one-shot typed decisions with calibrated candidate probabilities
-- **Model**: convaiinnovations/laya (bundle repo; ships English, multilingual, and typed-decisions checkpoints — chosen via `preset`)
+- **Model**: convaiinnovations/laya (default fallback bundle repo; ships English, multilingual, and typed-decisions checkpoints as subfolders — pick one via `preset`, or point `model` at a standalone checkpoint)
 - **Family**: laya
 - **Features**:
-  - Automatic checkpoint download, filtered to just the requested preset
+  - Automatic checkpoint download, filtered to just the selected preset (or the whole checkpoint when `model` points at a standalone repo)
   - Automatic device selection (CUDA → MPS → CPU) with autocast where the device supports it
   - Per-question candidate probabilities for `noul`, `choice`, and `score` question types
   - Shared state encoding across all questions in a single request
 
 ### Model Information: Laya
 - **Developer**: Convai Innovations
-- **Checkpoints** (selected via `preset`):
-  - `preset: english` — ModernBERT-large, 421M params, 512-token context, English
-  - `preset: multilingual` (default) — mmBERT-base, 322M params, 1024-token context (up to 8192 via `max_seq_length`), 100+ languages
+- **Checkpoints** (selected via `preset` when loading from the bundle repo; leave `preset` unset to use the fallback `multilingual`):
+  - `preset: english` — ModernBERT-large, 421M params, 512-token context, English (loaded from the bundle repo root)
+  - `preset: multilingual` — mmBERT-base, 322M params, 1024-token context (up to 8192 via `max_seq_length`), 100+ languages
   - `preset: typed-decisions` — ModernBERT-large, 421M params, 1024-token context, fine-tuned on four typed-decisions workflows
 - **Type**: Non-autoregressive encoder with a decision head trained via RLCD
 - **Capabilities**: `noul` (yes/no), `choice` (named options), `score` (ordinal levels)
@@ -228,12 +228,15 @@ component:
   # preset: typed-decisions            # fine-tuned on the four typed-decisions workflows
 ```
 
-Or override `model` to point at a standalone repository — the preset then names the subfolder for you, so `preset: multilingual` still works with any bundle-style layout:
+Or point `model` at a standalone checkpoint — leave `preset` unset so the checkpoint loads from its own root:
 
 ```yaml
 component:
   model: convaiinnovations/laya-multilingual
+  # preset: unset
 ```
+
+Omit both `model` and `preset` to fall back to the bundle repo with `preset: multilingual`.
 
 ### Extending the Context Budget
 

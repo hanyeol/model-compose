@@ -149,6 +149,7 @@ HUGGINGFACE_TOKEN=your-token-here
 - [image-text-to-text/huggingface](./model-tasks/image-text-to-text/huggingface/) — HuggingFace VLM (Qwen2.5-VL)
 - [image-text-to-text/vllm](./model-tasks/image-text-to-text/vllm/) — 基于 vLLM 的 VLM OCR (olmOCR)
 - [image-text-scoring](./model-tasks/image-text-scoring/) — CLIPScore + 文本排序（CLIP）
+- [video-text-scoring](./model-tasks/video-text-scoring/) — 文本到视频评分 + 零样本视频分类（X-CLIP）
 - [image-generation-qwen-image](./model-tasks/image-generation-qwen-image/) — 使用 Qwen-Image 2.1 生成图像
 - [image-upscaling](./model-tasks/image-upscaling/) — 图像放大
 - [image-background-removal](./model-tasks/image-background-removal/) — 去除图像背景

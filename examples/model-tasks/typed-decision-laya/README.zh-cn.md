@@ -125,19 +125,19 @@
 ### Typed Decision 模型组件（默认）
 - **类型**：带 typed-decision 任务的模型组件
 - **目的**：本地一次性类型化决策与校准的候选概率
-- **模型**：convaiinnovations/laya（捆绑仓库；通过 `preset` 选择英语、多语言或 typed-decisions 检查点）
+- **模型**：convaiinnovations/laya（默认回退捆绑仓库；将英语、多语言和 typed-decisions 检查点作为子文件夹打包 — 通过 `preset` 选择，或将 `model` 指向独立检查点）
 - **家族**：laya
 - **功能**：
-  - 按请求的 preset 过滤的自动检查点下载
+  - 仅过滤所选 preset 的自动检查点下载（若 `model` 指向独立仓库，则下载整个检查点）
   - 自动设备选择（CUDA → MPS → CPU），在设备支持处启用 autocast
   - `noul`、`choice` 和 `score` 问题类型的逐问题候选概率
   - 单个请求内所有问题的共享状态编码
 
 ### 模型信息：Laya
 - **开发者**：Convai Innovations
-- **检查点**（通过 `preset` 选择）：
-  - `preset: english` — ModernBERT-large，421M 参数，512 token 上下文，英语
-  - `preset: multilingual`（默认）— mmBERT-base，322M 参数，1024 token 上下文（通过 `max_seq_length` 最多 8192），100+ 语言
+- **检查点**（从捆绑仓库加载时通过 `preset` 选择；若 `preset` 留空则使用回退 `multilingual`）：
+  - `preset: english` — ModernBERT-large，421M 参数，512 token 上下文，英语（从捆绑仓库根目录加载）
+  - `preset: multilingual` — mmBERT-base，322M 参数，1024 token 上下文（通过 `max_seq_length` 最多 8192），100+ 语言
   - `preset: typed-decisions` — ModernBERT-large，421M 参数，1024 token 上下文，为四个 typed-decisions 工作流微调
 - **类型**：带 RLCD 训练的决策头的非自回归编码器
 - **能力**：`noul`（是/否）、`choice`（命名选项）、`score`（有序级别）
@@ -228,12 +228,15 @@ component:
   # preset: typed-decisions            # 为四个 typed-decisions 工作流微调
 ```
 
-或者通过覆盖 `model` 指向独立仓库 — preset 仍作为子文件夹名使用，所以只要 layout 与捆绑仓库一致，`preset: multilingual` 仍然有效：
+或者将 `model` 指向独立检查点 — 为使检查点从仓库根目录加载，请将 `preset` 留空：
 
 ```yaml
 component:
   model: convaiinnovations/laya-multilingual
+  # preset: unset
 ```
+
+若 `model` 与 `preset` 均省略，则回退到捆绑仓库 + `preset: multilingual` 组合。
 
 ### 扩展上下文预算
 

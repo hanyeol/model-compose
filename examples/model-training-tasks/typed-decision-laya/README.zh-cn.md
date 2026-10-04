@@ -56,4 +56,6 @@ components:
 
 ## Preset
 
-`preset` 字段决定从 Laya bundle 的哪个子目录做 warm-start(`english`、`multilingual`、`typed-decisions`)。`typed-decisions` 检查点已经针对 typed-decision 任务家族做过微调,在兼容数据上收敛最快。
+`preset` 字段为可选,决定从 Laya bundle 的哪个子目录做 warm-start(`english`、`multilingual`、`typed-decisions`)。`typed-decisions` 检查点已经针对 typed-decision 任务家族做过微调,在兼容数据上收敛最快。
+
+若 `model` 指向独立检查点,请将 `preset` 留空 —— 驱动将从检查点根目录做 warm-start。若 `model` 与 `preset` 均省略,则回退到捆绑仓库 + `preset: multilingual`。

@@ -6,15 +6,15 @@ from ..common import CommonTypedDecisionModelComponentConfig
 from .common import TypedDecisionModelFamily
 from ....common import ModelDriverType, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
 
-class LayaPreset(str, Enum):
-    ENGLISH         = "english"
-    MULTILINGUAL    = "multilingual"
-    TYPED_DECISIONS = "typed-decisions"
-
 # Convai Innovations ships all three checkpoints in a single repo, one per
 # subfolder. Used as the fallback when the user provides neither `model` nor
 # `preset`; the driver reads `preset` to pick which subfolder to load.
 _DEFAULT_REPOSITORY = "convaiinnovations/laya"
+
+class LayaPreset(str, Enum):
+    ENGLISH         = "english"
+    MULTILINGUAL    = "multilingual"
+    TYPED_DECISIONS = "typed-decisions"
 
 LayaTypedDecisionModelConfig = Annotated[
     Union[

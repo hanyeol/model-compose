@@ -2,18 +2,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Any, Dict, List, Optional
-import sys, platform
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType, LayaTypedDecisionModelTrainerComponentConfig
+from mindor.dsl.schema.component.impl.model_trainer.tasks.typed_decision.impl.laya import LayaTrainerPreset
 from mindor.dsl.schema.action import TypedDecisionModelTrainerActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from .....context import ComponentActionContext
 from ...base import ModelTrainerTaskDriver, register_model_trainer_task_driver
 from .common import TypedDecisionModelTrainerTaskAction
+import os
 
 if TYPE_CHECKING:
     pass
-
 
 class LayaTypedDecisionModelTrainerTaskAction(TypedDecisionModelTrainerTaskAction):
     config: TypedDecisionModelTrainerActionConfig
@@ -29,12 +29,22 @@ class LayaTypedDecisionModelTrainerTaskAction(TypedDecisionModelTrainerTaskActio
     ) -> Dict[str, Any]:
         from laya_trainer import LayaTrainerConfig, train
 
+        # 'english' is the bundle's root checkpoint (no subfolder); every other
+        # preset is both the folder name inside the bundle and the standalone-
+        # repo suffix, so joining the preset to `model_path` works either way.
+        # When the user supplies their own `model` without a preset, we pass
+        # `model_path` as-is and let the checkpoint stand on its own.
+        if self.trainer_config.preset is not None and self.trainer_config.preset != LayaTrainerPreset.ENGLISH:
+            model_dir = os.path.join(self.model_path, self.trainer_config.preset.value)
+        else:
+            model_dir = self.model_path
+
         # Laya's recipe owns its own LR schedule (cosine) and uses encoder/head
         # LR splits; map the trainer's global learning_rate onto the head LR so
         # the user still has a single DSL-level knob, and keep the encoder LR
         # at its upstream default unless `freeze_encoder=True` zeroes it out.
         config = LayaTrainerConfig(
-            model_dir=self.model_path,
+            model_dir=model_dir,
             output_dir=output_dir,
             state_column=columns["state_column"],
             schema_column=columns["schema_column"],

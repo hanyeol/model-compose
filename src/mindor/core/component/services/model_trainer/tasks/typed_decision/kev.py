@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Any, Dict, List, Optional
-import sys, platform
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType, KevTypedDecisionModelTrainerComponentConfig
 from mindor.dsl.schema.action import TypedDecisionModelTrainerActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
@@ -10,6 +9,7 @@ from mindor.core.foundation.package.installer import install_package_from_github
 from .....context import ComponentActionContext
 from ...base import ModelTrainerTaskDriver, register_model_trainer_task_driver
 from .common import TypedDecisionModelTrainerTaskAction
+import sys, platform
 
 if TYPE_CHECKING:
     pass

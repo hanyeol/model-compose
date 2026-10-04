@@ -1,10 +1,15 @@
-from typing import Callable, Awaitable, Tuple, Dict, List, Any
+from typing import Callable, Awaitable, Optional, Tuple, Dict, List, Any
 from .active_counter import ActiveCounter
 from mindor.core.errors import ShutdownError
 import asyncio
 
 class WorkQueue:
-    def __init__(self, max_concurrent_count: int, handler: Callable[..., Awaitable[Any]]):
+    def __init__(
+        self,
+        max_concurrent_count: int,
+        handler: Callable[..., Awaitable[Any]],
+        on_count_changed: Optional[Callable[[int], None]] = None,
+    ):
         self.queue: asyncio.Queue[Tuple[Tuple[Any, ...], Dict[str, Any], asyncio.Future]] = None
         self.max_concurrent_count: int = max_concurrent_count
         self.handler: Callable[..., Awaitable[Any]] = handler
@@ -12,7 +17,7 @@ class WorkQueue:
         self.stopped: bool = False
         self.draining: bool = False
 
-        self._active_counter: ActiveCounter = ActiveCounter()
+        self._active_counter: ActiveCounter = ActiveCounter(on_change=on_count_changed)
 
     async def _worker(self):
         while not self.stopped:

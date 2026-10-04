@@ -85,10 +85,14 @@ class ComponentService(AsyncService):
         self.driver: Optional[ComponentDriver] = None
 
         self._runtime_manager = None
-        self._active_counter: ActiveCounter = ActiveCounter()
+        self._active_counter: ActiveCounter = ActiveCounter(on_change=self._on_count_changed)
 
         if self.config.max_concurrent_count > 0:
-            self.work_queue = WorkQueue(self.config.max_concurrent_count, self._run)
+            self.work_queue = WorkQueue(
+                self.config.max_concurrent_count,
+                self._run,
+                on_count_changed=self._on_count_changed,
+            )
 
     def get_declared_requirements(self) -> List[str]:
         requirements = super().get_declared_requirements()
@@ -110,8 +114,10 @@ class ComponentService(AsyncService):
         self._runtime_manager = self._create_runtime_manager(self.config.runtime.type)
         if self._runtime_manager is not None:
             await self._runtime_manager.start()
-            logging.info(f"Component '{self.id}' started with {self.config.runtime.type.value} runtime")
             self.started = True
+
+            logging.info(f"Component '{self.id}' started with {self.config.runtime.type.value} runtime")
+
             return
 
         await super().start(background)
@@ -120,9 +126,11 @@ class ComponentService(AsyncService):
     async def stop(self) -> None:
         if self._runtime_manager is not None:
             await self._runtime_manager.stop()
-            logging.info(f"Component '{self.id}' {self.config.runtime.type.value} runtime stopped")
             self._runtime_manager = None
             self.started = False
+
+            logging.info(f"Component '{self.id}' {self.config.runtime.type.value} runtime stopped")
+
             return
 
         await super().stop()
@@ -219,42 +227,32 @@ class ComponentService(AsyncService):
 
         await super()._stop()
 
-    async def _is_ready(self) -> bool:
-        return True
-
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         logging.info(f"Installing required module: {package_spec}")
         await super()._install_package(package_spec, repository)
-
-    @abstractmethod
-    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        pass
 
     def _create_component(self, component_id: str) -> "ComponentService":
         from .component import ComponentResolver, create_component
 
         resolved_id, resolved_config = ComponentResolver(self.global_configs.components).resolve(component_id)
+
         return create_component(resolved_id, resolved_config, self.global_configs, daemon=False)
 
     def _create_runtime_manager(self, runtime_type: RuntimeType):
         if runtime_type == RuntimeType.PROCESS:
             from .runtime.process import ComponentProcessRuntimeManager
-
             return ComponentProcessRuntimeManager(self.id, self.config, self.global_configs)
 
         if runtime_type == RuntimeType.VIRTUALENV:
             from .runtime.virtualenv import ComponentVirtualEnvRuntimeManager
-
             return ComponentVirtualEnvRuntimeManager(self.id, self.config, self.global_configs)
 
         if runtime_type == RuntimeType.DOCKER:
             from .runtime.docker import ComponentDockerRuntimeManager
-
             return ComponentDockerRuntimeManager(self.id, self.config, self.global_configs)
 
         if runtime_type == RuntimeType.APPLE_CONTAINER:
             from .runtime.apple_container import ComponentAppleContainerRuntimeManager
-
             return ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
 
         return None
@@ -285,6 +283,24 @@ class ComponentService(AsyncService):
             )
 
         return _forward
+
+    def _get_action_count(self) -> int:
+        count = self._active_counter.count
+
+        if self.work_queue is not None:
+            count += self.work_queue._active_counter.count
+
+        return count
+
+    def _on_count_changed(self, _: int) -> None:
+        self._on_action_count_changed(self._get_action_count())
+
+    def _on_action_count_changed(self, count: int) -> None:
+        pass
+
+    @abstractmethod
+    async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
+        pass
 
 def register_component(type: ComponentType):
     def decorator(cls: Type[ComponentService]) -> Type[ComponentService]:

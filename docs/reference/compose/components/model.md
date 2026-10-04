@@ -414,7 +414,7 @@ component:
   task: typed-decision
   driver: custom
   family: laya                        # 'laya' | 'kev' | 'nimble' | 'clef'
-  preset: multilingual                # laya-only: 'english' | 'multilingual' (default) | 'typed-decisions'
+  preset: multilingual                # laya-only, optional: 'english' | 'multilingual' | 'typed-decisions'
   action:
     text: ${input.text}
     schema: ${input.schema}
@@ -426,12 +426,12 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `family` | enum | **required** | `laya`, `kev`, `nimble`, or `clef`. Picks the scoring backend. |
-| `model` | string \| object | family default | HuggingFace repo id or local checkpoint directory. Optional for `laya` (defaults to the `convaiinnovations/laya` bundle repo) and `clef` (defaults to `Cloudflare/clef`). Required for `kev` and `nimble`. |
+| `model` | string \| object | family default | HuggingFace repo id or local checkpoint directory. Optional for `laya` (falls back to the `convaiinnovations/laya` bundle repo when neither `model` nor `preset` is given) and `clef` (defaults to `Cloudflare/clef`). Required for `kev` and `nimble`. |
 
 **Family-specific settings:**
 
 `laya`:
-- `preset` (enum, default `multilingual`) — checkpoint to load from the bundle repo: `english` (ModernBERT-large, 512-token context), `multilingual` (mmBERT-base, 100+ languages, up to 1024 tokens, extendable to 8192 via `max_seq_length`), or `typed-decisions` (fine-tuned on the four typed-decisions workflows).
+- `preset` (enum, optional) — selects a subfolder inside the `convaiinnovations/laya` bundle: `english` (ModernBERT-large, 512-token context, loaded from the repo root), `multilingual` (mmBERT-base, 100+ languages, up to 1024 tokens, extendable to 8192 via `max_seq_length`), or `typed-decisions` (fine-tuned on the four typed-decisions workflows). Pair `preset` with the bundle repo (the default `model`) or any bundle-style layout; when you point `model` at a standalone checkpoint, leave `preset` unset. If both `model` and `preset` are omitted, the driver falls back to the bundle repo with `preset: multilingual`.
 - `max_seq_length` (int, optional) — override per-call encoder token budget.
 - `max_head_length` (int, optional) — override per-call per-question head token budget.
 - `fast` (bool, default `false`) — enable the TileLang CUDA fast path (Linux+x86_64 with a supported NVIDIA GPU; the driver installs `tilelang` automatically).

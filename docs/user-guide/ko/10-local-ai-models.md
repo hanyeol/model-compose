@@ -509,7 +509,7 @@ component:
   task: typed-decision
   driver: custom
   family: laya                          # 'laya' | 'kev' | 'nimble' | 'clef'
-  preset: multilingual                  # laya 전용: 'english' | 'multilingual' (기본값) | 'typed-decisions'
+  preset: multilingual                  # laya 전용, 선택: 'english' | 'multilingual' | 'typed-decisions'
   action:
     text: ${input.text}
     schema: ${input.schema}
@@ -526,7 +526,7 @@ component:
 
 **패밀리:**
 
-- `laya` (Convai Innovations, [예제](../../examples/model-tasks/typed-decision-laya)) — ModernBERT/mmBERT 기반의 비자기회귀 스코어러로 RLCD로 학습된 디시전 헤드를 가집니다. `preset`으로 선택되는 세 개의 체크포인트를 제공합니다: `english` (ModernBERT-large, 512 토큰 컨텍스트), `multilingual` (mmBERT-base, 100+ 언어, 최대 1024 토큰 — `max_seq_length`으로 8192까지 확장 가능), `typed-decisions` (4개의 typed-decisions 워크플로우에 파인튜닝). CUDA, MPS (Apple Silicon), CPU에서 실행됩니다. Linux+x86_64에서는 `fast: true`로 TileLang 융합 CUDA 커널을 활성화할 수 있습니다.
+- `laya` (Convai Innovations, [예제](../../examples/model-tasks/typed-decision-laya)) — ModernBERT/mmBERT 기반의 비자기회귀 스코어러로 RLCD로 학습된 디시전 헤드를 가집니다. 업스트림 `convaiinnovations/laya` 리포가 세 체크포인트를 서브폴더로 번들링하며, `preset`이 그중 하나를 선택합니다 — `english` (ModernBERT-large, 512 토큰 컨텍스트, 리포 루트), `multilingual` (mmBERT-base, 100+ 언어, 최대 1024 토큰 — `max_seq_length`으로 8192까지 확장 가능), `typed-decisions` (4개의 typed-decisions 워크플로우에 파인튜닝). `model`에 자체 체크포인트를 지정하는 경우 `preset`은 비워 두세요. 둘 다 생략하면 번들 리포 + `preset: multilingual` 조합으로 폴백합니다. CUDA, MPS (Apple Silicon), CPU에서 실행됩니다. Linux+x86_64에서는 `fast: true`로 TileLang 융합 CUDA 커널을 활성화할 수 있습니다.
 - `kev` (Jared Palmer, [예제](../../examples/model-tasks/typed-decision-kev)) — 고정된 Qwen3.5 베이스 위에 얹은 LoRA 어댑터, 포인터 스코어링 헤드, 메타데이터의 번들입니다 (베이스 모델 ID는 체크포인트의 `head.pt`에서 읽어오므로 수동 오버라이드가 필요 없습니다). 사이즈: 0.8B / 4B / 9B. 백엔드는 Apple Silicon에서 MLX, CUDA/CPU에서 Torch를 자동 선택하며, `max_state_length`와 `max_branch_length`가 공유 상태와 질문별 브랜치를 각각 독립적으로 제한합니다.
 - `nimble` (Bespoke Labs, [예제](../../examples/model-tasks/typed-decision-nimble)) — 첫 실행 시 베이스 모델(기본값 Qwen/Qwen3.5-9B)에 LoRA 어댑터를 병합한 스냅샷을 캐싱합니다. Apple Silicon에서는 MLX, Linux에서는 BF16을 지원하는 NVIDIA GPU가 필요하며, 드라이버가 백엔드를 자동 선택합니다.
 - `clef` (Cloudflare, [예제](../../examples/model-tasks/typed-decision-clef)) — Qwen3.8-27B 위에 구축된 27B 멀티모달 joint-schema 결정 모델입니다. `joint_schema_model` 모듈이 HF 리포 안에 포함되어 있으며, 드라이버가 스냅샷을 `sys.path`에 올리고 `load_release_model`로 로드합니다. 텍스트 상태와 함께 이미지 및 비디오 프레임도 수용합니다. BF16 추론은 ~55 GB VRAM이 필요하며, `device: cuda | mps | cpu`로 디바이스를 고정하거나 `auto`로 두어 device-map 오프로드를 사용할 수 있습니다.

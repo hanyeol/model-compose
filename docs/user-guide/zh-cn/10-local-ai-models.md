@@ -509,7 +509,7 @@ component:
   task: typed-decision
   driver: custom
   family: laya                          # 'laya' | 'kev' | 'nimble' | 'clef'
-  preset: multilingual                  # 仅 laya：'english' | 'multilingual'（默认）| 'typed-decisions'
+  preset: multilingual                  # 仅 laya，可选：'english' | 'multilingual' | 'typed-decisions'
   action:
     text: ${input.text}
     schema: ${input.schema}
@@ -526,7 +526,7 @@ component:
 
 **系列：**
 
-- `laya`（Convai Innovations，[示例](../../examples/model-tasks/typed-decision-laya)）— 基于 ModernBERT/mmBERT 的非自回归评分器，带 RLCD 训练的决策头。捆绑三个检查点，通过 `preset` 选择：`english`（ModernBERT-large，512-token 上下文）、`multilingual`（mmBERT-base，100+ 语言，最多 1024 token —— 通过 `max_seq_length` 可扩展至 8192）以及 `typed-decisions`（在四个 typed-decisions 工作流上微调）。可在 CUDA、MPS（Apple Silicon）或 CPU 上运行。在 Linux+x86_64 上启用 `fast: true` 可使用 TileLang 融合 CUDA 内核。
+- `laya`（Convai Innovations，[示例](../../examples/model-tasks/typed-decision-laya)）— 基于 ModernBERT/mmBERT 的非自回归评分器，带 RLCD 训练的决策头。上游 `convaiinnovations/laya` 仓库将三个检查点作为子文件夹打包，`preset` 用于选择其中之一 —— `english`（ModernBERT-large，512-token 上下文，仓库根目录）、`multilingual`（mmBERT-base，100+ 语言，最多 1024 token —— 通过 `max_seq_length` 可扩展至 8192）或 `typed-decisions`（在四个 typed-decisions 工作流上微调）。若将 `model` 指向独立检查点，请将 `preset` 留空；若两者都省略，则回退到捆绑仓库 + `preset: multilingual` 组合。可在 CUDA、MPS（Apple Silicon）或 CPU 上运行。在 Linux+x86_64 上启用 `fast: true` 可使用 TileLang 融合 CUDA 内核。
 - `kev`（Jared Palmer，[示例](../../examples/model-tasks/typed-decision-kev)）— LoRA 适配器、指针评分头与元数据的捆绑，架设在冻结的 Qwen3.5 基础模型之上（基础模型 ID 从检查点的 `head.pt` 读取，无需手动覆盖）。规格：0.8B / 4B / 9B。后端在 Apple Silicon 上自动选择 MLX，在 CUDA/CPU 上选择 Torch；`max_state_length` 与 `max_branch_length` 分别限制共享状态和每个问题分支的长度。
 - `nimble`（Bespoke Labs，[示例](../../examples/model-tasks/typed-decision-nimble)）— 首次启动时将 LoRA 适配器合并到基础模型（默认 Qwen/Qwen3.5-9B），合并后的快照会被缓存。在 Apple Silicon 上需要 MLX，在 Linux 上需要支持 BF16 的 NVIDIA GPU；驱动会自动选择后端。
 - `clef`（Cloudflare，[示例](../../examples/model-tasks/typed-decision-clef)）— 基于 Qwen3.8-27B 构建的 27B 多模态 joint-schema 决策模型。`joint_schema_model` 模块包含在 HF 仓库内；驱动将快照加入 `sys.path` 并通过 `load_release_model` 加载。可同时接受文本状态与图像、视频帧。BF16 推理需约 55 GB VRAM；可通过 `device: cuda | mps | cpu` 固定设备，或保留 `auto` 让 device-map 自动分流。

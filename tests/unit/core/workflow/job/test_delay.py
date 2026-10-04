@@ -27,6 +27,7 @@ class FakeWorkflow:
     def __init__(self):
         self.task_id = "task-test"
         self.workflow_id = "wf-test"
+        self.input = None
 
 
 class FakeJobContext:

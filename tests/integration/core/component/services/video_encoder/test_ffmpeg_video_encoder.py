@@ -423,9 +423,9 @@ class TestEncodeFromFramesWithTimestamps:
 
     @pytest.mark.anyio
     async def test_duplicate_to_fill_grid(self):
-        # 3 source frames at t=[0, 1, 2] encoded at 10 fps → the first two
-        # frames each repeat 10 times (slots 0..9, 10..19), the last emits
-        # once → 21 output frames.
+        # 3 source frames at t=[0, 1, 2] encoded at 10 fps → each frame fills
+        # a 10-slot interval (slots 0..9, 10..19, 20..29); the final frame
+        # repeats by the prior interval so audio keeps its tail → 30 frames.
         frames = _make_frames(count=3)
         config = _make_config(
             frames="${frames}",
@@ -436,7 +436,7 @@ class TestEncodeFromFramesWithTimestamps:
         result = await FFmpegVideoEncoderAction(config).run(ctx)
         path = await _drain_resource_to_file(result[0])
         try:
-            assert _probe_frame_count(path) == 21
+            assert _probe_frame_count(path) == 30
         finally:
             os.unlink(path)
 
@@ -445,7 +445,8 @@ class TestEncodeFromFramesWithTimestamps:
         # Two frames within one grid slot (<1/fps apart) collapse into one.
         # t=[0.0, 0.02, 0.04, 1.0] at 10 fps rounds to slots [0, 0, 0, 10] →
         # the first and second frames drop (count 0), the third emits 10
-        # times (slots 0..9), the last emits once → 11 output frames.
+        # times (slots 0..9), the last repeats by the prior 10-slot interval
+        # (slots 10..19) → 20 output frames.
         frames = _make_frames(count=4)
         config = _make_config(
             frames="${frames}",
@@ -456,15 +457,15 @@ class TestEncodeFromFramesWithTimestamps:
         result = await FFmpegVideoEncoderAction(config).run(ctx)
         path = await _drain_resource_to_file(result[0])
         try:
-            assert _probe_frame_count(path) == 11
+            assert _probe_frame_count(path) == 20
         finally:
             os.unlink(path)
 
     @pytest.mark.anyio
     async def test_first_timestamp_normalized_to_zero(self):
         # Starting offset should not pad the front: t=[5, 6] at 10 fps
-        # produces exactly 11 frames (10 from the first, 1 from the last),
-        # same as t=[0, 1].
+        # produces 20 frames (10 from the first, the second repeats by the
+        # prior 10-slot interval), same as t=[0, 1].
         frames = _make_frames(count=2)
         config = _make_config(
             frames="${frames}",
@@ -475,7 +476,7 @@ class TestEncodeFromFramesWithTimestamps:
         result = await FFmpegVideoEncoderAction(config).run(ctx)
         path = await _drain_resource_to_file(result[0])
         try:
-            assert _probe_frame_count(path) == 11
+            assert _probe_frame_count(path) == 20
         finally:
             os.unlink(path)
 

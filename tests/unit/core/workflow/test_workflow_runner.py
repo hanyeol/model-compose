@@ -61,7 +61,7 @@ class ScriptedJob(Job):
         self._outputs = list(outputs)
         self._call_index = 0
 
-    async def _run(self, context) -> Any:
+    async def _run(self, context, run_id, default_input, is_terminal) -> Any:
         output = self._outputs[self._call_index]
         self._call_index += 1
         return output

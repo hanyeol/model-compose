@@ -29,34 +29,48 @@ class ModelTaskDriver(ComponentDriver):
         self._model_loaded: bool = False
         self._model_load_lock: asyncio.Lock = asyncio.Lock()
 
+    @property
+    def model_loaded(self) -> bool:
+        return self._model_loaded
+
+    async def load_model(self) -> None:
+        async with self._model_load_lock:
+            if not self._model_loaded:
+                await self._load_model()
+                self._model_loaded = True
+
+    async def unload_model(self) -> None:
+        async with self._model_load_lock:
+            if self._model_loaded:
+                try:
+                    await self._unload_model()
+                    self._model_loaded = False
+                finally:
+                    await self._reclaim_device_memory()
+
     async def run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if not self._model_loaded:
-            async with self._model_load_lock:
-                if not self._model_loaded:
-                    await self._load_model_on_demand()
+            await self._load_model_on_demand()
 
         return await self._run(action, context)
 
-    async def _start(self) -> None:
-        if self.config.preload:
-            await self._load_model()
-            self._model_loaded = True
-        else:
-            logging.info(f"Component '{self.id}': model will be loaded on demand")
-
-        await super()._start()
-
-    async def _stop(self) -> None:
-        await super()._stop()
-
-        if self._model_loaded:
-            await self._unload_model()
-            self._model_loaded = False
-
     async def _load_model_on_demand(self) -> None:
-        logging.info(f"Component '{self.id}': loading model on demand...")
-        await self._load_model()
-        self._model_loaded = True
+        async with self._model_load_lock:
+            if not self._model_loaded:
+                logging.info(f"Component '{self.id}': loading model on demand...")
+                await self._load_model()
+                self._model_loaded = True
+
+    async def _reclaim_device_memory(self) -> None:
+        import gc, torch
+
+        gc.collect()
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
     @abstractmethod
     async def _load_model(self) -> None:

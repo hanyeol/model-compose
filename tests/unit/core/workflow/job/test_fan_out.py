@@ -44,6 +44,7 @@ class FakeWorkflow:
     def __init__(self):
         self.task_id = "task-test"
         self.workflow_id = "wf-test"
+        self.input = None
 
 
 class FakeJobContext:
@@ -130,7 +131,7 @@ class TestCopyableStreamResource:
             "output": [ "left", "right" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         assert set(result.keys()) == { "left", "right" }
         for branch in result.values():
@@ -155,7 +156,7 @@ class TestCopyableStreamResource:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         assert await _drain_stream_resource(result["a"]) == b"abcdef"
         assert await _drain_stream_resource(result["b"]) == b"abcdef"
@@ -180,7 +181,7 @@ class TestNonCopyableStreamResource:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         assert set(result.keys()) == { "a", "b" }
         for branch in result.values():
@@ -215,7 +216,7 @@ class TestSpoolMode:
             "spool": True,
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         assert set(result.keys()) == { "a", "b" }
         for branch in result.values():
@@ -243,7 +244,7 @@ class TestSpoolMode:
             "spool": True,
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         async def _slow_drain(resource):
             buffer = bytearray()
@@ -271,7 +272,7 @@ class TestSpoolMode:
             "spool": True,
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
         spool_path = result["a"]._spooler.path
 
         # Drain and close both branches — the tempfile must be deleted only
@@ -302,7 +303,7 @@ class TestSpoolMode:
             "spool": True,
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
         assert result["a"].copyable() is True
 
         # Copy one branch into two more — all three should drain the same bytes.
@@ -331,7 +332,7 @@ class TestSpoolMode:
             "spool": True,
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         drained_a, drained_b = await asyncio.gather(_drain(result["a"]), _drain(result["b"]))
         assert drained_a == [ 1, 2, 3 ]
@@ -359,7 +360,7 @@ class TestStreamChunkIteratorInput:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         assert isinstance(result["a"], StreamChunkIterator)
         assert isinstance(result["b"], StreamChunkIterator)
@@ -385,7 +386,7 @@ class TestStreamChunkIteratorInput:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         assert result["a"].is_fragmented is False
         assert result["b"].is_fragmented is False
@@ -410,7 +411,7 @@ class TestContainerFanout:
             "output": [ "a", "b", "c" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         drained = await asyncio.gather(*(_drain(result[name]) for name in ("a", "b", "c")))
         for items in drained:
@@ -425,7 +426,7 @@ class TestContainerFanout:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         drained_a, drained_b = await asyncio.gather(_drain(result["a"]), _drain(result["b"]))
         assert drained_a == [ 10, 20, 30 ]
@@ -441,7 +442,7 @@ class TestContainerFanout:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         drained_a, drained_b = await asyncio.gather(_drain(result["a"]), _drain(result["b"]))
         assert drained_a == [ "single-value" ]
@@ -456,7 +457,7 @@ class TestContainerFanout:
             "output": [ "a", "b" ],
         }))
 
-        result = await job._run(context)
+        result = await job.run(context)
 
         drained_a, drained_b = await asyncio.gather(_drain(result["a"]), _drain(result["b"]))
         assert drained_a == []

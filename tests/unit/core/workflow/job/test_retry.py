@@ -54,7 +54,7 @@ class _ScriptedJob(Job):
         self._script = list(script)
         self.attempts = 0
 
-    async def _run(self, context):
+    async def _run(self, context, run_id, default_input, is_terminal):
         self.attempts += 1
         item = self._script.pop(0)
         if isinstance(item, Exception):

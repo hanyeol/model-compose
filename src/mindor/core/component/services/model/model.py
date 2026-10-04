@@ -1,6 +1,7 @@
 from typing import Any
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType
 from mindor.dsl.schema.action import ActionConfig, ModelActionConfig
+from mindor.core.logger import logging
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import ModelTaskDriver, ModelTaskDriverRegistry
@@ -60,10 +61,18 @@ class ModelComponent(ComponentService):
     async def _start(self) -> None:
         await self.driver.start()
 
+        if self.config.preload:
+            await self.driver.load_model()
+        else:
+            logging.info(f"Component '{self.id}': model will be loaded on demand")
+
         await super()._start()
 
     async def _stop(self) -> None:
         await super()._stop()
+
+        if self.driver.model_loaded:
+            await self.driver.unload_model()
 
         await self.driver.stop()
 

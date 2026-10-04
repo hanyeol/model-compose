@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 import pytest
 from starlette.datastructures import UploadFile
 
-from mindor.core.foundation.variable.renderer import VariableRenderer, FieldResolver
+from mindor.core.foundation.variable.renderer import VariableRenderer, FieldResolver, RenderState
 from mindor.core.foundation.streaming.iterators import StreamEncodingFormat
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.iterators import StreamEncodingIterator
@@ -899,9 +899,9 @@ def capture_attrs(renderer):
     captured = []
     original = renderer._convert_value_to_type
 
-    async def wrapper(value, type, is_list, subtype, attrs, format, skip_decode=False):
+    async def wrapper(state, value, type, is_list, subtype, attrs, format):
         captured.append(attrs)
-        return await original(value, type, is_list, subtype, attrs, format, skip_decode)
+        return await original(state, value, type, is_list, subtype, attrs, format)
 
     renderer._convert_value_to_type = wrapper
     return captured
@@ -972,55 +972,55 @@ class TestRenderAttrs:
     @pytest.mark.anyio
     async def test_literal_pairs(self):
         r = VariableRenderer(make_source_resolver({}))
-        result = await r._render_attrs("a=1,b=2", scope=None)
+        result = await r._render_attrs(RenderState(), "a=1,b=2")
         assert result == {"a": "1", "b": "2"}
 
     @pytest.mark.anyio
     async def test_pairs_with_whitespace(self):
         r = VariableRenderer(make_source_resolver({}))
-        result = await r._render_attrs(" a = 1 , b = 2 ", scope=None)
+        result = await r._render_attrs(RenderState(), " a = 1 , b = 2 ")
         # Keys and values are stripped.
         assert result == {"a": "1", "b": "2"}
 
     @pytest.mark.anyio
     async def test_empty_string(self):
         r = VariableRenderer(make_source_resolver({}))
-        result = await r._render_attrs("", scope=None)
+        result = await r._render_attrs(RenderState(), "")
         assert result == {}
 
     @pytest.mark.anyio
     async def test_value_interpolation_preserves_int(self):
         """A ${} value resolving to int should land in the dict as int (Dict[str, Any])."""
         r = VariableRenderer(make_source_resolver({"input": {"sr": 24000}}))
-        result = await r._render_attrs("sample_rate=${input.sr}", scope=None)
+        result = await r._render_attrs(RenderState(), "sample_rate=${input.sr}")
         assert result == {"sample_rate": 24000}
         assert isinstance(result["sample_rate"], int)
 
     @pytest.mark.anyio
     async def test_value_interpolation_preserves_float(self):
         r = VariableRenderer(make_source_resolver({"input": {"v": 1.5}}))
-        result = await r._render_attrs("ratio=${input.v}", scope=None)
+        result = await r._render_attrs(RenderState(), "ratio=${input.v}")
         assert result["ratio"] == 1.5
         assert isinstance(result["ratio"], float)
 
     @pytest.mark.anyio
     async def test_value_interpolation_preserves_bool(self):
         r = VariableRenderer(make_source_resolver({"input": {"flag": True}}))
-        result = await r._render_attrs("enabled=${input.flag}", scope=None)
+        result = await r._render_attrs(RenderState(), "enabled=${input.flag}")
         assert result["enabled"] is True
 
     @pytest.mark.anyio
     async def test_value_interpolation_preserves_none_as_empty(self):
         """None from _render_text (variable resolved to None, no default) is preserved verbatim."""
         r = VariableRenderer(make_source_resolver({"input": {"missing": None}}))
-        result = await r._render_attrs("k=${input.missing}", scope=None)
+        result = await r._render_attrs(RenderState(), "k=${input.missing}")
         # _render_text returns None for full-span single match with None value.
         assert result == {"k": None}
 
     @pytest.mark.anyio
     async def test_mixed_literal_and_interpolated(self):
         r = VariableRenderer(make_source_resolver({"input": {"sr": 16000}}))
-        result = await r._render_attrs("sample_rate=${input.sr},channels=1,bit_depth=16", scope=None)
+        result = await r._render_attrs(RenderState(), "sample_rate=${input.sr},channels=1,bit_depth=16")
         assert result == {"sample_rate": 16000, "channels": "1", "bit_depth": "16"}
         # Interpolated stays int, literals stay str — Dict[str, Any] honored.
         assert isinstance(result["sample_rate"], int)
@@ -1029,13 +1029,13 @@ class TestRenderAttrs:
     @pytest.mark.anyio
     async def test_interpolation_with_indexed_access(self):
         r = VariableRenderer(make_source_resolver({"input": [16000, 1, 22050]}))
-        result = await r._render_attrs("sr=${input[0]},ch=${input[1]}", scope=None)
+        result = await r._render_attrs(RenderState(), "sr=${input[0]},ch=${input[1]}")
         assert result == {"sr": 16000, "ch": 1}
 
     @pytest.mark.anyio
     async def test_interpolation_with_default(self):
         r = VariableRenderer(make_source_resolver({"input": {}}))
-        result = await r._render_attrs("sr=${input.missing | 44100}", scope=None)
+        result = await r._render_attrs(RenderState(), "sr=${input.missing | 44100}")
         # Default is rendered through _render_text, which returns the literal string "44100".
         assert result == {"sr": "44100"}
 
@@ -1044,27 +1044,27 @@ class TestRenderAttrs:
         """A default expression containing a comma inside ${...} must not split the pair."""
         r = VariableRenderer(make_source_resolver({"input": {}}))
         # Comma sits inside the nested ${...}, so depth tracking keeps it together.
-        result = await r._render_attrs("a=${x | hi,there},b=2", scope=None)
+        result = await r._render_attrs(RenderState(), "a=${x | hi,there},b=2")
         assert result == {"a": "hi,there", "b": "2"}
 
     @pytest.mark.anyio
     async def test_value_with_embedded_variable_inside_text(self):
         """Mixed text inside a value: '${var}suffix' should yield interpolated text."""
         r = VariableRenderer(make_source_resolver({"input": {"x": "abc"}}))
-        result = await r._render_attrs("k=prefix-${input.x}-suffix", scope=None)
+        result = await r._render_attrs(RenderState(), "k=prefix-${input.x}-suffix")
         assert result == {"k": "prefix-abc-suffix"}
 
     @pytest.mark.anyio
     async def test_pair_without_equals_is_ignored(self):
         r = VariableRenderer(make_source_resolver({}))
-        result = await r._render_attrs("solokey,a=1", scope=None)
+        result = await r._render_attrs(RenderState(), "solokey,a=1")
         # Pair without '=' is skipped silently.
         assert result == {"a": "1"}
 
     @pytest.mark.anyio
     async def test_trailing_comma_yields_no_extra_key(self):
         r = VariableRenderer(make_source_resolver({}))
-        result = await r._render_attrs("a=1,", scope=None)
+        result = await r._render_attrs(RenderState(), "a=1,")
         # Trailing empty segment has no '=' and is silently dropped.
         assert result == {"a": "1"}
 

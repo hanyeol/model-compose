@@ -33,6 +33,7 @@ class FakeWorkflow:
     def __init__(self):
         self.task_id = "task-test"
         self.workflow_id = "wf-test"
+        self.input: Any = None
         self.run_ids: List[tuple[str, str]] = []
 
     def record_run_id(self, job_id: str, run_id: str) -> None:

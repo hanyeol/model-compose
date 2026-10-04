@@ -28,6 +28,7 @@ class FakeWorkflow:
     def __init__(self):
         self.task_id = "task-test"
         self.workflow_id = "wf-test"
+        self.input: Any = None
         self.run_ids: List[tuple[str, str]] = []
 
     def record_run_id(self, job_id: str, run_id: str) -> None:
@@ -289,3 +290,58 @@ class TestDoOutputFastPath:
         result = await job.run(context)
 
         assert result == [{"wrapped": "a"}, {"wrapped": "b"}]
+
+
+# ------------------------------------------------------------------ #
+# Per-iteration scope isolation under concurrent batch processing    #
+# ------------------------------------------------------------------ #
+
+class TestConcurrentIterationScopeIsolation:
+    """`_run_batch` fans a whole batch out via `asyncio.gather`, so the
+    per-iteration `item` scope must stay bound to each concurrent call for
+    the full span of its inline component — including the `do.output`
+    render pass that reads `${item.*}` *after* the component awaits. If
+    any part of the plumbing stashes "current run_id" or "current item"
+    in a shared slot on `JobContext`, concurrent iterations collapse onto
+    whichever run was pushed last and every row's `do.output` ends up with
+    the same tail-of-batch value.
+    """
+
+    @pytest.mark.anyio
+    async def test_do_output_resolves_each_items_scope_under_concurrency(self, monkeypatch):
+        import asyncio
+
+        # Force the component to await before returning so all 8 iterations
+        # overlap: without a real yield point the issue would be masked by
+        # cooperative scheduling that happens to run items serially.
+        async def _slow_echo(input):
+            await asyncio.sleep(0)
+            return input
+
+        class _AwaitingComponent(FakeComponent):
+            async def run(self, action, run_id, input, workflow, job_id):
+                self.calls.append({ "action": action, "run_id": run_id, "input": input, "job_id": job_id })
+                return await _slow_echo(input)
+
+        context = FakeJobContext()
+        component = _AwaitingComponent()
+        items = [ { "id": index } for index in range(8) ]
+        job = _make_job(
+            _cfg({
+                "input": items,
+                "batch_size": 8,
+                "do": {
+                    "component": "c",
+                    "action": "a",
+                    # `pass_through` must read the *current* iteration's item,
+                    # not some scope that drifted onto the last concurrent run.
+                    "output": { "pass_through": "${item.id}" },
+                },
+            }),
+            component,
+            monkeypatch,
+        )
+
+        result = await job.run(context)
+
+        assert result == [ { "pass_through": index } for index in range(len(items)) ]

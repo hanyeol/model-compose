@@ -9,6 +9,7 @@ import pytest
 
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.shell.drivers.local import LocalShellAction
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.dsl.schema.action import LocalShellActionConfig
 
 
@@ -89,6 +90,68 @@ class TestNonStreamingMode:
         result = await action.run(ctx)
 
         assert result["exit_code"] == 7
+
+
+class TestStdin:
+    @pytest.mark.anyio
+    async def test_stdin_string_is_piped(self):
+        action = _make_action(
+            command=[sys.executable, "-c", "import sys; sys.stdout.write(sys.stdin.read().upper())"],
+            stdin="hello",
+        )
+        ctx = _make_context()
+
+        result = await action.run(ctx)
+
+        assert result["stdout"] == "HELLO"
+        assert result["exit_code"] == 0
+
+    @pytest.mark.anyio
+    async def test_stdin_bytes_are_piped(self):
+        action = _make_action(
+            command=[sys.executable, "-c", "import sys; sys.stdout.buffer.write(sys.stdin.buffer.read())"],
+            stdin=b"raw-bytes",
+        )
+        ctx = _make_context()
+
+        result = await action.run(ctx)
+
+        assert result["stdout"] == "raw-bytes"
+
+    @pytest.mark.anyio
+    async def test_stdin_fragmented_stream_is_piped_without_collecting(self):
+        chunks = [b"part-1\n", b"part-2\n", b"part-3\n"]
+        delivered: list = []
+
+        async def _source():
+            for chunk in chunks:
+                delivered.append(chunk)
+                yield chunk
+
+        action = _make_action(
+            command=[sys.executable, "-c", "import sys; sys.stdout.write(sys.stdin.read())"],
+            stdin=StreamChunkIterator(_source(), is_fragmented=True),
+        )
+        ctx = _make_context()
+
+        result = await action.run(ctx)
+
+        assert result["stdout"] == "part-1\npart-2\npart-3"
+        assert delivered == chunks
+
+    @pytest.mark.anyio
+    async def test_stdin_streaming_mode(self):
+        action = _make_action(
+            command=[sys.executable, "-c", "import sys\nfor line in sys.stdin:\n    sys.stdout.write(line.upper())\n    sys.stdout.flush()"],
+            stdin="a\nb\nc\n",
+            streaming=True,
+        )
+        ctx = _make_context()
+
+        result = await action.run(ctx)
+        items = [item async for item in result]
+
+        assert items == ["A\n", "B\n", "C\n"]
 
 
 class TestStreamingMode:

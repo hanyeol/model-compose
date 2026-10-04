@@ -605,14 +605,16 @@ class ControllerService(AsyncService):
 
     async def _watch_stop_request(self, interval: float = 1.0) -> None:
         stop_file = Path.cwd() / ".stop"
+        stop_file.unlink(missing_ok=True) # Clear any stale file from a previous run
 
         while self.started:
             if stop_file.exists():
+                stop_file.unlink(missing_ok=True)
                 await self.stop()
-                break
-            await asyncio.sleep(interval)
 
-        os.unlink(stop_file)
+                break
+
+            await asyncio.sleep(interval)
 
     async def _setup_systems(self) -> None:
         await asyncio.gather(*[ system.setup() for system in self._create_systems() ])

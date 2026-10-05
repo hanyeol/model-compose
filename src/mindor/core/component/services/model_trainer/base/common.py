@@ -74,8 +74,8 @@ class ModelTrainerTaskAction(ComponentAction):
         eval_dataset  = _load_dataset(eval_dataset)
 
         if isinstance(train_dataset, DatasetDict):
-            eval_dataset = eval_dataset or _select_eval_dataset(train_dataset)
-            train_dataset      = train_dataset["train"] if "train" in train_dataset else next(iter(train_dataset.values()))
+            eval_dataset  = eval_dataset or _select_eval_dataset(train_dataset)
+            train_dataset = train_dataset["train"] if "train" in train_dataset else next(iter(train_dataset.values()))
         # If train_dataset came in as a bare Dataset, eval_dataset stays
         # whatever the user supplied (possibly None). Do not call .get() on a Dataset.
 

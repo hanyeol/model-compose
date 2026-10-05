@@ -11,7 +11,7 @@ from ...base import ComponentActionContext
 
 class MotionClip(AtomicDict):
     # Generator-agnostic skeletal-motion container shared across motion-generation
-    # drivers and (future) motion-converter. Required keys: fps, skeleton,
+    # drivers and (future) motion-converter. Required keys: frame_rate, skeleton,
     # joint_positions [T,J,3], joint_rotations [T,J,...], rotation_format,
     # root_position [T,3]. Driver-specific signals (foot contacts, heading
     # vectors, smoothed root, alternate rotation reps, ...) live under `extras`.
@@ -22,7 +22,7 @@ class MotionClip(AtomicDict):
 
         return (
             f"<MotionClip skeleton={self.get('skeleton')!r} "
-            f"frames={frames} joints={joint_count} fps={self.get('fps')}>"
+            f"frames={frames} joints={joint_count} frame_rate={self.get('frame_rate')}>"
         )
 
 class MotionGenerationTaskAction(ComponentAction):

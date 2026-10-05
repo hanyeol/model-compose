@@ -3,9 +3,9 @@ from .common import CommonVideoFrameExtractorActionConfig
 
 class OpencvVideoFrameExtractorActionConfig(CommonVideoFrameExtractorActionConfig):
     @model_validator(mode="after")
-    def validate_fps_unsupported(self):
-        # `fps` (uniform-grid resampling) needs a filter graph that opencv
+    def validate_frame_rate_unsupported(self):
+        # `frame_rate` (uniform-grid resampling) needs a filter graph that opencv
         # doesn't provide; use the ffmpeg driver for that mode.
-        if self.fps is not None:
-            raise ValueError("'fps' is not supported by the opencv driver; use the ffmpeg driver")
+        if self.frame_rate is not None:
+            raise ValueError("'frame_rate' is not supported by the opencv driver; use the ffmpeg driver")
         return self

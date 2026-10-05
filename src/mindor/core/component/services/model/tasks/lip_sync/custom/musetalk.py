@@ -265,7 +265,7 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
         return VideoStreamResource(
             FileStreamResource(muxed_path, auto_delete=True),
             format="mp4",
-            attrs={ "fps": str(fps) },
+            attrs={ "frame_rate": str(fps) },
         )
 
     @staticmethod

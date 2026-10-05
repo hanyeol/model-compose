@@ -28,7 +28,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         params: Dict[str, Any],
     ) -> AsyncIterator[Tuple[ImageStreamResource, float]]:
         duration       = params["duration"]
-        fps            = params["fps"]
+        frame_rate     = params["frame_rate"]
         width          = params["width"]
         height         = params["height"]
         format         = params["format"]
@@ -62,14 +62,14 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             timeout=ready_timeout * 1000,
         )
 
-        frame_count = int(duration * fps + 0.5)
+        frame_count = int(duration * frame_rate + 0.5)
 
-        logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
+        logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, frame_rate, duration)
 
         use_render_signal = True
 
         for frame in range(frame_count):
-            timestamp = frame / fps
+            timestamp = frame / frame_rate
 
             if use_render_signal:
                 self._clear_render_signals()  # discard any stray rendered() calls from the previous frame

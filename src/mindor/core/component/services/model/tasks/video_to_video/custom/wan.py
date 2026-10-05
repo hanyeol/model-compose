@@ -165,7 +165,7 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
                 seed=params["seed"] if params["seed"] is not None else -1,
                 offload_model=self.cpu_offload,
             )
-            return self._encode_video_tensor_to_mp4(video, params["fps"])
+            return self._encode_video_tensor_to_mp4(video, params["frame_rate"])
 
         try:
             return await self._run_in_executor(_generate)
@@ -245,7 +245,7 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
         buffer = io.BytesIO()
         iio.imwrite(buffer, array, extension=".mp4", fps=fps, codec="libx264")
 
-        return VideoStreamResource(buffer.getvalue(), format="mp4", attrs={ "fps": str(fps) })
+        return VideoStreamResource(buffer.getvalue(), format="mp4", attrs={ "frame_rate": str(fps) })
 
 class WanVideoToVideoTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

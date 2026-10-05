@@ -68,7 +68,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
     ) -> Tuple[str, AsyncIterator[bytes]]:
         source       = params["source"]
         encoding     = params["encoding"]
-        framerate    = params["framerate"]
+        frame_rate   = params["frame_rate"]
         device       = params["device"]
         resolution   = params.get("resolution")
         pixel_format = params.get("pixel_format")
@@ -82,7 +82,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         video_quality = encoding.video.quality if encoding and encoding.video and encoding.video.quality is not None else None
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
-        command.extend(self._build_video_input_args(system, device, framerate, resolution, pixel_format))
+        command.extend(self._build_video_input_args(system, device, frame_rate, resolution, pixel_format))
         command.extend([ "-c:v", video_codec ])
 
         # `-preset` and `-tune` are x264/x265-only flags; hardware encoders
@@ -92,7 +92,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
             command.extend([ "-preset", "veryfast", "-tune", "zerolatency" ])
 
         command.extend([
-            "-g", str(max(1, int(framerate))),
+            "-g", str(max(1, int(frame_rate))),
             "-pix_fmt", "yuv420p",
             "-flush_packets", "1",
         ])
@@ -174,7 +174,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         self,
         system: str,
         device: Optional[Any],
-        framerate: float,
+        frame_rate: float,
         resolution: Optional[Dict[str, int]],
         pixel_format: Optional[str],
     ) -> List[str]:
@@ -185,7 +185,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
             # numeric index (as string) or a device name.
             args: List[str] = [
                 "-f", "avfoundation",
-                "-framerate", str(framerate),
+                "-framerate", str(frame_rate),
             ]
 
             if resolution is not None:
@@ -205,7 +205,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         if system == "Windows":
             args: List[str] = [
                 "-f", "dshow",
-                "-framerate", str(framerate),
+                "-framerate", str(frame_rate),
             ]
 
             if resolution is not None:
@@ -221,7 +221,7 @@ class FFmpegVideoCaptureAction(VideoCaptureAction):
         if system == "Linux":
             args: List[str] = [
                 "-f", "v4l2",
-                "-framerate", str(framerate),
+                "-framerate", str(frame_rate),
             ]
 
             if resolution is not None:

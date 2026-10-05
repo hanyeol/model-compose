@@ -32,7 +32,7 @@ class HtmlFrameRendererSession(ABC):
 
         `html` is owned by the component and reused across sessions — do not
         close it here. `params` carries the shared render options resolved by
-        `HtmlFrameRendererAction` (`fps`, `width`, `height`, `ready_timeout`,
+        `HtmlFrameRendererAction` (`frame_rate`, `width`, `height`, `ready_timeout`,
         `render_timeout`).
 
         Frames are yielded as `ImageStreamResource` carrying the driver's
@@ -102,7 +102,7 @@ class HtmlFrameRendererAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         duration        = await context.render_scalar(self.config.duration, "time")
-        fps             = await context.render_scalar(self.config.fps, float)
+        frame_rate      = await context.render_scalar(self.config.frame_rate, float)
         width           = await context.render_scalar(self.config.width, int)
         height          = await context.render_scalar(self.config.height, int)
         format          = await context.render_scalar(self.config.format, str)
@@ -115,8 +115,8 @@ class HtmlFrameRendererAction(ComponentAction):
         if duration <= 0:
             raise ValueError(f"'duration' must be > 0, got {duration}")
 
-        if fps <= 0:
-            raise ValueError(f"'fps' must be > 0, got {fps}")
+        if frame_rate <= 0:
+            raise ValueError(f"'frame_rate' must be > 0, got {frame_rate}")
 
         if width <= 0 or height <= 0:
             raise ValueError(f"'width' and 'height' must be > 0, got {width}x{height}")
@@ -129,7 +129,7 @@ class HtmlFrameRendererAction(ComponentAction):
 
         return {
             "duration":        duration,
-            "fps":             fps,
+            "frame_rate":      frame_rate,
             "width":           width,
             "height":          height,
             "format":          format,

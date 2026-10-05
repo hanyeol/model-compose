@@ -7,7 +7,7 @@ class VideoEncoderParams:
     bitrate: Optional[int] = None
     quality: Optional[int] = None
     resolution: Optional[str] = None
-    fps: Optional[float] = None
+    frame_rate: Optional[float] = None
     pixel_format: Optional[str] = None
 
 @dataclass

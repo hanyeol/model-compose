@@ -33,10 +33,10 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         # Schema-level check only fires when `keyframe_only` is a concrete
         # bool; template strings ("${...}") slip past it. Repeat here so a
-        # template that resolves to `fps=30, keyframe_only=true` errors
+        # template that resolves to `frame_rate=30, keyframe_only=true` errors
         # instead of silently dropping the keyframe filter.
-        if params["fps"] is not None and keyframe_only:
-            raise ValueError("'fps' and 'keyframe_only' are mutually exclusive; set one or the other")
+        if params["frame_rate"] is not None and keyframe_only:
+            raise ValueError("'frame_rate' and 'keyframe_only' are mutually exclusive; set one or the other")
 
         params.update({
             "keyframe_only": keyframe_only,
@@ -55,7 +55,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             self._extract(
                 video,
                 params["frame_interval"],
-                params["fps"],
+                params["frame_rate"],
                 params["keyframe_only"],
                 params["start_time"],
                 params["end_time"],
@@ -71,7 +71,7 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
         self,
         video: MediaSource,
         frame_interval: int,
-        fps: Optional[float],
+        frame_rate: Optional[float],
         keyframe_only: bool,
         start_time: Optional[float],
         end_time: Optional[float],
@@ -95,8 +95,8 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
             command.extend([ "-f", video.format ])
         if video.attrs.get("resolution"):
             command.extend([ "-s", str(video.attrs["resolution"]) ])
-        if video.attrs.get("fps"):
-            command.extend([ "-r", str(video.attrs["fps"]) ])
+        if video.attrs.get("frame_rate"):
+            command.extend([ "-r", str(video.attrs["frame_rate"]) ])
         if video.attrs.get("pixel_format"):
             command.extend([ "-pix_fmt", str(video.attrs["pixel_format"]) ])
 
@@ -120,12 +120,12 @@ class FFmpegVideoFrameExtractorAction(VideoFrameExtractorAction):
 
         filters: List[str] = []
 
-        if fps is not None:
+        if frame_rate is not None:
             # `fps` resamples the source onto a uniform grid — picking the source
             # frame nearest each grid point, dropping or duplicating as needed —
-            # so output timestamps are `0, 1/fps, 2/fps, …` regardless of the
+            # so output timestamps are `0, 1/frame_rate, 2/frame_rate, …` regardless of the
             # source's original (possibly variable) frame rate.
-            filters.append(f"fps={fps}")
+            filters.append(f"fps={frame_rate}")
 
         if keyframe_only:
             # Chain two `select` filters when combining keyframe_only with a stride:

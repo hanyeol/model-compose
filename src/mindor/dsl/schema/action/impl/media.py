@@ -6,7 +6,7 @@ class VideoEncoderConfig(BaseModel):
     bitrate: Optional[str] = Field(default=None, description="Target video bitrate (e.g., 2M, 5000k). Ignored when `quality` is set.")
     quality: Optional[Union[int, str]] = Field(default=None, description="Quality target to hold while the bitrate floats, sent to the encoder as a constant rate factor (0-51 for x264/x265, lower is better; 18 is near-transparent). This scale runs opposite to the 0-100 quality that image and screenshot actions take. Takes precedence over `bitrate`.")
     resolution: Optional[str] = Field(default=None, description="Output video resolution (e.g., 1920x1080, 1280x720).")
-    fps: Optional[Union[str, int, float]] = Field(default=None, description="Output video frame rate in frames per second.")
+    frame_rate: Optional[Union[int, float, str]] = Field(default=None, description="Output video frame rate in frames per second.")
     pixel_format: Optional[str] = Field(default=None, description="Output pixel format (e.g., yuv420p, yuva420p, yuv444p10le).")
 
 class AudioEncoderConfig(BaseModel):

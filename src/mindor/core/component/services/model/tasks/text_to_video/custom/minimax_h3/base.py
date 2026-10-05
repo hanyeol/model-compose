@@ -65,7 +65,7 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
                     generator=generator,
                 )
 
-                results.append(self._encode_video_audio_to_mp4(output, params["fps"]))
+                results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
 
             return results
 
@@ -123,7 +123,7 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
         finally:
             container.close()
 
-        attrs = { "fps": str(fps) }
+        attrs = { "frame_rate": str(fps) }
 
         if audio_np is not None:
             attrs["audio_sample_rate"] = str(audio_rate)

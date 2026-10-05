@@ -77,7 +77,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         """Spawn ffmpeg for the video track and return (format, chunk_iterator)."""
         video_source = params["video_source"]
         encoding     = params["encoding"]
-        framerate    = params["framerate"]
+        frame_rate   = params["frame_rate"]
         display      = params["display"]
         region       = params.get("region")
         window       = params.get("window")
@@ -113,12 +113,12 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         video_quality = encoding.video.quality if encoding and encoding.video and encoding.video.quality is not None else None
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
-        command.extend(self._build_video_input_args(system, display, framerate, region, window_title))
+        command.extend(self._build_video_input_args(system, display, frame_rate, region, window_title))
         command.extend([
             "-c:v", video_codec,
             "-preset", "veryfast",
             "-tune", "zerolatency",
-            "-g", str(max(1, int(framerate))),
+            "-g", str(max(1, int(frame_rate))),
             "-pix_fmt", "yuv420p",
             "-flush_packets", "1",
         ])
@@ -271,7 +271,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         self,
         system: str,
         display: int,
-        framerate: float,
+        frame_rate: float,
         region: Optional[Dict[str, int]] = None,
         window_title: Optional[str] = None,
     ) -> List[str]:
@@ -282,7 +282,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
             # -vf crop filter downstream (see _start_video_capture).
             return [
                 "-f", "avfoundation",
-                "-framerate", str(framerate),
+                "-framerate", str(frame_rate),
                 "-capture_cursor", "1",
                 "-i", f"{display}:none",
             ]
@@ -290,7 +290,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         if system == "Windows":
             args: List[str] = [
                 "-f", "gdigrab",
-                "-framerate", str(framerate),
+                "-framerate", str(frame_rate),
             ]
 
             if window_title is not None:
@@ -315,7 +315,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
             display_env = os.environ.get("DISPLAY", ":0.0")
             args: List[str] = [
                 "-f", "x11grab",
-                "-framerate", str(framerate),
+                "-framerate", str(frame_rate),
             ]
 
             if region is not None:

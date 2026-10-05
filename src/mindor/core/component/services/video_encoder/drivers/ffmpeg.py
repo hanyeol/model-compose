@@ -88,8 +88,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if video.attrs.get("resolution"):
             command.extend([ "-s", str(video.attrs["resolution"]) ])
 
-        if video.attrs.get("fps"):
-            command.extend([ "-r", str(video.attrs["fps"]) ])
+        if video.attrs.get("frame_rate"):
+            command.extend([ "-r", str(video.attrs["frame_rate"]) ])
 
         # VP8/VP9 side-data alpha is silently dropped by the native decoder;
         # force libvpx*/libvpx-vp9 when the source carries it so the alpha
@@ -529,8 +529,8 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         if video and video.resolution:
             options["-s"] = video.resolution
 
-        if video and video.fps is not None:
-            options["-r"] = str(video.fps)
+        if video and video.frame_rate is not None:
+            options["-r"] = str(video.frame_rate)
 
         pixel_format = self._resolve_pixel_format(encoding, video_codec, force_yuv=source_height is not None)
         filters: List[str] = []

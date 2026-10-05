@@ -50,12 +50,12 @@ class TalkingHeadTaskAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        fps  = await context.render_variable(self.config.params.fps)
-        seed = await context.render_variable(self.config.seed)
+        frame_rate = await context.render_scalar(self.config.params.frame_rate, float)
+        seed       = await context.render_variable(self.config.seed)
 
         return {
-            "fps":  fps,
-            "seed": seed,
+            "frame_rate": frame_rate,
+            "seed":       seed,
         }
 
     @abstractmethod

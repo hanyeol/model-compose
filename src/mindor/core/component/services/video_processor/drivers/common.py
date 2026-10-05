@@ -157,12 +157,12 @@ class VideoProcessorAction(ComponentAction):
             return { "encoding": encoding }
 
         if method == VideoProcessorActionMethod.RESAMPLE:
-            fps = await context.render_scalar(self.config.fps, float)
+            frame_rate = await context.render_scalar(self.config.frame_rate, float)
 
-            if fps is None or fps <= 0:
-                raise ValueError("'fps' must be a positive number for 'resample' method")
+            if frame_rate is None or frame_rate <= 0:
+                raise ValueError("'frame_rate' must be a positive number for 'resample' method")
 
-            return { "encoding": encoding, "fps": fps }
+            return { "encoding": encoding, "frame_rate": frame_rate }
 
         if method == VideoProcessorActionMethod.ADJUST_COLOR:
             brightness = await context.render_scalar(self.config.brightness, float)
@@ -328,7 +328,7 @@ class VideoProcessorAction(ComponentAction):
         if method == VideoProcessorActionMethod.RESAMPLE:
             return await self._resample(
                 video,
-                params["fps"],
+                params["frame_rate"],
                 params["encoding"],
                 cancellation_token,
             )
@@ -505,7 +505,7 @@ class VideoProcessorAction(ComponentAction):
     async def _resample(
         self,
         video: MediaSource,
-        fps: float,
+        frame_rate: float,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

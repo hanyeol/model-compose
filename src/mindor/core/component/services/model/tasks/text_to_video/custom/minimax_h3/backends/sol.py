@@ -318,7 +318,7 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
                     callback_on_step_end=_on_step_end,
                 )
 
-                results.append(self._encode_video_audio_to_mp4(output, params["fps"]))
+                results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
 
             return results
 

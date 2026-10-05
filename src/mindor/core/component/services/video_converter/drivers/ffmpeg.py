@@ -53,8 +53,8 @@ class FFmpegVideoConverterAction(VideoConverterAction):
             command.extend([ "-f", source.format ])
         if source.attrs.get("resolution"):
             command.extend([ "-s", str(source.attrs["resolution"]) ])
-        if source.attrs.get("fps"):
-            command.extend([ "-r", str(source.attrs["fps"]) ])
+        if source.attrs.get("frame_rate"):
+            command.extend([ "-r", str(source.attrs["frame_rate"]) ])
         if source.attrs.get("pixel_format"):
             command.extend([ "-pix_fmt", str(source.attrs["pixel_format"]) ])
 
@@ -80,8 +80,8 @@ class FFmpegVideoConverterAction(VideoConverterAction):
                 command.extend([ "-b:a", str(audio.bitrate) ])
             if video and video.resolution:
                 command.extend([ "-s", video.resolution ])
-            if video and video.fps is not None:
-                command.extend([ "-r", str(video.fps) ])
+            if video and video.frame_rate is not None:
+                command.extend([ "-r", str(video.frame_rate) ])
 
         def _cleanup() -> None:
             if spooled:
@@ -240,8 +240,8 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         # with the palette pass, instead of being applied by ffmpeg's global -r/-s.
         steps: List[str] = []
 
-        if video and video.fps is not None:
-            steps.append(f"fps={video.fps}")
+        if video and video.frame_rate is not None:
+            steps.append(f"fps={video.frame_rate}")
 
         if video and video.resolution:
             width, _, height = video.resolution.partition("x")

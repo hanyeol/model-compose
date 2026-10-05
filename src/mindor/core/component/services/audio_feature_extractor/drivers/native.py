@@ -70,11 +70,11 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         import numpy as np
 
         sample_rate = params["sample_rate"]
-        fps         = params["fps"]
+        frame_rate  = params["frame_rate"]
         band_count  = params["band_count"]
         window_size = params["window_size"]
 
-        hop = max(1, sample_rate // fps)
+        hop = max(1, sample_rate // frame_rate)
         frame_count = max(0, (len(samples) - window_size) // hop)
 
         frequencies = np.fft.rfftfreq(window_size, 1.0 / sample_rate)
@@ -107,10 +107,10 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
 
         return AudioSpectrum({
             "frames": frames.tolist(),
-            "fps": fps,
+            "frame_rate": frame_rate,
             "band_count": band_count,
             "frame_count": frame_count,
-            "duration": frame_count / fps if fps else 0.0,
+            "duration": frame_count / frame_rate if frame_rate else 0.0,
             "sample_rate": sample_rate,
             "window_size": window_size,
         })
@@ -119,13 +119,13 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         import numpy as np
 
         sample_rate  = params["sample_rate"]
-        fps          = params["fps"]
+        frame_rate   = params["frame_rate"]
         point_count  = params["point_count"]
         summary_mode = params["summary_mode"]
         rectify      = params["rectify"]
 
         win = max(point_count, int(sample_rate * params["window_duration"]))
-        hop = max(1, sample_rate // fps)
+        hop = max(1, sample_rate // frame_rate)
         bucket = win // point_count
         usable = point_count * bucket
 
@@ -148,10 +148,10 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
 
         return AudioWaveform({
             "frames": frames.tolist(),
-            "fps": fps,
+            "frame_rate": frame_rate,
             "point_count": point_count,
             "frame_count": frame_count,
-            "duration": frame_count / fps if fps else 0.0,
+            "duration": frame_count / frame_rate if frame_rate else 0.0,
             "sample_rate": sample_rate,
         })
 

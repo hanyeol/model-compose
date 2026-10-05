@@ -6,7 +6,7 @@ class HtmlFrameRendererActionConfig(CommonActionConfig):
     html: Union[List[str], str] = Field(..., description="HTML source to render: an http(s) URL, file path, directory with index.html, or inline HTML.")
     duration: str = Field(..., description="Animation length (e.g. '5s', '1m30s'). Exposed to the page as window.__renderer.duration.")
     props: Optional[Union[Dict[str, Any], List[Any], str]] = Field(default=None, description="Data injected into window.__renderer.props before the page loads.")
-    fps: Union[int, float, str] = Field(default=30, description="Output frame rate in frames per second.")
+    frame_rate: Union[int, float, str] = Field(default=30, description="Output frame rate in frames per second.")
     width: Union[int, str] = Field(default=1920, description="Rendering viewport width in CSS pixels.")
     height: Union[int, str] = Field(default=1080, description="Rendering viewport height in CSS pixels.")
     format: Union[Literal[ "jpeg", "png" ], str] = Field(default="jpeg", description="Image format of the captured frames.")

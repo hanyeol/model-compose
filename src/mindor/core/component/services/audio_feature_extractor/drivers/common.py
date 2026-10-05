@@ -64,7 +64,7 @@ class AudioFeatureExtractorAction(ComponentAction):
 
     async def _resolve_params(self, feature: AudioFeature, context: ComponentActionContext) -> Dict[str, Any]:
         sample_rate = await context.render_scalar(self.config.sample_rate, int)
-        fps         = await context.render_scalar(self.config.fps, int)
+        frame_rate  = await context.render_scalar(self.config.frame_rate, float)
 
         if feature == AudioFeature.SPECTRUM:
             band_count      = await context.render_scalar(self.config.band_count, int)
@@ -78,7 +78,7 @@ class AudioFeatureExtractorAction(ComponentAction):
 
             return {
                 "sample_rate":     sample_rate,
-                "fps":             fps,
+                "frame_rate":      frame_rate,
                 "band_count":      band_count,
                 "min_frequency":   min_frequency,
                 "max_frequency":   max_frequency if max_frequency is not None else sample_rate / 2,
@@ -97,7 +97,7 @@ class AudioFeatureExtractorAction(ComponentAction):
 
             return {
                 "sample_rate":     sample_rate,
-                "fps":             fps,
+                "frame_rate":      frame_rate,
                 "point_count":     point_count,
                 "window_duration": window_duration,
                 "summary_mode":    summary_mode,

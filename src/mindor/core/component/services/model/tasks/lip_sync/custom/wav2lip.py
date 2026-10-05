@@ -87,7 +87,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         try:
             source_fps = None
 
-            if params["fps"] is None and video_paths and video_paths[0][0]:
+            if params["frame_rate"] is None and video_paths and video_paths[0][0]:
                 (frame_rate,) = await probe_video(video_paths[0][0], ("frame_rate",))
                 source_fps = float(frame_rate) if frame_rate else None
 
@@ -95,7 +95,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
                 results: List[VideoStreamResource] = []
 
                 for (video_path, _), (audio_path, _) in zip(video_paths, audio_paths):
-                    fps = float(params["fps"]) if params["fps"] is not None else (source_fps or 25.0)
+                    fps = float(params["frame_rate"]) if params["frame_rate"] is not None else (source_fps or 25.0)
                     results.append(self._render(video_path, audio_path, params, fps))
 
                 return results
@@ -213,7 +213,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         return VideoStreamResource(
             FileStreamResource(muxed_path, auto_delete=True),
             format="mp4",
-            attrs={ "fps": str(fps) },
+            attrs={ "frame_rate": str(fps) },
         )
 
     def _detect_face_crops(self, frames: List[Any], params: Dict[str, Any]) -> List[Tuple[Any, Tuple[int, int, int, int]]]:

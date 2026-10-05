@@ -64,7 +64,7 @@ class VideoFrameExtractorAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_interval  = await context.render_scalar(self.config.frame_interval, int)
-        fps             = await context.render_scalar(self.config.fps, float)
+        frame_rate      = await context.render_scalar(self.config.frame_rate, float)
         start_time      = await context.render_scalar(self.config.start_time, "time")
         end_time        = await context.render_scalar(self.config.end_time, "time")
         max_frame_count = await context.render_scalar(self.config.max_frame_count, int)
@@ -73,22 +73,22 @@ class VideoFrameExtractorAction(ComponentAction):
         if frame_interval < 1:
             raise ValueError(f"'frame_interval' must be >= 1, got {frame_interval}")
 
-        if fps is not None and fps <= 0:
-            raise ValueError(f"'fps' must be > 0, got {fps}")
+        if frame_rate is not None and frame_rate <= 0:
+            raise ValueError(f"'frame_rate' must be > 0, got {frame_rate}")
 
         # Schema-level check only fires when both values are concrete literals;
         # template strings ("${...}") slip past it. Repeat here now that both
-        # are rendered so a template that resolves to `fps=30, frame_interval=2`
+        # are rendered so a template that resolves to `frame_rate=30, frame_interval=2`
         # errors instead of silently dropping the stride.
-        if fps is not None and frame_interval != 1:
-            raise ValueError("'fps' and 'frame_interval' are mutually exclusive; set one or the other")
+        if frame_rate is not None and frame_interval != 1:
+            raise ValueError("'frame_rate' and 'frame_interval' are mutually exclusive; set one or the other")
 
         if max_frame_count is not None and max_frame_count < 1:
             raise ValueError(f"'max_frame_count' must be >= 1, got {max_frame_count}")
 
         return {
             "frame_interval":  frame_interval,
-            "fps":             fps,
+            "frame_rate":      frame_rate,
             "start_time":      start_time,
             "end_time":        end_time,
             "max_frame_count": max_frame_count,

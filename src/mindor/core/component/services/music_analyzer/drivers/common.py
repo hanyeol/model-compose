@@ -34,7 +34,7 @@ class MusicTempogram(AtomicDict):
 
         return (
             f"<MusicTempogram frames={len(frames)}x{rows} "
-            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
         )
 
 class MusicActivity(AtomicDict):
@@ -48,7 +48,7 @@ class MusicChroma(AtomicDict):
 
         return (
             f"<MusicChroma frames={len(frames)}x{rows} "
-            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
         )
 
 class MusicTonnetz(AtomicDict):
@@ -58,7 +58,7 @@ class MusicTonnetz(AtomicDict):
 
         return (
             f"<MusicTonnetz frames={len(frames)}x{rows} "
-            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
         )
 
 class MusicBrightness(AtomicDict):
@@ -66,7 +66,7 @@ class MusicBrightness(AtomicDict):
         return (
             f"<MusicBrightness mean_hz={self.get('brightness_hz')} "
             f"frames={len(self.get('frames', []))} "
-            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
         )
 
 class MusicFlatness(AtomicDict):
@@ -74,7 +74,7 @@ class MusicFlatness(AtomicDict):
         return (
             f"<MusicFlatness mean={self.get('flatness')} "
             f"frames={len(self.get('frames', []))} "
-            f"fps={self.get('fps')} sample_rate={self.get('sample_rate')}>"
+            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
         )
 
 class MusicAnalyzerAction(ComponentAction):

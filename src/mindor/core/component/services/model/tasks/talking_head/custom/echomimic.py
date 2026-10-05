@@ -115,7 +115,7 @@ class EchoMimicTalkingHeadTaskAction(TalkingHeadTaskAction):
 
         width       = int(params["width"])
         height      = int(params["height"])
-        fps         = int(params["fps"] or 25)
+        fps         = int(params["frame_rate"] or 25)
         sample_rate = int(params["sample_rate"])
 
         # Preset-specific extras: v2 needs a pose sequence tensor and forwards
@@ -166,7 +166,7 @@ class EchoMimicTalkingHeadTaskAction(TalkingHeadTaskAction):
         return VideoStreamResource(
             FileStreamResource(video_path, auto_delete=True),
             format="mp4",
-            attrs={ "fps": str(fps) },
+            attrs={ "frame_rate": str(fps) },
         )
 
     def _build_face_mask(self, image: PILImage.Image, width: int, height: int) -> Any:

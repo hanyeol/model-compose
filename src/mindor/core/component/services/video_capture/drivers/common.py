@@ -25,7 +25,7 @@ class VideoCaptureAction(ComponentAction):
         source       = await context.render_variable(self.config.source)
         device       = await context.render_variable(self.config.device) if self.config.device is not None else None
         resolution   = await self._resolve_resolution(context) if self.config.resolution is not None else None
-        framerate    = await context.render_scalar(self.config.framerate, float)
+        frame_rate   = await context.render_scalar(self.config.frame_rate, float)
         pixel_format = await context.render_variable(self.config.pixel_format) if self.config.pixel_format is not None else None
         encoding     = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else None
         duration     = await context.render_scalar(self.config.duration, "time", None)
@@ -35,8 +35,8 @@ class VideoCaptureAction(ComponentAction):
         except ValueError:
             raise ValueError(f"Invalid source: {source}")
 
-        if framerate <= 0:
-            raise ValueError(f"'framerate' must be > 0, got {framerate}")
+        if frame_rate <= 0:
+            raise ValueError(f"'frame_rate' must be > 0, got {frame_rate}")
 
         if duration is not None and duration <= 0:
             raise ValueError(f"'duration' must be > 0, got {duration}")
@@ -45,7 +45,7 @@ class VideoCaptureAction(ComponentAction):
             "source":       source,
             "device":       device,
             "resolution":   resolution,
-            "framerate":    framerate,
+            "frame_rate":   frame_rate,
             "pixel_format": pixel_format,
             "encoding":     encoding,
             "duration":     duration,

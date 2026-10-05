@@ -10,6 +10,6 @@ class AudioFeature(str, Enum):
 class CommonAudioFeatureExtractorActionConfig(CommonActionConfig):
     feature: AudioFeature = Field(..., description="Kind of feature extracted from the audio.")
     audio: Union[str, List[str]] = Field(..., description="Audio source or list of sources to analyze.")
-    fps: Union[int, str] = Field(default=30, description="Output feature frame rate in frames per second.")
     sample_rate: Union[int, str] = Field(default=22050, description="Sample rate in Hz used for internal mono PCM decoding.")
+    frame_rate: Union[int, float, str] = Field(default=30, description="Output feature frame rate in frames per second; floats and NTSC rationals like 29.97 are accepted.")
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input audios processed per batch.")

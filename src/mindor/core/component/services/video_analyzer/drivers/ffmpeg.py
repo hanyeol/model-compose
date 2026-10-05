@@ -82,9 +82,9 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         # signalstats.YAVG is the mean luma per frame (0-255 for 8-bit).
         # metadata=print pushes it to stderr; fps=... limits how many frames
         # we sample so long videos don't burn CPU.
-        sample_rate = params["sample_rate"]
+        frame_rate = params["frame_rate"]
         video_filter = (
-            f"fps={sample_rate},signalstats,"
+            f"fps={frame_rate},signalstats,"
             "metadata=print:key=lavfi.signalstats.YAVG:direct=1"
         )
         stderr_text = await self._run_ffmpeg_filter(source, video_filter, cancellation_token)
@@ -96,7 +96,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         duration = ffmpeg_values.read_duration(stderr_text, "Duration")
 
         result: Dict[str, Any] = {
-            "sample_rate":     sample_rate,
+            "frame_rate":      frame_rate,
             "sample_count":    len(values),
             "duration":        duration,
             "mean_brightness": stats["mean"],
@@ -120,9 +120,9 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         # from the previous frame. It's a coarse but cheap motion proxy that
         # doesn't need actual motion vectors. `t=0` disables the built-in
         # threshold gate so we get every frame's score.
-        sample_rate = params["sample_rate"]
+        frame_rate = params["frame_rate"]
         video_filter = (
-            f"fps={sample_rate},scdet=t=0,"
+            f"fps={frame_rate},scdet=t=0,"
             "metadata=print:key=lavfi.scd.score:direct=1"
         )
         stderr_text = await self._run_ffmpeg_filter(source, video_filter, cancellation_token)
@@ -134,7 +134,7 @@ class FFmpegVideoAnalyzerAction(VideoAnalyzerAction):
         duration = ffmpeg_values.read_duration(stderr_text, "Duration")
 
         result: Dict[str, Any] = {
-            "sample_rate":  sample_rate,
+            "frame_rate":   frame_rate,
             "sample_count": len(values),
             "duration":     duration,
             "mean_motion":  stats["mean"],

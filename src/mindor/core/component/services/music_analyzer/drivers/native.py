@@ -152,12 +152,12 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             keep = keep[np.argsort(bpms[keep])]
 
             frames = tg[keep, :].T.astype(np.float32)  # (n_frames, n_bpm_bins)
-            fps = sample_rate / hop_length
+            frame_rate = sample_rate / hop_length
 
             return MusicTempogram({
                 "frames":      [ [ round(float(v), _OUTPUT_DECIMALS) for v in row ] for row in frames ],
                 "bpm_axis":    [ round(float(b), _OUTPUT_DECIMALS) for b in bpms[keep] ],
-                "fps":         round(float(fps), _OUTPUT_DECIMALS),
+                "frame_rate":  round(float(frame_rate), _OUTPUT_DECIMALS),
                 "sample_rate": int(sample_rate),
             })
 
@@ -305,7 +305,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             # thread a chroma matrix through separately.
             tonnetz = librosa.feature.tonnetz(y=samples, sr=sample_rate)
             # librosa.feature.tonnetz uses its own default hop; recompute from
-            # its output shape so downstream fps is not a lie.
+            # its output shape so downstream frame_rate is not a lie.
             hop_length = max(1, len(samples) // max(1, tonnetz.shape[1]))
             series = self._build_time_series(
                 tonnetz,
@@ -333,12 +333,12 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             centroid = librosa.feature.spectral_centroid(
                 y=samples, sr=sample_rate, hop_length=_DEFAULT_HOP_LENGTH,
             )[0]
-            fps = sample_rate / _DEFAULT_HOP_LENGTH
+            frame_rate = sample_rate / _DEFAULT_HOP_LENGTH
 
             return MusicBrightness({
                 "brightness_hz": round(float(centroid.mean()), _OUTPUT_DECIMALS),
                 "frames":        [ round(float(frame), _OUTPUT_DECIMALS) for frame in centroid ],
-                "fps":           round(float(fps), _OUTPUT_DECIMALS),
+                "frame_rate":    round(float(frame_rate), _OUTPUT_DECIMALS),
                 "sample_rate":   int(sample_rate),
             })
 
@@ -356,12 +356,12 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             import librosa
 
             flatness = librosa.feature.spectral_flatness(y=samples, hop_length=_DEFAULT_HOP_LENGTH)[0]
-            fps = sample_rate / _DEFAULT_HOP_LENGTH
+            frame_rate = sample_rate / _DEFAULT_HOP_LENGTH
 
             return MusicFlatness({
                 "flatness":    round(float(flatness.mean()), _OUTPUT_DECIMALS),
                 "frames":      [ round(float(frame), _OUTPUT_DECIMALS) for frame in flatness ],
-                "fps":         round(float(fps), _OUTPUT_DECIMALS),
+                "frame_rate":  round(float(frame_rate), _OUTPUT_DECIMALS),
                 "sample_rate": int(sample_rate),
             })
 
@@ -483,7 +483,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
 
         frames = np.asarray(spectrum["frames"], dtype=np.float32).T  # (bands, frames)
         sample_rate = int(spectrum["sample_rate"])
-        hop_length = max(1, sample_rate // int(spectrum["fps"]))
+        hop_length = max(1, sample_rate // int(spectrum["frame_rate"]))
 
         if frames.size == 0:
             return np.zeros(0, dtype=np.float32), sample_rate, hop_length
@@ -513,7 +513,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
 
         frames = np.asarray(spectrum["frames"], dtype=np.float32)  # (n_frames, n_bands)
         sample_rate = int(spectrum["sample_rate"])
-        hop_length = max(1, sample_rate // int(spectrum["fps"]))
+        hop_length = max(1, sample_rate // int(spectrum["frame_rate"]))
 
         if frames.size == 0:
             return np.zeros(0, dtype=np.float32), sample_rate, hop_length
@@ -564,7 +564,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
         expected_rows: int,
     ) -> Dict[str, Any]:
         """Serialize a (rows, n_frames) librosa feature matrix to the shape
-        this component publishes: (n_frames, rows), fps, sample_rate.
+        this component publishes: (n_frames, rows), frame_rate, sample_rate.
 
         `expected_rows` is checked defensively so a librosa version change that
         alters chroma/tonnetz row counts surfaces here instead of silently
@@ -579,11 +579,11 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             )
 
         frames = matrix.T.astype(np.float32)
-        fps = sample_rate / hop_length
+        frame_rate = sample_rate / hop_length
 
         return {
             "frames":      [ [ round(float(v), _OUTPUT_DECIMALS) for v in row ] for row in frames ],
-            "fps":         round(float(fps), _OUTPUT_DECIMALS),
+            "frame_rate":  round(float(frame_rate), _OUTPUT_DECIMALS),
             "sample_rate": int(sample_rate),
         }
 

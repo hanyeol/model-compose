@@ -126,7 +126,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
                 frames: List[PILImage.Image] = result.frames[0]
                 width, height = frames[0].size # AnimateDiff guarantees uniform frame size
-                fps = params["fps"] if params["fps"] is not None else (int(round(fps)) if fps else 8)
+                fps = params["frame_rate"] if params["frame_rate"] is not None else (int(round(fps)) if fps else 8)
                 results.append(encode_frames_to_mp4(frames, width, height, fps))
 
             return results

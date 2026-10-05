@@ -107,7 +107,7 @@ class SonicTalkingHeadTaskAction(TalkingHeadTaskAction):
         return VideoStreamResource(
             FileStreamResource(video_path, auto_delete=True),
             format="mp4",
-            attrs={ "fps": str(params["fps"] or 25) },
+            attrs={ "frame_rate": str(params["frame_rate"] or 25) },
         )
 
     @staticmethod

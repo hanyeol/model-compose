@@ -51,14 +51,14 @@ class ImageToVideoTaskAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_frames = await context.render_variable(self.config.params.num_frames)
-        fps        = await context.render_variable(self.config.params.fps)
+        frame_rate = await context.render_scalar(self.config.params.frame_rate, float)
         height     = await context.render_variable(self.config.params.height)
         width      = await context.render_variable(self.config.params.width)
         seed       = await context.render_variable(self.config.seed)
 
         return {
             "num_frames": num_frames,
-            "fps":        fps,
+            "frame_rate": frame_rate,
             "height":     height,
             "width":      width,
             "seed":       seed,

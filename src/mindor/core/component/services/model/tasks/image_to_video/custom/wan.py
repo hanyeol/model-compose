@@ -56,7 +56,7 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
         def _generate() -> List[VideoStreamResource]:
             captions = prompts if prompts is not None else [ None ] * len(images)
             negatives = negative_prompts if negative_prompts is not None else [ None ] * len(images)
-            fps = int(params["fps"])
+            fps = int(params["frame_rate"])
             results: List[VideoStreamResource] = []
 
             for image, caption, negative in zip(images, captions, negatives):
@@ -108,7 +108,7 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
         buffer = io.BytesIO()
         iio.imwrite(buffer, array, extension=".mp4", fps=fps, codec="libx264")
 
-        return VideoStreamResource(buffer.getvalue(), format="mp4", attrs={ "fps": str(fps) })
+        return VideoStreamResource(buffer.getvalue(), format="mp4", attrs={ "frame_rate": str(fps) })
 
 class WanImageToVideoTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):

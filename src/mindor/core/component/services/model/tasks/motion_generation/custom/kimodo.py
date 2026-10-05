@@ -102,7 +102,7 @@ class KimodoMotionGenerationModelGenerateAction(KimodoMotionGenerationTaskAction
                 )
 
                 results.append(MotionClip({
-                    "fps":              fps,
+                    "frame_rate":       fps,
                     "skeleton":         _KIMODO_SKELETON,
                     "joint_positions":  motion["posed_joints"],
                     "joint_rotations":  motion["global_rot_mats"],

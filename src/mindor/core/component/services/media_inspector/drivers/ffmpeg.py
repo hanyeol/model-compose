@@ -125,7 +125,11 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
             "width":           stream.get("width"),
             "height":          stream.get("height"),
             "pixel_format":    stream.get("pix_fmt"),
-            "fps":             self._rational_to_float(stream.get("avg_frame_rate")) or self._rational_to_float(stream.get("r_frame_rate")),
+            # Average frame rate for CFR sources; falls back to the base/raw
+            # frame rate when `avg_frame_rate` is unknown (common for VFR streams
+            # where the two values diverge — base rate is the container-declared
+            # tick, average rate is actually observed over the clip).
+            "frame_rate":      self._rational_to_float(stream.get("avg_frame_rate")) or self._rational_to_float(stream.get("r_frame_rate")),
             "bitrate":         int(bitrate)    if bitrate  not in (None, "N/A") else None,
             "duration":        float(duration) if duration not in (None, "N/A") else None,
             "frames":          int(frames)     if frames   not in (None, "N/A") else None,
@@ -174,7 +178,7 @@ class FFmpegMediaInspectorAction(MediaInspectorAction):
     @staticmethod
     def _rational_to_float(value: Any) -> Optional[float]:
         # ffprobe reports '0/0' when the rate is unknown; treat that as None so
-        # callers can distinguish 'no fps' from 'zero fps'.
+        # callers can distinguish 'no frame rate' from 'zero frame rate'.
         if value and value not in ("0/0", "N/A"):
             try:
                 return float(Fraction(value))

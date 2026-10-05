@@ -113,7 +113,7 @@ class VideoAudioEncodingResolver:
         bitrate      = await context.render_scalar(video.bitrate, "decimal")
         quality      = await context.render_scalar(video.quality, int)
         resolution   = await context.render_scalar(video.resolution, str)
-        fps          = await context.render_scalar(video.fps, float)
+        frame_rate   = await context.render_scalar(video.frame_rate, float)
         pixel_format = await context.render_scalar(video.pixel_format, str)
 
         return VideoEncoderParams(
@@ -121,7 +121,7 @@ class VideoAudioEncodingResolver:
             bitrate=bitrate,
             quality=quality,
             resolution=resolution,
-            fps=fps,
+            frame_rate=frame_rate,
             pixel_format=pixel_format,
         )
 

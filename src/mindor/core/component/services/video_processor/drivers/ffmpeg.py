@@ -226,11 +226,11 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     async def _resample(
         self,
         video: MediaSource,
-        fps: float,
+        frame_rate: float,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        return await self._run_ffmpeg_filter(video, f"fps={fps}", None, encoding, cancellation_token)
+        return await self._run_ffmpeg_filter(video, f"fps={frame_rate}", None, encoding, cancellation_token)
 
     async def _adjust_color(
         self,
@@ -336,8 +336,8 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             command.extend([ "-f", source.format ])
         if source.attrs.get("resolution"):
             command.extend([ "-s", str(source.attrs["resolution"]) ])
-        if source.attrs.get("fps"):
-            command.extend([ "-r", str(source.attrs["fps"]) ])
+        if source.attrs.get("frame_rate"):
+            command.extend([ "-r", str(source.attrs["frame_rate"]) ])
         if source.attrs.get("pixel_format"):
             command.extend([ "-pix_fmt", str(source.attrs["pixel_format"]) ])
 
@@ -363,8 +363,8 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             command.extend([ "-b:a", str(audio_encoder.bitrate) ])
         if video_encoder and video_encoder.resolution:
             command.extend([ "-s", video_encoder.resolution ])
-        if video_encoder and video_encoder.fps is not None:
-            command.extend([ "-r", str(video_encoder.fps) ])
+        if video_encoder and video_encoder.frame_rate is not None:
+            command.extend([ "-r", str(video_encoder.frame_rate) ])
 
         def _cleanup() -> None:
             if spooled:

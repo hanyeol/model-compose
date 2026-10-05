@@ -167,8 +167,8 @@ class FFmpegRtmpPublisher:
         if has_video:
             if video_attrs and video_attrs.get("resolution"):
                 command.extend([ "-s", str(video_attrs["resolution"]) ])
-            if video_attrs and video_attrs.get("fps"):
-                command.extend([ "-r", str(video_attrs["fps"]) ])
+            if video_attrs and video_attrs.get("frame_rate"):
+                command.extend([ "-r", str(video_attrs["frame_rate"]) ])
             command.extend([ "-i", video_input ])
 
         if has_audio:
@@ -216,8 +216,8 @@ class FFmpegRtmpPublisher:
             if video and video.resolution:
                 options["-s"] = video.resolution
 
-            if video and video.fps is not None:
-                options["-r"] = str(video.fps)
+            if video and video.frame_rate is not None:
+                options["-r"] = str(video.frame_rate)
 
             if video_codec in ("libx264", "libx265"):
                 options["-pix_fmt"] = "yuv420p"

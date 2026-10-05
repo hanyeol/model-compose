@@ -100,7 +100,7 @@ def encode_frames_to_mp4(
     falls back to PyAV (`av`) when neither the system nor imageio-ffmpeg's bundled
     binary is available.
     """
-    attrs = { "fps": str(fps), "width": str(width), "height": str(height), **(attrs or {}) }
+    attrs = { "frame_rate": str(fps), "width": str(width), "height": str(height), **(attrs or {}) }
 
     async def _stream_mp4_chunks() -> AsyncIterator[bytes]:
         if is_ffmpeg_available():

@@ -27,10 +27,10 @@ class VideoAnalyzerFreezeActionConfig(CommonVideoAnalyzerActionConfig):
 
 class VideoAnalyzerBrightnessActionConfig(CommonVideoAnalyzerActionConfig):
     metric: Literal[VideoAnalyzerMetric.BRIGHTNESS]
-    sample_rate: Union[float, int, str] = Field(default=1.0, description="Frames per second sampled for brightness statistics; lower values speed up long videos.")
+    frame_rate: Union[float, int, str] = Field(default=1.0, description="Frames per second sampled for brightness statistics; lower values speed up long videos.")
     include_timeline: Union[bool, str] = Field(default=False, description="Whether per-sampled-frame brightness values are included in the result.")
 
 class VideoAnalyzerMotionActionConfig(CommonVideoAnalyzerActionConfig):
     metric: Literal[VideoAnalyzerMetric.MOTION]
-    sample_rate: Union[float, int, str] = Field(default=1.0, description="Frames per second sampled for motion estimation; lower values speed up long videos.")
+    frame_rate: Union[float, int, str] = Field(default=1.0, description="Frames per second sampled for motion estimation; lower values speed up long videos.")
     include_timeline: Union[bool, str] = Field(default=False, description="Whether per-sampled-frame motion values are included in the result.")

@@ -42,7 +42,7 @@ class ScreenCaptureActionConfig(CommonActionConfig):
     window: Optional[ScreenCaptureWindow] = Field(default=None, description="Window selector. Required when `video_source` is `window`.")
     include_video: Union[bool, str] = Field(default=True, description="Whether a video track is included in the capture.")
     include_audio: Union[bool, str] = Field(default=True, description="Whether an audio track is included in the capture.")
-    framerate: Union[int, float, str] = Field(default=30, description="Capture frame rate in frames per second.")
+    frame_rate: Union[int, float, str] = Field(default=30, description="Capture frame rate in frames per second.")
     encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Encoding settings applied to the captured video and audio.")
     duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration; when unset, capture runs until stopped.")
 

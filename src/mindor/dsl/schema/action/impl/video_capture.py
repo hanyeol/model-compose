@@ -19,7 +19,7 @@ class VideoCaptureActionConfig(CommonActionConfig):
     source: Union[VideoCaptureSource, str] = Field(default=VideoCaptureSource.CAMERA, description="Video input source (physical or virtual camera device).")
     device: Optional[Union[int, str]] = Field(default=None, description="Camera device index or name; when unset the platform default is used.")
     resolution: Optional[VideoCaptureResolution] = Field(default=None, description="Requested frame resolution; when unset the device default is used.")
-    framerate: Union[int, float, str] = Field(default=30, description="Capture frame rate in frames per second.")
+    frame_rate: Union[int, float, str] = Field(default=30, description="Capture frame rate in frames per second.")
     pixel_format: Optional[Union[str]] = Field(default=None, description="Requested input pixel format passed to the capture backend (e.g. 'uyvy422', 'yuyv422').")
     encoding: Optional[VideoAudioEncodingConfig] = Field(default=None, description="Encoding settings applied to the captured video.")
     duration: Optional[Union[str, int, float]] = Field(default=None, description="Total capture duration; when unset, capture runs until stopped.")

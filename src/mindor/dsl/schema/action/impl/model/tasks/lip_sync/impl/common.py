@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from ...common import CommonModelActionConfig
 
 class CommonLipSyncParamsConfig(BaseModel):
-    fps: Optional[Union[int, str]] = Field(default=None, description="Output video frame rate; defaults to the source video's frame rate when unset.")
+    frame_rate: Optional[Union[int, float, str]] = Field(default=None, description="Output video frame rate; floats and NTSC rationals like 29.97 are accepted. Defaults to the source video's frame rate when unset.")
 
 class CommonLipSyncModelActionConfig(CommonModelActionConfig):
     video: Union[str, List[str]] = Field(..., description="Input face video or list of videos whose lips are re-synced.")

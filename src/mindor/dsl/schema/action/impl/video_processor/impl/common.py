@@ -101,7 +101,7 @@ class VideoProcessorReverseActionConfig(CommonVideoProcessorActionConfig):
 
 class VideoProcessorResampleActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.RESAMPLE]
-    fps: Union[float, str] = Field(..., description="Target output frame rate. Frames are resampled onto a uniform grid.")
+    frame_rate: Union[float, int, str] = Field(..., description="Target output frame rate. Frames are resampled onto a uniform grid.")
 
 class VideoProcessorAdjustColorActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.ADJUST_COLOR]

@@ -69,20 +69,20 @@ class VideoAnalyzerAction(ComponentAction):
             }
 
         if metric == VideoAnalyzerMetric.BRIGHTNESS:
-            sample_rate      = await context.render_scalar(self.config.sample_rate, float)
+            frame_rate       = await context.render_scalar(self.config.frame_rate, float)
             include_timeline = await context.render_scalar(self.config.include_timeline, bool)
 
             return {
-                "sample_rate":      sample_rate,
+                "frame_rate":       frame_rate,
                 "include_timeline": include_timeline,
             }
 
         if metric == VideoAnalyzerMetric.MOTION:
-            sample_rate      = await context.render_scalar(self.config.sample_rate, float)
+            frame_rate       = await context.render_scalar(self.config.frame_rate, float)
             include_timeline = await context.render_scalar(self.config.include_timeline, bool)
 
             return {
-                "sample_rate":      sample_rate,
+                "frame_rate":       frame_rate,
                 "include_timeline": include_timeline,
             }
 

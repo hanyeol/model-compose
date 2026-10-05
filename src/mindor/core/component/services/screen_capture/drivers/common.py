@@ -33,7 +33,7 @@ class ScreenCaptureAction(ComponentAction):
         display       = await context.render_scalar(self.config.display, int)
         region        = await self._resolve_region(context) if self.config.region is not None else None
         window        = await self._resolve_window(context) if self.config.window is not None else None
-        framerate     = await context.render_scalar(self.config.framerate, float)
+        frame_rate    = await context.render_scalar(self.config.frame_rate, float)
         encoding      = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else None
         duration      = await context.render_scalar(self.config.duration, "time", None)
 
@@ -47,8 +47,8 @@ class ScreenCaptureAction(ComponentAction):
         except ValueError:
             raise ValueError(f"Invalid audio_source: {audio_source}")
 
-        if framerate <= 0:
-            raise ValueError(f"'framerate' must be > 0, got {framerate}")
+        if frame_rate <= 0:
+            raise ValueError(f"'frame_rate' must be > 0, got {frame_rate}")
 
         if duration is not None and duration <= 0:
             raise ValueError(f"'duration' must be > 0, got {duration}")
@@ -67,7 +67,7 @@ class ScreenCaptureAction(ComponentAction):
             "include_video": include_video,
             "include_audio": include_audio,
             "audio_source":  audio_source,
-            "framerate":     framerate,
+            "frame_rate":    frame_rate,
             "encoding":      encoding,
             "duration":      duration,
         }

@@ -39,6 +39,9 @@ class CrisperWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        if params["span"] is not None:
+            raise ValueError("`span` is not supported by the crisper-whisper speech-to-text driver.")
+
         transcribe_params: Dict[str, Any] = await self._resolve_transcribe_params(context)
 
         # CrisperWhisper's transcribe() requires a language; default to English

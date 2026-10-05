@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import ModelActionConfig, FasterWhisperSpeechToTex
 from mindor.dsl.schema.action.impl.model.tasks.speech_to_text.impl.custom.faster_whisper import FasterWhisperVadParametersConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.streamer import SyncGeneratorStreamer
@@ -48,6 +49,9 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         if chunk_length is not None:
             transcribe_params["chunk_length"] = chunk_length
+
+        if params["span"] is not None:
+            transcribe_params["clip_timestamps"] = self._build_clip_timestamps(params["span"])
 
         # faster-whisper always emits segment start/end; only word-level alignment needs a flag.
         if params["return_timestamps"] and params["timestamp_level"] == "word":
@@ -199,6 +203,16 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
                 for word in words
             ] if words else None,
         }
+
+    def _build_clip_timestamps(self, span: Union[Dict[str, Any], List[Dict[str, Any]]]) -> List[float]:
+        spans = span if isinstance(span, list) else [ span ]
+        timestamps: List[float] = []
+
+        for span in spans:
+            timestamps.append(parse_time(span["start_time"]))
+            timestamps.append(parse_time(span["end_time"]))
+
+        return timestamps
 
 class FasterWhisperSpeechToTextTaskDriver(ModelTaskDriver):
     config: FasterWhisperSpeechToTextModelComponentConfig

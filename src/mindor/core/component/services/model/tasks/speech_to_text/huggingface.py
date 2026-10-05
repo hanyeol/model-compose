@@ -40,6 +40,9 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        if params["span"] is not None:
+            raise ValueError("`span` is not supported by the huggingface speech-to-text driver.")
+
         task              = await context.render_variable(self.config.task)
         max_output_length = await context.render_variable(self.config.max_output_length)
         chunk_length      = await context.render_variable(self.config.chunk_length)

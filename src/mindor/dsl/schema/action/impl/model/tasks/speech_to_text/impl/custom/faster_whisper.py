@@ -1,4 +1,4 @@
-from typing import Union, Literal, Optional
+from typing import Union, Literal, Optional, List
 from pydantic import BaseModel, Field
 from ..common import CommonSpeechToTextModelActionConfig
 

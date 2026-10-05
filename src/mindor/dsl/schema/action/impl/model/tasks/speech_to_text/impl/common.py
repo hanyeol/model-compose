@@ -1,5 +1,6 @@
 from typing import Union, Literal, Optional, List
 from pydantic import Field
+from mindor.dsl.schema.common.media import MediaClipSpanConfig
 from ...common import CommonModelActionConfig
 
 class CommonSpeechToTextModelActionConfig(CommonModelActionConfig):
@@ -8,5 +9,6 @@ class CommonSpeechToTextModelActionConfig(CommonModelActionConfig):
     return_timestamps: Union[bool, str] = Field(default=False, description="Whether per-segment timestamps are included in the output.")
     timestamp_level: Union[Literal[ "segment", "word" ], str] = Field(default="segment", description="Timestamp granularity applied when `return_timestamps` is enabled.")
     time_offset: Optional[Union[Union[str, float, int], List[Union[str, float, int]], str]] = Field(default=None, description="Offset added to each segment's start and end times; scalar values broadcast, lists pair per audio.")
+    span: Optional[Union[MediaClipSpanConfig, List[MediaClipSpanConfig], str]] = Field(default=None, description="Time span or spans to restrict decoding; outside regions are skipped entirely.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs processed per batch.")
     streaming: Union[bool, str] = Field(default=False, description="Whether transcribed tokens are emitted incrementally as they are produced.")

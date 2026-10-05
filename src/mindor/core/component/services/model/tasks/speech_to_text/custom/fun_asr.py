@@ -70,6 +70,9 @@ class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        if params["span"] is not None:
+            raise ValueError("`span` is not supported by the fun-asr speech-to-text driver.")
+
         # Fun-ASR uses "itn" as the kwarg name for inverse text normalization.
         generation_params: Dict[str, Any] = { "itn": self.inverse_text_normalization }
 

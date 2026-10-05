@@ -44,6 +44,9 @@ class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        if params["span"] is not None:
+            raise ValueError("`span` is not supported by the vibevoice speech-to-text driver.")
+
         context_info      = await context.render_scalar(self.config.context_info, str)
         max_output_length = await context.render_scalar(self.config.max_output_length, int)
         temperature       = await context.render_scalar(self.config.temperature, float)

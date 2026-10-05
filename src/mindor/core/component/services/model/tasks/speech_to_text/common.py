@@ -93,11 +93,13 @@ class SpeechToTextTaskAction(ComponentAction):
         language          = await context.render_scalar(self.config.language, str)
         return_timestamps = await context.render_scalar(self.config.return_timestamps, bool)
         timestamp_level   = await context.render_variable(self.config.timestamp_level)
+        span              = await context.render_variable(self.config.span) if self.config.span is not None else None
 
         return {
             "language":          language,
             "return_timestamps": return_timestamps,
             "timestamp_level":   timestamp_level,
+            "span":              span,
         }
 
     @abstractmethod

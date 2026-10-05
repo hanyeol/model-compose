@@ -159,18 +159,38 @@ workflow:
 
 Native drivers ship for Chroma, Milvus, Qdrant, FAISS, Neo4j, ArangoDB, and Redis.
 
-### 🌐 MCP Servers
+### 🎬 Media Pipelines
 
-Turn any workflow into an MCP server that Claude, ChatGPT, or Cursor can use — one line change.
+Chain audio, video, and image stages across models and native codecs — swap any step without touching the rest.
 
 ```yaml
-controller:
-  adapter:
-    type: mcp-server   # ← was: http-server
-    port: 8080
+workflow:
+  jobs:
+    - id: extract-audio
+      component: audio-extractor
+      input: { source: ${input.video as video} }
+
+    - id: transcribe
+      component: whisper
+      input: { audio: ${jobs.extract-audio.output} }
+
+    - id: translate
+      component: translator
+      input: { text: ${jobs.transcribe.output} }
+
+    - id: dub
+      component: tts
+      input: { text: ${jobs.translate.output} }
+
+    - id: lip-sync
+      component: wav2lip
+      input:
+        video: ${input.video as video}
+        audio: ${jobs.dub.output as audio/wav}
+      output: ${output as video/mp4}
 ```
 
-Full examples live in [mcp-servers/](examples/mcp-servers/), including a Slack bot MCP.
+See full video dubbing, scene detection, voice cloning, and face mosaic pipelines in [media-processing/](examples/media-processing/).
 
 ### ⚡ Streaming Multi-Modal Workflows
 
@@ -192,6 +212,19 @@ component:
 ```
 
 Real-time TTS, video-to-frames, and live chat examples live under [data-streaming/](examples/data-streaming/) and [showcase/](examples/showcase/).
+
+### 🌐 MCP Servers
+
+Turn any workflow into an MCP server that Claude, ChatGPT, or Cursor can use — one line change.
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server   # ← was: http-server
+    port: 8080
+```
+
+Full examples live in [mcp-servers/](examples/mcp-servers/), including a Slack bot MCP.
 
 ---
 

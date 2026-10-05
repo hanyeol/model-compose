@@ -159,18 +159,38 @@ workflow:
 
 Chroma、Milvus、Qdrant、FAISS、Neo4j、ArangoDB、Redis 的原生驱动开箱即用。
 
-### 🌐 MCP 服务器
+### 🎬 媒体管道
 
-将任何工作流变成 Claude、ChatGPT 或 Cursor 可以使用的 MCP 服务器 —— 只需一行更改。
+将音频、视频、图像阶段在模型与原生编解码器之间串联 —— 任何一步都可替换，无需改动其余部分。
 
 ```yaml
-controller:
-  adapter:
-    type: mcp-server   # ← 之前是: http-server
-    port: 8080
+workflow:
+  jobs:
+    - id: extract-audio
+      component: audio-extractor
+      input: { source: ${input.video as video} }
+
+    - id: transcribe
+      component: whisper
+      input: { audio: ${jobs.extract-audio.output} }
+
+    - id: translate
+      component: translator
+      input: { text: ${jobs.transcribe.output} }
+
+    - id: dub
+      component: tts
+      input: { text: ${jobs.translate.output} }
+
+    - id: lip-sync
+      component: wav2lip
+      input:
+        video: ${input.video as video}
+        audio: ${jobs.dub.output as audio/wav}
+      output: ${output as video/mp4}
 ```
 
-完整示例位于 [mcp-servers/](examples/mcp-servers/)，包括 Slack 机器人 MCP。
+在 [media-processing/](examples/media-processing/) 中查看完整的视频配音、场景检测、语音克隆、人脸马赛克管道。
 
 ### ⚡ 流式多模态工作流
 
@@ -192,6 +212,19 @@ component:
 ```
 
 实时 TTS、video-to-frames、实时聊天等示例位于 [data-streaming/](examples/data-streaming/) 和 [showcase/](examples/showcase/)。
+
+### 🌐 MCP 服务器
+
+将任何工作流变成 Claude、ChatGPT 或 Cursor 可以使用的 MCP 服务器 —— 只需一行更改。
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server   # ← 之前是: http-server
+    port: 8080
+```
+
+完整示例位于 [mcp-servers/](examples/mcp-servers/)，包括 Slack 机器人 MCP。
 
 ---
 

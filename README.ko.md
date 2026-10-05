@@ -159,18 +159,38 @@ workflow:
 
 Chroma, Milvus, Qdrant, FAISS, Neo4j, ArangoDB, Redis 네이티브 드라이버가 기본 제공됩니다.
 
-### 🌐 MCP 서버
+### 🎬 미디어 파이프라인
 
-어떤 워크플로우든 Claude, ChatGPT, Cursor가 사용할 수 있는 MCP 서버로 만드세요 — 한 줄 변경으로.
+오디오, 비디오, 이미지 스테이지를 모델과 네이티브 코덱 사이로 체이닝하세요 — 어떤 단계든 나머지를 건드리지 않고 교체할 수 있습니다.
 
 ```yaml
-controller:
-  adapter:
-    type: mcp-server   # ← 이전: http-server
-    port: 8080
+workflow:
+  jobs:
+    - id: extract-audio
+      component: audio-extractor
+      input: { source: ${input.video as video} }
+
+    - id: transcribe
+      component: whisper
+      input: { audio: ${jobs.extract-audio.output} }
+
+    - id: translate
+      component: translator
+      input: { text: ${jobs.transcribe.output} }
+
+    - id: dub
+      component: tts
+      input: { text: ${jobs.translate.output} }
+
+    - id: lip-sync
+      component: wav2lip
+      input:
+        video: ${input.video as video}
+        audio: ${jobs.dub.output as audio/wav}
+      output: ${output as video/mp4}
 ```
 
-Slack 봇 MCP 등 전체 예제는 [mcp-servers/](examples/mcp-servers/)에서 확인할 수 있습니다.
+영상 더빙, 장면 분할, 음성 복제, 얼굴 모자이크 전체 파이프라인을 [media-processing/](examples/media-processing/)에서 확인하세요.
 
 ### ⚡ 스트리밍 멀티모달 워크플로우
 
@@ -192,6 +212,19 @@ component:
 ```
 
 실시간 TTS, video-to-frames, 라이브 채팅 예제는 [data-streaming/](examples/data-streaming/)과 [showcase/](examples/showcase/)에 있습니다.
+
+### 🌐 MCP 서버
+
+어떤 워크플로우든 Claude, ChatGPT, Cursor가 사용할 수 있는 MCP 서버로 만드세요 — 한 줄 변경으로.
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server   # ← 이전: http-server
+    port: 8080
+```
+
+Slack 봇 MCP 등 전체 예제는 [mcp-servers/](examples/mcp-servers/)에서 확인할 수 있습니다.
 
 ---
 

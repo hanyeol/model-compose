@@ -10,7 +10,7 @@ class RandomRoutingSelector:
         self.candidates: List[Tuple[str, float]] = candidates
 
     def select(self, salt: Optional[str], session: Optional[str]) -> str:
-        if salt is not None and session:
+        if salt and session:
             return self._pick_hashed(salt, session)
 
         return self._pick_random()

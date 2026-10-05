@@ -2876,6 +2876,7 @@ Transcribe audio into text, optionally with per-segment or per-word timestamps. 
 | `return_timestamps` | bool | `false` | Include per-segment timestamps in the result |
 | `timestamp_level` | string | `segment` | `segment` or `word` (word-level requires backend support) |
 | `time_offset` | time / list | `null` | Offset added to every segment's start/end times; scalars broadcast, lists pair per audio |
+| `span` | object / list | `null` | Time span `{start_time, end_time}` or list of spans; outside regions are skipped entirely. Currently only `faster-whisper` honors this |
 | `batch_size` | int | `1` | Number of audios processed per batch |
 | `streaming` | bool | `false` | Emit transcribed chunks incrementally as decoded |
 

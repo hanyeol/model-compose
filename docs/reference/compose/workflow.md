@@ -385,7 +385,7 @@ jobs:
 
 ### Random Router Job (`random-router`)
 
-Randomly route to one of several jobs.
+Randomly route to one of several jobs. Optionally route deterministically for the same session so a given caller always lands on the same destination.
 
 ```yaml
 jobs:
@@ -404,12 +404,29 @@ jobs:
     component: server-b
 ```
 
+For sticky routing (same caller → same destination across requests), set `session` to any rendered expression that identifies the caller. `${context.session_id}` is the usual choice:
+
+```yaml
+jobs:
+  - id: canary-split
+    type: random-router
+    mode: weighted
+    session: ${context.session_id}
+    routings:
+      - { to: stable, weight: 95 }
+      - { to: canary, weight: 5 }
+```
+
+Selection uses weighted rendezvous hashing (SHA-256) over `(salt, session, to)`, so routing is stable under route reordering and shifts only proportionally when weights change. When `session` renders empty, selection falls back to independent random draws per request.
+
 **Type-specific configuration** (see [Common Job Fields](#common-job-fields) for shared fields):
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `random-router` |
 | `mode` | string | `uniform` | Routing mode: `uniform` or `weighted` |
+| `session` | string | `null` | Rendered expression that makes routing sticky for the same value (e.g. `${context.session_id}`). Falls back to random when empty. |
+| `salt` | string | `null` | Optional salt isolating this router's hashing from others. Defaults to `{workflow_id}:{job_id}`, so two routers with the same session key split traffic independently. |
 | `routings` | array | `[]` | List of `{ to, weight? }` entries (weights are only used in `weighted` mode) |
 
 ### Filter Job (`filter`)

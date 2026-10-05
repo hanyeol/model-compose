@@ -930,13 +930,15 @@ jobs:
 
 ### Random Router Job
 
-Randomly select one of multiple jobs. Supports uniform (equal probability) and weighted (custom probability) modes.
+Randomly select one of multiple jobs. Supports uniform (equal probability) and weighted (custom probability) modes, and can route deterministically for the same session so a given caller always lands on the same destination.
 
 #### Fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `mode` | `"uniform"` or `"weighted"` | `"uniform"` | Routing mode. `uniform` gives equal probability; `weighted` uses the `weight` field of each route. |
+| `session` | `string` | `null` | Rendered expression that makes routing sticky for the same value (e.g. `${context.session_id}`). Falls back to random when empty. |
+| `salt` | `string` | `null` | Optional salt isolating this router's hashing from others. Defaults to `{workflow_id}:{job_id}`. |
 | `routings` | `Routing[]` | `[]` | List of possible routing destinations. |
 | `depends_on` | `(string \| string[])[]` | `[]` | Jobs that must complete before this job runs. Top-level items are combined with AND; a nested list is an OR group (any one member satisfies it). |
 
@@ -976,6 +978,30 @@ jobs:
 ```
 
 > **Note**: Weight values don't need to sum to 100. They work as relative ratios.
+
+#### Sticky Routing (Same Caller → Same Route)
+
+By default each request draws independently, so the same user can hop between routes between calls. For chatbots, agents, or canary rollouts you usually want a given caller to stay on the same route for the lifetime of their session. Set `session:` to a rendered expression that identifies the caller — most often `${context.session_id}`, which is already populated by the HTTP server and exposed to tracing:
+
+```yaml
+jobs:
+  - id: canary-split
+    type: random-router
+    mode: weighted
+    session: ${context.session_id}
+    routings:
+      - { to: stable, weight: 95 }
+      - { to: canary, weight: 5 }
+```
+
+With `session` set, selection uses weighted rendezvous hashing (SHA-256) over `(salt, session, to)`. Two useful consequences:
+
+- Reordering the `routings` list does **not** reshuffle users — assignment depends on `to` IDs, not list order.
+- Raising a route's weight only moves users **into** that route; it never flips users off it. Raising `canary` from 5 to 25 pulls more users to `canary` without disturbing those already on `stable`.
+
+Two routers in the same workflow using the same `session` key get independent splits by default, because `salt` defaults to `{workflow_id}:{job_id}`. Set `salt:` explicitly on both routers if you want them to agree (e.g., when two routers must mirror each other's assignment for the same user).
+
+When `session` renders empty (the caller didn't supply a session), the router falls back to independent random draws for that request — sticky behavior only kicks in when the key is actually present.
 
 ### For-Each Job
 

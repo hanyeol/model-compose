@@ -70,8 +70,8 @@ class ModelTrainerTaskAction(ComponentAction):
 
             return None
 
-        train_dataset      = _load_dataset(train_dataset)
-        eval_dataset = _load_dataset(eval_dataset)
+        train_dataset = _load_dataset(train_dataset)
+        eval_dataset  = _load_dataset(eval_dataset)
 
         if isinstance(train_dataset, DatasetDict):
             eval_dataset = eval_dataset or _select_eval_dataset(train_dataset)

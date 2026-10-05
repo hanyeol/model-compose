@@ -4,10 +4,6 @@ from pydantic import model_validator
 from ...common import CommonModelTrainerActionConfig
 
 class SftModelTrainerActionConfig(CommonModelTrainerActionConfig):
-    # Dataset configuration
-    dataset: str = Field(..., description="Dataset used for training.")
-    evaluation_dataset: Optional[str] = Field(default=None, description="Dataset used for evaluation during training.")
-
     # Data formatting
     text_column: Optional[str] = Field(default=None, description="Dataset column that holds the training text.")
     prompt_column: Optional[str] = Field(default=None, description="Dataset column that holds prompts in chat-style data.")

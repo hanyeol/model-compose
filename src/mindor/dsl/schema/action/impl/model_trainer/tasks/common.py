@@ -52,6 +52,10 @@ class OptimizerType(str, Enum):
     RMSPROP                     = "rmsprop"
 
 class CommonModelTrainerActionConfig(CommonActionConfig):
+    # Dataset configuration
+    dataset: str = Field(..., description="Dataset used for training (HuggingFace name or local path).")
+    eval_dataset: Optional[str] = Field(default=None, description="Dataset used for evaluation during training.")
+
     # Essential training parameters
     learning_rate: Union[float, str] = Field(default=5e-5, description="Initial learning rate for training.")
     per_device_train_batch_size: Union[int, str] = Field(default=8, description="Training batch size per accelerator device.")

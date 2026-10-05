@@ -21,7 +21,7 @@ class ModelTrainerTaskAction(ComponentAction):
         self.trainer_config: ModelTrainerComponentConfig = trainer_config
         self.model_path: str = model_path
 
-    def _load_datasets(self, train_dataset: Any, evaluation_dataset: Any) -> Tuple[Any, Optional[Any]]:
+    def _load_datasets(self, train_dataset: Any, eval_dataset: Any) -> Tuple[Any, Optional[Any]]:
         """Load and normalize (train, evaluation) datasets.
 
         Accepts three input shapes for each argument: a HuggingFace repo ID (str,
@@ -51,7 +51,7 @@ class ModelTrainerTaskAction(ComponentAction):
             # Already a dict-like or list-like from an upstream `datasets` component.
             return source
 
-        def _select_evaluation_dataset(dataset: DatasetDict) -> Optional[Dataset]:
+        def _select_eval_dataset(dataset: DatasetDict) -> Optional[Dataset]:
             for name in ("validation", "eval", "test"):
                 candidate = dataset.get(name)
 
@@ -71,21 +71,21 @@ class ModelTrainerTaskAction(ComponentAction):
             return None
 
         train_dataset      = _load_dataset(train_dataset)
-        evaluation_dataset = _load_dataset(evaluation_dataset)
+        eval_dataset = _load_dataset(eval_dataset)
 
         if isinstance(train_dataset, DatasetDict):
-            evaluation_dataset = evaluation_dataset or _select_evaluation_dataset(train_dataset)
+            eval_dataset = eval_dataset or _select_eval_dataset(train_dataset)
             train_dataset      = train_dataset["train"] if "train" in train_dataset else next(iter(train_dataset.values()))
-        # If train_dataset came in as a bare Dataset, evaluation_dataset stays
+        # If train_dataset came in as a bare Dataset, eval_dataset stays
         # whatever the user supplied (possibly None). Do not call .get() on a Dataset.
 
-        if isinstance(evaluation_dataset, DatasetDict):
+        if isinstance(eval_dataset, DatasetDict):
             # No arbitrary fallback — if every candidate was rejected by
-            # _select_evaluation_dataset, evaluation_dataset becomes None and
+            # _select_eval_dataset, eval_dataset becomes None and
             # evaluation is skipped.
-            evaluation_dataset = _select_evaluation_dataset(evaluation_dataset)
+            eval_dataset = _select_eval_dataset(eval_dataset)
 
-        return train_dataset, evaluation_dataset
+        return train_dataset, eval_dataset
 
     def _get_model_dtype(self) -> Optional[torch.dtype]:
         import torch
@@ -137,15 +137,15 @@ class ModelTrainerTaskAction(ComponentAction):
         self,
         context: ComponentActionContext,
         output_dir: str,
-        has_evaluation: bool,
+        do_eval: bool,
     ) -> Dict[str, Any]:
         # Render every Union[..., str] field OUTSIDE the training executor. Return a
         # plain dict so callers can spread into TrainingArguments OR SFTConfig (which
         # is a TrainingArguments subclass in TRL 0.12+).
         #
-        # `has_evaluation` must be resolved by the caller AFTER _load_datasets — the
-        # action's evaluation_dataset field may be None while the dataset itself is a
-        # DatasetDict with a `validation` split. Checking only `action.evaluation_dataset`
+        # `do_eval` must be resolved by the caller AFTER _load_datasets — the
+        # action's eval_dataset field may be None while the dataset itself is a
+        # DatasetDict with a `validation` split. Checking only `action.eval_dataset`
         # here would leave eval_strategy="no" and silently skip evaluation on
         # split-provided data.
         num_epochs                  = await context.render_scalar(self.config.num_epochs, int)
@@ -174,7 +174,7 @@ class ModelTrainerTaskAction(ComponentAction):
             "warmup_steps":                warmup_steps,
             "max_grad_norm":               max_grad_norm,
             "gradient_accumulation_steps": gradient_accumulation_steps,
-            "eval_strategy":               "steps" if has_evaluation else "no",
+            "eval_strategy":               "steps" if do_eval else "no",
             "eval_steps":                  eval_steps,
             "save_steps":                  save_steps,
             "logging_steps":               logging_steps,

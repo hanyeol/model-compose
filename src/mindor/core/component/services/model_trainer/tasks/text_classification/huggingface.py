@@ -16,7 +16,7 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
         self,
         training_arguments: Dict[str, Any],
         train_dataset: Any,
-        evaluation_dataset: Any,
+        eval_dataset: Any,
         text_column: str,
         label_column: str,
         label_names: Optional[List[str]],
@@ -92,8 +92,8 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
         train_dataset = train_dataset.map(_tokenize, batched=True)
 
-        if evaluation_dataset is not None:
-            evaluation_dataset = evaluation_dataset.map(_tokenize, batched=True)
+        if eval_dataset is not None:
+            eval_dataset = eval_dataset.map(_tokenize, batched=True)
 
         # Remap observed label values to contiguous 0..N-1 indices when the label
         # domain is non-contiguous (e.g. {1, 2}). Without this the classifier head,
@@ -105,16 +105,16 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
 
             train_dataset = train_dataset.map(_remap)
 
-            if evaluation_dataset is not None:
-                evaluation_dataset = evaluation_dataset.map(_remap)
+            if eval_dataset is not None:
+                eval_dataset = eval_dataset.map(_remap)
 
         # Rename the label column to `labels` — the canonical name expected by
         # transformers' data collators and loss computation.
         if label_column != "labels":
             train_dataset = train_dataset.rename_column(label_column, "labels")
 
-            if evaluation_dataset is not None:
-                evaluation_dataset = evaluation_dataset.rename_column(label_column, "labels")
+            if eval_dataset is not None:
+                eval_dataset = eval_dataset.rename_column(label_column, "labels")
 
         trainer_arguments = TrainingArguments(**training_arguments)
 
@@ -122,10 +122,10 @@ class HuggingfaceTextClassificationModelTrainerTaskAction(TextClassificationMode
             model=model,
             args=trainer_arguments,
             train_dataset=train_dataset,
-            eval_dataset=evaluation_dataset,
+            eval_dataset=eval_dataset,
             processing_class=tokenizer,
             data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
-            compute_metrics=self._compute_metrics if evaluation_dataset is not None else None,
+            compute_metrics=self._compute_metrics if eval_dataset is not None else None,
         )
 
         result = trainer.train()

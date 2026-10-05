@@ -22,7 +22,7 @@ class NimbleTypedDecisionModelTrainerTaskAction(TypedDecisionModelTrainerTaskAct
         self,
         training_arguments: Dict[str, Any],
         train_dataset: Any,
-        evaluation_dataset: Optional[Any],
+        eval_dataset: Optional[Any],
         columns: Dict[str, Any],
         output_dir: str,
     ) -> Dict[str, Any]:
@@ -83,7 +83,7 @@ class NimbleTypedDecisionModelTrainerTaskAction(TypedDecisionModelTrainerTaskAct
             device=self.trainer_config.device,
         )
 
-        return train(train_dataset, config, eval_dataset=evaluation_dataset)
+        return train(train_dataset, config, eval_dataset=eval_dataset)
 
 @register_model_trainer_task_driver(ModelTrainerTaskType.TYPED_DECISION, ModelTrainerDriverType.NIMBLE)
 class NimbleTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):

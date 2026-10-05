@@ -16,7 +16,7 @@ class HuggingfaceSftModelTrainerTaskAction(SftModelTrainerTaskAction):
         self,
         training_arguments: Dict[str, Any],
         train_dataset: Any,
-        evaluation_dataset: Any,
+        eval_dataset: Any,
         dataset_text_field: str,
         max_seq_length: Optional[int],
         packing: bool,
@@ -110,7 +110,7 @@ class HuggingfaceSftModelTrainerTaskAction(SftModelTrainerTaskAction):
             model=model,
             args=sft_config,
             train_dataset=train_dataset,
-            eval_dataset=evaluation_dataset,
+            eval_dataset=eval_dataset,
             processing_class=tokenizer,  # replaces `tokenizer=` in TRL 0.12+
             formatting_func=formatting_func,
         )

@@ -18,40 +18,42 @@ class TypedDecisionModelTrainerTaskAction(ModelTrainerTaskAction):
         super().__init__(config, trainer_config, model_path)
 
     async def run(self, context: ComponentActionContext) -> Dict[str, Any]:
-        dataset            = await context.render_variable(self.config.dataset)
-        evaluation_dataset = await context.render_variable(self.config.evaluation_dataset) if self.config.evaluation_dataset is not None else None
-        state_column       = await context.render_text(self.config.state_column)
-        schema_column      = await context.render_text(self.config.schema_column)
-        answers_column     = await context.render_text(self.config.answers_column)
-        max_seq_length     = await context.render_scalar(self.config.max_seq_length, int)
-        output_dir         = await context.render_text(self.config.output_dir)
+        dataset        = await context.render_variable(self.config.dataset)
+        eval_dataset   = await context.render_variable(self.config.eval_dataset) if self.config.eval_dataset is not None else None
+        state_column   = await context.render_text(self.config.state_column)
+        schema_column  = await context.render_text(self.config.schema_column)
+        answers_column = await context.render_text(self.config.answers_column)
+        max_seq_length = await context.render_scalar(self.config.max_seq_length, int)
+        output_dir     = await context.render_text(self.config.output_dir)
 
         # Loading HuggingFace datasets touches disk; keep it off the event loop.
-        train_dataset, evaluation_dataset = await self._run_in_executor(
-            self._load_datasets, dataset, evaluation_dataset,
+        train_dataset, eval_dataset = await self._run_in_executor(
+            self._load_datasets, dataset, eval_dataset,
         )
 
         self._validate_columns(train_dataset, state_column, schema_column, answers_column)
 
-        if evaluation_dataset is not None:
-            self._validate_columns(evaluation_dataset, state_column, schema_column, answers_column)
+        if eval_dataset is not None:
+            self._validate_columns(eval_dataset, state_column, schema_column, answers_column)
 
         training_arguments = await self._build_training_arguments(
-            context, output_dir, has_evaluation=evaluation_dataset is not None,
+            context,
+            output_dir,
+            do_eval=eval_dataset is not None,
         )
 
         columns = {
-            "state_column":    state_column,
-            "schema_column":   schema_column,
-            "answers_column":  answers_column,
-            "max_seq_length":  max_seq_length,
+            "state_column":   state_column,
+            "schema_column":  schema_column,
+            "answers_column": answers_column,
+            "max_seq_length": max_seq_length,
         }
 
         result = await self._run_in_executor(
             self._train,
             training_arguments,
             train_dataset,
-            evaluation_dataset,
+            eval_dataset,
             columns,
             output_dir,
         )
@@ -81,7 +83,7 @@ class TypedDecisionModelTrainerTaskAction(ModelTrainerTaskAction):
         self,
         training_arguments: Dict[str, Any],
         train_dataset: Any,
-        evaluation_dataset: Optional[Any],
+        eval_dataset: Optional[Any],
         columns: Dict[str, Any],
         output_dir: str,
     ) -> Dict[str, Any]:

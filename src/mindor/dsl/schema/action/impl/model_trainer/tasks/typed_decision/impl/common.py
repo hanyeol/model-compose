@@ -3,10 +3,6 @@ from pydantic import Field
 from ...common import CommonModelTrainerActionConfig
 
 class TypedDecisionModelTrainerActionConfig(CommonModelTrainerActionConfig):
-    # Dataset configuration
-    dataset: str = Field(..., description="Dataset used for training (HuggingFace name or local path).")
-    evaluation_dataset: Optional[str] = Field(default=None, description="Dataset used for evaluation during training.")
-
     # Column layout — rows carry the same shape as typed-decision inference input,
     # plus an `answers` column keyed by question id.
     state_column: str = Field(default="state", description="Dataset column that holds the input state (text).")

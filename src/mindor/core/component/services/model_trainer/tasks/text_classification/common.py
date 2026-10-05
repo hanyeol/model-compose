@@ -18,21 +18,21 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         super().__init__(config, trainer_config, model_path)
 
     async def run(self, context: ComponentActionContext) -> Dict[str, Any]:
-        dataset            = await context.render_variable(self.config.dataset)
-        evaluation_dataset = await context.render_variable(self.config.evaluation_dataset) if self.config.evaluation_dataset is not None else None
-        text_column        = await context.render_text(self.config.text_column)
-        label_column       = await context.render_text(self.config.label_column)
-        label_names        = await context.render_variable(self.config.label_names) if self.config.label_names is not None else None
-        num_labels         = await context.render_scalar(self.config.num_labels, int)
-        max_seq_length     = await context.render_scalar(self.config.max_seq_length, int)
-        output_dir         = await context.render_text(self.config.output_dir)
+        dataset        = await context.render_variable(self.config.dataset)
+        eval_dataset   = await context.render_variable(self.config.eval_dataset) if self.config.eval_dataset is not None else None
+        text_column    = await context.render_text(self.config.text_column)
+        label_column   = await context.render_text(self.config.label_column)
+        label_names    = await context.render_variable(self.config.label_names) if self.config.label_names is not None else None
+        num_labels     = await context.render_scalar(self.config.num_labels, int)
+        max_seq_length = await context.render_scalar(self.config.max_seq_length, int)
+        output_dir     = await context.render_text(self.config.output_dir)
 
         # Dataset load, split resolution, and label scanning all touch disk and
         # can iterate multi-million rows — keep them off the event loop.
-        train_dataset, evaluation_dataset, label_names, num_labels, label_remap = await self._run_in_executor(
+        train_dataset, eval_dataset, label_names, num_labels, label_remap = await self._run_in_executor(
             self._prepare_datasets,
             dataset,
-            evaluation_dataset,
+            eval_dataset,
             label_column,
             label_names,
             num_labels,
@@ -41,14 +41,14 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         training_arguments = await self._build_training_arguments(
             context,
             output_dir,
-            has_evaluation=evaluation_dataset is not None
+            do_eval=eval_dataset is not None
         )
 
         result = await self._run_in_executor(
             self._train,
             training_arguments,
             train_dataset,
-            evaluation_dataset,
+            eval_dataset,
             text_column,
             label_column,
             label_names,
@@ -67,12 +67,12 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
     def _prepare_datasets(
         self,
         dataset: Any,
-        evaluation_dataset: Any,
+        eval_dataset: Any,
         label_column: str,
         label_names: Optional[List[str]],
         num_labels: Optional[int],
     ) -> Tuple[Any, Optional[Any], Optional[List[str]], int, Optional[Dict[int, int]]]:
-        train_dataset, evaluation_dataset = self._load_datasets(dataset, evaluation_dataset)
+        train_dataset, eval_dataset = self._load_datasets(dataset, eval_dataset)
         label_names, num_labels, label_remap = self._resolve_labels(
             train_dataset,
             label_column,
@@ -80,7 +80,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
             num_labels
         )
 
-        return train_dataset, evaluation_dataset, label_names, num_labels, label_remap
+        return train_dataset, eval_dataset, label_names, num_labels, label_remap
 
     def _resolve_labels(
         self,
@@ -182,7 +182,7 @@ class TextClassificationModelTrainerTaskAction(ModelTrainerTaskAction):
         self,
         training_arguments: Dict[str, Any],
         train_dataset: Any,
-        evaluation_dataset: Any,
+        eval_dataset: Any,
         text_column: str,
         label_column: str,
         label_names: Optional[List[str]],

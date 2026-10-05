@@ -100,6 +100,7 @@ class WebScraperAction(ComponentAction):
 
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
+
                 try:
                     return await asyncio.gather(*[
                         self._process(url, params, browser, cancellation_token) for url in urls
@@ -218,17 +219,21 @@ class WebScraperAction(ComponentAction):
                 # Submit form
                 if selector:
                     element = await page.query_selector(selector)
+
                     if element:
                         tag_name = await element.evaluate("el => el.tagName")
+
                         if tag_name.lower() == "form":
                             await element.evaluate("form => form.submit()")
                         else:
                             await element.click()
                 elif xpath:
                     elements = await page.query_selector_all(f"xpath={xpath}")
+
                     if elements:
                         element = elements[0]
                         tag_name = await element.evaluate("el => el.tagName")
+
                         if tag_name.lower() == "form":
                             await element.evaluate("form => form.submit()")
                         else:
@@ -236,6 +241,7 @@ class WebScraperAction(ComponentAction):
                 else:
                     # No selector/xpath: find and submit the first form
                     element = await page.query_selector("form")
+
                     if element:
                         await element.evaluate("form => form.submit()")
                     else:
@@ -285,19 +291,25 @@ class WebScraperAction(ComponentAction):
         def _extract(expr: str) -> Union[str, List[str], None]:
             if multiple:
                 elements = soup.select(expr)
+
                 if not elements:
                     return []
+
                 return [ self._extract_from_element(element, extract_mode, attribute) for element in elements ]
 
             element = soup.select_one(expr)
+
             if not element:
                 return None
+
             return self._extract_from_element(element, extract_mode, attribute)
 
         if isinstance(selector, dict):
             return { key: _extract(expr) for key, expr in selector.items() }
+
         if isinstance(selector, list):
             return [ _extract(expr) for expr in selector ]
+
         return _extract(selector)
 
     def _extract_with_xpath(

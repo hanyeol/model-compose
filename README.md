@@ -115,6 +115,25 @@ component:
 
 See simple agents like a code reviewer, a RAG assistant, and a web researcher in [agents/](examples/agents/).
 
+### 🧠 Local Models
+
+Run open-weight models on your own hardware with PyTorch, vLLM, or llama.cpp — same YAML surface as cloud APIs, no SDK code.
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+```
+
+Point `model:` at any Hugging Face repo, or a local GGUF file via llama.cpp. Browse local chat, embedding, TTS, VLM, image/audio/video tasks under [model-tasks/](examples/model-tasks/).
+
 ### 🔍 RAG Pipelines
 
 Compose embedding, vector search, and generation into a single workflow — no glue code.

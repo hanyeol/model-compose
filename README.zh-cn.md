@@ -115,6 +115,25 @@ component:
 
 在 [agents/](examples/agents/) 中查看代码审查、RAG 助手、网络研究员等简单智能体。
 
+### 🧠 本地模型
+
+使用 PyTorch、vLLM 或 llama.cpp 在自己的硬件上运行开源权重模型 —— 与云 API 相同的 YAML 表面，无需 SDK 代码。
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+```
+
+`model:` 可指向任意 Hugging Face 仓库，或通过 llama.cpp 指向本地 GGUF 文件。在 [model-tasks/](examples/model-tasks/) 中浏览本地 chat、embedding、TTS、VLM 以及图像/音频/视频任务。
+
 ### 🔍 RAG 管道
 
 将嵌入、向量搜索和生成组合到一个工作流中 —— 无需胶水代码。

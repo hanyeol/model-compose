@@ -115,6 +115,25 @@ component:
 
 [agents/](examples/agents/)에서 코드 리뷰어, RAG 어시스턴트, 웹 리서처 같은 심플한 에이전트를 확인해보세요.
 
+### 🧠 로컬 모델
+
+PyTorch, vLLM, llama.cpp로 오픈 웨이트 모델을 직접 하드웨어에서 실행하세요 — 클라우드 API와 동일한 YAML 표면, SDK 코드 없이.
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: HuggingFaceTB/SmolLM3-3B
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+```
+
+`model:`은 어떤 Hugging Face 레포든, 혹은 llama.cpp를 통해 로컬 GGUF 파일을 가리킬 수 있습니다. 로컬 chat, embedding, TTS, VLM, 이미지/오디오/비디오 태스크를 [model-tasks/](examples/model-tasks/)에서 둘러보세요.
+
 ### 🔍 RAG 파이프라인
 
 임베딩, 벡터 검색, 생성을 하나의 워크플로우로 조합하세요 — 접착 코드 없이.

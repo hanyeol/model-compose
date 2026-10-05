@@ -52,19 +52,13 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         await self._inject_bootstrap(props)
         await self._page.goto(html.url)
 
+        # Wait for the page to declare it's ready for capture. The page is
+        # responsible for awaiting its own async setup (webfonts, images,
+        # textures, three.js scene load, ...) before flipping this flag.
+        # The driver does not inspect any of those directly.
         await self._page.wait_for_function(
-            "typeof window.__renderer?.seek === 'function'",
+            "window.__renderer && window.__renderer.ready === true",
             timeout=ready_timeout * 1000,
-        )
-
-        # Wait for webfonts before the first seek so FOUT doesn't bleed across frames.
-        # Capped by `ready_timeout` so a dead font host can't stall the render.
-        await self._page.evaluate(
-            "(timeoutMs) => Promise.race(["
-            "document.fonts.ready, "
-            "new Promise(resolve => setTimeout(resolve, timeoutMs))"
-            "])",
-            int(ready_timeout * 1000),
         )
 
         duration = await self._get_page_duration()
@@ -79,41 +73,41 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
             if use_render_signal:
                 self._clear_render_signals()  # discard any stray rendered() calls from the previous frame
-                seek_task = asyncio.create_task(self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp))
+                render_task = asyncio.create_task(self._page.evaluate("(t) => window.render(t)", timestamp))
 
                 try:
-                    # Wait for the page's rendered() signal. The seek RPC returning
+                    # Wait for the page's rendered() signal. The render RPC returning
                     # first just means the function call returned — the paint can
                     # still be a rAF away, so keep waiting for rendered() up to the
-                    # remaining budget. We still watch `seek_task` so navigation
+                    # remaining budget. We still watch `render_task` so navigation
                     # errors (page closed, JS threw) surface instead of hanging.
                     render_signal_task = asyncio.create_task(self._render_signals.get())
                     deadline = asyncio.get_running_loop().time() + render_timeout
-                    seek_done = False
+                    render_done = False
 
                     while True:
-                        remaining = deadline - asyncio.get_running_loop().time()
+                        remaining_time = deadline - asyncio.get_running_loop().time()
 
-                        if remaining <= 0:
+                        if remaining_time <= 0:
                             render_signal_task.cancel()
                             raise asyncio.TimeoutError
 
-                        pending = { render_signal_task } if seek_done else { render_signal_task, seek_task }
+                        pending = { render_signal_task } if render_done else { render_signal_task, render_task }
                         done, _ = await asyncio.wait(
                             pending,
                             return_when=asyncio.FIRST_COMPLETED,
-                            timeout=remaining,
+                            timeout=remaining_time,
                         )
 
                         if render_signal_task in done:
                             render_signal_task.result()  # surfaces exceptions; discards the timestamp
                             break
 
-                        if seek_task in done:
-                            # Re-raise seek errors; a plain success just means the
-                            # RPC returned — keep waiting for rendered().
-                            seek_task.result()
-                            seek_done = True
+                        if render_task in done:
+                            # Re-raise render() errors; a plain success just means
+                            # the RPC returned — keep waiting for rendered().
+                            render_task.result()
+                            render_done = True
                             continue
 
                         # Timeout.
@@ -128,12 +122,12 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
                             f"Frame {frame}: page stopped calling window.__renderer.rendered() within {render_timeout}s"
                         )
 
-                    logging.info("Page did not call window.__renderer.rendered(); falling back to sequential seek/screenshot.")
+                    logging.info("Page did not call window.__renderer.rendered(); falling back to sequential render/screenshot.")
 
                     use_render_signal = False
-                    await seek_task  # ensure seek finished before capturing
+                    await render_task  # ensure render() finished before capturing
             else:
-                await self._page.evaluate("(t) => window.__renderer.seek(t)", timestamp)
+                await self._page.evaluate("(t) => window.render(t)", timestamp)
 
             frame_bytes = await self._page.screenshot(**screenshot_params)
 
@@ -152,7 +146,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
           giving the page read-only access to workflow-provided data.
         - `rendered(t)` bridges to the server binding so pages can push a
           "frame is painted" signal instead of forcing the server to await
-          seek()'s RPC response before requesting the screenshot.
+          render()'s RPC response before requesting the screenshot.
         """
         scripts = [
             "window.__renderer = window.__renderer || {};",

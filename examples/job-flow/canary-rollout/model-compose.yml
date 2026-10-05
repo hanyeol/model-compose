@@ -1,0 +1,48 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: chat
+    title: Canary Rollout (Session-Sticky)
+    description: |
+      Splits traffic between a stable and a canary model while keeping each
+      caller pinned to the same side across requests. Routing is sticky on
+      `${context.session_id}`, so the same session always lands on the same
+      variant — even as the canary weight is tuned.
+    jobs:
+      - id: pick-variant
+        type: random-router
+        mode: weighted
+        session: ${context.session_id}
+        routings:
+          - { to: stable, weight: 95 }
+          - { to: canary, weight: 5 }
+
+      - id: stable
+        component: respond
+        input:
+          variant: stable
+          message: ${input.message}
+        output: ${output}
+
+      - id: canary
+        component: respond
+        input:
+          variant: canary
+          message: ${input.message}
+        output: ${output}
+
+components:
+  - id: respond
+    type: shell
+    action:
+      command: [ "echo", "[${input.variant}] you said: ${input.message}" ]
+      output:
+        variant: ${input.variant}
+        reply: ${result.stdout}

@@ -324,6 +324,7 @@ HUGGINGFACE_TOKEN=your-token-here
 - [conditional-routing/if](./job-flow/conditional-routing/if/) — `if` 条件路由
 - [conditional-routing/switch](./job-flow/conditional-routing/switch/) — `switch` 路由
 - [conditional-routing/random](./job-flow/conditional-routing/random/) — 随机路由
+- [canary-rollout](./job-flow/canary-rollout/) — 用于金丝雀发布的会话粘性随机路由
 
 #### Job 生命周期
 - [hook](./job-flow/hook/) — before/after Python hook

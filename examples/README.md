@@ -324,6 +324,7 @@ Workflow control patterns.
 - [conditional-routing/if](./job-flow/conditional-routing/if/) — `if` condition routing
 - [conditional-routing/switch](./job-flow/conditional-routing/switch/) — `switch` routing
 - [conditional-routing/random](./job-flow/conditional-routing/random/) — Random routing
+- [canary-rollout](./job-flow/canary-rollout/) — Session-sticky random routing for canary releases
 
 #### Job Lifecycle
 - [hook](./job-flow/hook/) — Before/after Python hooks

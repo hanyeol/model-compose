@@ -324,6 +324,7 @@ ReAct 루프와 도구 사용을 활용한 자율 에이전트.
 - [conditional-routing/if](./job-flow/conditional-routing/if/) — `if` 조건 분기
 - [conditional-routing/switch](./job-flow/conditional-routing/switch/) — `switch` 분기
 - [conditional-routing/random](./job-flow/conditional-routing/random/) — 랜덤 분기
+- [canary-rollout](./job-flow/canary-rollout/) — 카나리 롤아웃을 위한 세션 고정 랜덤 라우팅
 
 #### Job 생명주기
 - [hook](./job-flow/hook/) — before/after Python hook

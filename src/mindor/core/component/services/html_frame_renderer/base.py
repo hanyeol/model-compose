@@ -32,6 +32,7 @@ class HtmlFrameRendererDriver(ComponentDriver):
 
         for html in self._htmls.values():
             html.close()
+
         self._htmls.clear()
 
         await super()._stop()

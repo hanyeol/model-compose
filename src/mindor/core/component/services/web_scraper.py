@@ -6,12 +6,12 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
+from mindor.core.utils.playwright import install_browser
 from mindor.core.logger import logging
 from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import aiohttp, asyncio
-import sys, subprocess
 
 class WebScraperAction(ComponentAction):
     def __init__(
@@ -383,11 +383,7 @@ class WebScraperComponent(ComponentService):
         return [ "playwright", "beautifulsoup4", "lxml" ]
 
     async def _setup(self) -> None:
-        subprocess.run(
-            [ sys.executable, "-m", "playwright", "install", "chromium" ],
-            check=True,
-            capture_output=True
-        )
+        install_browser("chromium")
 
     async def _start(self) -> None:
         if self.config.rate_limit:

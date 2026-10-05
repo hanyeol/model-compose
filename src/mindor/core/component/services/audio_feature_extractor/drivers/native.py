@@ -74,7 +74,9 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         band_count  = params["band_count"]
         window_size = params["window_size"]
 
-        hop = max(1, sample_rate // frame_rate)
+        # frame_rate may be a float (e.g. 29.97). Floor-divide and cast to
+        # int so frame indices and numpy allocations stay integer-typed.
+        hop = max(1, int(sample_rate // frame_rate))
         frame_count = max(0, (len(samples) - window_size) // hop)
 
         frequencies = np.fft.rfftfreq(window_size, 1.0 / sample_rate)
@@ -125,7 +127,8 @@ class NativeAudioFeatureExtractorAction(AudioFeatureExtractorAction):
         rectify      = params["rectify"]
 
         win = max(point_count, int(sample_rate * params["window_duration"]))
-        hop = max(1, sample_rate // frame_rate)
+        # frame_rate may be a float; keep hop/frame_count integer-typed.
+        hop = max(1, int(sample_rate // frame_rate))
         bucket = win // point_count
         usable = point_count * bucket
 

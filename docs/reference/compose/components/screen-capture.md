@@ -12,7 +12,7 @@ component:
   type: screen-capture
   driver: ffmpeg
   action:
-    framerate: 15
+    frame_rate: 15
     include_video: true
     include_audio: true
     audio_source: system
@@ -41,7 +41,7 @@ component:
 | `window` | object | `null` | Window selector; required when `video_source: window` |
 | `include_video` | boolean | `true` | Include a video track in the capture |
 | `include_audio` | boolean | `true` | Include an audio track in the capture |
-| `framerate` | number | `30` | Video framerate (frames per second) |
+| `frame_rate` | number | `30` | Video frame rate (frames per second) |
 | `encoding` | object | `null` | Video/audio encoding settings (see below) |
 | `duration` | string \| number | `null` | Total capture duration (e.g. `30s`, `2m`). `null` = capture until stopped |
 | `output` | string | `null` | Output template applied to the captured result |
@@ -133,12 +133,12 @@ component:
   driver: ffmpeg
   actions:
     - id: preview
-      framerate: 5
+      frame_rate: 5
       include_audio: false
       duration: 10s
 
     - id: broadcast
-      framerate: 30
+      frame_rate: 30
       audio_source: system
       encoding:
         format: ts
@@ -163,7 +163,7 @@ component:
       window:
         title: OBS
         app: obs
-      framerate: 15
+      frame_rate: 15
       include_audio: false
 ```
 
@@ -192,7 +192,7 @@ components:
   - id: screen
     type: screen-capture
     action:
-      framerate: 10
+      frame_rate: 10
       include_video: false
       audio_source: system
 
@@ -215,7 +215,7 @@ components:
         y: 200
         width: 1920
         height: 1080
-      framerate: 30
+      frame_rate: 30
       include_audio: false
 ```
 
@@ -241,7 +241,7 @@ components:
 
 ## Best Practices
 
-1. **Match `framerate` to what the downstream consumer actually needs.** 5–10 fps is plenty for scene/face analysis and dramatically cuts CPU load compared with a 30 fps capture.
+1. **Match `frame_rate` to what the downstream consumer actually needs.** 5–10 fps is plenty for scene/face analysis and dramatically cuts CPU load compared with a 30 fps capture.
 2. **Prefer `ts` for pipeline consumers, `mp4` for file writes.** The default `ts` container yields chunks with sub-second latency; `mp4` is easier for downstream tools that expect a seekable file.
 3. **Use `region` to isolate a broadcast preview window.** Capturing the whole display and cropping downstream wastes encoder work; letting ffmpeg / gdigrab / x11grab crop at the source is much cheaper.
 4. **Use `window` when the target moves, but only on Windows.** Windows follows the window natively via `gdigrab`; on macOS and Linux the rect is resolved once and any window movement leaves the capture behind. If the window is expected to move, prefer a fixed `region` outside Windows.

@@ -42,7 +42,7 @@ model-compose provides various component types for performing different tasks.
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
-| `html-frame-renderer` | Render HTML as video frames | Drive an HTML/CSS/JS animation via a `window.__renderer.seek(t)` contract and capture each frame as a PIL image |
+| `html-frame-renderer` | Render HTML as video frames | Drive an HTML/CSS/JS animation via a `window.render(t)` contract and capture each frame as a PIL image |
 | `video-clipper` | Clip video segments | Cut one or more time ranges from a video, losslessly via ffmpeg stream copy |
 | `video-mixer` | Composite videos | Concat videos end-to-end or overlay one/more videos on a base (watermark, PIP) via ffmpeg |
 | `video-processor` | Per-frame video DSP | Resize, crop, pad, flip, rotate, and speed change (A/V-synced via `setpts` + `atempo`) via ffmpeg |

@@ -13,7 +13,7 @@ component:
   driver: ffmpeg
   action:
     source: camera
-    framerate: 30
+    frame_rate: 30
     resolution:
       width: 1280
       height: 720
@@ -38,7 +38,7 @@ component:
 | `source` | string | `camera` | Video input kind; currently only `camera` |
 | `device` | integer \| string | platform default | Device index (avfoundation) or name (dshow) or path (v4l2). Required on Windows |
 | `resolution` | object | `null` | Requested frame resolution; when unset the device's default is used |
-| `framerate` | number | `30` | Video framerate (frames per second) |
+| `frame_rate` | number | `30` | Video frame rate (frames per second) |
 | `pixel_format` | string | `null` | Requested input pixel format (e.g. `uyvy422`, `yuyv422`, `mjpeg`) |
 | `encoding` | object | `null` | Video encoding settings (see below) |
 | `duration` | string \| number | `null` | Total capture duration (e.g. `30s`, `2m`). `null` = capture until stopped |
@@ -111,7 +111,7 @@ component:
   actions:
     - id: preview
       source: camera
-      framerate: 15
+      frame_rate: 15
       resolution:
         width: 640
         height: 360
@@ -119,7 +119,7 @@ component:
 
     - id: broadcast
       source: camera
-      framerate: 30
+      frame_rate: 30
       resolution:
         width: 1920
         height: 1080
@@ -132,7 +132,7 @@ component:
     - id: capture-card
       source: camera
       device: "Elgato Cam Link 4K"
-      framerate: 60
+      frame_rate: 60
       pixel_format: uyvy422
 ```
 
@@ -159,7 +159,7 @@ components:
     type: video-capture
     action:
       source: camera
-      framerate: 15
+      frame_rate: 15
       resolution:
         width: 640
         height: 360
@@ -179,7 +179,7 @@ components:
     action:
       source: camera
       device: "Elgato Cam Link 4K"
-      framerate: 60
+      frame_rate: 60
       resolution:
         width: 1920
         height: 1080
@@ -210,7 +210,7 @@ components:
 
 ## Best Practices
 
-1. **Match `resolution` and `framerate` to what the downstream consumer needs.** A face detector rarely benefits from 1080p60 — 480p15 cuts CPU load dramatically without hurting accuracy.
+1. **Match `resolution` and `frame_rate` to what the downstream consumer needs.** A face detector rarely benefits from 1080p60 — 480p15 cuts CPU load dramatically without hurting accuracy.
 2. **Prefer `ts` for pipeline consumers, `mp4` for file writes.** The default `ts` container yields chunks with sub-second latency; `mp4` is easier for downstream tools that expect a seekable file.
 3. **Pin the `device` explicitly in production.** Platform defaults change when USB devices are plugged in; naming the exact device (or v4l2 path) removes that fragility.
 4. **Anchor timelines with `capture_pts`.** When you run video capture in parallel with `audio-capture` or `screen-capture`, the shared `capture_pts` is what lets you re-align tracks without decoding timestamps back out of the encoded stream.

@@ -182,7 +182,7 @@ component:
 {
   "frames":      [[0.12, 0.08, ...], ...],   # (n_frames, n_bpm_bins), low → high BPM
   "bpm_axis":    [60.0, 62.4, ..., 200.0],
-  "fps":         86.13,
+  "frame_rate":  86.13,
   "sample_rate": 44100,
 }
 ```
@@ -216,7 +216,7 @@ An empty list means the song had no dynamic range to threshold against (silence,
 ```python
 {
   "frames":      [[c, cs, d, ..., b], ...],   # (n_frames, 12) pitch-class energy
-  "fps":         86.13,
+  "frame_rate":  86.13,
   "sample_rate": 44100,
 }
 ```
@@ -226,7 +226,7 @@ An empty list means the song had no dynamic range to threshold against (silence,
 ```python
 {
   "frames":      [[t0, t1, t2, t3, t4, t5], ...],   # (n_frames, 6) tonal centroid
-  "fps":         86.30,
+  "frame_rate":  86.30,
   "sample_rate": 44100,
 }
 ```
@@ -237,7 +237,7 @@ An empty list means the song had no dynamic range to threshold against (silence,
 {
   "brightness_hz": 2140.5,
   "frames":        [2130.1, 2145.3, ...],   # per-frame centroid in Hz
-  "fps":           86.13,
+  "frame_rate":    86.13,
   "sample_rate":   44100,
 }
 ```
@@ -248,7 +248,7 @@ An empty list means the song had no dynamic range to threshold against (silence,
 {
   "flatness":     0.12,           # summary
   "frames":      [0.10, 0.13, ...],
-  "fps":          86.13,
+  "frame_rate":   86.13,
   "sample_rate":  44100,
 }
 ```
@@ -274,7 +274,7 @@ components:
     action:
       feature: spectrum
       audio: ${input.audio}
-      fps: 100
+      frame_rate: 100
       band_count: 128
 
   - id: analyzer
@@ -363,7 +363,7 @@ components:
 ## Best Practices
 
 1. **Prefer the audio's native sample rate**: leave `sample_rate` unset. `librosa` handles arbitrary rates and the resample step is only worth its cost when you have a specific bandwidth or throughput reason.
-2. **Reuse a spectrum across rhythm metrics**: `beats`, `onsets`, `tempogram`, and `activity` all consume the same onset envelope. Extract the spectrum once with `audio-feature-extractor` (`fps: 100`, `band_count: 128` is a solid default) and feed it to each metric.
+2. **Reuse a spectrum across rhythm metrics**: `beats`, `onsets`, `tempogram`, and `activity` all consume the same onset envelope. Extract the spectrum once with `audio-feature-extractor` (`frame_rate: 100`, `band_count: 128` is a solid default) and feed it to each metric.
 3. **Gate on `confidence`, not just BPM**: `librosa.beat.beat_track` returns a plausible BPM even for arrhythmic input. Use `confidence < 2.0` as a downstream cutoff.
 4. **Tonal metrics need raw audio**: `key`, `chroma`, `tonnetz`, `brightness`, `flatness`, `harmonicity` cannot be computed from the extractor's log-band spectrum — pass `audio: ...` directly.
 5. **`activity` reads dynamics, not level**: it maps the song's quiet-to-loud percentiles to `[0, 1]` and thresholds against that, so a consistently loud track produces no regions. Use [`audio-silence-detector`](audio-silence-detector.md) when an absolute dBFS floor is what you want.

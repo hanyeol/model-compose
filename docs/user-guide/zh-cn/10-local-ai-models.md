@@ -1385,7 +1385,7 @@ component:
     negative_prompt: ${input.negative_prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       width: 1280
       height: 720
       inference_steps: 50
@@ -1443,7 +1443,7 @@ component:
     prompt: ${input.prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       inference_steps: 40
       guidance_scale: 5.0
 ```
@@ -1489,7 +1489,7 @@ component:
     seed: ${input.seed as integer}
     params:
       num_frames: ${input.num_frames as integer}
-      fps: ${input.fps as integer}
+      frame_rate: ${input.frame_rate as integer}
       inference_steps: ${input.inference_steps as integer | 25}
       guidance_scale: ${input.guidance_scale as number | 7.5}
       denoise_strength: ${input.denoise_strength as number | 0.5}
@@ -1876,7 +1876,7 @@ component:
 **关键 action 字段**（因系列而异 —— 完整列表请参见参考）：
 
 - `image`、`audio` — 必需输入；均可为单值、列表或流。
-- `params.fps` — 输出帧率（默认 25）。
+- `params.frame_rate` — 输出帧率（默认 25）。
 - `params.inference_steps` — 去噪 / 流匹配步数（支持的系列）。
 - `params.cfg_scale`、`params.guidance_scale` — classifier-free guidance 控制。
 - `params.still`（SadTalker）、`params.crop`（Float）— 保持头/身体静止，仅让嘴部动。
@@ -1917,7 +1917,7 @@ component:
 **关键 action 字段**（因系列而异 —— 完整列表请参见参考表）：
 
 - `video`、`audio` — 必需输入；均可为单值、列表或流。
-- `params.fps` — 输出帧率；未设置时默认为源视频的帧率。
+- `params.frame_rate` — 输出帧率；未设置时默认为源视频的帧率。
 - `params.face_bounding_box` — 绕过人脸检测的 LTRB 像素元组（Wav2Lip）。当源视频的自动检测失败时提供。
 - `params.face_bounding_box_padding` — 围绕检测到的人脸添加的 LTRB 像素填充（Wav2Lip）。加大 `bottom` 可在特写镜头中避免下巴被裁掉。
 - `params.parsing_mode` — 用于融合的人脸 parsing 区域：`jaw`、`neck` 或 `raw`（MuseTalk v1.5）。

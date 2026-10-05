@@ -1949,7 +1949,7 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of prompts processed per batch |
 | `params.num_frames` | int | `81` | Number of frames to generate |
-| `params.fps` | int | `24` | Output video frame rate |
+| `params.frame_rate` | int | `24` | Output video frame rate |
 | `params.width` | int | `1280` | Output video width in pixels |
 | `params.height` | int | `720` | Output video height in pixels |
 | `params.inference_steps` | int | `50` | Number of diffusion inference steps |
@@ -1965,7 +1965,7 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of prompts processed per batch |
 | `params.num_frames` | int | `81` | Number of frames to generate |
-| `params.fps` | int | `24` | Output video frame rate |
+| `params.frame_rate` | int | `24` | Output video frame rate |
 | `params.width` | int | `1280` | Output video width in pixels |
 | `params.height` | int | `720` | Output video height in pixels |
 | `params.inference_steps` | int | `50` | Number of diffusion inference steps |
@@ -1990,7 +1990,7 @@ component:
     prompt: ${input.prompt as text}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       width: 1280
       height: 720
       inference_steps: 50
@@ -2056,7 +2056,7 @@ Generate a short video clip that animates an input image, optionally guided by a
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.num_frames` | int | `81` | Number of frames to generate |
-| `params.fps` | int | `24` | Output video frame rate |
+| `params.frame_rate` | int | `24` | Output video frame rate |
 | `params.width` | int | `null` | Output video width in pixels; defaults to the input image width |
 | `params.height` | int | `null` | Output video height in pixels; defaults to the input image height |
 | `params.inference_steps` | int | `40` | Number of diffusion inference steps |
@@ -2079,7 +2079,7 @@ component:
     prompt: ${input.prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       inference_steps: 40
       guidance_scale: 5.0
 ```
@@ -2254,7 +2254,7 @@ Transform an existing video clip. Two driver families are supported: `huggingfac
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.num_frames` | int | `null` | Frames sampled from the input; unset consumes every input frame |
-| `params.fps` | int | `null` | Output video frame rate; unset inherits the input clip's native fps |
+| `params.frame_rate` | int | `null` | Output video frame rate; unset inherits the input clip's native frame rate |
 | `params.width` | int | `null` | Output video width in pixels; defaults to the input width |
 | `params.height` | int | `null` | Output video height in pixels; defaults to the input height |
 
@@ -3966,7 +3966,7 @@ Animates a still portrait so it lip-syncs (and moves the head) to a driving audi
 | `audio` | audio/array | **required** | Input audio (or list of audios) driving the lip sync |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of `(image, audio)` pairs processed per batch |
-| `params.fps` | int | `25` | Output video frame rate |
+| `params.frame_rate` | int | `25` | Output video frame rate |
 
 #### Family: `sadtalker`
 
@@ -4149,7 +4149,7 @@ Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth 
 | `audio` | audio/array | **required** | Driving audio clip (or list of clips) whose speech the mouth follows |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of `(video, audio)` pairs processed per batch |
-| `params.fps` | int | source fps | Output video frame rate; defaults to the source video's frame rate when unset |
+| `params.frame_rate` | int | source frame rate | Output video frame rate; defaults to the source video's frame rate when unset |
 
 #### Family: `wav2lip`
 

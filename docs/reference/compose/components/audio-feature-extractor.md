@@ -11,7 +11,7 @@ component:
   action:
     feature: spectrum
     audio: ${input.audio}
-    fps: 30
+    frame_rate: 30
     band_count: 32
 ```
 
@@ -31,7 +31,7 @@ component:
 |-------|------|---------|-------------|
 | `feature` | string | **required** | Feature to extract: `spectrum`, `waveform` |
 | `audio` | any | **required** | Audio source: file path, variable reference, or upload stream |
-| `fps` | integer | `30` | Output frames per second |
+| `frame_rate` | integer | `30` | Output frames per second |
 | `sample_rate` | integer | `22050` | Sample rate used for internal PCM decoding (mono) |
 | `batch_size` | integer | `null` | Number of input audios to process in a single batch |
 | `output` | string | `null` | Output template applied to the collected result |
@@ -83,7 +83,7 @@ component:
 ```python
 {
   "frames": [[0.22, 0.10, ...], [0.24, 0.13, ...], ...],
-  "fps": 30,
+  "frame_rate": 30,
   "band_count": 32,
   "frame_count": 5400,
   "duration": 180.0,
@@ -98,7 +98,7 @@ Each entry in `frames` is one video frame; each value in that entry is the magni
 ```python
 {
   "frames": [[0.02, 0.15, 0.34, ...], ...],
-  "fps": 30,
+  "frame_rate": 30,
   "point_count": 100,
   "frame_count": 5400,
   "duration": 180.0,
@@ -113,10 +113,10 @@ Each entry in `frames` is one video frame; each value is one data point (peak or
 | Field | Type | Description |
 |-------|------|-------------|
 | `frames` | array | Per-frame feature arrays |
-| `fps` | integer | Output frames per second |
+| `frame_rate` | integer | Output frames per second |
 | `band_count` \| `point_count` | integer | Values per frame (spectrum: bands, waveform: points) |
 | `frame_count` | integer | Total number of frames emitted |
-| `duration` | float | Total duration in seconds (`frame_count / fps`) |
+| `duration` | float | Total duration in seconds (`frame_count / frame_rate`) |
 | `sample_rate` | integer | Sample rate used for internal decoding |
 
 ## Multiple Actions Configuration
@@ -167,7 +167,7 @@ components:
     action:
       feature: spectrum
       audio: ${input.audio}
-      fps: 30
+      frame_rate: 30
       band_count: 32
 
   - id: remotion
@@ -200,7 +200,7 @@ components:
 
 ## Best Practices
 
-1. **Match `fps` to your target video's frame rate**: rendering at 30 fps? Use `fps: 30` so each output entry maps to one video frame.
+1. **Match `frame_rate` to your target video's frame rate**: rendering at 30 fps? Use `frame_rate: 30` so each output entry maps to one video frame.
 2. **Choose `band_count` for the intended display**: 16–32 bands work well for a compact bar equalizer; 64+ for finer resolution.
 3. **Use `frequency_scale: log` for music visualization**: perceptual octave spacing matches how the ear hears sound. `linear` is best for scientific/technical displays.
 4. **Keep `sample_rate` low if possible**: 22050 Hz (default) is enough for visualization up to ~11 kHz. Higher rates only help for analysis above that range.

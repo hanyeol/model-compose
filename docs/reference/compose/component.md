@@ -70,7 +70,7 @@ Model-compose supports the following component types:
 | `video-converter` | Video format/codec conversion | [video-converter.md](components/video-converter.md) |
 | `video-encoder` | Encode PIL frames into video, or re-encode existing video, with optional audio track (ffmpeg) | [video-encoder.md](components/video-encoder.md) |
 | `video-frame-extractor` | Decode video and extract frames as images | [video-frame-extractor.md](components/video-frame-extractor.md) |
-| `html-frame-renderer` | Drive an HTML animation via `window.__renderer.seek(t)` and capture each frame as a PIL image (Playwright) | [html-frame-renderer.md](components/html-frame-renderer.md) |
+| `html-frame-renderer` | Drive an HTML animation via `window.render(t)` and capture each frame as a PIL image (Playwright) | [html-frame-renderer.md](components/html-frame-renderer.md) |
 | `video-clipper` | Clip one or more time ranges out of a video (ffmpeg stream copy) | [video-clipper.md](components/video-clipper.md) |
 | `video-mixer` | Composite multiple videos into one — concat (join end-to-end) or overlay (watermark, picture-in-picture) via ffmpeg | [video-mixer.md](components/video-mixer.md) |
 | `video-analyzer` | Measure black frames, freezes, brightness, and motion via ffmpeg filters | [video-analyzer.md](components/video-analyzer.md) |

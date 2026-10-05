@@ -33,7 +33,7 @@ component:
 
 ### FFmpeg
 
-Uses `ffprobe` to read container and stream information. Best suited for audio and video: reports codecs, bitrates, sample rates, resolution, fps, duration, and per-stream tags. Basic image metadata (width, height, pixel format) is also available, but embedded EXIF is not exposed — use the `exiftool` driver for that.
+Uses `ffprobe` to read container and stream information. Best suited for audio and video: reports codecs, bitrates, sample rates, resolution, frame rate, duration, and per-stream tags. Basic image metadata (width, height, pixel format) is also available, but embedded EXIF is not exposed — use the `exiftool` driver for that.
 
 ```yaml
 component:
@@ -84,7 +84,7 @@ Behavior depends on `driver`. When `media` is a list, results are returned as a 
       "width": 1920,
       "height": 1080,
       "pixel_format": "yuv420p",
-      "fps": 29.97,
+      "frame_rate": 29.97,
       "bitrate": 500000,
       "duration": 12.5,
       "frames": 375,
@@ -244,7 +244,7 @@ components:
 
 ## Best Practices
 
-1. **Pick the driver by intent.** Use `ffmpeg` when you need stream-level detail (codecs, sample rates, fps) and `exiftool` when you need embedded metadata (EXIF, XMP, GPS). If both matter, run two inspector components against the same input.
+1. **Pick the driver by intent.** Use `ffmpeg` when you need stream-level detail (codecs, sample rates, frame rate) and `exiftool` when you need embedded metadata (EXIF, XMP, GPS). If both matter, run two inspector components against the same input.
 2. **Set `return_raw: false` for production flows.** The `raw` payload can be large and is only useful during discovery/debugging.
-3. **Handle missing fields.** Streams don't always populate every field — check for `null` before using derived numbers (e.g. `bitrate`, `fps`, `rotation`).
+3. **Handle missing fields.** Streams don't always populate every field — check for `null` before using derived numbers (e.g. `bitrate`, `frame_rate`, `rotation`).
 4. **Streaming inputs are spooled.** Non-file sources (uploads, HTTP streams) are written to a temporary file before probing because both tools need seekable input. Prefer passing a file path when the caller already has one.

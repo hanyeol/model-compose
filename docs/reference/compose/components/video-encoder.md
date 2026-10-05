@@ -62,7 +62,7 @@ component:
         codec: libvpx-vp9
         bitrate: 3M
         resolution: 1920x1080
-        fps: 30
+        frame_rate: 30
       audio:
         codec: libopus
         bitrate: 128k
@@ -113,7 +113,7 @@ encoding:
     codec: libx264
     bitrate: 2M
     resolution: 1280x720
-    fps: 30
+    frame_rate: 30
   audio:
     codec: aac
     bitrate: 128k
@@ -127,7 +127,7 @@ encoding:
 | `video.codec` | string | (see table below) | Video codec (e.g. `libx264`, `libx265`, `libvpx-vp9`). |
 | `video.bitrate` | string | `null` | Video bitrate (e.g. `2M`, `5000k`). |
 | `video.resolution` | string | `null` | Output resolution (e.g. `1920x1080`, `1280x720`). |
-| `video.fps` | string / integer / number | `null` | Output frame rate. |
+| `video.frame_rate` | string / integer / number | `null` | Output frame rate. |
 | `audio.codec` | string | (see table below) | Audio codec (e.g. `aac`, `libopus`, `libmp3lame`). |
 | `audio.bitrate` | string | `null` | Audio bitrate (e.g. `128k`, `192k`). |
 
@@ -365,7 +365,7 @@ component:
         codec: ${input.codec | libx264}
         bitrate: ${input.bitrate | 2M}
         resolution: ${input.resolution}
-        fps: ${input.fps as integer | 30}
+        frame_rate: ${input.frame_rate as integer | 30}
       audio:
         codec: ${input.audio_codec | aac}
         bitrate: ${input.audio_bitrate | 128k}

@@ -57,7 +57,7 @@ Sample mean-luma (YAVG) at a chosen rate and summarize.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `sample_rate` | float | `1.0` | Frames per second sampled from the source; lower values speed up long videos |
+| `frame_rate` | float | `1.0` | Frames per second sampled from the source; lower values speed up long videos |
 | `include_timeline` | boolean | `false` | If `true`, per-sampled-frame values are included in the result |
 
 ### Motion Metric Fields (`metric: motion`)
@@ -66,7 +66,7 @@ Sample a scene-change score at a chosen rate as a cheap motion proxy (higher = m
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `sample_rate` | float | `1.0` | Frames per second sampled from the source |
+| `frame_rate` | float | `1.0` | Frames per second sampled from the source |
 | `include_timeline` | boolean | `false` | If `true`, per-sampled-frame values are included in the result |
 
 ## Supported Drivers
@@ -124,7 +124,7 @@ component:
 
 ```python
 {
-  "sample_rate":     1.0,
+  "frame_rate":      1.0,
   "sample_count":  180,
   "duration":      180.4,
   "mean_brightness":  118.4,   # 0-255 for 8-bit sources
@@ -140,7 +140,7 @@ component:
 
 ```python
 {
-  "sample_rate":  1.0,
+  "frame_rate":   1.0,
   "sample_count": 180,
   "duration":    180.4,
   "mean_motion":   6.4,   # scdet score; higher = more inter-frame change
@@ -172,7 +172,7 @@ component:
     - id: brightness
       metric: brightness
       video: ${input.video}
-      sample_rate: 2
+      frame_rate: 2
 ```
 
 ## Integration with Workflows
@@ -219,14 +219,14 @@ components:
     action:
       metric: brightness
       video: ${input.video}
-      sample_rate: 4
+      frame_rate: 4
       include_timeline: true
 ```
 
 ## Best Practices
 
 1. **This component is read-only** — pair it with `video-clipper` (trim black intros/outros), `video-encoder` (re-encode after a QA gate), or `video-scene-detector` (finer scene analysis) when you also want to change the video.
-2. **Pick `sample_rate` to match how fast the property changes**: brightness rarely needs more than `1` fps for a summary; use `4`–`8` fps only when you need `include_timeline` for a per-second cover-image scoring pass.
+2. **Pick `frame_rate` to match how fast the property changes**: brightness rarely needs more than `1` fps for a summary; use `4`–`8` fps only when you need `include_timeline` for a per-second cover-image scoring pass.
 3. **Loosen `min_duration` for freeze/black on real content**: many videos hold a still-frame or fade-to-black shot for a beat — set `min_duration: 3s` or higher to avoid false positives.
 4. **`motion` is a proxy, not motion vectors**: it uses ffmpeg's `scdet` scene-change score — great for "is anything happening?" checks, poor for tracking physical motion. If you need real motion vectors, extract frames and run an optical-flow model.
 5. **For scene boundaries use `video-scene-detector` instead**: video-analyzer's `motion` metric only summarizes; the dedicated scene detector returns the actual cut list.

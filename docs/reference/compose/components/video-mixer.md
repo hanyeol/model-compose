@@ -30,7 +30,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `method` | string | **required** | Mixing operation — `concat` or `overlay` |
-| `encoding` | object | - | Output encoding settings (container/codec/bitrate/resolution/fps). See [Encoding](#encoding). |
+| `encoding` | object | - | Output encoding settings (container/codec/bitrate/resolution/frame_rate). See [Encoding](#encoding). |
 | `batch_size` | integer \| string | `null` | Number of input sets processed per batch when the input is a list/stream. |
 | `streaming` | boolean \| string | `false` | If true, the mixed output is emitted as a byte stream instead of a temporary file. |
 
@@ -56,7 +56,7 @@ action:
 | `videos` | string[] \| string | **required** | Videos to concatenate, in the order they appear in the output (minimum 2). |
 | `crossfade` | string \| number | - | Reserved for future support; currently raises `NotImplementedError`. Omit for plain concat. |
 
-> **All inputs must share the same resolution, SAR, pixel format, framerate, audio sample rate, and channel layout.** The concat filter fails with `Input link ... parameters do not match` when they don't. Normalize inputs upstream with `video-converter` before concatenating.
+> **All inputs must share the same resolution, SAR, pixel format, frame rate, audio sample rate, and channel layout.** The concat filter fails with `Input link ... parameters do not match` when they don't. Normalize inputs upstream with `video-converter` before concatenating.
 
 ## Overlay Method
 
@@ -137,7 +137,7 @@ encoding:
     codec: libx264         # video codec
     bitrate: 4M            # target video bitrate
     resolution: 1920x1080  # output resolution
-    fps: 30                # output frame rate
+    frame_rate: 30         # output frame rate
   audio:
     codec: aac             # audio codec
     bitrate: 192k          # target audio bitrate
@@ -271,7 +271,7 @@ components:
 
 ## Best Practices
 
-1. **Concat requires matching inputs**: The `concat` filter needs identical resolution, SAR, pixel format, framerate, audio sample rate, and channel layout. Pre-process with `video-converter` when inputs differ.
+1. **Concat requires matching inputs**: The `concat` filter needs identical resolution, SAR, pixel format, frame rate, audio sample rate, and channel layout. Pre-process with `video-converter` when inputs differ.
 2. **Overlay stacking order**: The first overlay is drawn first, the last appears on top. Order the list from bottom to top.
 3. **Placement broadcast**: A single `placement` object applies to every overlay in a single execution. Use a list only when overlays need different coordinates, sizes, or timing.
 4. **Time-gated overlays**: `placement.start` / `placement.end` make an overlay visible only within a time window — useful for lower-thirds or watermarks that fade in later.

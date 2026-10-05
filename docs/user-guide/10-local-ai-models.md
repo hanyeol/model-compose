@@ -1385,7 +1385,7 @@ component:
     negative_prompt: ${input.negative_prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       width: 1280
       height: 720
       inference_steps: 50
@@ -1443,7 +1443,7 @@ component:
     prompt: ${input.prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       inference_steps: 40
       guidance_scale: 5.0
 ```
@@ -1489,7 +1489,7 @@ component:
     seed: ${input.seed as integer}
     params:
       num_frames: ${input.num_frames as integer}
-      fps: ${input.fps as integer}
+      frame_rate: ${input.frame_rate as integer}
       inference_steps: ${input.inference_steps as integer | 25}
       guidance_scale: ${input.guidance_scale as number | 7.5}
       denoise_strength: ${input.denoise_strength as number | 0.5}
@@ -1878,7 +1878,7 @@ component:
 **Key action fields** (family-dependent — see the reference for the full list):
 
 - `image`, `audio` — required inputs; both can be single values, lists, or streams.
-- `params.fps` — output frame rate (default 25).
+- `params.frame_rate` — output frame rate (default 25).
 - `params.inference_steps` — number of denoising / flow-matching steps (families that expose it).
 - `params.cfg_scale`, `params.guidance_scale` — classifier-free guidance controls.
 - `params.still` (SadTalker), `params.crop` (Float) — keep the head/body still while only the mouth animates.
@@ -1919,7 +1919,7 @@ component:
 **Key action fields** (family-dependent — see the reference table for the full list):
 
 - `video`, `audio` — required inputs; both can be single values, lists, or streams.
-- `params.fps` — output frame rate; defaults to the source video's frame rate when unset.
+- `params.frame_rate` — output frame rate; defaults to the source video's frame rate when unset.
 - `params.face_bounding_box` — LTRB pixel tuple that bypasses face detection (Wav2Lip). Provide when the source video's automatic detection fails.
 - `params.face_bounding_box_padding` — LTRB pixel padding added around the detected face (Wav2Lip). Extend `bottom` to keep the chin from getting clipped on close-up shots.
 - `params.parsing_mode` — face parsing region used for blending: `jaw`, `neck`, or `raw` (MuseTalk v1.5).

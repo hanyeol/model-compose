@@ -1385,7 +1385,7 @@ component:
     negative_prompt: ${input.negative_prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       width: 1280
       height: 720
       inference_steps: 50
@@ -1443,7 +1443,7 @@ component:
     prompt: ${input.prompt | ""}
     params:
       num_frames: 81
-      fps: 24
+      frame_rate: 24
       inference_steps: 40
       guidance_scale: 5.0
 ```
@@ -1489,7 +1489,7 @@ component:
     seed: ${input.seed as integer}
     params:
       num_frames: ${input.num_frames as integer}
-      fps: ${input.fps as integer}
+      frame_rate: ${input.frame_rate as integer}
       inference_steps: ${input.inference_steps as integer | 25}
       guidance_scale: ${input.guidance_scale as number | 7.5}
       denoise_strength: ${input.denoise_strength as number | 0.5}
@@ -1876,7 +1876,7 @@ component:
 **주요 액션 필드** (패밀리별 상이 — 전체 목록은 레퍼런스 참고):
 
 - `image`, `audio` — 필수 입력; 둘 다 단일 값, 리스트, 또는 스트림 가능.
-- `params.fps` — 출력 프레임률 (기본값 25).
+- `params.frame_rate` — 출력 프레임률 (기본값 25).
 - `params.inference_steps` — 디노이징/flow-matching 스텝 수 (지원 패밀리).
 - `params.cfg_scale`, `params.guidance_scale` — classifier-free guidance 제어.
 - `params.still` (SadTalker), `params.crop` (Float) — 머리/몸을 정지시키고 입만 애니메이션.
@@ -1917,7 +1917,7 @@ component:
 **주요 액션 필드** (패밀리별 상이 — 전체 목록은 레퍼런스 테이블 참고):
 
 - `video`, `audio` — 필수 입력; 둘 다 단일 값, 리스트, 또는 스트림 가능.
-- `params.fps` — 출력 프레임률; 지정하지 않으면 소스 비디오의 프레임률을 사용.
+- `params.frame_rate` — 출력 프레임률; 지정하지 않으면 소스 비디오의 프레임률을 사용.
 - `params.face_bounding_box` — 얼굴 검출을 우회하는 LTRB 픽셀 튜플 (Wav2Lip). 소스 비디오의 자동 검출이 실패할 때 제공.
 - `params.face_bounding_box_padding` — 검출된 얼굴 주변에 추가되는 LTRB 픽셀 패딩 (Wav2Lip). 클로즈업 샷에서 턱이 잘리는 것을 막으려면 `bottom`을 확장.
 - `params.parsing_mode` — 블렌딩에 사용할 얼굴 파싱 영역: `jaw`, `neck`, `raw` (MuseTalk v1.5).

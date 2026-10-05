@@ -114,7 +114,7 @@ component:
         codec: libx264
         bitrate: 4500k
         resolution: 1920x1080
-        fps: 30
+        frame_rate: 30
       audio:
         codec: aac
         bitrate: 160k
@@ -128,7 +128,7 @@ component:
 | `video.codec` | string | `libx264` | Video codec |
 | `video.bitrate` | string | `null` | Video bitrate (e.g. `2M`, `4500k`) |
 | `video.resolution` | string | `null` | Output resolution (e.g. `1920x1080`) |
-| `video.fps` | string / integer / number | `null` | Output frame rate |
+| `video.frame_rate` | string / integer / number | `null` | Output frame rate |
 | `audio.codec` | string | `aac` | Audio codec |
 | `audio.bitrate` | string | `null` | Audio bitrate (e.g. `128k`) |
 

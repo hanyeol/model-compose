@@ -121,18 +121,14 @@ class WavStreamResource(StreamResource):
     ):
         super().__init__("audio/wav", filename)
 
-        if isinstance(source, PcmStreamResource):
-            attrs = attrs if attrs is not None else source.attrs
-            is_raw_samples = True
-        elif isinstance(source, TeeStreamResource):
-            is_raw_samples = False
-        else:
-            is_raw_samples = attrs is not None
+        if isinstance(source, PcmStreamResource) and not attrs:
+            attrs = dict(source.attrs)
 
         self.source: StreamResource = self._resolve_source(source)
         self.attrs: Dict[str, Any] = attrs or {}
 
-        self._is_raw_samples = is_raw_samples
+        # tee branches already carry the emitted header; don't re-prepend.
+        self._is_raw_samples = bool(self.attrs) and not isinstance(source, TeeStreamResource)
 
     def as_pcm_stream(self) -> Optional[PcmStreamResource]:
         if self._is_raw_samples:

@@ -327,16 +327,21 @@ class WebScraperAction(ComponentAction):
 
         def _extract(expr: str) -> Union[str, List[str], None]:
             elements = tree.xpath(expr)
+
             if not elements:
                 return [] if multiple else None
+
             if multiple:
                 return [ self._extract_from_xpath_element(element, extract_mode, attribute) for element in elements ]
+
             return self._extract_from_xpath_element(elements[0], extract_mode, attribute)
 
         if isinstance(xpath, dict):
             return { key: _extract(expr) for key, expr in xpath.items() }
+
         if isinstance(xpath, list):
             return [ _extract(expr) for expr in xpath ]
+
         return _extract(xpath)
 
     def _extract_from_element(self, element, extract_mode: str, attribute: Optional[str]) -> Optional[str]:

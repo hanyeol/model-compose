@@ -104,7 +104,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `dataset` | string | **required** | Training dataset reference |
-| `evaluation_dataset` | string | `null` | Evaluation dataset reference |
+| `eval_dataset` | string | `null` | Evaluation dataset reference |
 | `text_column` | string | `null` | Column containing pre-formatted training text |
 | `prompt_column` | string | `null` | Column containing chat prompts |
 | `response_column` | string | `null` | Column containing chat responses |
@@ -124,7 +124,7 @@ component:
   task: text-classification
   action:
     dataset: ${input.dataset}
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
     learning_rate: 3e-5
     per_device_train_batch_size: 16
     num_epochs: 5
@@ -171,7 +171,7 @@ Each row of the training dataset has three fields:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `dataset` | string | **required** | Training dataset (HuggingFace repo id or local JSONL path) |
-| `evaluation_dataset` | string | `null` | Optional evaluation split |
+| `eval_dataset` | string | `null` | Optional evaluation split |
 | `state_column` | string | `state` | Column holding the input state (text) |
 | `schema_column` | string | `schema` | Column holding the per-question schema dict |
 | `answers_column` | string | `answers` | Column holding ground-truth answers keyed by question id |
@@ -369,7 +369,7 @@ component:
   task: text-classification
   action:
     dataset: ${input.train_dataset}
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
     learning_rate: 3e-5
     per_device_train_batch_size: 16
     per_device_eval_batch_size: 32

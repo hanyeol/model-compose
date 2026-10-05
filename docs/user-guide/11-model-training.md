@@ -390,7 +390,7 @@ components:
 
     # Evaluation
     eval_steps: 500                 # Evaluate every 500 steps
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
 
     # Checkpoint saving
     save_steps: 500                 # Save every 500 steps
@@ -447,7 +447,7 @@ components:
 
     # Dataset
     dataset: ${input.dataset}
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
 
     # Data format
     text_column: text               # Single text column
@@ -760,7 +760,7 @@ components:
     type: model-trainer
     task: sft
 
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
     eval_steps: 500
 ```
 

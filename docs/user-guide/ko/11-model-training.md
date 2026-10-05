@@ -390,7 +390,7 @@ components:
 
     # 평가
     eval_steps: 500                 # 500 스텝마다 평가
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
 
     # 체크포인트 저장
     save_steps: 500                 # 500 스텝마다 저장
@@ -447,7 +447,7 @@ components:
 
     # 데이터셋
     dataset: ${input.dataset}
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
 
     # 데이터 형식
     text_column: text               # 단일 텍스트 열
@@ -759,7 +759,7 @@ components:
     type: model-trainer
     task: sft
 
-    evaluation_dataset: ${input.evaluation_dataset}
+    eval_dataset: ${input.eval_dataset}
     eval_steps: 500
 ```
 

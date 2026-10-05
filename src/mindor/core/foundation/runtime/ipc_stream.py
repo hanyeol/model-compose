@@ -110,7 +110,8 @@ class IpcInboundStream:
             return PcmStreamResource(source, attrs=attrs, filename=filename)
 
         if cls is WavStreamResource:
-            return WavStreamResource(source, attrs=attrs, filename=filename)
+            # The bytes may be a complete WAV or raw PCM described by attrs; let the first bytes decide.
+            return WavStreamResource(source, attrs=attrs, filename=filename, sniff_header=True)
 
         if cls is AudioStreamResource:
             return AudioStreamResource(source, attrs=attrs, filename=filename)

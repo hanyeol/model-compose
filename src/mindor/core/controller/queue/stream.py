@@ -171,7 +171,8 @@ class RedisInboundStream:
             return PcmStreamResource(source, attrs=attrs, filename=self.meta.filename)
 
         if cls is WavStreamResource:
-            return WavStreamResource(source, attrs=attrs, filename=self.meta.filename)
+            # The bytes may be a complete WAV or raw PCM described by attrs; let the first bytes decide.
+            return WavStreamResource(source, attrs=attrs, filename=self.meta.filename, sniff_header=True)
 
         if cls is AudioStreamResource:
             return AudioStreamResource(source, attrs=attrs, filename=self.meta.filename)

@@ -118,21 +118,22 @@ class WavStreamResource(StreamResource):
         source: Union[StreamResource, bytes],
         attrs: Optional[Dict[str, Any]] = None,
         filename: Optional[str] = None,
+        sniff_header: bool = False,
     ):
         super().__init__("audio/wav", filename)
 
-        if isinstance(source, PcmStreamResource):
-            attrs = attrs if attrs is not None else source.attrs
-            is_raw_samples = True
-        elif isinstance(source, TeeStreamResource):
-            is_raw_samples = False
-        else:
-            is_raw_samples = attrs is not None
+        if isinstance(source, PcmStreamResource) and attrs is None:
+            attrs = source.attrs
 
         self.source: StreamResource = self._resolve_source(source)
         self.attrs: Dict[str, Any] = attrs or {}
 
-        self._is_raw_samples = is_raw_samples
+        # Bytes rebuilt from a transport (IPC, WebSocket, queue) may be a complete WAV file
+        # or raw PCM described by `attrs`; `attrs` alone cannot tell them apart. With
+        # `sniff_header`, the first bytes decide: a stream that already starts with "RIFF"
+        # passes through unchanged, anything else gets a header built from `attrs`.
+        self._sniff_header = sniff_header
+        self._is_raw_samples = False if sniff_header else self._infer_raw_samples(source, attrs)
 
     def as_pcm_stream(self) -> Optional[PcmStreamResource]:
         if self._is_raw_samples:
@@ -145,7 +146,7 @@ class WavStreamResource(StreamResource):
 
     def copy(self, count: int) -> List[WavStreamResource]:
         return [
-            WavStreamResource(source, self.attrs, self.filename)
+            self._with_source(source)
             for source in self.source.copy(count)
         ]
 
@@ -163,11 +164,50 @@ class WavStreamResource(StreamResource):
         await self.source.close()
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        if self._sniff_header:
+            async for chunk in self._iterate_sniffed():
+                yield chunk
+            return
+
         if self._is_raw_samples:
             yield self._build_header()
 
         async for chunk in self.source:
             yield chunk
+
+    async def _iterate_sniffed(self) -> AsyncIterator[bytes]:
+        iterator = self.source.__aiter__()
+        head = bytearray()
+
+        try:
+            while len(head) < 4:
+                head.extend(await iterator.__anext__())
+        except StopAsyncIteration:
+            pass
+
+        if not head.startswith(b"RIFF"):
+            yield self._build_header()
+
+        if head:
+            yield bytes(head)
+
+        async for chunk in iterator:
+            yield chunk
+
+    def _with_source(self, source: StreamResource) -> WavStreamResource:
+        copy = WavStreamResource(source, self.attrs, self.filename, sniff_header=self._sniff_header)
+        copy._is_raw_samples = self._is_raw_samples
+        return copy
+
+    @staticmethod
+    def _infer_raw_samples(source: Union[StreamResource, bytes], attrs: Optional[Dict[str, Any]]) -> bool:
+        if isinstance(source, PcmStreamResource):
+            return True
+
+        if isinstance(source, TeeStreamResource):
+            return False
+
+        return attrs is not None
 
     @staticmethod
     def _resolve_source(source: Union[StreamResource, bytes]) -> StreamResource:

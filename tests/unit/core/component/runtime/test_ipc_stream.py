@@ -279,3 +279,81 @@ class TestMimeToResourceClass:
 
     def test_unspecified_object_falls_back_to_chunk_iterator(self):
         assert IpcInboundStream._resolve_resource_class(None, StreamKind.OBJECT) is StreamChunkIterator
+
+
+# ---------------------------------------------------------------------------
+# IpcInboundStream.build_resource — WAV bytes must cross the IPC boundary unchanged
+# ---------------------------------------------------------------------------
+
+def _wav_bytes(sample_rate: int = 24000, frames: int = 2400) -> bytes:
+    import io
+    import wave
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(b"\x01\x00" * frames)
+    return buffer.getvalue()
+
+
+async def _rebuild_over_ipc(payload: bytes, content_type: str, attrs: dict) -> bytes:
+    stream = _inbound()
+    rec = _PullCloseRecorder()
+    reader = IpcStreamReader(stream, on_pull=rec.on_pull, on_close=rec.on_close)
+    stream.queue.put_nowait(payload)
+    stream.push_end()
+    resource = stream.build_resource(reader, content_type, "a.wav", len(payload), attrs)
+    return b"".join([chunk async for chunk in resource])
+
+
+class TestWavOverIpc:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("content_type", ["audio/wav", "audio/x-wav"])
+    async def test_uploaded_wav_keeps_its_own_header(self, content_type):
+        # An uploaded file arrives with empty attrs; a second header (44.1 kHz by default)
+        # used to be prepended, so a 24 kHz file played back 1.84x too fast.
+        payload = _wav_bytes(24000)
+        assert await _rebuild_over_ipc(payload, content_type, {}) == payload
+
+    @pytest.mark.anyio
+    async def test_wav_with_attrs_is_not_given_a_second_header(self):
+        # Bytes on the wire are already a complete WAV (the producer wrote the header).
+        payload = _wav_bytes(16000)
+        attrs = {"sample_rate": 16000, "channels": 1, "bit_depth": 16}
+        assert await _rebuild_over_ipc(payload, "audio/wav", attrs) == payload
+
+    @pytest.mark.anyio
+    async def test_raw_pcm_with_attrs_gets_a_header_from_attrs(self):
+        # Raw PCM labelled audio/wav (no "RIFF" at the start) still gets a header, built from attrs.
+        import struct
+
+        pcm = b"\x01\x00" * 1600
+        rebuilt = await _rebuild_over_ipc(pcm, "audio/wav", {"sample_rate": 16000, "channels": 1, "bit_depth": 16})
+        assert rebuilt[:4] == b"RIFF"
+        assert struct.unpack("<I", rebuilt[24:28])[0] == 16000
+        assert rebuilt.endswith(pcm)
+
+    @pytest.mark.anyio
+    async def test_header_split_across_chunks_is_still_recognised(self):
+        payload = _wav_bytes(24000)
+        stream = _inbound()
+        rec = _PullCloseRecorder()
+        reader = IpcStreamReader(stream, on_pull=rec.on_pull, on_close=rec.on_close)
+        for piece in (payload[:2], payload[2:3], payload[3:]):
+            stream.queue.put_nowait(piece)
+        stream.push_end()
+        resource = stream.build_resource(reader, "audio/wav", "a.wav", len(payload), {})
+        assert b"".join([chunk async for chunk in resource]) == payload
+
+
+class TestWavStreamResourceCopy:
+    @pytest.mark.anyio
+    async def test_copy_keeps_a_complete_wav_unchanged(self):
+        payload = _wav_bytes(24000)
+        original = WavStreamResource(BytesStreamResource(payload), attrs={}, sniff_header=True)
+        if not original.copyable():
+            pytest.skip("source is not copyable")
+        (copied,) = original.copy(1)
+        assert b"".join([chunk async for chunk in copied]) == payload

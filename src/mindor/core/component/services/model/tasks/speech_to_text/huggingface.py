@@ -149,9 +149,12 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
             with torch.inference_mode():
                 if return_timestamps == "word":
+                    # `return_timestamps="word"` is a pipeline-level value; `generate()`
+                    # needs the pair below to attach per-token timestamps to segments.
+                    generation_params = { **params["generation"], "return_timestamps": True, "return_token_timestamps": True }
                     outputs = self.model.generate(
                         **batch_feature,
-                        **params["generation"],
+                        **generation_params,
                         return_dict_in_generate=True,
                         stopping_criteria=stopping_criteria,
                     )

@@ -1,9 +1,10 @@
-from typing import Optional, Dict, List, Callable, Awaitable, Any
+from typing import Optional, Dict, List, Callable, Awaitable, Any, Tuple, Union
 from .common import VideoAudioEncodingParams
 from mindor.dsl.schema.component import PlaywrightWebBrowserComponentConfig, WebBrowserDriverType
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import load_image_from_bytes
+from mindor.core.utils.playwright import install_browser
 from ..base import WebBrowserDriver, register_web_browser_driver
 from .common import WebBrowserSession
 from .utils.chrome import VideoRecorder, PageAdapter
@@ -223,6 +224,18 @@ class PlaywrightWebBrowserService(WebBrowserDriver):
         self._browser            = None  # persistent-launch or CDP-attach browser wrapper
         self._persistent_context = None  # non-None only for launch_persistent_context
         self._attached           = False # True when connected via CDP; leave browser alive on close
+
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "playwright" ]
+
+    async def _setup(self) -> None:
+        # `cdp_url` attaches to an existing browser and `channel` drives a
+        # system browser (chrome, msedge, …); neither needs a Playwright-managed
+        # browser binary. Otherwise install the engine we'll launch.
+        if self.config.cdp_url or self.config.channel:
+            return
+
+        install_browser(self.config.browser)
 
     async def _create_session(self) -> PlaywrightBrowserSession:
         from playwright.async_api import async_playwright

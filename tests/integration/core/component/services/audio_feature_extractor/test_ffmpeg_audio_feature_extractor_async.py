@@ -103,7 +103,7 @@ def _spectrum_config(source_template: str, **overrides) -> SpectrumAudioFeatureE
     defaults = dict(
         feature=AudioFeature.SPECTRUM,
         audio=source_template,
-        fps=30,
+        frame_rate=30,
         sample_rate=22050,
         band_count=16,
         window_size=1024,
@@ -116,7 +116,7 @@ def _waveform_config(source_template: str, **overrides) -> WaveformAudioFeatureE
     defaults = dict(
         feature=AudioFeature.WAVEFORM,
         audio=source_template,
-        fps=30,
+        frame_rate=30,
         sample_rate=22050,
         point_count=100,
     )
@@ -156,14 +156,14 @@ class TestNonBlockingBehavior:
     NOTE: after the decode, ``_compute_spectrum`` / ``_compute_waveform`` runs
     sync numpy work on the event loop. For small band counts and window sizes
     this completes in a few ms and does not trip the blocking guard, but a
-    very large fps / band_count could. If the ticker check fails here, that is
+    very large frame_rate / band_count could. If the ticker check fails here, that is
     a latent bug worth flagging — the numpy compute path should be offloaded
     to a thread.
     """
 
     @pytest.mark.anyio
     async def test_spectrum_extract_does_not_block_event_loop(self, sine_10s_wav):
-        config = _spectrum_config("${input.audio}", sample_rate=44100, fps=30, band_count=16)
+        config = _spectrum_config("${input.audio}", sample_rate=44100, frame_rate=30, band_count=16)
         context = make_action_context(input={"audio": _wav_input(sine_10s_wav)})
 
         result = await assert_does_not_block(
@@ -177,7 +177,7 @@ class TestNonBlockingBehavior:
 
     @pytest.mark.anyio
     async def test_waveform_extract_does_not_block_event_loop(self, sine_10s_wav):
-        config = _waveform_config("${input.audio}", sample_rate=44100, fps=30, point_count=100)
+        config = _waveform_config("${input.audio}", sample_rate=44100, frame_rate=30, point_count=100)
         context = make_action_context(input={"audio": _wav_input(sine_10s_wav)})
 
         result = await assert_does_not_block(
@@ -220,7 +220,7 @@ class TestCancellation:
         test asserts the run terminates within a bounded time even when a
         token is cancelled mid-flight.
         """
-        config = _spectrum_config("${input.audio}", sample_rate=44100, fps=30, band_count=16)
+        config = _spectrum_config("${input.audio}", sample_rate=44100, frame_rate=30, band_count=16)
         context = make_action_context(input={"audio": _wav_input(sine_10s_wav)})
         token = CancellationToken()
         _attach_cancellation(context, token)

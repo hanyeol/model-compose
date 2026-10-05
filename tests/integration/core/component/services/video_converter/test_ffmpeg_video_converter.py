@@ -125,14 +125,14 @@ def make_context():
 
 
 def _wrap_encoding(kwargs: dict) -> dict:
-    """Translate legacy flat kwargs (format/codec/resolution/fps) into the current
+    """Translate legacy flat kwargs (format/codec/resolution/frame_rate) into the current
     `encoding=VideoAudioEncodingConfig(...)` shape used by VideoConverterActionConfig."""
     fmt = kwargs.pop("format", None)
     codec = kwargs.pop("codec", None)
     resolution = kwargs.pop("resolution", None)
-    fps = kwargs.pop("fps", None)
+    frame_rate = kwargs.pop("frame_rate", None)
 
-    if fmt is None and codec is None and resolution is None and fps is None:
+    if fmt is None and codec is None and resolution is None and frame_rate is None:
         return kwargs
 
     video_kwargs = {}
@@ -153,8 +153,8 @@ def _wrap_encoding(kwargs: dict) -> dict:
             audio_kwargs["codec"] = codec.audio
     if resolution is not None:
         video_kwargs["resolution"] = resolution
-    if fps is not None:
-        video_kwargs["fps"] = fps
+    if frame_rate is not None:
+        video_kwargs["frame_rate"] = frame_rate
 
     kwargs["encoding"] = VideoAudioEncodingConfig(
         format=fmt,
@@ -308,8 +308,8 @@ class TestFFmpegVideoConverter:
             os.unlink(out_path)
 
     @pytest.mark.anyio
-    async def test_fps_override(self, sample_mp4_path):
-        config = make_config(sample_mp4_path, format="mp4", fps="12")
+    async def test_frame_rate_override(self, sample_mp4_path):
+        config = make_config(sample_mp4_path, format="mp4", frame_rate="12")
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 

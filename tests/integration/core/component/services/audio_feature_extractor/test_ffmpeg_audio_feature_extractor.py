@@ -135,7 +135,7 @@ def _spectrum_config(audio: Any = "<placeholder>", **overrides) -> SpectrumAudio
     defaults = dict(
         feature=AudioFeature.SPECTRUM,
         audio=audio,
-        fps=30,
+        frame_rate=30,
         sample_rate=22050,
         band_count=32,
     )
@@ -147,7 +147,7 @@ def _waveform_config(audio: Any = "<placeholder>", **overrides) -> WaveformAudio
     defaults = dict(
         feature=AudioFeature.WAVEFORM,
         audio=audio,
-        fps=30,
+        frame_rate=30,
         sample_rate=22050,
         point_count=100,
     )
@@ -159,13 +159,13 @@ def _waveform_config(audio: Any = "<placeholder>", **overrides) -> WaveformAudio
 class TestSpectrumExtractor:
     @pytest.mark.anyio
     async def test_spectrum_output_shape(self, sine_440hz_wav):
-        config = _spectrum_config(sine_440hz_wav, fps=30, sample_rate=22050, band_count=32)
+        config = _spectrum_config(sine_440hz_wav, frame_rate=30, sample_rate=22050, band_count=32)
         ctx = _make_context(sine_440hz_wav)
 
         result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert isinstance(result, dict)
-        assert result["fps"] == 30
+        assert result["frame_rate"] == 30
         assert result["sample_rate"] == 22050
         assert result["band_count"] == 32
         assert result["frame_count"] > 0
@@ -233,9 +233,9 @@ class TestSpectrumExtractor:
         assert result["band_count"] == 32
 
     @pytest.mark.anyio
-    async def test_spectrum_higher_fps_yields_more_frames(self, sine_440hz_wav):
-        config_30 = _spectrum_config(sine_440hz_wav, fps=30)
-        config_60 = _spectrum_config(sine_440hz_wav, fps=60)
+    async def test_spectrum_higher_frame_rate_yields_more_frames(self, sine_440hz_wav):
+        config_30 = _spectrum_config(sine_440hz_wav, frame_rate=30)
+        config_60 = _spectrum_config(sine_440hz_wav, frame_rate=60)
         ctx_30 = _make_context(sine_440hz_wav)
         ctx_60 = _make_context(sine_440hz_wav)
 
@@ -261,7 +261,7 @@ class TestSpectrumExtractor:
         """Params arriving as strings (from YAML/webui) should be cast to numeric types."""
         config = _spectrum_config(
             sine_440hz_wav,
-            fps="30",
+            frame_rate="30",
             sample_rate="22050",
             band_count="16",
             min_frequency="40",
@@ -273,19 +273,19 @@ class TestSpectrumExtractor:
         result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
         assert result["band_count"] == 16
-        assert result["fps"] == 30
+        assert result["frame_rate"] == 30
 
 
 @ffmpeg_required
 class TestWaveformExtractor:
     @pytest.mark.anyio
     async def test_waveform_output_shape(self, sine_440hz_wav):
-        config = _waveform_config(sine_440hz_wav, fps=30, point_count=100)
+        config = _waveform_config(sine_440hz_wav, frame_rate=30, point_count=100)
         ctx = _make_context(sine_440hz_wav)
 
         result = await FFmpegAudioFeatureExtractorAction(config).run(ctx)
 
-        assert result["fps"] == 30
+        assert result["frame_rate"] == 30
         assert result["point_count"] == 100
         assert result["frame_count"] > 0
         for frame in result["frames"]:

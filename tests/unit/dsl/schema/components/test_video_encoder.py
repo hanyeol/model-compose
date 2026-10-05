@@ -94,9 +94,9 @@ class TestVideoEncoderActionConfig:
         """frame_rate accepts variable reference string."""
         config = VideoEncoderActionConfig(
             frames="${f}",
-            frame_rate="${input.fps}",
+            frame_rate="${input.frame_rate}",
         )
-        assert config.frame_rate == "${input.fps}"
+        assert config.frame_rate == "${input.frame_rate}"
 
     def test_video_list_input(self):
         """video accepts a list of paths for batch encoding."""

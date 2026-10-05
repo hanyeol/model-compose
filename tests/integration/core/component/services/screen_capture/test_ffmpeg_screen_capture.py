@@ -73,7 +73,7 @@ def _make_config(**kwargs: Any) -> ScreenCaptureActionConfig:
         include_video=True,
         include_audio=False,
         audio_source=ScreenCaptureAudioSource.NONE,
-        framerate=30,
+        frame_rate=30,
         duration=None,
     )
     defaults.update(kwargs)
@@ -161,7 +161,7 @@ class TestVideoInputArgs:
 
     def test_darwin_avfoundation(self):
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Darwin", display=2, framerate=15)
+        argv = action._build_video_input_args("Darwin", display=2, frame_rate=15)
         assert argv[:2] == ["-f", "avfoundation"]
         assert "-framerate" in argv and "15" in argv
         # display is passed as "<n>:none" to avoid picking up an audio device.
@@ -169,27 +169,27 @@ class TestVideoInputArgs:
 
     def test_windows_gdigrab(self):
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Windows", display=0, framerate=30)
+        argv = action._build_video_input_args("Windows", display=0, frame_rate=30)
         assert argv[:2] == ["-f", "gdigrab"]
         assert "desktop" in argv
 
     def test_linux_x11grab_uses_display_env(self, monkeypatch):
         monkeypatch.setenv("DISPLAY", ":1")
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Linux", display=0, framerate=30)
+        argv = action._build_video_input_args("Linux", display=0, frame_rate=30)
         assert argv[:2] == ["-f", "x11grab"]
         assert ":1" in argv
 
     def test_linux_x11grab_default_display(self, monkeypatch):
         monkeypatch.delenv("DISPLAY", raising=False)
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Linux", display=0, framerate=30)
+        argv = action._build_video_input_args("Linux", display=0, frame_rate=30)
         assert ":0.0" in argv
 
     def test_unsupported_platform_raises(self):
         action = FFmpegScreenCaptureAction(_make_config())
         with pytest.raises(NotImplementedError, match="platform"):
-            action._build_video_input_args("Plan9", display=0, framerate=30)
+            action._build_video_input_args("Plan9", display=0, frame_rate=30)
 
 
 class TestVideoInputArgsWithRegion:
@@ -201,13 +201,13 @@ class TestVideoInputArgsWithRegion:
         # avfoundation can't crop at input; the region is applied via the
         # -vf crop filter in _start_video_capture, not here.
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Darwin", display=0, framerate=30, region=self._REGION)
+        argv = action._build_video_input_args("Darwin", display=0, frame_rate=30, region=self._REGION)
         assert "-video_size" not in argv
         assert "-offset_x" not in argv
 
     def test_windows_region_uses_offset_and_video_size(self):
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Windows", display=0, framerate=30, region=self._REGION)
+        argv = action._build_video_input_args("Windows", display=0, frame_rate=30, region=self._REGION)
         assert "-offset_x" in argv and "100" in argv
         assert "-offset_y" in argv and "50" in argv
         assert "-video_size" in argv and "640x360" in argv
@@ -216,7 +216,7 @@ class TestVideoInputArgsWithRegion:
     def test_linux_region_baked_into_display_spec(self, monkeypatch):
         monkeypatch.setenv("DISPLAY", ":0")
         action = FFmpegScreenCaptureAction(_make_config())
-        argv = action._build_video_input_args("Linux", display=0, framerate=30, region=self._REGION)
+        argv = action._build_video_input_args("Linux", display=0, frame_rate=30, region=self._REGION)
         # x11grab reads the offset from the display spec.
         assert ":0+100,50" in argv
         assert "-video_size" in argv and "640x360" in argv
@@ -568,7 +568,7 @@ async def test_unsupported_video_source_raises_not_implemented():
             {
                 "video_source": _WindowSource(),
                 "encoding": None,
-                "framerate": 30,
+                "frame_rate": 30,
                 "display": 0,
                 "region": None,
                 "duration": None,
@@ -1041,7 +1041,7 @@ class TestLiveCapture:
         config = _make_config(
             include_video=True,
             include_audio=False,
-            framerate=10,
+            frame_rate=10,
             display=self._display_index(),
         )
         action = FFmpegScreenCaptureAction(config)
@@ -1099,7 +1099,7 @@ class TestLiveCapture:
             region=ScreenCaptureRegion(x=0, y=0, width=320, height=240),
             include_video=True,
             include_audio=False,
-            framerate=10,
+            frame_rate=10,
             display=self._display_index(),
         )
         action = FFmpegScreenCaptureAction(config)

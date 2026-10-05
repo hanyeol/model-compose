@@ -149,7 +149,6 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
             "diffusers==0.32.2",
             "transformers==4.48.0",
             "accelerate==0.26.1",
-            "huggingface_hub==0.30.2",
             "decord==0.6.0",
             "einops==0.7.0",
             "omegaconf==2.3.0",
@@ -167,6 +166,7 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
             "python_speech_features==0.6",
             "scenedetect==0.6.1",
             "lpips==0.1.4",
+            "huggingface_hub==0.30.2",
         ]
 
     async def _setup(self) -> None:

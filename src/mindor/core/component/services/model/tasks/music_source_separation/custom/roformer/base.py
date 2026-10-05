@@ -292,7 +292,8 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
             "librosa",
             "numpy",
             "soxr",
-            "safetensors"
+            "safetensors",
+            "huggingface_hub<2.0",
         ]
 
     async def _load_model(self) -> None:

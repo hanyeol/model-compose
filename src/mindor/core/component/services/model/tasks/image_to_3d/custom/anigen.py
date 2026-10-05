@@ -207,9 +207,9 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
             "scikit-learn>=1.3",
             "geffnet>=1.0",
             "transformers>=4.40",
-            "huggingface_hub>=0.34.0,<1.0",
             "spconv-cu121",
             "utils3d@git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8",
+            "huggingface_hub>=0.34.0,<1.0",
         ]
 
     async def _setup(self) -> None:

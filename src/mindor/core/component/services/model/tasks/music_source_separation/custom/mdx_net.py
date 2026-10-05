@@ -239,7 +239,8 @@ class MdxNetMusicSourceSeparationTaskDriver(ModelTaskDriver):
             *torch_requirements("torch"),
             ("onnxruntime", get_onnxruntime_distributions()),
             "numpy",
-            "soxr"
+            "soxr",
+            "huggingface_hub<2.0",
         ]
 
     async def _load_model(self) -> None:

@@ -321,7 +321,6 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
             "diffusers==0.30.2",
             "transformers==4.39.2",
             "accelerate==0.28.0",
-            "huggingface_hub==0.30.2",
             "numpy==1.23.5",
             "opencv-python==4.9.0.80",
             "librosa==0.11.0",
@@ -331,6 +330,7 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
             "ffmpeg-python",
             "imageio",
             "imageio-ffmpeg",
+            "huggingface_hub==0.30.2",
         ]
 
     async def _setup(self) -> None:

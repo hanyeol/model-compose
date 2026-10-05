@@ -194,6 +194,7 @@ class Mdx23cMusicSourceSeparationTaskDriver(ModelTaskDriver):
             "mindor-mdx23c@git+https://github.com/hanyeol/mindor-mdx23c.git",
             "numpy",
             "soxr",
+            "huggingface_hub<2.0",
         ]
 
     async def _load_model(self) -> None:

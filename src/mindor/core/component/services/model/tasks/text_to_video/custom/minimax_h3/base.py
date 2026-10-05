@@ -229,7 +229,6 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             "transformers>=4.45",
             "accelerate>=0.34",
             "safetensors>=0.4",
-            "huggingface_hub>=0.25",
             "sentencepiece",
             "soundfile>=0.12",
             "imageio>=2.34",
@@ -237,6 +236,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             "av>=11",
             "Pillow>=10",
             "numpy>=1.24",
+            "huggingface_hub>=0.25",
         ]
 
     async def _load_model(self) -> None:

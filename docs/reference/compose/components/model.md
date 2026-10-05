@@ -2881,7 +2881,8 @@ Transcribe audio into text, optionally with per-segment or per-word timestamps. 
 
 **Family-specific action fields:**
 
-- `faster-whisper` / `huggingface` (Whisper): `task` (`transcribe` \| `translate`), `chunk_length`, and `params` (`num_beams`, `temperature`, `compression_ratio_threshold`, `log_prob_threshold`, `no_speech_threshold`).
+- `huggingface` (Whisper): `task` (`transcribe` \| `translate`), `chunk_length`, and `params` (`num_beams`, `temperature`, `compression_ratio_threshold`, `log_prob_threshold`, `no_speech_threshold`).
+- `faster-whisper`: the Whisper-family fields above, plus `params.vad_filter`, `params.condition_on_previous_text`, and `params.vad_parameters` (`threshold`, `neg_threshold`, `min_speech_duration_ms`, `max_speech_duration_s`, `min_silence_duration_ms`, `speech_pad_ms`; applied when `vad_filter` is true).
 - `crisper-whisper`: `mode` (`verbatim` \| `intended`), `hotwords`, `longform_strategy`, `speculative_decoding`, `hallucination_mitigation`, `temperature_fallback`, and `params.{chunk_duration,stride,context_words,drop_words,max_output_length}`.
 - `vibevoice`: `context_info`, `max_output_length`, `temperature`, `top_p`, `num_beams`.
 - `fun-asr`: uses the common fields only; VAD and punctuation are configured on the component (`voice_activity_detection`, `punctuation`).

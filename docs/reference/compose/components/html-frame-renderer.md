@@ -114,12 +114,13 @@ component:
   headless: true
   action:
     html: ./animation.html
+    duration: 5s
     frame_rate: 30
     width: 1280
     height: 720
 ```
 
-**Auto-installed dependency:** `playwright` (plus a browser install via `playwright install chromium`)
+**Auto-installed on first start:** the `playwright` Python package and the Chromium browser binary (via `playwright install chromium`).
 
 ## HTML Source Resolution
 

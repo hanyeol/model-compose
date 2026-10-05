@@ -92,6 +92,23 @@ model-compose up
 
 ---
 
+## 자동 웹 UI
+
+모든 워크플로우에 브라우저 UI가 기본 제공됩니다 — 입력, 출력, 스트리밍, 파일 업로드가 스키마에서 자동으로 추론됩니다. 두 줄 YAML, 프론트엔드 코드 없음.
+
+```yaml
+controller:
+  webui:
+    driver: gradio
+    port: 8081
+```
+
+![자동 웹 UI](docs/images/webui.gif)
+
+반복 개발, 데모, 그리고 프로덕션에 넣기 전에 비엔지니어와 워크플로우를 공유하기에 완벽합니다.
+
+---
+
 ## What You Can Build
 
 YAML 파일 하나로 오늘 바로 서비스할 수 있는 것들 — 몇 가지 예시일 뿐입니다.

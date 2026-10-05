@@ -92,6 +92,23 @@ model-compose up
 
 ---
 
+## Automatic Web UI
+
+Every workflow gets a browser UI for free — inputs, outputs, streaming, and file uploads are inferred from the schema. Two lines of YAML, no frontend code.
+
+```yaml
+controller:
+  webui:
+    driver: gradio
+    port: 8081
+```
+
+![Automatic Web UI](docs/images/webui.gif)
+
+Perfect for iteration, demos, and sharing a workflow with non-engineers before wiring it into production.
+
+---
+
 ## What You Can Build
 
 Here's what a single YAML file can serve today — just a few examples.

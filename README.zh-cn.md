@@ -92,6 +92,23 @@ model-compose up
 
 ---
 
+## 自动 Web UI
+
+每个工作流都免费获得一个浏览器 UI —— 输入、输出、流式传输和文件上传都从 schema 自动推断。两行 YAML，无需前端代码。
+
+```yaml
+controller:
+  webui:
+    driver: gradio
+    port: 8081
+```
+
+![自动 Web UI](docs/images/webui.gif)
+
+非常适合迭代开发、演示，以及在接入生产之前与非工程师分享工作流。
+
+---
+
 ## What You Can Build
 
 一个 YAML 文件今天就能提供的服务 —— 这只是几个示例。

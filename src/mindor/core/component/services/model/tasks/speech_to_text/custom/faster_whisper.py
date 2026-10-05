@@ -5,6 +5,7 @@ from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, FasterWhisperSpeechToTextModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, FasterWhisperSpeechToTextModelActionConfig
+from mindor.dsl.schema.action.impl.model.tasks.speech_to_text.impl.custom.faster_whisper import FasterWhisperVadParametersConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
@@ -63,6 +64,7 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         log_prob_threshold          = await context.render_variable(self.config.params.log_prob_threshold)
         no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
         vad_filter                  = await context.render_scalar(self.config.params.vad_filter, bool)
+        vad_parameters              = await self._resolve_vad_parameters(self.config.params.vad_parameters, context) if self.config.params.vad_parameters is not None else None
         condition_on_previous_text  = await context.render_scalar(self.config.params.condition_on_previous_text, bool)
 
         params: Dict[str, Any] = {
@@ -84,10 +86,43 @@ class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
         if vad_filter is not None:
             params["vad_filter"] = vad_filter
 
+        if vad_parameters is not None:
+            params["vad_parameters"] = vad_parameters
+
         if condition_on_previous_text is not None:
             params["condition_on_previous_text"] = condition_on_previous_text
 
         return params
+
+    async def _resolve_vad_parameters(self, config: FasterWhisperVadParametersConfig, context: ComponentActionContext) -> Optional[Dict[str, Any]]:
+        threshold               = await context.render_scalar(config.threshold, float)
+        neg_threshold           = await context.render_scalar(config.neg_threshold, float)
+        min_speech_duration_ms  = await context.render_scalar(config.min_speech_duration_ms, int)
+        max_speech_duration_s   = await context.render_scalar(config.max_speech_duration_s, float)
+        min_silence_duration_ms = await context.render_scalar(config.min_silence_duration_ms, int)
+        speech_pad_ms           = await context.render_scalar(config.speech_pad_ms, int)
+
+        params: Dict[str, Any] = {}
+
+        if threshold is not None:
+            params["threshold"] = threshold
+
+        if neg_threshold is not None:
+            params["neg_threshold"] = neg_threshold
+
+        if min_speech_duration_ms is not None:
+            params["min_speech_duration_ms"] = min_speech_duration_ms
+
+        if max_speech_duration_s is not None:
+            params["max_speech_duration_s"] = max_speech_duration_s
+
+        if min_silence_duration_ms is not None:
+            params["min_silence_duration_ms"] = min_silence_duration_ms
+
+        if speech_pad_ms is not None:
+            params["speech_pad_ms"] = speech_pad_ms
+
+        return params or None
 
     async def _transcribe_batch(
         self,

@@ -279,3 +279,22 @@ class TestMimeToResourceClass:
 
     def test_unspecified_object_falls_back_to_chunk_iterator(self):
         assert IpcInboundStream._resolve_resource_class(None, StreamKind.OBJECT) is StreamChunkIterator
+
+
+class TestWavAttrsContractAtBoundary:
+    def test_empty_attrs_at_boundary_restores_passthrough(self):
+        inbound = _inbound(StreamKind.BYTES)
+        reader = IpcStreamReader(inbound, on_pull=_PullCloseRecorder().on_pull, on_close=_PullCloseRecorder().on_close)
+        resource = inbound.build_resource(reader, "audio/wav", "a.wav", None, {})
+        assert isinstance(resource, WavStreamResource)
+        assert resource.attrs == {}
+        assert resource._is_raw_samples is False
+
+    def test_non_empty_attrs_at_boundary_restores_raw_pcm_mode(self):
+        inbound = _inbound(StreamKind.BYTES)
+        reader = IpcStreamReader(inbound, on_pull=_PullCloseRecorder().on_pull, on_close=_PullCloseRecorder().on_close)
+        attrs = {"sample_rate": 16000, "channels": 1, "bit_depth": 16}
+        resource = inbound.build_resource(reader, "audio/wav", "a.wav", None, attrs)
+        assert isinstance(resource, WavStreamResource)
+        assert resource.attrs == attrs
+        assert resource._is_raw_samples is True

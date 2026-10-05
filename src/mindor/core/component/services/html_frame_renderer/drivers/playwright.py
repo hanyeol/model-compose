@@ -27,6 +27,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         props: Optional[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> AsyncIterator[Tuple[ImageStreamResource, float]]:
+        duration       = params["duration"]
         fps            = params["fps"]
         width          = params["width"]
         height         = params["height"]
@@ -49,7 +50,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
 
         await self._page.set_viewport_size({"width": width, "height": height})
         await self._page.expose_binding("__renderer_frame_done", lambda source, t: self._render_signals.put_nowait(t))
-        await self._inject_bootstrap(props)
+        await self._inject_bootstrap(props, duration)
         await self._page.goto(html.url)
 
         # Wait for the page to declare it's ready for capture. The page is
@@ -61,7 +62,6 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             timeout=ready_timeout * 1000,
         )
 
-        duration = await self._get_page_duration()
         frame_count = int(duration * fps + 0.5)
 
         logging.debug("Capturing %d frames at %s fps (%.3fs)", frame_count, fps, duration)
@@ -139,9 +139,12 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         except Exception:  # noqa: BLE001 — page already closed / browser gone
             pass
 
-    async def _inject_bootstrap(self, props: Optional[Dict[str, Any]]) -> None:
+    async def _inject_bootstrap(self, props: Optional[Dict[str, Any]], duration: float) -> None:
         """Seed window.__renderer before any page script runs.
 
+        - `duration` becomes ``window.__renderer.duration`` so pages that need
+          the total length (e.g. progress bars drawn as t/duration) can read
+          it without duplicating the value.
         - `props` (if given) becomes ``window.__renderer.props``,
           giving the page read-only access to workflow-provided data.
         - `rendered(t)` bridges to the server binding so pages can push a
@@ -150,6 +153,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         """
         scripts = [
             "window.__renderer = window.__renderer || {};",
+            f"window.__renderer.duration = {json.dumps(duration)};",
             "window.__renderer.rendered = (t) => window.__renderer_frame_done(t);",
         ]
 
@@ -157,14 +161,6 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
             scripts.append(f"window.__renderer.props = {json.dumps(props)};")
 
         await self._page.add_init_script("".join(scripts))
-
-    async def _get_page_duration(self) -> float:
-        duration = await self._page.evaluate("() => window.__renderer?.duration ?? null")
-
-        if duration is None or duration <= 0:
-            raise ValueError("duration is required. Set window.__renderer.duration in the page.")
-
-        return duration
 
     def _clear_render_signals(self) -> None:
         while not self._render_signals.empty():

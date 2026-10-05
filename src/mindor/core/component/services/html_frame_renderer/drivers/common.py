@@ -101,6 +101,7 @@ class HtmlFrameRendererAction(ComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        duration        = await context.render_scalar(self.config.duration, "time")
         fps             = await context.render_scalar(self.config.fps, float)
         width           = await context.render_scalar(self.config.width, int)
         height          = await context.render_scalar(self.config.height, int)
@@ -110,6 +111,9 @@ class HtmlFrameRendererAction(ComponentAction):
         ready_timeout   = await context.render_scalar(self.config.ready_timeout, "time")
         render_timeout  = await context.render_scalar(self.config.render_timeout, "time")
         filename_format = await context.render_variable(self.config.filename_format)
+
+        if duration <= 0:
+            raise ValueError(f"'duration' must be > 0, got {duration}")
 
         if fps <= 0:
             raise ValueError(f"'fps' must be > 0, got {fps}")
@@ -124,6 +128,7 @@ class HtmlFrameRendererAction(ComponentAction):
             raise ValueError(f"'transparent: true' requires 'format: png' (jpeg has no alpha channel), got {format!r}")
 
         return {
+            "duration":        duration,
             "fps":             fps,
             "width":           width,
             "height":          height,

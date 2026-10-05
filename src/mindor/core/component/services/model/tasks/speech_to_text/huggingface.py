@@ -55,9 +55,11 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         if max_output_length is not None:
             generation_params["max_new_tokens"] = max_output_length
 
-        # HF expects `return_timestamps=True` for segment-level and `"word"` for word-level.
         if params["return_timestamps"]:
-            generation_params["return_timestamps"] = "word" if params["timestamp_level"] == "word" else True
+            generation_params["return_timestamps"] = True
+
+            if params["timestamp_level"] == "word":
+                generation_params["return_token_timestamps"] = True
 
         params["generation"]   = generation_params
         params["chunk_length"] = chunk_length
@@ -102,7 +104,8 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         # the loop instead of the executor thread.
         waveforms = await self._preprocess_audio(audios)
 
-        return_timestamps = params["generation"].get("return_timestamps")
+        return_timestamps = params["return_timestamps"]
+        word_level        = return_timestamps and params["timestamp_level"] == "word"
 
         def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]], List[Any]]:
             import torch
@@ -148,16 +151,10 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 return [ streamer[index] for index in range(len(waveforms)) ]
 
             with torch.inference_mode():
-                if return_timestamps == "word":
-                    # `return_timestamps="word"` is a pipeline-level value; `generate()`
-                    # needs the pair below to attach per-token timestamps to segments.
+                if word_level:
                     outputs = self.model.generate(
                         **batch_feature,
-                        **{
-                            **params["generation"],
-                            "return_timestamps": True,
-                            "return_token_timestamps": True
-                        },
+                        **params["generation"],
                         return_dict_in_generate=True,
                         stopping_criteria=stopping_criteria,
                     )
@@ -170,7 +167,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
             if not return_timestamps:
                 return self.processor.batch_decode(predicted_ids, skip_special_tokens=True)
 
-            if return_timestamps == "word":
+            if word_level:
                 return self._decode_word_level_segments(word_segments)
 
             return self._decode_segment_level_segments(predicted_ids)

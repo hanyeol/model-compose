@@ -52,9 +52,9 @@ component:
       # consume every input frame — FreeNoise (always on for AnimateDiff
       # here) processes long clips through sliding context windows.
       num_frames: ${input.num_frames as integer | 32}
-      # Output frame rate. Leave unset to inherit the input video's fps so
+      # Output frame rate. Leave unset to inherit the input video's frame rate so
       # the output preserves the source playback duration.
-      fps: ${input.fps as integer}
+      frame_rate: ${input.frame_rate as integer}
       # Output resolution. Leave unset to inherit the input video's dimensions.
       # SD 1.5 is trained around 512×512, so odd aspect ratios may degrade quality.
       width: ${input.width as integer | 512}

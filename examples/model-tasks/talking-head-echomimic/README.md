@@ -113,7 +113,7 @@ Unlike cloud talking-head services, running EchoMimic locally provides:
 | `params.context_overlap`    | Frame overlap between consecutive temporal windows.                                                            | `3`     |
 | `params.motion_sync`        | Enable motion-sync mode which extracts motion cues from the reference `pose` video.                            | `false` |
 | `params.sample_rate`        | Audio sample rate the model expects; resampling is applied if the input differs.                               | `16000` |
-| `params.fps`                | Output video frame rate.                                                                                       | `25`    |
+| `params.frame_rate`         | Output video frame rate.                                                                                       | `25`    |
 | `batch_size`                | Number of `(image, audio)` pairs processed per batch when both inputs are lists or streams.                    | `1`     |
 | `seed`                      | Random seed for reproducibility. Leave unset for a fresh sample each call.                                     | (none)  |
 

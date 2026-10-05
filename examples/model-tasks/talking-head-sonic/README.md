@@ -103,7 +103,7 @@ Unlike cloud talking-head services, running Sonic locally provides:
 | `params.inference_steps`  | Number of diffusion inference steps.                                                                        | `25`    |
 | `params.min_resolution`   | Minimum short-side resolution the face crop is resized to before rendering.                                 | `512`   |
 | `params.keep_resolution`  | Preserve the input portrait's original resolution instead of resizing to `min_resolution`.                  | `false` |
-| `params.fps`              | Output video frame rate.                                                                                    | `25`    |
+| `params.frame_rate`       | Output video frame rate.                                                                                    | `25`    |
 | `batch_size`              | Number of `(image, audio)` pairs processed per batch when both inputs are lists or streams.                 | `1`     |
 | `seed`                    | Random seed for reproducibility. Leave unset for a fresh sample each call.                                  | (none)  |
 

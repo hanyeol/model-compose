@@ -6,7 +6,7 @@ This example demonstrates the `screen-capture` component: capturing the local di
 
 Three workflows show the three MVP capture modes:
 
-1. **Capture Desktop Clip** — full-display capture at a chosen framerate, saved as an MPEG-TS clip
+1. **Capture Desktop Clip** — full-display capture at a chosen frame rate, saved as an MPEG-TS clip
 2. **Capture Screen Region** — rectangular crop of the display, using native region flags on Windows/Linux and a post-decode crop filter on macOS
 3. **Capture Microphone Audio** — audio-only capture from the default microphone, saved as AAC (does not require Screen Recording permission)
 
@@ -59,7 +59,7 @@ cd examples/media-processing/screen-capture
    **Using CLI:**
    ```bash
    # 5-second desktop clip at 15 fps (macOS: adjust display index)
-   model-compose run capture-desktop-clip --input '{"duration": "5s", "framerate": 15, "display": 0}'
+   model-compose run capture-desktop-clip --input '{"duration": "5s", "frame_rate": 15, "display": 0}'
 
    # 720p region starting 100px from the top-left, 3-second clip
    model-compose run capture-region-clip --input '{
@@ -113,7 +113,7 @@ cd examples/media-processing/screen-capture
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `duration` | string | No | `5s` | Capture length (e.g. `5s`, `30s`, `2m`) |
-| `framerate` | number | No | `15` | Video framerate |
+| `frame_rate` | number | No | `15` | Video frame rate |
 | `display` | integer | No | `0` | Display / avfoundation device index (see macOS note above) |
 | `filename` | string | No | timestamp | Optional filename stem (without extension) |
 
@@ -135,7 +135,7 @@ cd examples/media-processing/screen-capture
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `duration` | string | No | `5s` | Capture length |
-| `framerate` | number | No | `15` | Video framerate |
+| `frame_rate` | number | No | `15` | Video frame rate |
 | `display` | integer | No | `0` | Display / avfoundation device index |
 | `x` | integer | No | `0` | Region left edge (pixels) |
 | `y` | integer | No | `0` | Region top edge (pixels) |

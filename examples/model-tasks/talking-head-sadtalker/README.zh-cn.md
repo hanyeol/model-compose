@@ -113,7 +113,7 @@
 | `params.face3dvis`     | 除了输出外，另外渲染一个 3D 人脸调试视频。                                                                    | `false`       |
 | `params.size`          | 人脸渲染器分辨率。应与加载的预设匹配（`v0.0.2-256` 对应 `256`，`v0.0.2-512` 对应 `512`）。                    | `256`         |
 | `params.facerender_batch_size` | 人脸渲染器推理循环使用的批处理大小。                                                                   | `2`           |
-| `params.fps`           | 输出视频帧率。SadTalker 渲染器内部目标为 25 fps。                                                             | `25`          |
+| `params.frame_rate`    | 输出视频帧率。SadTalker 渲染器内部目标为 25 fps。                                                             | `25`          |
 | `batch_size`           | 当两个输入都是列表或流时，每批处理的 `(image, audio)` 对的数量。                                              | `1`           |
 | `seed`                 | 用于可复现性的随机种子。留空则每次调用产生新样本。                                                            | （无）        |
 

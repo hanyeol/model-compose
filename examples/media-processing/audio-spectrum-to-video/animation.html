@@ -10,27 +10,28 @@
 <body>
   <canvas id="viz" width="1280" height="720"></canvas>
   <script>
-    // Implement the window.__renderer contract expected by model-compose's
-    // html_frame_renderer component. The page exposes `duration` and `seek(t)`
-    // on window.__renderer; the engine reads duration to count frames, then
-    // calls seek(t) once per frame and takes a screenshot after each call.
+    // Implement the contract expected by model-compose's html_frame_renderer
+    // component. The page exposes `duration` on window.__renderer and defines
+    // a top-level `window.render(t)`; the engine reads duration to count
+    // frames, then calls render(t) once per frame and takes a screenshot
+    // after each call.
 
     const canvas = document.getElementById("viz");
     const ctx = canvas.getContext("2d");
 
     // props.spectrum is the output of the audio-feature-extractor with
     // feature=spectrum. Shape:
-    //   { frames: number[frame_count][band_count], fps, band_count,
+    //   { frames: number[frame_count][band_count], frame_rate, band_count,
     //     frame_count, duration, sample_rate }
-    const spectrum = window.__renderer?.props?.spectrum ?? { frames: [], fps: 30, band_count: 0, duration: 0 };
+    const spectrum = window.__renderer?.props?.spectrum ?? { frames: [], frame_rate: 30, band_count: 0, duration: 0 };
     const frames = spectrum.frames || [];
-    const sourceFps = spectrum.fps || 30;
+    const sourceFrameRate = spectrum.frame_rate || 30;
     const bandCount = spectrum.band_count || (frames[0]?.length ?? 0);
-    const totalDuration = spectrum.duration || (frames.length / sourceFps);
+    const duration = window.__renderer.duration;
 
     function pickFrame(t) {
       if (!frames.length) return null;
-      const index = Math.min(frames.length - 1, Math.max(0, Math.floor(t * sourceFps)));
+      const index = Math.min(frames.length - 1, Math.max(0, Math.floor(t * sourceFrameRate)));
       return frames[index];
     }
 
@@ -73,21 +74,21 @@
       }
 
       // progress bar at the bottom
-      const progress = totalDuration ? t / totalDuration : 0;
+      const progress = duration ? t / duration : 0;
       ctx.fillStyle = "#ffffff22";
       ctx.fillRect(padX, h - 24, usableW, 4);
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(padX, h - 24, usableW * progress, 4);
     }
 
-    window.__renderer = window.__renderer || {};
-    Object.assign(window.__renderer, {
-      duration: totalDuration,
-      seek(t) {
-        drawFrame(t);
-        window.__renderer.rendered(t);
-      },
-    });
+    window.render = (t) => {
+      drawFrame(t);
+      window.__renderer.rendered(t);
+    };
+    // Signal "ready for capture". The driver only starts rendering after
+    // this flips. Nothing to await here (the spectrum is already present
+    // in props), so we flip it immediately.
+    window.__renderer.ready = true;
   </script>
 </body>
 </html>

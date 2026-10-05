@@ -63,7 +63,7 @@ cd examples/media-processing/video-capture
    ```bash
    # 10-second 720p capture at 30fps → webcam.mp4
    model-compose run capture-webcam \
-     --input '{"duration": "10s", "framerate": 30, "width": 1280, "height": 720}' \
+     --input '{"duration": "10s", "frame_rate": 30, "width": 1280, "height": 720}' \
      --output webcam.mp4
    ```
 
@@ -105,7 +105,7 @@ cd examples/media-processing/video-capture
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `duration` | string | No | `10s` | Capture length (e.g. `10s`, `30s`, `2m`) |
-| `framerate` | number | No | `30` | Video framerate |
+| `frame_rate` | number | No | `30` | Video frame rate |
 | `width` | integer | No | `1280` | Frame width in pixels |
 | `height` | integer | No | `720` | Frame height in pixels |
 
@@ -125,19 +125,19 @@ Add `device` to the action to target a specific camera by index or name:
   device: 1               # macOS avfoundation index (see `-list_devices` above)
   # device: "OBS Virtual Camera"      # macOS/Windows: match the name exactly
   # device: /dev/video2               # Linux
-  framerate: ${input.framerate}
+  frame_rate: ${input.frame_rate}
   ...
 ```
 
 On Windows `device` is required — dshow does not support numeric indices, so you must pass a device name.
 
-### Higher Resolution or Framerate
+### Higher Resolution or Frame Rate
 
-Increase `width`/`height`/`framerate` on the request:
+Increase `width`/`height`/`frame_rate` on the request:
 
 ```bash
 model-compose run capture-webcam \
-  --input '{"width": 1920, "height": 1080, "framerate": 60, "duration": "5s"}' \
+  --input '{"width": 1920, "height": 1080, "frame_rate": 60, "duration": "5s"}' \
   --output webcam-1080p60.mp4
 ```
 

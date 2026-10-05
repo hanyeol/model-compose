@@ -83,7 +83,7 @@ components:
           codec: libx264
           bitrate: 4500k
           resolution: 1920x1080
-          fps: 30
+          frame_rate: 30
         audio:
           codec: aac
           bitrate: 160k
@@ -120,7 +120,7 @@ components:
           codec: libx264
           bitrate: 4500k
           resolution: 1920x1080
-          fps: 30
+          frame_rate: 30
         audio:
           codec: aac
           bitrate: 160k

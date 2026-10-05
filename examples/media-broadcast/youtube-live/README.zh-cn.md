@@ -202,6 +202,6 @@ model-compose run publish-video --input '{"video": "https://example.com/outro.mp
 
 - 调高或调低 `media-queue.max_size` 以改变背压余量
 - 根据素材和上行带宽调整 `publisher.action.encoding.video.bitrate` 与 `resolution`（YouTube 推荐 1080p30 为 4500–9000 kbps，1080p60 为 9000–13500 kbps）
-- 将 `publisher.action.encoding.video.fps` 改为 `60` 用于高帧率直播
+- 将 `publisher.action.encoding.video.frame_rate` 改为 `60` 用于高帧率直播
 - 在 `publisher.action.url` 中追加第二个 URL 并相应设置 `batch_size`，即可在推流 YouTube 的同时并推 Twitch 或 Facebook Live — 详见 [RTMP publisher 参考](../../../docs/reference/compose/components/rtmp-publisher.md)
 - 在 `enqueue`/`dequeue` 上添加 `session` 字段，可按频道或活动对队列进行分区 — 某个会话下 publish 的项目仅对该会话的消费者可见

@@ -53,14 +53,14 @@ The output is a JSON payload with a `frames` array. Each entry is one video fram
    # Spectrum (default workflow)
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@song.mp3" \
-     -F "fps=30" \
+     -F "frame_rate=30" \
      -F "band_count=32"
 
    # Waveform
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "workflow_id=waveform" \
      -F "audio=@song.mp3" \
-     -F "fps=30" \
+     -F "frame_rate=30" \
      -F "point_count=100"
    ```
 
@@ -105,7 +105,7 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `audio` | file | Yes | - | Audio source (mp3, wav, flac, aac, m4a, opus, ogg, ...) |
-| `fps` | int | No | `30` | Output frames per second |
+| `frame_rate` | int | No | `30` | Output frames per second |
 | `band_count` | int | No | `32` | Number of frequency bands per frame |
 | `min_frequency` | float | No | `40.0` | Lowest frequency (Hz) included in the band grid |
 | `window_size` | select | No | `2048` | FFT window size in samples: 512, 1024, 2048, 4096 |
@@ -117,7 +117,7 @@ graph TD
 
 ```json
 {
-  "fps": 30,
+  "frame_rate": 30,
   "band_count": 32,
   "frame_count": 5400,
   "duration": 180.0,
@@ -137,7 +137,7 @@ Each entry in `frames` is one video frame; each value in that entry is the magni
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `audio` | file | Yes | - | Audio source |
-| `fps` | int | No | `30` | Output frames per second |
+| `frame_rate` | int | No | `30` | Output frames per second |
 | `point_count` | int | No | `100` | Number of data points per frame (waveform display resolution) |
 | `window_duration` | string | No | `40ms` | Analysis window per frame (e.g. `40ms`, `0.04s`, `1s`) |
 | `summary_mode` | select | No | `peak` | Bucket summary statistic: `peak` (max\|amplitude\|) or `rms` |
@@ -147,7 +147,7 @@ Each entry in `frames` is one video frame; each value in that entry is the magni
 
 ```json
 {
-  "fps": 30,
+  "frame_rate": 30,
   "point_count": 100,
   "frame_count": 5400,
   "duration": 180.0,

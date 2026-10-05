@@ -16,7 +16,7 @@ workflows:
       component: spectrum-extractor
       input:
         audio: ${input.audio as file}
-        fps: ${input.fps as integer | 30}
+        frame_rate: ${input.frame_rate as integer | 30}
         band_count: ${input.band_count as integer | 32}
         min_frequency: ${input.min_frequency as number | 40.0}
         window_size: ${input.window_size as select/512,1024,2048,4096 | 2048}
@@ -32,7 +32,7 @@ workflows:
       component: waveform-extractor
       input:
         audio: ${input.audio as file}
-        fps: ${input.fps as integer | 30}
+        frame_rate: ${input.frame_rate as integer | 30}
         point_count: ${input.point_count as integer | 100}
         window_duration: ${input.window_duration as string | 40ms}
         summary_mode: ${input.summary_mode as select/peak,rms | peak}
@@ -45,7 +45,7 @@ components:
     action:
       feature: spectrum
       audio: ${input.audio}
-      fps: ${input.fps}
+      frame_rate: ${input.frame_rate}
       band_count: ${input.band_count}
       min_frequency: ${input.min_frequency}
       window_size: ${input.window_size}
@@ -58,7 +58,7 @@ components:
     action:
       feature: waveform
       audio: ${input.audio}
-      fps: ${input.fps}
+      frame_rate: ${input.frame_rate}
       point_count: ${input.point_count}
       window_duration: ${input.window_duration}
       summary_mode: ${input.summary_mode}

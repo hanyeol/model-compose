@@ -53,14 +53,14 @@
    # Spectrum（默认工作流）
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@song.mp3" \
-     -F "fps=30" \
+     -F "frame_rate=30" \
      -F "band_count=32"
 
    # Waveform
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "workflow_id=waveform" \
      -F "audio=@song.mp3" \
-     -F "fps=30" \
+     -F "frame_rate=30" \
      -F "point_count=100"
    ```
 
@@ -105,7 +105,7 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | `audio` | file | Yes | - | 音频源 (mp3, wav, flac, aac, m4a, opus, ogg, ...) |
-| `fps` | int | No | `30` | 每秒输出帧数 |
+| `frame_rate` | int | No | `30` | 每秒输出帧数 |
 | `band_count` | int | No | `32` | 每帧频段数 |
 | `min_frequency` | float | No | `40.0` | 频段网格中包含的最低频率 (Hz) |
 | `window_size` | select | No | `2048` | 以采样为单位的 FFT 窗口大小：512、1024、2048、4096 |
@@ -117,7 +117,7 @@ graph TD
 
 ```json
 {
-  "fps": 30,
+  "frame_rate": 30,
   "band_count": 32,
   "frame_count": 5400,
   "duration": 180.0,
@@ -137,7 +137,7 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | `audio` | file | Yes | - | 音频源 |
-| `fps` | int | No | `30` | 每秒输出帧数 |
+| `frame_rate` | int | No | `30` | 每秒输出帧数 |
 | `point_count` | int | No | `100` | 每帧数据点数（波形显示分辨率） |
 | `window_duration` | string | No | `40ms` | 每帧分析窗口（例如 `40ms`、`0.04s`、`1s`） |
 | `summary_mode` | select | No | `peak` | 桶汇总统计：`peak` (max\|amplitude\|) 或 `rms` |
@@ -147,7 +147,7 @@ graph TD
 
 ```json
 {
-  "fps": 30,
+  "frame_rate": 30,
   "point_count": 100,
   "frame_count": 5400,
   "duration": 180.0,

@@ -15,7 +15,8 @@ workflows:
       - id: frames
         component: renderer
         input:
-          fps: ${input.fps as select/24,30,60 | 30}
+          frame_rate: ${input.frame_rate as select/24,30,60 | 30}
+          worker_count: ${input.worker_count as integer | 1}
           title: ${input.title | Hello, model-compose!}
         output: ${output}
 
@@ -23,7 +24,7 @@ workflows:
         component: encoder
         input:
           frames: ${jobs.frames.output}
-          frame_rate: ${input.fps as select/24,30,60 | 30}
+          frame_rate: ${input.frame_rate as select/24,30,60 | 30}
         output: ${output as video}
         depends_on: [ frames ]
 
@@ -34,7 +35,9 @@ components:
     headless: true
     action:
       html: ./animation.html
-      fps: ${input.fps}
+      duration: 5s
+      frame_rate: ${input.frame_rate}
+      worker_count: ${input.worker_count}
       width: 1280
       height: 720
       props:

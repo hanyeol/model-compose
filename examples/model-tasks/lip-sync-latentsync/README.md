@@ -105,7 +105,7 @@ Unlike cloud lip-sync services, running LatentSync locally provides:
 | `params.guidance_scale`              | Classifier-free guidance scale; upstream recommends 1.0–3.0.                                                                           | `1.5`             |
 | `params.enable_deepcache`            | Enable DeepCache for a ~2x speedup at a small quality cost.                                                                            | `false`           |
 | `params.use_float16`                 | Run the pipeline in float16 for a memory and latency win.                                                                              | `true`            |
-| `params.fps`                         | Output video frame rate. Defaults to the source video's frame rate when unset.                                                         | (source fps)      |
+| `params.frame_rate`                  | Output video frame rate. Defaults to the source video's frame rate when unset.                                                         | (source fps)      |
 | `batch_size`                         | Number of `(video, audio)` pairs processed per batch when both inputs are lists or streams.                                            | `1`               |
 | `seed`                               | Random seed for reproducibility. Defaults to upstream's fixed seed (1247) when unset.                                                  | (none)            |
 

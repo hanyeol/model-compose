@@ -113,7 +113,7 @@
 | `params.context_overlap`    | 연속된 시간적 윈도우 사이의 프레임 오버랩.                                                                    | `3`     |
 | `params.motion_sync`        | 참조 `pose` 비디오에서 모션 신호를 추출하는 motion-sync 모드 활성화.                                          | `false` |
 | `params.sample_rate`        | 모델이 기대하는 오디오 샘플 레이트; 입력이 다르면 리샘플링됨.                                                 | `16000` |
-| `params.fps`                | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
+| `params.frame_rate`         | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
 | `batch_size`                | 두 입력이 모두 리스트/스트림일 때 배치당 처리되는 `(image, audio)` 쌍의 수.                                   | `1`     |
 | `seed`                      | 재현성을 위한 랜덤 시드. 매 호출마다 새 샘플을 원하면 미설정.                                                 | (없음)  |
 

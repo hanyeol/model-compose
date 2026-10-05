@@ -59,7 +59,7 @@ cd examples/media-processing/screen-capture
    **使用 CLI：**
    ```bash
    # 15 fps 的 5 秒桌面片段（macOS：调整 display 索引）
-   model-compose run capture-desktop-clip --input '{"duration": "5s", "framerate": 15, "display": 0}'
+   model-compose run capture-desktop-clip --input '{"duration": "5s", "frame_rate": 15, "display": 0}'
 
    # 从左上角偏移 100px 的 720p 区域，3 秒
    model-compose run capture-region-clip --input '{
@@ -113,7 +113,7 @@ cd examples/media-processing/screen-capture
 | 参数 | 类型 | 必需 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `duration` | string | 否 | `5s` | 采集时长（如 `5s`、`30s`、`2m`） |
-| `framerate` | number | 否 | `15` | 视频帧率 |
+| `frame_rate` | number | 否 | `15` | 视频帧率 |
 | `display` | integer | 否 | `0` | 显示器 / avfoundation 设备索引（参考上文 macOS 说明） |
 | `filename` | string | 否 | 时间戳 | 可选的文件名词干（不含扩展名） |
 
@@ -135,7 +135,7 @@ cd examples/media-processing/screen-capture
 | 参数 | 类型 | 必需 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `duration` | string | 否 | `5s` | 采集时长 |
-| `framerate` | number | 否 | `15` | 视频帧率 |
+| `frame_rate` | number | 否 | `15` | 视频帧率 |
 | `display` | integer | 否 | `0` | 显示器 / avfoundation 设备索引 |
 | `x` | integer | 否 | `0` | 区域左边界（像素） |
 | `y` | integer | 否 | `0` | 区域上边界（像素） |

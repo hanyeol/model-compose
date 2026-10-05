@@ -107,7 +107,7 @@ Unlike cloud talking-head services, running Float locally provides:
 | `params.a_cfg_scale`        | Guidance scale applied to the audio conditioning branch.                                                       | `2.0`   |
 | `params.e_cfg_scale`        | Guidance scale applied to the emotion conditioning branch.                                                     | `1.0`   |
 | `params.crop`               | Crop the source portrait to the detected face before rendering; disable to render the full frame.              | `true`  |
-| `params.fps`                | Output video frame rate.                                                                                       | `25`    |
+| `params.frame_rate`         | Output video frame rate.                                                                                       | `25`    |
 | `batch_size`                | Number of `(image, audio)` pairs processed per batch when both inputs are lists or streams.                    | `1`     |
 | `seed`                      | Random seed for reproducibility. Leave unset to reuse Float's default (25) each call.                          | `25`    |
 

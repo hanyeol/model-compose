@@ -17,20 +17,20 @@
 4. `video-encoder`가 렌더된 프레임을 ffmpeg로 파이핑하여 H.264로 인코딩하고
    `for-encode` 오디오 브랜치를 오디오 트랙으로 먹싱합니다.
 
-## `window.__renderer` 계약
+## 페이지 계약
 
-페이지는 `window.__renderer`에 `duration`과 `seek(t)`를 노출합니다.
-엔진은 `duration`을 읽어 캡처할 프레임 수를 결정한 뒤, 프레임마다 `seek(t)`를
-한 번씩 호출하고 각 호출 이후 스크린샷을 찍습니다.
+페이지는 최상위 `window.render(t)`를 정의하고 캡처 준비가 끝나면
+`ready`를 뒤집습니다. 엔진은 `round(duration * frame_rate)` 프레임을 샘플링해
+프레임마다 `render(t)`를 호출합니다. `duration`은 액션의 `duration:`
+필드에서 오며(`${jobs.spectrum.output.duration}s` 로 꽂아 오디오 길이와
+자동 동기화됨), `window.__renderer.duration` 으로 주입됩니다.
 
 ```js
-window.__renderer = window.__renderer || {};
-Object.assign(window.__renderer, {
-  duration: totalSeconds,
-  seek(t) {
-    // 페이지의 캔버스에 시각 t의 프레임을 그림
-  },
-});
+const duration = window.__renderer.duration;  // 액션의 `duration:` 에서 옴
+window.render = (t) => {
+  // 페이지의 캔버스에 시각 t의 프레임을 그림
+};
+window.__renderer.ready = true;               // "캡처 준비 완료" 선언
 ```
 
 엔진은 페이지 스크립트가 실행되기 전에 액션의 `props:` 입력으로부터
@@ -39,7 +39,7 @@ Object.assign(window.__renderer, {
 ```js
 window.__renderer.props.spectrum = {
   frames: [[...], [...], ...],  // 프레임별 밴드 진폭, [0, 1] 범위
-  fps: 30,
+  frame_rate: 30,
   band_count: 48,
   frame_count: N,
   duration: seconds,
@@ -81,8 +81,24 @@ cd examples/media-processing/audio-spectrum-to-video
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F 'workflow_id=render' \
      -F 'input.audio=@./song.mp3' \
-     -F 'input.fps=30' \
+     -F 'input.frame_rate=30' \
      -F 'input.band_count=48'
    ```
 
 응답에는 생성된 `.mp4`의 경로가 포함됩니다.
+
+## 병렬 렌더링
+
+렌더러 액션은 `worker_count` 입력(기본 `1`)을 받습니다. 각 워커는 자기
+Chromium 페이지를 열어 공유 큐에서 프레임 번호를 꺼내 렌더하고, 결과는
+번호순으로 재정렬되어 인코더로 스트리밍됩니다. 프레임 렌더링이 병목인
+긴 오디오에서는 값을 올려 돌리세요:
+
+```bash
+curl -X POST http://localhost:8080/api/workflows/runs \
+  -F 'workflow_id=render' \
+  -F 'input.audio=@./song.mp3' \
+  -F 'input.frame_rate=30' \
+  -F 'input.band_count=48' \
+  -F 'input.worker_count=4'
+```

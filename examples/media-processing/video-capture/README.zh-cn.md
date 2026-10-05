@@ -63,7 +63,7 @@ cd examples/media-processing/video-capture
    ```bash
    # 10 秒 720p 30fps 采集 → webcam.mp4
    model-compose run capture-webcam \
-     --input '{"duration": "10s", "framerate": 30, "width": 1280, "height": 720}' \
+     --input '{"duration": "10s", "frame_rate": 30, "width": 1280, "height": 720}' \
      --output webcam.mp4
    ```
 
@@ -105,7 +105,7 @@ cd examples/media-processing/video-capture
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |-----|------|------|--------|-----|
 | `duration` | string | 否 | `10s` | 采集时长（如 `10s`、`30s`、`2m`）|
-| `framerate` | number | 否 | `30` | 视频帧率 |
+| `frame_rate` | number | 否 | `30` | 视频帧率 |
 | `width` | integer | 否 | `1280` | 帧宽度（像素）|
 | `height` | integer | 否 | `720` | 帧高度（像素）|
 
@@ -125,7 +125,7 @@ cd examples/media-processing/video-capture
   device: 1               # macOS avfoundation 索引（见上文 `-list_devices`）
   # device: "OBS Virtual Camera"      # macOS/Windows: 名称需完全匹配
   # device: /dev/video2               # Linux
-  framerate: ${input.framerate}
+  frame_rate: ${input.frame_rate}
   ...
 ```
 
@@ -133,11 +133,11 @@ Windows 上 `device` 是必填项——dshow 不支持数字索引，必须传�
 
 ### 更高的分辨率或帧率
 
-在请求中提高 `width`/`height`/`framerate`:
+在请求中提高 `width`/`height`/`frame_rate`:
 
 ```bash
 model-compose run capture-webcam \
-  --input '{"width": 1920, "height": 1080, "framerate": 60, "duration": "5s"}' \
+  --input '{"width": 1920, "height": 1080, "frame_rate": 60, "duration": "5s"}' \
   --output webcam-1080p60.mp4
 ```
 

@@ -42,7 +42,7 @@
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 选择 "Video to GIF" 或 "Trim and Convert to GIF"
-   - 上传视频，调整 fps/分辨率（trim 工作流还需要设置起止时间）
+   - 上传视频，调整 frame_rate/分辨率（trim 工作流还需要设置起止时间）
    - 点击 "Run Workflow" 按钮并下载生成的 GIF
 
    **使用 API：**
@@ -50,7 +50,7 @@
    # 转换整个视频
    curl -X POST http://localhost:8080/api/workflows/convert/runs \
      -F "video=@input.mp4" \
-     -F "fps=12" \
+     -F "frame_rate=12" \
      -F "resolution=480x-1"
 
    # 先裁剪再转换
@@ -58,13 +58,13 @@
      -F "video=@input.mp4" \
      -F "start_time=00:00:10" \
      -F "end_time=00:00:15" \
-     -F "fps=15" \
+     -F "frame_rate=15" \
      -F "resolution=640x-1"
    ```
 
    **使用 CLI：**
    ```bash
-   model-compose run convert --input '{"video": "path/to/input.mp4", "fps": 12, "resolution": "480x-1"}'
+   model-compose run convert --input '{"video": "path/to/input.mp4", "frame_rate": 12, "resolution": "480x-1"}'
    ```
 
 ## 组件详情
@@ -104,7 +104,7 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |-----|------|-----|-------|------|
 | `video` | video | 是 | - | 源视频文件 |
-| `fps` | select | 否 | `12` | GIF 帧率：8、10、12、15、20、24 |
+| `frame_rate` | select | 否 | `12` | GIF 帧率：8、10、12、15、20、24 |
 | `resolution` | select | 否 | `480x-1` | GIF 分辨率；任一轴设为 `-1` 可保持原始宽高比 |
 
 #### 输出格式
@@ -141,7 +141,7 @@ graph TD
 | `video` | video | 是 | - | 源视频文件 |
 | `start_time` | duration | 否 | `0s` | 待转换区间的起始时间 |
 | `end_time` | duration | 否 | `5s` | 待转换区间的结束时间 |
-| `fps` | select | 否 | `12` | GIF 帧率：8、10、12、15、20、24 |
+| `frame_rate` | select | 否 | `12` | GIF 帧率：8、10、12、15、20、24 |
 | `resolution` | select | 否 | `480x-1` | GIF 分辨率；任一轴设为 `-1` 可保持原始宽高比 |
 
 #### 输出格式
@@ -152,7 +152,7 @@ graph TD
 
 ## 提示
 
-- **保持简短。** GIF 文件体积增长得很快。480px 宽 / 12 fps 的 5 秒片段是一个不错的起点，尺寸、fps、时长最好一次只调一档。
+- **保持简短。** GIF 文件体积增长得很快。480px 宽 / 12 fps 的 5 秒片段是一个不错的起点，尺寸、frame_rate、时长最好一次只调一档。
 - **分辨率中的 `-1`。** 任一轴使用 `-1`（例如 `480x-1`），ffmpeg 会按原始宽高比自动计算另一轴。若需要固定画幅，可直接给出 `WIDTHxHEIGHT`（例如 `480x360`）。
 - **低 fps 并不等于画质差。** 10–15 fps 的 GIF 往往比 24+ fps 的 GIF 看起来更干净，因为每一帧在最终文件中可以更宽裕地使用调色板。
 
@@ -161,5 +161,5 @@ graph TD
 ### 常见问题
 
 1. **找不到 ffmpeg**：确保 ffmpeg 已安装并在您的 PATH 中可用。
-2. **输出 GIF 过大**：降低 `fps`、缩小 `resolution`，或用 "Trim and Convert to GIF" 工作流截取更短的片段。
+2. **输出 GIF 过大**：降低 `frame_rate`、缩小 `resolution`，或用 "Trim and Convert to GIF" 工作流截取更短的片段。
 3. **颜色出现条带**：尝试提高 `resolution`；帧太小会让调色板优化的可用空间变少。

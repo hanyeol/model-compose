@@ -42,7 +42,7 @@ Behind the scenes the ffmpeg driver builds an optimized per-clip palette (`palet
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Pick either "Video to GIF" or "Trim and Convert to GIF"
-   - Upload a video, adjust fps/resolution (and start/end time for the trim workflow)
+   - Upload a video, adjust frame_rate/resolution (and start/end time for the trim workflow)
    - Click "Run Workflow" and download the resulting GIF
 
    **Using API:**
@@ -50,7 +50,7 @@ Behind the scenes the ffmpeg driver builds an optimized per-clip palette (`palet
    # Convert the whole video
    curl -X POST http://localhost:8080/api/workflows/convert/runs \
      -F "video=@input.mp4" \
-     -F "fps=12" \
+     -F "frame_rate=12" \
      -F "resolution=480x-1"
 
    # Trim first, then convert
@@ -58,13 +58,13 @@ Behind the scenes the ffmpeg driver builds an optimized per-clip palette (`palet
      -F "video=@input.mp4" \
      -F "start_time=00:00:10" \
      -F "end_time=00:00:15" \
-     -F "fps=15" \
+     -F "frame_rate=15" \
      -F "resolution=640x-1"
    ```
 
    **Using CLI:**
    ```bash
-   model-compose run convert --input '{"video": "path/to/input.mp4", "fps": 12, "resolution": "480x-1"}'
+   model-compose run convert --input '{"video": "path/to/input.mp4", "frame_rate": 12, "resolution": "480x-1"}'
    ```
 
 ## Component Details
@@ -104,7 +104,7 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `video` | video | Yes | - | The source video file |
-| `fps` | select | No | `12` | GIF frame rate: 8, 10, 12, 15, 20, 24 |
+| `frame_rate` | select | No | `12` | GIF frame rate: 8, 10, 12, 15, 20, 24 |
 | `resolution` | select | No | `480x-1` | GIF resolution; `-1` on either axis preserves aspect ratio |
 
 #### Output Format
@@ -141,7 +141,7 @@ graph TD
 | `video` | video | Yes | - | The source video file |
 | `start_time` | duration | No | `0s` | Start of the segment to convert |
 | `end_time` | duration | No | `5s` | End of the segment to convert |
-| `fps` | select | No | `12` | GIF frame rate: 8, 10, 12, 15, 20, 24 |
+| `frame_rate` | select | No | `12` | GIF frame rate: 8, 10, 12, 15, 20, 24 |
 | `resolution` | select | No | `480x-1` | GIF resolution; `-1` on either axis preserves aspect ratio |
 
 #### Output Format
@@ -152,7 +152,7 @@ graph TD
 
 ## Tips
 
-- **Keep it short.** GIF files grow quickly. A 5-second clip at 480px wide / 12 fps is a good starting point; go up in size, fps, or duration one step at a time.
+- **Keep it short.** GIF files grow quickly. A 5-second clip at 480px wide / 12 fps is a good starting point; go up in size, frame_rate, or duration one step at a time.
 - **`-1` in resolution.** Pass `-1` on either axis (e.g. `480x-1`) to let ffmpeg pick the matching dimension while preserving the source aspect ratio. Use exact `WIDTHxHEIGHT` (e.g. `480x360`) if you need a fixed frame instead.
 - **Lower fps ≠ worse-looking.** GIFs at 10–15 fps often look better than 24+ fps because each frame gets more palette room in the final file.
 
@@ -161,5 +161,5 @@ graph TD
 ### Common Issues
 
 1. **ffmpeg Not Found**: Ensure ffmpeg is installed and available in your PATH.
-2. **Output GIF Too Large**: Reduce `fps`, shrink `resolution`, or trim a shorter segment with the "Trim and Convert to GIF" workflow.
+2. **Output GIF Too Large**: Reduce `frame_rate`, shrink `resolution`, or trim a shorter segment with the "Trim and Convert to GIF" workflow.
 3. **Colors Look Banded**: Try a higher `resolution` — palette optimization has more room to work with when the frames aren't tiny.

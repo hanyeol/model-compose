@@ -108,7 +108,7 @@ Unlike cloud lip-sync services, running Wav2Lip locally provides:
 | `params.face_detection_batch_size`   | Number of frames processed per S3FD face-detection batch.                                                                              | `16`              |
 | `params.generator_batch_size`        | Number of samples processed per Wav2Lip generator batch.                                                                               | `128`             |
 | `params.static`                      | Reuse the first frame as a still image for the entire audio (photo-to-lipsync mode).                                                   | `false`           |
-| `params.fps`                         | Output video frame rate. Defaults to the source video's frame rate when unset.                                                         | (source fps)      |
+| `params.frame_rate`                  | Output video frame rate. Defaults to the source video's frame rate when unset.                                                         | (source fps)      |
 | `batch_size`                         | Number of `(video, audio)` pairs processed per batch when both inputs are lists or streams.                                            | `1`               |
 | `seed`                               | Random seed for reproducibility. Leave unset for a fresh sample each call.                                                             | (none)            |
 

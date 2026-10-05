@@ -71,7 +71,7 @@ Compared to cloud-hosted video restyling services:
    # Longer output (32 frames) at 12 fps
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "clip=@/path/to/source.mp4" \
-     -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "fps": 12}'
+     -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "frame_rate": 12}'
 
    # Style transfer conditioned on a reference image (IP-Adapter)
    curl -X POST http://localhost:8080/api/workflows/runs \
@@ -83,7 +83,7 @@ Compared to cloud-hosted video restyling services:
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload a `video` (short clips work best — the model was trained on ~16-frame windows) and enter a `prompt`
-   - Optionally tune `denoise_strength`, `num_frames`, `fps`, `guidance_scale`, or set a `seed`
+   - Optionally tune `denoise_strength`, `num_frames`, `frame_rate`, `guidance_scale`, or set a `seed`
    - Click the "Run Workflow" button to receive an MP4 back
 
 ## Configuration Reference
@@ -110,7 +110,7 @@ Compared to cloud-hosted video restyling services:
 | `reference_image`            | Reference image passed to the IP-Adapter for appearance conditioning. Requires the component's `ip_adapter` to be set. | (none)                                                 |
 | `seed`                       | Random seed for reproducibility. Leave unset for a fresh sample each call.                                             | (none)                                                 |
 | `params.num_frames`          | Frames sampled from the input video (and produced in the output). Unset consumes every input frame; FreeNoise handles long clips via sliding context windows. | (all input frames)                                     |
-| `params.fps`                 | Output video frame rate. Unset inherits the input clip's native fps so the output preserves the source playback duration. | (source fps)                                           |
+| `params.frame_rate`          | Output video frame rate. Unset inherits the input clip's native frame rate so the output preserves the source playback duration. | (source frame rate)                                   |
 | `params.height` / `.width`   | Output video resolution. Defaults to the input video's dimensions when unset.                                          | (source dimensions)                                    |
 | `params.denoise_strength`    | Denoising strength. `0.4-0.5` preserves motion strongly; `0.6-0.7` follows the prompt more aggressively.               | `0.5`                                                  |
 | `params.guidance_scale`      | Classifier-free guidance scale.                                                                                        | `7.5`                                                  |

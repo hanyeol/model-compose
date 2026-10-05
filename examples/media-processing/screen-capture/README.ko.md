@@ -6,7 +6,7 @@
 
 세 가지 워크플로우가 MVP 캡처 모드 세 가지를 시연합니다:
 
-1. **데스크탑 클립 캡처** — 지정한 framerate로 전체 화면 캡처, MPEG-TS 파일로 저장
+1. **데스크탑 클립 캡처** — 지정한 frame_rate로 전체 화면 캡처, MPEG-TS 파일로 저장
 2. **화면 영역 캡처** — 화면의 직사각형 영역만 캡처 (Windows/Linux는 네이티브 region 플래그, macOS는 디코드 후 crop 필터)
 3. **마이크 오디오 캡처** — 기본 마이크에서 오디오만 캡처, AAC로 저장 (화면 기록 권한 불필요)
 
@@ -59,7 +59,7 @@ cd examples/media-processing/screen-capture
    **CLI 사용:**
    ```bash
    # 15 fps로 5초짜리 데스크탑 클립 (macOS에서는 display 인덱스 조정)
-   model-compose run capture-desktop-clip --input '{"duration": "5s", "framerate": 15, "display": 0}'
+   model-compose run capture-desktop-clip --input '{"duration": "5s", "frame_rate": 15, "display": 0}'
 
    # 좌측 상단에서 100px 오프셋된 720p 영역, 3초짜리
    model-compose run capture-region-clip --input '{
@@ -113,7 +113,7 @@ cd examples/media-processing/screen-capture
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `duration` | string | 아니요 | `5s` | 캡처 길이 (예: `5s`, `30s`, `2m`) |
-| `framerate` | number | 아니요 | `15` | 비디오 프레임레이트 |
+| `frame_rate` | number | 아니요 | `15` | 비디오 프레임레이트 |
 | `display` | integer | 아니요 | `0` | 디스플레이 / avfoundation 디바이스 인덱스 (위 macOS 노트 참고) |
 | `filename` | string | 아니요 | 타임스탬프 | 파일명 stem (확장자 제외) |
 
@@ -135,7 +135,7 @@ cd examples/media-processing/screen-capture
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `duration` | string | 아니요 | `5s` | 캡처 길이 |
-| `framerate` | number | 아니요 | `15` | 비디오 프레임레이트 |
+| `frame_rate` | number | 아니요 | `15` | 비디오 프레임레이트 |
 | `display` | integer | 아니요 | `0` | 디스플레이 / avfoundation 디바이스 인덱스 |
 | `x` | integer | 아니요 | `0` | 영역 좌측 (픽셀) |
 | `y` | integer | 아니요 | `0` | 영역 상단 (픽셀) |

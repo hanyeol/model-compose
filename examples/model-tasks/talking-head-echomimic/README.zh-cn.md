@@ -113,7 +113,7 @@
 | `params.context_overlap`    | 连续时间窗口之间的帧重叠。                                                                                    | `3`     |
 | `params.motion_sync`        | 启用从参考 `pose` 视频提取运动线索的 motion-sync 模式。                                                       | `false` |
 | `params.sample_rate`        | 模型期望的音频采样率；输入不同时会自动重采样。                                                                | `16000` |
-| `params.fps`                | 输出视频帧率。                                                                                                | `25`    |
+| `params.frame_rate`         | 输出视频帧率。                                                                                                | `25`    |
 | `batch_size`                | 当两个输入都是列表或流时，每批处理的 `(image, audio)` 对的数量。                                              | `1`     |
 | `seed`                      | 用于可复现性的随机种子。留空则每次调用产生新样本。                                                            | （无）  |
 

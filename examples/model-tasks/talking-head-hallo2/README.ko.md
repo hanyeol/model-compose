@@ -108,7 +108,7 @@
 | `params.motion_module_frames` | Motion module 윈도우당 처리되는 프레임 수.                                                                    | `16`    |
 | `params.long_video`           | 하나의 윈도우보다 긴 오디오를 위한 Hallo2의 long-video 모드(청크-앤-블렌드) 활성화.                          | `true`  |
 | `params.high_resolution`      | 더 높은 해상도 출력을 위한 내장 초해상도 패스 실행.                                                           | `false` |
-| `params.fps`                  | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
+| `params.frame_rate`           | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
 | `batch_size`                  | 두 입력이 모두 리스트/스트림일 때 배치당 처리되는 `(image, audio)` 쌍의 수.                                   | `1`     |
 | `seed`                        | 재현성을 위한 랜덤 시드. 매 호출마다 새 샘플을 원하면 미설정.                                                 | (없음)  |
 

@@ -20,20 +20,21 @@ the **original audio muxed back in**, by chaining four jobs:
    encoding and muxes the `for-encode` audio branch back in as the audio
    track.
 
-## The `window.__renderer` contract
+## The page contract
 
-The page exposes `duration` and `seek(t)` on `window.__renderer`. The engine
-reads `duration` to decide how many frames to capture, then calls `seek(t)`
-once per frame and takes a screenshot after each call.
+The page defines a top-level `window.render(t)` and flips `ready` when it's
+prepared to capture. The engine samples `round(duration * frame_rate)` frames and
+calls `render(t)` once per frame; `duration` comes from the action's
+`duration:` field (threaded in via `${jobs.spectrum.output.duration}s` so
+the render length always matches the audio) and is injected as
+`window.__renderer.duration`.
 
 ```js
-window.__renderer = window.__renderer || {};
-Object.assign(window.__renderer, {
-  duration: totalSeconds,
-  seek(t) {
-    // draw the frame at time t on the page's canvas
-  },
-});
+const duration = window.__renderer.duration;  // from action's `duration:`
+window.render = (t) => {
+  // draw the frame at time t on the page's canvas
+};
+window.__renderer.ready = true;               // declare "ready for capture"
 ```
 
 The engine seeds `window.__renderer.props` before any page script runs from
@@ -43,7 +44,7 @@ spectrum result:
 ```js
 window.__renderer.props.spectrum = {
   frames: [[...], [...], ...],  // per-frame band amplitudes in [0, 1]
-  fps: 30,
+  frame_rate: 30,
   band_count: 48,
   frame_count: N,
   duration: seconds,
@@ -85,8 +86,25 @@ Have an audio file ready (mp3, wav, flac, ogg, opus, or aac).
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F 'workflow_id=render' \
      -F 'input.audio=@./song.mp3' \
-     -F 'input.fps=30' \
+     -F 'input.frame_rate=30' \
      -F 'input.band_count=48'
    ```
 
 The response contains a path to the produced `.mp4`.
+
+## Parallel rendering
+
+The renderer action accepts a `worker_count` input (default `1`). Each
+worker opens its own Chromium page and pulls frame numbers off a shared
+queue; results are reordered and streamed back monotonically to the
+encoder. Set it higher for longer audio clips where frame rendering is
+the bottleneck:
+
+```bash
+curl -X POST http://localhost:8080/api/workflows/runs \
+  -F 'workflow_id=render' \
+  -F 'input.audio=@./song.mp3' \
+  -F 'input.frame_rate=30' \
+  -F 'input.band_count=48' \
+  -F 'input.worker_count=4'
+```

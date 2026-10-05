@@ -108,7 +108,7 @@ Unlike cloud talking-head services, running Hallo2 locally provides:
 | `params.motion_module_frames`| Number of frames processed per motion-module window.                                                         | `16`    |
 | `params.long_video`          | Enable Hallo2's long-video mode (chunk-and-blend) for audio longer than one window.                          | `true`  |
 | `params.high_resolution`     | Run the built-in super-resolution pass to produce a higher-resolution output.                                | `false` |
-| `params.fps`                 | Output video frame rate.                                                                                     | `25`    |
+| `params.frame_rate`          | Output video frame rate.                                                                                     | `25`    |
 | `batch_size`                 | Number of `(image, audio)` pairs processed per batch when both inputs are lists or streams.                  | `1`     |
 | `seed`                       | Random seed for reproducibility. Leave unset for a fresh sample each call.                                   | (none)  |
 

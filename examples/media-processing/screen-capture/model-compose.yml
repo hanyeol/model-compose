@@ -20,7 +20,7 @@ workflows:
         action: desktop
         input:
           duration: ${input.duration}
-          framerate: ${input.framerate}
+          frame_rate: ${input.frame_rate}
           display: ${input.display}
 
       - id: save
@@ -44,7 +44,7 @@ workflows:
         action: region
         input:
           duration: ${input.duration}
-          framerate: ${input.framerate}
+          frame_rate: ${input.frame_rate}
           display: ${input.display}
           x: ${input.x}
           y: ${input.y}
@@ -73,7 +73,7 @@ workflows:
         action: window
         input:
           duration: ${input.duration}
-          framerate: ${input.framerate}
+          frame_rate: ${input.frame_rate}
           title: ${input.title}
           app: ${input.app}
 
@@ -119,7 +119,7 @@ components:
       - id: desktop
         video_source: display
         display: ${input.display as integer | 0}
-        framerate: ${input.framerate as number | 15}
+        frame_rate: ${input.frame_rate as number | 15}
         include_video: true
         include_audio: false
         duration: ${input.duration as string | 5s}
@@ -135,7 +135,7 @@ components:
           y: ${input.y as integer | 0}
           width: ${input.width as integer | 640}
           height: ${input.height as integer | 480}
-        framerate: ${input.framerate as number | 15}
+        frame_rate: ${input.frame_rate as number | 15}
         include_video: true
         include_audio: false
         duration: ${input.duration as string | 5s}
@@ -149,7 +149,7 @@ components:
         window:
           title: ${input.title as string | null}
           app: ${input.app as string | null}
-        framerate: ${input.framerate as number | 15}
+        frame_rate: ${input.frame_rate as number | 15}
         include_video: true
         include_audio: false
         duration: ${input.duration as string | 5s}

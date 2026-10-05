@@ -106,7 +106,7 @@
 | `params.a_cfg_scale`        | 应用于音频条件化分支的 guidance 缩放。                                                                        | `2.0`   |
 | `params.e_cfg_scale`        | 应用于情绪条件化分支的 guidance 缩放。                                                                        | `1.0`   |
 | `params.crop`               | 渲染前将源人像裁剪到检测到的人脸；禁用则渲染完整画面。                                                        | `true`  |
-| `params.fps`                | 输出视频帧率。                                                                                                | `25`    |
+| `params.frame_rate`         | 输出视频帧率。                                                                                                | `25`    |
 | `batch_size`                | 当两个输入都是列表或流时，每批处理的 `(image, audio)` 对的数量。                                              | `1`     |
 | `seed`                      | 用于可复现性的随机种子。留空则每次调用重用 Float 默认值（25）。                                               | `25`    |
 

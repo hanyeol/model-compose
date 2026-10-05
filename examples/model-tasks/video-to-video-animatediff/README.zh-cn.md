@@ -71,7 +71,7 @@
    # 更长的输出（32 帧），12 fps
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "clip=@/path/to/source.mp4" \
-     -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "fps": 12}'
+     -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "frame_rate": 12}'
 
    # 基于参考图像的风格迁移 (IP-Adapter)
    curl -X POST http://localhost:8080/api/workflows/runs \
@@ -83,7 +83,7 @@
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 上传 `video`（模型在 ~16 帧窗口上训练，短片效果最佳）并输入 `prompt`
-   - 可选地调节 `denoise_strength`、`num_frames`、`fps`、`guidance_scale`，或设置 `seed`
+   - 可选地调节 `denoise_strength`、`num_frames`、`frame_rate`、`guidance_scale`，或设置 `seed`
    - 点击 "Run Workflow" 按钮即可获得 MP4 输出
 
 ## 配置参考
@@ -110,7 +110,7 @@
 | `reference_image`             | 传给 IP-Adapter 用于外观条件化的参考图像。需要组件的 `ip_adapter` 已配置。                                              | （无）                                                   |
 | `seed`                        | 用于可复现性的随机种子。留空则每次调用都产生新的样本。                                                                  | （无）                                                   |
 | `params.num_frames`           | 从输入视频中采样并输出的帧数。留空则使用输入的所有帧 — FreeNoise 会通过滑动上下文窗口处理长片段。                        | （输入的所有帧）                                          |
-| `params.fps`                  | 输出视频帧率。留空则沿用输入片段的原始 fps，使输出保留源播放时长。                                                       | （源 fps）                                                |
+| `params.frame_rate`           | 输出视频帧率。留空则沿用输入片段的原始帧率，使输出保留源播放时长。                                                       | （源帧率）                                                |
 | `params.height` / `.width`    | 输出视频分辨率。未设置时沿用输入视频的尺寸。                                                                            | (源尺寸)                                                 |
 | `params.denoise_strength`     | 去噪强度。`0.4-0.5` 强力保留运动；`0.6-0.7` 更强地遵循提示词。                                                          | `0.5`                                                    |
 | `params.guidance_scale`       | Classifier-free guidance 缩放。                                                                                         | `7.5`                                                    |

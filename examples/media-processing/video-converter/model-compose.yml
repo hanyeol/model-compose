@@ -20,7 +20,7 @@ workflows:
         audio_codec: ${input.audio_codec as select/aac,opus,mp3,flac,copy | aac}
         bitrate: ${input.bitrate as select/512k,1M,2M,5M,10M | 2M}
         resolution: ${input.resolution as select/1920x1080,1280x720,854x480,3840x2160 | 1920x1080}
-        fps: ${input.fps as select/24,30,60 | 30}
+        frame_rate: ${input.frame_rate as select/24,30,60 | 30}
       output:
         video: ${output.path as video;path}
 
@@ -35,6 +35,6 @@ components:
           codec: ${input.codec}
           bitrate: ${input.bitrate}
           resolution: ${input.resolution}
-          fps: ${input.fps}
+          frame_rate: ${input.frame_rate}
         audio:
           codec: ${input.audio_codec}

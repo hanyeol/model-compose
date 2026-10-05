@@ -71,7 +71,7 @@
    # 32프레임, 12 fps로 더 긴 출력
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "clip=@/path/to/source.mp4" \
-     -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "fps": 12}'
+     -F 'input={"video": "@clip", "prompt": "neon cyberpunk city, rain, reflections", "num_frames": 32, "frame_rate": 12}'
 
    # 레퍼런스 이미지 기반 스타일 전이 (IP-Adapter)
    curl -X POST http://localhost:8080/api/workflows/runs \
@@ -83,7 +83,7 @@
    **Web UI 사용:**
    - Web UI 열기: http://localhost:8081
    - `video`를 업로드하고(모델이 ~16프레임 창으로 학습되었으므로 짧은 클립이 가장 잘 동작합니다) `prompt`를 입력합니다
-   - 선택적으로 `denoise_strength`, `num_frames`, `fps`, `guidance_scale`을 조정하거나 `seed`를 설정합니다
+   - 선택적으로 `denoise_strength`, `num_frames`, `frame_rate`, `guidance_scale`을 조정하거나 `seed`를 설정합니다
    - "Run Workflow" 버튼을 클릭하면 MP4가 반환됩니다
 
 ## 구성 참조
@@ -110,7 +110,7 @@
 | `reference_image`             | 외형을 참조하도록 IP-Adapter에 전달되는 이미지. 컴포넌트의 `ip_adapter`가 설정되어 있어야 합니다.                        | (없음)                                                   |
 | `seed`                        | 재현성을 위한 랜덤 시드. 지정하지 않으면 매 호출마다 새로운 샘플을 사용합니다.                                          | (없음)                                                   |
 | `params.num_frames`           | 입력 영상에서 샘플링해 출력할 프레임 수. 비워두면 입력의 모든 프레임을 사용합니다 — FreeNoise가 슬라이딩 컨텍스트 창으로 긴 클립을 처리합니다. | (입력 프레임 전체)                                        |
-| `params.fps`                  | 출력 영상 프레임 레이트. 비워두면 입력 클립의 원본 fps를 따르며, 결과가 원본 재생 시간을 유지합니다.                    | (원본 fps)                                                |
+| `params.frame_rate`           | 출력 영상 프레임 레이트. 비워두면 입력 클립의 원본 프레임 레이트를 따르며, 결과가 원본 재생 시간을 유지합니다.          | (원본 프레임 레이트)                                      |
 | `params.height` / `.width`    | 출력 영상 해상도. 지정하지 않으면 입력 영상의 크기를 그대로 사용합니다.                                                | (소스 크기)                                              |
 | `params.denoise_strength`     | 디노이즈 강도. `0.4-0.5`는 모션을 강하게 보존, `0.6-0.7`은 프롬프트를 더 강하게 반영.                                   | `0.5`                                                    |
 | `params.guidance_scale`       | Classifier-free guidance 스케일.                                                                                        | `7.5`                                                    |

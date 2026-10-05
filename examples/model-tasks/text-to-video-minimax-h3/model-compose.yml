@@ -56,8 +56,8 @@ component:
     seed: ${input.seed as integer}
     params:
       # Native output is 24 fps. The model was trained at this frame rate;
-      # changing fps re-encodes the mp4 but does not resample frames.
-      fps: ${input.fps as integer | 24}
+      # changing frame_rate re-encodes the mp4 but does not resample frames.
+      frame_rate: ${input.frame_rate as integer | 24}
       # Short-side 768 is the model's default; 2K generation needs the
       # separate H3-Regenerate-2K stage not wired up in this example.
       width: ${input.width as integer | 1280}

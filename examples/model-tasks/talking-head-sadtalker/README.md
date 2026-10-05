@@ -113,7 +113,7 @@ Unlike cloud talking-head services, running SadTalker locally provides:
 | `params.face3dvis`     | Render an additional 3D-face debug video alongside the output.                                                | `false`       |
 | `params.size`          | Face renderer resolution. Should match the loaded preset (`256` for `v0.0.2-256`, `512` for `v0.0.2-512`).    | `256`         |
 | `params.facerender_batch_size` | Batch size used by the face renderer inference loop.                                                  | `2`           |
-| `params.fps`           | Output video frame rate. SadTalker's renderer targets 25 fps internally.                                      | `25`          |
+| `params.frame_rate`    | Output video frame rate. SadTalker's renderer targets 25 fps internally.                                      | `25`          |
 | `batch_size`           | Number of `(image, audio)` pairs processed per batch when both inputs are lists or streams.                   | `1`           |
 | `seed`                 | Random seed for reproducibility. Leave unset for a fresh sample each call.                                    | (none)        |
 

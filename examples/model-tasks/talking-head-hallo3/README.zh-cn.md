@@ -108,7 +108,7 @@
 | `params.num_frames`             | 每个 DiT 窗口生成的帧数。                                                                                     | `97`    |
 | `params.shift`                  | 应用于调度器的 Flow-matching timestep shift。                                                                 | `5.0`   |
 | `params.long_video`             | 为超过一个 DiT 窗口的音频启用长视频模式（窗口与混合）。                                                       | `true`  |
-| `params.fps`                    | 输出视频帧率。                                                                                                | `25`    |
+| `params.frame_rate`             | 输出视频帧率。                                                                                                | `25`    |
 | `batch_size`                    | 当两个输入都是列表或流时，每批处理的 `(image, audio)` 对的数量。                                              | `1`     |
 | `seed`                          | 用于可复现性的随机种子。留空则每次调用产生新样本。                                                            | （无）  |
 

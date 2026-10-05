@@ -108,7 +108,7 @@ Unlike cloud talking-head services, running Hallo3 locally provides:
 | `params.num_frames`            | Number of frames generated per DiT window.                                                                     | `97`    |
 | `params.shift`                 | Flow-matching timestep shift applied to the scheduler.                                                         | `5.0`   |
 | `params.long_video`            | Enable long-video mode (window-and-blend) for audio longer than one DiT window.                                | `true`  |
-| `params.fps`                   | Output video frame rate.                                                                                       | `25`    |
+| `params.frame_rate`            | Output video frame rate.                                                                                       | `25`    |
 | `batch_size`                   | Number of `(image, audio)` pairs processed per batch when both inputs are lists or streams.                    | `1`     |
 | `seed`                         | Random seed for reproducibility. Leave unset for a fresh sample each call.                                     | (none)  |
 

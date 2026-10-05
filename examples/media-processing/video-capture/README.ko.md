@@ -63,7 +63,7 @@ cd examples/media-processing/video-capture
    ```bash
    # 720p 30fps로 10초 캡처 → webcam.mp4
    model-compose run capture-webcam \
-     --input '{"duration": "10s", "framerate": 30, "width": 1280, "height": 720}' \
+     --input '{"duration": "10s", "frame_rate": 30, "width": 1280, "height": 720}' \
      --output webcam.mp4
    ```
 
@@ -105,7 +105,7 @@ cd examples/media-processing/video-capture
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|-----|------|--------|-----|
 | `duration` | string | 아니오 | `10s` | 캡처 길이 (예: `10s`, `30s`, `2m`) |
-| `framerate` | number | 아니오 | `30` | 비디오 프레임레이트 |
+| `frame_rate` | number | 아니오 | `30` | 비디오 프레임레이트 |
 | `width` | integer | 아니오 | `1280` | 프레임 너비 (픽셀) |
 | `height` | integer | 아니오 | `720` | 프레임 높이 (픽셀) |
 
@@ -125,7 +125,7 @@ cd examples/media-processing/video-capture
   device: 1               # macOS avfoundation 인덱스 (위 `-list_devices` 결과 참고)
   # device: "OBS Virtual Camera"      # macOS/Windows: 이름을 정확히 일치시켜야 함
   # device: /dev/video2               # Linux
-  framerate: ${input.framerate}
+  frame_rate: ${input.frame_rate}
   ...
 ```
 
@@ -133,11 +133,11 @@ Windows에서는 `device`가 필수입니다 — dshow는 숫자 인덱스를 �
 
 ### 고해상도 / 고프레임레이트
 
-요청에 `width`/`height`/`framerate`를 올려서 캡처합니다:
+요청에 `width`/`height`/`frame_rate`를 올려서 캡처합니다:
 
 ```bash
 model-compose run capture-webcam \
-  --input '{"width": 1920, "height": 1080, "framerate": 60, "duration": "5s"}' \
+  --input '{"width": 1920, "height": 1080, "frame_rate": 60, "duration": "5s"}' \
   --output webcam-1080p60.mp4
 ```
 

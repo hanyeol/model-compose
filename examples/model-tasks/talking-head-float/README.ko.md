@@ -106,7 +106,7 @@
 | `params.a_cfg_scale`        | 오디오 조건화 분기에 적용되는 guidance 스케일.                                                                | `2.0`   |
 | `params.e_cfg_scale`        | 감정 조건화 분기에 적용되는 guidance 스케일.                                                                  | `1.0`   |
 | `params.crop`               | 렌더링 전에 소스 인물 사진을 감지된 얼굴로 크롭; 비활성화 시 전체 프레임 렌더링.                              | `true`  |
-| `params.fps`                | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
+| `params.frame_rate`         | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
 | `batch_size`                | 두 입력이 모두 리스트/스트림일 때 배치당 처리되는 `(image, audio)` 쌍의 수.                                   | `1`     |
 | `seed`                      | 재현성을 위한 랜덤 시드. 매 호출마다 Float 기본값(25)을 재사용하려면 미설정.                                  | `25`    |
 

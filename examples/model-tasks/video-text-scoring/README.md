@@ -175,7 +175,7 @@ Single video + list of candidate captions → ranked distribution.
 ### Performance Notes
 
 - First run downloads the model (~600MB)
-- Frame extraction dominates latency for short clips on CPU; use `fps` to cap it
+- Frame extraction dominates latency for short clips on CPU; use `frame_rate` to cap it
 - X-CLIP's MIT does cross-frame attention — longer clips cost more than their frame count alone implies
 
 ## Customization
@@ -236,7 +236,7 @@ params:
 ### Performance Optimization
 
 - **GPU**: Set `device: cuda:0` (or `mps` on Apple Silicon) for substantially faster inference
-- **Frame budget**: Lower the extractor's `fps` and `max_frame_count` for shorter clips; the model re-samples internally anyway
+- **Frame budget**: Lower the extractor's `frame_rate` and `max_frame_count` for shorter clips; the model re-samples internally anyway
 - **Batch**: Pack multi-video jobs (nested frames) into one call rather than running N separate workflows
 
 ## Comparison with video-embedding + Cosine

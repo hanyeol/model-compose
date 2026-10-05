@@ -99,7 +99,7 @@ Videos are re-encoded during mixing because ffmpeg filter graphs cannot operate 
 
 ### Concat Method
 
-Joins videos end-to-end using ffmpeg's `concat` filter. All inputs must share the same resolution, SAR, pixel format, framerate, audio sample rate, and channel layout — the concat filter fails with `Input link ... parameters do not match` when they don't. Normalize the inputs upstream (for example with the `video-converter` component) before feeding them into `concat`.
+Joins videos end-to-end using ffmpeg's `concat` filter. All inputs must share the same resolution, SAR, pixel format, frame rate, audio sample rate, and channel layout — the concat filter fails with `Input link ... parameters do not match` when they don't. Normalize the inputs upstream (for example with the `video-converter` component) before feeding them into `concat`.
 
 Re-encoding via the `encoding` field controls the output stream only; it does not reconcile mismatched inputs. Both video and audio tracks are joined; inputs without audio contribute silence.
 
@@ -236,7 +236,7 @@ Composites one or more overlay videos on top of a base video. Overlays are stack
 
 1. **ffmpeg not found**: Ensure ffmpeg is installed and available in your `PATH`.
 2. **`'videos' must contain at least two entries for concat`**: Concat requires at least two inputs. Use `overlay` or another component for single-video operations.
-3. **`Input link ... parameters do not match` on concat**: The ffmpeg concat filter requires every input to share resolution, SAR, pixel format, framerate, audio sample rate, and channel layout. Pre-process inputs with a component like `video-converter` to normalize them before concatenating.
+3. **`Input link ... parameters do not match` on concat**: The ffmpeg concat filter requires every input to share resolution, SAR, pixel format, frame rate, audio sample rate, and channel layout. Pre-process inputs with a component like `video-converter` to normalize them before concatenating.
 4. **`overlay/placement cardinality mismatch`**: When `placement` is a list, its length must equal the number of overlays. A single placement object is broadcast to every overlay instead.
 5. **Wrong z-order in overlay-multiple**: Overlays are stacked in list order (first is drawn first, last appears on top). Reorder the list to change stacking.
 6. **Silent output when using `audio_mode: overlay`**: The overlay video may lack an audio track. Switch to `audio_mode: base` or `audio_mode: mix` if the base has audio you want to keep.

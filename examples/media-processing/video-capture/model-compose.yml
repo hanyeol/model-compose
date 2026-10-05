@@ -22,7 +22,7 @@ workflows:
       action: webcam
       input:
         duration: ${input.duration as string | 10s}
-        framerate: ${input.framerate as number | 30}
+        frame_rate: ${input.frame_rate as number | 30}
         width: ${input.width as integer | 1280}
         height: ${input.height as integer | 720}
       output:
@@ -42,7 +42,7 @@ components:
       # - Linux: `device` is a v4l2 node path (default "/dev/video0").
       - id: webcam
         source: camera
-        framerate: ${input.framerate}
+        frame_rate: ${input.frame_rate}
         resolution:
           width: ${input.width}
           height: ${input.height}

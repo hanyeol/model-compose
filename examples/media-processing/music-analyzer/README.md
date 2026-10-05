@@ -174,7 +174,7 @@ For signal-level metrics (loudness/peak/gain/clipping/silence), use [`audio-anal
 {
   "frames": [[0.12, 0.08, "..."], "..."],
   "bpm_axis": [60.0, 62.4, "...", 200.0],
-  "fps": 86.13,
+  "frame_rate": 86.13,
   "sample_rate": 44100
 }
 ```
@@ -250,7 +250,7 @@ An empty list means the song had no dynamic range to threshold against.
 ```json
 {
   "frames": [[0.1, 0.05, "...", 0.3], "..."],
-  "fps": 86.13,
+  "frame_rate": 86.13,
   "sample_rate": 44100
 }
 ```
@@ -275,7 +275,7 @@ Each frame is 12 pitch-class energies in order `C, C#, D, D#, E, F, F#, G, G#, A
 ```json
 {
   "frames": [[0.1, -0.05, "...", 0.2], "..."],
-  "fps": 86.30,
+  "frame_rate": 86.30,
   "sample_rate": 44100
 }
 ```
@@ -301,7 +301,7 @@ Each frame is 6 tonal-centroid coordinates on the Harte tonnetz.
 {
   "brightness_hz": 2140.5,
   "frames": [2130.1, 2145.3, "..."],
-  "fps": 86.13,
+  "frame_rate": 86.13,
   "sample_rate": 44100
 }
 ```
@@ -325,7 +325,7 @@ Each frame is 6 tonal-centroid coordinates on the Harte tonnetz.
 {
   "flatness": 0.12,
   "frames": [0.10, 0.13, "..."],
-  "fps": 86.13,
+  "frame_rate": 86.13,
   "sample_rate": 44100
 }
 ```
@@ -366,7 +366,7 @@ components:
     action:
       feature: spectrum
       audio: ${input.audio as file}
-      fps: 100
+      frame_rate: 100
       band_count: 128
 
   - id: analyzer

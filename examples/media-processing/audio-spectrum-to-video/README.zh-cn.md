@@ -15,20 +15,20 @@
 4. `video-encoder` 将渲染后的帧通过 ffmpeg 管道进行 H.264 编码，
    并将 `for-encode` 音频分支作为音频轨混入。
 
-## `window.__renderer` 契约
+## 页面契约
 
-页面在 `window.__renderer` 上暴露 `duration` 与 `seek(t)`。
-引擎读取 `duration` 以决定要捕获多少帧，然后每帧调用一次 `seek(t)`
-并在每次调用后截图。
+页面定义顶层 `window.render(t)` 并在准备好捕获时翻转 `ready`。引擎采样
+`round(duration * frame_rate)` 帧，每帧调用一次 `render(t)`。`duration` 来自
+动作的 `duration:` 字段（通过 `${jobs.spectrum.output.duration}s`
+从频谱提取器传入，自动与音频长度匹配），并作为
+`window.__renderer.duration` 注入。
 
 ```js
-window.__renderer = window.__renderer || {};
-Object.assign(window.__renderer, {
-  duration: totalSeconds,
-  seek(t) {
-    // 在页面画布上绘制时间 t 的帧
-  },
-});
+const duration = window.__renderer.duration;  // 来自动作的 `duration:`
+window.render = (t) => {
+  // 在页面画布上绘制时间 t 的帧
+};
+window.__renderer.ready = true;               // 声明"已准备好开始捕获"
 ```
 
 引擎在任何页面脚本运行之前，会根据动作的 `props:` 输入预设
@@ -37,7 +37,7 @@ Object.assign(window.__renderer, {
 ```js
 window.__renderer.props.spectrum = {
   frames: [[...], [...], ...],  // 每帧的频段振幅，范围 [0, 1]
-  fps: 30,
+  frame_rate: 30,
   band_count: 48,
   frame_count: N,
   duration: seconds,
@@ -79,8 +79,23 @@ cd examples/media-processing/audio-spectrum-to-video
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F 'workflow_id=render' \
      -F 'input.audio=@./song.mp3' \
-     -F 'input.fps=30' \
+     -F 'input.frame_rate=30' \
      -F 'input.band_count=48'
    ```
 
 响应中包含生成的 `.mp4` 路径。
+
+## 并行渲染
+
+渲染器动作接受 `worker_count` 输入（默认 `1`）。每个 worker 打开自己的
+Chromium 页面，从共享队列中拉取帧编号进行渲染；结果按编号重新排序后
+以单调顺序流式送入编码器。当帧渲染是较长音频的瓶颈时，可以提高该值：
+
+```bash
+curl -X POST http://localhost:8080/api/workflows/runs \
+  -F 'workflow_id=render' \
+  -F 'input.audio=@./song.mp3' \
+  -F 'input.frame_rate=30' \
+  -F 'input.band_count=48' \
+  -F 'input.worker_count=4'
+```

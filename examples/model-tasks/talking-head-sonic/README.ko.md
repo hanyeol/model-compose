@@ -103,7 +103,7 @@
 | `params.inference_steps`    | 디퓨전 추론 스텝 수.                                                                                          | `25`    |
 | `params.min_resolution`     | 렌더링 전에 얼굴 크롭이 리사이즈되는 최소 짧은 변 해상도.                                                     | `512`   |
 | `params.keep_resolution`    | `min_resolution`으로 리사이즈하지 않고 입력 인물 사진의 원본 해상도 유지.                                    | `false` |
-| `params.fps`                | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
+| `params.frame_rate`         | 출력 비디오 프레임 레이트.                                                                                    | `25`    |
 | `batch_size`                | 두 입력이 모두 리스트/스트림일 때 배치당 처리되는 `(image, audio)` 쌍의 수.                                   | `1`     |
 | `seed`                      | 재현성을 위한 랜덤 시드. 매 호출마다 새 샘플을 원하면 미설정.                                                 | (없음)  |
 

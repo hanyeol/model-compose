@@ -55,7 +55,7 @@
      -F "audio_codec=aac" \
      -F "bitrate=2M" \
      -F "resolution=1920x1080" \
-     -F "fps=30"
+     -F "frame_rate=30"
    ```
 
    **使用 CLI：**
@@ -105,7 +105,7 @@ graph TD
 | `audio_codec` | select | 否 | `aac` | 音频编解码器：aac、opus、mp3、flac、copy |
 | `bitrate` | select | 否 | `2M` | 视频比特率：512k、1M、2M、5M、10M |
 | `resolution` | select | 否 | `1920x1080` | 输出分辨率：1920x1080、1280x720、854x480、3840x2160 |
-| `fps` | select | 否 | `30` | 帧率：24、30、60 |
+| `frame_rate` | select | 否 | `30` | 帧率：24、30、60 |
 
 #### 输出格式
 

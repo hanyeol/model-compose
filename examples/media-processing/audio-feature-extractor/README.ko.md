@@ -53,14 +53,14 @@
    # Spectrum (기본 워크플로우)
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "audio=@song.mp3" \
-     -F "fps=30" \
+     -F "frame_rate=30" \
      -F "band_count=32"
 
    # Waveform
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "workflow_id=waveform" \
      -F "audio=@song.mp3" \
-     -F "fps=30" \
+     -F "frame_rate=30" \
      -F "point_count=100"
    ```
 
@@ -105,7 +105,7 @@ graph TD
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `audio` | file | Yes | - | 오디오 소스 (mp3, wav, flac, aac, m4a, opus, ogg, ...) |
-| `fps` | int | No | `30` | 초당 출력 프레임 수 |
+| `frame_rate` | int | No | `30` | 초당 출력 프레임 수 |
 | `band_count` | int | No | `32` | 프레임당 주파수 대역 수 |
 | `min_frequency` | float | No | `40.0` | 대역 그리드에 포함되는 최저 주파수 (Hz) |
 | `window_size` | select | No | `2048` | 샘플 단위의 FFT 윈도우 크기: 512, 1024, 2048, 4096 |
@@ -117,7 +117,7 @@ graph TD
 
 ```json
 {
-  "fps": 30,
+  "frame_rate": 30,
   "band_count": 32,
   "frame_count": 5400,
   "duration": 180.0,
@@ -137,7 +137,7 @@ graph TD
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `audio` | file | Yes | - | 오디오 소스 |
-| `fps` | int | No | `30` | 초당 출력 프레임 수 |
+| `frame_rate` | int | No | `30` | 초당 출력 프레임 수 |
 | `point_count` | int | No | `100` | 프레임당 데이터 포인트 수 (파형 표시 해상도) |
 | `window_duration` | string | No | `40ms` | 프레임당 분석 윈도우 (예: `40ms`, `0.04s`, `1s`) |
 | `summary_mode` | select | No | `peak` | 버킷 요약 통계: `peak` (max\|amplitude\|) 또는 `rms` |
@@ -147,7 +147,7 @@ graph TD
 
 ```json
 {
-  "fps": 30,
+  "frame_rate": 30,
   "point_count": 100,
   "frame_count": 5400,
   "duration": 180.0,

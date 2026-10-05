@@ -202,6 +202,6 @@ model-compose run publish-video --input '{"video": "https://example.com/outro.mp
 
 - 백프레셔 여유 공간을 조정하려면 `media-queue.max_size`를 늘리거나 줄이세요
 - 소스 자료와 업로드 대역폭에 맞춰 `publisher.action.encoding.video.bitrate`와 `resolution`을 조정하세요 (YouTube는 1080p30에 4500–9000 kbps, 1080p60에 9000–13500 kbps를 권장)
-- 고프레임레이트 방송을 하려면 `publisher.action.encoding.video.fps`를 `60`으로 변경하세요
+- 고프레임레이트 방송을 하려면 `publisher.action.encoding.video.frame_rate`를 `60`으로 변경하세요
 - `publisher.action.url`에 두 번째 URL을 추가하고 `batch_size`를 함께 설정하면 YouTube 외에 Twitch나 Facebook Live로도 동시 송출할 수 있습니다 — 자세한 내용은 [RTMP publisher 레퍼런스](../../../docs/reference/compose/components/rtmp-publisher.md)를 참고하세요
 - `enqueue`/`dequeue`에 `session` 필드를 추가하면 채널이나 캠페인 단위로 큐를 분할할 수 있습니다 — 한 세션에 publish된 아이템은 해당 세션의 컨슈머에게만 보입니다

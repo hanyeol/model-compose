@@ -107,7 +107,7 @@ Unlike cloud lip-sync services, running MuseTalk locally provides:
 | `params.audio_padding_length_left` / `right` | Number of audio feature frames padded on each side of every window.                                                            | `2`               |
 | `params.generator_batch_size`        | Number of samples processed per MuseTalk generator batch.                                                                              | `8`               |
 | `params.use_float16`                 | Run the pipeline in float16 for a memory and latency win.                                                                              | `false`           |
-| `params.fps`                         | Output video frame rate. Defaults to the source video's frame rate when unset.                                                         | (source fps)      |
+| `params.frame_rate`                  | Output video frame rate. Defaults to the source video's frame rate when unset.                                                         | (source fps)      |
 | `batch_size`                         | Number of `(video, audio)` pairs processed per batch when both inputs are lists or streams.                                            | `1`               |
 | `seed`                               | Random seed for reproducibility. Leave unset for a fresh sample each call.                                                             | (none)            |
 

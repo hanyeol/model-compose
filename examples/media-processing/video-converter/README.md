@@ -55,7 +55,7 @@ This workflow provides a video conversion service that:
      -F "audio_codec=aac" \
      -F "bitrate=2M" \
      -F "resolution=1920x1080" \
-     -F "fps=30"
+     -F "frame_rate=30"
    ```
 
    **Using CLI:**
@@ -105,7 +105,7 @@ graph TD
 | `audio_codec` | select | No | `aac` | Audio codec: aac, opus, mp3, flac, copy |
 | `bitrate` | select | No | `2M` | Video bitrate: 512k, 1M, 2M, 5M, 10M |
 | `resolution` | select | No | `1920x1080` | Output resolution: 1920x1080, 1280x720, 854x480, 3840x2160 |
-| `fps` | select | No | `30` | Frame rate: 24, 30, 60 |
+| `frame_rate` | select | No | `30` | Frame rate: 24, 30, 60 |
 
 #### Output Format
 

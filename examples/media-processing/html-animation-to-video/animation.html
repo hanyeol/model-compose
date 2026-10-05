@@ -10,20 +10,21 @@
 <body>
   <canvas id="viz" width="1280" height="720"></canvas>
   <script>
-    // Implement the window.__renderer contract expected by model-compose's
-    // html_frame_renderer component. The page exposes `duration` and `seek(t)`
-    // on window.__renderer; the engine reads duration to count frames, then
-    // calls seek(t) once per frame and takes a screenshot after each call.
+    // Implement the contract expected by model-compose's html_frame_renderer
+    // component. The engine sets `duration` (from the action's `duration`
+    // field) on window.__renderer before any page script runs. The page
+    // defines a top-level `window.render(t)` and flips window.__renderer.ready
+    // to true once it's prepared to capture.
     //
     // For faster capture, the page should call window.__renderer.rendered(t) once
-    // the frame is fully painted. This lets the engine pipeline seek/screenshot
-    // instead of waiting for seek()'s RPC response. If rendered() is never called,
+    // the frame is fully painted. This lets the engine pipeline render/screenshot
+    // instead of waiting for render()'s RPC response. If rendered() is never called,
     // the engine falls back to the sequential path.
 
     const canvas = document.getElementById("viz");
     const ctx = canvas.getContext("2d");
 
-    const totalDuration = 5.0;
+    const duration = window.__renderer.duration;
 
     // props is optional workflow-provided data injected by the engine before
     // page load. The page reads whatever it needs; here we expect an optional
@@ -33,7 +34,7 @@
     function drawFrame(t) {
       const w = canvas.width;
       const h = canvas.height;
-      const progress = t / totalDuration;
+      const progress = t / duration;
 
       // background
       ctx.fillStyle = "#0b1220";
@@ -59,14 +60,14 @@
       ctx.fillRect(40, h - 40, (w - 80) * progress, 8);
     }
 
-    window.__renderer = window.__renderer || {};
-    Object.assign(window.__renderer, {
-      duration: totalDuration,
-      seek(t) {
-        drawFrame(t);
-        window.__renderer.rendered(t);
-      },
-    });
+    window.render = (t) => {
+      drawFrame(t);
+      window.__renderer.rendered(t);
+    };
+    // Signal "ready for capture". The driver only starts rendering after
+    // this flips. Nothing to await here (no webfonts, images, or scene
+    // load), so we flip it immediately.
+    window.__renderer.ready = true;
   </script>
 </body>
 </html>

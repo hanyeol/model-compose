@@ -36,7 +36,7 @@ workflows:
         component: extractor
         input:
           audio: ${jobs.fanout-audio.output.for-spectrum}
-          fps: ${input.fps as select/24,30,60 | 30}
+          frame_rate: ${input.frame_rate as select/24,30,60 | 30}
           band_count: ${input.band_count as integer | 48}
         output: ${output as json}
         depends_on: [ fanout-audio ]
@@ -45,7 +45,9 @@ workflows:
         component: renderer
         input:
           spectrum: ${jobs.spectrum.output}
-          fps: ${input.fps as select/24,30,60 | 30}
+          duration: ${jobs.spectrum.output.duration}s
+          frame_rate: ${input.frame_rate as select/24,30,60 | 30}
+          worker_count: ${input.worker_count as integer | 1}
         output: ${output}
         depends_on: [ spectrum ]
 
@@ -53,7 +55,7 @@ workflows:
         component: encoder
         input:
           frames: ${jobs.frames.output}
-          frame_rate: ${input.fps as select/24,30,60 | 30}
+          frame_rate: ${input.frame_rate as select/24,30,60 | 30}
           audio: ${jobs.fanout-audio.output.for-encode}
         output: ${output as video}
         depends_on: [ fanout-audio, frames ]
@@ -64,7 +66,7 @@ components:
     action:
       feature: spectrum
       audio: ${input.audio}
-      fps: ${input.fps}
+      frame_rate: ${input.frame_rate}
       band_count: ${input.band_count}
       min_frequency: 40.0
       window_size: 2048
@@ -78,7 +80,9 @@ components:
     headless: true
     action:
       html: ./animation.html
-      fps: ${input.fps}
+      duration: ${input.duration}
+      frame_rate: ${input.frame_rate}
+      worker_count: ${input.worker_count}
       width: 1280
       height: 720
       props:

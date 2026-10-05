@@ -103,7 +103,7 @@
 | `params.inference_steps`    | 扩散推理步骤数。                                                                                              | `25`    |
 | `params.min_resolution`     | 渲染前人脸裁剪缩放到的最小短边分辨率。                                                                        | `512`   |
 | `params.keep_resolution`    | 保留输入人像的原始分辨率，而不是缩放到 `min_resolution`。                                                     | `false` |
-| `params.fps`                | 输出视频帧率。                                                                                                | `25`    |
+| `params.frame_rate`         | 输出视频帧率。                                                                                                | `25`    |
 | `batch_size`                | 当两个输入都是列表或流时，每批处理的 `(image, audio)` 对的数量。                                              | `1`     |
 | `seed`                      | 用于可复现性的随机种子。留空则每次调用产生新样本。                                                            | （无）  |
 

@@ -99,5 +99,5 @@ components:
     driver: ffmpeg
     action:
       video: ${input.video as video}
-      fps: 2
+      frame_rate: 2
       max_frame_count: 32

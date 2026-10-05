@@ -108,7 +108,7 @@
 | `params.motion_module_frames` | Motion module 每个窗口处理的帧数。                                                                            | `16`    |
 | `params.long_video`           | 为超过一个窗口的音频启用 Hallo2 的长视频模式（分块与混合）。                                                  | `true`  |
 | `params.high_resolution`      | 运行内置超分过程以生成更高分辨率的输出。                                                                      | `false` |
-| `params.fps`                  | 输出视频帧率。                                                                                                | `25`    |
+| `params.frame_rate`           | 输出视频帧率。                                                                                                | `25`    |
 | `batch_size`                  | 当两个输入都是列表或流时，每批处理的 `(image, audio)` 对的数量。                                              | `1`     |
 | `seed`                        | 用于可复现性的随机种子。留空则每次调用产生新样本。                                                            | （无）  |
 

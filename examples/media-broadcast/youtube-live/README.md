@@ -202,6 +202,6 @@ model-compose run publish-video --input '{"video": "https://example.com/outro.mp
 
 - Raise or lower `media-queue.max_size` to change backpressure headroom
 - Adjust `publisher.action.encoding.video.bitrate` and `resolution` to match your source material and upload bandwidth (YouTube recommends 4500–9000 kbps for 1080p30, 9000–13500 kbps for 1080p60)
-- Change `publisher.action.encoding.video.fps` to `60` for high-frame-rate broadcasts
+- Change `publisher.action.encoding.video.frame_rate` to `60` for high-frame-rate broadcasts
 - Add a second URL to `publisher.action.url` (and set `batch_size` accordingly) to simulcast to Twitch or Facebook Live in addition to YouTube — see the [RTMP publisher reference](../../../docs/reference/compose/components/rtmp-publisher.md) for multi-target broadcasting
 - Add a `session` field to `enqueue`/`dequeue` to partition the queue by channel or campaign — items published under one session are only visible to consumers of that session

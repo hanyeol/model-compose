@@ -55,7 +55,7 @@
      -F "audio_codec=aac" \
      -F "bitrate=2M" \
      -F "resolution=1920x1080" \
-     -F "fps=30"
+     -F "frame_rate=30"
    ```
 
    **CLI 사용:**
@@ -105,7 +105,7 @@ graph TD
 | `audio_codec` | select | 아니오 | `aac` | 오디오 코덱: aac, opus, mp3, flac, copy |
 | `bitrate` | select | 아니오 | `2M` | 비디오 비트레이트: 512k, 1M, 2M, 5M, 10M |
 | `resolution` | select | 아니오 | `1920x1080` | 출력 해상도: 1920x1080, 1280x720, 854x480, 3840x2160 |
-| `fps` | select | 아니오 | `30` | 프레임 레이트: 24, 30, 60 |
+| `frame_rate` | select | 아니오 | `30` | 프레임 레이트: 24, 30, 60 |
 
 #### 출력 형식
 

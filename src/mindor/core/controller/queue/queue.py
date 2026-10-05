@@ -20,7 +20,7 @@ class ControllerQueueService:
             raise ValueError(f"Unsupported controller queue driver: {driver}")
 
     def get_declared_requirements(self) -> List[str]:
-        return list(self.driver.get_declared_requirements())
+        return self.driver.get_declared_requirements()
 
     async def start(self) -> None:
         await self.driver.start()

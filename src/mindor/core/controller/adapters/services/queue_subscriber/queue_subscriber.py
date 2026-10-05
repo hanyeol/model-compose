@@ -22,7 +22,7 @@ class QueueSubscriberControllerAdapterService(ControllerAdapterService):
         self.driver: CommonQueueSubscriberControllerAdapterService = self._create_driver(config.driver)
 
     def get_declared_requirements(self) -> List[str]:
-        requirements = list(self._get_setup_requirements() or [])
+        requirements = self._get_setup_requirements() or []
         requirements.extend(self.driver.get_declared_requirements())
 
         return requirements

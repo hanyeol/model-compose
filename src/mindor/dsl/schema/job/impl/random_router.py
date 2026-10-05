@@ -15,6 +15,8 @@ class RandomRoutingConfig(BaseModel):
 class RandomRouterJobConfig(CommonJobConfig):
     type: Literal[JobType.RANDOM_ROUTER]
     mode: RandomRoutingMode = Field(default=RandomRoutingMode.UNIFORM, description="Selection strategy used to pick a route (e.g., uniform, weighted).")
+    session: Optional[str] = Field(default=None, description="Rendered expression that makes routing sticky for the same value (e.g., `${context.session_id}`); falls back to random when empty.")
+    salt: Optional[str] = Field(default=None, description="Optional salt isolating this router's hashing from others; defaults to `{workflow_id}:{job_id}`.")
     routings: List[RandomRoutingConfig] = Field(default_factory=list, description="Candidate routes the router chooses from.")
 
     def get_routing_jobs(self) -> Set[str]:

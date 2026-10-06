@@ -344,7 +344,7 @@ class GradioWebUIBuilder:
                     ]
                     return
 
-                if isinstance(output, (StreamIterator, AsyncIterator)):
+                if isinstance(output, StreamIterator):
                     output = [ chunk async for chunk in output ]
 
                 # Resolve first: consuming a StreamResource fires the lifecycle
@@ -817,14 +817,14 @@ class GradioWebUIBuilder:
             for variable, component in zip(variables, components)
         ]
 
-        streams: Dict[int, AsyncIterator] = {}
+        streams: Dict[int, StreamIterator] = {}
         buffers: Dict[int, Union[str, List[Any]]] = {}
         windows: Dict[int, deque] = {}
 
         for index, (variable, component) in enumerate(zip(variables, components)):
             value = self._resolve_variable_output(output, variable) if isinstance(output, dict) and variable.name else output
 
-            if isinstance(value, (StreamIterator, AsyncIterator)):
+            if isinstance(value, StreamIterator):
                 streams[index] = value
 
                 if isinstance(variable, WorkflowVariableGroupConfig):
@@ -841,7 +841,7 @@ class GradioWebUIBuilder:
 
         queue: asyncio.Queue = asyncio.Queue()
 
-        async def _forward_chunks(index: int, stream: AsyncIterator):
+        async def _forward_chunks(index: int, stream: StreamIterator):
             try:
                 async for chunk in stream:
                     await queue.put((index, chunk))
@@ -946,7 +946,7 @@ class GradioWebUIBuilder:
         output: Any,
         variables: List[Union[WorkflowVariableConfig, WorkflowVariableGroupConfig]],
     ) -> bool:
-        if isinstance(output, (StreamIterator, AsyncIterator)):
+        if isinstance(output, StreamIterator):
             return True
 
         if isinstance(output, dict):
@@ -956,7 +956,7 @@ class GradioWebUIBuilder:
 
                 value = self._resolve_variable_output(output, variable)
 
-                if isinstance(value, (StreamIterator, AsyncIterator)):
+                if isinstance(value, StreamIterator):
                     return True
 
         return False

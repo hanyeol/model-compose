@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Any
-from collections.abc import AsyncIterator
 from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
@@ -484,7 +483,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool, allow_streaming: bool = False) -> Response:
-        if not output_only and isinstance(state.output, (StreamResource, StreamIterator, AsyncIterator)):
+        if not output_only and isinstance(state.output, (StreamResource, StreamIterator)):
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -519,7 +518,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if isinstance(state.output, PILImage.Image):
             return self._render_stream_resource(ImageStreamResource(state.output))
 
-        if isinstance(state.output, (StreamResource, StreamIterator, AsyncIterator)):
+        if isinstance(state.output, (StreamResource, StreamIterator)):
             return self._render_stream_output(state.output)
 
         if isinstance(state.output, bytes):

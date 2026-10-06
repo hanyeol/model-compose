@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator, StreamEncodingIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.logger import logging
 import asyncio
@@ -45,6 +45,7 @@ class TaskOutputStreamIterator(StreamIterator):
 
     async def _notify_terminated(self, event: StreamTerminatedEvent, error: Optional[str]) -> None:
         self._notified_terminated = True
+
         try:
             await self.on_terminated(event, error)
         except Exception:

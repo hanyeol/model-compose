@@ -242,8 +242,6 @@ def run_command(
 ) -> None:
     from mindor.core.compose.manager import ComposeManager
     from mindor.core.controller.base import TaskStatus
-    from mindor.core.foundation.streaming.resources import StreamResource
-    from mindor.core.foundation.streaming.iterators import StreamIterator
     from mindor.cli.interrupt import prompt_for_interrupt
 
     async def _async_command():
@@ -255,7 +253,14 @@ def run_command(
             is_tty = sys.stdin.isatty()
 
             manager = ComposeManager(config, daemon=False)
-            state = await manager.run_workflow(workflow_id or "__default__", input, output_path, verbose, session_id=session_id, metadata=metadata)
+            state = await manager.run_workflow(
+                workflow_id or "__default__",
+                input,
+                output_path,
+                verbose,
+                session_id=session_id,
+                metadata=metadata
+            )
 
             while state.status == TaskStatus.INTERRUPTED:
                 if not auto_resume and not is_tty:
@@ -263,39 +268,28 @@ def run_command(
                     raise SystemExit(1)
 
                 answer = None if auto_resume else prompt_for_interrupt(state)
-                state = await manager.resume_workflow(state.task_id, state.interrupt.job_id, state.interrupt.run_id, answer)
+                state = await manager.resume_workflow(
+                    state.task_id,
+                    state.interrupt.job_id,
+                    state.interrupt.run_id,
+                    answer,
+                    output_path,
+                )
+
+            if state.output is not None:
+                async for chunk in state.output:
+                    if isinstance(chunk, bytes):
+                        sys.stdout.buffer.write(chunk)
+                        sys.stdout.buffer.flush()
+                    else:
+                        click.echo(chunk)
 
             if state.status == TaskStatus.STREAMING:
-                if isinstance(state.output, StreamResource):
-                    if not output_path:
-                        click.echo("❌ Streaming binary output requires --output <path>.", err=True)
-                        raise SystemExit(1)
-
-                    with open(output_path, "wb") as f:
-                        async for chunk in state.output:
-                            f.write(chunk)
-                elif isinstance(state.output, StreamIterator):
-                    async for chunk in state.output:
-                        if chunk is None:
-                            continue
-
-                        if isinstance(chunk, bytes):
-                            sys.stdout.buffer.write(chunk)
-                            sys.stdout.buffer.flush()
-                        elif isinstance(chunk, str):
-                            click.echo(chunk)
-                        else:
-                            click.echo(json.dumps(chunk, ensure_ascii=False, default=str))
-                state = await manager.controller.wait_for_terminal_state(state.task_id)
+                state = await manager.wait_for_completion(state)
 
             if state.error:
                 click.echo(json.dumps(state.error, indent=2, ensure_ascii=False), err=True)
                 raise SystemExit(1)
-
-            if isinstance(state.output, (dict, list)):
-                click.echo(json.dumps(state.output, indent=2, ensure_ascii=False))
-            elif state.output is not None:
-                click.echo(state.output)
         except click.exceptions.Abort:
             click.echo("\nInterrupt cancelled by user.", err=True)
             raise SystemExit(130)

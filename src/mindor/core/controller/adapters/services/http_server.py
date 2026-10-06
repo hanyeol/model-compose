@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.foundation.streaming.image import ImageStreamResource
+from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.controller.streaming import TaskOutputStreamEncodingIterator
@@ -516,14 +517,14 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         if state.status == TaskStatus.FAILED:
             raise HTTPException(status_code=500, detail=str(state.error))
 
-        if isinstance(state.output, PILImage.Image):
-            return self._render_stream_resource(ImageStreamResource(state.output))
-
         if isinstance(state.output, (StreamResource, StreamIterator)):
             return self._render_stream_output(state.output)
 
+        if isinstance(state.output, PILImage.Image):
+            return self._render_stream_resource(ImageStreamResource(state.output))
+
         if isinstance(state.output, bytes):
-            return Response(content=state.output, media_type="application/octet-stream")
+            return self._render_stream_resource(BytesStreamResource(state.output))
 
         return JSONResponse(content=state.output)
 
@@ -536,7 +537,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
         return StreamingResponse(output, media_type="application/octet-stream")
 
-    def _render_event_stream(self, iterator: TaskOutputStreamEncodingIterator) -> Response:
+    def _render_event_stream(self, iterator: StreamIterator) -> Response:
         return StreamingResponse(
             HttpEventStreamer(iterator).stream(),
             media_type="text/event-stream",

@@ -19,12 +19,12 @@ def prompt_for_interrupt(state: TaskState) -> Any:
 
     click.echo("", err=True)
     click.echo("✋ Action required — press Enter to continue, or type an answer (JSON or text):", err=True)
-    raw = input()
+    answer = input()
 
-    if not raw:
+    if not answer:
         return None
 
     try:
-        return json.loads(raw)
+        return json.loads(answer)
     except json.JSONDecodeError:
-        return raw
+        return answer

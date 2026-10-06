@@ -40,7 +40,8 @@ from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import TimeTracker
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator, StreamEncodingIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.workflow.job.streaming import JobOutputStreamEncodingIterator
 from mindor.core.foundation.variable.atomic import AtomicDict, AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.event_dispatcher import EventDispatcher
@@ -380,7 +381,15 @@ class ControllerService(AsyncService):
 
         return state
 
-    async def resume_workflow(self, task_id: str, job_id: str, run_id: Optional[str] = None, answer: Any = None) -> TaskState:
+    async def resume_workflow(
+        self,
+        task_id: str,
+        job_id: str,
+        run_id: Optional[str] = None,
+        answer: Any = None,
+        wait_for_completion: bool = False,
+        stop_at_streaming: bool = False,
+    ) -> TaskState:
         with self.task_states_lock:
             state = self.task_states.get(task_id)
 
@@ -417,6 +426,9 @@ class ControllerService(AsyncService):
 
         self._signal_task_state_change(task_id)
         self._notify_task_state_change(task_id)
+
+        if wait_for_completion:
+            state = await self._wait_for_terminal_state(task_id, include_streaming=stop_at_streaming)
 
         return state
 
@@ -823,7 +835,7 @@ class ControllerService(AsyncService):
                 if isinstance(output, StreamResource):
                     output = TaskOutputStreamResource(output, _on_stream_terminated)
                 else:
-                    if isinstance(output, StreamEncodingIterator):
+                    if isinstance(output, JobOutputStreamEncodingIterator):
                         output = TaskOutputStreamEncodingIterator(output, _on_stream_terminated)
                     else:
                         output = TaskOutputStreamIterator(output, _on_stream_terminated)

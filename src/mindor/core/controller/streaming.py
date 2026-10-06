@@ -90,6 +90,7 @@ class TaskOutputStreamResource(StreamResource):
 
     async def _notify_terminated(self, event: StreamTerminatedEvent, error: Optional[str]) -> None:
         self._notified_terminated = True
+
         try:
             await self.on_terminated(event, error)
         except Exception:

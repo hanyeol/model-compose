@@ -1,6 +1,7 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.logger import logging
 import asyncio
 
 StreamTerminatedEvent = Literal[ "completed", "cancelled", "failed" ]
@@ -51,4 +52,8 @@ class ComponentOutputStreamIterator(StreamChunkIterator):
 
     async def _notify_terminated(self, event: StreamTerminatedEvent, error: Optional[str]) -> None:
         self._notified_terminated = True
-        await self.on_terminated(event, error)
+
+        try:
+            await self.on_terminated(event, error)
+        except Exception:
+            logging.warning("Streaming component lifecycle callback failed", exc_info=True)

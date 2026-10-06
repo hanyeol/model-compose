@@ -2,13 +2,13 @@ from typing import Optional, Dict, List, Set, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.workflow import JobConfig
 from mindor.core.component import ComponentGlobalConfigs
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from mindor.core.tracer import tracing
 from .context import WorkflowContext
 from .job import Job, RoutingTarget, create_job
-from .job.streaming import JobOutputStreamIterator, StreamTerminatedEvent
+from .job.streaming import JobOutputStreamIterator, JobOutputStreamEncodingIterator, StreamTerminatedEvent
 from .job.context import JobContext
 import asyncio
 
@@ -52,7 +52,10 @@ class WorkflowRunner:
                         tracing.on_workflow_error(context.task_id, self.id, error, elapsed)
                         logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, error)
 
-                output = JobOutputStreamIterator(output, _on_terminated)
+                if isinstance(output, StreamEncodingIterator):
+                    output = JobOutputStreamEncodingIterator(output, _on_terminated)
+                else:
+                    output = JobOutputStreamIterator(output, _on_terminated)
             else:
                 elapsed = workflow_time_tracker.elapsed()
                 tracing.on_workflow_end(context.task_id, self.id, output, elapsed)

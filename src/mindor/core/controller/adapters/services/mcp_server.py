@@ -124,11 +124,16 @@ class McpServerControllerAdapterService(ControllerAdapterService):
     async def _resume_workflow_as_tool(self, task_id: str, job_id: str, run_id: Optional[str] = None, answer: str = "") -> List[ContentBlock]:
         parsed_answer = json.loads(answer) if answer else None
         try:
-            await self.controller.resume_workflow(task_id, job_id, run_id, parsed_answer)
+            state = await self.controller.resume_workflow(
+                task_id,
+                job_id,
+                run_id,
+                parsed_answer,
+                wait_for_completion=True,
+            )
         except ValueError as e:
             return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
 
-        state = await self.controller.wait_for_terminal_state(task_id)
         return await self._build_state_response(state)
 
     async def _build_state_response(self, state: TaskState) -> List[ContentBlock]:

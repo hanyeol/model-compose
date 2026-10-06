@@ -56,16 +56,20 @@ def up_command(
     verbose: bool
 ) -> None:
     from mindor.core.compose import launch_services
-    config_files = ctx.obj.get("config_files", [])
+
     async def _async_command():
         try:
+            config_files = ctx.obj.get("config_files", [])
             config = _load_compose_config(config_files, env_files, env_data)
             await launch_services(config, detach, verbose)
         except Exception as e:
             import traceback
+
             click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
             traceback.print_exc()
+
             raise SystemExit(1)
+
     asyncio.run(_async_command())
 
 @click.command(name="down")
@@ -88,19 +92,23 @@ def down_command(
     verbose: bool
 ) -> None:
     from mindor.core.compose import terminate_services
-    config_files = ctx.obj.get("config_files", [])
+
     async def _async_command():
         try:
+            config_files = ctx.obj.get("config_files", [])
             config = _load_compose_config(config_files, env_files, env_data)
             await terminate_services(config, verbose)
         except Exception as e:
             if verbose:
                 import traceback
+
                 click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+
             raise SystemExit(1)
+
     asyncio.run(_async_command())
 
 @click.command(name="start")
@@ -123,19 +131,23 @@ def start_command(
     verbose: bool
 ) -> None:
     from mindor.core.compose import start_services
-    config_files = ctx.obj.get("config_files", [])
+
     async def _async_command():
         try:
+            config_files = ctx.obj.get("config_files", [])
             config = _load_compose_config(config_files, env_files, env_data)
             await start_services(config, verbose)
         except Exception as e:
             if verbose:
                 import traceback
+
                 click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+
             raise SystemExit(1)
+
     asyncio.run(_async_command())
 
 @click.command(name="stop")
@@ -158,19 +170,23 @@ def stop_command(
     verbose: bool
 ) -> None:
     from mindor.core.compose import stop_services
-    config_files = ctx.obj.get("config_files", [])
+
     async def _async_command():
         try:
+            config_files = ctx.obj.get("config_files", [])
             config = _load_compose_config(config_files, env_files, env_data)
             await stop_services(config, verbose)
         except Exception as e:
             if verbose:
                 import traceback
+
                 click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+
             raise SystemExit(1)
+
     asyncio.run(_async_command())
 
 @click.command(name="run")
@@ -226,10 +242,13 @@ def run_command(
 ) -> None:
     from mindor.core.compose.manager import ComposeManager
     from mindor.core.controller.base import TaskStatus
+    from mindor.core.foundation.streaming.resources import StreamResource
+    from mindor.core.foundation.streaming.iterators import StreamIterator
     from mindor.cli.interrupt import prompt_for_interrupt
-    config_files = ctx.obj.get("config_files", [])
+
     async def _async_command():
         try:
+            config_files = ctx.obj.get("config_files", [])
             config = _load_compose_config(config_files, env_files, env_data)
             input = json.loads(input_json) if input_json else {}
             metadata = json.loads(metadata_json) if metadata_json else None
@@ -242,18 +261,41 @@ def run_command(
                 if not auto_resume and not is_tty:
                     click.echo("❌ Workflow interrupted but no TTY available. Use --auto-resume to skip.", err=True)
                     raise SystemExit(1)
+
                 answer = None if auto_resume else prompt_for_interrupt(state)
                 state = await manager.resume_workflow(state.task_id, state.interrupt.job_id, state.interrupt.run_id, answer)
 
-            if isinstance(state.output, (dict, list)) or state.error:
-                click.echo(json.dumps(
-                    state.output or state.error,
-                    indent=2,
-                    ensure_ascii=False
-                ))
-            else:
-                if state.output is not None:
-                    click.echo(state.output)
+            if state.status == TaskStatus.STREAMING:
+                if isinstance(state.output, StreamResource):
+                    if not output_path:
+                        click.echo("❌ Streaming binary output requires --output <path>.", err=True)
+                        raise SystemExit(1)
+
+                    with open(output_path, "wb") as f:
+                        async for chunk in state.output:
+                            f.write(chunk)
+                elif isinstance(state.output, StreamIterator):
+                    async for chunk in state.output:
+                        if chunk is None:
+                            continue
+
+                        if isinstance(chunk, bytes):
+                            sys.stdout.buffer.write(chunk)
+                            sys.stdout.buffer.flush()
+                        elif isinstance(chunk, str):
+                            click.echo(chunk)
+                        else:
+                            click.echo(json.dumps(chunk, ensure_ascii=False, default=str))
+                state = await manager.controller.wait_for_terminal_state(state.task_id)
+
+            if state.error:
+                click.echo(json.dumps(state.error, indent=2, ensure_ascii=False), err=True)
+                raise SystemExit(1)
+
+            if isinstance(state.output, (dict, list)):
+                click.echo(json.dumps(state.output, indent=2, ensure_ascii=False))
+            elif state.output is not None:
+                click.echo(state.output)
         except click.exceptions.Abort:
             click.echo("\nInterrupt cancelled by user.", err=True)
             raise SystemExit(130)
@@ -263,11 +305,14 @@ def run_command(
         except Exception as e:
             if verbose:
                 import traceback
+
                 click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
                 traceback.print_exc()
             else:
                 click.echo(f"❌ {e}", err=True)
+
             raise SystemExit(1)
+
     asyncio.run(_async_command())
 
 @click.command(name="validate")
@@ -290,41 +335,54 @@ def validate_command(
     verbose: bool
 ) -> None:
     from mindor.core.compose import validate_compose_config
-    config_files = ctx.obj.get("config_files", [])
+
     try:
+        config_files = ctx.obj.get("config_files", [])
         config = _load_compose_config(config_files, env_files, env_data)
         errors = validate_compose_config(config)
 
         if errors:
             click.echo("❌ Configuration has semantic errors:\n", err=True)
+
             for error in errors:
                 click.echo(f"  - {error}", err=True)
+
             raise SystemExit(1)
         else:
             adapter_types = [ adapter.type.value for adapter in config.controller.adapters ]
             summary_parts = [f"controller: {', '.join(adapter_types) if adapter_types else 'none'}"]
+
             if config.components:
                 summary_parts.append(f"{len(config.components)} component(s)")
+
             if config.workflows:
                 summary_parts.append(f"{len(config.workflows)} workflow(s)")
+
             if config.listeners:
                 summary_parts.append(f"{len(config.listeners)} listener(s)")
+
             if config.gateways:
                 summary_parts.append(f"{len(config.gateways)} gateway(s)")
+
             if config.systems:
                 summary_parts.append(f"{len(config.systems)} system(s)")
+
             if config.tracers:
                 summary_parts.append(f"{len(config.tracers)} tracer(s)")
+
             if config.loggers:
                 summary_parts.append(f"{len(config.loggers)} logger(s)")
+
             click.echo(f"✅ Configuration is valid ({', '.join(summary_parts)})")
     except Exception as e:
         if verbose:
             import traceback
+
             click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
             traceback.print_exc()
         else:
             click.echo(f"❌ {e}", err=True)
+
         raise SystemExit(1)
 
 compose_command.add_command(up_command)

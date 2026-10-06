@@ -6,17 +6,18 @@ from typing_extensions import Self
 from pydantic import BaseModel
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
-from mindor.core.utils.transport.http_client import request_with_url
-from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator, StreamChunkIterator
-from mindor.core.utils.transport.http_stream import HttpEventStreamer
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.controller.streaming import TaskOutputStreamEncodingIterator
 from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
-from mindor.core.errors import ShutdownError
+from mindor.core.utils.transport.http_client import request_with_url
+from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
+from mindor.core.utils.transport.http_stream import HttpEventStreamer
 from mindor.core.controller.errors import TaskNotFoundError, TaskAlreadyFinishedError, TaskCancelInProgressError
+from mindor.core.errors import ShutdownError
 from ..base import ControllerAdapterService, register_controller_adapter
 from .websocket_server import WebSocketServer
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
@@ -527,13 +528,22 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return JSONResponse(content=state.output)
 
     def _render_stream_output(self, output: Any) -> Response:
+        if isinstance(output, TaskOutputStreamEncodingIterator):
+            return self._render_event_stream(output)
+
         if isinstance(output, StreamResource):
             return self._render_stream_resource(output)
 
-        if isinstance(output, StreamEncodingIterator):
-            return self._render_event_stream(output)
-
         return StreamingResponse(output, media_type="application/octet-stream")
+
+    def _render_event_stream(self, iterator: TaskOutputStreamEncodingIterator) -> Response:
+        return StreamingResponse(
+            HttpEventStreamer(iterator).stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache"
+            }
+        )
 
     def _render_stream_resource(self, resource: StreamResource) -> Response:
         return StreamingResponse(
@@ -541,15 +551,6 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             media_type=resource.content_type,
             headers=self._build_stream_resource_headers(resource),
             background=BackgroundTask(resource.close)
-        )
-
-    def _render_event_stream(self, iterator: StreamEncodingIterator) -> Response:
-        return StreamingResponse(
-            HttpEventStreamer(iterator).stream(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache"
-            }
         )
 
     def _build_stream_resource_headers(self, resource: StreamResource) -> Dict[str, str]:

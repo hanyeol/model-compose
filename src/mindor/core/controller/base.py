@@ -40,11 +40,11 @@ from mindor.core.utils.caching import ExpiringDict
 from mindor.core.utils.time import TimeTracker
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.streaming.resources import StreamResource
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator, StreamEncodingIterator
 from mindor.core.foundation.variable.atomic import AtomicDict, AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.event_dispatcher import EventDispatcher
-from .streaming import TaskOutputStreamIterator, TaskOutputStreamResource
+from .streaming import TaskOutputStreamIterator, TaskOutputStreamEncodingIterator, TaskOutputStreamResource
 from .runtime.base.specs import ControllerRuntimeSpecs
 from .runtime.native import ControllerNativeRuntimeManager
 from .runtime.docker import ControllerDockerRuntimeManager
@@ -823,7 +823,10 @@ class ControllerService(AsyncService):
                 if isinstance(output, StreamResource):
                     output = TaskOutputStreamResource(output, _on_stream_terminated)
                 else:
-                    output = TaskOutputStreamIterator(output, _on_stream_terminated)
+                    if isinstance(output, StreamEncodingIterator):
+                        output = TaskOutputStreamEncodingIterator(output, _on_stream_terminated)
+                    else:
+                        output = TaskOutputStreamIterator(output, _on_stream_terminated)
 
                 state = TaskState(
                     task_id=task_id,

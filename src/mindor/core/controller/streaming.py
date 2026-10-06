@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator, StreamEncodingIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.logger import logging
 import asyncio
@@ -50,6 +50,12 @@ class TaskOutputStreamIterator(StreamIterator):
             await self.on_terminated(event, error)
         except Exception:
             logging.warning("Streaming task lifecycle callback failed", exc_info=True)
+
+class TaskOutputStreamEncodingIterator(TaskOutputStreamIterator):
+    def __init__(self, source: StreamEncodingIterator, on_terminated: StreamTerminatedCallback):
+        super().__init__(source, on_terminated)
+
+        self.format = source.format
 
 class TaskOutputStreamResource(StreamResource):
     def __init__(self, source: StreamResource, on_terminated: StreamTerminatedCallback):

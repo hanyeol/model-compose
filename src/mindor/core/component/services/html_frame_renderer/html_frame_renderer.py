@@ -45,6 +45,12 @@ class HtmlFrameRendererComponent(ComponentService):
         except ImportError as e:
             raise ValueError(f"Unsupported html_frame_renderer driver: {driver}") from e
 
+    async def _setup(self) -> None:
+        await self.driver.setup()
+
+    async def _teardown(self) -> None:
+        await self.driver.teardown()
+
     async def _start(self) -> None:
         await self.driver.start()
 

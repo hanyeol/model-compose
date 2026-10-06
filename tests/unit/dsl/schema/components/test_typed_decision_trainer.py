@@ -112,9 +112,9 @@ class TestActionConfig:
         with pytest.raises(ValidationError):
             TypedDecisionModelTrainerActionConfig.model_validate({})
 
-    def test_evaluation_dataset_optional(self):
+    def test_eval_dataset_optional(self):
         action = TypedDecisionModelTrainerActionConfig.model_validate({
             "dataset": "./train.jsonl",
-            "evaluation_dataset": "./eval.jsonl",
+            "eval_dataset": "./eval.jsonl",
         })
-        assert action.evaluation_dataset == "./eval.jsonl"
+        assert action.eval_dataset == "./eval.jsonl"

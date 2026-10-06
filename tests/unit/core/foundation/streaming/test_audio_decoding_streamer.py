@@ -115,9 +115,9 @@ class TestFFmpegDecode:
         out = AudioDecodingStreamer(source).as_pcm_stream()
 
         assert isinstance(out, PcmStreamResource)
-        assert out.attrs.get("bit_depth") == 16
 
         pcm = await collect_bytes(out)
+        assert out.attrs.get("bit_depth") == 16
         decoded = np.frombuffer(pcm, dtype="<i2")
 
         # ffmpeg s16le round-trip should preserve length and rough amplitude.
@@ -132,8 +132,8 @@ class TestFFmpegDecode:
         source = MediaSource(BytesStreamResource(wav), format="wav")
         out = AudioDecodingStreamer(source, sample_rate=16000).as_pcm_stream()
 
-        assert out.attrs["sample_rate"] == 16000
         pcm = await collect_bytes(out)
+        assert out.attrs["sample_rate"] == 16000
         decoded = np.frombuffer(pcm, dtype="<i2")
 
         expected_len = int(len(samples) * 16000 / 44100)
@@ -150,8 +150,8 @@ class TestFFmpegDecode:
         source = MediaSource(BytesStreamResource(wav), format="wav")
         out = AudioDecodingStreamer(source, channels=1).as_pcm_stream()
 
-        assert out.attrs["channels"] == 1
         pcm = await collect_bytes(out)
+        assert out.attrs["channels"] == 1
         decoded = np.frombuffer(pcm, dtype="<i2")
         assert len(decoded) == left.size  # mono output
 
@@ -175,8 +175,8 @@ class TestFFmpegDecode:
         out = AudioDecodingStreamer(source, sample_rate=16000).as_pcm_stream()
 
         assert out is not pcm
-        assert out.attrs["sample_rate"] == 16000
         data = await collect_bytes(out)
+        assert out.attrs["sample_rate"] == 16000
         assert len(data) > 0
 
 

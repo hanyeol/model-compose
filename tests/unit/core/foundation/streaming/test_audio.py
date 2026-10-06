@@ -263,6 +263,31 @@ class TestCollectCompressed:
         # ~half length; allow tolerance for filter tail
         assert 1500 <= buffer.waveform.shape[-1] <= 1700
 
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("target_sample_rate", [None, 16000, 44100])
+    async def test_stereo_wav_with_sample_rate_preserves_channels(self, target_sample_rate):
+        # Regression for #33: when a container source is read with sample_rate
+        # specified but channel left unset, the pre-iteration attrs leaked the
+        # requested rate while channels stayed unresolved, so the prime loop in
+        # AudioBufferStreamer exited early and interleaved stereo was decoded
+        # as a single mono buffer twice as long.
+        n = 4410
+        t = np.arange(n) / 44100.0
+        left = (np.sin(2 * np.pi * 220.0 * t) * 20000).astype(np.int16)
+        right = -left  # L = -R so a mono downmix would collapse to ~zero
+        stereo = np.stack([left, right], axis=0)
+        wav_bytes = build_wav_bytes(stereo, sample_rate=44100, channels=2)
+
+        src = MediaSource(BytesStreamResource(wav_bytes), format="wav")
+        buffer = await AudioBufferStreamer(src, sample_rate=target_sample_rate).collect()
+
+        assert buffer.waveform.ndim == 2
+        assert buffer.waveform.shape[0] == 2
+        # L and R should remain opposite (would be ~zero if silently downmixed).
+        peak = float(np.max(np.abs(buffer.waveform)))
+        assert peak > 0.1
+        assert np.corrcoef(buffer.waveform[0], buffer.waveform[1])[0, 1] < -0.9
+
 
 # ---- AudioBufferStreamer ----
 

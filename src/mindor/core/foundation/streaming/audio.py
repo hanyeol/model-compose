@@ -681,6 +681,7 @@ class AudioBufferStreamer:
 
         async def _stream() -> AsyncIterator[AudioBuffer]:
             yield first_chunk
+
             async for chunk in iterator:
                 yield chunk
 

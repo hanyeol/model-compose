@@ -58,7 +58,10 @@ class PcmStreamResource(StreamResource):
             attrs.setdefault("bit_depth", 16)
 
         self.samples: Union[StreamResource, AudioBufferStreamIterator] = self._resolve_samples(samples)
-        self.attrs: Dict[str, Any] = attrs or {}
+        # Preserve the exact dict identity: ``AudioDecodingStreamer`` fills
+        # layout keys in-place after iteration begins, so a falsy-but-shared
+        # attrs must stay the same object.
+        self.attrs: Dict[str, Any] = attrs if attrs is not None else {}
 
     @property
     def format(self) -> str:
@@ -403,17 +406,11 @@ class AudioDecodingStreamer:
 
         stdin_source = source.stream if input_path is None else None
 
-        # Shared with ``_stream``: sr/channels/bit_depth get filled in-place once
-        # the WAV header is parsed. Consumers must start iterating before reading
-        # these keys — see ``AudioBufferStreamer._iterate`` which pre-consumes
-        # the first chunk.
-        attrs: Dict[str, Any] = { "bit_depth": 16 }
-
-        if sample_rate:
-            attrs["sample_rate"] = sample_rate
-
-        if channels:
-            attrs["channels"] = channels
+        # Shared with ``_stream``: sr/channels/bit_depth get filled in-place
+        # from the WAV header once iteration begins. Empty until then so
+        # consumers can distinguish "layout resolved" from "requested but
+        # not yet confirmed" with a single key check.
+        attrs: Dict[str, Any] = {}
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

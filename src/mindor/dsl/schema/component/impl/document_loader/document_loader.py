@@ -7,6 +7,7 @@ DocumentLoaderComponentConfig = Annotated[
     Union[
         DoclingDocumentLoaderComponentConfig,
         PypdfDocumentLoaderComponentConfig,
+        PymupdfDocumentLoaderComponentConfig,
     ],
     Field(discriminator="driver")
 ]

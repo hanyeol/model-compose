@@ -41,14 +41,41 @@ class QdrantFilterSpecBuilder:
 
             return must, must_not
 
-        if isinstance(filter, dict):
-            condition = VectorStoreFilterCondition.model_validate(filter)
-            condition, is_negated = self._build_field_condition(condition)
+        if isinstance(filter, VectorStoreFilterCondition):
+            condition, is_negated = self._build_field_condition(filter)
 
             if condition is None:
                 return [], []
 
             return ([], [ condition ]) if is_negated else ([ condition ], [])
+
+        if isinstance(filter, dict):
+            if not filter:
+                return [], []
+
+            if "field" in filter and "operator" in filter:
+                condition = VectorStoreFilterCondition.model_validate(filter)
+                condition, is_negated = self._build_field_condition(condition)
+
+                if condition is None:
+                    return [], []
+
+                return ([], [ condition ]) if is_negated else ([ condition ], [])
+
+            must: List[Any] = []
+            must_not: List[Any] = []
+
+            for k, v in filter.items():
+                cond = VectorStoreFilterCondition(field=k, operator=VectorStoreFilterOperator.EQ, value=v)
+                c, is_neg = self._build_field_condition(cond)
+
+                if c:
+                    if is_neg:
+                        must_not.append(c)
+                    else:
+                        must.append(c)
+
+            return must, must_not
 
         return [], []
 

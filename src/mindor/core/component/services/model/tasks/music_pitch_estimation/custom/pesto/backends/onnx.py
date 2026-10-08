@@ -108,7 +108,7 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[PitchContour], List[AsyncIterator[Dict[str, Any]]]]:
+    ) -> Union[List[Dict[str, Any]], List[AsyncIterator[Dict[str, Any]]]]:
         if streaming:
             return [ self._stream_frames(audio, params, cancellation_token) for audio in audios ]
 
@@ -119,22 +119,22 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
         audio: MediaSource,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
-    ) -> PitchContour:
+    ) -> Dict[str, Any]:
         frames: List[Dict[str, Any]] = []
 
         async for event in self._stream_frames(audio, params, cancellation_token):
             if event["type"] == "frame":
                 frames.append({ key: value for key, value in event.items() if key != "type" })
 
-        contour: Dict[str, Any] = { "frames": frames }
+        result: Dict[str, Any] = { "frames": PitchContour(frames) }
 
         if params["return_metadata"]:
             frame_rate = self.component_config.sample_rate / self.component_config.streaming.chunk_size
-            contour["sample_rate"] = self.component_config.sample_rate
-            contour["frame_rate"]  = frame_rate
-            contour["duration"]    = len(frames) / frame_rate
+            result["sample_rate"] = self.component_config.sample_rate
+            result["frame_rate"]  = frame_rate
+            result["duration"]    = len(frames) / frame_rate
 
-        return PitchContour(contour)
+        return result
 
     async def _stream_frames(
         self,

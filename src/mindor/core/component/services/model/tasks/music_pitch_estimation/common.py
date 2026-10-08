@@ -8,19 +8,16 @@ from mindor.dsl.schema.action import CommonMusicPitchEstimationModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.variable.atomic import AtomicDict
+from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 if TYPE_CHECKING:
     import torch
 
-class PitchContour(AtomicDict):
+class PitchContour(AtomicList):
     def __log__(self) -> str:
-        return (
-            f"<PitchContour frames={len(self.get('frames', []))} "
-            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
-        )
+        return f"<PitchContour count={len(self)}>"
 
 class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
     def __init__(self, config: CommonMusicPitchEstimationModelActionConfig, device: Optional[torch.device]):
@@ -96,11 +93,12 @@ class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[PitchContour], List[AsyncIterator[Dict[str, Any]]]]:
+    ) -> Union[List[Dict[str, Any]], List[AsyncIterator[Dict[str, Any]]]]:
         """Estimate pitch for each audio.
 
         Contract:
-          - streaming=False: returns List[PitchContour] — one per input.
+          - streaming=False: returns List[dict] — one pitch contour per input,
+            shaped as {"frames": PitchContour([...]), "sample_rate": ..., ...}.
           - streaming=True:  returns List[AsyncIterator[dict]] — one async
             iterator per input, yielding per-frame pitch events.
         """

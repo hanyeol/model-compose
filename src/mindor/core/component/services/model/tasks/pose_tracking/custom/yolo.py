@@ -638,11 +638,11 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         if boxes is None or boxes.id is None or keypoints is None:
             return []
 
-        track_ids      = boxes.id.cpu().numpy().astype(int)
-        boxes_xyxy     = boxes.xyxy.cpu().numpy()
-        boxes_conf     = boxes.conf.cpu().numpy()
-        keypoints_xy   = keypoints.xy.cpu().numpy()
-        keypoints_conf = keypoints.conf.cpu().numpy() if keypoints.conf is not None else None
+        track_ids             = boxes.id.cpu().numpy().astype(int)
+        boxes_xyxy            = boxes.xyxy.cpu().numpy()
+        boxes_confidences     = boxes.conf.cpu().numpy()
+        keypoints_xy          = keypoints.xy.cpu().numpy()
+        keypoints_confidences = keypoints.conf.cpu().numpy() if keypoints.conf is not None else None
 
         needs_openpose_keypoints = (
             params["return_openpose_keypoints"]
@@ -658,14 +658,14 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         for index in range(track_ids.shape[0]):
             x1, y1, x2, y2 = boxes_xyxy[index]
-            conf_row = keypoints_conf[index] if keypoints_conf is not None else None
-            pose_keypoints = self._build_keypoints(keypoints_xy[index], conf_row, min_visibility) if needs_keypoints else None
+            keypoints_confidence = keypoints_confidences[index] if keypoints_confidences is not None else None
+            pose_keypoints = self._build_keypoints(keypoints_xy[index], keypoints_confidence, min_visibility) if needs_keypoints else None
             openpose_keypoints = coco.to_body_18(pose_keypoints) if needs_openpose_keypoints else None
 
             pose: Dict[str, Any] = {
                 "track_id":     int(track_ids[index]),
                 "bounding_box": (int(x1), int(y1), int(x2), int(y2)),
-                "score":        float(boxes_conf[index]),
+                "score":        float(boxes_confidences[index]),
                 "width":        width,
                 "height":       height,
             }
@@ -686,13 +686,13 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     def _build_keypoints(
         self,
         keypoints_xy: np.ndarray,
-        keypoints_conf: Optional[np.ndarray],
+        keypoints_confidence: Optional[np.ndarray],
         min_visibility: float,
     ) -> List[Dict[str, Any]]:
         keypoints: List[Dict[str, Any]] = []
 
         for keypoint in range(keypoints_xy.shape[0]):
-            visibility = float(keypoints_conf[keypoint]) if keypoints_conf is not None else 1.0
+            visibility = float(keypoints_confidence[keypoint]) if keypoints_confidence is not None else 1.0
             x, y = int(keypoints_xy[keypoint, 0]), int(keypoints_xy[keypoint, 1])
 
             if visibility < min_visibility or (x == 0 and y == 0):

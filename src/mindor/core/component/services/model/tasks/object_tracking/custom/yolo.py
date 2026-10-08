@@ -662,11 +662,11 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         if boxes is None or boxes.id is None:
             return []
 
-        track_ids  = boxes.id.cpu().numpy().astype(int)
-        boxes_xyxy = boxes.xyxy.cpu().numpy()
-        boxes_cls  = boxes.cls.cpu().numpy()
-        boxes_conf = boxes.conf.cpu().numpy()
-        names      = prediction.names
+        track_ids         = boxes.id.cpu().numpy().astype(int)
+        boxes_xyxy        = boxes.xyxy.cpu().numpy()
+        boxes_cls         = boxes.cls.cpu().numpy()
+        boxes_confidences = boxes.conf.cpu().numpy()
+        names             = prediction.names
 
         objects: List[Dict[str, Any]] = []
 
@@ -679,7 +679,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
                 "label":        names[label_id] if label_id in names else None,
                 "label_id":     label_id,
                 "bounding_box": (int(x1), int(y1), int(x2), int(y2)),
-                "score":        float(boxes_conf[index]),
+                "score":        float(boxes_confidences[index]),
                 "width":        width,
                 "height":       height,
             }

@@ -84,17 +84,17 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
         objects: List[Dict[str, Any]] = []
 
         if prediction.boxes is not None and len(prediction.boxes) > 0:
-            boxes_xyxy = prediction.boxes.xyxy.cpu().numpy()
-            boxes_cls  = prediction.boxes.cls.cpu().numpy()
-            boxes_conf = prediction.boxes.conf.cpu().numpy()
-            names      = prediction.names
+            boxes_xyxy        = prediction.boxes.xyxy.cpu().numpy()
+            boxes_cls         = prediction.boxes.cls.cpu().numpy()
+            boxes_confidences = prediction.boxes.conf.cpu().numpy()
+            names             = prediction.names
 
             for index in range(boxes_xyxy.shape[0]):
                 label_id = int(boxes_cls[index])
                 objects.append({
                     "label":        names[label_id] if label_id in names else None,
                     "label_id":     label_id,
-                    "score":        float(boxes_conf[index]),
+                    "score":        float(boxes_confidences[index]),
                     "bounding_box": self._serialize_bounding_box(boxes_xyxy[index], width, height, bounding_box_padding),
                 })
 

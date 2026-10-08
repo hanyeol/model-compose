@@ -124,7 +124,7 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
 
         async for event in self._stream_frames(audio, params, cancellation_token):
             if event["type"] == "frame":
-                frames.append({ k: v for k, v in event.items() if k != "type" })
+                frames.append({ key: value for key, value in event.items() if key != "type" })
 
         contour: Dict[str, Any] = { "frames": frames }
 
@@ -150,7 +150,6 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
         audio_name, cache_name = self.input_names
 
         async with self.session_pool.acquire() as session:
-            cache = np.zeros((1, self.cache_size), dtype=np.float32)
             streamer = AudioBufferStreamer(
                 audio,
                 frame_size=chunk_size,
@@ -159,39 +158,45 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
                 sample_rate=sample_rate,
                 pad_final=True,
             )
+
             time_offset = 0.0
             frame_count = 0
+
+            cache = np.zeros((1, self.cache_size), dtype=np.float32)
 
             async for buffer in streamer:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
 
                 def _infer(waveform=buffer.waveform, cache_in=cache):
-                    import numpy as np
+                    waveform = np.ascontiguousarray(waveform, dtype=np.float32).reshape(1, -1)
 
-                    x = np.ascontiguousarray(waveform, dtype=np.float32).reshape(1, -1)
-                    return session.run(None, { audio_name: x, cache_name: cache_in })
+                    return session.run(None, { audio_name: waveform, cache_name: cache_in })
 
-                outputs = await self._run_in_executor(_infer)
-                preds, conf, vol, _, cache = outputs
-                n = preds.shape[1]
+                predictions, confidence, volume, activations, cache = await self._run_in_executor(_infer)
+                chunk_frame_count = predictions.shape[1]
 
-                for index in range(n):
-                    pitch = float(preds[ 0, index ])
+                for index in range(chunk_frame_count):
+                    pitch = float(predictions[ 0, index ])
 
                     if params["pitch_unit"] == PitchUnit.HZ:
                         pitch = 440.0 * (2.0 ** ((pitch - 69.0) / 12.0))
 
-                    yield {
+                    frame: Dict[str, Any] = {
                         "type":       "frame",
                         "time":       time_offset + index / frame_rate,
                         "pitch":      pitch,
-                        "confidence": float(conf[0, index]),
-                        "volume":     float(vol[0, index]),
+                        "confidence": float(confidence[0, index]),
+                        "volume":     float(volume[0, index]),
                     }
 
-                time_offset += n / frame_rate
-                frame_count += n
+                    if params["return_activations"]:
+                        frame["activations"] = activations[0, index].tolist()
+
+                    yield frame
+
+                time_offset += chunk_frame_count / frame_rate
+                frame_count += chunk_frame_count
 
         if params["return_metadata"]:
             yield {

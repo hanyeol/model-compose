@@ -146,37 +146,37 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
 
             with torch.inference_mode():
                 for waveform, sample_rate in waveforms:
-                    x = torch.from_numpy(np.ascontiguousarray(waveform, dtype=np.float32)).to(self.device)
+                    waveform_tensor = torch.from_numpy(np.ascontiguousarray(waveform, dtype=np.float32)).to(self.device)
 
                     if self.component_config.precision == ModelPrecision.FLOAT16:
-                        x = x.half()
+                        waveform_tensor = waveform_tensor.half()
 
-                    preds_chunks: List[torch.Tensor] = []
-                    conf_chunks: List[torch.Tensor] = []
-                    vol_chunks: List[torch.Tensor] = []
-                    act_chunks: List[torch.Tensor] = []
+                    prediction_chunks: List[torch.Tensor] = []
+                    confidence_chunks: List[torch.Tensor] = []
+                    volume_chunks: List[torch.Tensor] = []
+                    activation_chunks: List[torch.Tensor] = []
 
-                    for chunk in x.chunk(chunks=max(1, params["num_chunks"])):
-                        p, c, v, a = model(
+                    for chunk in waveform_tensor.chunk(chunks=max(1, params["num_chunks"])):
+                        predictions, confidence, volume, *activations = model(
                             chunk,
                             sr=sample_rate,
                             convert_to_freq=params["pitch_unit"] == PitchUnit.HZ,
-                            return_activations=True,
+                            return_activations=params["return_activations"],
                         )
-                        preds_chunks.append(p)
-                        conf_chunks.append(c)
-                        vol_chunks.append(v)
-                        act_chunks.append(a)
+                        prediction_chunks.append(predictions)
+                        confidence_chunks.append(confidence)
+                        volume_chunks.append(volume)
+                        activation_chunks.extend(activations)
 
-                    preds = torch.cat(preds_chunks, dim=-1)
-                    conf  = torch.cat(conf_chunks, dim=-1)
-                    vol   = torch.cat(vol_chunks, dim=-1)
-                    acts  = torch.cat(act_chunks, dim=-2) if params["return_activations"] else None
+                    predictions = torch.cat(prediction_chunks, dim=-1)
+                    confidence  = torch.cat(confidence_chunks, dim=-1)
+                    volume      = torch.cat(volume_chunks, dim=-1)
+                    activations = torch.cat(activation_chunks, dim=-2) if params["return_activations"] else None
 
                     frame_rate = 1000.0 / model.hop_size
-                    timesteps = torch.arange(preds.size(-1), dtype=torch.float32) / frame_rate
+                    timesteps = torch.arange(predictions.size(-1), dtype=torch.float32) / frame_rate
 
-                    results.append(self._build_pitch_contour(timesteps, preds, conf, vol, acts, sample_rate, frame_rate, params))
+                    results.append(self._build_pitch_contour(timesteps, predictions, confidence, volume, activations, sample_rate, frame_rate, params))
 
             return results
 
@@ -190,21 +190,21 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         import torch
 
-        chunk_size = self.component_config.streaming.chunk_size
-
         async with self.streaming_pool.acquire() as model:
-            model.reduction = params["reduction"]
             streamer = AudioBufferStreamer(
                 audio,
-                frame_size=chunk_size,
-                hop_size=chunk_size,
+                frame_size=self.component_config.streaming.chunk_size,
+                hop_size=self.component_config.streaming.chunk_size,
                 channel="mono",
                 sample_rate=self.component_config.sample_rate,
                 pad_final=True,
             )
+
             frame_rate = 1000.0 / model.hop_size
             time_offset = 0.0
             frame_count = 0
+
+            model.reduction = params["reduction"]
 
             async for buffer in streamer:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
@@ -214,28 +214,37 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
                     import numpy as np
                     import torch
 
-                    x = torch.from_numpy(np.ascontiguousarray(waveform, dtype=np.float32)).unsqueeze(0).to(self.device)
+                    waveform_tensor = torch.from_numpy(np.ascontiguousarray(waveform, dtype=np.float32)).unsqueeze(0).to(self.device)
 
                     if self.component_config.precision == ModelPrecision.FLOAT16:
-                        x = x.half()
+                        waveform_tensor = waveform_tensor.half()
 
                     with torch.inference_mode():
-                        return model(x, convert_to_freq=params["pitch_unit"] == PitchUnit.HZ, return_activations=False)
+                        return model(
+                            waveform_tensor,
+                            convert_to_freq=params["pitch_unit"] == PitchUnit.HZ,
+                            return_activations=params["return_activations"],
+                        )
 
-                preds, conf, vol = await self._run_in_executor(_infer)
-                n = preds.size(-1)
+                predictions, confidence, volume, *activations = await self._run_in_executor(_infer)
+                chunk_frame_count = predictions.size(-1)
 
-                for index in range(n):
-                    yield {
+                for index in range(chunk_frame_count):
+                    frame: Dict[str, Any] = {
                         "type":       "frame",
                         "time":       time_offset + index / frame_rate,
-                        "pitch":      float(preds[0, index].cpu()),
-                        "confidence": float(conf[0, index].cpu()),
-                        "volume":     float(vol[0, index].cpu()),
+                        "pitch":      float(predictions[0, index].cpu()),
+                        "confidence": float(confidence[0, index].cpu()),
+                        "volume":     float(volume[0, index].cpu()),
                     }
 
-                time_offset += n / frame_rate
-                frame_count += n
+                    if activations:
+                        frame["activations"] = activations[0][0, index].cpu().tolist()
+
+                    yield frame
+
+                time_offset += chunk_frame_count / frame_rate
+                frame_count += chunk_frame_count
 
         if params["return_metadata"]:
             yield {
@@ -271,39 +280,42 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
     def _build_pitch_contour(
         self,
         timesteps: torch.Tensor,
-        preds: torch.Tensor,
-        conf: torch.Tensor,
-        vol: torch.Tensor,
-        acts: Optional[torch.Tensor],
+        predictions: torch.Tensor,
+        confidence: torch.Tensor,
+        volume: torch.Tensor,
+        activations: Optional[torch.Tensor],
         sample_rate: int,
         frame_rate: float,
         params: Dict[str, Any],
     ) -> PitchContour:
         frames: List[Dict[str, Any]] = []
-        n = preds.size(-1)
+        frame_count = predictions.size(-1)
 
-        preds_cpu = preds.detach().cpu()
-        conf_cpu  = conf.detach().cpu()
-        vol_cpu   = vol.detach().cpu()
-        times_cpu = timesteps.detach().cpu()
+        predictions_cpu = predictions.detach().cpu()
+        confidence_cpu  = confidence.detach().cpu()
+        volume_cpu      = volume.detach().cpu()
+        timesteps_cpu   = timesteps.detach().cpu()
+        activations_cpu = activations.detach().cpu() if activations is not None else None
 
-        for index in range(n):
-            frames.append({
-                "time":       float(times_cpu[index]),
-                "pitch":      float(preds_cpu[..., index].reshape(-1)[0]),
-                "confidence": float(conf_cpu[..., index].reshape(-1)[0]),
-                "volume":     float(vol_cpu[..., index].reshape(-1)[0]),
-            })
+        for index in range(frame_count):
+            frame: Dict[str, Any] = {
+                "time":       float(timesteps_cpu[index]),
+                "pitch":      float(predictions_cpu[..., index].reshape(-1)[0]),
+                "confidence": float(confidence_cpu[..., index].reshape(-1)[0]),
+                "volume":     float(volume_cpu[..., index].reshape(-1)[0]),
+            }
+
+            if activations_cpu is not None:
+                frame["activations"] = activations_cpu[..., index, :].reshape(-1).tolist()
+
+            frames.append(frame)
 
         contour: Dict[str, Any] = { "frames": frames }
 
         if params["return_metadata"]:
             contour["sample_rate"] = sample_rate
             contour["frame_rate"]  = frame_rate
-            contour["duration"]    = n / frame_rate
-
-        if params["return_activations"] and acts is not None:
-            contour["activations"] = acts.detach().cpu().numpy()
+            contour["duration"]    = frame_count / frame_rate
 
         return PitchContour(contour)
 

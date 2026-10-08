@@ -59,10 +59,10 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
     def _serialize_detection_result(self, prediction: Results, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         poses: List[Dict[str, Any]] = []
 
-        keypoints_xy   = prediction.keypoints.xy.cpu().numpy()
-        keypoints_conf = prediction.keypoints.conf.cpu().numpy() if prediction.keypoints.conf is not None else None
-        boxes_xyxy     = prediction.boxes.xyxy.cpu().numpy()
-        boxes_conf     = prediction.boxes.conf.cpu().numpy()
+        keypoints_xy          = prediction.keypoints.xy.cpu().numpy()
+        keypoints_confidences = prediction.keypoints.conf.cpu().numpy() if prediction.keypoints.conf is not None else None
+        boxes_xyxy            = prediction.boxes.xyxy.cpu().numpy()
+        boxes_confidences     = prediction.boxes.conf.cpu().numpy()
 
         needs_openpose_keypoints = (
             params["return_openpose_keypoints"]
@@ -77,12 +77,12 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
         for index in range(keypoints_xy.shape[0]):
             pose: Dict[str, Any] = {}
 
-            conf_row = keypoints_conf[index] if keypoints_conf is not None else None
-            keypoints = self._serialize_keypoints(keypoints_xy[index], conf_row, min_visibility) if needs_keypoints else None
+            keypoints_confidence = keypoints_confidences[index] if keypoints_confidences is not None else None
+            keypoints = self._serialize_keypoints(keypoints_xy[index], keypoints_confidence, min_visibility) if needs_keypoints else None
             openpose_keypoints = coco.to_body_18(keypoints) if needs_openpose_keypoints else None
 
             pose["bounding_box"] = self._serialize_bounding_box(boxes_xyxy[index])
-            pose["score"] = float(boxes_conf[index])
+            pose["score"] = float(boxes_confidences[index])
 
             if params["return_keypoints"]:
                 pose["keypoints"] = keypoints
@@ -104,11 +104,16 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
             "height": height,
         }
 
-    def _serialize_keypoints(self, keypoints_xy: np.ndarray, keypoints_conf: Optional[np.ndarray], min_visibility: float) -> List[Dict[str, Any]]:
+    def _serialize_keypoints(
+        self,
+        keypoints_xy: np.ndarray,
+        keypoints_confidence: Optional[np.ndarray],
+        min_visibility: float,
+    ) -> List[Dict[str, Any]]:
         keypoints: List[Dict[str, Any]] = []
 
         for keypoint in range(keypoints_xy.shape[0]):
-            visibility = float(keypoints_conf[keypoint]) if keypoints_conf is not None else 1.0
+            visibility = float(keypoints_confidence[keypoint]) if keypoints_confidence is not None else 1.0
             x, y = int(keypoints_xy[keypoint, 0]), int(keypoints_xy[keypoint, 1])
 
             if visibility < min_visibility or (x == 0 and y == 0):

@@ -5,7 +5,7 @@ from ..common import CommonSpeechToTextModelComponentConfig
 from .common import SpeechToTextModelFamily
 from ....common import ModelDriverType, ModelConfig
 
-_DEFAULT_REPOSITORY         = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
+_DEFAULT_MODEL_REPOSITORY   = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"
 _DEFAULT_VAD_MODEL          = "fsmn-vad"
 _DEFAULT_PUNCTUATION_MODEL  = "ct-punc"
 
@@ -28,7 +28,7 @@ class FunAsrSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentCon
     @model_validator(mode="before")
     def apply_default_model(cls, values: Dict[str, Any]):
         if values.get("model") is None:
-            values["model"] = _DEFAULT_REPOSITORY
+            values["model"] = _DEFAULT_MODEL_REPOSITORY
         return values
 
     @model_validator(mode="before")

@@ -9,7 +9,7 @@ from ....common import ModelDriverType, ModelProvider, HuggingfaceModelConfig, L
 # Convai Innovations ships all three checkpoints in a single repo, one per
 # subfolder. Used as the fallback when the user provides neither `model` nor
 # `preset`; the driver reads `preset` to pick which subfolder to load.
-_DEFAULT_REPOSITORY = "convaiinnovations/laya"
+_DEFAULT_MODEL_REPOSITORY = "convaiinnovations/laya"
 
 class LayaPreset(str, Enum):
     ENGLISH         = "english"
@@ -45,6 +45,6 @@ class LayaTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentCon
                 values["preset"] = LayaPreset.MULTILINGUAL
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
-                "repository": _DEFAULT_REPOSITORY,
+                "repository": _DEFAULT_MODEL_REPOSITORY,
             }
         return values

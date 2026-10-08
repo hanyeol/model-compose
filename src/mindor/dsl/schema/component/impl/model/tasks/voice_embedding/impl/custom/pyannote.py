@@ -5,7 +5,7 @@ from ..common import CommonVoiceEmbeddingModelComponentConfig
 from .common import VoiceEmbeddingModelFamily
 from ....common import ModelDriverType, ModelConfig
 
-_DEFAULT_REPOSITORY = "pyannote/embedding"
+_DEFAULT_MODEL_REPOSITORY = "pyannote/embedding"
 
 class PyannoteVoiceEmbeddingModelComponentConfig(CommonVoiceEmbeddingModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
@@ -16,5 +16,5 @@ class PyannoteVoiceEmbeddingModelComponentConfig(CommonVoiceEmbeddingModelCompon
     @model_validator(mode="before")
     def apply_default_model(cls, values: Dict[str, Any]):
         if values.get("model") is None:
-            values["model"] = _DEFAULT_REPOSITORY
+            values["model"] = _DEFAULT_MODEL_REPOSITORY
         return values

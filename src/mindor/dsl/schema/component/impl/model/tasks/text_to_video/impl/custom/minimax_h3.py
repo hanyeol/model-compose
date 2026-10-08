@@ -6,7 +6,7 @@ from ..common import CommonTextToVideoModelComponentConfig
 from .common import TextToVideoModelFamily
 from ....common import ModelDriverType, ModelProvider
 
-_DEFAULT_MINIMAX_H3_REPOSITORY = "MiniMaxAI/MiniMax-H3"
+_DEFAULT_MODEL_REPOSITORY = "MiniMaxAI/MiniMax-H3"
 
 class MinimaxH3Backend(str, Enum):
     TORCH = "torch"
@@ -22,5 +22,5 @@ class MinimaxH3TextToVideoModelComponentConfig(CommonTextToVideoModelComponentCo
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
         if values.get("model") is None:
-            values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": _DEFAULT_MINIMAX_H3_REPOSITORY }
+            values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": _DEFAULT_MODEL_REPOSITORY }
         return values

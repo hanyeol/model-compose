@@ -7,7 +7,7 @@ from ..common import CommonMusicGenerationModelComponentConfig
 from .common import MusicGenerationModelFamily
 from ....common import ModelDriverType, ModelConfig, ModelProvider, ModelQuantizationConfig, ModelQuantizationType, PeftAdapterType
 
-_DEFAULT_YUE2_VAE_REPOSITORY = "m-a-p/YuE2-Vae"
+_DEFAULT_VAE_MODEL_REPOSITORY = "m-a-p/YuE2-Vae"
 
 class Yue2Backend(str, Enum):
     TORCH       = "torch"
@@ -83,7 +83,7 @@ class Yue2NarConfig(BaseModel):
 class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicGenerationModelFamily.YUE2]
-    vae: Yue2VaeConfig = Field(default_factory=lambda: Yue2VaeConfig(model=_DEFAULT_YUE2_VAE_REPOSITORY), description="VAE decoder used to render audio; defaults to the m-a-p/YuE2-Vae Hub repository.")
+    vae: Yue2VaeConfig = Field(default_factory=lambda: Yue2VaeConfig(model=_DEFAULT_VAE_MODEL_REPOSITORY), description="VAE decoder used to render audio; defaults to the m-a-p/YuE2-Vae Hub repository.")
     nar: Optional[Yue2NarConfig] = Field(default=None, description="NAR LoRA weights merged into the base pipeline; None uses the stock NAR shipped with the AR model.")
     backend: Yue2Backend = Field(default=Yue2Backend.TORCH, description="Inference backend for autoregressive generation (torch, torch-eager, vllm).")
     quantization: Optional[Yue2QuantizationConfig] = Field(default=None, description="Weight quantization applied to the AR model; None disables quantization.")
@@ -96,7 +96,7 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
     def inflate_vae(cls, values: Dict[str, Any]):
         vae = values.get("vae")
         if vae is None:
-            values["vae"] = { "model": _DEFAULT_YUE2_VAE_REPOSITORY }
+            values["vae"] = { "model": _DEFAULT_VAE_MODEL_REPOSITORY }
         elif isinstance(vae, str):
             values["vae"] = { "model": vae }
         return values

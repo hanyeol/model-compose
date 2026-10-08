@@ -5,7 +5,7 @@ from ..common import CommonSpeechToTextModelComponentConfig
 from .common import SpeechToTextModelFamily
 from ....common import ModelDriverType, ModelConfig
 
-_DEFAULT_REPOSITORY = "microsoft/VibeVoice-ASR-Streaming-1.5B"
+_DEFAULT_MODEL_REPOSITORY = "microsoft/VibeVoice-ASR-Streaming-1.5B"
 
 class VibeVoiceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
@@ -17,5 +17,5 @@ class VibeVoiceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponent
     @model_validator(mode="before")
     def apply_default_model(cls, values: Dict[str, Any]):
         if values.get("model") is None:
-            values["model"] = _DEFAULT_REPOSITORY
+            values["model"] = _DEFAULT_MODEL_REPOSITORY
         return values

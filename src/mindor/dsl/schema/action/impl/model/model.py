@@ -42,6 +42,7 @@ ModelActionConfig = Union[
     MusicSourceSeparationModelActionConfig,
     MusicTranscriptionModelActionConfig,
     MusicBeatTrackingModelActionConfig,
+    MusicPitchEstimationModelActionConfig,
     MusicEmbeddingModelActionConfig,
     VoiceEmbeddingModelActionConfig,
 ]

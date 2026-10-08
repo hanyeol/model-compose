@@ -6,7 +6,7 @@ from ..common import CommonTypedDecisionModelComponentConfig
 from .common import TypedDecisionModelFamily
 from ....common import ModelConfig, ModelDriverType, ModelProvider
 
-_DEFAULT_BASE_REPOSITORY = "Qwen/Qwen3.5-9B"
+_DEFAULT_BASE_MODEL_REPOSITORY = "Qwen/Qwen3.5-9B"
 
 class NimbleTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
@@ -19,7 +19,7 @@ class NimbleTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentC
     def resolve_base_model(cls, values: Dict[str, Any]):
         base_model = values.get("base_model")
         if base_model is None:
-            base_model = _DEFAULT_BASE_REPOSITORY
+            base_model = _DEFAULT_BASE_MODEL_REPOSITORY
         if isinstance(base_model, str):
             if is_local_path(base_model):
                 values["base_model"] = { "provider": ModelProvider.LOCAL, "path": base_model }

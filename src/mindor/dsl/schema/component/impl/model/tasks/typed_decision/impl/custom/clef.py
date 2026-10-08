@@ -6,7 +6,7 @@ from ..common import CommonTypedDecisionModelComponentConfig
 from .common import TypedDecisionModelFamily
 from ....common import ModelDriverType, ModelProvider, HuggingfaceModelConfig, LocalModelConfig
 
-_DEFAULT_REPOSITORY = "Cloudflare/clef"
+_DEFAULT_MODEL_REPOSITORY = "Cloudflare/clef"
 
 ClefTypedDecisionModelConfig = Annotated[
     Union[
@@ -26,7 +26,7 @@ class ClefTypedDecisionModelComponentConfig(CommonTypedDecisionModelComponentCon
     def inflate_model(cls, values: Dict[str, Any]):
         model = values.get("model")
         if model is None:
-            model = _DEFAULT_REPOSITORY
+            model = _DEFAULT_MODEL_REPOSITORY
         if isinstance(model, str):
             if is_local_path(model):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }

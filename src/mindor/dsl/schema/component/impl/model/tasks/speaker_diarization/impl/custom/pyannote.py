@@ -5,7 +5,7 @@ from ..common import CommonSpeakerDiarizationModelComponentConfig
 from .common import SpeakerDiarizationModelFamily
 from ....common import ModelDriverType, ModelConfig, ModelPrecision
 
-_DEFAULT_REPOSITORY = "pyannote/speaker-diarization-3.1"
+_DEFAULT_MODEL_REPOSITORY = "pyannote/speaker-diarization-3.1"
 
 class PyannoteSpeakerDiarizationModelComponentConfig(CommonSpeakerDiarizationModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
@@ -16,7 +16,7 @@ class PyannoteSpeakerDiarizationModelComponentConfig(CommonSpeakerDiarizationMod
     @model_validator(mode="before")
     def apply_default_model(cls, values: Dict[str, Any]):
         if values.get("model") is None:
-            values["model"] = _DEFAULT_REPOSITORY
+            values["model"] = _DEFAULT_MODEL_REPOSITORY
         return values
 
     @classmethod

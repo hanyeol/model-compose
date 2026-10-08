@@ -10,7 +10,7 @@ from .....model.tasks.common import ModelProvider, HuggingfaceModelConfig, Local
 # subfolder. Used as the fallback when the user provides neither `model` nor
 # `preset`; the driver reads `preset` to pick which subfolder to warm-start
 # from.
-_DEFAULT_REPOSITORY = "convaiinnovations/laya"
+_DEFAULT_MODEL_REPOSITORY = "convaiinnovations/laya"
 
 class LayaTrainerPreset(str, Enum):
     ENGLISH         = "english"
@@ -45,6 +45,6 @@ class LayaTypedDecisionModelTrainerComponentConfig(CommonTypedDecisionModelTrain
                 values["preset"] = LayaTrainerPreset.MULTILINGUAL
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
-                "repository": _DEFAULT_REPOSITORY,
+                "repository": _DEFAULT_MODEL_REPOSITORY,
             }
         return values

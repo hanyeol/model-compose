@@ -1,0 +1,107 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Union, Optional, Dict, List, Any
+from collections.abc import AsyncIterator
+from abc import abstractmethod
+from mindor.dsl.schema.action import CommonMusicPitchEstimationModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
+from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.atomic import AtomicDict
+from mindor.core.utils.iterators import BatchSourceIterator
+from ...base import ComponentActionContext, ModelTaskComponentAction
+
+if TYPE_CHECKING:
+    import torch
+
+class PitchContour(AtomicDict):
+    def __log__(self) -> str:
+        return (
+            f"<PitchContour frames={len(self.get('frames', []))} "
+            f"frame_rate={self.get('frame_rate')} sample_rate={self.get('sample_rate')}>"
+        )
+
+class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
+    def __init__(self, config: CommonMusicPitchEstimationModelActionConfig, device: Optional[torch.device]):
+        self.config: CommonMusicPitchEstimationModelActionConfig = config
+        self.device: Optional[torch.device] = device
+
+    async def run(self, context: ComponentActionContext) -> Any:
+        audio      = await context.render_audio(self.config.audio)
+        batch_size = await context.render_variable(self.config.batch_size)
+        streaming  = await context.render_scalar(self.config.streaming, bool)
+
+        params = await self._resolve_params(context)
+
+        is_single_input  = not isinstance(audio, (list, StreamIterator, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if isinstance(audio, (StreamIterator, AsyncIterator)):
+            async def _stream_output_generator():
+                async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                    batch_results = await self._estimate_batch(batch_audios, params, streaming, context.cancellation_token)
+                    for result in batch_results:
+                        if streaming:
+                            async def _stream_chunk_generator(frames=result, scope=f"stream:{id(result)}"):
+                                async for frame in frames:
+                                    context.register_source("result[]", frame, scope=scope)
+                                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else frame
+
+                            yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
+                        else:
+                            context.register_source("result[]", result)
+                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            return _stream_output_generator()
+        else:
+            results: List[Any] = []
+            async for batch_audios in BatchSourceIterator(audio, batch_size=batch_size or 1):
+                batch_results = await self._estimate_batch(batch_audios, params, streaming, context.cancellation_token)
+                for result in batch_results:
+                    if streaming:
+                        async def _stream_chunk_generator(frames=result, scope=f"stream:{id(result)}"):
+                            async for frame in frames:
+                                context.register_source("result[]", frame, scope=scope)
+                                yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else frame
+
+                        results.append(StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True))
+                    else:
+                        results.append(result)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        reduction          = await context.render_variable(self.config.params.reduction)
+        pitch_unit         = await context.render_variable(self.config.params.pitch_unit)
+        num_chunks         = await context.render_scalar(self.config.params.num_chunks, int)
+        return_activations = await context.render_scalar(self.config.params.return_activations, bool)
+        return_metadata    = await context.render_scalar(self.config.return_metadata, bool)
+
+        return {
+            "reduction":          reduction,
+            "pitch_unit":         pitch_unit,
+            "num_chunks":         num_chunks or 1,
+            "return_activations": return_activations,
+            "return_metadata":    return_metadata,
+        }
+
+    @abstractmethod
+    async def _estimate_batch(
+        self,
+        audios: List[MediaSource],
+        params: Dict[str, Any],
+        streaming: bool,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Union[List[PitchContour], List[AsyncIterator[Dict[str, Any]]]]:
+        """Estimate pitch for each audio.
+
+        Contract:
+          - streaming=False: returns List[PitchContour] — one per input.
+          - streaming=True:  returns List[AsyncIterator[dict]] — one async
+            iterator per input, yielding per-frame pitch events.
+        """
+        pass

@@ -279,6 +279,7 @@ model-compose 支持以下任务类型：
 | `music-source-separation` | 音乐源分离 | 将混音拆分为人声 / 鼓 / 贝斯 / 其他音轨 |
 | `music-transcription` | 音乐转录 | 将音频录音转换为 MIDI 和音符事件 |
 | `music-beat-tracking` | 音乐节拍跟踪 | 检测音乐录音中的节拍和强拍位置 |
+| `music-pitch-estimation` | 音乐音高估计 | 估计单声部（monophonic）录音的逐帧基频（f0） |
 | `talking-head` | 肖像到视频的对口型 | 用驱动音频让静态肖像动起来（身份合成） |
 | `lip-sync` | 视频到视频的对口型 | 将人脸视频的嘴部运动重新同步到新的音轨 |
 | `motion-generation` | 动作生成 | 从文本提示生成 3D 人体/人形动作序列 |
@@ -1839,7 +1840,56 @@ component:
 
 完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-beat-tracking)。
 
-### 10.3.34 talking-head
+### 10.3.34 music-pitch-estimation
+
+估计单声部（monophonic）录音的逐帧基频（f0）并返回密集的音高轮廓。可用于旋律提取、人声音准分析、乐谱对齐，以及逐帧的 pitch-shift / autotune / vocoder 驱动。使用 `driver: custom`，并通过 `family` 字段选择模型后端。
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  device: auto
+  model: mir-1k_g7
+  action:
+    audio: ${input.audio as audio}
+    params:
+      reduction: alwa
+      pitch_unit: hz
+```
+
+对于长录音或实时输入，启用分块流式处理以渐进式发出逐帧事件：
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  model: mir-1k_g7
+  sample_rate: 48000
+  streaming:
+    chunk_size: 240          # 5 ms @ 48 kHz
+    max_batch_size: 4
+  action:
+    audio: ${input.audio as audio}
+    streaming: true
+```
+
+**支持的 family：**
+
+| Family | 后端 | 说明 |
+|--------|------|------|
+| `pesto` | Sony CSL PESTO (ISMIR 2023) | 自监督、转调等变的音高估计器。支持 `torch`（默认）和 `onnx` 后端；ONNX 需要通过 PESTO 仓库的 `python -m realtime.export_onnx` 预先导出图 |
+
+该动作为每个输入返回包含 `frames` 列表的 `PitchContour` 字典。每一帧包含 `time`（秒，跳跃对齐）、`pitch`（`pitch_unit: hz` 时为 Hz，`pitch_unit: semitone` 时为分数 MIDI 半音）、`confidence`（有声帧概率，[0, 1]）和 `volume`（帧能量，线性标度）。当 `return_metadata: true` 时，还会包含 `sample_rate`、`frame_rate` 和 `duration`。在流式模式下，响应是带类型的事件的分块流 —— 每个块包含 `type` 字段：`type: "frame"` 事件携带上述逐帧字段，当 `return_metadata: true` 时，流末尾会追加单个 `type: "metadata"` 事件，携带 `sample_rate`、`frame_rate`、`duration` 和 `frame_count`。
+
+PESTO 是单声部估计器——在和弦和密集混音上置信度会崩溃。对于多声部输入，请先使用 `music-source-separation` 组件分离单声部音轨。
+
+完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-pitch-estimation)。
+
+### 10.3.35 talking-head
 
 让静态肖像跟随驱动音频片段进行对口型（并带头部运动）。与编辑现有视频嘴部的 `lip-sync` 不同，`talking-head` 从单张图像合成头部运动和表情。使用 `driver: custom`，通过 `family` 字段选择模型后端。
 
@@ -1885,7 +1935,7 @@ component:
 
 结果是一个 mp4 流（批量输入则为流列表），每个都带 `format: "mp4"` 与匹配所请求帧率的 `fps` 属性。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#talking-head)。
 
-### 10.3.35 lip-sync
+### 10.3.36 lip-sync
 
 将人脸视频的嘴部运动重新同步到驱动音频片段。仅重新生成嘴部区域；身份、表情、头部姿态和背景直接来自源视频。使用 `driver: custom`，通过 `family` 字段选择模型后端。
 
@@ -1929,7 +1979,7 @@ component:
 
 结果是一个 mp4 流（批量输入则为流列表），每个都带 `format: "mp4"` 与匹配输出帧率的 `fps` 属性。完整的 family 字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#lip-sync)。
 
-### 10.3.35 motion-generation
+### 10.3.37 motion-generation
 
 从文本提示生成 3D 人体或人形动作序列。输出是以模型原生帧率扩散采样的关节位置、旋转矩阵和足部接触标签序列，打包为 NPZ 文件。使用 `driver: custom`，通过 `family` 字段选择模型后端。
 

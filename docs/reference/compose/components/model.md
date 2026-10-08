@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -3845,6 +3845,125 @@ Returns a dict per input (or a list of dicts for batched inputs):
 
 - `beats` — a list of `{ "time", "is_downbeat", "beat_number" }` objects. `time` is the beat timestamp in seconds; `is_downbeat` is `true` when the beat starts a new measure; `beat_number` is the beat's position within its measure, 1-indexed from the most recent downbeat (`1` on downbeats, `2`, `3`, ... on subsequent beats). Beats occurring before the first detected downbeat (pickup notes / anacrusis) carry `beat_number: null`.
 - `duration` — the input audio duration in seconds (included when `return_metadata: true`).
+
+### Music Pitch Estimation
+
+Estimate the per-frame fundamental frequency (f0) of a monophonic recording and return a dense pitch contour. Uses `driver: custom` with a `family` field to select the model backend.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `music-pitch-estimation` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model backend (`pesto`) |
+| `model` | string | family-specific | Named checkpoint or local path (see the per-family section below) |
+
+**Common Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `audio` | string/array | **required** | Input audio path, URL, or list of audio inputs |
+| `batch_size` | int | `1` | Number of audio inputs processed per batch (non-streaming only) |
+| `return_metadata` | bool | `true` | Whether processing metadata (`sample_rate`, `frame_rate`, `duration`) is included in the result |
+| `streaming` | bool | `false` | Whether per-frame pitch results are emitted incrementally; requires `streaming` on the component or `backend: onnx` |
+| `params.reduction` | string | `alwa` | Decoding rule converting activations to pitch: `alwa` (argmax-local weighted averaging), `argmax`, or `weighted` |
+| `params.pitch_unit` | string | `hz` | Unit for the reported pitch value: `hz` (frequency) or `semitone` (fractional MIDI distance from MIDI 0) |
+| `params.num_chunks` | int | `1` | Split CQT frames into N sequential chunks to limit GPU memory (torch backend, non-streaming only) |
+| `return_activations` | bool | `false` | Whether per-frame activation vectors over pitch bins are included in the result |
+
+#### `family: pesto`
+
+Sony CSL Paris PESTO — self-supervised CQT-based pitch estimator (ISMIR 2023 / arXiv:2508.01488). Bundled `mir-1k_g7` checkpoint ships inside the `pesto-pitch` package; a pre-exported ONNX graph can be used for a lighter dependency footprint.
+
+**Component-level fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `backend` | string | `torch` | Inference backend (`torch` via `pesto-pitch`, or `onnx` via `onnxruntime`) |
+| `model` | string | `mir-1k_g7` | PESTO checkpoint — a bundled name, a local `.ckpt` path, or a local `.onnx` path |
+| `sample_rate` | int | — | Sample rate the model expects; required for `backend: onnx` and for `streaming` |
+| `step_size` | float | `10.0` | Hop between CQT frames in milliseconds; torch backend only, mutually exclusive with `streaming.chunk_size` |
+| `streaming.chunk_size` | int | — | Fixed chunk length in audio samples fed to the model per inference step |
+| `streaming.max_batch_size` | int | `1` | Maximum number of concurrent streams the component can serve |
+| `providers` | list | — | `onnxruntime` execution providers (e.g. `[CUDAExecutionProvider, CPUExecutionProvider]`); auto-selected from `device` when omitted |
+| `precision` | string | — | Numeric precision (`float32`, `float16`); `float16` speeds up CUDA inference on the torch backend. `bfloat16` falls back to float32. |
+
+Offline (torch backend):
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  device: auto
+  model: mir-1k_g7
+  action:
+    audio: ${input.audio as audio}
+    params:
+      reduction: alwa
+      pitch_unit: hz
+```
+
+Streaming (torch backend) — progressive per-frame output for long recordings or live inputs:
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  model: mir-1k_g7
+  sample_rate: 48000
+  streaming:
+    chunk_size: 240          # 5 ms @ 48 kHz
+    max_batch_size: 4
+  action:
+    audio: ${input.audio as audio}
+    streaming: true
+```
+
+ONNX backend — stateless graph, lighter dependency footprint (no `pesto-pitch` / `torch` at inference time). Export the graph first with `python -m realtime.export_onnx <checkpoint> -r <sr> -c <chunk>` from a PESTO checkout:
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  backend: onnx
+  model: ./weights/mir-1k_g7_44100_1024.onnx
+  sample_rate: 44100
+  streaming:
+    chunk_size: 1024
+    max_batch_size: 2
+  device: cuda:0
+  action:
+    audio: ${input.audio as audio}
+    streaming: true
+```
+
+The ONNX backend is always chunked; `streaming` is required at the component level. `sample_rate` and `streaming.chunk_size` must match the values used during export. Non-streaming action requests still work — frames are collected internally and returned as a single `PitchContour`.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `pesto` | [Sony CSL PESTO](https://github.com/SonyCSLParis/pesto) (ISMIR 2023) | Self-supervised, transposition-equivariant pitch estimator. Supports `torch` (default) and `onnx` backends; `torch` additionally supports an offline batch mode when `streaming` is not configured. |
+
+**Result Shape:**
+
+Non-streaming (`streaming: false`) — a `PitchContour` dict per input (or a list of dicts for batched inputs):
+
+- `frames` — a list of `{ "time", "pitch", "confidence", "volume" }` objects. `time` is in seconds (hop-aligned); `pitch` is Hz when `pitch_unit: hz` (default), or fractional MIDI semitones when `pitch_unit: semitone`; `confidence` is a [0, 1] voiced-frame probability; `volume` is the frame energy on a linear scale.
+- `sample_rate`, `frame_rate`, `duration` — included when `return_metadata: true`. `frame_rate` is in frames per second.
+- Each frame also carries an `activations` list (PESTO's pitch bins) when `return_activations: true`.
+
+Streaming (`streaming: true`) — the response is a chunked stream of typed events. Each chunk is tagged with a `type` field:
+
+- `type: "frame"` — one event per CQT frame, carrying `time`, `pitch`, `confidence`, `volume` (same fields as the non-streaming `frames` entries). Also carries `activations` when `return_activations: true`.
+- `type: "metadata"` — a single trailing event emitted when `return_metadata: true`, carrying `sample_rate`, `frame_rate`, `duration` (total seconds streamed), and `frame_count`.
 
 ### Motion Generation
 

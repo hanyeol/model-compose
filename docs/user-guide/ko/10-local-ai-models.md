@@ -279,6 +279,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `music-source-separation` | 음악 소스 분리 | 믹스를 보컬 / 드럼 / 베이스 / 기타 스템으로 분리 |
 | `music-transcription` | 음악 전사 | 오디오 녹음을 MIDI와 노트 이벤트로 변환 |
 | `music-beat-tracking` | 음악 비트 트래킹 | 음악 녹음의 비트와 다운비트 위치를 검출 |
+| `music-pitch-estimation` | 음악 피치 추정 | 단성(monophonic) 녹음의 프레임별 기본 주파수(f0) 추정 |
 | `talking-head` | 초상화→비디오 립싱크 | 정지 초상화를 구동 오디오에 맞춰 움직임 (아이덴티티 합성) |
 | `lip-sync` | 비디오→비디오 립싱크 | 얼굴 비디오의 입 움직임을 새 오디오에 맞춰 재싱크 |
 | `motion-generation` | 모션 생성 | 텍스트 프롬프트로부터 3D 휴먼/휴머노이드 모션 시퀀스 생성 |
@@ -1839,7 +1840,56 @@ component:
 
 전체 family별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-beat-tracking)를 참고하세요.
 
-### 10.3.34 talking-head
+### 10.3.34 music-pitch-estimation
+
+단성(monophonic) 녹음의 프레임별 기본 주파수(f0)를 추정하여 조밀한 피치 컨투어를 반환합니다. 멜로디 추출, 보컬 음정 분석, 악보 정렬, 프레임 단위 pitch-shift / autotune / vocoder 구동 등에 유용합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  device: auto
+  model: mir-1k_g7
+  action:
+    audio: ${input.audio as audio}
+    params:
+      reduction: alwa
+      pitch_unit: hz
+```
+
+긴 녹음이나 라이브 입력의 경우 청크 스트리밍을 활성화하여 프레임별 이벤트를 점진적으로 방출할 수 있습니다:
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  model: mir-1k_g7
+  sample_rate: 48000
+  streaming:
+    chunk_size: 240          # 5 ms @ 48 kHz
+    max_batch_size: 4
+  action:
+    audio: ${input.audio as audio}
+    streaming: true
+```
+
+**지원되는 family:**
+
+| Family | 백엔드 | 비고 |
+|--------|--------|------|
+| `pesto` | Sony CSL PESTO (ISMIR 2023) | 자기지도 학습 기반 전조 등변(transposition-equivariant) 피치 추정기. `torch`(기본)와 `onnx` 백엔드를 지원; ONNX는 PESTO 저장소의 `python -m realtime.export_onnx`로 사전 익스포트한 그래프가 필요 |
+
+액션은 입력마다 `frames` 리스트를 담은 `PitchContour` 딕셔너리를 반환합니다. 각 프레임은 `time`(초, 홉 정렬), `pitch`(`pitch_unit: hz`일 때 Hz, `pitch_unit: semitone`일 때 분수 MIDI 세미톤), `confidence`(유성 프레임 확률, [0, 1]), `volume`(프레임 에너지, 선형 스케일)을 포함합니다. `return_metadata: true`이면 `sample_rate`, `frame_rate`, `duration`도 함께 반환됩니다. 스트리밍 모드에서는 응답이 타입이 지정된 이벤트의 청크 스트림으로 전달됩니다 — 각 청크는 `type` 필드를 포함하며, `type: "frame"` 이벤트는 위의 프레임별 필드를 담고, `return_metadata: true`일 때 스트림 끝에 단일 `type: "metadata"` 이벤트가 `sample_rate`, `frame_rate`, `duration`, `frame_count`를 담아 방출됩니다.
+
+PESTO는 단성 추정기입니다 — 코드와 밀집 믹스에서 신뢰도가 붕괴됩니다. 다성 입력의 경우 먼저 `music-source-separation` 컴포넌트로 단성 스템을 분리하세요.
+
+전체 family별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-pitch-estimation)를 참고하세요.
+
+### 10.3.35 talking-head
 
 정지 초상화 이미지를 구동 오디오 클립에 맞춰 립싱크(그리고 머리 움직임)를 시킵니다. 기존 비디오의 입을 편집하는 `lip-sync`와 달리, `talking-head`는 단일 이미지로부터 머리 움직임과 표정을 합성합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1885,7 +1935,7 @@ component:
 
 결과는 mp4 스트림(배치 입력에는 스트림 리스트)이며, 각각 `format: "mp4"`와 요청한 프레임률에 맞는 `fps` 속성을 가집니다. 전체 패밀리별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#talking-head)를 참고하세요.
 
-### 10.3.35 lip-sync
+### 10.3.36 lip-sync
 
 얼굴 비디오의 입 움직임을 구동 오디오 클립에 맞춰 재싱크합니다. 입 영역만 재생성되고 아이덴티티, 표정, 머리 자세, 배경은 원본 비디오에서 그대로 가져옵니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1929,7 +1979,7 @@ component:
 
 결과는 mp4 스트림(배치 입력에는 스트림 리스트)이며, 각각 `format: "mp4"`와 출력 프레임률에 맞는 `fps` 속성을 가집니다. 전체 패밀리별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#lip-sync)를 참고하세요.
 
-### 10.3.35 motion-generation
+### 10.3.37 motion-generation
 
 텍스트 프롬프트로부터 3D 휴먼 또는 휴머노이드 모션 시퀀스를 생성합니다. 출력은 모델의 네이티브 프레임레이트로 디퓨전 샘플링된 관절 위치, 회전 행렬, 발 접촉 레이블의 시퀀스이며 NPZ 파일로 패키징됩니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 

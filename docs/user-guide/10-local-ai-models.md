@@ -279,6 +279,7 @@ model-compose supports the following task types:
 | `music-source-separation` | Music source separation | Split a mix into vocals / drums / bass / other stems |
 | `music-transcription` | Music transcription | Convert audio recordings into MIDI + note events |
 | `music-beat-tracking` | Music beat tracking | Detect beat and downbeat positions in a music recording |
+| `music-pitch-estimation` | Music pitch estimation | Estimate the per-frame fundamental frequency (f0) of a monophonic recording |
 | `talking-head` | Portrait-to-video lip-sync | Animate a still portrait with driving audio (identity synthesis) |
 | `lip-sync` | Video-to-video lip-sync | Re-sync a face video's mouth movements to a new audio track |
 | `motion-generation` | Motion generation | Generate 3D human / humanoid motion sequences from text prompts |
@@ -1841,7 +1842,56 @@ The action returns a dict per input with a `beats` list — each event carries `
 
 See the [Model Component reference](../reference/compose/components/model.md#music-beat-tracking) for the full per-family field list.
 
-### 10.3.34 talking-head
+### 10.3.34 music-pitch-estimation
+
+Estimates the per-frame fundamental frequency (f0) of a monophonic recording and returns a dense pitch contour. Useful for melody extraction, vocal intonation analysis, score alignment, and frame-by-frame pitch-shift / autotune / vocoder driving. Uses `driver: custom` with a `family` field to select the model backend.
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  device: auto
+  model: mir-1k_g7
+  action:
+    audio: ${input.audio as audio}
+    params:
+      reduction: alwa
+      pitch_unit: hz
+```
+
+For long recordings or live inputs, enable chunked streaming to emit per-frame events progressively:
+
+```yaml
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  model: mir-1k_g7
+  sample_rate: 48000
+  streaming:
+    chunk_size: 240          # 5 ms @ 48 kHz
+    max_batch_size: 4
+  action:
+    audio: ${input.audio as audio}
+    streaming: true
+```
+
+**Supported families:**
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `pesto` | Sony CSL PESTO (ISMIR 2023) | Self-supervised, transposition-equivariant pitch estimator. Supports `torch` (default) and `onnx` backends; ONNX requires a pre-exported graph via `python -m realtime.export_onnx` from the PESTO repository. |
+
+The action returns a `PitchContour` dict per input with a `frames` list — each frame carries `time` (seconds, hop-aligned), `pitch` (Hz when `pitch_unit: hz`, fractional MIDI semitones when `pitch_unit: semitone`), `confidence` (voiced-frame probability in [0, 1]), and `volume` (frame energy, linear scale). When `return_metadata: true`, `sample_rate`, `frame_rate`, and `duration` are also included. In streaming mode, the response is a chunked stream of typed events — each chunk carries a `type` field: `type: "frame"` events hold the per-frame fields above, and a single trailing `type: "metadata"` event (emitted when `return_metadata: true`) carries `sample_rate`, `frame_rate`, `duration`, and `frame_count`.
+
+PESTO is a monophonic estimator — confidence collapses on chords and dense mixtures. For polyphonic input, pre-separate a monophonic stem with a `music-source-separation` component first.
+
+See the [Model Component reference](../reference/compose/components/model.md#music-pitch-estimation) for the full per-family field list.
+
+### 10.3.35 talking-head
 
 Animates a still portrait so it lip-syncs (and moves the head) to a driving audio clip. In contrast to `lip-sync` — which edits the mouth of an existing video — `talking-head` synthesises head motion and expression from a single image. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1887,7 +1937,7 @@ component:
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate. See the [Model Component reference](../reference/compose/components/model.md#talking-head) for the full per-family field list.
 
-### 10.3.35 lip-sync
+### 10.3.36 lip-sync
 
 Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth region is regenerated; identity, expression, head pose, and background come straight from the source video. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1931,7 +1981,7 @@ If the audio is longer than the video, Wav2Lip and MuseTalk loop the source fram
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate. See the [Model Component reference](../reference/compose/components/model.md#lip-sync) for the full per-family field list.
 
-### 10.3.35 motion-generation
+### 10.3.37 motion-generation
 
 Generates 3D human or humanoid motion sequences from a text prompt. The output is a diffusion-sampled sequence of joint positions, rotation matrices, and foot-contact labels at the model's native frame rate, packaged as an NPZ file. Uses `driver: custom` with a `family` field to select the model backend.
 

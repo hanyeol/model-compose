@@ -20,7 +20,7 @@ Pixal3D 계열이 이미지가 암시하는 형상을 *생성*하는 반면, Wor
 ### 요구 사항
 
 - model-compose가 PATH에서 실행 가능해야 합니다.
-- CUDA GPU가 필요합니다. 최대 VRAM은 대상 해상도와 `enable_bf16` 설정에 따라 달라집니다 — 기본 952픽셀 대상에 bf16을 켠 경우 대략 **12-16 GB**, 끄면 더 필요합니다. Apple Silicon(MPS)과 CPU 전용 추론은 현재 지원되지 않습니다 — WorldMirror의 op는 CUDA 전용입니다.
+- CUDA GPU가 필요합니다. 최대 VRAM은 대상 해상도와 `precision: bfloat16` 설정에 따라 달라집니다 — 기본 952픽셀 대상에 bf16을 켠 경우 대략 **12-16 GB**, 끄면 더 필요합니다. Apple Silicon(MPS)과 CPU 전용 추론은 현재 지원되지 않습니다 — WorldMirror의 op는 CUDA 전용입니다.
 - CUDA 툴킷이 설치된 Linux 호스트가 필요합니다. 첫 실행 시 커스텀 `gsplat` 변형과 벤더링된 CUDA 확장을 컴파일하므로 런타임만으로는 부족합니다.
 - `torch`, `gsplat`, `flash-attn` 등 WorldMirror의 부수 패키지를 설치할 수 있는 파이썬 환경이 필요합니다 — 첫 실행 시 자동으로 설치됩니다.
 - `tencent/HY-World-2.0` 저장소를 읽을 수 있는 HuggingFace 액세스 토큰이 필요합니다. model-compose 실행 전 `HF_TOKEN` 환경 변수로 설정하세요.
@@ -53,7 +53,7 @@ Pixal3D 계열이 이미지가 암시하는 형상을 *생성*하는 반면, Wor
    # .env 파일에서 HF_TOKEN=hf_xxx 로 수정
    ```
 
-3. 수치 정밀도를 조금 희생하고 VRAM을 낮추려면 `model-compose.yml`에서 `enable_bf16: true`로 설정하세요. 사용하지 않는 예측 헤드는 `disable_heads`로 비활성화합니다(예: `disable_heads: [normal]`은 약 200M 파라미터를 해제).
+3. 수치 정밀도를 조금 희생하고 VRAM을 낮추려면 `model-compose.yml`에서 `precision: bfloat16`로 설정하세요. 사용하지 않는 예측 헤드는 `disable_heads`로 비활성화합니다(예: `disable_heads: [normal]`은 약 200M 파라미터를 해제).
 
 ## 실행 방법
 
@@ -103,7 +103,7 @@ Pixal3D 계열이 이미지가 암시하는 형상을 *생성*하는 반면, Wor
 | `model`        | WorldMirror 모델 저장소 (HuggingFace repo 또는 로컬 경로).                                                 | —                    |
 | `subfolder`    | 저장소 안에서 WorldMirror 체크포인트가 있는 하위 폴더.                                                     | `HY-WorldMirror-2.0` |
 | `device`       | 컴퓨트 디바이스. `cuda`로 해석되어야 합니다 — WorldMirror는 CPU / MPS 미지원.                              | `auto`               |
-| `enable_bf16`  | 모델을 bfloat16으로 캐스팅해 VRAM을 낮춥니다(비-임계 레이어에서 약간의 정밀도 손실).                        | `false`              |
+| `precision`     | 수치 정밀도. `bfloat16`은 비-임계 레이어에서 약간의 정밀도 손실을 감수하고 VRAM을 낮춥니다.               | —                    |
 | `disable_heads`| 비활성화하고 메모리에서 해제할 예측 헤드. 옵션: `camera`, `depth`, `normal`, `points`, `gs`.                | `[]`                 |
 
 ### 액션 필드
@@ -140,5 +140,5 @@ Pixal3D 계열이 이미지가 암시하는 형상을 *생성*하는 반면, Wor
 - **CUDA 필수**: WorldMirror는 CUDA 디바이스 배치와 CUDA 전용 커널을 하드코딩합니다. 드라이버는 CUDA가 아닌 호스트에서는 로딩을 거부합니다.
 - **비디오 입력 미지원**: 이 예제는 이미지 세트만 받습니다. 소스가 비디오라면 상류에 `video-frame-extractor` 같은 컴포넌트를 두어 프레임으로 변환한 뒤 넣으세요.
 - **카메라를 데이터로 다룸**: `return_cameras: true`이면 카메라 딕셔너리가 응답에 인라인으로 포함됩니다 — 파일은 쓰이지 않습니다. WorldMirror의 `camera_params.json`과 동일한 스키마이므로 반환된 dict을 `file-store` 컴포넌트로 저장한 뒤 나중에 `priors.cameras`로 다시 넣을 수 있습니다.
-- **VRAM 계획**: `enable_bf16: true`는 모델의 activation 메모리를 대략 절반으로 줄여줍니다. `disable_heads`와 조합하는 것이 12 GB 카드에서 실행할 때의 주요 조정 지렛대입니다. 24 GB 이상이면 기본값으로 편안하게 돌아갑니다.
+- **VRAM 계획**: `precision: bfloat16`는 모델의 activation 메모리를 대략 절반으로 줄여줍니다. `disable_heads`와 조합하는 것이 12 GB 카드에서 실행할 때의 주요 조정 지렛대입니다. 24 GB 이상이면 기본값으로 편안하게 돌아갑니다.
 - **출력 활용**: `.ply` 파일은 MeshLab, Blender(애드온 필요), CloudCompare 그리고 대부분의 Gaussian splatting 뷰어에서 열립니다. Depth / normal PNG는 입력과 동일한 순서로 정렬된 뷰별 이미지입니다.

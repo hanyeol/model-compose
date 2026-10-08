@@ -21,7 +21,7 @@ component:
   family: nimble
   model: bespokelabs/Bespoke-Nimble-9B         # LoRA adapter; the driver merges it once onto the base model and caches the result
   base_model: Qwen/Qwen3.5-9B                  # base the adapter was trained against; omit to accept the driver default (also Qwen/Qwen3.5-9B)
-  precision: bfloat16                          # CUDA scorer requires BF16-capable GPUs; on MLX (Apple Silicon) this hint is ignored
+  precision: bfloat16                          # Dtype used when merging the LoRA adapter into the base model and caching it. CUDA scorer requires BF16-capable GPUs.
   max_concurrent_count: 1
   runtime:
     type: virtualenv

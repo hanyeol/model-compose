@@ -29,8 +29,8 @@ component:
   # Requires madmom installed separately; leave off for the paper's default.
   dbn: false
   # Half-precision inference — noticeably faster on CUDA, minor accuracy hit.
-  # Leave unset (or "auto") for float32; set to "float16" to enable fp16.
-  precision: auto
+  # Omit for float32; set to "float16" to enable fp16.
+  # precision: float16
   max_concurrent_count: 1
   action:
     audio: ${input.audio as audio}

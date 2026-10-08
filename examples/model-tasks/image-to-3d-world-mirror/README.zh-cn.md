@@ -20,7 +20,7 @@ Pixal3D 系列是根据图像的暗示*生成*形状，而 WorldMirror 则是*�
 ### 前置条件
 
 - 已安装 model-compose 并可在 PATH 中调用。
-- 支持 CUDA 的 GPU。峰值 VRAM 取决于目标分辨率与 `enable_bf16` 设置；在默认 952 像素目标下开启 bf16 时大约 **12-16 GB**，关闭时更多。目前不支持 Apple Silicon（MPS）与纯 CPU 推理 —— WorldMirror 的算子仅支持 CUDA。
+- 支持 CUDA 的 GPU。峰值 VRAM 取决于目标分辨率与 `precision: bfloat16` 设置；在默认 952 像素目标下开启 bf16 时大约 **12-16 GB**，关闭时更多。目前不支持 Apple Silicon（MPS）与纯 CPU 推理 —— WorldMirror 的算子仅支持 CUDA。
 - 装有 CUDA 工具链的 Linux 主机。首次运行会编译自定义 `gsplat` 变体和内置的 CUDA 扩展，仅有运行时并不足够。
 - 一个能安装 `torch`、`gsplat`、`flash-attn` 以及 WorldMirror 附属包的 Python 环境 —— 首次运行会自动安装。
 - 一个能访问 `tencent/HY-World-2.0` 仓库的 HuggingFace 访问令牌。启动 model-compose 前请通过 `HF_TOKEN` 环境变量设置。
@@ -53,7 +53,7 @@ Pixal3D 系列是根据图像的暗示*生成*形状，而 WorldMirror 则是*�
    # 编辑 .env 并设置 HF_TOKEN=hf_xxx
    ```
 
-3. 想以少量数值精度换取更低 VRAM，可在 `model-compose.yml` 中设置 `enable_bf16: true`。不需要的预测头可以通过 `disable_heads` 关闭（例如 `disable_heads: [normal]` 可释放约 200M 参数）。
+3. 想以少量数值精度换取更低 VRAM，可在 `model-compose.yml` 中设置 `precision: bfloat16`。不需要的预测头可以通过 `disable_heads` 关闭（例如 `disable_heads: [normal]` 可释放约 200M 参数）。
 
 ## 运行方式
 
@@ -103,7 +103,7 @@ Pixal3D 系列是根据图像的暗示*生成*形状，而 WorldMirror 则是*�
 | `model`         | WorldMirror 模型仓库（HuggingFace repo 或本地路径）。                                              | —                    |
 | `subfolder`     | 仓库中放置 WorldMirror 检查点的子目录。                                                             | `HY-WorldMirror-2.0` |
 | `device`        | 计算设备。需要解析为 `cuda` —— WorldMirror 不支持 CPU / MPS。                                       | `auto`               |
-| `enable_bf16`   | 将模型转换为 bfloat16 以降低 VRAM（非关键层损失少量精度）。                                        | `false`              |
+| `precision`     | 数值精度。`bfloat16` 可降低 VRAM，仅在非关键层损失少量精度。                                            | —                    |
 | `disable_heads` | 关闭并释放内存的预测头。可选值：`camera`、`depth`、`normal`、`points`、`gs`。                       | `[]`                 |
 
 ### 动作字段
@@ -140,5 +140,5 @@ Pixal3D 系列是根据图像的暗示*生成*形状，而 WorldMirror 则是*�
 - **必须使用 CUDA**：WorldMirror 硬编码了 CUDA 设备放置与 CUDA 专用算子；驱动在非 CUDA 主机上会拒绝加载。
 - **不接受视频输入**：本示例只接受图像集合。若源为视频，请在上游用 `video-frame-extractor` 等组件先抽帧再喂入。
 - **相机即数据**：`return_cameras: true` 会在响应中内联返回相机字典 —— 不会写任何文件。其模式与 WorldMirror 自身的 `camera_params.json` 相同，因此返回的字典可以用 `file-store` 组件保存，日后作为 `priors.cameras` 再次传入。
-- **VRAM 规划**：`enable_bf16: true` 大约可将模型的激活内存减半；配合 `disable_heads` 是 12 GB 显卡上运行时的主要调整杠杆。24 GB 或更高显存下，默认配置即可从容运行。
+- **VRAM 规划**：`precision: bfloat16` 大约可将模型的激活内存减半；配合 `disable_heads` 是 12 GB 显卡上运行时的主要调整杠杆。24 GB 或更高显存下，默认配置即可从容运行。
 - **输出使用**：`.ply` 文件可在 MeshLab、Blender（需插件）、CloudCompare 与大多数 Gaussian splatting 查看器中打开。深度 / 法线 PNG 是按输入顺序排列的逐视角图像。

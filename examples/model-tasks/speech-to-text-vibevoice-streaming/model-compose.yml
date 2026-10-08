@@ -20,7 +20,7 @@ component:
   driver: custom
   family: vibevoice
   model: microsoft/VibeVoice-ASR-Streaming-1.5B  # or microsoft/VibeVoice-ASR-Streaming-7B
-  precision: auto                                # 'auto' picks bfloat16 on cuda, float16 on mps, float32 on cpu; override with bfloat16 / float16 / float32
+  # precision: bfloat16                          # Omit to let the driver pick: bfloat16 on cuda, float16 on mps, float32 on cpu. Set explicitly to override.
   attn_implementation: sdpa                      # 'sdpa' (default, portable), 'flash_attention_2' (needs flash-attn, cuda-only), or 'eager'
   max_concurrent_count: 1
   runtime:

@@ -28,7 +28,7 @@ component:
     token: ${env.HF_TOKEN}
   # Cast to bfloat16 to reduce VRAM at the cost of some precision on
   # non-critical layers. Recommended on 24 GB consumer GPUs.
-  enable_bf16: false
+  # precision: bfloat16
   # Prediction heads to disable and free from memory. Options: camera, depth,
   # normal, points, gs. GS rendering depends on the camera head so it is
   # auto-disabled when `camera` is dropped.

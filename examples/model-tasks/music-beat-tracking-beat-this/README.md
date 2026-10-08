@@ -119,7 +119,7 @@ Component-level fields (loaded once, not per request):
 | `model` | string | `final0` | Beat This! checkpoint name (`final0/1/2`, `small0/1/2`) |
 | `device` | string | `auto` | Compute device (`cpu`, `cuda`, `cuda:0`, `mps`) |
 | `dbn` | boolean | `false` | Apply madmom DBN post-processing (requires `madmom` installed) |
-| `precision` | string | `auto` | Numeric precision (`auto`, `float32`, `float16`); `float16` speeds up CUDA inference |
+| `precision` | string | — | Numeric precision (`float32`, `float16`); omit to let the driver pick, `float16` speeds up CUDA inference |
 
 #### Output Format
 

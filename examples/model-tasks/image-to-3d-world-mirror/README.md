@@ -20,7 +20,7 @@ This workflow provides local multi-image 3D scene reconstruction that:
 ### Prerequisites
 
 - model-compose installed and available in your PATH.
-- A CUDA-capable GPU. Peak VRAM depends on target resolution and `enable_bf16`; roughly **12-16 GB** at the default 952-pixel target with bf16, more without. Apple Silicon (MPS) and CPU-only inference are not supported today — WorldMirror's ops are CUDA-only.
+- A CUDA-capable GPU. Peak VRAM depends on target resolution and `precision: bfloat16`; roughly **12-16 GB** at the default 952-pixel target with bf16, more without. Apple Silicon (MPS) and CPU-only inference are not supported today — WorldMirror's ops are CUDA-only.
 - A Linux host with the CUDA toolkit installed. The first run compiles a custom `gsplat` variant and vendored CUDA extensions, which requires the toolkit rather than just the runtime.
 - A Python environment where `torch`, `gsplat`, `flash-attn`, and WorldMirror's ancillary packages can be installed — the first run installs them automatically.
 - A HuggingFace access token that can read the `tencent/HY-World-2.0` repository. Set it via the `HF_TOKEN` environment variable before starting model-compose.
@@ -53,7 +53,7 @@ Compared to cloud-hosted reconstruction services:
    # edit .env and set HF_TOKEN=hf_xxx
    ```
 
-3. Adjust `enable_bf16: true` in `model-compose.yml` to trade some numerical precision for lower VRAM. Disable prediction heads you do not need via `disable_heads` (e.g. `disable_heads: [normal]` frees ~200M parameters).
+3. Set `precision: bfloat16` in `model-compose.yml` to trade some numerical precision for lower VRAM. Disable prediction heads you do not need via `disable_heads` (e.g. `disable_heads: [normal]` frees ~200M parameters).
 
 ## How to Run
 
@@ -103,7 +103,7 @@ Compared to cloud-hosted reconstruction services:
 | `model`         | WorldMirror model repository (HuggingFace repo or local path).                                         | —                    |
 | `subfolder`     | Subfolder inside the repository holding the WorldMirror checkpoint.                                    | `HY-WorldMirror-2.0` |
 | `device`        | Compute device. Must resolve to `cuda` — WorldMirror does not support CPU or MPS.                      | `auto`               |
-| `enable_bf16`   | Cast the model to bfloat16 for reduced VRAM at the cost of some precision on non-critical layers.      | `false`              |
+| `precision`     | Numeric precision: `bfloat16` reduces VRAM at the cost of some precision on non-critical layers.       | —                    |
 | `disable_heads` | Prediction heads to disable and free from memory. Options: `camera`, `depth`, `normal`, `points`, `gs`. | `[]`                 |
 
 ### Action Fields
@@ -140,5 +140,5 @@ Compared to cloud-hosted reconstruction services:
 - **CUDA is required**: WorldMirror hardcodes CUDA device placement and CUDA-only kernels; the driver refuses to load on non-CUDA hosts.
 - **No video input**: This example accepts image sets only. If your source is a video, extract frames with an upstream component (e.g. `video-frame-extractor`) before feeding them in.
 - **Cameras as data**: `return_cameras: true` yields the camera dictionary inline in the response — no file is written. The same schema is what WorldMirror's own `camera_params.json` uses, so the returned dict can be persisted with a `file-store` component and later fed back as `priors.cameras`.
-- **VRAM planning**: `enable_bf16: true` roughly halves the model's activation memory; combined with `disable_heads` this is the main lever if you're running on 12 GB cards. On 24 GB or better, the defaults are comfortable.
+- **VRAM planning**: `precision: bfloat16` roughly halves the model's activation memory; combined with `disable_heads` this is the main lever if you're running on 12 GB cards. On 24 GB or better, the defaults are comfortable.
 - **Output usage**: The `.ply` files load in MeshLab, Blender (via add-ons), CloudCompare, and most Gaussian-splatting viewers. The depth / normal PNGs are per-view images sorted in the same order as your inputs.

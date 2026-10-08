@@ -1856,9 +1856,9 @@ component:
   model: mir-1k_g7
   action:
     audio: ${input.audio as audio}
+    pitch_unit: hz
     params:
       reduction: alwa
-      pitch_unit: hz
 ```
 
 For long recordings or live inputs, enable chunked streaming to emit per-frame events progressively:
@@ -1885,7 +1885,7 @@ component:
 |--------|---------|-------|
 | `pesto` | Sony CSL PESTO (ISMIR 2023) | Self-supervised, transposition-equivariant pitch estimator. Supports `torch` (default) and `onnx` backends; ONNX requires a pre-exported graph via `python -m realtime.export_onnx` from the PESTO repository. |
 
-The action returns a `PitchContour` dict per input with a `frames` list — each frame carries `time` (seconds, hop-aligned), `pitch` (Hz when `pitch_unit: hz`, fractional MIDI semitones when `pitch_unit: semitone`), `confidence` (voiced-frame probability in [0, 1]), and `volume` (frame energy, linear scale). When `return_metadata: true`, `sample_rate`, `frame_rate`, and `duration` are also included. In streaming mode, the response is a chunked stream of typed events — each chunk carries a `type` field: `type: "frame"` events hold the per-frame fields above, and a single trailing `type: "metadata"` event (emitted when `return_metadata: true`) carries `sample_rate`, `frame_rate`, `duration`, and `frame_count`.
+The action returns a pitch contour dict per input with a `frames` list — each frame carries `time` (seconds, hop-aligned), `pitch` (Hz when `pitch_unit: hz`, fractional MIDI semitones when `pitch_unit: semitone`), `confidence` (voiced-frame probability in [0, 1]), and `volume` (frame energy, linear scale). When `return_metadata: true`, `sample_rate`, `frame_rate`, and `duration` are also included. In streaming mode, the response is a chunked stream of typed events — each chunk carries a `type` field: `type: "frame"` events hold the per-frame fields above, and a single trailing `type: "metadata"` event (emitted when `return_metadata: true`) carries `sample_rate`, `frame_rate`, `duration`, and `frame_count`.
 
 PESTO is a monophonic estimator — confidence collapses on chords and dense mixtures. For polyphonic input, pre-separate a monophonic stem with a `music-source-separation` component first.
 

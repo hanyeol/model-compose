@@ -1854,9 +1854,9 @@ component:
   model: mir-1k_g7
   action:
     audio: ${input.audio as audio}
+    pitch_unit: hz
     params:
       reduction: alwa
-      pitch_unit: hz
 ```
 
 对于长录音或实时输入，启用分块流式处理以渐进式发出逐帧事件：
@@ -1883,7 +1883,7 @@ component:
 |--------|------|------|
 | `pesto` | Sony CSL PESTO (ISMIR 2023) | 自监督、转调等变的音高估计器。支持 `torch`（默认）和 `onnx` 后端；ONNX 需要通过 PESTO 仓库的 `python -m realtime.export_onnx` 预先导出图 |
 
-该动作为每个输入返回包含 `frames` 列表的 `PitchContour` 字典。每一帧包含 `time`（秒，跳跃对齐）、`pitch`（`pitch_unit: hz` 时为 Hz，`pitch_unit: semitone` 时为分数 MIDI 半音）、`confidence`（有声帧概率，[0, 1]）和 `volume`（帧能量，线性标度）。当 `return_metadata: true` 时，还会包含 `sample_rate`、`frame_rate` 和 `duration`。在流式模式下，响应是带类型的事件的分块流 —— 每个块包含 `type` 字段：`type: "frame"` 事件携带上述逐帧字段，当 `return_metadata: true` 时，流末尾会追加单个 `type: "metadata"` 事件，携带 `sample_rate`、`frame_rate`、`duration` 和 `frame_count`。
+该动作为每个输入返回包含 `frames` 列表的音高轮廓字典。每一帧包含 `time`（秒，跳跃对齐）、`pitch`（`pitch_unit: hz` 时为 Hz，`pitch_unit: semitone` 时为分数 MIDI 半音）、`confidence`（有声帧概率，[0, 1]）和 `volume`（帧能量，线性标度）。当 `return_metadata: true` 时，还会包含 `sample_rate`、`frame_rate` 和 `duration`。在流式模式下，响应是带类型的事件的分块流 —— 每个块包含 `type` 字段：`type: "frame"` 事件携带上述逐帧字段，当 `return_metadata: true` 时，流末尾会追加单个 `type: "metadata"` 事件，携带 `sample_rate`、`frame_rate`、`duration` 和 `frame_count`。
 
 PESTO 是单声部估计器——在和弦和密集混音上置信度会崩溃。对于多声部输入，请先使用 `music-source-separation` 组件分离单声部音轨。
 

@@ -3864,13 +3864,13 @@ Estimate the per-frame fundamental frequency (f0) of a monophonic recording and 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `audio` | string/array | **required** | Input audio path, URL, or list of audio inputs |
+| `pitch_unit` | string | `hz` | Unit for the reported pitch value: `hz` (frequency) or `semitone` (fractional MIDI distance from MIDI 0) |
 | `batch_size` | int | `1` | Number of audio inputs processed per batch (non-streaming only) |
 | `return_metadata` | bool | `true` | Whether processing metadata (`sample_rate`, `frame_rate`, `duration`) is included in the result |
+| `return_activations` | bool | `false` | Whether per-frame activation vectors over pitch bins are included in the result |
 | `streaming` | bool | `false` | Whether per-frame pitch results are emitted incrementally; requires `streaming` on the component or `backend: onnx` |
 | `params.reduction` | string | `alwa` | Decoding rule converting activations to pitch: `alwa` (argmax-local weighted averaging), `argmax`, or `weighted` |
-| `params.pitch_unit` | string | `hz` | Unit for the reported pitch value: `hz` (frequency) or `semitone` (fractional MIDI distance from MIDI 0) |
 | `params.num_chunks` | int | `1` | Split CQT frames into N sequential chunks to limit GPU memory (torch backend, non-streaming only) |
-| `return_activations` | bool | `false` | Whether per-frame activation vectors over pitch bins are included in the result |
 
 #### `family: pesto`
 
@@ -3901,9 +3901,9 @@ component:
   model: mir-1k_g7
   action:
     audio: ${input.audio as audio}
+    pitch_unit: hz
     params:
       reduction: alwa
-      pitch_unit: hz
 ```
 
 Streaming (torch backend) — progressive per-frame output for long recordings or live inputs:
@@ -3944,7 +3944,7 @@ component:
     streaming: true
 ```
 
-The ONNX backend is always chunked; `streaming` is required at the component level. `sample_rate` and `streaming.chunk_size` must match the values used during export. Non-streaming action requests still work — frames are collected internally and returned as a single `PitchContour`.
+The ONNX backend is always chunked; `streaming` is required at the component level. `sample_rate` and `streaming.chunk_size` must match the values used during export. Non-streaming action requests still work — frames are collected internally and returned as a single pitch contour object.
 
 #### Supported families
 
@@ -3954,7 +3954,7 @@ The ONNX backend is always chunked; `streaming` is required at the component lev
 
 **Result Shape:**
 
-Non-streaming (`streaming: false`) — a `PitchContour` dict per input (or a list of dicts for batched inputs):
+Non-streaming (`streaming: false`) — a pitch contour dict per input (or a list of dicts for batched inputs):
 
 - `frames` — a list of `{ "time", "pitch", "confidence", "volume" }` objects. `time` is in seconds (hop-aligned); `pitch` is Hz when `pitch_unit: hz` (default), or fractional MIDI semitones when `pitch_unit: semitone`; `confidence` is a [0, 1] voiced-frame probability; `volume` is the frame energy on a linear scale.
 - `sample_rate`, `frame_rate`, `duration` — included when `return_metadata: true`. `frame_rate` is in frames per second.

@@ -8,12 +8,12 @@ class PitchUnit(str, Enum):
     SEMITONE = "semitone"
 
 class CommonMusicPitchEstimationParamsConfig(BaseModel):
-    reduction: Literal["alwa", "argmax", "weighted"] = Field(default="alwa", description="Decoding rule converting activations to pitch (alwa is argmax-local weighted averaging).")
-    pitch_unit: PitchUnit = Field(default=PitchUnit.HZ, description="Unit for the reported pitch value — Hz (frequency) or semitones (fractional MIDI distance from MIDI 0).")
+    reduction: Union[Literal[ "alwa", "argmax", "weighted" ], str] = Field(default="alwa", description="Decoding rule converting activations to pitch (alwa is argmax-local weighted averaging).")
     num_chunks: Union[int, str] = Field(default=1, description="Split CQT frames into N sequential chunks to limit GPU memory (torch backend, non-streaming only).")
 
 class CommonMusicPitchEstimationModelActionConfig(CommonModelActionConfig):
     audio: Union[str, List[str]] = Field(..., description="Audio to estimate pitch from, or a list of audios.")
+    pitch_unit: Union[PitchUnit, str] = Field(default=PitchUnit.HZ, description="Unit for the reported pitch value — Hz (frequency) or semitones (fractional MIDI distance from MIDI 0).")
     return_activations: Union[bool, str] = Field(default=False, description="Whether per-frame activation vectors over pitch bins are included in the result.")
     return_metadata: Union[bool, str] = Field(default=True, description="Whether processing metadata (duration, sample_rate, ...) is included in the result.")
     batch_size: Union[int, str] = Field(default=1, description="Number of audio inputs processed per batch (non-streaming only).")

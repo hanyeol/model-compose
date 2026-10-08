@@ -35,18 +35,18 @@ component:
   max_concurrent_count: 1
   action:
     audio: ${input.audio as audio}
+    # Unit for the pitch value: 'hz' (frequency) or 'semitone' (fractional MIDI distance).
+    pitch_unit: ${input.pitch_unit | hz}
     return_metadata: ${input.return_metadata as boolean | true}
+    # Include per-frame activation distributions in the result. Off by
+    # default; the vectors are large (~128 bins per frame).
+    return_activations: false
     params:
       # Decoding rule converting activations to pitch.
       # - alwa    : argmax-local weighted averaging (PESTO default)
       # - argmax  : hard argmax over bins
       # - weighted: weighted average over all bins
       reduction: alwa
-      # Unit for the pitch value: 'hz' (frequency) or 'semitone' (fractional MIDI distance).
-      pitch_unit: ${input.pitch_unit | hz}
       # Split CQT frames into N sequential chunks to cap GPU memory on long
       # files. Ignored when the component uses streaming or the onnx backend.
       num_chunks: 1
-      # Include per-frame activation distributions in the result. Off by
-      # default; the vectors are large (~128 bins per frame).
-      return_activations: false

@@ -114,12 +114,12 @@ graph TD
 | 参数 | 位置 | 类型 | 必需 | 默认值 | 描述 |
 |-----------|----------|------|----------|---------|-------------|
 | `audio` | `action` | audio | 是 | - | 输入录音（MP3、WAV、FLAC 等） |
+| `pitch_unit` | `action` | enum | 否 | `hz` | 音高值的单位 —— `hz`（频率）或 `semitone`（距 MIDI 0 的分数半音距离） |
 | `return_metadata` | `action` | boolean | 否 | `true` | 处理元数据（`sample_rate`、`frame_rate`、`duration`）是否包含在结果中 |
+| `return_activations` | `action` | boolean | 否 | `false` | 包含音高 bin 上的逐帧激活分布 |
 | `streaming` | `action` | boolean | 否 | `false` | 增量发出逐帧事件；需要组件启用 `streaming` 或 `backend: onnx` |
 | `params.reduction` | `action` | enum | 否 | `alwa` | 解码规则：`alwa`、`argmax` 或 `weighted` |
-| `params.pitch_unit` | `action` | enum | 否 | `hz` | 音高值的单位 —— `hz`（频率）或 `semitone`（距 MIDI 0 的分数半音距离） |
 | `params.num_chunks` | `action` | int | 否 | `1` | 分割 CQT 帧以限制 GPU 内存（torch 后端，仅非流式） |
-| `return_activations` | `action` | boolean | 否 | `false` | 包含音高 bin 上的逐帧激活分布 |
 
 组件级字段（加载一次，而非每个请求）：
 
@@ -139,7 +139,7 @@ graph TD
 
 工作流输出是一个 JSON 对象。确切形状取决于 `streaming`：
 
-**非流式 (`streaming: false`)** —— 携带帧列表的单个 `PitchContour`：
+**非流式 (`streaming: false`)** —— 携带帧列表的单个音高轮廓对象：
 
 ```json
 {
@@ -237,7 +237,7 @@ component:
 注意：
 - ONNX 后端始终是分块的；组件级 `streaming` 为必需。
 - `sample_rate` 和 `streaming.chunk_size` 必须与导出时使用的值匹配。
-- 非流式动作请求（`streaming: false`）在 ONNX 后端上仍然有效 —— 帧在内部收集并作为单个 `PitchContour` 返回。
+- 非流式动作请求（`streaming: false`）在 ONNX 后端上仍然有效 —— 帧在内部收集并作为单个音高轮廓对象返回。
 
 ## 故障排除
 

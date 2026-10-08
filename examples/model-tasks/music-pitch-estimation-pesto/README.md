@@ -114,12 +114,12 @@ Fields the `pesto` family accepts on its action.
 | Parameter | Location | Type | Required | Default | Description |
 |-----------|----------|------|----------|---------|-------------|
 | `audio` | `action` | audio | Yes | - | Input recording (MP3, WAV, FLAC, etc.) |
+| `pitch_unit` | `action` | enum | No | `hz` | Unit for the pitch value — `hz` (frequency) or `semitone` (fractional MIDI distance from MIDI 0) |
 | `return_metadata` | `action` | boolean | No | `true` | Whether processing metadata (`sample_rate`, `frame_rate`, `duration`) is included in the result |
+| `return_activations` | `action` | boolean | No | `false` | Include per-frame activation distribution over pitch bins |
 | `streaming` | `action` | boolean | No | `false` | Emit per-frame events incrementally; requires `streaming` on the component or `backend: onnx` |
 | `params.reduction` | `action` | enum | No | `alwa` | Decoding rule: `alwa`, `argmax`, or `weighted` |
-| `params.pitch_unit` | `action` | enum | No | `hz` | Unit for the pitch value — `hz` (frequency) or `semitone` (fractional MIDI distance from MIDI 0) |
 | `params.num_chunks` | `action` | int | No | `1` | Split CQT frames to limit GPU memory (torch backend, non-streaming only) |
-| `return_activations` | `action` | boolean | No | `false` | Include per-frame activation distribution over pitch bins |
 
 Component-level fields (loaded once, not per request):
 
@@ -139,7 +139,7 @@ Component-level fields (loaded once, not per request):
 
 The workflow output is a JSON object. The exact shape depends on `streaming`:
 
-**Non-streaming (`streaming: false`)** — a single `PitchContour` carrying a list of frames:
+**Non-streaming (`streaming: false`)** — a single pitch contour object carrying a list of frames:
 
 ```json
 {
@@ -237,7 +237,7 @@ component:
 Notes:
 - The ONNX backend is always chunked; `streaming` is required at the component level.
 - `sample_rate` and `streaming.chunk_size` must match the values used during export.
-- Non-streaming action requests (`streaming: false`) still work on the ONNX backend — frames are collected internally and returned as a single `PitchContour`.
+- Non-streaming action requests (`streaming: false`) still work on the ONNX backend — frames are collected internally and returned as a single pitch contour object.
 
 ## Troubleshooting
 

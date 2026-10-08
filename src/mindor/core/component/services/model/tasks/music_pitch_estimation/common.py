@@ -73,15 +73,15 @@ class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         reduction          = await context.render_variable(self.config.params.reduction)
-        pitch_unit         = await context.render_variable(self.config.params.pitch_unit)
         num_chunks         = await context.render_scalar(self.config.params.num_chunks, int)
+        pitch_unit         = await context.render_variable(self.config.pitch_unit)
         return_activations = await context.render_scalar(self.config.return_activations, bool)
         return_metadata    = await context.render_scalar(self.config.return_metadata, bool)
 
         return {
             "reduction":          reduction,
-            "pitch_unit":         pitch_unit,
             "num_chunks":         num_chunks or 1,
+            "pitch_unit":         pitch_unit,
             "return_activations": return_activations,
             "return_metadata":    return_metadata,
         }

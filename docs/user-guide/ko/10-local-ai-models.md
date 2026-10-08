@@ -1854,9 +1854,9 @@ component:
   model: mir-1k_g7
   action:
     audio: ${input.audio as audio}
+    pitch_unit: hz
     params:
       reduction: alwa
-      pitch_unit: hz
 ```
 
 긴 녹음이나 라이브 입력의 경우 청크 스트리밍을 활성화하여 프레임별 이벤트를 점진적으로 방출할 수 있습니다:
@@ -1883,7 +1883,7 @@ component:
 |--------|--------|------|
 | `pesto` | Sony CSL PESTO (ISMIR 2023) | 자기지도 학습 기반 전조 등변(transposition-equivariant) 피치 추정기. `torch`(기본)와 `onnx` 백엔드를 지원; ONNX는 PESTO 저장소의 `python -m realtime.export_onnx`로 사전 익스포트한 그래프가 필요 |
 
-액션은 입력마다 `frames` 리스트를 담은 `PitchContour` 딕셔너리를 반환합니다. 각 프레임은 `time`(초, 홉 정렬), `pitch`(`pitch_unit: hz`일 때 Hz, `pitch_unit: semitone`일 때 분수 MIDI 세미톤), `confidence`(유성 프레임 확률, [0, 1]), `volume`(프레임 에너지, 선형 스케일)을 포함합니다. `return_metadata: true`이면 `sample_rate`, `frame_rate`, `duration`도 함께 반환됩니다. 스트리밍 모드에서는 응답이 타입이 지정된 이벤트의 청크 스트림으로 전달됩니다 — 각 청크는 `type` 필드를 포함하며, `type: "frame"` 이벤트는 위의 프레임별 필드를 담고, `return_metadata: true`일 때 스트림 끝에 단일 `type: "metadata"` 이벤트가 `sample_rate`, `frame_rate`, `duration`, `frame_count`를 담아 방출됩니다.
+액션은 입력마다 `frames` 리스트를 담은 피치 컨투어 딕셔너리를 반환합니다. 각 프레임은 `time`(초, 홉 정렬), `pitch`(`pitch_unit: hz`일 때 Hz, `pitch_unit: semitone`일 때 분수 MIDI 세미톤), `confidence`(유성 프레임 확률, [0, 1]), `volume`(프레임 에너지, 선형 스케일)을 포함합니다. `return_metadata: true`이면 `sample_rate`, `frame_rate`, `duration`도 함께 반환됩니다. 스트리밍 모드에서는 응답이 타입이 지정된 이벤트의 청크 스트림으로 전달됩니다 — 각 청크는 `type` 필드를 포함하며, `type: "frame"` 이벤트는 위의 프레임별 필드를 담고, `return_metadata: true`일 때 스트림 끝에 단일 `type: "metadata"` 이벤트가 `sample_rate`, `frame_rate`, `duration`, `frame_count`를 담아 방출됩니다.
 
 PESTO는 단성 추정기입니다 — 코드와 밀집 믹스에서 신뢰도가 붕괴됩니다. 다성 입력의 경우 먼저 `music-source-separation` 컴포넌트로 단성 스템을 분리하세요.
 

@@ -114,12 +114,12 @@ graph TD
 | 매개변수 | 위치 | 유형 | 필수 | 기본값 | 설명 |
 |-----------|----------|------|----------|---------|-------------|
 | `audio` | `action` | audio | 예 | - | 입력 녹음 (MP3, WAV, FLAC 등) |
+| `pitch_unit` | `action` | enum | 아니오 | `hz` | 피치 값의 단위 — `hz` (주파수) 또는 `semitone` (MIDI 0 기준 분수 세미톤 거리) |
 | `return_metadata` | `action` | boolean | 아니오 | `true` | 처리 메타데이터(`sample_rate`, `frame_rate`, `duration`)를 결과에 포함할지 여부 |
+| `return_activations` | `action` | boolean | 아니오 | `false` | 피치 빈에 대한 프레임별 활성화 분포 포함 여부 |
 | `streaming` | `action` | boolean | 아니오 | `false` | 프레임별 이벤트를 점진적으로 방출; 컴포넌트의 `streaming` 또는 `backend: onnx` 필요 |
 | `params.reduction` | `action` | enum | 아니오 | `alwa` | 디코딩 규칙: `alwa`, `argmax`, 또는 `weighted` |
-| `params.pitch_unit` | `action` | enum | 아니오 | `hz` | 피치 값의 단위 — `hz` (주파수) 또는 `semitone` (MIDI 0 기준 분수 세미톤 거리) |
 | `params.num_chunks` | `action` | int | 아니오 | `1` | GPU 메모리를 제한하기 위해 CQT 프레임을 분할 (torch 백엔드, 비스트리밍 전용) |
-| `return_activations` | `action` | boolean | 아니오 | `false` | 피치 빈에 대한 프레임별 활성화 분포 포함 여부 |
 
 컴포넌트 수준 필드 (요청별이 아닌 한 번만 로드):
 
@@ -139,7 +139,7 @@ graph TD
 
 워크플로우 출력은 JSON 객체입니다. 정확한 형태는 `streaming`에 따라 다릅니다:
 
-**비스트리밍 (`streaming: false`)** — 프레임 목록을 담은 단일 `PitchContour`:
+**비스트리밍 (`streaming: false`)** — 프레임 목록을 담은 단일 피치 컨투어 객체:
 
 ```json
 {
@@ -237,7 +237,7 @@ component:
 참고:
 - ONNX 백엔드는 항상 청크 기반입니다; 컴포넌트 수준에서 `streaming`이 필수입니다.
 - `sample_rate`와 `streaming.chunk_size`는 익스포트 시 사용된 값과 일치해야 합니다.
-- 비스트리밍 액션 요청(`streaming: false`)도 ONNX 백엔드에서 작동합니다 — 프레임이 내부적으로 수집되어 단일 `PitchContour`로 반환됩니다.
+- 비스트리밍 액션 요청(`streaming: false`)도 ONNX 백엔드에서 작동합니다 — 프레임이 내부적으로 수집되어 단일 피치 컨투어 객체로 반환됩니다.
 
 ## 문제 해결
 

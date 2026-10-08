@@ -1,0 +1,52 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Music Pitch Estimation
+  description: Estimate the fundamental frequency contour of a monophonic recording using a local PESTO model.
+  job:
+    input: ${input}
+    output: ${output as json}
+
+component:
+  type: model
+  task: music-pitch-estimation
+  driver: custom
+  family: pesto
+  # Backend selection: `torch` (default) runs the pesto-pitch package; `onnx`
+  # runs a sidecar onnxruntime session exported via `python -m realtime.export_onnx`.
+  backend: torch
+  device: auto   # CPU works; CUDA/MPS accelerate longer recordings
+  # Bundled PESTO weights resolved by pesto.load_model. `mir-1k_g7` is the
+  # default checkpoint trained on MIR-1K; you can also point `model` at a
+  # local .ckpt path.
+  model: mir-1k_g7
+  # Hop between CQT frames in milliseconds. Smaller = finer time resolution,
+  # higher CPU/GPU cost. Omit for the 10 ms default.
+  # step_size: 10.0
+  # Half-precision inference — noticeably faster on CUDA, minor accuracy hit.
+  # precision: float16
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    return_metadata: ${input.return_metadata as boolean | true}
+    params:
+      # Decoding rule converting activations to pitch.
+      # - alwa    : argmax-local weighted averaging (PESTO default)
+      # - argmax  : hard argmax over bins
+      # - weighted: weighted average over all bins
+      reduction: alwa
+      # Unit for the pitch value: 'hz' (frequency) or 'semitone' (fractional MIDI distance).
+      pitch_unit: ${input.pitch_unit | hz}
+      # Split CQT frames into N sequential chunks to cap GPU memory on long
+      # files. Ignored when the component uses streaming or the onnx backend.
+      num_chunks: 1
+      # Include per-frame activation distributions in the result. Off by
+      # default; the vectors are large (~128 bins per frame).
+      return_activations: false

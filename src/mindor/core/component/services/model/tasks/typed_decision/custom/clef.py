@@ -109,7 +109,7 @@ class ClefTypedDecisionTaskDriver(ModelTaskDriver):
         # Clef ships the `joint_schema_model` module inside its HF repo (no pip package),
         # so we only need the runtime deps the module imports.
         return [
-            *torch_requirements("torch>=2.11"),
+            *torch_requirements("torch>=2.11", "torchvision"),
             "transformers>=5.10.2",
             "accelerate",
             "huggingface_hub",

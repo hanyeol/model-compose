@@ -4,4 +4,5 @@ from .impl import *
 DocumentLoaderActionConfig = Union[
     DoclingDocumentLoaderActionConfig,
     PypdfDocumentLoaderActionConfig,
+    PymupdfDocumentLoaderActionConfig,
 ]

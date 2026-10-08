@@ -7,10 +7,9 @@ from mindor.dsl.schema.action import ImageTo3DModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
-class ImageTo3DTaskAction(ComponentAction):
+class ImageTo3DTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageTo3DModelActionConfig):
         self.config: ImageTo3DModelActionConfig = config
 

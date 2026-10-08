@@ -10,14 +10,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class MusicEmbedding(AtomicList):
     def __log__(self) -> str:
         return f"<MusicEmbedding dim={len(self)}>"
 
-class MusicEmbeddingTaskAction(ComponentAction):
+class MusicEmbeddingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: MusicEmbeddingModelActionConfig):
         self.config: MusicEmbeddingModelActionConfig = config
 

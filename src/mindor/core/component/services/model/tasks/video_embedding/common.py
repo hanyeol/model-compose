@@ -10,14 +10,13 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class VideoEmbedding(AtomicList):
     def __log__(self) -> str:
         return f"<VideoEmbedding dim={len(self)}>"
 
-class VideoEmbeddingTaskAction(ComponentAction):
+class VideoEmbeddingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: VideoEmbeddingModelActionConfig):
         self.config: VideoEmbeddingModelActionConfig = config
 

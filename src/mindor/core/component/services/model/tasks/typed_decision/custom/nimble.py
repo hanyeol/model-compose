@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Union, Dict, List, Any
-from mindor.dsl.schema.component import NimbleTypedDecisionModelComponentConfig
+from mindor.dsl.schema.component import NimbleTypedDecisionModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
@@ -124,8 +124,14 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         self.scorer = None
 
     async def _merge_adapter(self, adapter_path: str, base_path: str) -> str:
+        import torch
+
+        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else torch.bfloat16
+        # Cache per dtype so switching precision doesn't silently reuse a merge
+        # saved under a different one.
         merged_root = os.path.join(self._get_model_cache_dir(), "nimble-merged")
-        merged_path = os.path.join(merged_root, os.path.basename(adapter_path.rstrip(os.sep)))
+        adapter_name = os.path.basename(adapter_path.rstrip(os.sep))
+        merged_path = os.path.join(merged_root, f"{adapter_name}-{str(dtype).replace('torch.', '')}")
 
         if os.path.isdir(merged_path) and os.path.isfile(os.path.join(merged_path, "config.json")):
             return merged_path
@@ -133,13 +139,12 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         def _merge() -> str:
             from transformers import AutoTokenizer, Qwen3_5ForConditionalGeneration
             from peft import PeftModel
-            import torch
 
             os.makedirs(os.path.dirname(merged_path), exist_ok=True)
 
             base_model = Qwen3_5ForConditionalGeneration.from_pretrained(
                 base_path,
-                dtype=torch.bfloat16,
+                dtype=dtype,
                 device_map="cpu",
             )
             adapter = PeftModel.from_pretrained(base_model, adapter_path)

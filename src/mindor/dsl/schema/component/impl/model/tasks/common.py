@@ -73,10 +73,11 @@ class ModelFormat(str, Enum):
     TENSORRT    = "tensorrt"
 
 class ModelPrecision(str, Enum):
-    AUTO     = "auto"
-    FLOAT32  = "float32"
-    FLOAT16  = "float16"
-    BFLOAT16 = "bfloat16"
+    FLOAT32      = "float32"
+    FLOAT16      = "float16"
+    BFLOAT16     = "bfloat16"
+    FLOAT8_E4M3  = "float8_e4m3"
+    FLOAT8_E5M2  = "float8_e5m2"
 
 class ModelQuantizationType(str, Enum):
     INT8 = "int8"
@@ -275,6 +276,22 @@ class CommonModelComponentConfig(CommonComponentConfig):
         if isinstance(quantization, str):
             values["quantization"] = { "type": quantization }
         return values
+
+    @field_validator("precision")
+    def validate_precision(cls, value: Optional[ModelPrecision]) -> Optional[ModelPrecision]:
+        if value is None or cls.is_supported_precision(value):
+            return value
+        raise ValueError(f"{cls.__name__} does not support precision={value.value!r}")
+
+    @classmethod
+    def is_supported_precision(cls, precision: ModelPrecision) -> bool:
+        """Whether this driver's load/inference path can honor a given precision.
+
+        Default accepts every enum value; override in a subclass to narrow the
+        set when the underlying library/backend can't honor a given dtype
+        (e.g. ONNX drivers that only accept AUTO).
+        """
+        return True
 
 class LanguageModelComponentConfig(CommonModelComponentConfig):
     fast_tokenizer: Union[bool, str] = Field(default=True, description="Whether to use the fast Rust-backed tokenizer when available.")

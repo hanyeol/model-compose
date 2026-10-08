@@ -32,8 +32,9 @@ class Mdx23cMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         model: Any,
         instruments: List[str],
         device: Optional[torch.device],
+        precision: Optional[Any] = None,
     ):
-        super().__init__(config, device)
+        super().__init__(config, device, precision)
 
         self.model: Any = model
         self.instruments: List[str] = instruments
@@ -125,7 +126,8 @@ class Mdx23cMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         weight = torch.zeros(padded_length, dtype=torch.float32)
 
         start = 0
-        with torch.no_grad():
+
+        with torch.no_grad(), self._autocast_context(self.device, self.precision):
             while start + chunk_size <= padded_length:
                 chunk = padded[:, start : start + chunk_size].unsqueeze(0)  # (1, C, T)
 
@@ -133,7 +135,10 @@ class Mdx23cMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
                     chunk = chunk.to(self.device)
 
                 estimate = self.model(chunk)  # (1, num_instruments, C, T)
-                estimate = estimate.squeeze(0).cpu()
+                # autocast may hand back a reduced-precision tensor; cast back
+                # before overlap-add so the float32 output accumulator stays
+                # consistent.
+                estimate = estimate.squeeze(0).float().cpu()
 
                 output[..., start : start + chunk_size] += estimate * window
                 weight[start : start + chunk_size] += window
@@ -266,4 +271,5 @@ class Mdx23cMusicSourceSeparationTaskDriver(ModelTaskDriver):
             self.model,
             self.instruments,
             self.device,
+            self.config.precision,
         ).run(context)

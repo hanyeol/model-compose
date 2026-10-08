@@ -7,11 +7,10 @@ from mindor.dsl.schema.action import ImageSegmentationModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
-class ImageSegmentationTaskAction(ComponentAction):
+class ImageSegmentationTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageSegmentationModelActionConfig):
         self.config: ImageSegmentationModelActionConfig = config
 

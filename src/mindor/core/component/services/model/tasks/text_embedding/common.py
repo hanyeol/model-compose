@@ -9,14 +9,13 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class TextEmbedding(AtomicList):
     def __log__(self) -> str:
         return f"<TextEmbedding dim={len(self)}>"
 
-class TextEmbeddingTaskAction(ComponentAction):
+class TextEmbeddingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: TextEmbeddingModelActionConfig):
         self.config: TextEmbeddingModelActionConfig = config
 

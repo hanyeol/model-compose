@@ -10,8 +10,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.image import compose_with_alpha, has_alpha
 from mindor.core.logger import logging
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -22,7 +21,7 @@ _RESAMPLE_MAP = {
     "lanczos": PILImage.Resampling.LANCZOS,
 }
 
-class ImageUpscalingTaskAction(ComponentAction):
+class ImageUpscalingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageUpscalingModelActionConfig, device: Optional[torch.device]):
         self.config: ImageUpscalingModelActionConfig = config
         self.device: Optional[torch.device] = device

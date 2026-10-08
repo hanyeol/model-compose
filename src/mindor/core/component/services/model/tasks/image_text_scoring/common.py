@@ -11,8 +11,7 @@ from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class ImageTextScore(AtomicDict):
@@ -22,7 +21,7 @@ class ImageTextScore(AtomicDict):
             return f"<ImageTextScore pairs={len(cosine)}>"
         return f"<ImageTextScore cosine={cosine:.4f}>"
 
-class ImageTextScoringTaskAction(ComponentAction):
+class ImageTextScoringTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageTextScoringModelActionConfig):
         self.config: ImageTextScoringModelActionConfig = config
 

@@ -375,10 +375,8 @@ class VibeVoiceSpeechToTextTaskDriver(ModelTaskDriver):
     def _resolve_torch_dtype(self, device: torch.device) -> torch.dtype:
         import torch
 
-        precision = self.config.precision
-
-        if precision is not None and precision != ModelPrecision.AUTO:
-            return getattr(torch, precision.value)
+        if self.config.precision is not None:
+            return getattr(torch, self.config.precision.value)
 
         # VibeVoice ships and is validated at bfloat16 on CUDA. On MPS,
         # bfloat16 support is uneven but float16 halves memory vs float32

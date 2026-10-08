@@ -10,8 +10,7 @@ from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -21,7 +20,7 @@ class FaceEmbedding(AtomicList):
     def __log__(self) -> str:
         return f"<FaceEmbedding dim={len(self)}>"
 
-class FaceEmbeddingTaskAction(ComponentAction):
+class FaceEmbeddingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: FaceEmbeddingModelActionConfig, device: Optional[torch.device]):
         self.config: FaceEmbeddingModelActionConfig = config
         self.device: Optional[torch.device] = device

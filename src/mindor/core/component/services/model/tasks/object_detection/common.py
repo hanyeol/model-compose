@@ -7,11 +7,10 @@ from mindor.dsl.schema.action import ObjectDetectionModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
-class ObjectDetectionTaskAction(ComponentAction):
+class ObjectDetectionTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ObjectDetectionModelActionConfig):
         self.config: ObjectDetectionModelActionConfig = config
 

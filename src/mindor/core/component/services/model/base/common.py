@@ -3,19 +3,47 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Mapping, Any
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType, ModelConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType, ModelConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation import AsyncService
 from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
+from ....action.base import ComponentAction
 from ....context import ComponentActionContext
 from ..utils.provision import ModelProvisioner
 from ..utils.device import DeviceResolver
 import asyncio
 
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
     import torch
+
+class ModelTaskComponentAction(ComponentAction):
+    def _autocast_context(
+        self,
+        device: Optional[torch.device],
+        precision: Optional[ModelPrecision],
+    ) -> AbstractContextManager:
+        """``torch.autocast`` for float16/bfloat16; no-op otherwise.
+
+        Model weights stay in float32 so fp16-unsafe paths (STFT/FFT, certain
+        conv kernels) remain intact; only autocast-eligible ops run reduced.
+        Narrows to cuda — mps and cpu autocast are not uniformly validated
+        across the custom checkpoints we wrap.
+        """
+        from contextlib import nullcontext
+        import torch
+
+        if precision not in (ModelPrecision.FLOAT16, ModelPrecision.BFLOAT16):
+            return nullcontext()
+
+        if device is None or device.type != "cuda":
+            return nullcontext()
+
+        dtype = torch.float16 if precision == ModelPrecision.FLOAT16 else torch.bfloat16
+
+        return torch.autocast(device_type="cuda", dtype=dtype)
 
 class ModelTaskDriver(ComponentDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -89,6 +117,18 @@ class ModelTaskDriver(ComponentDriver):
 
     def _resolve_device(self, device: str) -> torch.device:
         return self._device_resolver.resolve(device)
+
+    def _resolve_torch_dtype(self, precision: ModelPrecision) -> torch.dtype:
+        """Map ``precision`` to ``torch.dtype`` for drivers that apply dtype directly."""
+        import torch
+
+        if precision == ModelPrecision.FLOAT8_E4M3:
+            return getattr(torch, "float8_e4m3fn", None) or getattr(torch, "float8_e4m3")
+
+        if precision == ModelPrecision.FLOAT8_E5M2:
+            return getattr(torch, "float8_e5m2")
+
+        return getattr(torch, precision.value)
 
     def _load_model_checkpoint(self, model: torch.nn.Module, model_path: str) -> None:
         import torch

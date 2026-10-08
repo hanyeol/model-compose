@@ -10,8 +10,7 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 if TYPE_CHECKING:
     import torch
@@ -20,7 +19,7 @@ class MusicTranscriptNotes(AtomicList):
     def __log__(self) -> str:
         return f"<MusicTranscriptNotes count={len(self)}>"
 
-class MusicTranscriptionTaskAction(ComponentAction):
+class MusicTranscriptionTaskAction(ModelTaskComponentAction):
     def __init__(self, config: CommonMusicTranscriptionModelActionConfig, device: Optional[torch.device]):
         self.config: CommonMusicTranscriptionModelActionConfig = config
         self.device: Optional[torch.device] = device

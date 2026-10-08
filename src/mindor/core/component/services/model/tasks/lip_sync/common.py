@@ -9,10 +9,9 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
-class LipSyncTaskAction(ComponentAction):
+class LipSyncTaskAction(ModelTaskComponentAction):
     def __init__(self, config: LipSyncModelActionConfig):
         self.config: LipSyncModelActionConfig = config
 

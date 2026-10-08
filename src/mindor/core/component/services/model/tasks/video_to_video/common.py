@@ -13,12 +13,11 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.component.action.media import MediaInputPathResolver
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.image import convert as convert_image
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 import os
 
-class VideoToVideoTaskAction(ComponentAction):
+class VideoToVideoTaskAction(ModelTaskComponentAction):
     def __init__(self, config: VideoToVideoModelActionConfig):
         self.config: VideoToVideoModelActionConfig = config
 

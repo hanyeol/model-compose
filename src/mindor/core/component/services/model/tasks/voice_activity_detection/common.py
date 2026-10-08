@@ -9,8 +9,7 @@ from mindor.core.foundation.streaming.iterators import StreamChunkIterator, Stre
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 if TYPE_CHECKING:
     import torch
@@ -96,7 +95,7 @@ class VoiceSegmenter:
 
         return (self.speech_start, audio_length, self.probs_in_segment)
 
-class VoiceActivityDetectionTaskAction(ComponentAction):
+class VoiceActivityDetectionTaskAction(ModelTaskComponentAction):
     def __init__(self, config: VoiceActivityDetectionModelActionConfig, device: Optional[torch.device]):
         self.config: VoiceActivityDetectionModelActionConfig = config
         self.device: Optional[torch.device] = device

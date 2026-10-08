@@ -8,14 +8,13 @@ from mindor.dsl.schema.action import ImageBackgroundRemovalModelActionConfig, Ba
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     import torch
 
-class ImageBackgroundRemovalTaskAction(ComponentAction):
+class ImageBackgroundRemovalTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageBackgroundRemovalModelActionConfig, device: Optional[torch.device]):
         self.config: ImageBackgroundRemovalModelActionConfig = config
         self.device: Optional[torch.device] = device

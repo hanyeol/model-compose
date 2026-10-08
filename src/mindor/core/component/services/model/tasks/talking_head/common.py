@@ -9,11 +9,10 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
-class TalkingHeadTaskAction(ComponentAction):
+class TalkingHeadTaskAction(ModelTaskComponentAction):
     def __init__(self, config: TalkingHeadModelActionConfig):
         self.config: TalkingHeadModelActionConfig = config
 

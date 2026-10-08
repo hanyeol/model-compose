@@ -9,11 +9,10 @@ from mindor.core.foundation.streaming.iterators import StreamChunkIterator, Stre
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
-class ImageTextToTextTaskAction(ComponentAction):
+class ImageTextToTextTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageTextToTextModelActionConfig):
         self.config: ImageTextToTextModelActionConfig = config
 

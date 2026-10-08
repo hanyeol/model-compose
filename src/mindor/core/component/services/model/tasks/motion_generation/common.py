@@ -6,8 +6,7 @@ from mindor.dsl.schema.action import CommonMotionGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class MotionClip(AtomicDict):
     # Generator-agnostic skeletal-motion container shared across motion-generation
@@ -25,7 +24,7 @@ class MotionClip(AtomicDict):
             f"frames={frames} joints={joint_count} frame_rate={self.get('frame_rate')}>"
         )
 
-class MotionGenerationTaskAction(ComponentAction):
+class MotionGenerationTaskAction(ModelTaskComponentAction):
     def __init__(self, config: CommonMotionGenerationModelActionConfig):
         self.config: CommonMotionGenerationModelActionConfig = config
 

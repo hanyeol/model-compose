@@ -8,10 +8,9 @@ from mindor.dsl.schema.action import TextToTextModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
-class TextToTextTaskAction(ComponentAction):
+class TextToTextTaskAction(ModelTaskComponentAction):
     def __init__(self, config: TextToTextModelActionConfig):
         self.config: TextToTextModelActionConfig = config
 

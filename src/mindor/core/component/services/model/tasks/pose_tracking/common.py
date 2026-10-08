@@ -9,10 +9,9 @@ from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
-class PoseTrackingTaskAction(ComponentAction):
+class PoseTrackingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: PoseTrackingModelActionConfig):
         self.config: PoseTrackingModelActionConfig = config
 

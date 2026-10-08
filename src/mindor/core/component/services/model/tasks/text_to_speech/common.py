@@ -9,13 +9,12 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 if TYPE_CHECKING:
     import torch
 
-class TextToSpeechTaskAction(ComponentAction):
+class TextToSpeechTaskAction(ModelTaskComponentAction):
     def __init__(self, config: TextToSpeechModelActionConfig, device: Optional[torch.device]):
         self.config: TextToSpeechModelActionConfig = config
         self.device: Optional[torch.device] = device

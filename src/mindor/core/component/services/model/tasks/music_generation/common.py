@@ -5,10 +5,9 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import CommonMusicGenerationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
-class MusicGenerationTaskAction(ComponentAction):
+class MusicGenerationTaskAction(ModelTaskComponentAction):
     def __init__(self, config: CommonMusicGenerationModelActionConfig):
         self.config: CommonMusicGenerationModelActionConfig = config
 

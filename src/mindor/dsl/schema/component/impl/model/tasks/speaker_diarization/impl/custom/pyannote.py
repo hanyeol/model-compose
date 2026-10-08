@@ -3,7 +3,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import SpeakerDiarizationModelActionConfig
 from ..common import CommonSpeakerDiarizationModelComponentConfig
 from .common import SpeakerDiarizationModelFamily
-from ....common import ModelDriverType, ModelConfig
+from ....common import ModelDriverType, ModelConfig, ModelPrecision
 
 _DEFAULT_REPOSITORY = "pyannote/speaker-diarization-3.1"
 
@@ -18,3 +18,10 @@ class PyannoteSpeakerDiarizationModelComponentConfig(CommonSpeakerDiarizationMod
         if values.get("model") is None:
             values["model"] = _DEFAULT_REPOSITORY
         return values
+
+    @classmethod
+    def is_supported_precision(cls, precision: ModelPrecision) -> bool:
+        # Pyannote Pipeline composes VAD + embedding + clustering, each with
+        # different fp16/bf16 safety profiles. Upstream exposes no dtype knob,
+        # so stay on fp32 and refuse other values.
+        return precision == ModelPrecision.FLOAT32

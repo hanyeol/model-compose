@@ -27,8 +27,9 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         sample_rate: int,
         sources: List[str],
         device: Optional[torch.device],
+        precision: Optional[Any] = None,
     ):
-        super().__init__(config, device)
+        super().__init__(config, device, precision)
 
         self.model: Any = model
         self.sample_rate: int = sample_rate
@@ -102,11 +103,11 @@ class DemucsMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         if params["shifts"] is not None:
             apply_params["shifts"] = params["shifts"]
 
-        with torch.no_grad():
+        with torch.no_grad(), self._autocast_context(self.device, self.precision):
             estimates = apply_model(self.model, tensor, **apply_params)
 
         # estimates shape: (batch=1, sources, channels, samples)
-        estimates = estimates.squeeze(0).cpu()
+        estimates = estimates.squeeze(0).float().cpu()
 
         stems = self._resolve_selected_stems(params["stems"])
         sample_rate = params["sample_rate"] or self.sample_rate
@@ -198,4 +199,5 @@ class DemucsMusicSourceSeparationTaskDriver(ModelTaskDriver):
             self.sample_rate,
             self.sources,
             self.device,
+            self.config.precision,
         ).run(context)

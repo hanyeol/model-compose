@@ -56,8 +56,9 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         stem_names: List[str],
         stft_hop_length: int,
         device: Optional[torch.device],
+        precision: Optional[Any] = None,
     ):
-        super().__init__(config, device)
+        super().__init__(config, device, precision)
 
         self.model: torch.nn.Module = model
         self.sample_rate: int = sample_rate
@@ -181,7 +182,7 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
 
         start = 0
 
-        with torch.no_grad():
+        with torch.no_grad(), self._autocast_context(self.device, self.precision):
             while start < padded_samples:
                 end = min(start + chunk_samples, padded_samples)
                 chunk = mix[:, :, start:end]
@@ -190,6 +191,10 @@ class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
                     chunk = torch.nn.functional.pad(chunk, (0, chunk_samples - chunk.shape[-1]))
 
                 estimate = self.model(chunk)
+
+                # autocast may yield reduced-precision tensors; cast back so the
+                # float32 output accumulator stays consistent.
+                estimate = estimate.float()
 
                 # Normalize output shape to (num_stems, channels, samples).
                 if estimate.dim() == 3:      # (batch, channels, samples), num_stems=1
@@ -428,4 +433,5 @@ class RoFormerMusicSourceSeparationTaskDriver(ModelTaskDriver):
             self._get_stem_names(),
             self.config.params.stft_hop_length,
             self.device,
+            self.config.precision,
         ).run(context)

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import WorldMirrorImageTo3DModelComponentConfig
+from mindor.dsl.schema.component import WorldMirrorImageTo3DModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, WorldMirrorImageTo3DModelActionConfig, WorldMirrorSkyMaskSource
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
@@ -336,7 +336,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
             return WorldMirrorPipeline.from_pretrained(
                 model_path,
                 subfolder=self.config.subfolder,
-                enable_bf16=bool(self.config.enable_bf16),
+                enable_bf16=(self.config.precision == ModelPrecision.BFLOAT16),
                 disable_heads=disable_heads,
             )
 

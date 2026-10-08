@@ -9,15 +9,14 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class ImageEmbedding(AtomicList):
     def __log__(self) -> str:
         return f"<ImageEmbedding dim={len(self)}>"
 
-class ImageEmbeddingTaskAction(ComponentAction):
+class ImageEmbeddingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageEmbeddingModelActionConfig):
         self.config: ImageEmbeddingModelActionConfig = config
 

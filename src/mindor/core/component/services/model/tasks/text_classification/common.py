@@ -8,10 +8,9 @@ from mindor.dsl.schema.action import TextClassificationModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
-class TextClassificationTaskAction(ComponentAction):
+class TextClassificationTaskAction(ModelTaskComponentAction):
     def __init__(self, config: TextClassificationModelActionConfig, labels: Optional[List[str]]):
         self.config: TextClassificationModelActionConfig = config
         self.labels: Optional[List[str]] = labels

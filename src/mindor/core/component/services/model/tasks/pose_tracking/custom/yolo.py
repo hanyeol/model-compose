@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Union, Dict, List, Tuple, Any
 from collections.abc import AsyncIterable, AsyncIterator
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.array import ArrayValue
@@ -25,11 +25,18 @@ if TYPE_CHECKING:
 class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     config: YoloPoseTrackingModelActionConfig
 
-    def __init__(self, config: YoloPoseTrackingModelActionConfig, model: YOLO, device: Optional[torch.device]):
+    def __init__(
+        self,
+        config: YoloPoseTrackingModelActionConfig,
+        model: YOLO,
+        device: Optional[torch.device],
+        half_precision: bool = False,
+    ):
         super().__init__(config)
 
         self.model: YOLO = model
         self.device: Optional[torch.device] = device
+        self.half_precision: bool = half_precision
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -318,6 +325,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             tracker=params["tracker"],
             persist=True,
             device=self.device,
+            half=self.half_precision,
             verbose=False,
         )
 
@@ -966,4 +974,9 @@ class YoloPoseTrackingTaskDriver(ModelTaskDriver):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await YoloPoseTrackingTaskAction(action, self.model, self.device).run(context)
+        return await YoloPoseTrackingTaskAction(
+            action,
+            self.model,
+            self.device,
+            bool(self.config.precision == ModelPrecision.FLOAT16)
+        ).run(context)

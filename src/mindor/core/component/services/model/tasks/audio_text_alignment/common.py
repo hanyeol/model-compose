@@ -9,13 +9,12 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 if TYPE_CHECKING:
     import torch
 
-class AudioTextAlignmentTaskAction(ComponentAction):
+class AudioTextAlignmentTaskAction(ModelTaskComponentAction):
     def __init__(self, config: AudioTextAlignmentModelActionConfig, device: Optional[torch.device]):
         self.config: AudioTextAlignmentModelActionConfig = config
         self.device: Optional[torch.device] = device

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Union, Dict, Optional, List, Tuple, Any
 from abc import abstractmethod
-from mindor.dsl.schema.component import CosyvoiceTextToSpeechModelComponentConfig
+from mindor.dsl.schema.component import CosyvoiceTextToSpeechModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import CommonTextToSpeechModelActionConfig
 from mindor.dsl.schema.action import CosyvoiceTextToSpeechModelGenerateActionConfig
@@ -302,7 +302,7 @@ class CosyvoiceTextToSpeechTaskDriver(ModelTaskDriver):
             load_jit  = self.config.load_jit  and is_cuda
             load_trt  = self.config.load_trt  and is_cuda
             load_vllm = self.config.load_vllm and is_cuda
-            fp16      = self.config.fp16      and is_cuda
+            fp16      = (self.config.precision == ModelPrecision.FLOAT16) and is_cuda
 
             # AutoModel returns CosyVoice / CosyVoice2 / CosyVoice3. Only v2/v3
             # accept load_vllm, so pass it conditionally by peeking at the yaml.

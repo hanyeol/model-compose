@@ -43,8 +43,12 @@ class PyannoteVoiceEmbeddingTaskAction(VoiceEmbeddingTaskAction):
 
             embeddings: List[VoiceEmbedding] = []
 
+            # Infer the model's current dtype from a parameter so inputs match
+            # whatever the loader cast the weights to.
+            model_dtype = next(self.inference.model.parameters()).dtype
+
             for waveform, sample_rate in waveforms:
-                tensor = torch.from_numpy(waveform).unsqueeze(0)
+                tensor = torch.from_numpy(waveform).unsqueeze(0).to(model_dtype)
 
                 if self.device is not None:
                     tensor = tensor.to(self.device)
@@ -96,6 +100,7 @@ class PyannoteVoiceEmbeddingTaskDriver(ModelTaskDriver):
 
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
+        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else None
 
         def _load() -> Any:
             token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None
@@ -106,6 +111,9 @@ class PyannoteVoiceEmbeddingTaskDriver(ModelTaskDriver):
                     f"Failed to load pyannote embedding model '{model_path}'. "
                     "Verify the HuggingFace token has access to the gated model."
                 )
+
+            if dtype is not None:
+                model.to(dtype)
 
             inference = Inference(model, window="whole")
             inference.to(device)

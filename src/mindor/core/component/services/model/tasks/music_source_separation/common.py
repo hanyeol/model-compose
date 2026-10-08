@@ -5,20 +5,26 @@ from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import MusicSourceSeparationModelActionConfig
+from mindor.dsl.schema.component import ModelPrecision
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 if TYPE_CHECKING:
     import torch
 
-class MusicSourceSeparationTaskAction(ComponentAction):
-    def __init__(self, config: MusicSourceSeparationModelActionConfig, device: Optional[torch.device]):
+class MusicSourceSeparationTaskAction(ModelTaskComponentAction):
+    def __init__(
+        self,
+        config: MusicSourceSeparationModelActionConfig,
+        device: Optional[torch.device],
+        precision: Optional[ModelPrecision] = None,
+    ):
         self.config: MusicSourceSeparationModelActionConfig = config
         self.device: Optional[torch.device] = device
+        self.precision: Optional[ModelPrecision] = precision
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

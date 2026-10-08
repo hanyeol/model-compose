@@ -192,12 +192,14 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         if default_dtype is not None:
             options["torch_dtype"] = default_dtype
 
-        if config.precision == ModelPrecision.AUTO:
-            # Match the checkpoint's native dtype; without this transformers
-            # silently upcasts to float32 and doubles the memory footprint.
-            options["torch_dtype"] = "auto"
-        elif config.precision is not None:
+        if config.precision is not None:
             options["torch_dtype"] = getattr(torch, config.precision.value)
+        elif isinstance(config, CommonModelComponentConfig) and "torch_dtype" not in options:
+            # Match the checkpoint's native dtype when loading the base model;
+            # without this transformers silently upcasts to float32 and doubles
+            # the memory footprint. PEFT adapter / VAE sub-configs skip this —
+            # they're layered onto an already-loaded base model.
+            options["torch_dtype"] = "auto"
 
         if config.low_cpu_mem_usage:
             options["low_cpu_mem_usage"] = True
@@ -253,8 +255,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
     def _get_model_dtype(self) -> Optional[torch.dtype]:
         import torch
 
-        # "auto" is a from_pretrained hint, not a real dtype — treat as unset.
-        if self.config.precision is not None and self.config.precision != ModelPrecision.AUTO:
+        if self.config.precision is not None:
             return getattr(torch, self.config.precision.value)
 
         return None

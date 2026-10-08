@@ -8,14 +8,13 @@ from mindor.dsl.schema.action import ImageGenerationModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     import torch
 
-class ImageGenerationGenerateTaskAction(ComponentAction):
+class ImageGenerationGenerateTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
         self.config: ImageGenerationModelActionConfig = config
         self.device: Optional[torch.device] = device
@@ -64,7 +63,7 @@ class ImageGenerationGenerateTaskAction(ComponentAction):
     ) -> List[PILImage.Image]:
         pass
 
-class ImageGenerationInpaintTaskAction(ComponentAction):
+class ImageGenerationInpaintTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
         self.config: ImageGenerationModelActionConfig = config
         self.device: Optional[torch.device] = device

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Dict, Optional, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, SampleidMusicEmbeddingModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, SampleidMusicEmbeddingModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, MusicEmbeddingModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
@@ -56,7 +56,9 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
                 for waveform in waveforms
             ])
 
-            x = torch.from_numpy(padded).float()
+            # Match whatever dtype the loader cast the weights to.
+            model_dtype = next(self.model.parameters()).dtype
+            x = torch.from_numpy(padded).to(model_dtype)
 
             if self.device is not None:
                 x = x.to(self.device)
@@ -64,7 +66,7 @@ class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
             with torch.inference_mode():
                 embeddings = self.model(x, audio=True)  # (B, 1, D)
 
-            embeddings = embeddings.squeeze(1)
+            embeddings = embeddings.squeeze(1).float()
 
             if params["normalize"]:
                 embeddings = F.normalize(embeddings, p=2, dim=-1, eps=1e-12)
@@ -116,6 +118,7 @@ class SampleidMusicEmbeddingTaskDriver(ModelTaskDriver):
         from sampleid import SampleID
 
         device = self._resolve_device(self.config.device)
+        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else None
 
         def _load() -> Tuple[SampleID, torch.device]:
             # sampleid.SampleID.load_checkpoint auto-downloads the Zenodo weights
@@ -128,6 +131,9 @@ class SampleidMusicEmbeddingTaskDriver(ModelTaskDriver):
                 checkpoint_path = None
 
             model = SampleID.load_checkpoint(ckpt_path=checkpoint_path, device=device)
+
+            if dtype is not None:
+                model.to(dtype)
 
             return model, device
 

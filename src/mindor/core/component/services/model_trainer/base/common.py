@@ -90,8 +90,7 @@ class ModelTrainerTaskAction(ComponentAction):
     def _get_model_dtype(self) -> Optional[torch.dtype]:
         import torch
 
-        # "auto" is a from_pretrained hint, not a real dtype — treat as unset.
-        if self.trainer_config.precision is not None and self.trainer_config.precision != ModelPrecision.AUTO:
+        if self.trainer_config.precision is not None:
             return getattr(torch, self.trainer_config.precision.value)
 
         return None

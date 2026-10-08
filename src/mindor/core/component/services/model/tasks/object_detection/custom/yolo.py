@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Optional, Dict, List, Any
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, YoloObjectDetectionModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import ObjectDetectionTaskAction
@@ -16,11 +16,18 @@ if TYPE_CHECKING:
     import torch
 
 class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
-    def __init__(self, config: YoloObjectDetectionModelActionConfig, model: YOLO, device: Optional[torch.device]):
+    def __init__(
+        self,
+        config: YoloObjectDetectionModelActionConfig,
+        model: YOLO,
+        device: Optional[torch.device],
+        half_precision: bool = False,
+    ):
         super().__init__(config)
 
         self.model: YOLO = model
         self.device: Optional[torch.device] = device
+        self.half_precision: bool = half_precision
 
     async def _detect_batch(
         self,
@@ -41,6 +48,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
                 agnostic_nms=params["agnostic_nms"],
                 classes=classes,
                 device=self.device,
+                half=self.half_precision,
                 verbose=False,
             )
 
@@ -143,4 +151,9 @@ class YoloObjectDetectionTaskDriver(ModelTaskDriver):
         self.device = None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await YoloObjectDetectionTaskAction(action, self.model, self.device).run(context)
+        return await YoloObjectDetectionTaskAction(
+            action,
+            self.model,
+            self.device,
+            bool(self.config.precision == ModelPrecision.FLOAT16)
+        ).run(context)

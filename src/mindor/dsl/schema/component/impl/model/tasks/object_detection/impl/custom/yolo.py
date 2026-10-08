@@ -3,7 +3,7 @@ from pydantic import Field, model_validator
 from mindor.dsl.schema.action import YoloObjectDetectionModelActionConfig
 from ..common import CommonObjectDetectionModelComponentConfig
 from .common import ObjectDetectionModelFamily
-from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig
+from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig, ModelPrecision
 from pathlib import PurePosixPath
 
 _ULTRALYTICS_RELEASE_BASEURL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
@@ -52,3 +52,8 @@ class YoloObjectDetectionModelComponentConfig(CommonObjectDetectionModelComponen
                 if url:
                     values["model"] = { "provider": "local", "url": url }
         return values
+
+    @classmethod
+    def is_supported_precision(cls, precision: ModelPrecision) -> bool:
+        # Ultralytics `predict(half=True)` only accepts fp16; bfloat16 and fp8 are not wired in.
+        return precision in (ModelPrecision.FLOAT32, ModelPrecision.FLOAT16)

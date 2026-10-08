@@ -10,14 +10,13 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.atomic import AtomicList
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
-from .....action.base import ComponentAction
-from ...base import ComponentActionContext
+from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class VoiceEmbedding(AtomicList):
     def __log__(self) -> str:
         return f"<VoiceEmbedding dim={len(self)}>"
 
-class VoiceEmbeddingTaskAction(ComponentAction):
+class VoiceEmbeddingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: VoiceEmbeddingModelActionConfig):
         self.config: VoiceEmbeddingModelActionConfig = config
 

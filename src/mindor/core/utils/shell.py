@@ -237,7 +237,17 @@ async def stream_subprocess(
 
         stdout_iterator = _drain_stdout()
 
-    async def _finalize() -> None:
+    async def _finalize(normal_exit: bool) -> None:
+        # On a normal exit the consumer read stdout to EOF, so the child has closed
+        # its stdout and is on its way out. Wait for it to reap its real returncode
+        # before falling back to kill — otherwise SIGKILL overwrites a clean exit
+        # with -9 (or 255 if the reap races the kill on Python 3.12's PidfdChildWatcher).
+        if normal_exit and process.returncode is None:
+            try:
+                await asyncio.wait_for(process.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                pass
+
         await kill_process(process, timeout=2.0)
 
         if stdin_feeder is not None:
@@ -255,27 +265,34 @@ async def stream_subprocess(
     try:
         yield process, stdout_iterator, stderr_task
     except BaseException:
-        await _finalize()
+        await _finalize(normal_exit=False)
         raise
     else:
-        await _finalize()
+        await _finalize(normal_exit=True)
 
         if feed_error is not None:
             raise feed_error
 
 async def kill_process(process: Process, timeout: Optional[float] = None) -> bool:
-    if process.returncode is None:
-        process.kill()
-        try:
-            if timeout is not None:
-                # Bounded wait: `process.wait()` can hang on some platforms if
-                # the child's pipes still hold buffered data even after SIGKILL.
-                # Callers on a cancellation path can opt in to a hard cap.
-                await asyncio.wait_for(process.wait(), timeout=timeout)
-            else:
-                await process.wait()
-        except (asyncio.TimeoutError, Exception):
-            pass
-        return True
-    else:
+    if process.returncode is not None:
         return False
+
+    try:
+        process.kill()
+    except ProcessLookupError:
+        # Child exited between our returncode check and the kill. `Popen.send_signal`
+        # calls `poll()` first and reaps it, so returncode is now set to the real exit
+        # status — nothing to do.
+        return False
+
+    try:
+        if timeout is not None:
+            # Bounded wait: `process.wait()` can hang on some platforms if
+            # the child's pipes still hold buffered data even after SIGKILL.
+            # Callers on a cancellation path can opt in to a hard cap.
+            await asyncio.wait_for(process.wait(), timeout=timeout)
+        else:
+            await process.wait()
+    except (asyncio.TimeoutError, Exception):
+        pass
+    return True

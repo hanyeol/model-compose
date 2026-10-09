@@ -1924,6 +1924,70 @@ jobs:
 
 Segments are sorted by `score` in descending order and truncated to `max_segment_count`. List and async-stream inputs behave the same way as face detection.
 
+### Image Generation
+
+Generate an image from a text prompt. `driver: huggingface` selects one of four architectures (`sdxl`, `flux`, `hunyuan-image`, `qwen-image`) backed by HuggingFace diffusers.
+
+**Component Settings (shared across huggingface architectures):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `image-generation` |
+| `driver` | string | **required** | Must be `huggingface` |
+| `architecture` | string | **required** | `sdxl`, `flux`, `hunyuan-image`, or `qwen-image` |
+| `model` | model | **required** | Base diffusion checkpoint (HuggingFace repo or local path) |
+| `vae` | model | `null` | VAE override. String shorthand (`vae: <repo>`) expands to `{ model: <repo> }` |
+| `cpu_offload` | string/array | `null` | CPU offload strategy: `model`/`sequential` for the whole pipeline, or a list of submodule names for selective offload |
+| `vae_tiling` | bool | `false` | Decode the VAE in tiles to reduce VRAM at the cost of possible seam artifacts |
+| `controlnet` | model/list | `null` | **sdxl / flux only.** ControlNet model(s) conditioning the pipeline. String shorthand (`controlnet: <repo>`) and single-dict forms expand to a one-entry list; use a list to stack multiple ControlNets. Each entry supports `model`, `precision`, `low_cpu_mem_usage`. SDXL loads `diffusers.ControlNetModel`; Flux loads `diffusers.FluxControlNetModel`. Configuring this on `hunyuan-image` / `qwen-image` raises an error at load time |
+
+**Action Fields (shared):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `method` | string | `generate` | `generate` or `inpaint` |
+| `prompt` | string/array | **required** | Text prompt(s) describing the image |
+| `width` | int | `1024` | Output image width in pixels |
+| `height` | int | `1024` | Output image height in pixels |
+| `num_return_images` | int | `1` | Images returned per prompt |
+| `seed` | int | `null` | Random seed |
+| `batch_size` | int | `1` | Prompts processed per batch |
+| `params.inference_steps` | int | `30` | Number of denoising steps |
+| `params.sigmas` | list[float] | `null` | Custom sigma schedule for distilled/accelerator LoRAs |
+| `image` | string/list | **required for inpaint** | Base image(s) for the `inpaint` method |
+| `mask_image` | string/list | **required for inpaint** | Mask image(s); white = inpaint, black = preserve |
+| `params.denoise_strength` | float | `1.0` | **inpaint only.** Noise strength applied before denoising |
+| `control_image` | string/list | `null` | ControlNet condition image(s); required when `controlnet` is set on the component. One entry per ControlNet, with lengths matching the configured count |
+| `controlnet_conditioning_scale` | float/list | `1.0` | Strength of each ControlNet's influence; scalar or per-ControlNet list |
+| `control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
+| `control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
+
+Each architecture extends `params` with its own knobs (`guidance_scale` for sdxl/flux, `max_sequence_length` for flux, `true_cfg_scale` for qwen-image, `distilled_guidance_scale` for hunyuan-image) and `negative_prompt` for architectures that support it. SDXL also exposes `image` on its `generate` variant for image-to-image flows.
+
+**ControlNet example (SDXL + multi-ControlNet):**
+
+```yaml
+component:
+  type: model
+  task: image-generation
+  driver: huggingface
+  architecture: sdxl
+  model: stabilityai/stable-diffusion-xl-base-1.0
+  controlnet:
+    - diffusers/controlnet-canny-sdxl-1.0
+    - diffusers/controlnet-depth-sdxl-1.0
+  action:
+    prompt: ${input.prompt as text}
+    control_image:
+      - ${input.canny as image}
+      - ${input.depth as image}
+    controlnet_conditioning_scale: [ 0.8, 0.5 ]
+    control_guidance_start: [ 0.0, 0.0 ]
+    control_guidance_end:   [ 1.0, 0.8 ]
+```
+
+When `controlnet` is set the driver swaps the pipeline for the matching `*ControlNetPipeline` (e.g. `StableDiffusionXLControlNetPipeline`, `FluxControlNetInpaintPipeline`); a single ControlNet loads a bare `ControlNetModel`, multiple ControlNets are wrapped as `MultiControlNetModel`. For `method: inpaint`, the base image goes through `image` / `mask_image` and ControlNet conditions through `control_image`.
+
 ### Text to Video
 
 Generate a short video clip from a text prompt. This task uses `driver: custom` with a `family` field to select the model family; `wan` additionally takes a `preset` field to select the checkpoint variant, and `minimax-h3` takes a `backend` field to select the attention backend.
@@ -2272,6 +2336,7 @@ Restyle the source clip with a text prompt while preserving its motion.
 | `model` | model | **required** | Base SD 1.5 style checkpoint (HuggingFace repo or local path); any SD 1.5 fine-tune works |
 | `motion_adapter` | model | **required** | AnimateDiff motion adapter matching the base architecture |
 | `ip_adapter` | model | `null` | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`) |
+| `controlnet` | model/list | `null` | ControlNet model(s) conditioning the pipeline. String shorthand (`controlnet: <repo>`) and single-dict forms expand to a one-entry list; use a list to stack multiple ControlNets. Each entry supports `model`, `precision`, `low_cpu_mem_usage` |
 
 **Action Fields (in addition to the common fields):**
 
@@ -2281,6 +2346,10 @@ Restyle the source clip with a text prompt while preserving its motion.
 | `params.guidance_scale` | float | `7.5` | Classifier-free guidance scale |
 | `params.denoise_strength` | float | `0.5` | Denoising strength — higher values follow the prompt more, lower values preserve the input video's appearance |
 | `params.ip_adapter_scale` | float | `0.6` | IP-Adapter influence when `reference_image` is supplied; ignored otherwise. `0` disables, `1` fully follows the reference |
+| `conditioning_frames` | string/list | `null` | ControlNet frame sequence(s); one reference per ControlNet configured on the component. Required whenever `controlnet` is set |
+| `controlnet_conditioning_scale` | float/list | `1.0` | Strength of each ControlNet's influence; scalar or per-ControlNet list |
+| `control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
+| `control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
 
 **Example:**
 
@@ -2311,6 +2380,32 @@ component:
       inference_steps: 25
       ip_adapter_scale: 0.6
 ```
+
+**ControlNet example (multi-ControlNet):**
+
+```yaml
+component:
+  type: model
+  task: video-to-video
+  driver: huggingface
+  architecture: animatediff
+  model: SG161222/Realistic_Vision_V5.1_noVAE
+  motion_adapter: guoyww/animatediff-motion-adapter-v1-5-3
+  controlnet:
+    - lllyasviel/sd-controlnet-openpose
+    - lllyasviel/sd-controlnet-depth
+  action:
+    video: ${input.video as video}
+    prompt: ${input.prompt}
+    conditioning_frames:
+      - ${input.pose_frames}
+      - ${input.depth_frames}
+    controlnet_conditioning_scale: [ 0.8, 0.5 ]
+    control_guidance_start: [ 0.0, 0.0 ]
+    control_guidance_end:   [ 1.0, 0.8 ]
+```
+
+When `controlnet` is set, the driver loads `diffusers.ControlNetModel` (wrapped in `MultiControlNetModel` when more than one is configured) and swaps the pipeline for `AnimateDiffVideoToVideoControlNetPipeline`. `conditioning_frames` length must equal the number of ControlNets. Combining ControlNet with IP-Adapter is supported — pass both `reference_image` and `conditioning_frames` in the same action.
 
 **Supported architectures:**
 

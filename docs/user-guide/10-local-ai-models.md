@@ -744,6 +744,44 @@ component:
 
 **VAE tiling:** the `huggingface` driver decodes the whole latent at once by default. If you run out of VRAM at high resolutions, set `vae_tiling: true` on the component to decode in tiles; this saves VRAM on smaller GPUs but can leave faint vertical or horizontal seams at tile boundaries.
 
+**ControlNet conditioning** (`huggingface` only, `sdxl` / `flux` architectures): attach one or more ControlNet models to the component to condition generation on structural references (pose, depth, canny, segmentation, …). Each ControlNet is loaded alongside the base pipeline, and at action time you supply one condition image per ControlNet via `control_image`. Count must match. SDXL uses `diffusers.ControlNetModel`; Flux uses `diffusers.FluxControlNetModel`.
+
+```yaml
+# Single ControlNet (SDXL + canny)
+component:
+  type: model
+  task: image-generation
+  architecture: sdxl
+  model: stabilityai/stable-diffusion-xl-base-1.0
+  controlnet: diffusers/controlnet-canny-sdxl-1.0  # shorthand for { model: ... }
+  action:
+    prompt: ${input.prompt as text}
+    control_image: ${input.canny as image}
+    controlnet_conditioning_scale: 0.8
+```
+
+```yaml
+# Multi-ControlNet (SDXL + canny + depth)
+component:
+  type: model
+  task: image-generation
+  architecture: sdxl
+  model: stabilityai/stable-diffusion-xl-base-1.0
+  controlnet:
+    - diffusers/controlnet-canny-sdxl-1.0
+    - diffusers/controlnet-depth-sdxl-1.0
+  action:
+    prompt: ${input.prompt as text}
+    control_image:
+      - ${input.canny as image}
+      - ${input.depth as image}
+    controlnet_conditioning_scale: [ 0.8, 0.5 ]
+    control_guidance_start: [ 0.0, 0.0 ]
+    control_guidance_end:   [ 1.0, 0.8 ]
+```
+
+The `method: inpaint` variant works the same way — the base image goes through `image` / `mask_image`, and ControlNet conditions through `control_image`. ControlNet is currently rejected for `hunyuan-image` and `qwen-image` architectures (diffusers lacks matching ControlNet pipelines there).
+
 ### 10.3.14 image-upscaling
 
 Enhances image resolution.
@@ -1533,6 +1571,50 @@ component:
 - `custom` → `wan` (`animate-14b`) — Wan2.2 Animate 14B. Requires CUDA.
 
 **AnimateDiff notes:** `num_frames`/`fps` are optional; when omitted, every input frame is consumed and the output inherits the source clip's native fps, so the result preserves the input's playback duration. AnimateDiff was trained on ~16-frame windows, so quality degrades on very long clips — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. When `reference_image` is supplied, the IP-Adapter transfers colors/textures/subject cues; keep `ip_adapter_scale` around `0.5-0.7`.
+
+**AnimateDiff ControlNet conditioning:** attach one or more ControlNet models to drive AnimateDiff with per-frame structural references (pose, depth, canny, …). The component loads `diffusers.ControlNetModel` instances alongside the base pipeline and swaps in `AnimateDiffVideoToVideoControlNetPipeline`. At action time, `conditioning_frames` takes one frame-sequence reference per ControlNet (same frame count as the input clip after sampling). Count must match the number of ControlNets configured on the component.
+
+```yaml
+# AnimateDiff + single ControlNet (openpose)
+component:
+  type: model
+  task: video-to-video
+  driver: huggingface
+  architecture: animatediff
+  model: SG161222/Realistic_Vision_V5.1_noVAE
+  motion_adapter: guoyww/animatediff-motion-adapter-v1-5-3
+  controlnet: lllyasviel/sd-controlnet-openpose  # shorthand for { model: ... }
+  action:
+    video: ${input.video as video}
+    prompt: ${input.prompt}
+    conditioning_frames: ${input.pose_frames}  # ImageArray — one frame per input video frame
+    controlnet_conditioning_scale: 0.8
+```
+
+```yaml
+# AnimateDiff + multi-ControlNet (openpose + depth)
+component:
+  type: model
+  task: video-to-video
+  driver: huggingface
+  architecture: animatediff
+  model: SG161222/Realistic_Vision_V5.1_noVAE
+  motion_adapter: guoyww/animatediff-motion-adapter-v1-5-3
+  controlnet:
+    - lllyasviel/sd-controlnet-openpose
+    - lllyasviel/sd-controlnet-depth
+  action:
+    video: ${input.video as video}
+    prompt: ${input.prompt}
+    conditioning_frames:
+      - ${input.pose_frames}
+      - ${input.depth_frames}
+    controlnet_conditioning_scale: [ 0.8, 0.5 ]
+    control_guidance_start: [ 0.0, 0.0 ]
+    control_guidance_end:   [ 1.0, 0.8 ]
+```
+
+ControlNet can be combined with the IP-Adapter — supply both `reference_image` and `conditioning_frames` in the same action.
 
 **Wan-Animate notes:** `reference_image` is required — it is the target character animated to match the driving clip. The driver runs the Wan preprocessing pipeline (pose extraction, person detection, and — optionally — SAM2 for character replacement and FLUX.1-Kontext for pose retargeting) before the main generation step, so the corresponding checkpoints must be declared on the component. Set `params.replace_flag: true` for character replacement (requires `sam2_model`) or `params.use_flux: true` (with `params.retarget_flag: true`) for editing-based retargeting (requires `flux_kontext_model`). `cpu_offload: true` reduces peak VRAM at the cost of throughput.
 

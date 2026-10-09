@@ -274,7 +274,7 @@ component:
 
 - The ffmpeg driver currently spools streaming inputs to a temporary file before publishing, so live sources incur an upfront buffering step rather than pure realtime pass-through.
 - The action returns `None`; use `depends_on` to sequence downstream jobs on completion rather than reading an output value.
-- Errors from ffmpeg (network failures, rejected stream keys, codec issues) surface as a `RuntimeError` containing the ffmpeg stderr output and its exit code.
+- Errors from ffmpeg (network failures, rejected stream keys, codec issues) surface as a `RuntimeError` with the exit code and the last 20 lines of ffmpeg's stderr. The stream key, query string and password of the URL are masked there and in the logs (`rtmp://a.rtmp.youtube.com/live2/<redacted>`).
 
 ## Supported Endpoints
 

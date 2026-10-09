@@ -81,12 +81,14 @@ class VllmModelTaskDriver(ModelTaskDriver):
 
         try:
             import gc
+
             gc.collect()
         except Exception:
             pass
 
         try:
             import torch
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         except Exception:

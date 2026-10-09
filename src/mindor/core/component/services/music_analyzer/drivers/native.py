@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 # Number of decimals kept in emitted time/BPM/level values. Anything finer than
 # 3 decimals (1ms / 0.001) is below librosa's frame-grid precision at the
 # default hop, so trimming here keeps output stable without losing information.
-_OUTPUT_DECIMALS = 3
+_RESULT_DECIMALS = 3
 
 # Default STFT hop for frame-based features. Matches librosa's own default
 # across beat/onset/spectral APIs so consumers get a consistent time grid.
@@ -73,9 +73,9 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             beat_times = librosa.frames_to_time(beat_frames, sr=sample_rate, hop_length=hop_length)
 
             return MusicBeats({
-                "bpm":        round(float(np.atleast_1d(tempo_bpm)[0]), _OUTPUT_DECIMALS),
+                "bpm":        round(float(np.atleast_1d(tempo_bpm)[0]), _RESULT_DECIMALS),
                 "confidence": self._autocorrelation_confidence(envelope, sample_rate, hop_length, params),
-                "beats":      [ { "time": round(float(t), _OUTPUT_DECIMALS) } for t in beat_times ],
+                "beats":      [ { "time": round(float(t), _RESULT_DECIMALS) } for t in beat_times ],
             })
 
         return await self._run_in_executor(_analyze)
@@ -115,8 +115,8 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             return MusicOnsets({
                 "onsets": [
                     {
-                        "time":     round(float(t), _OUTPUT_DECIMALS),
-                        "strength": round(float(s), _OUTPUT_DECIMALS),
+                        "time":     round(float(t), _RESULT_DECIMALS),
+                        "strength": round(float(s), _RESULT_DECIMALS),
                     }
                     for t, s in zip(times, strengths)
                 ],
@@ -155,9 +155,9 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             frame_rate = sample_rate / hop_length
 
             return MusicTempogram({
-                "frames":      [ [ round(float(v), _OUTPUT_DECIMALS) for v in row ] for row in frames ],
-                "bpm_axis":    [ round(float(b), _OUTPUT_DECIMALS) for b in bpms[keep] ],
-                "frame_rate":  round(float(frame_rate), _OUTPUT_DECIMALS),
+                "frames":      [ [ round(float(v), _RESULT_DECIMALS) for v in row ] for row in frames ],
+                "bpm_axis":    [ round(float(b), _RESULT_DECIMALS) for b in bpms[keep] ],
+                "frame_rate":  round(float(frame_rate), _RESULT_DECIMALS),
                 "sample_rate": int(sample_rate),
             })
 
@@ -208,14 +208,14 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
                 elif not on and start is not None:
                     if index - start >= min_frames:
                         regions.append({
-                            "start_time": round(start / frames_per_second, _OUTPUT_DECIMALS),
-                            "end_time":   round(index / frames_per_second, _OUTPUT_DECIMALS),
+                            "start_time": round(start / frames_per_second, _RESULT_DECIMALS),
+                            "end_time":   round(index / frames_per_second, _RESULT_DECIMALS),
                         })
                     start = None
             if start is not None and len(active) - start >= min_frames:
                 regions.append({
-                    "start_time": round(start / frames_per_second, _OUTPUT_DECIMALS),
-                    "end_time":   round(len(active) / frames_per_second, _OUTPUT_DECIMALS),
+                    "start_time": round(start / frames_per_second, _RESULT_DECIMALS),
+                    "end_time":   round(len(active) / frames_per_second, _RESULT_DECIMALS),
                 })
 
             return MusicActivity({ "activity": regions })
@@ -260,7 +260,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             return {
                 "key":        key,
                 "mode":       mode,
-                "confidence": round(max(0.0, best_score - runner_up), _OUTPUT_DECIMALS),
+                "confidence": round(max(0.0, best_score - runner_up), _RESULT_DECIMALS),
             }
 
         return await self._run_in_executor(_analyze)
@@ -336,9 +336,9 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             frame_rate = sample_rate / _DEFAULT_HOP_LENGTH
 
             return MusicBrightness({
-                "brightness_hz": round(float(centroid.mean()), _OUTPUT_DECIMALS),
-                "frames":        [ round(float(frame), _OUTPUT_DECIMALS) for frame in centroid ],
-                "frame_rate":    round(float(frame_rate), _OUTPUT_DECIMALS),
+                "brightness_hz": round(float(centroid.mean()), _RESULT_DECIMALS),
+                "frames":        [ round(float(frame), _RESULT_DECIMALS) for frame in centroid ],
+                "frame_rate":    round(float(frame_rate), _RESULT_DECIMALS),
                 "sample_rate":   int(sample_rate),
             })
 
@@ -359,9 +359,9 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             frame_rate = sample_rate / _DEFAULT_HOP_LENGTH
 
             return MusicFlatness({
-                "flatness":    round(float(flatness.mean()), _OUTPUT_DECIMALS),
-                "frames":      [ round(float(frame), _OUTPUT_DECIMALS) for frame in flatness ],
-                "frame_rate":  round(float(frame_rate), _OUTPUT_DECIMALS),
+                "flatness":    round(float(flatness.mean()), _RESULT_DECIMALS),
+                "frames":      [ round(float(frame), _RESULT_DECIMALS) for frame in flatness ],
+                "frame_rate":  round(float(frame_rate), _RESULT_DECIMALS),
                 "sample_rate": int(sample_rate),
             })
 
@@ -390,8 +390,8 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             harmonicity = harmonic_energy / total
 
             return {
-                "harmonicity":  round(harmonicity, _OUTPUT_DECIMALS),
-                "percussivity": round(1.0 - harmonicity, _OUTPUT_DECIMALS),
+                "harmonicity":  round(harmonicity, _RESULT_DECIMALS),
+                "percussivity": round(1.0 - harmonicity, _RESULT_DECIMALS),
             }
 
         return await self._run_in_executor(_analyze)
@@ -553,7 +553,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
         if mean <= 0.0:
             return 0.0
 
-        return round(float(band.max() / mean), _OUTPUT_DECIMALS)
+        return round(float(band.max() / mean), _RESULT_DECIMALS)
 
     @staticmethod
     def _build_time_series(
@@ -582,8 +582,8 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
         frame_rate = sample_rate / hop_length
 
         return {
-            "frames":      [ [ round(float(v), _OUTPUT_DECIMALS) for v in row ] for row in frames ],
-            "frame_rate":  round(float(frame_rate), _OUTPUT_DECIMALS),
+            "frames":      [ [ round(float(v), _RESULT_DECIMALS) for v in row ] for row in frames ],
+            "frame_rate":  round(float(frame_rate), _RESULT_DECIMALS),
             "sample_rate": int(sample_rate),
         }
 

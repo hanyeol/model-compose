@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any, Union
+from typing import Optional, Deque, Dict, List, Tuple, Any, Union
+from collections import deque
 from collections.abc import AsyncIterator
+from asyncio.subprocess import Process
 from mindor.dsl.schema.component import ScreenCaptureComponentConfig
 from mindor.dsl.schema.action import (
     ScreenCaptureActionConfig,
@@ -29,6 +31,10 @@ _STREAM_END = object()
 # Encoded video chunks are ~KB-scale; 32 gives ~1s of buffering at typical bitrates.
 _CHUNK_QUEUE_SIZE = 32
 
+# How many ffmpeg stderr lines are kept for the error raised when a capture
+# dies. Only the tail is kept: a live capture can run for days.
+_STDERR_TAIL_LINES = 20
+
 # MPEG-TS is the default video container because it is designed for streaming:
 # each packet is self-contained, so encoded chunks are available immediately
 # without waiting for an mp4 fragment to close. mp4 over a pipe has multi-second
@@ -38,6 +44,81 @@ _DEFAULT_VIDEO_FORMAT = "ts"
 _DEFAULT_VIDEO_CODEC  = "libx264"
 _DEFAULT_AUDIO_FORMAT = "aac"
 _DEFAULT_AUDIO_CODEC  = "aac"
+
+def _stream_output(
+    process: Process,
+    track: str,
+    companions: Tuple[Process, ...] = (),
+) -> AsyncIterator[bytes]:
+    """Pump `process` stdout through a bounded queue and return the consumer side.
+
+    Reading starts right away, before anyone iterates. stderr is drained into a
+    short tail, so a capture ffmpeg that exits with an error (an encoder that
+    rejects an option, a display or device it cannot open) raises with ffmpeg's
+    own message instead of ending as an empty stream. Closing the iterator early
+    kills `process` and then `companions` (processes feeding it).
+    """
+    queue: asyncio.Queue = asyncio.Queue(maxsize=_CHUNK_QUEUE_SIZE)
+    stderr_tail: Deque[str] = deque(maxlen=_STDERR_TAIL_LINES)
+
+    async def _reader() -> None:
+        try:
+            while True:
+                chunk = await process.stdout.read(65536)
+
+                if not chunk:
+                    break
+
+                await queue.put(chunk)
+        finally:
+            await queue.put(_STREAM_END)
+
+    async def _stderr_reader() -> None:
+        while True:
+            line = await process.stderr.readline()
+
+            if not line:
+                break
+
+            stderr_tail.append(line.decode("utf-8", errors="replace").rstrip())
+
+    reader_task = asyncio.create_task(_reader())
+    stderr_task = asyncio.create_task(_stderr_reader())
+
+    async def _iterator() -> AsyncIterator[bytes]:
+        try:
+            while True:
+                item = await queue.get()
+
+                if item is _STREAM_END:
+                    break
+
+                yield item
+
+            # stdout reached EOF on its own, so ffmpeg is exiting. Reap its real
+            # status before the kill below would turn it into -9.
+            try:
+                await asyncio.wait_for(asyncio.gather(process.wait(), stderr_task), timeout=2.0)
+            except asyncio.TimeoutError:
+                pass
+
+            if process.returncode not in (None, 0):
+                message = "\n".join(stderr_tail)
+                raise RuntimeError(f"ffmpeg {track} capture failed (exit code {process.returncode}): {message}")
+        finally:
+            await kill_process(process, timeout=2.0)
+
+            for companion in companions:
+                await kill_process(companion, timeout=2.0)
+
+            for task in (reader_task, stderr_task):
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    return _iterator()
 
 class FFmpegScreenCaptureAction(ScreenCaptureAction):
     async def _capture(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -156,39 +237,10 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         process = await asyncio.create_subprocess_exec(
             *command,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
 
-        queue: asyncio.Queue = asyncio.Queue(maxsize=_CHUNK_QUEUE_SIZE)
-
-        async def _reader() -> None:
-            try:
-                while True:
-                    chunk = await process.stdout.read(65536)
-                    if not chunk:
-                        break
-                    await queue.put(chunk)
-            finally:
-                await queue.put(_STREAM_END)
-
-        reader_task = asyncio.create_task(_reader())
-
-        async def _iterator() -> AsyncIterator[bytes]:
-            try:
-                while True:
-                    item = await queue.get()
-                    if item is _STREAM_END:
-                        break
-                    yield item
-            finally:
-                await kill_process(process, timeout=2.0)
-                reader_task.cancel()
-                try:
-                    await reader_task
-                except (asyncio.CancelledError, Exception):
-                    pass
-
-        return video_format, _iterator()
+        return video_format, _stream_output(process, "video")
 
     async def _start_audio_capture(
         self,
@@ -233,44 +285,10 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
         process = await asyncio.create_subprocess_exec(
             *command,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
 
-        queue: asyncio.Queue = asyncio.Queue(maxsize=_CHUNK_QUEUE_SIZE)
-
-        async def _reader() -> None:
-            try:
-                while True:
-                    chunk = await process.stdout.read(65536)
-
-                    if not chunk:
-                        break
-
-                    await queue.put(chunk)
-            finally:
-                await queue.put(_STREAM_END)
-
-        reader_task = asyncio.create_task(_reader())
-
-        async def _iterator() -> AsyncIterator[bytes]:
-            try:
-                while True:
-                    item = await queue.get()
-
-                    if item is _STREAM_END:
-                        break
-
-                    yield item
-            finally:
-                await kill_process(process, timeout=2.0)
-                reader_task.cancel()
-
-                try:
-                    await reader_task
-                except (asyncio.CancelledError, Exception):
-                    pass
-
-        return audio_format, _iterator()
+        return audio_format, _stream_output(process, "audio")
 
     def _build_video_input_args(
         self,
@@ -419,7 +437,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
                 *ffmpeg_command,
                 stdin=pipe_read_fd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
             )
         finally:
             # Both processes own their end now; close ours so EOF propagates
@@ -427,39 +445,7 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
             os.close(pipe_read_fd)
             os.close(pipe_write_fd)
 
-        queue: asyncio.Queue = asyncio.Queue(maxsize=_CHUNK_QUEUE_SIZE)
-
-        async def _reader() -> None:
-            try:
-                while True:
-                    chunk = await ffmpeg_process.stdout.read(65536)
-
-                    if not chunk:
-                        break
-
-                    await queue.put(chunk)
-            finally:
-                await queue.put(_STREAM_END)
-
-        reader_task = asyncio.create_task(_reader())
-
-        async def _iterator() -> AsyncIterator[bytes]:
-            try:
-                while True:
-                    item = await queue.get()
-                    if item is _STREAM_END:
-                        break
-                    yield item
-            finally:
-                await kill_process(ffmpeg_process, timeout=2.0)
-                await kill_process(audiotee_process, timeout=2.0)
-                reader_task.cancel()
-                try:
-                    await reader_task
-                except (asyncio.CancelledError, Exception):
-                    pass
-
-        return _iterator()
+        return _stream_output(ffmpeg_process, "audio", companions=(audiotee_process,))
 
     @staticmethod
     def _resolve_container_format(encoding: Optional[VideoAudioEncodingParams]) -> str:

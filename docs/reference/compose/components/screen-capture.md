@@ -126,6 +126,8 @@ Each capture returns a dict containing two independent stream resources plus a s
 
 Each `*StreamResource` iterates encoded byte chunks as they are produced. Reading the resource drives the capture forward; closing it or breaking out of the loop stops the underlying ffmpeg (and, on macOS system audio, `audiotee`) processes.
 
+If ffmpeg exits with an error (a display or device it cannot open, an encoder that rejects an option), reading the resource raises a `RuntimeError` with the exit code and the last lines of ffmpeg's stderr, e.g. `ffmpeg video capture failed (exit code 251): [x11grab] Cannot open display :1, error 1.`
+
 ## Multiple Actions Configuration
 
 ```yaml

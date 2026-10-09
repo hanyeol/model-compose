@@ -17,7 +17,7 @@ import platform
 import shutil
 import subprocess
 import time
-from typing import Any, List
+from typing import Any, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -125,22 +125,30 @@ class _RecordingProcess:
     """Stand-in for asyncio.subprocess.Process that emits a canned byte stream.
 
     Only implements what the driver actually touches: `stdout.read()` (draining
-    encoded chunks) and `kill()` / `wait()` (cleanup on generator close).
+    encoded chunks), `stderr.readline()` (the error tail) and `kill()` / `wait()`
+    (cleanup on generator close). Once stdout runs dry the process "exits" with
+    `exit_code`.
     """
 
-    def __init__(self, chunks: List[bytes]):
+    def __init__(self, chunks: List[bytes], exit_code: int = 0, stderr_lines: Optional[List[bytes]] = None):
         self._chunks = list(chunks)
+        self._stderr_lines = list(stderr_lines or [])
         self.returncode = None
         self.killed = False
         self.stdout = MagicMock()
+        self.stderr = MagicMock()
 
         async def _read(_size: int) -> bytes:
             if self._chunks:
                 return self._chunks.pop(0)
-            self.returncode = 0
+            self.returncode = exit_code
             return b""
 
+        async def _readline() -> bytes:
+            return self._stderr_lines.pop(0) if self._stderr_lines else b""
+
         self.stdout.read = AsyncMock(side_effect=_read)
+        self.stderr.readline = AsyncMock(side_effect=_readline)
 
     def kill(self) -> None:
         self.killed = True
@@ -349,7 +357,12 @@ class TestFormatResolvers:
 # ---------------------------------------------------------------------------
 
 
-def _patch_subprocess(monkeypatch, canned_chunks: List[bytes]) -> List[List[str]]:
+def _patch_subprocess(
+    monkeypatch,
+    canned_chunks: List[bytes],
+    exit_code: int = 0,
+    stderr_lines: Optional[List[bytes]] = None,
+) -> List[List[str]]:
     """Replace asyncio.create_subprocess_exec so it returns _RecordingProcess.
 
     Returns the list of argvs seen, so tests can assert on what would have been
@@ -359,7 +372,7 @@ def _patch_subprocess(monkeypatch, canned_chunks: List[bytes]) -> List[List[str]
 
     async def _fake_exec(*args, **kwargs):
         seen.append(list(args))
-        return _RecordingProcess(canned_chunks)
+        return _RecordingProcess(canned_chunks, exit_code, stderr_lines)
 
     monkeypatch.setattr(
         "mindor.core.component.services.screen_capture.drivers.ffmpeg.asyncio.create_subprocess_exec",
@@ -617,6 +630,118 @@ class TestEncoderTuning:
         # Keyframe cadence and pixel format apply to every encoder.
         assert argv[argv.index("-g") + 1] == "30"
         assert argv[argv.index("-pix_fmt") + 1] == "yuv420p"
+
+
+class TestCaptureFailure:
+    """A capture ffmpeg that exits with an error must raise with its stderr,
+    not end as an empty stream that a downstream consumer misreports."""
+
+    def _linux(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "mindor.core.component.services.screen_capture.drivers.ffmpeg.platform.system",
+            lambda: "Linux",
+        )
+
+    @pytest.mark.anyio
+    async def test_nonzero_exit_raises_with_stderr(self, monkeypatch):
+        _patch_subprocess(
+            monkeypatch,
+            [],
+            exit_code=234,
+            stderr_lines=[
+                b'[h264_nvenc @ 0x1] Unable to parse option value "veryfast"\n',
+                b"Error while opening encoder\n",
+            ],
+        )
+        self._linux(monkeypatch)
+
+        action = FFmpegScreenCaptureAction(_make_config(include_video=True, include_audio=False))
+        result = await action.run(_make_context())
+
+        with pytest.raises(RuntimeError, match=r"ffmpeg video capture failed \(exit code 234\)") as error:
+            async for _ in result["video"]:
+                pass
+        assert 'Unable to parse option value "veryfast"' in str(error.value)
+        assert "Error while opening encoder" in str(error.value)
+
+    @pytest.mark.anyio
+    async def test_audio_track_failure_names_the_track(self, monkeypatch):
+        _patch_subprocess(monkeypatch, [], exit_code=1, stderr_lines=[b"sts: No such entity\n"])
+        self._linux(monkeypatch)
+
+        action = FFmpegScreenCaptureAction(
+            _make_config(
+                include_video=False,
+                include_audio=True,
+                audio_source=ScreenCaptureAudioSource.SYSTEM,
+            )
+        )
+        result = await action.run(_make_context())
+
+        with pytest.raises(RuntimeError, match=r"ffmpeg audio capture failed \(exit code 1\): sts: No such entity"):
+            async for _ in result["audio"]:
+                pass
+
+    @pytest.mark.anyio
+    async def test_error_keeps_only_the_stderr_tail(self, monkeypatch):
+        lines = [f"warning {i}\n".encode() for i in range(100)]
+        _patch_subprocess(monkeypatch, [], exit_code=1, stderr_lines=lines)
+        self._linux(monkeypatch)
+
+        action = FFmpegScreenCaptureAction(_make_config(include_video=True, include_audio=False))
+        result = await action.run(_make_context())
+
+        with pytest.raises(RuntimeError) as error:
+            async for _ in result["video"]:
+                pass
+        message = str(error.value)
+        assert "warning 99" in message
+        assert "warning 80" in message
+        assert "warning 79" not in message
+
+    @pytest.mark.anyio
+    async def test_clean_exit_after_chunks_does_not_raise(self, monkeypatch):
+        # `duration` captures end with exit code 0 and stderr warnings; that is
+        # a normal end of stream.
+        _patch_subprocess(monkeypatch, [b"a", b"b"], exit_code=0, stderr_lines=[b"some warning\n"])
+        self._linux(monkeypatch)
+
+        action = FFmpegScreenCaptureAction(_make_config(include_video=True, include_audio=False))
+        result = await action.run(_make_context())
+
+        chunks = [chunk async for chunk in result["video"]]
+        assert chunks == [b"a", b"b"]
+        await result["video"].close()
+
+    @pytest.mark.anyio
+    async def test_consumer_closing_early_does_not_raise(self, monkeypatch):
+        # Closing a live capture kills ffmpeg (exit -9); that is the consumer's
+        # choice, not a capture failure.
+        _patch_subprocess(monkeypatch, [b"a", b"b", b"c"], exit_code=1)
+        self._linux(monkeypatch)
+
+        action = FFmpegScreenCaptureAction(_make_config(include_video=True, include_audio=False))
+        result = await action.run(_make_context())
+
+        async for _ in result["video"]:
+            break
+        await result["video"].close()
+
+    @ffmpeg_required
+    @pytest.mark.anyio
+    @pytest.mark.skipif(platform.system() != "Linux", reason="x11grab is the Linux backend")
+    async def test_real_ffmpeg_failure_surfaces(self, monkeypatch):
+        # No X server answers on this display, so x11grab fails at startup.
+        monkeypatch.setenv("DISPLAY", ":9876")
+
+        action = FFmpegScreenCaptureAction(
+            _make_config(include_video=True, include_audio=False, duration="2s")
+        )
+        result = await action.run(_make_context())
+
+        with pytest.raises(RuntimeError, match=r"ffmpeg video capture failed \(exit code"):
+            async for _ in result["video"]:
+                pass
 
 
 class TestRegionDispatch:

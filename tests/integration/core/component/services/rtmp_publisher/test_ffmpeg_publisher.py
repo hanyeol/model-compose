@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
 from typing import Optional
@@ -248,3 +249,30 @@ class TestPublisherCancellation:
         with pytest.raises((asyncio.CancelledError, RuntimeError)):
             await publish_task
         await canceller
+
+
+@ffmpeg_required
+class TestPublisherFailure:
+    @pytest.mark.anyio
+    async def test_failed_publish_does_not_leak_stream_key(self, sample_mp4_path):
+        """ffmpeg names its output in its errors; the stream key in that URL
+        must not reach the raised message."""
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        # Nothing listens on `port` now, so the connection is refused.
+        url = f"rtmp://127.0.0.1:{port}/live2/abcd-efgh-ijkl-mnop-qrst"
+        publisher = FFmpegRtmpPublisher(url=url, encoding=_default_encoding())
+
+        with pytest.raises(RuntimeError) as error:
+            await publisher.publish(
+                video=sample_mp4_path,
+                video_attrs=None,
+                audio=None,
+                audio_format=None,
+                audio_attrs=None,
+            )
+
+        message = str(error.value)
+        assert "abcd-efgh-ijkl-mnop-qrst" not in message
+        assert f"rtmp://127.0.0.1:{port}/live2/<redacted>" in message

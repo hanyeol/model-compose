@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Union, Tuple
 from typing import Type, Optional, Tuple, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
-from mindor.dsl.schema.component import DiffusionVaeConfig, DiffusionCpuOffload
+from mindor.dsl.schema.component import DiffusionVaeConfig, DiffusionControlNetConfig, DiffusionCpuOffload
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
@@ -42,10 +42,12 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         config: HuggingfaceImageGenerationModelActionConfig,
         pipeline: DiffusionPipeline,
         device: Optional[torch.device],
+        controlnet_count: int = 0,
     ):
         super().__init__(config, device)
 
         self.pipeline: DiffusionPipeline = pipeline
+        self.controlnet_count: int = controlnet_count
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         prompt = await context.render_text(self.config.prompt)
@@ -60,6 +62,9 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
         seed = await context.render_scalar(self.config.seed, int)
+
+        if self.controlnet_count > 0:
+            pipeline_params.update(await self._resolve_controlnet_pipeline_params(context))
 
         params["pipeline"] = pipeline_params
         params["seed"] = seed
@@ -96,6 +101,34 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
 
         return params
 
+    async def _resolve_controlnet_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        """Collect ControlNet runtime inputs and shape them for the pipeline call."""
+        if self.config.control_image is None:
+            raise ValueError(
+                f"ControlNet is configured on the component ({self.controlnet_count} net(s)) "
+                "but `control_image` is not set on the action."
+            )
+
+        control_images = await context.render_image_array(self.config.control_image, single_as_array=True)
+        control_images = await control_images.collect()
+
+        if len(control_images) != self.controlnet_count:
+            raise ValueError(
+                f"`control_image` has {len(control_images)} entries but the component "
+                f"loaded {self.controlnet_count} ControlNet(s); counts must match."
+            )
+
+        conditioning_scale = await context.render_variable(self.config.controlnet_conditioning_scale)
+        guidance_start     = await context.render_variable(self.config.control_guidance_start)
+        guidance_end       = await context.render_variable(self.config.control_guidance_end)
+
+        return {
+            self._controlnet_image_key():    control_images,
+            "controlnet_conditioning_scale": conditioning_scale,
+            "control_guidance_start":        guidance_start,
+            "control_guidance_end":          guidance_end,
+        }
+
     def _build_pipeline_input_params(self, inputs: Any) -> Dict[str, Any]:
         """Translate the batched input tuple into pipeline kwargs.
 
@@ -107,6 +140,9 @@ class HuggingfaceImageGenerationGenerateTaskAction(ImageGenerationGenerateTaskAc
         return {
             "prompt": list(prompts),
         }
+
+    def _controlnet_image_key(self) -> str:
+        return "image"
 
     async def _generate_batch(
         self,
@@ -158,16 +194,21 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
         config: HuggingfaceImageGenerationModelActionConfig,
         pipeline: DiffusionPipeline,
         device: Optional[torch.device],
+        controlnet_count: int = 0,
     ):
         super().__init__(config, device)
 
         self.pipeline: DiffusionPipeline = pipeline
+        self.controlnet_count: int = controlnet_count
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
         seed = await context.render_scalar(self.config.seed, int)
+
+        if self.controlnet_count > 0:
+            pipeline_params.update(await self._resolve_controlnet_pipeline_params(context))
 
         params["pipeline"] = pipeline_params
         params["seed"] = seed
@@ -195,6 +236,42 @@ class HuggingfaceImageGenerationInpaintTaskAction(ImageGenerationInpaintTaskActi
             "num_images_per_prompt": num_return_images,
             "strength":              denoise_strength,
         }
+
+    async def _resolve_controlnet_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        """Collect ControlNet runtime inputs for inpaint pipelines.
+
+        Inpaint pipelines take the base image via ``image`` and the ControlNet
+        condition via ``control_image``, so this mirrors the generate helper
+        but writes the condition under ``control_image``.
+        """
+        if self.config.control_image is None:
+            raise ValueError(
+                f"ControlNet is configured on the component ({self.controlnet_count} net(s)) "
+                "but `control_image` is not set on the action."
+            )
+
+        control_images = await context.render_image_array(self.config.control_image, single_as_array=True)
+        control_images = await control_images.collect()
+
+        if len(control_images) != self.controlnet_count:
+            raise ValueError(
+                f"`control_image` has {len(control_images)} entries but the component "
+                f"loaded {self.controlnet_count} ControlNet(s); counts must match."
+            )
+
+        conditioning_scale = await context.render_variable(self.config.controlnet_conditioning_scale)
+        guidance_start     = await context.render_variable(self.config.control_guidance_start)
+        guidance_end       = await context.render_variable(self.config.control_guidance_end)
+
+        return {
+            self._controlnet_image_key():    control_images,
+            "controlnet_conditioning_scale": conditioning_scale,
+            "control_guidance_start":        guidance_start,
+            "control_guidance_end":          guidance_end,
+        }
+
+    def _controlnet_image_key(self) -> str:
+        return "control_image"
 
     async def _inpaint_batch(
         self,
@@ -250,6 +327,9 @@ class HuggingfaceImageGenerationBaseDriver(HuggingfaceDiffusionPipelineTaskDrive
         if self.config.vae is not None:
             submodules["vae"] = await self._load_pretrained_vae_model(self.config.vae, device, dtype)
 
+        if self.config.controlnet:
+            submodules["controlnet"] = await self._load_pretrained_controlnet_models(self.config.controlnet, device, dtype)
+
         return submodules
 
     async def _load_pretrained_vae_model(self, vae: DiffusionVaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
@@ -268,8 +348,41 @@ class HuggingfaceImageGenerationBaseDriver(HuggingfaceDiffusionPipelineTaskDrive
 
         return await self._run_in_executor(_load)
 
+    async def _load_pretrained_controlnet_models(
+        self,
+        controlnets: List[DiffusionControlNetConfig],
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Any:
+        model_class = self._get_controlnet_model_class()
+        model_paths = [ await self._provision_model(controlnet.model) for controlnet in controlnets ]
+
+        def _load() -> Any:
+            models: List[Any] = []
+
+            for controlnet, model_path in zip(controlnets, model_paths):
+                logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
+
+                params: Dict[str, Any] = {
+                    **self._get_model_params(controlnet.model),
+                    **self._get_model_options(controlnet, default_dtype=dtype),
+                }
+                models.append(model_class.from_pretrained(model_path, **params).to(device))
+
+            # diffusers accepts a single ControlNetModel for one net and a list
+            # for multi-ControlNet (wrapped internally as MultiControlNetModel).
+            return models[0] if len(models) == 1 else models
+
+        return await self._run_in_executor(_load)
+
     def _get_vae_model_class(self) -> Type[Any]:
         raise ValueError(f"VAE override is not supported for architecture: {self.config.architecture}")
+
+    def _get_controlnet_model_class(self) -> Type[Any]:
+        raise ValueError(f"ControlNet is not supported for architecture: {self.config.architecture}")
+
+    def _get_controlnet_count(self) -> int:
+        return len(self.config.controlnet) if self.config.controlnet else 0
 
     def _get_cpu_offload(self) -> Optional[DiffusionCpuOffload]:
         return self.config.cpu_offload

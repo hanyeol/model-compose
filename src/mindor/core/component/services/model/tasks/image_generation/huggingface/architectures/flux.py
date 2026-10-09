@@ -44,10 +44,16 @@ class FluxHuggingfaceImageGenerationInpaintTaskAction(HuggingfaceImageGeneration
 class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDriver):
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
         if method is None or method == ImageGenerationActionMethod.GENERATE:
+            if self._get_controlnet_count() > 0:
+                from diffusers import FluxControlNetPipeline
+                return FluxControlNetPipeline
             from diffusers import FluxPipeline
             return FluxPipeline
 
         if method == ImageGenerationActionMethod.INPAINT:
+            if self._get_controlnet_count() > 0:
+                from diffusers import FluxControlNetInpaintPipeline
+                return FluxControlNetInpaintPipeline
             from diffusers import FluxInpaintPipeline
             return FluxInpaintPipeline
 
@@ -65,6 +71,10 @@ class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
         from diffusers import AutoencoderKL
         return AutoencoderKL
 
+    def _get_controlnet_model_class(self) -> Type[Any]:
+        from diffusers import FluxControlNetModel
+        return FluxControlNetModel
+
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pipeline = self.pipelines.get(action.method)
 
@@ -72,9 +82,19 @@ class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
             raise ValueError(f"No pipeline loaded for method: {action.method}")
 
         if action.method == ImageGenerationActionMethod.GENERATE:
-            return await FluxHuggingfaceImageGenerationGenerateTaskAction(action, pipeline, self.device).run(context)
+            return await FluxHuggingfaceImageGenerationGenerateTaskAction(
+                action,
+                pipeline,
+                self.device,
+                self._get_controlnet_count()
+            ).run(context)
 
         if action.method == ImageGenerationActionMethod.INPAINT:
-            return await FluxHuggingfaceImageGenerationInpaintTaskAction(action, pipeline, self.device).run(context)
+            return await FluxHuggingfaceImageGenerationInpaintTaskAction(
+                action,
+                pipeline,
+                self.device,
+                self._get_controlnet_count()
+            ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

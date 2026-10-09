@@ -67,6 +67,6 @@ class HunyuanImageHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGeneratio
             raise ValueError(f"No pipeline loaded for method: {action.method}")
 
         if action.method == ImageGenerationActionMethod.GENERATE:
-            return await HunyuanImageHuggingfaceImageGenerationGenerateTaskAction(action, pipeline, self.device).run(context)
+            return await HunyuanImageHuggingfaceImageGenerationGenerateTaskAction(action, pipeline, self.device, self._get_controlnet_count()).run(context)
 
         raise ValueError(f"Inpainting is not supported for architecture: hunyuan-image")

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Union, Tuple
 
 from typing import Type, Optional, Dict, List, Tuple, Union, Any
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
-from mindor.dsl.schema.component import ModelComponentConfig, HuggingfaceVideoToVideoModelArchitecture
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceVideoToVideoModelArchitecture, DiffusionControlNetConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.media import MediaSource
@@ -32,11 +32,13 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         config: AnimateDiffHuggingfaceVideoToVideoModelActionConfig,
         pipeline: DiffusionPipeline,
         device: Optional[torch.device],
+        controlnet_count: int = 0,
     ):
         super().__init__(config)
 
         self.pipeline: DiffusionPipeline = pipeline
         self.device: Optional[torch.device] = device
+        self.controlnet_count: int = controlnet_count
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -53,7 +55,44 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
             "ip_adapter_scale": ip_adapter_scale,
         })
 
+        if self.controlnet_count > 0:
+            params.update(await self._resolve_controlnet_pipeline_params(context))
+
         return params
+
+    async def _resolve_controlnet_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        """Collect ControlNet runtime inputs and shape them for the pipeline call."""
+        if self.config.conditioning_frames is None:
+            raise ValueError(
+                f"ControlNet is configured on the component ({self.controlnet_count} net(s)) "
+                "but `conditioning_frames` is not set on the action."
+            )
+
+        references = self.config.conditioning_frames
+        if not isinstance(references, list):
+            references = [ references ]
+
+        if len(references) != self.controlnet_count:
+            raise ValueError(
+                f"`conditioning_frames` has {len(references)} entries but the component "
+                f"loaded {self.controlnet_count} ControlNet(s); counts must match."
+            )
+
+        conditioning_frames: List[List[PILImage.Image]] = []
+        for reference in references:
+            frames = await context.render_image_array(reference, single_as_array=True)
+            conditioning_frames.append(await frames.collect())
+
+        conditioning_scale = await context.render_variable(self.config.controlnet_conditioning_scale)
+        guidance_start     = await context.render_variable(self.config.control_guidance_start)
+        guidance_end       = await context.render_variable(self.config.control_guidance_end)
+
+        return {
+            "conditioning_frames":           conditioning_frames,
+            "controlnet_conditioning_scale": conditioning_scale,
+            "control_guidance_start":        guidance_start,
+            "control_guidance_end":          guidance_end,
+        }
 
     async def _generate_batch(
         self,
@@ -109,6 +148,13 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
                     pipeline_params["ip_adapter_image"] = reference_image
                     self.pipeline.set_ip_adapter_scale(params["ip_adapter_scale"])
+
+                if self.controlnet_count > 0:
+                    conditioning_frames = params["conditioning_frames"]
+                    pipeline_params["conditioning_frames"] = conditioning_frames if self.controlnet_count > 1 else conditioning_frames[0]
+                    pipeline_params["controlnet_conditioning_scale"] = params["controlnet_conditioning_scale"]
+                    pipeline_params["control_guidance_start"] = params["control_guidance_start"]
+                    pipeline_params["control_guidance_end"] = params["control_guidance_end"]
 
                 if cancellation_token is not None:
                     def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
@@ -183,24 +229,66 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            from diffusers import MotionAdapter
+            submodules: Dict[str, Any] = {
+                "motion_adapter": await self._load_pretrained_motion_adapter(self.config.motion_adapter, device, dtype),
+            }
 
-            adapter_path = await self._provision_model(self.config.motion_adapter)
-            logging.info(f"Component '{self.id}': loading MotionAdapter from {adapter_path}")
+            if self.config.controlnet:
+                submodules["controlnet"] = await self._load_pretrained_controlnet_models(self.config.controlnet, device, dtype)
 
-            def _load() -> Any:
-                params: Dict[str, Any] = {
-                    **self._get_model_params(self.config.motion_adapter),
-                    "torch_dtype": dtype,
-                }
-
-                return MotionAdapter.from_pretrained(adapter_path, **params).to(device)
-
-            adapter = await self._run_in_executor(_load)
-
-            return { "motion_adapter": adapter }
+            return submodules
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
+
+    async def _load_pretrained_motion_adapter(
+        self,
+        motion_adapter: ModelConfig,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Any:
+        from diffusers import MotionAdapter
+
+        adapter_path = await self._provision_model(motion_adapter)
+
+        def _load() -> Any:
+            logging.info(f"Component '{self.id}': loading {MotionAdapter.__name__} from {adapter_path}")
+
+            params: Dict[str, Any] = {
+                **self._get_model_params(motion_adapter),
+                "torch_dtype": dtype,
+            }
+
+            return MotionAdapter.from_pretrained(adapter_path, **params).to(device)
+
+        return await self._run_in_executor(_load)
+
+    async def _load_pretrained_controlnet_models(
+        self,
+        controlnets: List[DiffusionControlNetConfig],
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Any:
+        model_class = self._get_controlnet_model_class()
+        model_paths = [ await self._provision_model(controlnet.model) for controlnet in controlnets ]
+
+        def _load() -> Any:
+            models: List[Any] = []
+
+            for controlnet, model_path in zip(controlnets, model_paths):
+                logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
+
+                params: Dict[str, Any] = {
+                    **self._get_model_params(controlnet.model),
+                    **self._get_model_options(controlnet, default_dtype=dtype),
+                }
+
+                models.append(model_class.from_pretrained(model_path, **params).to(device))
+
+            # diffusers accepts a single ControlNetModel for one net and a list
+            # for multi-ControlNet (wrapped internally as MultiControlNetModel).
+            return models[0] if len(models) == 1 else models
+
+        return await self._run_in_executor(_load)
 
     async def _attach_ip_adapters(self) -> None:
         adapter_path = await self._provision_model(self.config.ip_adapter)
@@ -220,10 +308,24 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
     def _get_pipeline_class(self, method: Optional[None]) -> Type[DiffusionPipeline]:
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            from diffusers import AnimateDiffVideoToVideoPipeline
-            return AnimateDiffVideoToVideoPipeline
+            if self._get_controlnet_count() > 0:
+                from diffusers import AnimateDiffVideoToVideoControlNetPipeline
+                return AnimateDiffVideoToVideoControlNetPipeline
+            else:
+                from diffusers import AnimateDiffVideoToVideoPipeline
+                return AnimateDiffVideoToVideoPipeline
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")
+
+    def _get_controlnet_model_class(self) -> Type[Any]:
+        if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
+            from diffusers import ControlNetModel
+            return ControlNetModel
+
+        raise ValueError(f"ControlNet is not supported for architecture: {self.config.architecture}")
+
+    def _get_controlnet_count(self) -> int:
+        return len(self.config.controlnet) if self.config.controlnet else 0
 
     def _get_accelerated_dtype(self) -> torch.dtype:
         import torch
@@ -240,6 +342,6 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
             raise ValueError(f"No pipeline loaded for architecture: {self.config.architecture}")
 
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(action, pipeline, self.device).run(context)
+            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(action, pipeline, self.device, self._get_controlnet_count()).run(context)
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")

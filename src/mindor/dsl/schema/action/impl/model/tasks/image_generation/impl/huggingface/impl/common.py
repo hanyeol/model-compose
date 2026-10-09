@@ -10,7 +10,15 @@ class CommonHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImage
     denoise_strength: Union[float, str] = Field(default=1.0, description="Noise strength applied to the input image before denoising.")
 
 class CommonHuggingfaceImageGenerationModelActionConfig(CommonImageGenerationModelActionConfig):
+    control_image: Optional[Union[str, List[str]]] = Field(default=None, description="Control image or images fed to ControlNet; must match the number of ControlNets configured on the component.")
+    controlnet_conditioning_scale: Union[float, List[float], str] = Field(default=1.0, description="Strength of each ControlNet's influence; scalar or per-ControlNet list.")
+    control_guidance_start: Union[float, List[float], str] = Field(default=0.0, description="Fraction of total steps after which each ControlNet starts applying.")
+    control_guidance_end: Union[float, List[float], str] = Field(default=1.0, description="Fraction of total steps after which each ControlNet stops applying.")
     params: CommonHuggingfaceImageGenerationParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationParamsConfig, description="Sampling parameters used for image generation.")
 
 class CommonHuggingfaceImageGenerationModelInpaintActionConfig(CommonImageGenerationModelInpaintActionConfig):
+    control_image: Optional[Union[str, List[str]]] = Field(default=None, description="Control image or images fed to ControlNet; must match the number of ControlNets configured on the component.")
+    controlnet_conditioning_scale: Union[float, List[float], str] = Field(default=1.0, description="Strength of each ControlNet's influence; scalar or per-ControlNet list.")
+    control_guidance_start: Union[float, List[float], str] = Field(default=0.0, description="Fraction of total steps after which each ControlNet starts applying.")
+    control_guidance_end: Union[float, List[float], str] = Field(default=1.0, description="Fraction of total steps after which each ControlNet stops applying.")
     params: CommonHuggingfaceImageGenerationInpaintParamsConfig = Field(default_factory=CommonHuggingfaceImageGenerationInpaintParamsConfig, description="Sampling parameters used for image inpainting.")

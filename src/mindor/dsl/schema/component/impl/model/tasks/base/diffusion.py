@@ -41,3 +41,30 @@ class DiffusionVaeConfig(BaseModel):
             else:
                 model["provider"] = ModelProvider.LOCAL
         return values
+
+class DiffusionControlNetConfig(BaseModel):
+    model: ModelConfig = Field(..., description="ControlNet model identifier — a HuggingFace repo ID or a local path.")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for ControlNet weights and computation.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the ControlNet with reduced CPU RAM usage.")
+
+    @model_validator(mode="before")
+    def inflate_model(cls, values: Dict[str, Any]):
+        model = values.get("model")
+        if isinstance(model, str):
+            if is_local_path(model):
+                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+            else:
+                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
+        return values
+
+    @model_validator(mode="before")
+    def fill_missing_model_provider(cls, values: Dict[str, Any]):
+        model = values.get("model")
+        if isinstance(model, dict) and "provider" not in model:
+            if "repository" in model:
+                model["provider"] = ModelProvider.HUGGINGFACE
+            elif "name" in model:
+                model["provider"] = ModelProvider.NAMED
+            else:
+                model["provider"] = ModelProvider.LOCAL
+        return values

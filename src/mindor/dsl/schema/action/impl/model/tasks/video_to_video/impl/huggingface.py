@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional, List
 from pydantic import Field
 from .common import CommonVideoToVideoParamsConfig, CommonVideoToVideoModelActionConfig
 
@@ -9,6 +9,10 @@ class AnimateDiffHuggingfaceVideoToVideoParamsConfig(CommonVideoToVideoParamsCon
     ip_adapter_scale: Union[float, str] = Field(default=0.6, description="IP-Adapter influence when a reference image is provided; 0 disables, 1 relies fully on the reference.")
 
 class AnimateDiffHuggingfaceVideoToVideoModelActionConfig(CommonVideoToVideoModelActionConfig):
+    conditioning_frames: Optional[Union[str, List[str]]] = Field(default=None, description="Per-ControlNet frame sequence(s) used as conditioning; one reference per ControlNet configured on the component.")
+    controlnet_conditioning_scale: Union[float, List[float], str] = Field(default=1.0, description="Strength of each ControlNet's influence; scalar or per-ControlNet list.")
+    control_guidance_start: Union[float, List[float], str] = Field(default=0.0, description="Fraction of total steps after which each ControlNet starts applying.")
+    control_guidance_end: Union[float, List[float], str] = Field(default=1.0, description="Fraction of total steps after which each ControlNet stops applying.")
     params: AnimateDiffHuggingfaceVideoToVideoParamsConfig = Field(
         default_factory=AnimateDiffHuggingfaceVideoToVideoParamsConfig,
         description="AnimateDiff video-to-video generation parameters.",

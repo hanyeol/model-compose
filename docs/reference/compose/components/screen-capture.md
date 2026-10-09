@@ -80,6 +80,8 @@ Window tracking behaves differently per platform: on Windows, `gdigrab` follows 
 
 The default video container is MPEG-TS (`ts`) because each packet is self-contained, so encoded chunks are available with sub-second latency. `mp4` also works (fragmented-mp4 flags are added automatically) but has higher first-byte latency over a pipe.
 
+`libx264` and `libx265` are tuned for low latency (`-preset veryfast -tune zerolatency`). Other encoders get no tuning flags, so hardware encoders such as `h264_nvenc`, `h264_vaapi` or `h264_videotoolbox` can be used as `video.codec`.
+
 ## Supported Drivers
 
 ### FFmpeg

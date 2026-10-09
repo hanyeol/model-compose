@@ -576,6 +576,49 @@ async def test_unsupported_video_source_raises_not_implemented():
         )
 
 
+class TestEncoderTuning:
+    """`-preset veryfast -tune zerolatency` only exist on x264/x265. Hardware
+    encoders reject those values (h264_nvenc: 'Unable to parse option value
+    "veryfast"'), so they must not see them."""
+
+    async def _video_argv(self, monkeypatch, codec: str) -> List[str]:
+        seen = _patch_subprocess(monkeypatch, [b"x"])
+        monkeypatch.setattr(
+            "mindor.core.component.services.screen_capture.drivers.ffmpeg.platform.system",
+            lambda: "Linux",
+        )
+        action = FFmpegScreenCaptureAction(
+            _make_config(
+                include_video=True,
+                include_audio=False,
+                encoding=VideoAudioEncodingConfig(video=VideoEncoderConfig(codec=codec)),
+            )
+        )
+        result = await action.run(_make_context())
+        async for _ in result["video"]:
+            pass
+        await result["video"].close()
+        return seen[0]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("codec", ["libx264", "libx265"])
+    async def test_software_encoders_get_low_latency_tuning(self, monkeypatch, codec):
+        argv = await self._video_argv(monkeypatch, codec)
+        assert argv[argv.index("-preset") + 1] == "veryfast"
+        assert argv[argv.index("-tune") + 1] == "zerolatency"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("codec", ["h264_nvenc", "h264_vaapi", "h264_videotoolbox"])
+    async def test_hardware_encoders_get_no_x264_tuning(self, monkeypatch, codec):
+        argv = await self._video_argv(monkeypatch, codec)
+        assert argv[argv.index("-c:v") + 1] == codec
+        assert "-preset" not in argv
+        assert "-tune" not in argv
+        # Keyframe cadence and pixel format apply to every encoder.
+        assert argv[argv.index("-g") + 1] == "30"
+        assert argv[argv.index("-pix_fmt") + 1] == "yuv420p"
+
+
 class TestRegionDispatch:
     """End-to-end wiring from config → argv for the region path."""
 

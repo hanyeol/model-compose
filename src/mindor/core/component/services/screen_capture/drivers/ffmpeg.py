@@ -114,10 +114,15 @@ class FFmpegScreenCaptureAction(ScreenCaptureAction):
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning" ]
         command.extend(self._build_video_input_args(system, display, frame_rate, region, window_title))
+        command.extend([ "-c:v", video_codec ])
+
+        # `-preset` and `-tune` are x264/x265-only flags; hardware encoders
+        # like h264_nvenc and h264_videotoolbox reject these values, so ffmpeg
+        # would exit before the first frame. `-g` and `-pix_fmt` stay universal.
+        if video_codec in ("libx264", "libx265"):
+            command.extend([ "-preset", "veryfast", "-tune", "zerolatency" ])
+
         command.extend([
-            "-c:v", video_codec,
-            "-preset", "veryfast",
-            "-tune", "zerolatency",
             "-g", str(max(1, int(frame_rate))),
             "-pix_fmt", "yuv420p",
             "-flush_packets", "1",

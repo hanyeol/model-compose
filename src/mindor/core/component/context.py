@@ -261,9 +261,10 @@ class ComponentActionContext:
     async def render_array(
         self,
         value: Any,
+        item_is_list: bool = True,
         single_as_array: bool = False,
     ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
-        return await ArrayValueRenderer().render(await self.render_variable(value), single_as_array)
+        return await ArrayValueRenderer().render(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_time(
         self,

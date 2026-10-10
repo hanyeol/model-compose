@@ -58,6 +58,7 @@ class ComponentType(str, Enum):
     AUDIO_MIXER             = "audio-mixer"
     MUSIC_SEGMENT_DETECTOR  = "music-segment-detector"
     MUSIC_ANALYZER          = "music-analyzer"
+    MUSIC_PITCH_CORRECTOR   = "music-pitch-corrector"
     MUSIC_SYNTHESIZER       = "music-synthesizer"
     MODEL_3D_CONVERTER      = "model-3d-converter"
     MODEL_3D_RENDERER       = "model-3d-renderer"

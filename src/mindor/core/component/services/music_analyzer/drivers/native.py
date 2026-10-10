@@ -451,7 +451,7 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             else:
                 audio = input_path
 
-            return await self._run_in_executor(load_pcm_samples, audio, sample_rate)
+            return await self._run_in_executor(load_pcm_samples, audio, True, sample_rate)
         finally:
             if spooled:
                 try:

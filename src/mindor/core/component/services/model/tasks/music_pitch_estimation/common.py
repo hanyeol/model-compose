@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
-from mindor.dsl.schema.action import CommonMusicPitchEstimationModelActionConfig
+from mindor.dsl.schema.action import CommonMusicPitchEstimationModelActionConfig, PitchUnit
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -47,7 +47,7 @@ class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            context.register_source("result[]", result)
+                            context.register_source("result", result)
                             yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
@@ -77,6 +77,11 @@ class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
         pitch_unit         = await context.render_variable(self.config.pitch_unit)
         return_activations = await context.render_scalar(self.config.return_activations, bool)
         return_metadata    = await context.render_scalar(self.config.return_metadata, bool)
+
+        try:
+            pitch_unit = PitchUnit(pitch_unit)
+        except ValueError:
+            raise ValueError(f"Invalid pitch_unit: {pitch_unit}")
 
         return {
             "reduction":          reduction,

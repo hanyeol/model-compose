@@ -133,6 +133,7 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
             result["sample_rate"] = self.component_config.sample_rate
             result["frame_rate"]  = frame_rate
             result["duration"]    = len(frames) / frame_rate
+            result["pitch_unit"]  = params["pitch_unit"].value
 
         return result
 

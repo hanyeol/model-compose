@@ -271,6 +271,7 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
 
         if params["return_metadata"]:
             frame_rate = self.component_config.sample_rate / self.component_config.streaming.chunk_size
+            result["pitch_unit"]  = params["pitch_unit"].value
             result["sample_rate"] = self.component_config.sample_rate
             result["frame_rate"]  = frame_rate
             result["duration"]    = len(frames) / frame_rate
@@ -313,6 +314,7 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
         result: Dict[str, Any] = { "frames": PitchContour(frames) }
 
         if params["return_metadata"]:
+            result["pitch_unit"]  = params["pitch_unit"].value
             result["sample_rate"] = sample_rate
             result["frame_rate"]  = frame_rate
             result["duration"]    = frame_count / frame_rate

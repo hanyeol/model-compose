@@ -124,7 +124,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         # is exactly what `load_pcm_samples` returns — no need for upstream's
         # `audio.load_wav` (a thin librosa.core.load wrapper) or an ffmpeg
         # detour, since libsndfile handles the source containers we accept.
-        waveform, _ = load_pcm_samples(audio_path, sample_rate=16000)
+        waveform, _ = load_pcm_samples(audio_path, as_mono=True, sample_rate=16000)
 
         mel_step_size = 16
         image_size = 96

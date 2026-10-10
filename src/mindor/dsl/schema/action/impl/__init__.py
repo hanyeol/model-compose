@@ -54,6 +54,7 @@ from .audio_playback import *
 from .audio_mixer import *
 from .music_segment_detector import *
 from .music_analyzer import *
+from .music_pitch_corrector import *
 from .music_synthesizer import *
 from .model_3d_converter import *
 from .model_3d_renderer import *

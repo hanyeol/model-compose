@@ -88,12 +88,8 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
         import soundfile as sf
         import numpy as np
 
-        mono = np.ascontiguousarray(waveform, dtype=np.float32)
-
-        if mono.ndim == 2:
-            mono = mono.mean(axis=0)
-
-        duration = float(mono.shape[-1]) / _BASIC_PITCH_SAMPLE_RATE
+        waveform = np.ascontiguousarray(waveform, dtype=np.float32)
+        duration = float(waveform.shape[-1]) / _BASIC_PITCH_SAMPLE_RATE
 
         # basic_pitch.predict only accepts filesystem paths (it opens the file
         # with librosa internally). Spool the preprocessed waveform to a temp
@@ -101,7 +97,7 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
         audio_path = get_temporary_path(extension="wav", reserve_file=True)
 
         try:
-            sf.write(audio_path, mono, _BASIC_PITCH_SAMPLE_RATE, subtype="PCM_16")
+            sf.write(audio_path, waveform, _BASIC_PITCH_SAMPLE_RATE, subtype="PCM_16")
 
             prediction_params: Dict[str, Any] = { "model_or_model_path": self.model_path }
 

@@ -32,6 +32,7 @@ class ArrayValueRenderer:
     async def render(
         self,
         value: Any,
+        item_is_list: bool = True,
         single_as_array: bool = False,
     ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
         # Fragmented streams represent a single logical array delivered as an
@@ -50,8 +51,19 @@ class ArrayValueRenderer:
 
             return _iterate()
 
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-            return [ self._render_element(item, single_as_array) for item in value ]
+        # Batch detection: if a single item is itself a list (``item_is_list=True``),
+        # a batch requires nested lists; if items are scalars (``item_is_list=False``),
+        # any top-level list is a batch.
+        if item_is_list:
+            if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
+                return [ self._render_element(item, single_as_array) for item in value ]
+
+            # Single value that *is* a list — wrap as broadcast ArrayValue.
+            if single_as_array and isinstance(value, (list, tuple)):
+                return ArrayValue(list(value), is_single=True)
+        else:
+            if isinstance(value, (list, tuple)):
+                return [ self._render_element(item, single_as_array) for item in value ]
 
         return self._render_element(value, single_as_array)
 

@@ -74,12 +74,8 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
     def _transcribe(self, waveform: np.ndarray, params: Dict[str, Any]) -> Dict[str, Any]:
         import numpy as np
 
-        mono = np.ascontiguousarray(waveform, dtype=np.float32)
-
-        if mono.ndim == 2:
-            mono = mono.mean(axis=0)
-
-        duration = float(mono.shape[-1]) / _PIANO_TRANSCRIPTION_SAMPLE_RATE
+        waveform = np.ascontiguousarray(waveform, dtype=np.float32)
+        duration = float(waveform.shape[-1]) / _PIANO_TRANSCRIPTION_SAMPLE_RATE
 
         # PianoTranscription stashes thresholds as instance attributes and reads
         # them fresh at each transcribe() call, so pushing per-request overrides
@@ -111,7 +107,7 @@ class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
             # { output_dict, est_note_events, est_pedal_events }. We only need
             # the note events; pedal events are baked into the MIDI file the
             # library writes.
-            result = self.transcriptor.transcribe(mono, midi_path)
+            result = self.transcriptor.transcribe(waveform, midi_path)
             note_events = result.get("est_note_events") or []
 
             if params["return_midi"]:

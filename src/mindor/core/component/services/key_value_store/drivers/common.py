@@ -54,7 +54,7 @@ class KeyValueStoreAction(ComponentAction):
         context: ComponentActionContext,
     ) -> Tuple[Any, bool, bool]:
         if method == KeyValueStoreActionMethod.SET:
-            keys = await context.render_array(self.config.key, single_as_array=True)
+            keys = _as_batch_array(await context.render_variable(self.config.key))
 
             # A single-key SET stores the raw value intact (a list value becomes
             # one stored value, not per-key entries). Multi-key SET expects
@@ -62,7 +62,7 @@ class KeyValueStoreAction(ComponentAction):
             if isinstance(keys, ArrayValue) and keys.is_single:
                 values = ArrayValue([ await context.render_variable(self.config.value) ], is_single=True)
             else:
-                values = await context.render_array(self.config.value, single_as_array=True)
+                values = _as_batch_array(await context.render_variable(self.config.value))
 
             is_single_input    = isinstance(keys, ArrayValue) and keys.is_single
             is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (keys, values))
@@ -74,7 +74,7 @@ class KeyValueStoreAction(ComponentAction):
             KeyValueStoreActionMethod.DELETE,
             KeyValueStoreActionMethod.EXISTS,
         ):
-            keys = await context.render_array(self.config.key, single_as_array=True)
+            keys = _as_batch_array(await context.render_variable(self.config.key))
 
             is_single_input    = isinstance(keys, ArrayValue) and keys.is_single
             is_streaming_input = isinstance(keys, (StreamIterator, AsyncIterator))
@@ -209,3 +209,16 @@ class KeyValueStoreAction(ComponentAction):
         cancellation_token: Optional[CancellationToken],
     ) -> List[Dict[str, Any]]:
         pass
+
+def _as_batch_array(value: Any) -> Any:
+    # KV store treats a flat list as the keys of one native-batch call
+    # (MGET/MSET/pipelined DEL/EXISTS), not per-element requests. A scalar
+    # degenerates to a single-key batch flagged ``is_single`` so the caller
+    # can unwrap the result shape.
+    if value is None or isinstance(value, (StreamIterator, AsyncIterator)):
+        return value
+
+    if isinstance(value, (list, tuple)):
+        return ArrayValue(list(value), is_single=False)
+
+    return ArrayValue([ value ], is_single=True)

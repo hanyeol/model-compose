@@ -51,7 +51,7 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
             return await context.render_text(self.config.text)
 
         if method == ModelTokenizerMethod.DECODE:
-            return await context.render_array(self.config.token_ids)
+            return await context.render_array(self.config.token_ids, item_is_list=True)
 
         if method == ModelTokenizerMethod.COUNT:
             return await context.render_text(self.config.text)

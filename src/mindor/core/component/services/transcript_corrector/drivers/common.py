@@ -33,7 +33,7 @@ class TranscriptCorrectorAction(ComponentAction):
         self.config: TranscriptCorrectorActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        transcript = await context.render_array(self.config.transcript)
+        transcript = await context.render_array(self.config.transcript, item_is_list=True)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 

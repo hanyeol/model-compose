@@ -32,7 +32,7 @@ class ArrayValueRenderer:
     async def render(
         self,
         value: Any,
-        item_is_list: bool = True,
+        item_is_list: bool = False,
         single_as_array: bool = False,
     ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
         # Fragmented streams represent a single logical array delivered as an

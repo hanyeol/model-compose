@@ -24,7 +24,7 @@ class ShellAction(ComponentAction):
         self.env: Optional[Dict[str, str]] = env
 
     async def run(self, context: ComponentActionContext) -> Any:
-        command    = await context.render_array(self.config.command)
+        command    = await context.render_array(self.config.command, item_is_list=True)
         stdin      = await context.render_variable(self.config.stdin) if self.config.stdin is not None else None
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)

@@ -1,11 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Union, Any
-from mindor.dsl.schema.component import ModelComponentConfig, WanVideoToVideoPreset
+from typing import Union, Tuple, Optional, Dict, List, Any
+from collections.abc import AsyncIterator
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, WanVideoToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanVideoToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.variable.image import ImageArrayValue
@@ -44,9 +46,24 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
         self.has_sam2: bool = has_sam2
         self.has_flux_kontext: bool = has_flux_kontext
 
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], bool, bool]:
+        video           = await context.render_video(self.config.video) if self.config.video is not None else None
+        frames          = await context.render_image_array(self.config.frames, single_as_array=True) if self.config.frames is not None else None
+        prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
+        reference_image = await context.render_image(self.config.reference_image) if self.config.reference_image is not None else None
+
+        source = frames if video is None else video
+
+        is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(source, (StreamIterator, AsyncIterator))
+
+        return (source, prompt, negative_prompt, reference_image), is_single_input, is_streaming_input
+
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        seed              = await context.render_scalar(self.config.seed, int)
         inference_steps   = await context.render_scalar(self.config.params.inference_steps, int)
         guidance_scale    = await context.render_scalar(self.config.params.guidance_scale, float)
         shift             = await context.render_scalar(self.config.params.shift, float)
@@ -74,6 +91,7 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
                 raise ValueError("Wan-Animate `use_flux=true` requires the component's `flux_kontext_model` to be configured.")
 
         params.update({
+            "seed":              seed,
             "inference_steps":   inference_steps,
             "guidance_scale":    guidance_scale,
             "shift":             shift,
@@ -95,13 +113,12 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
 
     async def _generate_batch(
         self,
-        sources: List[Union[MediaSource, ImageArrayValue]],
-        prompts: Optional[List[Optional[str]]],
-        negative_prompts: Optional[List[Optional[str]]],
-        reference_images: Optional[List[Optional[PILImage.Image]]],
+        inputs: Tuple[Any, ...],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
+        sources, prompts, negative_prompts, reference_images = inputs
+
         if reference_images is None or any(image is None for image in reference_images):
             raise ValueError("Wan-Animate requires a `reference_image` for every input in the batch.")
 
@@ -165,6 +182,7 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
                 seed=params["seed"] if params["seed"] is not None else -1,
                 offload_model=self.cpu_offload,
             )
+
             return self._encode_video_tensor_to_mp4(video, params["frame_rate"])
 
         try:
@@ -252,10 +270,10 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
         super().__init__(id, config, daemon)
 
         self.animate_pipeline: Optional[Any] = None
-        self.pose2d_path: Optional[str] = None
-        self.det_path: Optional[str] = None
-        self.sam2_path: Optional[str] = None
-        self.flux_kontext_path: Optional[str] = None
+        self.pose2d_model_path: Optional[str] = None
+        self.det_model_path: Optional[str] = None
+        self.sam2_model_path: Optional[str] = None
+        self.flux_kontext_model_path: Optional[str] = None
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
@@ -273,37 +291,38 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.animate_pipeline = await self._load_animate_pipeline()
-        self.pose2d_path      = await self._provision_model(self.config.pose2d_model, prefetch=True)
-        self.det_path         = await self._provision_model(self.config.det_model, prefetch=True)
-        self.sam2_path        = (await self._provision_model(self.config.sam2_model, prefetch=True)) if self.config.sam2_model is not None else None
-        self.flux_kontext_path = (await self._provision_model(self.config.flux_kontext_model, prefetch=True)) if self.config.flux_kontext_model is not None else None
+        self.pose2d_model_path       = await self._provision_model(self.config.pose2d_model, prefetch=True)
+        self.det_model_path          = await self._provision_model(self.config.det_model, prefetch=True)
+        self.sam2_model_path         = await self._provision_optional_model(self.config.sam2_model)
+        self.flux_kontext_model_path = await self._provision_optional_model(self.config.flux_kontext_model)
+        self.animate_pipeline, self.device = await self._load_animate_pipeline()
 
     async def _unload_model(self) -> None:
         self.animate_pipeline = None
-        self.pose2d_path = None
-        self.det_path = None
-        self.sam2_path = None
-        self.flux_kontext_path = None
+        self.pose2d_model_path = None
+        self.det_model_path = None
+        self.sam2_model_path = None
+        self.flux_kontext_model_path = None
+        self.device = None
 
-    async def _load_animate_pipeline(self) -> Any:
+    async def _load_animate_pipeline(self) -> Tuple[Any, torch.device]:
         from wan.configs import WAN_CONFIGS
         import wan
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        device = self._resolve_device(self.config.device)
 
         # Wan2.2's WanAnimate hardcodes `self.device = torch.device(f"cuda:{device_id}")`
         # and uses torch.cuda.amp throughout — there is no viable non-CUDA path today.
         # Fail loudly rather than let the pipeline crash mid-generation with an opaque CUDA error.
-        if self.device.type != "cuda":
+        if device.type != "cuda":
             raise RuntimeError(
                 f"Component '{self.id}': Wan video-to-video requires a CUDA device, "
-                f"but resolved device is '{self.device.type}'. Set component.device to "
+                f"but resolved device is '{device.type}'. Set component.device to "
                 "'cuda' or a specific 'cuda:N' index."
             )
 
-        device_id = self.device.index if self.device.index is not None else 0
+        device_id = device.index if device.index is not None else 0
         task = _WAN_V2V_TASKS[self.config.preset]
 
         def _load() -> Any:
@@ -312,7 +331,12 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
 
             raise ValueError(f"Unsupported Wan video-to-video preset: {self.config.preset}")
 
-        return await self._run_in_executor(_load)
+        pipeline = await self._run_in_executor(_load)
+
+        return pipeline, device
+
+    async def _provision_optional_model(self, model: Optional[ModelConfig]) -> Optional[str]:
+        return await self._provision_model(model, prefetch=True) if model is not None else None
 
     def _build_process_pipeline(self, replace_flag: bool, use_flux: bool) -> Any:
         # The preprocess modules under wan/modules/animate/preprocess import each other with
@@ -325,10 +349,10 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
         from process_pipepline import ProcessPipeline  # noqa: E501 — module name is `process_pipepline` upstream.
 
         return ProcessPipeline(
-            det_checkpoint_path=self.det_path,
-            pose2d_checkpoint_path=self.pose2d_path,
-            sam_checkpoint_path=self.sam2_path if replace_flag else None,
-            flux_kontext_path=self.flux_kontext_path if use_flux else None,
+            det_checkpoint_path=self.det_model_path,
+            pose2d_checkpoint_path=self.pose2d_model_path,
+            sam_checkpoint_path=self.sam2_model_path if replace_flag else None,
+            flux_kontext_path=self.flux_kontext_model_path if use_flux else None,
         )
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:

@@ -158,8 +158,9 @@ class ComponentActionContext:
         value: Any,
         single_as_array: bool = False,
         as_stream: bool = False,
-    ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
-        return await ImageValueRenderer().render_array(await self.render_variable(value), single_as_array, as_stream)
+        item_is_list: bool = False,
+    ) -> Optional[Union[ImageArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await ImageValueRenderer().render_array(await self.render_variable(value), single_as_array, as_stream, item_is_list)
 
     async def render_audio(
         self,

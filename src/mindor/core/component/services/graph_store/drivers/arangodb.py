@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
+
+from typing import Union, Tuple
 
 import re
 from typing import Optional, Dict, List, Tuple, Any

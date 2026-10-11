@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING
+
+from typing import Dict
 
 from mindor.dsl.schema.controller import ControllerAdapterConfig
 from .base import ControllerAdapterService, ControllerAdapterRegistry

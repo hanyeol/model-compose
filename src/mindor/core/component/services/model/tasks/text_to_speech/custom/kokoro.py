@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Callable, Dict, Optional, List, Tuple, Any
+from typing import Union, Tuple, Callable, Dict, Optional, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod
 from mindor.dsl.schema.action import KokoroTextToSpeechModelGenerateActionConfig

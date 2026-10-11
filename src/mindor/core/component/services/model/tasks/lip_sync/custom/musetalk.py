@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig, MuseTalkPreset
 from mindor.dsl.schema.action import ModelActionConfig, MuseTalkLipSyncModelActionConfig, MuseTalkParsingMode

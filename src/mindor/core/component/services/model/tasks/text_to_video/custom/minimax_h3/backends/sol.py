@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, List, Dict, Union, Tuple, Any
+from typing import TYPE_CHECKING
+
+from typing import Optional, List, Dict, Union, Tuple, Any
 import math
 
 from mindor.dsl.schema.action import ModelActionConfig, MinimaxH3TextToVideoModelActionConfig

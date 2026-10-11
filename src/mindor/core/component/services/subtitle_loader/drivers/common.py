@@ -44,17 +44,12 @@ class SubtitleLoaderAction(ComponentAction):
 
             return (await self.context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        return {}
-
     @abstractmethod
     async def _prepare_input(self) -> Any:
-        """Return the driver-specific source input (URL, file path, upload, etc.).
-
-        The value may be a scalar, a list, or a stream iterator; the caller
-        dispatches it through `BatchSourceIterator` uniformly.
-        """
         pass
+
+    async def _resolve_params(self) -> Dict[str, Any]:
+        return {}
 
     @abstractmethod
     async def _load_batch(

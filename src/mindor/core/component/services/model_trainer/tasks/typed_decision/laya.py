@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Any, Dict, List, Optional
+from typing import Union, Tuple, Any, Dict, List, Optional
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType, LayaTypedDecisionModelTrainerComponentConfig
 from mindor.dsl.schema.component.impl.model_trainer.tasks.typed_decision.impl.laya import LayaTrainerPreset
 from mindor.dsl.schema.action import TypedDecisionModelTrainerActionConfig

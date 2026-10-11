@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, WanTextToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanTextToVideoModelActionConfig
@@ -132,18 +132,20 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.pipeline = await self._load_pipeline()
+        self.pipeline, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
+        self.device = None
 
-    async def _load_pipeline(self) -> Any:
+    async def _load_pipeline(self) -> Tuple[Any, torch.device]:
         from wan.configs import WAN_CONFIGS
         import wan
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        device_id = self.device.index if self.device.type == "cuda" and self.device.index is not None else 0
+        device = self._resolve_device(self.config.device)
+
+        device_id = device.index if device.type == "cuda" and device.index is not None else 0
         task = _WAN_T2V_TASKS[self.config.preset]
 
         def _load() -> Any:
@@ -155,7 +157,9 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
 
             raise ValueError(f"Unsupported Wan text-to-video preset: {self.config.preset}")
 
-        return await self._run_in_executor(_load)
+        pipeline = await self._run_in_executor(_load)
+
+        return pipeline, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await WanTextToVideoTaskAction(action, self.pipeline, self.config.preset, self.config.cpu_offload).run(context)

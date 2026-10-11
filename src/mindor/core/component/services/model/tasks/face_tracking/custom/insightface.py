@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Union, Dict, List, Tuple, Any, Callable
+from typing import Union, Tuple, Optional, Dict, List, Any, Callable
 from collections.abc import AsyncIterable, AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, InsightfaceFaceTrackingModelActionConfig

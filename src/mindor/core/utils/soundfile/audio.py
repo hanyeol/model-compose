@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, BinaryIO, Optional, Tuple, Union
+from typing import BinaryIO, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     import numpy as np

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Dict, Optional, List, Tuple, Any
+from typing import Union, Tuple, Dict, Optional, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, DemucsMusicSourceSeparationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, DemucsMusicSourceSeparationModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements

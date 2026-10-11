@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, Optional, Union, Tuple, Dict, List, Any
+from typing import Optional, Union, Tuple, Dict, List, Any
 from mindor.dsl.schema.component import MusicAnalyzerComponentConfig
 from mindor.dsl.schema.action import MusicAnalyzerActionConfig
 from mindor.core.foundation.cancellation import CancellationToken

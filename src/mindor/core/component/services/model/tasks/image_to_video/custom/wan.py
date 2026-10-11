@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, WanImageToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanImageToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
@@ -130,30 +130,31 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.device = self._resolve_device(self.config.device)
-        self.pipeline = await self._load_pipeline()
+        self.pipeline, self.device = await self._load_pipeline()
 
     async def _unload_model(self) -> None:
         self.pipeline = None
+        self.device = None
 
-    async def _load_pipeline(self) -> Any:
+    async def _load_pipeline(self) -> Tuple[Any, torch.device]:
         from wan.configs import WAN_CONFIGS
         import wan
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
+        device = self._resolve_device(self.config.device)
 
         # Wan2.2's WanI2V / WanTI2V hardcode `self.device = torch.device(f"cuda:{device_id}")`
         # and use torch.cuda.amp throughout — there is no viable non-CUDA path
         # today. Fail loudly rather than let the pipeline crash mid-generation
         # with an opaque CUDA error.
-        if self.device.type != "cuda":
+        if device.type != "cuda":
             raise RuntimeError(
                 f"Component '{self.id}': Wan image-to-video requires a CUDA device, "
-                f"but resolved device is '{self.device.type}'. Set component.device to "
+                f"but resolved device is '{device.type}'. Set component.device to "
                 "'cuda' or a specific 'cuda:N' index."
             )
 
-        device_id = self.device.index if self.device.index is not None else 0
+        device_id = device.index if device.index is not None else 0
         task = _WAN_I2V_TASKS[self.config.preset]
 
         def _load() -> Any:
@@ -165,7 +166,9 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
 
             raise ValueError(f"Unsupported Wan image-to-video preset: {self.config.preset}")
 
-        return await self._run_in_executor(_load)
+        pipeline = await self._run_in_executor(_load)
+
+        return pipeline, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await WanImageToVideoTaskAction(action, self.pipeline, self.config.preset, self.config.cpu_offload).run(context)

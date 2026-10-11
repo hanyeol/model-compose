@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Union, Tuple, Type, Literal, Optional, Dict, List, Set, Annotated, Any
 from abc import abstractmethod
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, ModelTokenizerTaskType, ModelTokenizerDriverType
 from mindor.dsl.schema.component.impl.model.tasks.common import ModelConfig

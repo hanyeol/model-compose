@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Dict, Mapping, Optional, List, Tuple, Type, Union, Any
+from typing import Union, Tuple, Dict, Mapping, Optional, List, Type, Any
 from mindor.dsl.schema.component import (
     BsRoFormerMusicSourceSeparationModelComponentConfig,
     MelBandRoFormerMusicSourceSeparationModelComponentConfig,

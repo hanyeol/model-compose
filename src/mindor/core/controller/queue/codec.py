@@ -1,7 +1,8 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.logger import logging

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, Any
+from typing import Union, Tuple, Optional, Dict, Any
 from mindor.dsl.schema.tracer import LangfuseTracerConfig
 from mindor.dsl.schema.tracer.impl.types import TracerDriver
 from ..base import TracerService, register_tracer

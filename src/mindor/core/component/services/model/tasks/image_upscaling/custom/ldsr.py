@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, List, Any
+from typing import Union, Tuple, Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, LdsrImageUpscalingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from ....base import ComponentActionContext

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import AniGenImageTo3DModelComponentConfig, AniGenSSVariant, AniGenSLATVariant
 from mindor.dsl.schema.action import ModelActionConfig, AniGenImageTo3DModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements

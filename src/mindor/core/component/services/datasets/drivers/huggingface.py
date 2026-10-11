@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, Any
+from typing import Union, Tuple, Optional, Dict, Any
 from mindor.dsl.schema.component import HuggingfaceDatasetsComponentConfig
 from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod
 from mindor.core.foundation.cancellation import CancellationToken

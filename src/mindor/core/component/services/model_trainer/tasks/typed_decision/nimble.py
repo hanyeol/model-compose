@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Any, Dict, List, Optional
+from typing import Union, Tuple, Any, Dict, List, Optional
 import sys, platform
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType, NimbleTypedDecisionModelTrainerComponentConfig
 from mindor.dsl.schema.action import TypedDecisionModelTrainerActionConfig

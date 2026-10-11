@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Any, Dict, List, Optional
+from typing import Union, Tuple, Any, Dict, List, Optional
 from mindor.core.foundation.variable.codec import VariableCodec
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.variable.size import parse_size

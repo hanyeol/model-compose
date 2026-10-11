@@ -41,16 +41,16 @@ class MusicGenerationTaskAction(ModelTaskComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
+    @abstractmethod
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        pass
+
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         seed = await context.render_scalar(self.config.seed, int)
 
         return {
             "seed": seed,
         }
-
-    @abstractmethod
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        pass
 
     @abstractmethod
     async def _generate_batch(

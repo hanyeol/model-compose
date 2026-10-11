@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Type, Union, Optional, Dict, List, Any
+from typing import Union, Tuple, Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, TextEmbeddingModelActionConfig
 from mindor.dsl.schema.component import DeviceMode, HuggingfaceTextEmbeddingModelArchitecture
 from mindor.core.foundation.cancellation import CancellationToken

@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any, TYPE_CHECKING, Union, Tuple
+from typing import Optional, Dict, List, Any, Union, Tuple
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioProcessorComponentConfig
 

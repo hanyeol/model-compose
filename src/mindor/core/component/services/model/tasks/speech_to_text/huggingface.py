@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Type, Union, Optional, Dict, List, Any
+from typing import Union, Tuple, Type, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture

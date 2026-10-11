@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, Union, Optional, Tuple, Dict, List, Iterator, Any
+from typing import Union, Optional, Tuple, Dict, List, Iterator, Any
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
 from mindor.dsl.schema.component import (

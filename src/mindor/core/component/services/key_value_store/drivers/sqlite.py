@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Dict, List, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import SqliteKeyValueStoreComponentConfig
 from mindor.dsl.schema.action import KeyValueStoreActionConfig, SqliteKeyValueStoreActionConfig
 from mindor.core.foundation.cancellation import CancellationToken

@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any, Union
+from typing import Optional, Dict, List, Tuple, Any, Union
 from mindor.dsl.schema.component import MusicSegmentDetectorComponentConfig
 from mindor.dsl.schema.action import MusicSegmentDetectorActionConfig
 from mindor.dsl.schema.action.impl.music_segment_detector.impl.native import NativeMusicSegmentDetectorStrategy

@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Tuple, Any, Union
+from typing import Optional, Dict, List, Tuple, Any, Union
 from mindor.dsl.schema.component import AudioFeatureExtractorComponentConfig
 from mindor.dsl.schema.action import AudioFeatureExtractorActionConfig
 from mindor.dsl.schema.action.impl.audio_feature_extractor.impl.common import AudioFeature

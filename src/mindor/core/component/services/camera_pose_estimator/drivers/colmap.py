@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Optional, Tuple, Dict, List, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import CameraPoseEstimatorComponentConfig, ColmapMatcherType
 from mindor.dsl.schema.action import CameraPoseEstimatorActionConfig, ColmapCameraPoseEstimatorActionConfig
 from mindor.core.foundation.variable.file import FileArrayValue

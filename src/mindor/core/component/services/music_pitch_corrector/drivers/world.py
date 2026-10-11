@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, Optional, Union, Dict, List, Any, Tuple
+from typing import Optional, Union, Dict, List, Any, Tuple
 from mindor.dsl.schema.component import MusicPitchCorrectorComponentConfig
 from mindor.dsl.schema.action import MusicPitchCorrectorActionConfig
 from mindor.core.foundation.variable.time import parse_time

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Union, Tuple, Type, Literal, Optional, Dict, List, Set, Annotated, Any
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, HuggingfaceModelConfig
 from mindor.core.logger import logging
 from .common import ModelTokenizerTaskDriver

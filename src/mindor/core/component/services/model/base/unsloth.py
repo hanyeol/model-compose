@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Union, Tuple, Type, Literal, Optional, Dict, List, Set, Annotated, Callable, Any
 from pydantic import BaseModel
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, DeviceMode
 from mindor.core.foundation.package.torch import torch_requirements

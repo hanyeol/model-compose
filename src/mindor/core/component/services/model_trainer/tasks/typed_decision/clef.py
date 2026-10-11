@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Any, Dict, List, Optional
+from typing import Union, Tuple, Any, Dict, List, Optional
 from mindor.dsl.schema.component import ModelTrainerTaskType, ModelTrainerDriverType, ClefTypedDecisionModelTrainerComponentConfig
 from mindor.dsl.schema.action import TypedDecisionModelTrainerActionConfig
 from mindor.core.foundation.package.torch import torch_requirements

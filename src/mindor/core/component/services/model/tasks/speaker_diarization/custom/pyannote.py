@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
+from typing import Union, Tuple, Dict, Optional, List, Iterator, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, PyannoteSpeakerDiarizationModelComponentConfig, HuggingfaceModelConfig
 from mindor.dsl.schema.action import ModelActionConfig, SpeakerDiarizationModelActionConfig
@@ -47,6 +47,7 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
         else:
             if params["min_speaker_count"] is not None:
                 pipeline_params["min_speakers"] = int(params["min_speaker_count"])
+
             if params["max_speaker_count"] is not None:
                 pipeline_params["max_speakers"] = int(params["max_speaker_count"])
 

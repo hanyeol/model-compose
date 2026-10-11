@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Union, Dict, Optional, List, Tuple, Any
+from typing import Union, Tuple, Dict, Optional, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.component import CosyvoiceTextToSpeechModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, TextToSpeechActionMethod

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import Dict, Optional, List, Iterator, Tuple, Union, Any
+from typing import Union, Tuple, Dict, Optional, List, Iterator, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, VibeVoiceSpeechToTextModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, VibeVoiceSpeechToTextModelActionConfig

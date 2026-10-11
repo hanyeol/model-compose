@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.resources import StreamResource, read_stream_to_bytes
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
+from .array import ArrayValue
 from mindor.core.utils.files import get_file_extension, guess_file_extension
 from mindor.core.utils.image import probe_format
 from PIL import Image as PILImage
@@ -48,7 +49,18 @@ class ImageValueRenderer:
         value: Any,
         single_as_array: bool = False,
         as_stream: bool = False,
-    ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Optional[ImageArrayValue]]]]:
+        item_is_list: bool = False,
+    ) -> Optional[Union[ImageArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        """Render an image array (or a nested list of them, with ``item_is_list=True``).
+
+        With ``item_is_list=False`` (default) each ``value`` element is a single
+        image, and nested lists are interpreted as a batch of image arrays.
+        With ``item_is_list=True`` each element is itself a list of image refs
+        (e.g. one entry per ControlNet), so the renderer returns ``ArrayValue``
+        wrappers whose elements are ``ImageArrayValue``s — matching the shape
+        ``ArrayValueRenderer`` produces for inner-is-list payloads, but with
+        images already materialized inside.
+        """
         # Fragmented streams (e.g. per-html frame streams) represent a single
         # logical image array delivered in pieces — fall through to
         # `_render_element_array` which wraps them into one streaming ImageArrayValue.
@@ -57,7 +69,10 @@ class ImageValueRenderer:
         if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk, single_as_array, as_stream)
+                    if item_is_list:
+                        yield await self._render_controlnet_entry(chunk, single_as_array, as_stream)
+                    else:
+                        yield await self._render_element_array(chunk, single_as_array, as_stream)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -65,10 +80,39 @@ class ImageValueRenderer:
 
             return _iterate()
 
+        if item_is_list:
+            if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
+                return [ await self._render_controlnet_entry(item, single_as_array, as_stream) for item in value ]
+
+            return await self._render_controlnet_entry(value, single_as_array, as_stream)
+
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
             return [ await self._render_element_array(item, single_as_array, as_stream) for item in value ]
 
         return await self._render_element_array(value, single_as_array, as_stream)
+
+    async def _render_controlnet_entry(
+        self,
+        value: Any,
+        single_as_array: bool,
+        as_stream: bool,
+    ) -> Optional[ArrayValue]:
+        """Materialize one `item_is_list` entry: a list of image refs (one per
+        ControlNet) becomes an ``ArrayValue`` whose elements are ``ImageArrayValue``s.
+        A scalar entry — a single ref — is wrapped as ``is_single=True`` when
+        ``single_as_array`` is set, mirroring ``ArrayValueRenderer``'s behavior.
+        """
+        if isinstance(value, (list, tuple)):
+            entries: List[Optional[ImageArrayValue]] = []
+            for ref in value:
+                entries.append(await self._render_element_array(ref, single_as_array=True, as_stream=as_stream))
+            return ArrayValue(entries, is_single=single_as_array)
+
+        if single_as_array and value is not None:
+            entry = await self._render_element_array(value, single_as_array=True, as_stream=as_stream)
+            return ArrayValue([ entry ] if entry is not None else [], is_single=True)
+
+        return None
 
     async def render(
         self,

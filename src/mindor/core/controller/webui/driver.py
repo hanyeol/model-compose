@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.controller.webui import ControllerWebUIConfig
 from mindor.dsl.schema.workflow import WorkflowConfig

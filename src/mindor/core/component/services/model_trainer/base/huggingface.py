@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Tuple
+from typing import TYPE_CHECKING
 
-from typing import List
+from typing import Union, Tuple, List
 from mindor.core.foundation.package.torch import torch_requirements
 from .common import ModelTrainerTaskDriver
 

@@ -49,8 +49,9 @@ component:
     seed: ${input.seed as integer}
     params:
       # Number of frames to sample from the input video. Leave unset to
-      # consume every input frame — FreeNoise (always on for AnimateDiff
-      # here) processes long clips through sliding context windows.
+      # consume every input frame. For clips longer than ~16 frames enable
+      # the `free_noise` block below so the motion module slides over the
+      # clip in windows instead of attending to all frames at once.
       num_frames: ${input.num_frames as integer | 32}
       # Output frame rate. Leave unset to inherit the input video's frame rate so
       # the output preserves the source playback duration.
@@ -70,3 +71,15 @@ component:
       # IP-Adapter influence when `reference_image` is provided; ignored otherwise.
       # 0 disables reference conditioning, 1 relies fully on the reference.
       ip_adapter_scale: ${input.ip_adapter_scale as number | 0.6}
+      # FreeNoise sliding-window sampling. AnimateDiff motion adapters are
+      # trained on 16-frame windows; without this block, longer clips lose
+      # motion quality and VRAM grows with the frame count. Omit the block
+      # to disable (default). `context_length` must be ≤ the motion module's
+      # native window (16 for v1-5-3); `context_stride` is the overlap step.
+      free_noise:
+        context_length: ${input.context_length as integer | 16}
+        context_stride: ${input.context_stride as integer | 4}
+        weighting_scheme: ${input.weighting_scheme | "pyramid"}
+      # VAE latent decode chunk size. Lower values trade speed for VRAM when
+      # decoding long clips; leave unset to decode all latents at once.
+      decode_chunk_size: ${input.decode_chunk_size as integer}

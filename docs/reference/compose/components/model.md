@@ -1958,9 +1958,9 @@ Generate an image from a text prompt. `driver: huggingface` selects one of four 
 | `mask_image` | string/list | **required for inpaint** | Mask image(s); white = inpaint, black = preserve |
 | `params.denoise_strength` | float | `1.0` | **inpaint only.** Noise strength applied before denoising |
 | `control_image` | string/list | `null` | ControlNet condition image(s); required when `controlnet` is set on the component. One entry per ControlNet, with lengths matching the configured count |
-| `controlnet_conditioning_scale` | float/list | `1.0` | Strength of each ControlNet's influence; scalar or per-ControlNet list |
-| `control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
-| `control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
+| `params.controlnet_conditioning_scale` | float/list | `1.0` | Strength of each ControlNet's influence; scalar or per-ControlNet list |
+| `params.control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
+| `params.control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
 
 Each architecture extends `params` with its own knobs (`guidance_scale` for sdxl/flux, `max_sequence_length` for flux, `true_cfg_scale` for qwen-image, `distilled_guidance_scale` for hunyuan-image) and `negative_prompt` for architectures that support it. SDXL also exposes `image` on its `generate` variant for image-to-image flows.
 
@@ -1981,9 +1981,10 @@ component:
     control_image:
       - ${input.canny as image}
       - ${input.depth as image}
-    controlnet_conditioning_scale: [ 0.8, 0.5 ]
-    control_guidance_start: [ 0.0, 0.0 ]
-    control_guidance_end:   [ 1.0, 0.8 ]
+    params:
+      controlnet_conditioning_scale: [ 0.8, 0.5 ]
+      control_guidance_start: [ 0.0, 0.0 ]
+      control_guidance_end:   [ 1.0, 0.8 ]
 ```
 
 When `controlnet` is set the driver swaps the pipeline for the matching `*ControlNetPipeline` (e.g. `StableDiffusionXLControlNetPipeline`, `FluxControlNetInpaintPipeline`); a single ControlNet loads a bare `ControlNetModel`, multiple ControlNets are wrapped as `MultiControlNetModel`. For `method: inpaint`, the base image goes through `image` / `mask_image` and ControlNet conditions through `control_image`.
@@ -2346,10 +2347,15 @@ Restyle the source clip with a text prompt while preserving its motion.
 | `params.guidance_scale` | float | `7.5` | Classifier-free guidance scale |
 | `params.denoise_strength` | float | `0.5` | Denoising strength — higher values follow the prompt more, lower values preserve the input video's appearance |
 | `params.ip_adapter_scale` | float | `0.6` | IP-Adapter influence when `reference_image` is supplied; ignored otherwise. `0` disables, `1` fully follows the reference |
+| `params.free_noise` | block | `null` | Enable FreeNoise sliding-window sampling. Omit to disable. Required for clips longer than the motion adapter's native window (~16 frames) — without it, motion quality degrades and VRAM grows with the frame count |
+| `params.free_noise.context_length` | int | `16` | Window length in frames; must be ≤ the motion module's native window |
+| `params.free_noise.context_stride` | int | `4` | Frame stride between successive windows (overlap step) |
+| `params.free_noise.weighting_scheme` | string | `pyramid` | Window weighting scheme (e.g. `pyramid`, `flat`) |
+| `params.decode_chunk_size` | int | `null` | VAE latent decode chunk size; lower values trade speed for VRAM when decoding long clips |
 | `conditioning_frames` | string/list | `null` | ControlNet frame sequence(s); one reference per ControlNet configured on the component. Required whenever `controlnet` is set |
-| `controlnet_conditioning_scale` | float/list | `1.0` | Strength of each ControlNet's influence; scalar or per-ControlNet list |
-| `control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
-| `control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
+| `params.controlnet_conditioning_scale` | float/list | `1.0` | Strength of each ControlNet's influence; scalar or per-ControlNet list |
+| `params.control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
+| `params.control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
 
 **Example:**
 
@@ -2400,9 +2406,10 @@ component:
     conditioning_frames:
       - ${input.pose_frames}
       - ${input.depth_frames}
-    controlnet_conditioning_scale: [ 0.8, 0.5 ]
-    control_guidance_start: [ 0.0, 0.0 ]
-    control_guidance_end:   [ 1.0, 0.8 ]
+    params:
+      controlnet_conditioning_scale: [ 0.8, 0.5 ]
+      control_guidance_start: [ 0.0, 0.0 ]
+      control_guidance_end:   [ 1.0, 0.8 ]
 ```
 
 When `controlnet` is set, the driver loads `diffusers.ControlNetModel` (wrapped in `MultiControlNetModel` when more than one is configured) and swaps the pipeline for `AnimateDiffVideoToVideoControlNetPipeline`. `conditioning_frames` length must equal the number of ControlNets. Combining ControlNet with IP-Adapter is supported — pass both `reference_image` and `conditioning_frames` in the same action.
@@ -2411,7 +2418,7 @@ When `controlnet` is set, the driver loads `diffusers.ControlNetModel` (wrapped 
 
 | Architecture | Notes |
 |--------------|-------|
-| `animatediff` | Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Trained on ~16-frame windows — split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. |
+| `animatediff` | Stable Diffusion 1.5 checkpoint + AnimateDiff motion adapter. Trained on ~16-frame windows — enable `params.free_noise` for longer clips so the pipeline samples through sliding windows, or split long inputs into short segments upstream (e.g. with `video-clipper`) and stitch the results downstream. |
 
 #### Driver: custom (Wan-Animate)
 

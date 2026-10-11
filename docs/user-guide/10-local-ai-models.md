@@ -757,7 +757,8 @@ component:
   action:
     prompt: ${input.prompt as text}
     control_image: ${input.canny as image}
-    controlnet_conditioning_scale: 0.8
+    params:
+      controlnet_conditioning_scale: 0.8
 ```
 
 ```yaml
@@ -775,9 +776,10 @@ component:
     control_image:
       - ${input.canny as image}
       - ${input.depth as image}
-    controlnet_conditioning_scale: [ 0.8, 0.5 ]
-    control_guidance_start: [ 0.0, 0.0 ]
-    control_guidance_end:   [ 1.0, 0.8 ]
+    params:
+      controlnet_conditioning_scale: [ 0.8, 0.5 ]
+      control_guidance_start: [ 0.0, 0.0 ]
+      control_guidance_end:   [ 1.0, 0.8 ]
 ```
 
 The `method: inpaint` variant works the same way — the base image goes through `image` / `mask_image`, and ControlNet conditions through `control_image`. ControlNet is currently rejected for `hunyuan-image` and `qwen-image` architectures (diffusers lacks matching ControlNet pipelines there).
@@ -1588,7 +1590,8 @@ component:
     video: ${input.video as video}
     prompt: ${input.prompt}
     conditioning_frames: ${input.pose_frames}  # ImageArray — one frame per input video frame
-    controlnet_conditioning_scale: 0.8
+    params:
+      controlnet_conditioning_scale: 0.8
 ```
 
 ```yaml
@@ -1609,9 +1612,10 @@ component:
     conditioning_frames:
       - ${input.pose_frames}
       - ${input.depth_frames}
-    controlnet_conditioning_scale: [ 0.8, 0.5 ]
-    control_guidance_start: [ 0.0, 0.0 ]
-    control_guidance_end:   [ 1.0, 0.8 ]
+    params:
+      controlnet_conditioning_scale: [ 0.8, 0.5 ]
+      control_guidance_start: [ 0.0, 0.0 ]
+      control_guidance_end:   [ 1.0, 0.8 ]
 ```
 
 ControlNet can be combined with the IP-Adapter — supply both `reference_image` and `conditioning_frames` in the same action.

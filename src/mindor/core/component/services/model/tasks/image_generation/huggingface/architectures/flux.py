@@ -1,19 +1,20 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Type, Optional, Dict, List, Any
+from typing import TYPE_CHECKING
 
+from typing import Type, Optional, Tuple, Dict, List, Any
+from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, ImageGenerationActionMethod
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.cancellation import CancellationToken
 from .....base import ComponentActionContext
-from ..base import (
-    HuggingfaceImageGenerationGenerateTaskAction,
-    HuggingfaceImageGenerationInpaintTaskAction,
-    HuggingfaceImageGenerationBaseDriver,
-)
+from ..base import HuggingfaceImageGenerationTaskAction, HuggingfaceImageGenerationBaseDriver
+from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
     import torch
 
-class FluxHuggingfaceImageGenerationGenerateTaskAction(HuggingfaceImageGenerationGenerateTaskAction):
+class FluxHuggingfaceImageGenerationTaskAction(HuggingfaceImageGenerationTaskAction):
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)
 
@@ -27,19 +28,115 @@ class FluxHuggingfaceImageGenerationGenerateTaskAction(HuggingfaceImageGeneratio
 
         return params
 
-class FluxHuggingfaceImageGenerationInpaintTaskAction(HuggingfaceImageGenerationInpaintTaskAction):
+class FluxHuggingfaceImageGenerationGenerateAction(FluxHuggingfaceImageGenerationTaskAction):
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt = await context.render_text(self.config.prompt)
+
+        if self.controlnet_count > 0 and self.config.control_image is not None:
+            control_image = await context.render_image_array(self.config.control_image, single_as_array=True)
+        else:
+            control_image = None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+
+        return (prompt, control_image), is_single_input, is_streaming_input
+
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)
 
-        guidance_scale      = await context.render_variable(self.config.params.guidance_scale)
-        max_sequence_length = await context.render_variable(self.config.params.max_sequence_length)
+        sigmas = await context.render_variable(self.config.params.sigmas)
+
+        if sigmas is not None and len(sigmas) != params["num_inference_steps"]:
+            raise ValueError(
+                f"`sigmas` length ({len(sigmas)}) must equal `inference_steps` ({params['num_inference_steps']})."
+            )
+
+        if sigmas is not None:
+            params["sigmas"] = sigmas
+
+        return params
+
+    async def _generate_batch(
+        self,
+        inputs: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[PILImage.Image]:
+        prompts, control_images = inputs
+
+        if self.controlnet_count > 0:
+            control_images = await self._build_pipeline_control_images(control_images)
+        else:
+            control_images = None
+
+        def _generate() -> List[PILImage.Image]:
+            pipeline_params: Dict[str, Any] = {
+                **params["pipeline"],
+                "prompt": list(prompts),
+            }
+
+            if control_images is not None:
+                pipeline_params["image"] = control_images
+
+            return self._process_pipeline(pipeline_params, params, cancellation_token)
+
+        return await self._run_in_executor(_generate)
+
+class FluxHuggingfaceImageGenerationInpaintAction(FluxHuggingfaceImageGenerationTaskAction):
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt     = await context.render_text(self.config.prompt)
+        image      = await context.render_image(self.config.image)
+        mask_image = await context.render_image(self.config.mask_image)
+
+        if self.controlnet_count > 0 and self.config.control_image is not None:
+            control_image = await context.render_image_array(self.config.control_image, single_as_array=True)
+        else:
+            control_image = None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+
+        return (prompt, image, mask_image, control_image), is_single_input, is_streaming_input
+
+    async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_pipeline_params(context)
+
+        denoise_strength = await context.render_scalar(self.config.params.denoise_strength, float)
 
         params.update({
-            "guidance_scale":      float(guidance_scale),
-            "max_sequence_length": int(max_sequence_length),
+            "strength": denoise_strength,
         })
 
         return params
+
+    async def _generate_batch(
+        self,
+        inputs: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[PILImage.Image]:
+        prompts, images, mask_images, control_images = inputs
+
+        if self.controlnet_count > 0:
+            control_images = await self._build_pipeline_control_images(control_images)
+        else:
+            control_images = None
+
+        def _generate() -> List[PILImage.Image]:
+            pipeline_params: Dict[str, Any] = {
+                **params["pipeline"],
+                "prompt":     list(prompts),
+                "image":      list(images),
+                "mask_image": list(mask_images),
+            }
+
+            if control_images is not None:
+                pipeline_params["control_image"] = control_images
+
+            return self._process_pipeline(pipeline_params, params, cancellation_token)
+
+        return await self._run_in_executor(_generate)
 
 class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDriver):
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
@@ -82,19 +179,13 @@ class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
             raise ValueError(f"No pipeline loaded for method: {action.method}")
 
         if action.method == ImageGenerationActionMethod.GENERATE:
-            return await FluxHuggingfaceImageGenerationGenerateTaskAction(
-                action,
-                pipeline,
-                self.device,
-                self._get_controlnet_count()
+            return await FluxHuggingfaceImageGenerationGenerateAction(
+                action, pipeline, self.device, self._get_controlnet_count()
             ).run(context)
 
         if action.method == ImageGenerationActionMethod.INPAINT:
-            return await FluxHuggingfaceImageGenerationInpaintTaskAction(
-                action,
-                pipeline,
-                self.device,
-                self._get_controlnet_count()
+            return await FluxHuggingfaceImageGenerationInpaintAction(
+                action, pipeline, self.device, self._get_controlnet_count()
             ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

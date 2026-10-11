@@ -1,25 +1,21 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Type, Optional, Dict, List, Any
+from typing import TYPE_CHECKING
+
+from typing import Type, Optional, Tuple, Dict, List, Any
+from collections.abc import AsyncIterator
 
 from mindor.dsl.schema.action import ModelActionConfig, ImageGenerationActionMethod
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.cancellation import CancellationToken
 from .....base import ComponentActionContext
-from ..base import (
-    HuggingfaceImageGenerationGenerateTaskAction,
-    HuggingfaceImageGenerationInpaintTaskAction,
-    HuggingfaceImageGenerationBaseDriver,
-)
+from ..base import HuggingfaceImageGenerationTaskAction, HuggingfaceImageGenerationBaseDriver
+from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
     import torch
 
-class SdxlHuggingfaceImageGenerationGenerateTaskAction(HuggingfaceImageGenerationGenerateTaskAction):
-    async def _prepare_input(self, context: ComponentActionContext):
-        (prompt,), is_single_input, is_streaming_input = await super()._prepare_input(context)
-        negative_prompt = await context.render_variable(self.config.negative_prompt)
-
-        return (prompt, negative_prompt), is_single_input, is_streaming_input
-
+class SdxlHuggingfaceImageGenerationTaskAction(HuggingfaceImageGenerationTaskAction):
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)
 
@@ -31,32 +27,129 @@ class SdxlHuggingfaceImageGenerationGenerateTaskAction(HuggingfaceImageGeneratio
 
         return params
 
-    def _build_pipeline_input_params(self, inputs: Any) -> Dict[str, Any]:
-        prompts, negative_prompts = inputs
+class SdxlHuggingfaceImageGenerationGenerateAction(SdxlHuggingfaceImageGenerationTaskAction):
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt          = await context.render_text(self.config.prompt)
+        negative_prompt = await context.render_variable(self.config.negative_prompt)
+
+        if self.controlnet_count > 0 and self.config.control_image is not None:
+            control_image = await context.render_image_array(self.config.control_image, single_as_array=True)
+        else:
+            control_image = None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+
+        return (prompt, control_image, negative_prompt), is_single_input, is_streaming_input
+
+    async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_pipeline_params(context)
+
+        sigmas = await context.render_variable(self.config.params.sigmas)
+
+        if sigmas is not None and len(sigmas) != params["num_inference_steps"]:
+            raise ValueError(
+                f"`sigmas` length ({len(sigmas)}) must equal `inference_steps` ({params['num_inference_steps']})."
+            )
+
+        if sigmas is not None:
+            params["sigmas"] = sigmas
+
+        return params
+
+    async def _generate_batch(
+        self,
+        inputs: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[PILImage.Image]:
+        prompts, control_images, negative_prompts = inputs
+
+        if self.controlnet_count > 0:
+            control_images = await self._build_pipeline_control_images(control_images)
+        else:
+            control_images = None
 
         if all(value is None for value in negative_prompts):
             negative_prompts = None
 
-        return {
-            "prompt": list(prompts),
-            **({ "negative_prompt": list(negative_prompts) } if negative_prompts is not None else {}),
-        }
+        def _generate() -> List[PILImage.Image]:
+            pipeline_params: Dict[str, Any] = {
+                **params["pipeline"],
+                "prompt": list(prompts),
+            }
 
+            if control_images is not None:
+                pipeline_params["image"] = control_images
 
-class SdxlHuggingfaceImageGenerationInpaintTaskAction(HuggingfaceImageGenerationInpaintTaskAction):
+            if negative_prompts is not None:
+                pipeline_params["negative_prompt"] = list(negative_prompts)
+
+            return self._process_pipeline(pipeline_params, params, cancellation_token)
+
+        return await self._run_in_executor(_generate)
+
+class SdxlHuggingfaceImageGenerationInpaintAction(SdxlHuggingfaceImageGenerationTaskAction):
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+        prompt          = await context.render_text(self.config.prompt)
+        image           = await context.render_image(self.config.image)
+        mask_image      = await context.render_image(self.config.mask_image)
+        negative_prompt = await context.render_variable(self.config.negative_prompt)
+
+        if self.controlnet_count > 0 and self.config.control_image is not None:
+            control_image = await context.render_image_array(self.config.control_image, single_as_array=True)
+        else:
+            control_image = None
+
+        is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+
+        return (prompt, image, mask_image, control_image, negative_prompt), is_single_input, is_streaming_input
+
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)
 
-        negative_prompt = await context.render_variable(self.config.negative_prompt)
-        guidance_scale  = await context.render_variable(self.config.params.guidance_scale)
+        denoise_strength = await context.render_scalar(self.config.params.denoise_strength, float)
 
         params.update({
-            "negative_prompt": negative_prompt,
-            "guidance_scale":  float(guidance_scale),
+            "strength": denoise_strength,
         })
 
         return params
 
+    async def _generate_batch(
+        self,
+        inputs: Any,
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[PILImage.Image]:
+        prompts, images, mask_images, control_images, negative_prompts = inputs
+
+        if self.controlnet_count > 0:
+            control_images = await self._build_pipeline_control_images(control_images)
+        else:
+            control_images = None
+
+        if all(value is None for value in negative_prompts):
+            negative_prompts = None
+
+        def _generate() -> List[PILImage.Image]:
+            pipeline_params: Dict[str, Any] = {
+                **params["pipeline"],
+                "prompt":     list(prompts),
+                "image":      list(images),
+                "mask_image": list(mask_images),
+            }
+
+            if control_images is not None:
+                pipeline_params["control_image"] = control_images
+
+            if negative_prompts is not None:
+                pipeline_params["negative_prompt"] = list(negative_prompts)
+
+            return self._process_pipeline(pipeline_params, params, cancellation_token)
+
+        return await self._run_in_executor(_generate)
 
 class SdxlHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDriver):
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
@@ -102,19 +195,13 @@ class SdxlHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
             raise ValueError(f"No pipeline loaded for method: {action.method}")
 
         if action.method == ImageGenerationActionMethod.GENERATE:
-            return await SdxlHuggingfaceImageGenerationGenerateTaskAction(
-                action,
-                pipeline,
-                self.device,
-                self._get_controlnet_count()
+            return await SdxlHuggingfaceImageGenerationGenerateAction(
+                action, pipeline, self.device, self._get_controlnet_count()
             ).run(context)
 
         if action.method == ImageGenerationActionMethod.INPAINT:
-            return await SdxlHuggingfaceImageGenerationInpaintTaskAction(
-                action,
-                pipeline,
-                self.device,
-                self._get_controlnet_count()
+            return await SdxlHuggingfaceImageGenerationInpaintAction(
+                action, pipeline, self.device, self._get_controlnet_count()
             ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

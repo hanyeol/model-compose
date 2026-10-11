@@ -2,10 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Tuple, Dict, List, Any
-from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageGenerationModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
@@ -14,7 +12,7 @@ from PIL import Image as PILImage
 if TYPE_CHECKING:
     import torch
 
-class ImageGenerationGenerateTaskAction(ModelTaskComponentAction):
+class ImageGenerationTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
         self.config: ImageGenerationModelActionConfig = config
         self.device: Optional[torch.device] = device
@@ -47,69 +45,17 @@ class ImageGenerationGenerateTaskAction(ModelTaskComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        return {}
-
     @abstractmethod
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
         pass
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        return {}
 
     @abstractmethod
     async def _generate_batch(
         self,
         inputs: Any,
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[PILImage.Image]:
-        pass
-
-class ImageGenerationInpaintTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageGenerationModelActionConfig = config
-        self.device: Optional[torch.device] = device
-
-    async def run(self, context: ComponentActionContext) -> Any:
-        prompt     = await context.render_text(self.config.prompt)
-        image      = await context.render_image(self.config.image)
-        mask_image = await context.render_image(self.config.mask_image)
-        batch_size = await context.render_variable(self.config.batch_size)
-
-        params = await self._resolve_params(context)
-
-        is_single_input  = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_direct_output = not self.config.output or self.config.output == "${result}"
-
-        source = (prompt, image, mask_image)
-
-        if isinstance(prompt, (StreamIterator, AsyncIterator)):
-            async def _stream_output_generator():
-                async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
-                    batch_results = await self._inpaint_batch(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
-                    for result in batch_results:
-                        context.register_source("result", result)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-            return _stream_output_generator()
-        else:
-            results: List[PILImage.Image] = []
-            async for batch_prompts, batch_images, batch_mask_images in BatchSourceIterator(source, batch_size=batch_size or 1):
-                batch_results = await self._inpaint_batch(batch_prompts, batch_images, batch_mask_images, params, context.cancellation_token)
-                results.extend(batch_results)
-
-            result = results[0] if is_single_input else results
-            context.register_source("result", result)
-
-            return (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        return {}
-
-    @abstractmethod
-    async def _inpaint_batch(
-        self,
-        prompts: List[str],
-        images: List[PILImage.Image],
-        mask_images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:

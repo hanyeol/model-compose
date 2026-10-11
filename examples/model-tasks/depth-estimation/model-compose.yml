@@ -1,0 +1,26 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Estimate Image Depth
+  description: Generate a depth map from an input image using a pretrained monocular depth model.
+  job:
+    input: ${input}
+    output: ${output as image}
+
+component:
+  type: model
+  task: depth-estimation
+  model:
+    provider: huggingface
+    repository: depth-anything/Depth-Anything-V2-Small-hf
+  max_concurrent_count: 1
+  action:
+    image: ${input.image as image}
+    # invert: true   # uncomment for ControlNet depth that expects farther=brighter

@@ -16,6 +16,7 @@ from .video_text_scoring import *
 from .image_upscaling import *
 from .image_background_removal import *
 from .image_segmentation import *
+from .depth_estimation import *
 from .text_to_video import *
 from .image_to_video import *
 from .video_to_video import *

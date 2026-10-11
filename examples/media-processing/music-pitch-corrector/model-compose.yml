@@ -1,0 +1,231 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: correct-pitch
+    default: true
+    title: Correct Vocal Pitch
+    description: Estimate pitch (PESTO), detect the song's key, plan a correction curve, resynthesize with WORLD, and mix back with the accompaniment.
+    jobs:
+      - id: pitch
+        component: pitch-estimator
+        input:
+          audio: ${input.vocal as audio}
+          pitch_unit: semitone
+      - id: key
+        component: analyzer
+        action: key
+        input:
+          audio: ${input.accompaniment as audio}
+      - id: tune
+        component: tuner
+        action: correct
+        depends_on: [ pitch, key ]
+        input:
+          audio: ${input.vocal as audio}
+          pitch: ${jobs.pitch.output.frames}
+          key: ${jobs.key.output.key}
+          scale: ${jobs.key.output.mode}
+          params:
+            strength: ${input.strength as number | 0.8}
+            retune_speed: ${input.retune_speed as string | 40ms}
+      - id: mix
+        component: mixer
+        depends_on: [ tune ]
+        input:
+          audio: ${jobs.tune.output.audio}
+          overlay: ${input.accompaniment as audio}
+          placement:
+            gain: 0.7
+        output: ${output as file}
+
+  - id: plan-only
+    title: Plan a Correction Curve
+    description: Estimate pitch (PESTO), detect the song's key, and compute a correction curve as JSON — without resynthesizing. Lets you edit the curve before feeding it to `apply-curve`.
+    jobs:
+      - id: pitch
+        component: pitch-estimator
+        input:
+          audio: ${input.vocal as audio}
+          pitch_unit: semitone
+      - id: key
+        component: analyzer
+        action: key
+        input:
+          audio: ${input.accompaniment as audio}
+      - id: plan
+        component: tuner
+        action: plan
+        depends_on: [ pitch, key ]
+        input:
+          pitch: ${jobs.pitch.output.frames}
+          key: ${jobs.key.output.key}
+          scale: ${jobs.key.output.mode}
+          params:
+            strength: ${input.strength as number | 0.8}
+            retune_speed: ${input.retune_speed as string | 40ms}
+        output: ${output as json}
+
+  - id: correct-with-melody
+    title: Correct Vocal Pitch to Reference Melody
+    description: Load a reference melody (MIDI or MusicXML), estimate pitch (PESTO), snap each sung note to the matching reference note, resynthesize with WORLD, and mix back with the accompaniment.
+    jobs:
+      - id: pitch
+        component: pitch-estimator
+        input:
+          audio: ${input.vocal as audio}
+          pitch_unit: semitone
+      - id: score
+        component: score-loader
+        input:
+          source: ${input.melody as file}
+      - id: tune
+        component: tuner
+        action: correct-with-melody
+        depends_on: [ pitch, score ]
+        input:
+          audio: ${input.vocal as audio}
+          pitch: ${jobs.pitch.output.frames}
+          melody: ${jobs.score.output.notes}
+          melody_offset: ${input.melody_offset as string | 0ms}
+          params:
+            strength: ${input.strength as number | 0.8}
+            retune_speed: ${input.retune_speed as string | 40ms}
+      - id: mix
+        component: mixer
+        depends_on: [ tune ]
+        input:
+          audio: ${jobs.tune.output.audio}
+          overlay: ${input.accompaniment as audio}
+          placement:
+            gain: 0.7
+        output: ${output as file}
+
+  - id: plan-with-melody
+    title: Plan a Correction Curve from a Reference Melody
+    description: Load a reference melody (MIDI or MusicXML), estimate pitch (PESTO), and compute a correction curve as JSON by snapping each sung note to the matching reference note. Lets you edit the curve before feeding it to `apply-curve`.
+    jobs:
+      - id: pitch
+        component: pitch-estimator
+        input:
+          audio: ${input.vocal as audio}
+          pitch_unit: semitone
+      - id: score
+        component: score-loader
+        input:
+          source: ${input.melody as file}
+      - id: plan
+        component: tuner
+        action: plan-with-melody
+        depends_on: [ pitch, score ]
+        input:
+          pitch: ${jobs.pitch.output.frames}
+          melody: ${jobs.score.output.notes}
+          melody_offset: ${input.melody_offset as string | 0ms}
+          params:
+            strength: ${input.strength as number | 0.8}
+            retune_speed: ${input.retune_speed as string | 40ms}
+        output: ${output as json}
+
+  - id: apply-curve
+    title: Apply an Edited Curve
+    description: Resynthesize a vocal using a correction curve produced by `plan-only` or `plan-with-melody` (possibly hand-edited).
+    job:
+      component: tuner
+      action: apply
+      input:
+        audio: ${input.vocal as audio}
+        curve: ${input.curve}
+        formant_shift: ${input.formant_shift as number | 0.0}
+      output: ${output as file}
+
+components:
+  - id: pitch-estimator
+    type: model
+    task: music-pitch-estimation
+    driver: custom
+    family: pesto
+    model: mir-1k_g7
+
+  - id: analyzer
+    type: music-analyzer
+    driver: native
+    actions:
+      - id: key
+        metric: key
+        audio: ${input.audio as file}
+
+  - id: score-loader
+    type: music-score-loader
+    driver: local
+    # format is sniffed from file header or extension (.mid/.midi → midi,
+    # .xml/.musicxml/.mxl → musicxml); override only for non-standard files.
+    action:
+      source: ${input.source as file}
+
+  - id: tuner
+    type: music-pitch-corrector
+    driver: world
+    # Analysis hop. 5ms is WORLD's default — leave it alone unless you have a
+    # specific reason to trade latency against spectral accuracy.
+    frame_period: 5ms
+    # dio is fast; swap to harvest for robustness on breathy or growling input.
+    f0_estimator: dio
+    actions:
+      - id: plan
+        method: plan
+        pitch: ${input.pitch}
+        key: ${input.key as string}
+        scale: ${input.scale as string | major}
+        params:
+          strength: ${input.strength as number | 0.8}
+          retune_speed: ${input.retune_speed as string | 40ms}
+      - id: apply
+        method: apply
+        audio: ${input.audio as audio}
+        curve: ${input.curve}
+        formant_shift: ${input.formant_shift as number | 0.0}
+      - id: correct
+        method: correct
+        audio: ${input.audio as audio}
+        pitch: ${input.pitch}
+        key: ${input.key as string}
+        scale: ${input.scale as string | major}
+        params:
+          strength: ${input.strength as number | 0.8}
+          retune_speed: ${input.retune_speed as string | 40ms}
+      - id: plan-with-melody
+        method: plan
+        pitch: ${input.pitch}
+        mode: melody
+        melody: ${input.melody}
+        melody_offset: ${input.melody_offset as string | 0ms}
+        params:
+          strength: ${input.strength as number | 0.8}
+          retune_speed: ${input.retune_speed as string | 40ms}
+      - id: correct-with-melody
+        method: correct
+        audio: ${input.audio as audio}
+        pitch: ${input.pitch}
+        mode: melody
+        melody: ${input.melody}
+        melody_offset: ${input.melody_offset as string | 0ms}
+        params:
+          strength: ${input.strength as number | 0.8}
+          retune_speed: ${input.retune_speed as string | 40ms}
+
+  - id: mixer
+    type: audio-mixer
+    driver: ffmpeg
+    actions:
+      - id: mix
+        method: overlay
+        audio: ${input.audio as audio}
+        overlay: ${input.overlay as audio}
+        placement: ${input.placement}

@@ -1,0 +1,64 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: load-score
+    default: true
+    title: Load a Score File
+    description: Parse a MIDI (`.mid`/`.midi`) or MusicXML (`.xml`/`.musicxml`/`.mxl`) file into the shared score shape — notes with start/end seconds, pitch, velocity, plus tempo and time signature.
+    job:
+      component: score-loader
+      action: load
+      output: ${output as json}
+
+  - id: load-score-track
+    title: Load a Specific Track
+    description: Pick one track/part by index. MIDI files often reserve track 0 for tempo-map metadata — pass `track=1` to skip it, or omit to auto-select tracks that actually contain notes.
+    job:
+      component: score-loader
+      action: load-track
+      output: ${output as json}
+
+  - id: load-score-as-midi
+    title: Force MIDI Format
+    description: Override auto-detection and parse the input as MIDI. Useful for files without a conventional extension or when the header has been stripped by an upload pipeline.
+    job:
+      component: score-loader
+      action: load-as-midi
+      output: ${output as json}
+
+  - id: load-score-as-musicxml
+    title: Force MusicXML Format
+    description: Override auto-detection and parse the input as MusicXML. Accepts uncompressed `.xml`/`.musicxml` and compressed `.mxl` ZIP containers.
+    job:
+      component: score-loader
+      action: load-as-musicxml
+      output: ${output as json}
+
+components:
+  - id: score-loader
+    type: music-score-loader
+    driver: local
+    actions:
+      # format and track are both omitted → auto-detect by header/extension,
+      # auto-pick the first non-empty track.
+      - id: load
+        source: ${input.score as file}
+
+      - id: load-track
+        source: ${input.score as file}
+        track: ${input.track as number | 0}
+
+      - id: load-as-midi
+        source: ${input.score as file}
+        format: midi
+
+      - id: load-as-musicxml
+        source: ${input.score as file}
+        format: musicxml

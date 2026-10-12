@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Optional, Dict, List, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelProvider
+from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, HedImageEdgeDetectionModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
@@ -19,8 +19,6 @@ from PIL import Image as PILImage
 
 if TYPE_CHECKING:
     import torch
-
-_HED_WEIGHT_FILENAME = "ControlNetHED.pth"
 
 class HedImageEdgeDetectionTaskAction(ImageEdgeDetectionTaskAction):
     config: HedImageEdgeDetectionModelActionConfig
@@ -88,7 +86,7 @@ class HedImageEdgeDetectionTaskAction(ImageEdgeDetectionTaskAction):
         resized = image.resize((image_size, image_size), PILImage.Resampling.BILINEAR)
         array = np.array(resized, dtype=np.float32)
         array = array[:, :, ::-1]  # RGB -> BGR
-        array -= np.array([104.00698793, 116.66876762, 122.67891434], dtype=np.float32)
+        array -= np.array([ 104.00698793, 116.66876762, 122.67891434 ], dtype=np.float32)
 
         tensor = torch.from_numpy(array.copy()).permute(2, 0, 1).unsqueeze(0)
         return tensor
@@ -122,12 +120,12 @@ class HedImageEdgeDetectionTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self._inflate_default_filename()
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         def _load() -> Any:
             model = self._build_network()
             self._load_model_checkpoint(model, model_path)
+
             return model
 
         self.device = self._resolve_device(self.config.device)
@@ -138,90 +136,71 @@ class HedImageEdgeDetectionTaskDriver(ModelTaskDriver):
         self.model = None
         self.device = None
 
-    def _inflate_default_filename(self) -> None:
-        model = self.config.model
-        if model.provider == ModelProvider.HUGGINGFACE and model.filename is None:
-            model.filename = _HED_WEIGHT_FILENAME
-
     def _build_network(self) -> Any:
         import torch
         import torch.nn as nn
+        import torch.nn.functional as F
 
-        class DoubleConv(nn.Module):
-            def __init__(self, in_channels: int, out_channels: int, mid_channels: Optional[int] = None):
+        class DoubleConvBlock(nn.Module):
+            """VGG stage with two or three 3x3 convs plus a per-stage 1x1 projection to a single-channel edge map."""
+
+            def __init__(self, in_channels: int, out_channels: int, num_convs: int):
                 super().__init__()
 
-                mid_channels = mid_channels or out_channels
-                self.block = nn.Sequential(
-                    nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
-                    nn.ReLU(inplace=True),
-                )
+                channels = [ in_channels ] + [ out_channels ] * num_convs
+                self.convs = nn.ModuleList([
+                    nn.Conv2d(channels[i], channels[i + 1], kernel_size=3, padding=1)
+                    for i in range(num_convs)
+                ])
+                self.projection = nn.Conv2d(out_channels, 1, kernel_size=1)
 
-            def forward(self, x):
-                return self.block(x)
-
-        class TripleConv(nn.Module):
-            def __init__(self, in_channels: int, out_channels: int):
-                super().__init__()
-
-                self.block = nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-                    nn.ReLU(inplace=True),
-                )
-
-            def forward(self, x):
-                return self.block(x)
+            def forward(self, x: torch.Tensor, down_sample: Optional[nn.Module] = None) -> tuple:
+                h = down_sample(x) if down_sample is not None else x
+                for conv in self.convs:
+                    h = F.relu(conv(h), inplace=True)
+                edge = self.projection(h)
+                return h, edge
 
         class ControlNetHED(nn.Module):
-            """ControlNet 1.1's HED preprocessor.
+            """ControlNet 1.1's HED preprocessor (lllyasviel/Annotators/ControlNetHED.pth).
 
-            VGG16-style five-stage encoder. Each stage produces a side output
-            upsampled to the input resolution; a 1x1 conv fuses them into the
-            final edge map.
+            VGG16-style five-stage encoder where each stage produces its own
+            single-channel edge map via a 1x1 projection. The outputs are
+            upsampled to the input resolution and averaged — no fuse conv.
             """
 
             def __init__(self):
                 super().__init__()
 
-                self.conv1 = DoubleConv(3, 64, 64)
-                self.conv2 = DoubleConv(64, 128)
-                self.conv3 = TripleConv(128, 256)
-                self.conv4 = TripleConv(256, 512)
-                self.conv5 = TripleConv(512, 512)
+                # Per-channel BGR mean subtracted from the input (ImageNet BGR
+                # convention, stored in the checkpoint as a broadcastable tensor).
+                self.norm = nn.Parameter(torch.zeros(1, 3, 1, 1))
 
-                self.score1 = nn.Conv2d(64,  1, kernel_size=1)
-                self.score2 = nn.Conv2d(128, 1, kernel_size=1)
-                self.score3 = nn.Conv2d(256, 1, kernel_size=1)
-                self.score4 = nn.Conv2d(512, 1, kernel_size=1)
-                self.score5 = nn.Conv2d(512, 1, kernel_size=1)
+                self.block1 = DoubleConvBlock(3,   64,  num_convs=2)
+                self.block2 = DoubleConvBlock(64,  128, num_convs=2)
+                self.block3 = DoubleConvBlock(128, 256, num_convs=3)
+                self.block4 = DoubleConvBlock(256, 512, num_convs=3)
+                self.block5 = DoubleConvBlock(512, 512, num_convs=3)
 
-                self.fuse = nn.Conv2d(5, 1, kernel_size=1)
                 self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 height, width = x.shape[-2:]
 
-                c1 = self.conv1(x)
-                c2 = self.conv2(self.pool(c1))
-                c3 = self.conv3(self.pool(c2))
-                c4 = self.conv4(self.pool(c3))
-                c5 = self.conv5(self.pool(c4))
+                x = x - self.norm
 
-                s1 = torch.nn.functional.interpolate(self.score1(c1), size=(height, width), mode="bilinear", align_corners=False)
-                s2 = torch.nn.functional.interpolate(self.score2(c2), size=(height, width), mode="bilinear", align_corners=False)
-                s3 = torch.nn.functional.interpolate(self.score3(c3), size=(height, width), mode="bilinear", align_corners=False)
-                s4 = torch.nn.functional.interpolate(self.score4(c4), size=(height, width), mode="bilinear", align_corners=False)
-                s5 = torch.nn.functional.interpolate(self.score5(c5), size=(height, width), mode="bilinear", align_corners=False)
+                h1, e1 = self.block1(x)
+                h2, e2 = self.block2(h1, down_sample=self.pool)
+                h3, e3 = self.block3(h2, down_sample=self.pool)
+                h4, e4 = self.block4(h3, down_sample=self.pool)
+                _,  e5 = self.block5(h4, down_sample=self.pool)
 
-                fused = torch.sigmoid(self.fuse(torch.cat([s1, s2, s3, s4, s5], dim=1)))
+                edges = [
+                    F.interpolate(edge, size=(height, width), mode="bilinear", align_corners=False)
+                    for edge in (e1, e2, e3, e4, e5)
+                ]
 
-                return fused
+                return torch.sigmoid(torch.stack(edges, dim=0).mean(dim=0))
 
         return ControlNetHED()
 

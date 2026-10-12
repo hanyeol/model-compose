@@ -52,7 +52,7 @@ class WorkflowRunner:
                         tracing.on_workflow_error(context.task_id, self.id, error, elapsed)
                         logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, error)
 
-                if isinstance(output, StreamEncodingIterator):
+                if isinstance(output, (StreamEncodingIterator, JobOutputStreamEncodingIterator)):
                     output = JobOutputStreamEncodingIterator(output, _on_terminated)
                 else:
                     output = JobOutputStreamIterator(output, _on_terminated)
@@ -220,7 +220,10 @@ class WorkflowRunner:
                             else:
                                 logging.info("[task-%s] Job '%s:%s' %s after %.2f seconds.", context.task_id, job_id, self.id, event, job_elapsed)
 
-                        completed_job_output = JobOutputStreamIterator(completed_job_output, _on_terminated)
+                        if isinstance(completed_job_output, StreamEncodingIterator):
+                            completed_job_output = JobOutputStreamEncodingIterator(completed_job_output, _on_terminated)
+                        else:
+                            completed_job_output = JobOutputStreamIterator(completed_job_output, _on_terminated)
 
                     context.complete_job(completed_job_id, completed_job_output)
 

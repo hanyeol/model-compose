@@ -94,8 +94,8 @@ class DocumentLoaderAction(ComponentAction):
         """Load one batch of sources and return one parsed document entry per source.
 
         When ``streaming`` is False each entry is a dict with shape:
-        ``{ text, source, index, driver, meta, ... }`` for a single-chunk
-        document, or ``{ chunks: [...], source, driver, meta }`` for a whole
+        ``{ text, source, index, driver, metadata, ... }`` for a single-chunk
+        document, or ``{ chunks: [...], source, driver, metadata }`` for a whole
         document. When ``streaming`` is True each entry is an async iterator
         yielding per-chunk dicts as they are produced.
         """

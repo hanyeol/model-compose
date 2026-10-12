@@ -116,7 +116,7 @@ class PypdfDocumentLoaderAction(DocumentLoaderAction):
         return {
             "text":  text,
             "index": page_index,
-            "meta":  {
+            "metadata": {
                 "number":   page_index + 1,
                 "rotation": page.rotation,
             },

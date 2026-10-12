@@ -6,6 +6,7 @@ from ...common import CommonComponentConfig, ComponentType
 class DocumentLoaderDriverType(str, Enum):
     DOCLING = "docling"
     PYPDF   = "pypdf"
+    PYMUPDF = "pymupdf"
 
 class CommonDocumentLoaderComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.DOCUMENT_LOADER]

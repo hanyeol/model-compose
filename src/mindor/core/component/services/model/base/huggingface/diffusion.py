@@ -82,15 +82,17 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         dtype = self._get_pipeline_dtype(device)
 
         base_pipeline_class = self._get_pipeline_class(None)
-        method_pipeline_classes: Dict[Optional[TMethod], Type[DiffusionPipeline]] = { method: self._get_pipeline_class(method) for method in methods }
+        method_pipeline_classes = { method: self._get_pipeline_class(method) for method in methods }
         quantization_config = self._resolve_pipeline_quantization_config(device, dtype)
 
         submodules = await self._load_pipeline_submodules(device, dtype)
-        cpu_offload = self._get_cpu_offload()
-        vae_tiling = self._get_vae_tiling()
-        scheduler = self._get_scheduler()
+
         adapters = self.config.peft_adapter or []
         adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapters ]
+
+        cpu_offload = self._get_cpu_offload()
+        vae_tiling  = self._get_vae_tiling()
+        scheduler   = self._get_scheduler()
 
         def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
             params: Dict[str, Any] = {

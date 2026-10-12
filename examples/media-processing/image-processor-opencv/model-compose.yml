@@ -1,0 +1,25 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Detect Image Edges (Canny)
+  description: Produce a Canny edge map suitable as a ControlNet depth/edge conditioning input.
+  job:
+    input: ${input}
+    output: ${output as image;base64}
+
+component:
+  type: image-processor
+  driver: opencv
+  action:
+    method: canny
+    image: ${input.image as image}
+    low_threshold: ${input.low_threshold as integer | 100}
+    high_threshold: ${input.high_threshold as integer | 200}
+    output: ${result as base64}

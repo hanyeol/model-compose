@@ -1,0 +1,76 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: hed
+    title: HED Edge Map
+    description: Produce a holistically-nested edge map suitable as a ControlNet HED/softedge conditioning input.
+    job:
+      component: hed
+      input: ${input}
+      output: ${output as image;base64}
+
+  - id: pidinet
+    title: PiDiNet Edge Map
+    description: Produce a PiDiNet soft-edge map suitable as a ControlNet softedge conditioning input.
+    job:
+      component: pidinet
+      input: ${input}
+      output: ${output as image;base64}
+
+  - id: lineart
+    title: Lineart Map
+    description: Produce an anime-style line extraction suitable as a ControlNet lineart conditioning input.
+    job:
+      component: lineart
+      input: ${input}
+      output: ${output as image;base64}
+
+components:
+  - id: hed
+    type: model
+    task: image-edge-detection
+    driver: custom
+    family: hed
+    model:
+      provider: huggingface
+      repository: lllyasviel/Annotators
+      filename: ControlNetHED.pth
+    max_concurrent_count: 1
+    action:
+      image: ${input.image as image}
+      # invert: true          # flip to dark edges on bright background
+      # params:
+      #   use_safe_mode: true # suppress weak edges
+
+  - id: pidinet
+    type: model
+    task: image-edge-detection
+    driver: custom
+    family: pidinet
+    model:
+      provider: huggingface
+      repository: lllyasviel/Annotators
+      filename: table5_pidinet.pth
+    max_concurrent_count: 1
+    action:
+      image: ${input.image as image}
+
+  - id: lineart
+    type: model
+    task: image-edge-detection
+    driver: custom
+    family: lineart
+    variant: realistic   # or 'coarse' to load sk_model2.pth
+    model:
+      provider: huggingface
+      repository: lllyasviel/Annotators
+    max_concurrent_count: 1
+    action:
+      image: ${input.image as image}

@@ -124,7 +124,7 @@ component:
   action:
     image: ${input.image as image}
     params:
-      input_size: 518    # Depth Anything V2 native size
+      image_size: 518    # Depth Anything V2 native size
 ```
 
 ### Using Alternative Models
@@ -177,10 +177,10 @@ This makes the component suitable as an upstream preprocessor for ControlNet-bas
 
 ### Common Issues
 
-1. **Out of Memory**: Reduce `params.input_size` or `batch_size`, or switch to the Small variant
+1. **Out of Memory**: Reduce `params.image_size` or `batch_size`, or switch to the Small variant
 2. **Model Download Fails**: Check internet connection and disk space
 3. **Slow Processing**: Ensure GPU acceleration is enabled
-4. **Flat / Noisy Depth**: Try a larger variant (Base/Large) or increase `params.input_size`
+4. **Flat / Noisy Depth**: Try a larger variant (Base/Large) or increase `params.image_size`
 
 ## Model Variants
 

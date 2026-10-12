@@ -385,10 +385,14 @@ def _rewrite_specs(
     """Rewrite torch-family specs with the resolved wheel index and version pins.
 
     When `channel` is set, appends `@<wheel index>` to every torch-family
-    spec and attaches the channel's local tag (e.g. `+cu128`) to exact pins
-    so pip picks the intended CUDA build. When `channel` is None (non-CUDA
-    hosts), no index or local tag is attached and pip resolves against its
-    configured index (PyPI by default).
+    spec and attaches the channel's local tag (e.g. `+cu128`) to exact
+    `torch==X.Y.Z` pins so pip picks the intended CUDA build. Sibling pins
+    (torchvision/torchaudio/torchcodec) deliberately omit the local tag:
+    PyTorch's aarch64 cu128 index publishes sibling wheels without a local
+    segment, so `==X.Y.Z+cu128` matches nothing there, and the index URL
+    already constrains pip to the correct CUDA build. When `channel` is None
+    (non-CUDA hosts), no index or local tag is attached and pip resolves
+    against its configured index (PyPI by default).
 
     `pin_torch` and `pin_siblings` independently harden unpinned specs to
     `==<resolved version>` (torch itself, or the paired sibling release).
@@ -435,12 +439,11 @@ def _rewrite_specs(
                     f"paired release for torch=={torch_version} "
                     f"({requirement.name}=={sibling_version}); keeping the caller's pin."
                 )
-            resolved_specifier = _attach_local_tag(caller_specifier, local_tag)
-            rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}{index_suffix}")
+            rewritten_specs.append(f"{name_with_extras}{caller_specifier}{marker_suffix}{index_suffix}")
             continue
 
         if pin_siblings and sibling_version:
-            resolved_specifier = _attach_local_tag(f"=={sibling_version}", local_tag)
+            resolved_specifier = f"=={sibling_version}"
         else:
             resolved_specifier = ""
 
@@ -451,12 +454,16 @@ def _rewrite_specs(
 def _attach_local_tag(specifier: str, local_tag: Optional[str]) -> str:
     """Append `+local_tag` to a single `==X.Y.Z` pin when not already present.
 
-    Pins the CUDA build so pip picks the intended `2.13.0+cu126` even when
-    another local tag (e.g. `+cu130`) is available in the same index. Skips
-    non-exact specifiers, ranges, wildcard pins (PEP 440 forbids combining
-    `==X.Y.*` with a local version), or pins that already carry a local
-    segment. The caller's intent is preserved verbatim in every skipped case
-    so pip's own resolver can pick a wheel from the index.
+    Used only for the torch core package — sibling specs intentionally go
+    without a local tag because PyTorch's aarch64 cu128 index publishes
+    sibling wheels without the `+cu128` segment, and the index URL already
+    constrains pip to the correct CUDA build. Pins the CUDA build so pip
+    picks the intended `2.13.0+cu126` even when another local tag (e.g.
+    `+cu130`) is available in the same index. Skips non-exact specifiers,
+    ranges, wildcard pins (PEP 440 forbids combining `==X.Y.*` with a local
+    version), or pins that already carry a local segment. The caller's
+    intent is preserved verbatim in every skipped case so pip's own resolver
+    can pick a wheel from the index.
     """
     if local_tag is None or not specifier.startswith("=="):
         return specifier

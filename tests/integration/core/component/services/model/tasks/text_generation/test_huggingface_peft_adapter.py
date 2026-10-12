@@ -55,7 +55,7 @@ def _build_component_config(*, with_adapter: bool, weight: float = 1.0) -> Any:
         ],
     }
     if with_adapter:
-        raw["peft_adapters"] = [
+        raw["peft_adapter"] = [
             {
                 "type": "lora",
                 "name": "dummy",

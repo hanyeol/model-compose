@@ -5,6 +5,7 @@ from ...common import CommonComponentConfig, ComponentType
 
 class ImageProcessorDriverType(str, Enum):
     NATIVE = "native"
+    OPENCV = "opencv"
 
 class CommonImageProcessorComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.IMAGE_PROCESSOR]

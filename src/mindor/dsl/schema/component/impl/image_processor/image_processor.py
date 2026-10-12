@@ -6,6 +6,7 @@ from .impl import *
 ImageProcessorComponentConfig = Annotated[
     Union[
         NativeImageProcessorComponentConfig,
+        OpenCvImageProcessorComponentConfig,
     ],
     Field(discriminator="driver")
 ]

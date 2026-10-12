@@ -3,5 +3,6 @@ from pydantic import BaseModel, Field
 from .impl import *
 
 ImageProcessorActionConfig = Union[
-    NativeImageProcessorActionConfig
+    NativeImageProcessorActionConfig,
+    OpenCvImageProcessorActionConfig,
 ]

@@ -204,10 +204,7 @@ class PeftAdapterConfig(BaseModel):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -216,6 +213,7 @@ class PeftAdapterConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+
         return values
 
 class OnDemandConfig(BaseModel):
@@ -245,10 +243,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -257,6 +252,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+
         return values
 
     @model_validator(mode="before")

@@ -43,10 +43,7 @@ class PestoMusicPitchEstimationModelComponentConfig(CommonMusicPitchEstimationMo
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.NAMED, "name": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -55,6 +52,7 @@ class PestoMusicPitchEstimationModelComponentConfig(CommonMusicPitchEstimationMo
                 model["provider"] = ModelProvider.LOCAL
             else:
                 model["provider"] = ModelProvider.NAMED
+
         return values
 
     @model_validator(mode="after")

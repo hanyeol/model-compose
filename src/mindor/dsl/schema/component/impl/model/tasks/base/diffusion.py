@@ -52,10 +52,7 @@ class DiffusionVaeConfig(BaseModel):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -64,6 +61,7 @@ class DiffusionVaeConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+
         return values
 
 class DiffusionControlNetConfig(BaseModel):
@@ -79,10 +77,7 @@ class DiffusionControlNetConfig(BaseModel):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -91,6 +86,80 @@ class DiffusionControlNetConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+
+        return values
+
+class DiffusionImageEncoderConfig(BaseModel):
+    model: ModelConfig = Field(..., description="CLIP image encoder identifier — a HuggingFace repo ID or a local path. Required when the IP-Adapter variant doesn't match the default ViT-H encoder (e.g. `ip-adapter_sd15_vit-G` needs ViT-G).")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for image encoder weights and computation.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the image encoder with reduced CPU RAM usage.")
+
+    @model_validator(mode="before")
+    def inflate_model(cls, values: Any):
+        if isinstance(values, str):
+            if is_local_path(values):
+                return { "model": { "provider": ModelProvider.LOCAL, "path": values } }
+            return { "model": { "provider": ModelProvider.HUGGINGFACE, "repository": values } }
+
+        if isinstance(values, dict):
+            model = values.get("model")
+            if isinstance(model, str):
+                if is_local_path(model):
+                    values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+                else:
+                    values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
+
+            model = values.get("model")
+            if isinstance(model, dict) and "provider" not in model:
+                if "repository" in model:
+                    model["provider"] = ModelProvider.HUGGINGFACE
+                elif "name" in model:
+                    model["provider"] = ModelProvider.NAMED
+                else:
+                    model["provider"] = ModelProvider.LOCAL
+
+        return values
+
+class DiffusionIpAdapterConfig(BaseModel):
+    model: ModelConfig = Field(..., description="IP-Adapter model identifier — a HuggingFace repo ID or a local path.")
+    filename: Optional[str] = Field(default=None, description="Weight file inside the IP-Adapter repo as `<subfolder>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`).")
+    image_encoder: Optional[DiffusionImageEncoderConfig] = Field(default=None, description="Overrides the IP-Adapter's bundled CLIP image encoder; set this when the adapter variant requires a different encoder than the default ViT-H.")
+
+    @model_validator(mode="before")
+    def inflate_model(cls, values: Any):
+        # Accept `ip_adapter: <repo>` shorthand and `ip_adapter: { <ModelConfig fields> }`
+        # that pre-dates this config, in addition to the full
+        # `ip_adapter: { model, filename, image_encoder }` block.
+        if isinstance(values, str):
+            if is_local_path(values):
+                return { "model": { "provider": ModelProvider.LOCAL, "path": values } }
+            return { "model": { "provider": ModelProvider.HUGGINGFACE, "repository": values } }
+
+        if isinstance(values, dict) and "model" not in values:
+            model_keys = { "provider", "repository", "path", "name", "revision" }
+            if any(key in values for key in model_keys):
+                carried: Dict[str, Any] = {}
+                if "filename" in values:
+                    carried["filename"] = values.pop("filename")
+                values = { **carried, "model": values }
+
+        if isinstance(values, dict):
+            model = values.get("model")
+            if isinstance(model, str):
+                if is_local_path(model):
+                    values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+                else:
+                    values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
+
+            model = values.get("model")
+            if isinstance(model, dict) and "provider" not in model:
+                if "repository" in model:
+                    model["provider"] = ModelProvider.HUGGINGFACE
+                elif "name" in model:
+                    model["provider"] = ModelProvider.NAMED
+                else:
+                    model["provider"] = ModelProvider.LOCAL
+
         return values
 
 class DiffusionSchedulerConfig(BaseModel):

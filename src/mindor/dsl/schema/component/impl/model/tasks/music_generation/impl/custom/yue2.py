@@ -41,10 +41,7 @@ class Yue2VaeConfig(BaseModel):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -53,6 +50,7 @@ class Yue2VaeConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+
         return values
 
 class Yue2NarConfig(BaseModel):
@@ -66,10 +64,7 @@ class Yue2NarConfig(BaseModel):
                 values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_model_provider(cls, values: Dict[str, Any]):
         model = values.get("model")
         if isinstance(model, dict) and "provider" not in model:
             if "repository" in model:
@@ -78,6 +73,7 @@ class Yue2NarConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+
         return values
 
 class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponentConfig):

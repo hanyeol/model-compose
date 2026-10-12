@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Tuple, Type, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
-from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceVideoToVideoModelArchitecture, DiffusionControlNetConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceVideoToVideoModelArchitecture, DiffusionControlNetConfig, DiffusionImageEncoderConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
@@ -34,12 +34,14 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         config: AnimateDiffHuggingfaceVideoToVideoModelActionConfig,
         pipeline: DiffusionPipeline,
         device: Optional[torch.device],
+        ip_adapter_count: int = 0,
         controlnet_count: int = 0,
     ):
         super().__init__(config)
 
         self.pipeline: DiffusionPipeline = pipeline
         self.device: Optional[torch.device] = device
+        self.ip_adapter_count: int = ip_adapter_count
         self.controlnet_count: int = controlnet_count
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], bool, bool]:
@@ -47,7 +49,16 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         frames          = await context.render_image_array(self.config.frames, single_as_array=True) if self.config.frames is not None else None
         prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
         negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
-        reference_image = await context.render_image(self.config.reference_image) if self.config.reference_image is not None else None
+
+        if self.ip_adapter_count > 0 and self.config.reference_image is not None:
+            reference_images = await context.render_image_array(self.config.reference_image, single_as_array=True, item_is_list=True)
+        else:
+            reference_images = None
+
+        if self.ip_adapter_count > 0 and self.config.attention_mask is not None:
+            attention_masks = await context.render_image_array(self.config.attention_mask, single_as_array=True, item_is_list=True)
+        else:
+            attention_masks = None
 
         if self.controlnet_count > 0 and self.config.conditioning_frames is not None:
             conditioning_frames = await context.render_image_array(self.config.conditioning_frames, single_as_array=True, item_is_list=True)
@@ -59,25 +70,17 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(source, (StreamIterator, AsyncIterator))
 
-        return (source, prompt, negative_prompt, reference_image, conditioning_frames), is_single_input, is_streaming_input
+        return (source, prompt, negative_prompt, reference_images, attention_masks, conditioning_frames), is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
         pipeline_params: Dict[str, Any] = await self._resolve_pipeline_params(context)
+
         seed             = await context.render_scalar(self.config.seed, int)
         num_frames       = await context.render_scalar(self.config.params.num_frames, int)
         frame_rate       = await context.render_scalar(self.config.params.frame_rate, float)
-        ip_adapter_scale = await context.render_scalar(self.config.params.ip_adapter_scale, float)
-
-        free_noise: Optional[Dict[str, Any]] = None
-
-        if self.config.params.free_noise is not None:
-            free_noise = {
-                "context_length":   await context.render_scalar(self.config.params.free_noise.context_length, int),
-                "context_stride":   await context.render_scalar(self.config.params.free_noise.context_stride, int),
-                "weighting_scheme": await context.render_variable(self.config.params.free_noise.weighting_scheme),
-            }
+        ip_adapter_scale = await context.render_variable(self.config.params.ip_adapter_scale)
 
         params.update({
             "pipeline":         pipeline_params,
@@ -85,8 +88,20 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
             "num_frames":       num_frames,
             "frame_rate":       frame_rate,
             "ip_adapter_scale": ip_adapter_scale,
-            "free_noise":       free_noise,
         })
+
+        if self.config.params.free_noise is not None:
+            context_length   = await context.render_scalar(self.config.params.free_noise.context_length, int)
+            context_stride   = await context.render_scalar(self.config.params.free_noise.context_stride, int)
+            weighting_scheme = await context.render_variable(self.config.params.free_noise.weighting_scheme)
+
+            params.update({
+                "free_noise": {
+                    "context_length":   context_length,
+                    "context_stride":   context_stride,
+                    "weighting_scheme": weighting_scheme,
+                }
+            })
 
         return params
 
@@ -141,6 +156,62 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         return params
 
+    async def _build_pipeline_reference_images(
+        self,
+        reference_images: List[Any],
+    ) -> List[Any]:
+        """Collect per-input reference images into pipeline's shape.
+
+        diffusers wants ``ip_adapter_image`` as a single PIL (one adapter,
+        one reference), a ``List[PIL]`` (one adapter, several references),
+        or ``List[PIL | List[PIL]]`` for multi-adapter with outer=adapter,
+        each slot being one or several PILs.
+        """
+        reference_images = [
+            [ await images.collect() for images in await images.collect() ]
+            for images in reference_images
+        ]
+
+        if self.ip_adapter_count == 1:
+            return [
+                images[0][0] if len(images[0]) == 1 else images[0]
+                for images in reference_images
+            ]
+
+        return [
+            [ images[0] if len(images) == 1 else images for images in images ]
+            for images in zip(*reference_images)
+        ]
+
+    async def _build_pipeline_attention_masks(
+        self,
+        attention_masks: List[Any],
+        width: Optional[int],
+        height: Optional[int],
+    ) -> List[Any]:
+        """Collect per-input attention masks into pipeline's shape.
+
+        diffusers wants ``cross_attention_kwargs["ip_adapter_masks"]`` as a
+        list of length ``ip_adapter_count``, each slot either ``None`` (that
+        adapter is unmasked) or a tensor shaped
+        ``[1, num_references_for_adapter, H, W]``.
+        """
+        attention_masks = [
+            [ await images.collect() for images in await images.collect() ]
+            for images in attention_masks
+        ]
+
+        if self.ip_adapter_count == 1:
+            return [
+                [ self._preprocess_ip_adapter_mask(images[0], width, height) ]
+                for images in attention_masks
+            ]
+
+        return [
+            [ self._preprocess_ip_adapter_mask(images, width, height) for images in images ]
+            for images in zip(*attention_masks)
+        ]
+
     async def _build_pipeline_conditioning_frames(
         self,
         conditioning_frames: List[Any],
@@ -169,40 +240,79 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         return [ list(frames) for frames in zip(*conditioning_frames) ]
 
+    def _preprocess_ip_adapter_mask(
+        self,
+        images: List[Any],
+        width: Optional[int],
+        height: Optional[int],
+    ) -> Optional[torch.Tensor]:
+        """Preprocess the mask(s) for one adapter into a `[1, N, H, W]` tensor.
+
+        Drops ``None`` slots; a list that is entirely ``None`` (or empty)
+        means "no mask for this adapter" and is returned as ``None``.
+        """
+        from diffusers.image_processor import IPAdapterMaskProcessor
+
+        images = [ image for image in images if image is not None ]
+
+        if not images:
+            return None
+
+        processor = IPAdapterMaskProcessor()
+        masks = processor.preprocess(images, height=height, width=width)  # [N, 1, H, W]
+
+        return masks.reshape(1, masks.shape[0], masks.shape[2], masks.shape[3])
+
     async def _generate_batch(
         self,
         inputs: Tuple[Any, ...],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
-        sources, prompts, negative_prompts, reference_images, conditioning_frames = inputs
+        sources, prompts, negative_prompts, reference_images, attention_masks, conditioning_frames = inputs
 
         batch_frames, batch_fps = await self._collect_batch_frames(sources, params)
 
+        if self.ip_adapter_count > 0 and reference_images is not None:
+            reference_images = await self._build_pipeline_reference_images(reference_images)
+        else:
+            reference_images = None
+
+        if self.ip_adapter_count > 0 and attention_masks is not None:
+            attention_masks = await self._build_pipeline_attention_masks(
+                attention_masks,
+                params["pipeline"].get("width"),
+                params["pipeline"].get("height"),
+            )
+        else:
+            attention_masks = None
+
         if self.controlnet_count > 0:
-            batch_conditioning_frames = await self._build_pipeline_conditioning_frames(
+            conditioning_frames = await self._build_pipeline_conditioning_frames(
                 conditioning_frames,
                 params.get("num_frames"),
                 params["pipeline"].get("width"),
                 params["pipeline"].get("height"),
             )
         else:
-            batch_conditioning_frames = None
+            conditioning_frames = None
 
         prompts = prompts if prompts is not None else [ None ] * len(batch_frames)
         negative_prompts = negative_prompts if negative_prompts is not None else [ None ] * len(batch_frames)
-        reference_images = reference_images if reference_images is not None else [ None ] * len(batch_frames)
 
         def _generate() -> List[VideoStreamResource]:
             # Toggle per invocation so a prior action's FreeNoise state doesn't carry over.
-            if params["free_noise"] is not None:
+            if "free_noise" in params:
                 self.pipeline.enable_free_noise(**params["free_noise"])
             else:
                 self.pipeline.disable_free_noise()
 
+            if reference_images is not None:
+                self.pipeline.set_ip_adapter_scale(params["ip_adapter_scale"])
+
             results: List[VideoStreamResource] = []
 
-            for index, (frames, fps, prompt, negative_prompt, reference_image) in enumerate(zip(batch_frames, batch_fps, prompts, negative_prompts, reference_images)):
+            for index, (frames, fps, prompt, negative_prompt) in enumerate(zip(batch_frames, batch_fps, prompts, negative_prompts)):
                 if not frames:
                     raise ValueError("AnimateDiff received an empty frame batch.")
 
@@ -215,21 +325,24 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
                 if negative_prompt is not None:
                     pipeline_params["negative_prompt"] = negative_prompt
 
-                if reference_image is not None:
-                    # `load_ip_adapter` attaches the projection onto `unet.encoder_hid_proj`;
-                    # if it's still None, the component didn't declare `ip_adapter`.
-                    if getattr(self.pipeline.unet, "encoder_hid_proj", None) is None:
-                        raise ValueError("`reference_image` was supplied but no `ip_adapter` is configured on the component.")
+                if reference_images is not None:
+                    if self.ip_adapter_count > 1:
+                        pipeline_params["ip_adapter_image"] = [ adapters[index] for adapters in reference_images ]
+                    else:
+                        pipeline_params["ip_adapter_image"] = reference_images[index]
 
-                    pipeline_params["ip_adapter_image"] = reference_image
-                    self.pipeline.set_ip_adapter_scale(params["ip_adapter_scale"])
+                if attention_masks is not None:
+                    if self.ip_adapter_count > 1:
+                        ip_adapter_masks = [ adapters[index] for adapters in attention_masks ]
+                    else:
+                        ip_adapter_masks = attention_masks[index]
+                    pipeline_params["cross_attention_kwargs"] = { "ip_adapter_masks": ip_adapter_masks }
 
-                if batch_conditioning_frames is not None:
-                    pipeline_params["conditioning_frames"] = (
-                        [ frames[index] for frames in batch_conditioning_frames ]
-                        if self.controlnet_count > 1
-                        else batch_conditioning_frames[index]
-                    )
+                if conditioning_frames is not None:
+                    if self.controlnet_count > 1:
+                        pipeline_params["conditioning_frames"] = [ frames[index] for frames in conditioning_frames ]
+                    else:
+                        pipeline_params["conditioning_frames"] = conditioning_frames[index]
 
                 result = self._process_pipeline(pipeline_params, params, cancellation_token)
 
@@ -304,18 +417,17 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
     def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         return [
             *super()._get_setup_requirements(),
-            # transformers imports torchaudio at runtime; pin it to the same torch
-            # wheel channel so pip doesn't resolve it via PyPI's default index and
-            # produce an ABI-incompatible build.
-            *torch_requirements("torchaudio"),
             "imageio",
             "imageio-ffmpeg",
         ]
 
+    def _get_torch_requirements(self) -> List[str]:
+        return torch_requirements("torch", "torchaudio")
+
     async def _load_model(self) -> None:
         await super()._load_model()
 
-        if self.config.ip_adapter is not None:
+        if self.config.ip_adapter:
             await self._attach_ip_adapters()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
@@ -323,6 +435,11 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
             submodules: Dict[str, Any] = {
                 "motion_adapter": await self._load_pretrained_motion_adapter(self.config.motion_adapter, device, dtype),
             }
+
+            image_encoder = self._get_shared_image_encoder()
+
+            if image_encoder is not None:
+                submodules["image_encoder"] = await self._load_pretrained_image_encoder(image_encoder, device, dtype)
 
             if self.config.controlnet:
                 submodules["controlnet"] = await self._load_pretrained_controlnet_models(self.config.controlnet, device, dtype)
@@ -381,19 +498,89 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
         return await self._run_in_executor(_load)
 
+    async def _load_pretrained_image_encoder(
+        self,
+        image_encoder: DiffusionImageEncoderConfig,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Any:
+        from transformers import CLIPVisionModelWithProjection
+
+        encoder_path = await self._provision_model(image_encoder.model)
+
+        def _load() -> Any:
+            logging.info(f"Component '{self.id}': loading {CLIPVisionModelWithProjection.__name__} from {encoder_path}")
+
+            params: Dict[str, Any] = {
+                **self._get_model_params(image_encoder.model),
+                **self._get_model_options(image_encoder, default_dtype=dtype),
+            }
+
+            return CLIPVisionModelWithProjection.from_pretrained(encoder_path, **params).to(device)
+
+        return await self._run_in_executor(_load)
+
+    def _get_shared_image_encoder(self) -> Optional[DiffusionImageEncoderConfig]:
+        """Pick the one image_encoder shared across IP-Adapters, if any.
+
+        diffusers wires a single `image_encoder` onto the pipeline, so when
+        multiple adapters each declare their own encoder they must all point
+        to the same config.
+        """
+        encoders = []
+
+        for adapter in self.config.ip_adapter or []:
+            if adapter.image_encoder is not None:
+                encoders.append(adapter.image_encoder)
+
+        if not encoders:
+            return None
+
+        first_encoder = encoders[0]
+
+        for encoder in encoders[1:]:
+            if encoder.model != first_encoder.model:
+                raise ValueError(
+                    "All IP-Adapters with an explicit `image_encoder` must share the same encoder; "
+                    "diffusers wires a single image_encoder onto the pipeline."
+                )
+
+        return first_encoder
+
     async def _attach_ip_adapters(self) -> None:
-        adapter_path = await self._provision_model(self.config.ip_adapter)
-        adapter_filename = self.config.ip_adapter.filename if hasattr(self.config.ip_adapter, "filename") else None
+        adapter_paths: List[str] = []
+        subfolders: List[Optional[str]] = []
+        weight_names: List[str] = []
 
-        if not adapter_filename:
-            raise ValueError("`ip_adapter.filename` must specify `<subfolder>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`).")
+        for index, adapter in enumerate(self.config.ip_adapter):
+            if not adapter.filename:
+                raise ValueError(
+                    f"`ip_adapter[{index}].filename` must specify `<subfolder>/<weight_name>` "
+                    "(e.g. `models/ip-adapter_sd15.bin`)."
+                )
+            subfolder, _, weight_name = adapter.filename.rpartition("/")
+            adapter_paths.append(await self._provision_model(adapter.model))
+            subfolders.append(subfolder or None)
+            weight_names.append(weight_name)
 
-        subfolder, _, weight_name = adapter_filename.rpartition("/")
-        logging.info(f"Component '{self.id}': loading IP-Adapter weights '{weight_name}' from {adapter_path}")
+        logging.info(
+            f"Component '{self.id}': loading {len(adapter_paths)} IP-Adapter weight(s): "
+            + ", ".join(f"'{name}' from {path}" for name, path in zip(weight_names, adapter_paths))
+        )
+
+        # When any adapter supplied an explicit image_encoder, it is already
+        # wired onto the pipeline via `_load_pipeline_submodules`; tell diffusers
+        # not to auto-load the bundled encoder on top (which would clobber it).
+        image_encoder_folder = None if self._get_shared_image_encoder() is not None else "image_encoder"
 
         def _load() -> None:
             for pipeline in self.pipelines.values():
-                pipeline.load_ip_adapter(adapter_path, subfolder=subfolder or None, weight_name=weight_name)
+                pipeline.load_ip_adapter(
+                    adapter_paths,
+                    subfolder=subfolders,
+                    weight_name=weight_names,
+                    image_encoder_folder=image_encoder_folder,
+                )
 
         await self._run_in_executor(_load)
 
@@ -415,6 +602,9 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
         raise ValueError(f"ControlNet is not supported for architecture: {self.config.architecture}")
 
+    def _get_ip_adapter_count(self) -> int:
+        return len(self.config.ip_adapter) if self.config.ip_adapter else 0
+
     def _get_controlnet_count(self) -> int:
         return len(self.config.controlnet) if self.config.controlnet else 0
 
@@ -433,6 +623,6 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
             raise ValueError(f"No pipeline loaded for architecture: {self.config.architecture}")
 
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(action, pipeline, self.device, self._get_controlnet_count()).run(context)
+            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(action, pipeline, self.device, self._get_ip_adapter_count(), self._get_controlnet_count()).run(context)
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")

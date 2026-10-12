@@ -30,11 +30,7 @@ class WanVideoToVideoModelComponentConfig(CommonVideoToVideoModelComponentConfig
                     values[name] = { "provider": ModelProvider.LOCAL, "path": value }
                 else:
                     values[name] = { "provider": ModelProvider.HUGGINGFACE, "repository": value }
-        return values
 
-    @model_validator(mode="before")
-    def fill_missing_preprocess_model_provider(cls, values: Dict[str, Any]):
-        for name in ("pose2d_model", "det_model", "sam2_model", "flux_kontext_model"):
             value = values.get(name)
             if isinstance(value, dict) and "provider" not in value:
                 if "repository" in value:
@@ -43,4 +39,5 @@ class WanVideoToVideoModelComponentConfig(CommonVideoToVideoModelComponentConfig
                     value["provider"] = ModelProvider.NAMED
                 else:
                     value["provider"] = ModelProvider.LOCAL
+
         return values

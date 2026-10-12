@@ -8,7 +8,7 @@
 
 1. **基础 Qwen-Image 2.1 管线**: 与 [image-generation-qwen-image](../image-generation-qwen-image) 示例相同的本地管线 — 7B 扩散 transformer、Qwen3-VL 文本编码器、多语言提示词支持。
 2. **Pruna Distilled LoRA**: Pruna 从基础模型中蒸馏得到的公开 LoRA 适配器，让管线在远少于原本步数的情况下收敛。
-3. **声明式适配器组合**: 适配器通过模型组件的标准 `peft_adapters` 字段挂载 — 无需代码，只需 YAML。
+3. **声明式适配器组合**: 适配器通过模型组件的标准 `peft_adapter` 字段挂载 — 无需代码，只需 YAML。
 4. **隔离的运行时**: 与基础 Qwen-Image 示例相同的 virtualenv 策略，将包含 `QwenImage21Pipeline` 的未发布 `diffusers` 构建隔离在控制器环境之外。
 
 ## 准备工作
@@ -31,7 +31,7 @@
 
 切换变体时需同时编辑三个字段：
 
-- `peft_adapters[0].model.filename`
+- `peft_adapter[0].model.filename`
 - `action.params.inference_steps`
 - `action.params.sigmas`（LoRA 针对每个变体特定的 sigma 调度训练）
 

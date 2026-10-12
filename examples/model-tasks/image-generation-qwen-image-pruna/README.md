@@ -8,7 +8,7 @@ This workflow attaches a PEFT LoRA adapter to the base Qwen-Image-2.1 pipeline a
 
 1. **Base Qwen-Image 2.1 Pipeline**: The same local pipeline as the [image-generation-qwen-image](../image-generation-qwen-image) example — 7B diffusion transformer, Qwen3-VL text encoder, multilingual prompts.
 2. **Pruna Distilled LoRA**: A published LoRA adapter that Pruna distilled from the base model, letting the pipeline converge in far fewer steps.
-3. **Declarative Adapter Composition**: The adapter is attached via the standard `peft_adapters` field on the model component — no code, just YAML.
+3. **Declarative Adapter Composition**: The adapter is attached via the standard `peft_adapter` field on the model component — no code, just YAML.
 4. **Isolated Runtime**: Same virtualenv strategy as the base Qwen-Image example, keeping the unreleased `diffusers` build (which ships `QwenImage21Pipeline`) out of the controller's environment.
 
 ## Preparation
@@ -31,7 +31,7 @@ This workflow attaches a PEFT LoRA adapter to the base Qwen-Image-2.1 pipeline a
 
 Switch variants by editing three fields together:
 
-- `peft_adapters[0].model.filename`
+- `peft_adapter[0].model.filename`
 - `action.params.inference_steps`
 - `action.params.sigmas` (the LoRA is trained against a specific sigma schedule per variant)
 

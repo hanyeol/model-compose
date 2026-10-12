@@ -22,7 +22,7 @@ component:
     provider: huggingface
     repository: meta-llama/Llama-2-7b-hf
     token: ${env.HUGGINGFACE_TOKEN}
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b

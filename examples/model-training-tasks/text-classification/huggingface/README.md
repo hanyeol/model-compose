@@ -265,7 +265,7 @@ component:
   type: model
   task: text-classification
   model: bert-base-uncased
-  peft_adapters:
+  peft_adapter:
     - type: lora
       model: ./output/classification
   action:

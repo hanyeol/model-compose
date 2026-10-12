@@ -8,7 +8,7 @@
 
 1. **베이스 Qwen-Image 2.1 파이프라인**: [image-generation-qwen-image](../image-generation-qwen-image) 예제와 동일한 로컬 파이프라인 — 7B diffusion transformer, Qwen3-VL 텍스트 인코더, 다국어 프롬프트 지원.
 2. **Pruna Distilled LoRA**: Pruna가 베이스 모델에서 distill한 공개 LoRA 어댑터로, 파이프라인이 훨씬 적은 스텝만으로 수렴하도록 합니다.
-3. **선언적 어댑터 조합**: 어댑터는 모델 컴포넌트의 표준 `peft_adapters` 필드로 부착됩니다 — 코드 없이 YAML만으로 처리.
+3. **선언적 어댑터 조합**: 어댑터는 모델 컴포넌트의 표준 `peft_adapter` 필드로 부착됩니다 — 코드 없이 YAML만으로 처리.
 4. **격리된 런타임**: 베이스 Qwen-Image 예제와 동일한 virtualenv 전략을 사용하여, `QwenImage21Pipeline`을 포함한 미공개 `diffusers` 빌드를 컨트롤러 환경 밖으로 격리합니다.
 
 ## 준비 사항
@@ -31,7 +31,7 @@
 
 변형을 전환하려면 세 필드를 함께 편집합니다:
 
-- `peft_adapters[0].model.filename`
+- `peft_adapter[0].model.filename`
 - `action.params.inference_steps`
 - `action.params.sigmas` (LoRA는 변형마다 특정 sigma 스케줄로 학습됨)
 

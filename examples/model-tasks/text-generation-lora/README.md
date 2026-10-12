@@ -55,7 +55,7 @@ model: meta-llama/Llama-2-7b-hf
 
 ### LoRA Adapters
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: alpaca
     model: tloen/alpaca-lora-7b
@@ -156,7 +156,7 @@ The `weight` parameter controls each adapter's contribution.
 You can add custom LoRA adapters from HuggingFace Hub or local paths:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   # HuggingFace Hub
   - type: lora
     name: my_adapter
@@ -177,7 +177,7 @@ peft_adapters:
 Fine-tune the balance between adapters:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: alpaca
     weight: 0.3  # Less instruction following

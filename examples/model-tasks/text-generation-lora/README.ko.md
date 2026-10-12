@@ -55,7 +55,7 @@ model: meta-llama/Llama-2-7b-hf
 
 ### LoRA 어댑터
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: alpaca
     model: tloen/alpaca-lora-7b
@@ -156,7 +156,7 @@ for adapter in adapters:
 HuggingFace Hub 또는 로컬 경로에서 사용자 정의 LoRA 어댑터를 추가할 수 있습니다:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   # HuggingFace Hub
   - type: lora
     name: my_adapter
@@ -177,7 +177,7 @@ peft_adapters:
 어댑터 간 균형 미세 조정:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: alpaca
     weight: 0.3  # 지시 수행 감소

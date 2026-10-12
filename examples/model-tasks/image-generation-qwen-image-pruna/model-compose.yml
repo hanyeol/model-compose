@@ -29,7 +29,7 @@ component:
   # PrunaAI's distilled LoRA shipped in two variants (5-step and 8-step). The
   # 8-step variant is the safer default; switch `filename` to
   # `p_qwen_image_2.1_5step_v0.1.safetensors` for maximum speed.
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: pruna
       model:

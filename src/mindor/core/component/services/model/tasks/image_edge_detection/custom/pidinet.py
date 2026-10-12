@@ -341,7 +341,7 @@ class PidinetImageEdgeDetectionTaskDriver(ModelTaskDriver):
 
                 final = self.classifier(torch.cat(edges, dim=1))
 
-                return [torch.sigmoid(e) for e in edges] + [torch.sigmoid(final)]
+                return [ torch.sigmoid(e) for e in edges] + [torch.sigmoid(final) ]
 
             @staticmethod
             def _make_pdc_func(op_type: str):

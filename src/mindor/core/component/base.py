@@ -9,14 +9,14 @@ from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation import AsyncService
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.active_counter import ActiveCounter
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
 from collections.abc import AsyncIterator
 from .context import ComponentActionContext
-from .streaming import ComponentOutputStreamIterator, StreamTerminatedEvent
+from .streaming import ComponentOutputStreamIterator, ComponentOutputStreamEncodingIterator, StreamTerminatedEvent
 import asyncio
 
 class ActionResolver:
@@ -206,6 +206,9 @@ class ComponentService(AsyncService):
                         await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=error)
                 finally:
                     self._active_counter.release()
+
+            if isinstance(output, StreamEncodingIterator):
+                return ComponentOutputStreamEncodingIterator(output, _on_terminated)
 
             return ComponentOutputStreamIterator(output, _on_terminated)
 

@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator, StreamEncodingIterator
 from mindor.core.logger import logging
 import asyncio
 
@@ -57,3 +57,9 @@ class ComponentOutputStreamIterator(StreamChunkIterator):
             await self.on_terminated(event, error)
         except Exception:
             logging.warning("Streaming component lifecycle callback failed", exc_info=True)
+
+class ComponentOutputStreamEncodingIterator(ComponentOutputStreamIterator):
+    def __init__(self, source: StreamEncodingIterator, on_terminated: StreamTerminatedCallback):
+        super().__init__(source, on_terminated)
+
+        self.format = source.format

@@ -2,6 +2,7 @@ from typing import Optional, Dict, List, Set, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.workflow import JobConfig
 from mindor.core.component import ComponentGlobalConfigs
+from mindor.core.component.streaming import ComponentOutputStreamEncodingIterator
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
 from mindor.core.utils.time import TimeTracker
 from mindor.core.logger import logging
@@ -220,7 +221,7 @@ class WorkflowRunner:
                             else:
                                 logging.info("[task-%s] Job '%s:%s' %s after %.2f seconds.", context.task_id, job_id, self.id, event, job_elapsed)
 
-                        if isinstance(completed_job_output, StreamEncodingIterator):
+                        if isinstance(completed_job_output, (StreamEncodingIterator, ComponentOutputStreamEncodingIterator)):
                             completed_job_output = JobOutputStreamEncodingIterator(completed_job_output, _on_terminated)
                         else:
                             completed_job_output = JobOutputStreamIterator(completed_job_output, _on_terminated)

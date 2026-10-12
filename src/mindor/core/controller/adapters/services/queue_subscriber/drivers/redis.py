@@ -183,6 +183,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
                 input,
                 task_id=task_id,
                 wait_for_completion=True,
+                stop_at_streaming=True,
                 on_interrupt=_on_interrupt,
             )
         except Exception as e:
@@ -206,7 +207,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
             return
 
-        if state.status != TaskStatus.COMPLETED:
+        if state.status not in (TaskStatus.COMPLETED, TaskStatus.STREAMING):
             # Cancelled / other non-terminal — publish as failed.
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=f"task ended with status {state.status.value}")
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})

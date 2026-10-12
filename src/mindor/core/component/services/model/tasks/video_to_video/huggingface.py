@@ -137,22 +137,33 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         return params
 
-    async def _build_pipeline_conditioning_frames(self, conditioning_frames: List[Any]) -> List[Any]:
+    async def _build_pipeline_conditioning_frames(
+        self,
+        conditioning_frames: List[Any],
+        num_frames: Optional[int],
+        width: Optional[int],
+        height: Optional[int],
+    ) -> List[Any]:
         """Collect per-input conditioning frames into pipeline's shape.
+
+        Each inner frame sequence is sampled and resized with the same
+        first-N truncation and resize transform the input-frame path uses,
+        so diffusers' ``check_inputs`` length check passes and the control
+        processor doesn't stretch mismatched aspect ratios.
 
         diffusers wants ``List[PIL]`` (one frame sequence) for a single
         ControlNet and ``List[List[PIL]]`` for multi-ControlNet with
         outer=ControlNet, inner=frames.
         """
-        per_input: List[List[List[PILImage.Image]]] = [
-            [ await source.collect() for source in await entry.collect() ]
-            for entry in conditioning_frames
+        conditioning_frames = [
+            [ await self._collect_frames_from_image_array(images, num_frames, width, height) for images in await frames.collect() ]
+            for frames in conditioning_frames
         ]
 
         if self.controlnet_count == 1:
-            return [ frames[0] for frames in per_input ]
+            return [ frames[0] for frames in conditioning_frames ]
 
-        return [ list(frames) for frames in zip(*per_input) ]
+        return [ list(frames) for frames in zip(*conditioning_frames) ]
 
     async def _generate_batch(
         self,
@@ -165,7 +176,12 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         batch_frames, batch_fps = await self._collect_batch_frames(sources, params)
 
         if self.controlnet_count > 0:
-            batch_conditioning_frames = await self._build_pipeline_conditioning_frames(conditioning_frames)
+            batch_conditioning_frames = await self._build_pipeline_conditioning_frames(
+                conditioning_frames,
+                params.get("num_frames"),
+                params["pipeline"].get("width"),
+                params["pipeline"].get("height"),
+            )
         else:
             batch_conditioning_frames = None
 

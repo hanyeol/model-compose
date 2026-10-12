@@ -96,14 +96,14 @@ class VideoToVideoTaskAction(ModelTaskComponentAction):
 
     async def _collect_frames_from_image_array(
         self,
-        value: ImageArrayValue,
+        images: ImageArrayValue,
         num_frames: Optional[int],
         width: Optional[int],
         height: Optional[int],
     ) -> List[PILImage.Image]:
         frames: List[PILImage.Image] = []
 
-        async for image in value:
+        async for image in images:
             if num_frames is not None and len(frames) >= num_frames:
                 break
 

@@ -237,15 +237,13 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             if encoding_format == StreamEncodingFormat.TEXT:
                 texts: List[str] = []
                 async for chunk in value:
-                    if chunk:
-                        texts.append(chunk)
+                    texts.append(chunk)
                 return TextContent(type="text", text="".join(texts))
 
             if encoding_format == StreamEncodingFormat.JSON:
                 texts: List[str] = []
                 async for chunk in value:
-                    if chunk:
-                        texts.append(chunk)
+                    texts.append(chunk)
                 return TextContent(type="text", text="[" + ",".join(texts) + "]")
 
         if isinstance(value, (StreamResource, StreamIterator)):

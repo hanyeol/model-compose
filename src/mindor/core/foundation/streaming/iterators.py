@@ -38,7 +38,7 @@ class StreamEncodingIterator(StreamIterator):
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         async for chunk in self.source:
-            if chunk is None:
+            if chunk is None or chunk == "":
                 continue
 
             encoded = await self._encode_chunk(chunk)

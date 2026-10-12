@@ -147,7 +147,7 @@ graph TD
 - First run requires model download (~900MB)
 - Model loading takes 10-30 seconds depending on hardware
 - GPU acceleration dramatically improves processing speed
-- Processing time scales with `input_size` parameter (default 1024×1024)
+- Processing time scales with `image_size` parameter (default 1024×1024)
 - Typical GPU inference: 0.1-0.3s per image
 - Typical CPU inference: 3-8s per image
 
@@ -161,7 +161,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
 ### Memory Management
-- **Large Images**: Reduce `input_size` (e.g., 768) for memory-constrained environments
+- **Large Images**: Reduce `image_size` (e.g., 768) for memory-constrained environments
 - **Batch Processing**: Adjust `batch_size` to fit your VRAM
 - **System Resources**: Close other applications during processing
 
@@ -200,7 +200,7 @@ component:
   action:
     image: ${input.image as image}
     params:
-      input_size: 2048   # higher detail, slower inference
+      image_size: 2048   # higher detail, slower inference
 ```
 
 ### Using Alternative Models
@@ -235,10 +235,10 @@ workflow:
 
 ### Common Issues
 
-1. **Out of Memory**: Reduce `input_size` or `batch_size`, or use a smaller model variant
+1. **Out of Memory**: Reduce `image_size` or `batch_size`, or use a smaller model variant
 2. **Model Download Fails**: Check internet connection and disk space
 3. **Slow Processing**: Ensure GPU acceleration is enabled
-4. **Rough Edges**: Increase `input_size` for finer detail
+4. **Rough Edges**: Increase `image_size` for finer detail
 5. **Missed Regions**: Ensure the subject is well-defined against the background
 
 ## Comparison with API-based Solutions

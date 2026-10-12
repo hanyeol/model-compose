@@ -147,7 +147,7 @@ graph TD
 - 首次运行需要模型下载（~900MB）
 - 模型加载时间为 10-30 秒（取决于硬件）
 - GPU 加速可显著提高处理速度
-- 处理时间随 `input_size` 参数变化（默认 1024×1024）
+- 处理时间随 `image_size` 参数变化（默认 1024×1024）
 - 典型 GPU 推理：每张图像 0.1-0.3 秒
 - 典型 CPU 推理：每张图像 3-8 秒
 
@@ -161,7 +161,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
 ### 内存管理
-- **大图像**：在内存受限环境中减小 `input_size`（例如 768）
+- **大图像**：在内存受限环境中减小 `image_size`（例如 768）
 - **批处理**：调整 `batch_size` 以适应您的 VRAM
 - **系统资源**：处理期间关闭其他应用程序
 
@@ -200,7 +200,7 @@ component:
   action:
     image: ${input.image as image}
     params:
-      input_size: 2048   # 更高细节，推理速度较慢
+      image_size: 2048   # 更高细节，推理速度较慢
 ```
 
 ### 使用替代模型
@@ -235,10 +235,10 @@ workflow:
 
 ### 常见问题
 
-1. **内存不足**：减小 `input_size` 或 `batch_size`，或使用更小的模型变体
+1. **内存不足**：减小 `image_size` 或 `batch_size`，或使用更小的模型变体
 2. **模型下载失败**：检查网络连接和磁盘空间
 3. **处理缓慢**：确保启用 GPU 加速
-4. **边缘粗糙**：增加 `input_size` 以获得更精细的细节
+4. **边缘粗糙**：增加 `image_size` 以获得更精细的细节
 5. **遗漏区域**：确保主体与背景界限分明
 
 ## 与基于 API 的解决方案比较

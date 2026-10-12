@@ -1,4 +1,4 @@
-"""Tests for the ImageGenerationGenerateTaskAction's I/O matrix.
+"""Tests for the ImageGenerationTaskAction's I/O matrix.
 
 Text-to-image has no token-level streaming (each sample is a single-shot
 diffusion run), so the output-shape rule is:
@@ -22,7 +22,7 @@ import pytest
 from PIL import Image as PILImage
 
 from mindor.core.component.context import ComponentActionContext
-from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationGenerateTaskAction
+from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationTaskAction
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.dsl.schema.action import SdxlHuggingfaceImageGenerationGenerateModelActionConfig
@@ -49,7 +49,7 @@ def _label(img: PILImage.Image) -> str:
     return img.info["label"]
 
 
-class _FakeImageGenerationAction(ImageGenerationGenerateTaskAction):
+class _FakeImageGenerationAction(ImageGenerationTaskAction):
     """Deterministic ``_generate`` for testing.
 
     Records batches so tests can assert on batch boundaries; returns one

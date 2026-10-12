@@ -69,18 +69,18 @@ class TestActionDefaults:
         assert action.image == "in.png"
         assert action.invert is False
         assert action.batch_size == 1
-        assert action.params.input_size is None
+        assert action.params.image_size is None
 
     def test_invert_true_accepted(self):
         action = ACTION_ADAPTER.validate_python({"image": "in.png", "invert": True})
         assert action.invert is True
 
-    def test_input_size_override_accepted(self):
+    def test_image_size_override_accepted(self):
         action = ACTION_ADAPTER.validate_python({
             "image": "in.png",
-            "params": {"input_size": 518},
+            "params": {"image_size": 518},
         })
-        assert action.params.input_size == 518
+        assert action.params.image_size == 518
 
     def test_image_accepts_list(self):
         action = ACTION_ADAPTER.validate_python({"image": ["a.png", "b.png"]})
@@ -91,9 +91,9 @@ class TestActionDefaults:
             "image": "${input.frames}",
             "invert": "${input.invert | false}",
             "batch_size": "${input.batch | 4}",
-            "params": {"input_size": "${input.size | 518}"},
+            "params": {"image_size": "${input.size | 518}"},
         })
         assert action.image == "${input.frames}"
         assert action.invert == "${input.invert | false}"
         assert action.batch_size == "${input.batch | 4}"
-        assert action.params.input_size == "${input.size | 518}"
+        assert action.params.image_size == "${input.size | 518}"

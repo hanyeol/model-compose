@@ -153,7 +153,7 @@ class TestActionDefaults:
         assert isinstance(action, PestoMusicPitchEstimationModelActionConfig)
         assert action.streaming is False
         assert action.params.reduction == "alwa"
-        assert action.params.pitch_unit == PitchUnit.HZ
+        assert action.pitch_unit == PitchUnit.HZ
         assert action.params.num_chunks == 1
         assert action.return_activations is False
 
@@ -164,20 +164,20 @@ class TestActionDefaults:
     def test_pitch_unit_semitone_accepted(self):
         action = ACTION_ADAPTER.validate_python({
             "audio": "in.wav",
-            "params": {"pitch_unit": "semitone"},
+            "pitch_unit": "semitone",
         })
-        assert action.params.pitch_unit == PitchUnit.SEMITONE
+        assert action.pitch_unit == PitchUnit.SEMITONE
 
-    def test_unknown_pitch_unit_rejected(self):
-        with pytest.raises(ValidationError):
-            ACTION_ADAPTER.validate_python({
-                "audio": "in.wav",
-                "params": {"pitch_unit": "cents"},
-            })
+    def test_pitch_unit_accepts_variable_expression(self):
+        action = ACTION_ADAPTER.validate_python({
+            "audio": "in.wav",
+            "pitch_unit": "${input.pitch_unit | hz}",
+        })
+        assert action.pitch_unit == "${input.pitch_unit | hz}"
 
-    def test_unknown_reduction_rejected(self):
-        with pytest.raises(ValidationError):
-            ACTION_ADAPTER.validate_python({
-                "audio": "in.wav",
-                "params": {"reduction": "medianized"},
-            })
+    def test_reduction_accepts_variable_expression(self):
+        action = ACTION_ADAPTER.validate_python({
+            "audio": "in.wav",
+            "params": {"reduction": "${input.reduction | alwa}"},
+        })
+        assert action.params.reduction == "${input.reduction | alwa}"

@@ -218,8 +218,8 @@ def mock_context():
         return value
     context.render_variable = AsyncMock(side_effect=render_variable)
 
-    async def render_array(value, single_as_array=False):
-        return await ArrayValueRenderer().render(value, single_as_array)
+    async def render_array(value, item_is_list=False, single_as_array=False):
+        return await ArrayValueRenderer().render(value, item_is_list=item_is_list, single_as_array=single_as_array)
     context.render_array = AsyncMock(side_effect=render_array)
 
     async def render_scalar(value, *args, **kwargs):

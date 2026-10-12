@@ -160,14 +160,8 @@ class TestStreamInput:
         items = await _collect(result)
         assert [ _label(s) for s in items ] == [ "a", "bb" ]
 
-    @pytest.mark.anyio
-    async def test_stream_output_template_returns_async_iterator(self):
-        action = _FakeTextToSpeechAction(_make_config("${input.texts}", output="${result[]}"))
-        stream = _make_async_iter([ "a", "bb", "ccc", "dddd" ])
-        ctx    = ComponentActionContext("r-8", { "texts": stream })
-        loop   = asyncio.get_running_loop()
-        result = await action.run(ctx)
-
-        assert isinstance(result, AsyncIterator)
-        items = await _collect(result)
-        assert [ _label(s) for s in items ] == [ "a", "bb", "ccc", "dddd" ]
+    # NOTE: ``output="${result[]}"`` is reserved for chunk-streaming (register_source
+    # with ``"result[]"``). text_to_speech synthesizes whole audio assets per text and
+    # only emits per-item results via ``register_source("result", ...)`` — using
+    # ``${result[]}`` here resolves to nothing. Stream-input/stream-output is covered
+    # by the two tests above.

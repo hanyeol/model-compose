@@ -10,10 +10,10 @@ from PIL import Image as PILImage
 from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.image_processor.drivers.native import NativeImageProcessorAction
 from mindor.core.foundation.variable.image import ImageArrayValue
-from mindor.dsl.schema.action import ImageProcessorActionMethod
+from mindor.dsl.schema.action import NativeImageProcessorActionMethod
 from mindor.dsl.schema.action.impl.image_processor.impl.native import (
-    ImageProcessorConcatActionConfig,
-    ImageProcessorMergeActionConfig,
+    NativeImageProcessorConcatActionConfig,
+    NativeImageProcessorMergeActionConfig,
 )
 
 
@@ -73,8 +73,8 @@ class TestConcatHorizontal:
             _solid(10, 10, (0, 255, 0, 255)),
             _solid(10, 10, (0, 0, 255, 255)),
         ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
         )
@@ -89,8 +89,8 @@ class TestConcatHorizontal:
     @pytest.mark.anyio
     async def test_with_spacing(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)), _solid(10, 10, (0, 255, 0, 255)) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
             spacing=5,
@@ -107,8 +107,8 @@ class TestConcatHorizontal:
     @pytest.mark.anyio
     async def test_different_heights_centered(self):
         images = [ _solid(10, 20, (255, 0, 0, 255)), _solid(10, 10, (0, 255, 0, 255)) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
             background="#00000000",
@@ -129,8 +129,8 @@ class TestConcatVertical:
             _solid(10, 10, (0, 255, 0, 255)),
             _solid(10, 10, (0, 0, 255, 255)),
         ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="vertical",
         )
@@ -145,8 +145,8 @@ class TestConcatVertical:
     @pytest.mark.anyio
     async def test_with_spacing(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)), _solid(10, 10, (0, 255, 0, 255)) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="vertical",
             spacing=4,
@@ -165,8 +165,8 @@ class TestConcatGrid:
     @pytest.mark.anyio
     async def test_auto_grid_square(self):
         images = [ _solid(10, 10, (i * 60, 0, 0, 255)) for i in range(4) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="grid",
         )
@@ -178,8 +178,8 @@ class TestConcatGrid:
     @pytest.mark.anyio
     async def test_explicit_columns(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)) for _ in range(6) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="grid",
             columns=3,
@@ -194,8 +194,8 @@ class TestConcatGrid:
     @pytest.mark.anyio
     async def test_explicit_rows_only(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)) for _ in range(5) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="grid",
             rows=2,
@@ -214,8 +214,8 @@ class TestMerge:
             _solid(20, 20, (255, 0, 0, 255)),
             _solid(20, 20, (0, 255, 0, 128)),
         ]
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = NativeImageProcessorMergeActionConfig(
+            method=NativeImageProcessorActionMethod.MERGE,
             image="${input.images}",
         )
         action = NativeImageProcessorAction(config)
@@ -232,8 +232,8 @@ class TestMerge:
     async def test_different_sizes_centered(self):
         big   = _solid(30, 30, (255, 0, 0, 255))
         small = _solid(10, 10, (0, 255, 0, 255))
-        config = ImageProcessorMergeActionConfig(
-            method=ImageProcessorActionMethod.MERGE,
+        config = NativeImageProcessorMergeActionConfig(
+            method=NativeImageProcessorActionMethod.MERGE,
             image="${input.images}",
         )
         action = NativeImageProcessorAction(config)
@@ -250,8 +250,8 @@ class TestConcatEdgeCases:
     @pytest.mark.anyio
     async def test_single_image_passthrough(self):
         images = [ _solid(15, 15, (10, 20, 30, 255)) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
         )
@@ -264,8 +264,8 @@ class TestConcatEdgeCases:
     async def test_empty_input_raises(self):
         """Empty image list currently raises inside the concat driver; the
         no-op-to-None behaviour is not implemented."""
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
         )
@@ -277,8 +277,8 @@ class TestConcatEdgeCases:
     @pytest.mark.anyio
     async def test_rgb_tuple_background(self):
         images = [ _solid(10, 10, (255, 0, 0, 255)), _solid(10, 20, (0, 255, 0, 255)) ]
-        config = ImageProcessorConcatActionConfig(
-            method=ImageProcessorActionMethod.CONCAT,
+        config = NativeImageProcessorConcatActionConfig(
+            method=NativeImageProcessorActionMethod.CONCAT,
             image="${input.images}",
             mode="horizontal",
             background=[ 50, 100, 150 ],

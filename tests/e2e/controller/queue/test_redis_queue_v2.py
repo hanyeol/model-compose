@@ -107,6 +107,7 @@ class DummyController:
         input: Any,
         task_id: Optional[str] = None,
         wait_for_completion: bool = True,
+        stop_at_streaming: bool = False,
         on_interrupt: Any = None,
         session_id: Any = None,
         metadata: Any = None,

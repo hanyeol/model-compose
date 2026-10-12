@@ -7,6 +7,9 @@ class HttpEventStreamer:
 
     async def stream(self) -> AsyncIterator[bytes]:
         async for chunk in self.iterator:
+            if chunk is None:
+                continue
+
             for line in self._split_chunk(chunk):
                 yield b"data: " + line + b"\n"
 

@@ -10,7 +10,7 @@ from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.controller.base import TaskState, TaskStatus
 from mindor.core.foundation.streaming.base64 import encode_value_to_base64
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingFormat
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.url import UrlStreamResource, DataUriStreamResource
 from mindor.core.foundation.streaming.model_3d import resolve_model_3d_content_type
@@ -117,7 +117,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         state = await self.controller.run_workflow(
             workflow_id,
             input,
-            wait_for_completion=True
+            wait_for_completion=True,
+            stop_at_streaming=True,
         )
         return await self._build_state_response(state)
 
@@ -130,6 +131,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                 run_id,
                 parsed_answer,
                 wait_for_completion=True,
+                stop_at_streaming=True,
             )
         except ValueError as e:
             return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
@@ -229,6 +231,14 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         if type == WorkflowVariableType.NONE:
             return TextContent(type="text", text="")
+
+        if isinstance(value, StreamIterator):
+            encoding_format = getattr(value, "format", None)
+            if encoding_format in (StreamEncodingFormat.TEXT, StreamEncodingFormat.JSON):
+                texts: List[str] = []
+                async for chunk in value:
+                    texts.append(chunk if isinstance(chunk, str) else chunk.decode("utf-8"))
+                return TextContent(type="text", text="".join(texts))
 
         if isinstance(value, (StreamResource, StreamIterator)):
             return EmbeddedResource(

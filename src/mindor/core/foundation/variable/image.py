@@ -56,8 +56,8 @@ class ImageValueRenderer:
         With ``item_is_list=False`` (default) each ``value`` element is a single
         image, and nested lists are interpreted as a batch of image arrays.
         With ``item_is_list=True`` each element is itself a list of image refs
-        (e.g. one entry per ControlNet), so the renderer returns ``ArrayValue``
-        wrappers whose elements are ``ImageArrayValue``s — matching the shape
+        (a group), so the renderer returns ``ArrayValue`` wrappers whose
+        elements are ``ImageArrayValue``s — matching the shape
         ``ArrayValueRenderer`` produces for inner-is-list payloads, but with
         images already materialized inside.
         """
@@ -70,7 +70,7 @@ class ImageValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     if item_is_list:
-                        yield await self._render_controlnet_entry(chunk, single_as_array, as_stream)
+                        yield await self._render_grouped_image_array(chunk, single_as_array, as_stream)
                     else:
                         yield await self._render_element_array(chunk, single_as_array, as_stream)
 
@@ -82,35 +82,35 @@ class ImageValueRenderer:
 
         if item_is_list:
             if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-                return [ await self._render_controlnet_entry(item, single_as_array, as_stream) for item in value ]
+                return [ await self._render_grouped_image_array(item, single_as_array, as_stream) for item in value ]
 
-            return await self._render_controlnet_entry(value, single_as_array, as_stream)
+            return await self._render_grouped_image_array(value, single_as_array, as_stream)
 
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
             return [ await self._render_element_array(item, single_as_array, as_stream) for item in value ]
 
         return await self._render_element_array(value, single_as_array, as_stream)
 
-    async def _render_controlnet_entry(
+    async def _render_grouped_image_array(
         self,
         value: Any,
         single_as_array: bool,
         as_stream: bool,
     ) -> Optional[ArrayValue]:
-        """Materialize one `item_is_list` entry: a list of image refs (one per
-        ControlNet) becomes an ``ArrayValue`` whose elements are ``ImageArrayValue``s.
-        A scalar entry — a single ref — is wrapped as ``is_single=True`` when
+        """Materialize one `item_is_list` group: a list of image refs becomes
+        an ``ArrayValue`` whose elements are ``ImageArrayValue``s. A scalar
+        group — a single ref — is wrapped as ``is_single=True`` when
         ``single_as_array`` is set, mirroring ``ArrayValueRenderer``'s behavior.
         """
         if isinstance(value, (list, tuple)):
-            entries: List[Optional[ImageArrayValue]] = []
-            for ref in value:
-                entries.append(await self._render_element_array(ref, single_as_array=True, as_stream=as_stream))
-            return ArrayValue(entries, is_single=single_as_array)
+            group: List[Optional[ImageArrayValue]] = []
+            for item in value:
+                group.append(await self._render_element_array(item, single_as_array=True, as_stream=as_stream))
+            return ArrayValue(group, is_single=single_as_array)
 
         if single_as_array and value is not None:
-            entry = await self._render_element_array(value, single_as_array=True, as_stream=as_stream)
-            return ArrayValue([ entry ] if entry is not None else [], is_single=True)
+            images = await self._render_element_array(value, single_as_array=True, as_stream=as_stream)
+            return ArrayValue([ images ] if images is not None else [], is_single=True)
 
         return None
 

@@ -278,7 +278,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
         index: int,
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        meta: Dict[str, Any] = {}
+        metadata: Dict[str, Any] = {}
 
         # DocChunk.meta is a Pydantic model with `export_json_dict()` returning
         # alias-keyed dicts (headings, doc_items, origin); fall back to a plain
@@ -287,14 +287,14 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
 
         if chunk_meta is not None:
             if hasattr(chunk_meta, "export_json_dict"):
-                meta = chunk_meta.export_json_dict()
+                metadata = chunk_meta.export_json_dict()
             elif isinstance(chunk_meta, BaseModel):
-                meta = chunk_meta.model_dump()
+                metadata = chunk_meta.model_dump()
 
         result: Dict[str, Any] = {
-            "text":  chunk.text,
-            "index": index,
-            "meta":  meta,
+            "text":     chunk.text,
+            "index":    index,
+            "metadata": metadata,
         }
 
         if params["return_enriched_text"]:

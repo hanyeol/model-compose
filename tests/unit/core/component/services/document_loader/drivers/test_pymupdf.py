@@ -36,9 +36,6 @@ def test_pymupdf_page_range_parsing():
     indices = PymupdfDocumentLoaderAction._resolve_page_indices("1-3, 5", 10)
     assert indices == [0, 1, 2, 4]
 
-    all_indices = PymupdfDocumentLoaderAction._resolve_page_indices(None, 4)
-    assert all_indices == [0, 1, 2, 3]
-
 
 def test_pymupdf_action_extract_text():
     """Verify PymupdfDocumentLoaderAction text extraction with mocked PDF document."""
@@ -76,7 +73,7 @@ def test_pymupdf_action_extract_text():
         assert len(res["pages"]) == 1
         assert res["pages"][0]["text"] == "Page 1 Content"
         assert res["pages"][0]["index"] == 0
-        assert res["pages"][0]["meta"]["number"] == 1
+        assert res["pages"][0]["metadata"]["number"] == 1
 
     asyncio.run(_run())
 

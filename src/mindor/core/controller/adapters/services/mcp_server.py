@@ -234,11 +234,17 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         if isinstance(value, StreamIterator):
             encoding_format = getattr(value, "format", None)
-            if encoding_format in (StreamEncodingFormat.TEXT, StreamEncodingFormat.JSON):
+            if encoding_format == StreamEncodingFormat.TEXT:
                 texts: List[str] = []
                 async for chunk in value:
                     texts.append(chunk if isinstance(chunk, str) else chunk.decode("utf-8"))
                 return TextContent(type="text", text="".join(texts))
+
+            if encoding_format == StreamEncodingFormat.JSON:
+                texts: List[str] = []
+                async for chunk in value:
+                    texts.append(chunk if isinstance(chunk, str) else chunk.decode("utf-8"))
+                return TextContent(type="text", text="[" + ",".join(texts) + "]")
 
         if isinstance(value, (StreamResource, StreamIterator)):
             return EmbeddedResource(

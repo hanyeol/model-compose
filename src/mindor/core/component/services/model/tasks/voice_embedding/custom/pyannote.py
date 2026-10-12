@@ -38,8 +38,8 @@ class PyannoteVoiceEmbeddingTaskAction(VoiceEmbeddingTaskAction):
 
         def _embed() -> List[VoiceEmbedding]:
             import numpy as np
-            import torch
             import torch.nn.functional as F
+            import torch
 
             embeddings: List[VoiceEmbedding] = []
 

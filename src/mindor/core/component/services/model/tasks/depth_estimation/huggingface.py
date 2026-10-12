@@ -33,10 +33,10 @@ class HuggingfaceDepthEstimationTaskAction(DepthEstimationTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        input_size = await context.render_scalar(self.config.params.input_size, int)
+        image_size = await context.render_scalar(self.config.params.image_size, int)
 
         params.update({
-            "input_size": input_size,
+            "image_size": image_size,
         })
 
         return params
@@ -53,13 +53,10 @@ class HuggingfaceDepthEstimationTaskAction(DepthEstimationTaskAction):
             import torch
             import torch.nn.functional as F
 
-            input_size = params["input_size"]
-            invert = params["invert"]
-
             processor_params: Dict[str, Any] = { "images": images, "return_tensors": "pt" }
 
-            if input_size is not None:
-                processor_params["size"] = { "height": input_size, "width": input_size }
+            if params["image_size"] is not None:
+                processor_params["size"] = { "height": params["image_size"], "width": params["image_size"] }
 
             inputs = self.processor(**processor_params)
             inputs = { key: value.to(self.device) for key, value in inputs.items() }
@@ -90,7 +87,7 @@ class HuggingfaceDepthEstimationTaskAction(DepthEstimationTaskAction):
                 else:
                     depth_map = torch.zeros_like(depth_map)
 
-                if invert:
+                if params["invert"]:
                     depth_map = 1.0 - depth_map
 
                 depth_u8 = (depth_map * 255.0).clamp(0, 255).to(torch.uint8).cpu().numpy()

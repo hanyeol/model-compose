@@ -26,6 +26,7 @@ class ModelTaskType(str, Enum):
     IMAGE_BACKGROUND_REMOVAL = "image-background-removal"
     IMAGE_SEGMENTATION       = "image-segmentation"
     DEPTH_ESTIMATION         = "depth-estimation"
+    IMAGE_EDGE_DETECTION     = "image-edge-detection"
     TEXT_TO_VIDEO            = "text-to-video"
     IMAGE_TO_VIDEO           = "image-to-video"
     VIDEO_TO_VIDEO           = "video-to-video"

@@ -35,9 +35,9 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        input_size = await context.render_scalar(self.config.params.input_size, int)
+        image_size = await context.render_scalar(self.config.params.image_size, int)
 
-        params["input_size"] = input_size
+        params["image_size"] = image_size
 
         return params
 
@@ -51,10 +51,8 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
             from torchvision import transforms
             import torch
 
-            input_size = params["input_size"]
-
             transform = transforms.Compose([
-                transforms.Resize((input_size, input_size)),
+                transforms.Resize((params["image_size"], params["image_size"])),
                 transforms.ToTensor(),
                 transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
             ])

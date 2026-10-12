@@ -64,6 +64,7 @@ workflow:
     component: chatgpt
     input:
       prompt: ${input.prompt}
+    output: ${output as stream/text}
 
 component:
   id: chatgpt
@@ -74,11 +75,15 @@ component:
     method: POST
     headers:
       Authorization: Bearer ${env.OPENAI_API_KEY}
+      Content-Type: application/json
     body:
       model: gpt-4o
       messages:
         - role: user
           content: ${input.prompt}
+      stream: true
+    stream_format: json
+    output: ${response[].choices[0].delta.content}
 ```
 
 실행:

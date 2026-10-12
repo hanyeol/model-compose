@@ -63,9 +63,12 @@ class VirtualEnvRuntime:
         callers can prepare the interpreter before opening any IPC channel."""
 
         def _bootstrap() -> None:
-            self._bootstrap_venv()
+            # Create the venv directory before taking the lock so the
+            # lock file has a stable home on the very first bootstrap.
+            self._venv_path.mkdir(parents=True, exist_ok=True)
 
             with FileLock(self._venv_path / ".mindor.lock"):
+                self._bootstrap_venv()
                 self._install_mindor_package()
                 self._install_dependencies()
 
@@ -117,10 +120,8 @@ class VirtualEnvRuntime:
         return self._subprocess
 
     def _bootstrap_venv(self) -> None:
-        if self._venv_path.exists() and self._venv_python().exists():
+        if self._venv_python().exists():
             return
-
-        self._venv_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.config.driver == VirtualEnvDriver.PYTHON:
             logging.info(f"Creating virtualenv at {self._venv_path} (python driver)")

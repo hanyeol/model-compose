@@ -134,7 +134,6 @@ class PymupdfDocumentLoaderAction(DocumentLoaderAction):
     ) -> Dict[str, Any]:
         page = doc[page_index]
         content = self._extract_page_content(page, params.get("extraction_mode") or "text")
-        rect = [ float(page.rect.x0), float(page.rect.y0), float(page.rect.x1), float(page.rect.y1) ]
 
         return {
             "text":    content if isinstance(content, str) else str(content),
@@ -143,7 +142,8 @@ class PymupdfDocumentLoaderAction(DocumentLoaderAction):
             "metadata": {
                 "number":   page_index + 1,
                 "rotation": page.rotation,
-                "rect":     rect,
+                "width":    float(page.rect.width),
+                "height":   float(page.rect.height),
             },
         }
 

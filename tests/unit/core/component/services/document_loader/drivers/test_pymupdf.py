@@ -41,7 +41,7 @@ def test_pymupdf_action_extract_text():
     """Verify PymupdfDocumentLoaderAction text extraction with mocked PDF document."""
     async def _run():
         mock_rect = MagicMock()
-        mock_rect.x0, mock_rect.y0, mock_rect.x1, mock_rect.y1 = 0.0, 0.0, 600.0, 800.0
+        mock_rect.width, mock_rect.height = 600.0, 800.0
 
         mock_page1 = MagicMock()
         mock_page1.get_text.return_value = "Page 1 Content"
@@ -82,7 +82,7 @@ def test_pymupdf_action_streaming():
     """Verify PymupdfDocumentLoaderAction streaming page yield."""
     async def _run():
         mock_rect = MagicMock()
-        mock_rect.x0, mock_rect.y0, mock_rect.x1, mock_rect.y1 = 0.0, 0.0, 600.0, 800.0
+        mock_rect.width, mock_rect.height = 600.0, 800.0
 
         mock_page1 = MagicMock()
         mock_page1.get_text.return_value = "Page 1 Text"

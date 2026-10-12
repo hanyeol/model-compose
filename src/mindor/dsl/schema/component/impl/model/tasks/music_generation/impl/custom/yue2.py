@@ -105,11 +105,11 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
         return values
 
     @model_validator(mode="after")
-    def validate_lora_peft_adapters(self):
-        for index, adapter in enumerate(self.peft_adapters or []):
+    def validate_lora_peft_adapter(self):
+        for index, adapter in enumerate(self.peft_adapter or []):
             if adapter.type != PeftAdapterType.LORA:
                 raise ValueError(
-                    f"peft_adapters[{index}] has type={adapter.type.value!r}; "
+                    f"peft_adapter[{index}] has type={adapter.type.value!r}; "
                     f"yue2 music-generation only supports type={PeftAdapterType.LORA.value!r}."
                 )
         return self

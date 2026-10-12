@@ -244,10 +244,10 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         vae_model_path = await self._provision_model(self.config.vae.model, prefetch=True)
         nar_path       = await self._provision_model(self.config.nar.model, prefetch=True) if self.config.nar is not None else None
 
-        peft_adapters = self.config.peft_adapters or []
+        peft_adapter = self.config.peft_adapter or []
 
         ar_lora_paths = await asyncio.gather(*[
-            self._provision_model(adapter.model, prefetch=True) for adapter in peft_adapters
+            self._provision_model(adapter.model, prefetch=True) for adapter in peft_adapter
         ])
 
         self.pipeline = await self._load_pipeline(model_path, vae_model_path)
@@ -255,7 +255,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         if nar_path is not None:
             await self._merge_nar_lora(self.pipeline, nar_path)
 
-        for adapter, adapter_path in zip(peft_adapters, ar_lora_paths):
+        for adapter, adapter_path in zip(peft_adapter, ar_lora_paths):
             await self._merge_ar_lora(self.pipeline, adapter_path, float(adapter.weight))
 
     async def _unload_model(self) -> None:

@@ -44,7 +44,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         if self.config.quantization is not None:
             requirements.append("bitsandbytes>=0.50.0")
 
-        if self.config.peft_adapters:
+        if self.config.peft_adapter:
             requirements.extend(self._get_peft_requirements())
 
         return requirements
@@ -92,8 +92,8 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
 
         model = await self._run_in_executor(_load)
 
-        if len(self.config.peft_adapters or []) > 0:
-            model = await self._load_peft_adapters(model, self.config.peft_adapters)
+        if len(self.config.peft_adapter or []) > 0:
+            model = await self._load_peft_adapters(model, self.config.peft_adapter)
 
         if device is not None and quantization_config is None and not is_prequantized:
             model = await self._run_in_executor(model.to, device)

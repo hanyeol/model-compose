@@ -231,7 +231,7 @@ class CommonModelComponentConfig(CommonComponentConfig):
     precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for model weights and computation.")
     quantization: Optional[ModelQuantizationConfig] = Field(default=None, description="Quantization applied to model weights.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the model with reduced CPU RAM usage.")
-    peft_adapters: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapters loaded on top of the base model.")
+    peft_adapter: Optional[List[PeftAdapterConfig]] = Field(default=None, description="PEFT adapter(s) loaded on top of the base model; accepts a single entry or a list for stacking.")
     preload: bool = Field(default=True, description="Whether to load the model at controller startup.")
     on_demand: Union[bool, OnDemandConfig] = Field(default=False, description="Whether to load and unload the model on demand; accepts a config object for fine-tuning.")
 
@@ -274,6 +274,13 @@ class CommonModelComponentConfig(CommonComponentConfig):
         quantization = values.get("quantization")
         if isinstance(quantization, str):
             values["quantization"] = { "type": quantization }
+        return values
+
+    @model_validator(mode="before")
+    def normalize_peft_adapter(cls, values: Dict[str, Any]):
+        peft_adapter = values.get("peft_adapter", None)
+        if peft_adapter is not None and not isinstance(peft_adapter, list):
+            values["peft_adapter"] = [ peft_adapter ]
         return values
 
     @field_validator("precision")

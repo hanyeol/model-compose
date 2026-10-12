@@ -89,7 +89,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         cpu_offload = self._get_cpu_offload()
         vae_tiling = self._get_vae_tiling()
         scheduler = self._get_scheduler()
-        adapters = self.config.peft_adapters or []
+        adapters = self.config.peft_adapter or []
         adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapters ]
 
         def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
@@ -148,8 +148,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
         if not hasattr(pipeline, "load_lora_weights"):
             raise ValueError(
-                f"{type(pipeline).__name__} does not support LoRA loading; "
-                "remove `peft_adapters` from the component config."
+                f"{type(pipeline).__name__} does not support LoRA loading; remove `peft_adapter` from the component config."
             )
 
         names: List[str] = []
@@ -158,8 +157,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         for index, (adapter, path) in enumerate(zip(adapters, adapter_paths)):
             if adapter.type != PeftAdapterType.LORA:
                 raise ValueError(
-                    f"Diffusion pipelines only support PEFT adapter type 'lora'; "
-                    f"got '{adapter.type.value}'."
+                    f"Diffusion pipelines only support PEFT adapter type 'lora'; got '{adapter.type.value}'."
                 )
 
             name = adapter.name or f"peft_adapter_{index}"

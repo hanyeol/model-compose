@@ -7,14 +7,44 @@ from mindor.dsl.schema.component import (
     ModelPrecision,
     ModelQuantizationConfig,
     ModelQuantizationType,
-    DiffusionCpuOffload,
     DiffusionSubmodule,
+    DiffusionCpuOffload,
+    DiffusionSchedulerConfig,
+    DiffusionSchedulerType,
     PeftAdapterConfig,
     PeftAdapterType,
     HuggingfaceModelConfig,
 )
 from mindor.core.logger import logging
 from .base import HuggingfaceModelTaskDriver
+
+# ComfyUI/A1111 scheduler aliases mapped to a diffusers class and the kwargs
+# that distinguish the variant. Extra per-call `options` (e.g. `beta_schedule`,
+# `timestep_spacing`) are merged on top before `SchedulerClass.from_config`.
+_SCHEDULER_ALIASES: Dict[DiffusionSchedulerType, Tuple[str, Dict[str, Any]]] = {
+    DiffusionSchedulerType.DDIM:                ("DDIMScheduler",                    {}),
+    DiffusionSchedulerType.DDPM:                ("DDPMScheduler",                    {}),
+    DiffusionSchedulerType.EULER:               ("EulerDiscreteScheduler",           {}),
+    DiffusionSchedulerType.EULER_KARRAS:        ("EulerDiscreteScheduler",           { "use_karras_sigmas": True }),
+    DiffusionSchedulerType.EULER_A:             ("EulerAncestralDiscreteScheduler",  {}),
+    DiffusionSchedulerType.HEUN:                ("HeunDiscreteScheduler",            {}),
+    DiffusionSchedulerType.LMS:                 ("LMSDiscreteScheduler",             {}),
+    DiffusionSchedulerType.LMS_KARRAS:          ("LMSDiscreteScheduler",             { "use_karras_sigmas": True }),
+    DiffusionSchedulerType.DPM_2:               ("KDPM2DiscreteScheduler",           {}),
+    DiffusionSchedulerType.DPM_2_KARRAS:        ("KDPM2DiscreteScheduler",           { "use_karras_sigmas": True }),
+    DiffusionSchedulerType.DPM_2_A:             ("KDPM2AncestralDiscreteScheduler",  {}),
+    DiffusionSchedulerType.DPM_2_A_KARRAS:      ("KDPM2AncestralDiscreteScheduler",  { "use_karras_sigmas": True }),
+    DiffusionSchedulerType.DPMPP_2M:            ("DPMSolverMultistepScheduler",      {}),
+    DiffusionSchedulerType.DPMPP_2M_KARRAS:     ("DPMSolverMultistepScheduler",      { "use_karras_sigmas": True }),
+    DiffusionSchedulerType.DPMPP_2M_SDE:        ("DPMSolverMultistepScheduler",      { "algorithm_type": "sde-dpmsolver++" }),
+    DiffusionSchedulerType.DPMPP_2M_SDE_KARRAS: ("DPMSolverMultistepScheduler",      { "algorithm_type": "sde-dpmsolver++", "use_karras_sigmas": True }),
+    DiffusionSchedulerType.DPMPP_SDE:           ("DPMSolverSinglestepScheduler",     {}),
+    DiffusionSchedulerType.DPMPP_SDE_KARRAS:    ("DPMSolverSinglestepScheduler",     { "use_karras_sigmas": True }),
+    DiffusionSchedulerType.UNIPC:               ("UniPCMultistepScheduler",          {}),
+    DiffusionSchedulerType.PNDM:                ("PNDMScheduler",                    {}),
+    DiffusionSchedulerType.DEIS:                ("DEISMultistepScheduler",           {}),
+    DiffusionSchedulerType.LCM:                 ("LCMScheduler",                     {}),
+}
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
@@ -58,8 +88,9 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         submodules = await self._load_pipeline_submodules(device, dtype)
         cpu_offload = self._get_cpu_offload()
         vae_tiling = self._get_vae_tiling()
-        adapter_configs = self.config.peft_adapters or []
-        adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapter_configs ]
+        scheduler = self._get_scheduler()
+        adapters = self.config.peft_adapters or []
+        adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapters ]
 
         def _load() -> Dict[Optional[TMethod], DiffusionPipeline]:
             params: Dict[str, Any] = {
@@ -80,7 +111,10 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             if cpu_offload not in ("model", "sequential") or device.type != "cuda":
                 base_pipeline = base_pipeline.to(device)
 
-            self._attach_peft_adapters(base_pipeline, adapter_configs, adapter_paths)
+            if scheduler is not None:
+                self._apply_scheduler(base_pipeline, scheduler)
+
+            self._attach_peft_adapters(base_pipeline, adapters, adapter_paths)
             self._configure_memory(base_pipeline, device, cpu_offload, vae_tiling)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
@@ -106,10 +140,10 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
     def _attach_peft_adapters(
         self,
         pipeline: DiffusionPipeline,
-        adapter_configs: List[PeftAdapterConfig],
+        adapters: List[PeftAdapterConfig],
         adapter_paths: List[str],
     ) -> None:
-        if not adapter_configs:
+        if not adapters:
             return
 
         if not hasattr(pipeline, "load_lora_weights"):
@@ -121,7 +155,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         names: List[str] = []
         weights: List[float] = []
 
-        for index, (adapter, path) in enumerate(zip(adapter_configs, adapter_paths)):
+        for index, (adapter, path) in enumerate(zip(adapters, adapter_paths)):
             if adapter.type != PeftAdapterType.LORA:
                 raise ValueError(
                     f"Diffusion pipelines only support PEFT adapter type 'lora'; "
@@ -268,3 +302,21 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
     def _get_vae_tiling(self) -> bool:
         return True
+
+    def _get_scheduler(self) -> Optional[DiffusionSchedulerConfig]:
+        return getattr(self.config, "scheduler", None)
+
+    def _apply_scheduler(self, pipeline: DiffusionPipeline, scheduler: DiffusionSchedulerConfig) -> None:
+        import diffusers
+
+        class_name, preset = _SCHEDULER_ALIASES[scheduler.type]
+        scheduler_class = getattr(diffusers, class_name, None)
+
+        if scheduler_class is None:
+            raise ValueError(
+                f"Scheduler alias '{scheduler.type.value}' maps to '{class_name}', "
+                f"which is not available in the installed diffusers version."
+            )
+
+        logging.info(f"Component '{self.id}': switching scheduler to {class_name} ({scheduler.type.value})")
+        pipeline.scheduler = scheduler_class.from_config(pipeline.scheduler.config, **preset, **scheduler.options)

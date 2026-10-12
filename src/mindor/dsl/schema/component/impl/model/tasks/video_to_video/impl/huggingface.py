@@ -5,7 +5,7 @@ from typing import Dict, Any
 from mindor.dsl.utils.path import is_local_path
 from mindor.dsl.schema.action import AnimateDiffHuggingfaceVideoToVideoModelActionConfig
 from .common import CommonVideoToVideoModelComponentConfig
-from ...base.diffusion import DiffusionControlNetConfig
+from ...base.diffusion import DiffusionControlNetConfig, DiffusionCpuOffload, DiffusionSchedulerConfig
 from ...common import ModelDriverType, ModelConfig, ModelProvider
 
 class HuggingfaceVideoToVideoModelArchitecture(str, Enum):
@@ -13,6 +13,9 @@ class HuggingfaceVideoToVideoModelArchitecture(str, Enum):
 
 class CommonHuggingfaceVideoToVideoModelComponentConfig(CommonVideoToVideoModelComponentConfig):
     driver: Literal[ModelDriverType.HUGGINGFACE]
+    scheduler: Optional[DiffusionSchedulerConfig] = Field(default=None, description="Overrides the pipeline's default scheduler; accepts an alias or `{ type, options }`.")
+    cpu_offload: Optional[DiffusionCpuOffload] = Field(default=None, description="CPU offload strategy: 'model'/'sequential' for whole pipeline, or list of submodule names for selective offload.")
+    vae_tiling: bool = Field(default=False, description="Decode the VAE in tiles to reduce VRAM on smaller GPUs, at the cost of possible seam artifacts at tile boundaries.")
 
 class AnimateDiffHuggingfaceVideoToVideoModelComponentConfig(CommonHuggingfaceVideoToVideoModelComponentConfig):
     architecture: Literal[HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF]

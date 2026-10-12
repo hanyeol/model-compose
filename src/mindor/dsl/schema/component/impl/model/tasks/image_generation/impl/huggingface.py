@@ -8,7 +8,7 @@ from mindor.dsl.schema.action import (
     QwenImageHuggingfaceImageGenerationModelActionConfig,
 )
 from .common import CommonImageGenerationModelComponentConfig
-from ...base.diffusion import DiffusionCpuOffload
+from ...base.diffusion import DiffusionCpuOffload, DiffusionSchedulerConfig
 from ...common import ModelDriverType
 
 class HuggingfaceImageGenerationModelArchitecture(str, Enum):
@@ -19,6 +19,7 @@ class HuggingfaceImageGenerationModelArchitecture(str, Enum):
 
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.HUGGINGFACE]
+    scheduler: Optional[DiffusionSchedulerConfig] = Field(default=None, description="Overrides the pipeline's default scheduler; accepts an alias or `{ type, options }`.")
     cpu_offload: Optional[DiffusionCpuOffload] = Field(default=None, description="CPU offload strategy: 'model'/'sequential' for whole pipeline, or list of submodule names for selective offload.")
     vae_tiling: bool = Field(default=False, description="Decode the VAE in tiles to reduce VRAM on smaller GPUs, at the cost of possible seam artifacts at tile boundaries.")
 

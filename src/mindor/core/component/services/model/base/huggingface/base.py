@@ -103,33 +103,33 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
     async def _load_peft_adapters(
         self,
         base_model: PreTrainedModel,
-        adapter_configs: List[PeftAdapterConfig]
+        adapters: List[PeftAdapterConfig]
     ) -> PreTrainedModel:
         from peft import PeftModel
 
         peft_model_paths = await asyncio.gather(*[
-            self._provision_model(config.model) for config in adapter_configs
+            self._provision_model(adapter.model) for adapter in adapters
         ])
 
         def _load() -> PreTrainedModel:
-            names, weights = self._build_peft_adapter_lists(adapter_configs)
-            multiple_adapters = len(adapter_configs) > 1
+            names, weights = self._build_peft_adapter_lists(adapters)
+            multiple_adapters = len(adapters) > 1
             has_non_unit_weight = any(abs(weight - 1.0) > 1e-12 for weight in weights)
 
             peft_model = PeftModel.from_pretrained(
                 base_model,
                 peft_model_paths[0],
                 adapter_name=names[0],
-                **self._get_model_params(adapter_configs[0].model),
-                **self._get_model_options(adapter_configs[0]),
+                **self._get_model_params(adapters[0].model),
+                **self._get_model_options(adapters[0]),
             )
 
-            for index in range(1, len(adapter_configs)):
+            for index in range(1, len(adapters)):
                 peft_model.load_adapter(
                     peft_model_paths[index],
                     adapter_name=names[index],
-                    **self._get_model_params(adapter_configs[index].model),
-                    **self._get_model_options(adapter_configs[index]),
+                    **self._get_model_params(adapters[index].model),
+                    **self._get_model_options(adapters[index]),
                 )
 
             if multiple_adapters or has_non_unit_weight:
@@ -151,14 +151,14 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
 
     def _build_peft_adapter_lists(
         self,
-        adapter_configs: List[PeftAdapterConfig]
+        adapters: List[PeftAdapterConfig]
     ) -> Tuple[List[str], List[float]]:
         names: List[str] = []
         weights: List[float] = []
 
-        for index, config in enumerate(adapter_configs):
-            names.append(config.name or f"peft_adapter_{index}")
-            weights.append(config.weight)
+        for index, adapter in enumerate(adapters):
+            names.append(adapter.name or f"peft_adapter_{index}")
+            weights.append(adapter.weight)
 
         return names, weights
 

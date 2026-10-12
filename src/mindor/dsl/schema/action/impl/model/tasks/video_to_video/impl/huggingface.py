@@ -15,6 +15,7 @@ class AnimateDiffHuggingfaceVideoToVideoParamsConfig(CommonVideoToVideoParamsCon
     controlnet_conditioning_scale: Union[float, List[float], str] = Field(default=1.0, description="Strength of each ControlNet's influence; scalar or per-ControlNet list.")
     control_guidance_start: Union[float, List[float], str] = Field(default=0.0, description="Fraction of total steps after which each ControlNet starts applying.")
     control_guidance_end: Union[float, List[float], str] = Field(default=1.0, description="Fraction of total steps after which each ControlNet stops applying.")
+    clip_skip: Optional[Union[int, str]] = Field(default=None, description="Number of final CLIP text-encoder layers to skip; '2' matches common anime SD1.5 recipes.")
     free_noise: Optional[AnimateDiffFreeNoiseConfig] = Field(default=None, description="Enable FreeNoise sliding-window sampling for clips longer than the motion adapter's native window.")
     decode_chunk_size: Optional[Union[int, str]] = Field(default=None, description="VAE latent decode chunk size; smaller values reduce VRAM at the cost of speed.")
 

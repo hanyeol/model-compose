@@ -101,6 +101,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         denoise_strength  = await context.render_scalar(self.config.params.denoise_strength, float)
         width             = await context.render_scalar(self.config.params.width, int)
         height            = await context.render_scalar(self.config.params.height, int)
+        clip_skip         = await context.render_scalar(self.config.params.clip_skip, int) if self.config.params.clip_skip is not None else None
         decode_chunk_size = await context.render_scalar(self.config.params.decode_chunk_size, int) if self.config.params.decode_chunk_size is not None else None
 
         params: Dict[str, Any] = {
@@ -114,6 +115,9 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         if height is not None:
             params["height"] = height
+
+        if clip_skip is not None:
+            params["clip_skip"] = clip_skip
 
         if decode_chunk_size is not None:
             params["decode_chunk_size"] = decode_chunk_size

@@ -10,9 +10,11 @@ from .common import (
 
 class SdxlHuggingfaceImageGenerationParamsConfig(CommonHuggingfaceImageGenerationParamsConfig):
     guidance_scale: Union[float, str] = Field(default=7.5, description="Classifier-free guidance scale.")
+    clip_skip: Optional[Union[int, str]] = Field(default=None, description="Number of final CLIP text-encoder layers to skip; '2' matches common anime SD1.5 recipes.")
 
 class SdxlHuggingfaceImageGenerationInpaintParamsConfig(CommonHuggingfaceImageGenerationInpaintParamsConfig):
     guidance_scale: Union[float, str] = Field(default=7.5, description="Classifier-free guidance scale.")
+    clip_skip: Optional[Union[int, str]] = Field(default=None, description="Number of final CLIP text-encoder layers to skip; '2' matches common anime SD1.5 recipes.")
 
 class SdxlHuggingfaceImageGenerationGenerateModelActionConfig(CommonHuggingfaceImageGenerationModelActionConfig):
     method: Literal[ImageGenerationActionMethod.GENERATE] = Field(default=ImageGenerationActionMethod.GENERATE)

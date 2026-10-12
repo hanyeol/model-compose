@@ -20,10 +20,14 @@ class SdxlHuggingfaceImageGenerationTaskAction(HuggingfaceImageGenerationTaskAct
         params = await super()._resolve_pipeline_params(context)
 
         guidance_scale = await context.render_scalar(self.config.params.guidance_scale, float)
+        clip_skip      = await context.render_scalar(self.config.params.clip_skip, int) if self.config.params.clip_skip is not None else None
 
         params.update({
             "guidance_scale": guidance_scale,
         })
+
+        if clip_skip is not None:
+            params["clip_skip"] = clip_skip
 
         return params
 

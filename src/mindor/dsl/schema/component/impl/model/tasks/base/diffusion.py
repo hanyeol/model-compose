@@ -13,6 +13,30 @@ class DiffusionSubmodule(str, Enum):
     VAE            = "vae"
     IMAGE_ENCODER  = "image_encoder"
 
+class DiffusionSchedulerType(str, Enum):
+    DDIM                 = "ddim"
+    DDPM                 = "ddpm"
+    EULER                = "euler"
+    EULER_KARRAS         = "euler_karras"
+    EULER_A              = "euler_a"
+    HEUN                 = "heun"
+    LMS                  = "lms"
+    LMS_KARRAS           = "lms_karras"
+    DPM_2                = "dpm_2"
+    DPM_2_KARRAS         = "dpm_2_karras"
+    DPM_2_A              = "dpm_2_a"
+    DPM_2_A_KARRAS       = "dpm_2_a_karras"
+    DPMPP_2M             = "dpmpp_2m"
+    DPMPP_2M_KARRAS      = "dpmpp_2m_karras"
+    DPMPP_2M_SDE         = "dpmpp_2m_sde"
+    DPMPP_2M_SDE_KARRAS  = "dpmpp_2m_sde_karras"
+    DPMPP_SDE            = "dpmpp_sde"
+    DPMPP_SDE_KARRAS     = "dpmpp_sde_karras"
+    UNIPC                = "unipc"
+    PNDM                 = "pndm"
+    DEIS                 = "deis"
+    LCM                  = "lcm"
+
 DiffusionCpuOffload = Union[Literal[ "model", "sequential" ], List[DiffusionSubmodule]]
 
 class DiffusionVaeConfig(BaseModel):
@@ -67,4 +91,14 @@ class DiffusionControlNetConfig(BaseModel):
                 model["provider"] = ModelProvider.NAMED
             else:
                 model["provider"] = ModelProvider.LOCAL
+        return values
+
+class DiffusionSchedulerConfig(BaseModel):
+    type: DiffusionSchedulerType = Field(..., description="Scheduler alias (ComfyUI/A1111 style) resolved to a diffusers class and preset kwargs.")
+    options: Dict[str, Any] = Field(default_factory=dict, description="Extra kwargs forwarded to `SchedulerClass.from_config` (e.g. `beta_schedule`, `timestep_spacing`, `prediction_type`).")
+
+    @model_validator(mode="before")
+    def inflate_type(cls, values: Any):
+        if isinstance(values, str):
+            return { "type": values }
         return values

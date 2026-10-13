@@ -52,7 +52,7 @@ class MusicSynthesizerAction(ComponentAction):
         context: ComponentActionContext,
     ) -> Tuple[Any, bool, bool]:
         if method == MusicSynthesizerActionMethod.SEQUENCE:
-            tracks = await context.render_array(self.config.tracks, single_as_array=True)
+            tracks = await context.render_array(self.config.tracks, item_is_list=True, single_as_array=True)
             beats  = await context.render_variable(self.config.beats)
 
             is_single_input    = isinstance(tracks, ArrayValue)

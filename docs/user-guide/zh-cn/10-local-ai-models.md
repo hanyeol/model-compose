@@ -2144,7 +2144,7 @@ component:
   type: model
   task: text-generation
   model: meta-llama/Llama-2-7b-hf
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
@@ -2165,7 +2165,7 @@ component:
     provider: huggingface
     repository: meta-llama/Llama-2-7b-hf
     token: ${env.HUGGINGFACE_TOKEN}
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
@@ -2183,7 +2183,7 @@ component:
 使用 `weight` 参数控制适配器影响：
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: style-adapter
     model: user/style-lora
@@ -2199,7 +2199,7 @@ peft_adapters:
 使用本地文件系统中的适配器：
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: custom-lora
     model:
@@ -2213,7 +2213,7 @@ peft_adapters:
 **1. 领域适应**
 ```yaml
 # 医疗领域专用模型
-peft_adapters:
+peft_adapter:
   - type: lora
     name: medical
     model: medalpaca/medalpaca-lora-7b
@@ -2223,7 +2223,7 @@ peft_adapters:
 **2. 风格控制**
 ```yaml
 # 结合多种写作风格
-peft_adapters:
+peft_adapter:
   - type: lora
     name: formal
     model: user/formal-writing-lora
@@ -2237,7 +2237,7 @@ peft_adapters:
 **3. 多语言支持**
 ```yaml
 # 增强韩语支持
-peft_adapters:
+peft_adapter:
   - type: lora
     name: korean
     model: beomi/llama-2-ko-7b-lora

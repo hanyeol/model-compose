@@ -115,7 +115,7 @@ components:
     max_seq_length: 2048               # 언어 모델 태스크 전용, 기본값: 2048
 
     # LoRA / PEFT 어댑터
-    peft_adapters:
+    peft_adapter:
       - type: lora
         name: adapter-name
         model: path/to/adapter

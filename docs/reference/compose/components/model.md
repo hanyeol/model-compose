@@ -31,7 +31,7 @@ component:
 | `precision` | string | `null` | Numerical precision: `auto`, `float32`, `float16`, `bfloat16` |
 | `quantization` | string/object | `null` | Quantization type shorthand (`int8`, `int4`, `fp4`, `nf4`) or `{ type, compute_dtype?, double_quant? }` |
 | `low_cpu_mem_usage` | boolean | `false` | Load model with minimal CPU RAM usage |
-| `peft_adapters` | array | `null` | PEFT adapters (e.g. LoRA) to load on top of the base model |
+| `peft_adapter` | array | `null` | PEFT adapters (e.g. LoRA) to load on top of the base model |
 | `preload` | boolean | `true` | Load the model at startup |
 | `on_demand` | boolean/object | `false` | Enable on-demand loading; `true` uses defaults, or `{ priority, idle_timeout }` |
 | `runtime_spec` | object | `null` | Runtime hints — `{ vram, ram }` in MB |
@@ -3526,7 +3526,7 @@ M·A·P [YuE2](https://map-yue2.github.io/) full-song generation. A single AR–
 | `memory_budget_gib` | float | `24` | GPU memory budget reserved for generation |
 | `cpu_offload` | string/array | `null` | Submodules to run on CPU. `ar` moves the AR model to CPU during NAR synthesis to free VRAM. `vae` wraps the VAE decoder to run on CPU (workaround for MPS Conv1d `out_channels > 65536` on macOS < 15.1). Accepts a single value or a list of both |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load |
-| `peft_adapters` | array | `null` | AR LoRA adapters merged into the base pipeline. Each item follows the [top-level `peft_adapters`](#component-settings) item schema and must set `type: lora`; other adapter types are rejected. `weight` acts as the merge scale (`W += weight · B @ A`); the yue2 driver merges directly into the AR path's `self_attn` + `mlp` weights rather than routing through the `peft` library |
+| `peft_adapter` | array | `null` | AR LoRA adapters merged into the base pipeline. Each item follows the [top-level `peft_adapter`](#component-settings) item schema and must set `type: lora`; other adapter types are rejected. `weight` acts as the merge scale (`W += weight · B @ A`); the yue2 driver merges directly into the AR path's `self_attn` + `mlp` weights rather than routing through the `peft` library |
 
 **Common Action Fields:**
 
@@ -3638,7 +3638,7 @@ component:
     model:
       repository: Mothersuperior/yue2-mothersuperior-realaudio-tokenizer-v4
       filename: nar_lora_joint_v4.safetensors
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: my-artist
       model: ./out/my-artist.safetensors

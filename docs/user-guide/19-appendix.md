@@ -115,7 +115,7 @@ components:
     max_seq_length: 2048               # Language-model tasks only, default: 2048
 
     # LoRA / PEFT adapters
-    peft_adapters:
+    peft_adapter:
       - type: lora
         name: adapter-name
         model: path/to/adapter

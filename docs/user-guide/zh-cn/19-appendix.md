@@ -115,7 +115,7 @@ components:
     max_seq_length: 2048               # 仅语言模型任务，默认：2048
 
     # LoRA / PEFT 适配器
-    peft_adapters:
+    peft_adapter:
       - type: lora
         name: adapter-name
         model: path/to/adapter

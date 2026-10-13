@@ -2144,7 +2144,7 @@ component:
   type: model
   task: text-generation
   model: meta-llama/Llama-2-7b-hf
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
@@ -2165,7 +2165,7 @@ component:
     provider: huggingface
     repository: meta-llama/Llama-2-7b-hf
     token: ${env.HUGGINGFACE_TOKEN}
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
@@ -2183,7 +2183,7 @@ component:
 `weight` 파라미터로 어댑터의 영향력을 조절합니다:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: style-adapter
     model: user/style-lora
@@ -2199,7 +2199,7 @@ peft_adapters:
 로컬 파일 시스템의 어댑터 사용:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: custom-lora
     model:
@@ -2213,7 +2213,7 @@ peft_adapters:
 **1. 도메인 적응**
 ```yaml
 # 의료 도메인에 특화된 모델
-peft_adapters:
+peft_adapter:
   - type: lora
     name: medical
     model: medalpaca/medalpaca-lora-7b
@@ -2223,7 +2223,7 @@ peft_adapters:
 **2. 스타일 제어**
 ```yaml
 # 여러 작문 스타일 조합
-peft_adapters:
+peft_adapter:
   - type: lora
     name: formal
     model: user/formal-writing-lora
@@ -2237,7 +2237,7 @@ peft_adapters:
 **3. 다국어 지원**
 ```yaml
 # 한국어 지원 강화
-peft_adapters:
+peft_adapter:
   - type: lora
     name: korean
     model: beomi/llama-2-ko-7b-lora

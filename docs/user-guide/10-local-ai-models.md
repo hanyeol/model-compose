@@ -1747,7 +1747,7 @@ Compared with the `video-scene-detector` component (which uses classical CV heur
 
 ### 10.3.30 music-generation
 
-Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `nar`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`, and `peft_adapters` (AR LoRAs).
+Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `nar`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`, and `peft_adapter` (AR LoRAs).
 
 ```yaml
 component:
@@ -1799,7 +1799,7 @@ MIDI-DDSP pins TensorFlow 2.11 and cannot coexist with the host mindor stack, so
 
 YuE2's unquantized preset requires a CUDA GPU with BF16 support and ≥24 GB VRAM. Set `quantization.type: fp8`, `cpu_offload: ar`, and a smaller `vae.tile_size` to fit tighter budgets. On macOS < 15.1 the MPS backend cannot execute the VAE's oversized Conv1d layers — set `cpu_offload: vae` (or `cpu_offload: [ar, vae]`) so the decoder runs on CPU. Selecting `backend: vllm` automatically installs the model's `[fast]` extras (vLLM + Triton).
 
-YuE2 accepts two independent adapter surfaces on top of the base pipeline. `nar` points at a vendor NAR LoRA checkpoint (e.g. Mothersuperior's `nar_lora_joint_v4.safetensors`) whose LoRA deltas are folded into the AR model's NAR path and whose `vae2llm` / `llm2vae` I/O projections replace the base modules — needed when the AR model was fine-tuned on real audio so its NAR path can decode the retrained token dialect. `peft_adapters` accepts one or more AR LoRA adapters (from the yue2-lora-training recipe or similar); each item must set `type: lora`, and `weight` is used as the merge scale applied to `B @ A`. Both fields are optional; when omitted, the stock AR/NAR paths from the base checkpoint are used.
+YuE2 accepts two independent adapter surfaces on top of the base pipeline. `nar` points at a vendor NAR LoRA checkpoint (e.g. Mothersuperior's `nar_lora_joint_v4.safetensors`) whose LoRA deltas are folded into the AR model's NAR path and whose `vae2llm` / `llm2vae` I/O projections replace the base modules — needed when the AR model was fine-tuned on real audio so its NAR path can decode the retrained token dialect. `peft_adapter` accepts one or more AR LoRA adapters (from the yue2-lora-training recipe or similar); each item must set `type: lora`, and `weight` is used as the merge scale applied to `B @ A`. Both fields are optional; when omitted, the stock AR/NAR paths from the base checkpoint are used.
 
 ```yaml
 component:
@@ -2232,7 +2232,7 @@ component:
   type: model
   task: text-generation
   model: meta-llama/Llama-2-7b-hf
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
@@ -2253,7 +2253,7 @@ component:
     provider: huggingface
     repository: meta-llama/Llama-2-7b-hf
     token: ${env.HUGGINGFACE_TOKEN}
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
@@ -2271,7 +2271,7 @@ component:
 Control adapter influence with the `weight` parameter:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: style-adapter
     model: user/style-lora
@@ -2287,7 +2287,7 @@ peft_adapters:
 Using adapters from local filesystem:
 
 ```yaml
-peft_adapters:
+peft_adapter:
   - type: lora
     name: custom-lora
     model:
@@ -2301,7 +2301,7 @@ peft_adapters:
 **1. Domain Adaptation**
 ```yaml
 # Medical domain specialized model
-peft_adapters:
+peft_adapter:
   - type: lora
     name: medical
     model: medalpaca/medalpaca-lora-7b
@@ -2311,7 +2311,7 @@ peft_adapters:
 **2. Style Control**
 ```yaml
 # Combining multiple writing styles
-peft_adapters:
+peft_adapter:
   - type: lora
     name: formal
     model: user/formal-writing-lora
@@ -2325,7 +2325,7 @@ peft_adapters:
 **3. Multilingual Support**
 ```yaml
 # Enhancing Korean language support
-peft_adapters:
+peft_adapter:
   - type: lora
     name: korean
     model: beomi/llama-2-ko-7b-lora
@@ -2336,7 +2336,7 @@ peft_adapters:
 
 The `music-generation` task's `family: yue2` driver merges LoRA adapters directly into the base pipeline's weights (rather than going through the `peft` library). Two independent adapter surfaces are exposed:
 
-- **`peft_adapters`** — one or more AR LoRAs (typically user-trained). Each item must be `type: lora`; other types are rejected. `weight` is the merge scale (`W += weight · B @ A`) applied to the AR path's `self_attn` + `mlp` linears. Both `.safetensors` (with `ar.layers.{i}.{proj}.lora_{A,B}` keys, e.g. exports from the yue2-lora-training recipe) and `.pt` checkpoints are accepted; any `cursor_head.*` tensors present in a training checkpoint are ignored at inference time.
+- **`peft_adapter`** — one or more AR LoRAs (typically user-trained). Each item must be `type: lora`; other types are rejected. `weight` is the merge scale (`W += weight · B @ A`) applied to the AR path's `self_attn` + `mlp` linears. Both `.safetensors` (with `ar.layers.{i}.{proj}.lora_{A,B}` keys, e.g. exports from the yue2-lora-training recipe) and `.pt` checkpoints are accepted; any `cursor_head.*` tensors present in a training checkpoint are ignored at inference time.
 - **`nar`** — a vendor NAR LoRA checkpoint. The Mothersuperior real-audio tokenizer repository publishes several joint versions (`nar_lora_joint_v4/v5/v8/v9`); pin the exact filename since the head + LoRA files are version-matched. When set, its LoRA deltas fold into the NAR path (`nar_self_attn` + `nar_mlp`) and its `vae2llm` / `llm2vae` I/O projections replace the base modules. Required when the AR model was fine-tuned on real audio so the NAR path can decode the retrained token dialect.
 
 Both fields are optional and independent — either can be used alone or together, and omitting both keeps the stock AR/NAR paths from the base checkpoint.
@@ -2353,7 +2353,7 @@ component:
     model:
       repository: Mothersuperior/yue2-mothersuperior-realaudio-tokenizer-v4
       filename: nar_lora_joint_v4.safetensors
-  peft_adapters:
+  peft_adapter:
     - type: lora
       name: my-artist
       model: ./out/my-artist.safetensors

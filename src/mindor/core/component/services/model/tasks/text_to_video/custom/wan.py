@@ -62,7 +62,6 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
         def _generate() -> List[VideoStreamResource]:
             prompts, negative_prompts = inputs
             negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
-            fps = params["frame_rate"]
             results: List[VideoStreamResource] = []
 
             for prompt, negative in zip(prompts, negatives):
@@ -79,7 +78,7 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
                     seed=params["seed"] if params["seed"] is not None else -1,
                     offload_model=self.cpu_offload,
                 )
-                results.append(self._encode_video_tensor_to_mp4(video, fps))
+                results.append(self._encode_video_tensor_to_mp4(video, params["frame_rate"]))
 
             return results
 

@@ -127,9 +127,6 @@ class DiffusionIpAdapterConfig(BaseModel):
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Any):
-        # Accept `ip_adapter: <repo>` shorthand and `ip_adapter: { <ModelConfig fields> }`
-        # that pre-dates this config, in addition to the full
-        # `ip_adapter: { model, filename, image_encoder }` block.
         if isinstance(values, str):
             if is_local_path(values):
                 return { "model": { "provider": ModelProvider.LOCAL, "path": values } }

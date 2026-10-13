@@ -7,12 +7,12 @@ class HttpCallbackConfig(BaseModel):
     path: str = Field(..., description="URL path appended to the listener base path for this callback endpoint.")
     method: Literal[ "GET", "POST", "PUT", "DELETE", "PATCH" ] = Field(default="POST", description="HTTP method accepted by this callback endpoint.")
     bulk: Union[bool, str] = Field(default=False, description="Whether this callback accepts multiple items per request.")
-    item: Optional[str] = Field(default=None, description="Field path used to extract individual items from a bulk payload.")
-    identify_by: Optional[str] = Field(default=None, description="Field path used to match a callback payload to a pending request.")
-    status: Optional[str] = Field(default=None, description="Field path within the payload used to determine completion status.")
+    item: Optional[str] = Field(default=None, description="Variable expression that extracts individual items from a bulk payload.")
+    identify_by: Optional[str] = Field(default=None, description="Variable expression that matches a callback payload to a pending request.")
+    status: Optional[str] = Field(default=None, description="Variable expression that resolves the completion status from the payload.")
     success_when: Optional[List[str]] = Field(default=None, description="Status codes or values that mark the callback as successful.")
     fail_when: Optional[List[str]] = Field(default=None, description="Status codes or values that mark the callback as failed.")
-    result: Optional[Any] = Field(default=None, description="Field path or transformation used to extract the final result from the payload.")
+    result: Optional[Any] = Field(default=None, description="Variable expression that extracts the final result from the payload.")
 
     @model_validator(mode="before")
     def normalize_status_fields(cls, values: Dict[str, Any]):

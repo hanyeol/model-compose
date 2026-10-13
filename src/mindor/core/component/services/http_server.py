@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import asyncio, json
 
 class HttpServerCompletion(ABC):
@@ -32,9 +32,9 @@ class HttpServerPollingCompletion(HttpServerCompletion):
 
         interval = await context.render_scalar(self.config.interval, "time", 5.0)
         timeout  = await context.render_scalar(self.config.timeout, "time", 300.0)
-        deadline = datetime.now(timezone.utc) + timeout
+        deadline = datetime.now(timezone.utc) + timedelta(seconds=timeout)
 
-        await asyncio.sleep(interval.total_seconds())
+        await asyncio.sleep(interval)
 
         while datetime.now(timezone.utc) < deadline:
             response, status_code = await client.request(path or "", method, params, body, headers, raise_on_error=False)
@@ -52,7 +52,7 @@ class HttpServerPollingCompletion(HttpServerCompletion):
                 if is_status_code_matched(status_code, self.config.fail_when or []):
                     raise RuntimeError(f"Polling failed: status code '{status_code}' matched a failure condition.")
 
-            await asyncio.sleep(interval.total_seconds())
+            await asyncio.sleep(interval)
 
         raise TimeoutError(f"Polling timed out after {timeout}.")
 

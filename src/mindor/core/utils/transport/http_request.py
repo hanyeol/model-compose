@@ -36,7 +36,7 @@ class NestedFormParser:
         parts: List[str] = _NESTED_KEY_REGEX.findall(key)
 
         if parts:
-            return [ p.strip("[]") if p.startswith("[") and p.endswith("]") else p for p in parts ]
+            return [ part.strip("[]") if part.startswith("[") and part.endswith("]") else part for part in parts ]
 
         return parts
 

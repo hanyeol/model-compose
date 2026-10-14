@@ -15,26 +15,29 @@ class NestedFormParser:
     def parse(self, form: FormData) -> dict:
         data = {}
 
-        for form_key, value in form.items():
+        for form_key, value in form.multi_items():
             keys, current = self._parse_key_path(form_key), data
+
             for index, key in enumerate(keys):
                 if index == len(keys) - 1:
                     if key.endswith("[]"):
-                        values: List[Any] = current.setdefault(key, [])
-                        values.append(value)
+                        current.setdefault(key[:-2], []).append(value)
                     else:
+                        if key in current:
+                            raise ValueError(f"Duplicate form field '{form_key}' without '[]' suffix; use '{form_key}[]' to send multiple values.")
+
                         current[key] = value
                 else:
                     current = current.setdefault(key, {})
-        
+
         return data
 
     def _parse_key_path(self, key: str) -> List[str]:
         parts: List[str] = _NESTED_KEY_REGEX.findall(key)
-        
+
         if parts:
-            return [ p.strip("[]") if not p.endswith("[]") else p for p in parts ]
-        
+            return [ p.strip("[]") if p.startswith("[") and p.endswith("]") else p for p in parts ]
+
         return parts
 
 def build_request_body(body: Any, content_type: Optional[str]) -> Any:
@@ -56,16 +59,17 @@ def build_request_form(body: Any) -> aiohttp.FormData:
     form = aiohttp.FormData()
 
     for key, value in body.items() if isinstance(body, dict) else {}:
-        if isinstance(value, UploadFile):
-            content_type, _ = parse_options_header(value.headers, "Content-Type")
-            form.add_field(
-                name=key,
-                value=value.file,
-                filename=value.filename,
-                content_type=content_type or "application/octet-stream"
-            )
-        else:
-            form.add_field(name=key, value=str(value))
+        for item in value if isinstance(value, (list, tuple)) else [ value ]:
+            if isinstance(item, UploadFile):
+                content_type, _ = parse_options_header(item.headers, "Content-Type")
+                form.add_field(
+                    name=key,
+                    value=item.file,
+                    filename=item.filename,
+                    content_type=content_type or "application/octet-stream"
+                )
+            else:
+                form.add_field(name=key, value=str(item))
 
     return form
 

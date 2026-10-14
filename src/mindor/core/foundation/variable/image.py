@@ -166,17 +166,17 @@ class ImageValueRenderer:
                 return ImageStreamResource(await load_image_from_stream(value), "png")
 
             return None
+        else:
+            if isinstance(value, PILImage.Image):
+                return value
 
-        if isinstance(value, PILImage.Image):
-            return value
+            if isinstance(value, ImageStreamResource):
+                return await value.as_image()
 
-        if isinstance(value, ImageStreamResource):
-            return await value.as_image()
+            if isinstance(value, StreamResource):
+                return await load_image_from_stream(value)
 
-        if isinstance(value, StreamResource):
-            return await load_image_from_stream(value)
-
-        return None
+            return None
 
     def _is_nested_element_array(self, value: Any) -> bool:
         """True when ``value`` is a list of element arrays — a top-level

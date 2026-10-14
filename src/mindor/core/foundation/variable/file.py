@@ -2,19 +2,19 @@ from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.resources import StreamResource, save_stream_to_temporary_file
 from ..streaming.file import FileStreamResource
+from ..streaming.bytes import BytesStreamResource
+from ..streaming.text import TextStreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 import os
 
-FileValue = Union[str, StreamResource]
+FileValue = str
 
 class FileArrayValue:
     """A materialized or streaming array of files.
 
-    All elements share one type — either ``str`` (path) or ``StreamResource``
-    — chosen by the renderer that produced this value (see the ``as_stream``
-    argument to ``FileValueRenderer.render_array``). Elements are already
-    normalized before they reach this container; iteration and ``collect()``
-    do not do any per-item conversion.
+    Each element is a filesystem path ``str`` — ``FileValueRenderer`` spools
+    any non-file input to a temp file before populating this container.
+    Iteration and ``collect()`` do not do any per-item conversion.
     """
     def __init__(
         self,
@@ -45,7 +45,6 @@ class FileValueRenderer:
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-        as_stream: bool = False,
     ) -> Optional[Union[FileArrayValue, List[Optional[FileArrayValue]], AsyncIterator[Any]]]:
         """Render a file array (or a nested list of them, with ``item_is_list=True``).
 
@@ -54,10 +53,6 @@ class FileValueRenderer:
         With ``item_is_list=True`` each ``value`` element is itself a group of
         file refs; the batch axis is always an explicit Python list, with
         non-batch inputs collapsing to a one-element list.
-
-        ``as_stream`` picks the element content type: path ``str`` (default,
-        eagerly materializes a stream into a temp file) or raw
-        ``StreamResource`` (consumer decides how to persist).
         """
         # Fragmented streams represent one logical file array delivered in
         # pieces — fall through to `_render_element_array` which wraps them
@@ -66,9 +61,9 @@ class FileValueRenderer:
             async def _iterate():
                 async for chunk in value:
                     if item_is_list:
-                        yield await self._render_element_array(chunk, single_as_array=True, as_stream=as_stream)
+                        yield await self._render_element_array(chunk, single_as_array=True)
                     else:
-                        yield await self._render_element_array(chunk, single_as_array, as_stream)
+                        yield await self._render_element_array(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -78,27 +73,26 @@ class FileValueRenderer:
 
         if item_is_list:
             if self._is_nested_element_array(value):
-                return [ await self._render_element_array(item, single_as_array=True, as_stream=as_stream) for item in value ]
+                return [ await self._render_element_array(item, single_as_array=True) for item in value ]
 
             if single_as_array and value is not None:
-                return [ await self._render_element_array(value, single_as_array=True, as_stream=as_stream) ]
+                return [ await self._render_element_array(value, single_as_array=True) ]
 
             return None
 
         if self._is_nested_element_array(value):
-            return [ await self._render_element_array(item, single_as_array, as_stream) for item in value ]
+            return [ await self._render_element_array(item, single_as_array) for item in value ]
 
-        return await self._render_element_array(value, single_as_array, as_stream)
+        return await self._render_element_array(value, single_as_array)
 
     async def render(
         self,
         value: Any,
-        as_stream: bool = False,
-    ) -> Optional[Union[str, StreamResource, List[Any], AsyncIterator[Any]]]:
+    ) -> Optional[Union[str, List[Any], AsyncIterator[Any]]]:
         if isinstance(value, (StreamIterator, AsyncIterator)):
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element(chunk, as_stream)
+                    yield await self._render_element(chunk)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -107,21 +101,20 @@ class FileValueRenderer:
             return _iterate()
 
         if isinstance(value, (list, tuple)):
-            return [ await self._render_element(item, as_stream) for item in value ]
+            return [ await self._render_element(item) for item in value ]
 
-        return await self._render_element(value, as_stream)
+        return await self._render_element(value)
 
     async def _render_element_array(
         self,
         value: Any,
         single_as_array: bool = False,
-        as_stream: bool = False,
     ) -> Optional[FileArrayValue]:
         if isinstance(value, FileArrayValue):
             # Re-coerce lazily to the requested element contract.
             async def _iterate():
                 async for item in value:
-                    file = await self._render_element(item, as_stream)
+                    file = await self._render_element(item)
                     if file is not None:
                         yield file
             return FileArrayValue(_iterate(), is_single=value.is_single)
@@ -129,16 +122,16 @@ class FileValueRenderer:
         if self._is_fragmented_stream(value):
             async def _iterate():
                 async for item in value:
-                    file = await self._render_element(item, as_stream)
+                    file = await self._render_element(item)
                     if file is not None:
                         yield file
             return FileArrayValue(_iterate())
 
         if isinstance(value, (list, tuple)):
-            return FileArrayValue([ await self._render_element(item, as_stream) for item in value ])
+            return FileArrayValue([ await self._render_element(item) for item in value ])
 
         if single_as_array and value is not None:
-            file = await self._render_element(value, as_stream)
+            file = await self._render_element(value)
             if file is not None:
                 return FileArrayValue([ file ], is_single=True)
 
@@ -150,23 +143,23 @@ class FileValueRenderer:
 
         return None
 
-    async def _render_element(self, value: Any, as_stream: bool = False) -> Optional[Union[str, StreamResource]]:
-        """Normalize a raw value to the requested element type. ``as_stream``
-        picks the target: path ``str`` (default, eagerly materializes a stream
-        into a temp file) or the raw ``StreamResource`` (consumer decides how
-        to persist).
+    async def _render_element(self, value: Any) -> Optional[str]:
+        """Normalize a raw value to a filesystem path. ``FileStreamResource``
+        inputs pass through as their original path; other ``StreamResource``,
+        ``str``, and ``bytes``/``bytearray`` inputs are spooled to a temp
+        file and the temp path is returned.
         """
-        if as_stream:
-            if isinstance(value, StreamResource):
-                return value
-
-            return None
-
         if isinstance(value, FileStreamResource):
             return os.path.expanduser(value.path)
 
         if isinstance(value, StreamResource):
             return await save_stream_to_temporary_file(value, None)
+
+        if isinstance(value, str):
+            return await save_stream_to_temporary_file(TextStreamResource(value), None)
+
+        if isinstance(value, (bytes, bytearray)):
+            return await save_stream_to_temporary_file(BytesStreamResource(value), None)
 
         return None
 

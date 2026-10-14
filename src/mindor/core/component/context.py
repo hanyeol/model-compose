@@ -242,18 +242,16 @@ class ComponentActionContext:
     async def render_file(
         self,
         value: Any,
-        as_stream: bool = False,
-    ) -> Optional[Union[str, StreamResource, List[Any], AsyncIterator[Any]]]:
-        return await FileValueRenderer().render(await self.render_variable(value), as_stream)
+    ) -> Optional[Union[str, List[Any], AsyncIterator[Any]]]:
+        return await FileValueRenderer().render(await self.render_variable(value))
 
     async def render_file_array(
         self,
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-        as_stream: bool = False,
     ) -> Optional[Union[FileArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
-        return await FileValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array, as_stream)
+        return await FileValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_vector(
         self,

@@ -6,7 +6,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import CameraPoseEstimatorActionConfig
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_file
-from mindor.core.foundation.variable.file import FileArrayValue
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.utils.files import get_file_extension, guess_file_extension
@@ -32,7 +32,7 @@ class CameraPoseEstimatorAction(ComponentAction):
         self.context: ComponentActionContext = context
 
     async def run(self) -> Any:
-        images        = await self.context.render_file_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
+        images        = await self.context.render_image_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
         workspace_dir = await self.context.render_variable(self.config.workspace_dir)
         batch_size    = await self.context.render_variable(self.config.batch_size)
 
@@ -89,7 +89,7 @@ class CameraPoseEstimatorAction(ComponentAction):
     @abstractmethod
     async def _estimate_batch(
         self,
-        inputs: List[Tuple[Optional[FileArrayValue], str]],
+        inputs: List[Tuple[Optional[ImageArrayValue], str]],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
@@ -97,7 +97,7 @@ class CameraPoseEstimatorAction(ComponentAction):
 
         Each `inputs[i]` is a `(images, workspace_dir)` tuple describing
         one scene:
-          - `images` is a `FileArrayValue` yielding that scene's image
+          - `images` is a `ImageArrayValue` yielding that scene's image
             stream resources (raw encoded bytes, EXIF preserved), or
             `None` when the driver should reuse images already present
             under `workspace_dir`.
@@ -113,7 +113,7 @@ class CameraPoseEstimatorAction(ComponentAction):
         """
         pass
 
-    async def _save_images(self, images: FileArrayValue, images_dir: str) -> None:
+    async def _save_images(self, images: ImageArrayValue, images_dir: str) -> None:
         # Wipe stale files from prior runs before writing the new batch.
         if os.path.isdir(images_dir):
             shutil.rmtree(images_dir)

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import CameraPoseEstimatorComponentConfig, ColmapMatcherType
 from mindor.dsl.schema.action import CameraPoseEstimatorActionConfig, ColmapCameraPoseEstimatorActionConfig
-from mindor.core.foundation.variable.file import FileArrayValue
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -57,7 +57,7 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
 
     async def _estimate_batch(
         self,
-        inputs: List[Tuple[Optional[FileArrayValue], str]],
+        inputs: List[Tuple[Optional[ImageArrayValue], str]],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
@@ -409,7 +409,6 @@ class ColmapCameraPoseEstimatorService(CameraPoseEstimatorDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *(super()._get_setup_requirements() or []),
             "pycolmap>=4.0",
             "trimesh>=4.0",
             "numpy"

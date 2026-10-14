@@ -9,10 +9,13 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.utils.files import get_temporary_path
+from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
 from ..common import MusicTranscriptionTaskAction, MusicTranscriptNotes
+from pathlib import Path
 import os
 
 if TYPE_CHECKING:
@@ -23,6 +26,11 @@ if TYPE_CHECKING:
 # ByteDance's model was trained on 16 kHz mono piano recordings; feeding anything
 # else silently degrades note recall.
 _PIANO_TRANSCRIPTION_SAMPLE_RATE = 16000
+
+# Upstream piano_transcription_inference downloads this checkpoint on first use by
+# shelling out to `wget`, which is absent on macOS and fails silently. We fetch
+# it ourselves and hand the path to the library so its download path never runs.
+_PIANO_TRANSCRIPTION_CHECKPOINT_URL = "https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1"
 
 class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
     def __init__(
@@ -183,23 +191,24 @@ class PianoTranscriptionMusicTranscriptionTaskDriver(ModelTaskDriver):
         from piano_transcription_inference import PianoTranscription
 
         device = self._resolve_device(self.config.device)
+        checkpoint_path = await self._resolve_checkpoint_path()
 
         def _load() -> PianoTranscription:
-            # PianoTranscription auto-downloads its default checkpoint on first use
-            # when checkpoint_path is None. The schema stamps a sentinel name so the
-            # discriminator has something to compare, but we only forward it when
-            # it's an actual filesystem path — otherwise let the library resolve
-            # its default.
-            checkpoint_path = self.config.model.name
-
-            if not checkpoint_path or not os.path.isfile(checkpoint_path):
-                checkpoint_path = None
-
             return PianoTranscription(device=str(device), checkpoint_path=checkpoint_path)
 
         transcriptor = await self._run_in_executor(_load)
 
         return transcriptor, device
+
+    async def _resolve_checkpoint_path(self) -> str:
+        cache_root = Path(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))) / "models"
+        checkpoint_path = cache_root / "piano_transcription" / "note_F1=0.9677_pedal_F1=0.9186.pth"
+
+        if not checkpoint_path.exists():
+            logging.info(f"Downloading piano-transcription checkpoint from {_PIANO_TRANSCRIPTION_CHECKPOINT_URL}")
+            await download_to_file(_PIANO_TRANSCRIPTION_CHECKPOINT_URL, checkpoint_path)
+
+        return str(checkpoint_path)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await PianoTranscriptionTaskActionImpl(

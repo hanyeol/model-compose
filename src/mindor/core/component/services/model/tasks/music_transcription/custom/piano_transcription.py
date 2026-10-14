@@ -23,14 +23,14 @@ if TYPE_CHECKING:
     import numpy as np
     import torch
 
-# ByteDance's model was trained on 16 kHz mono piano recordings; feeding anything
-# else silently degrades note recall.
-_PIANO_TRANSCRIPTION_SAMPLE_RATE = 16000
-
 # Upstream piano_transcription_inference downloads this checkpoint on first use by
 # shelling out to `wget`, which is absent on macOS and fails silently. We fetch
 # it ourselves and hand the path to the library so its download path never runs.
 _PIANO_TRANSCRIPTION_CHECKPOINT_URL = "https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1"
+
+# ByteDance's model was trained on 16 kHz mono piano recordings; feeding anything
+# else silently degrades note recall.
+_PIANO_TRANSCRIPTION_SAMPLE_RATE = 16000
 
 class PianoTranscriptionTaskActionImpl(MusicTranscriptionTaskAction):
     def __init__(

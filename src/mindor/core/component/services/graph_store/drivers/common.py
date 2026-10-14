@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import GraphStoreActionConfig, GraphStoreActionMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -18,7 +18,7 @@ class GraphStoreAction(ComponentAction):
         self.database: Any = database
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(self.config.method, context)
@@ -33,6 +33,9 @@ class GraphStoreAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -51,7 +54,7 @@ class GraphStoreAction(ComponentAction):
         self,
         method: GraphStoreActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         # INSERT/UPDATE/DELETE deliver the whole node/relationship collection to the
         # driver in one native-batch call. Each ArrayValue travels through
         # BatchSourceIterator as a single unit (ArrayValue is not iterable to the
@@ -62,7 +65,7 @@ class GraphStoreAction(ComponentAction):
             is_single_input    = isinstance(queries, ArrayValue) and queries.is_single
             is_streaming_input = isinstance(queries, (StreamIterator, AsyncIterator))
 
-            return (queries,), is_single_input, is_streaming_input
+            return (queries,), queries, is_single_input, is_streaming_input
 
         # INSERT/UPDATE/DELETE deliver the whole collection to the driver in a
         # single native-batch call. `is_single_input` is True when every present
@@ -71,28 +74,31 @@ class GraphStoreAction(ComponentAction):
             nodes         = await context.render_array(self.config.node, single_as_array=True)
             relationships = await context.render_array(self.config.relationship, single_as_array=True)
 
+            primary_input      = next((value for value in (nodes, relationships) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = all(value is None or (isinstance(value, ArrayValue) and value.is_single) for value in (nodes, relationships))
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (nodes, relationships))
+            is_streaming_input = primary_input is not None
 
-            return (nodes, relationships), is_single_input, is_streaming_input
+            return (nodes, relationships), primary_input, is_single_input, is_streaming_input
 
         if method == GraphStoreActionMethod.UPDATE:
             node_ids         = await context.render_array(self.config.node_id, single_as_array=True)
             relationship_ids = await context.render_array(self.config.relationship_id, single_as_array=True)
 
+            primary_input      = next((value for value in (node_ids, relationship_ids) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = all(value is None or (isinstance(value, ArrayValue) and value.is_single) for value in (node_ids, relationship_ids))
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (node_ids, relationship_ids))
+            is_streaming_input = primary_input is not None
 
-            return (node_ids, relationship_ids), is_single_input, is_streaming_input
+            return (node_ids, relationship_ids), primary_input, is_single_input, is_streaming_input
 
         if method == GraphStoreActionMethod.DELETE:
             node_ids         = await context.render_array(self.config.node_id, single_as_array=True)
             relationship_ids = await context.render_array(self.config.relationship_id, single_as_array=True)
 
+            primary_input      = next((value for value in (node_ids, relationship_ids) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = all(value is None or (isinstance(value, ArrayValue) and value.is_single) for value in (node_ids, relationship_ids))
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (node_ids, relationship_ids))
+            is_streaming_input = primary_input is not None
 
-            return (node_ids, relationship_ids), is_single_input, is_streaming_input
+            return (node_ids, relationship_ids), primary_input, is_single_input, is_streaming_input
 
         if method == GraphStoreActionMethod.TRAVERSE:
             start_nodes = await context.render_array(self.config.start_node, single_as_array=True)
@@ -100,7 +106,7 @@ class GraphStoreAction(ComponentAction):
             is_single_input    = isinstance(start_nodes, ArrayValue) and start_nodes.is_single
             is_streaming_input = isinstance(start_nodes, (StreamIterator, AsyncIterator))
 
-            return (start_nodes,), is_single_input, is_streaming_input
+            return (start_nodes,), start_nodes, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported graph store action method: {method}")
 

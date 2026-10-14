@@ -4,7 +4,7 @@ from typing import Optional, Union, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import MediaDownloaderActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
@@ -47,6 +47,9 @@ class MediaDownloaderAction(ComponentAction):
                     for result in batch_results:
                         self.context.register_source("result", result)
                         yield (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(url, StreamChunkIterator) and url.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

@@ -5,7 +5,7 @@ from typing import Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
 from mindor.dsl.schema.action.impl.model_tokenizer.tasks.common import ModelTokenizerMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
 from .....action.base import ComponentAction
@@ -33,6 +33,9 @@ class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(value, StreamChunkIterator) and value.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

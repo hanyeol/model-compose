@@ -5,7 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import Model3DConverterActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -33,6 +33,9 @@ class Model3DConverterAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(model_3d, StreamChunkIterator) and model_3d.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

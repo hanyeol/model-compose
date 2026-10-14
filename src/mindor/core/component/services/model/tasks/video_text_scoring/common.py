@@ -9,7 +9,7 @@ from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.variable.text import TextArrayValue
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.atomic import AtomicDict
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
@@ -48,6 +48,9 @@ class VideoTextScoringTaskAction(ModelTaskComponentAction):
                     for result in batch_results:
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(frames, StreamChunkIterator) and frames.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

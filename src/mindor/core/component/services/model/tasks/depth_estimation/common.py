@@ -36,6 +36,9 @@ class DepthEstimationTaskAction(ModelTaskComponentAction):
                         context.register_source("result", depth)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else depth
 
+            if isinstance(image, StreamChunkIterator) and image.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[PILImage.Image] = []

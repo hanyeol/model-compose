@@ -10,7 +10,7 @@ from mindor.dsl.schema.action import (
     AudioOverlayPlacement,
 )
 from mindor.core.foundation.media.encoding import AudioEncoderParams
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.audio import AudioStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.audio import AudioArrayValue
@@ -27,7 +27,7 @@ class AudioMixerAction(ComponentAction):
         self.config: AudioMixerActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_scalar(self.config.streaming, bool, False)
 
@@ -42,6 +42,9 @@ class AudioMixerAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -59,14 +62,14 @@ class AudioMixerAction(ComponentAction):
         self,
         method: AudioMixerActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == AudioMixerActionMethod.CONCAT:
             audios = await context.render_audio_array(self.config.audios)
 
             is_single_input    = isinstance(audios, AudioArrayValue)
             is_streaming_input = isinstance(audios, (StreamIterator, AsyncIterator))
 
-            return audios, is_single_input, is_streaming_input
+            return audios, audios, is_single_input, is_streaming_input
 
         if method == AudioMixerActionMethod.OVERLAY:
             audio     = await context.render_audio(self.config.audio)
@@ -76,7 +79,7 @@ class AudioMixerAction(ComponentAction):
             is_single_input    = not isinstance(audio, (list, StreamIterator, AsyncIterator))
             is_streaming_input = isinstance(audio, (StreamIterator, AsyncIterator))
 
-            return (audio, overlay, placement), is_single_input, is_streaming_input
+            return (audio, overlay, placement), audio, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported audio mixer action method: {method}")
 

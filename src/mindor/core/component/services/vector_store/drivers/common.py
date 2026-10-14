@@ -4,7 +4,7 @@ from typing import Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.vector import VectorArrayValue, VectorValue
 from mindor.core.foundation.cancellation import CancellationToken
@@ -19,7 +19,7 @@ class VectorStoreAction(ComponentAction):
         self.client: Any = client
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         collection = await self._resolve_collection(self.config.method, context)
@@ -35,6 +35,9 @@ class VectorStoreAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -53,26 +56,28 @@ class VectorStoreAction(ComponentAction):
         self,
         method: VectorStoreActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == VectorStoreActionMethod.INSERT:
             vectors    = await context.render_vector_array(self.config.vector, single_as_array=True)
             vector_ids = await context.render_array(self.config.vector_id, single_as_array=True)
             metadatas  = await context.render_array(self.config.metadata, single_as_array=True)
 
+            primary_input      = next((value for value in (vectors, vector_ids, metadatas) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = isinstance(vectors, VectorArrayValue) and vectors.is_single
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vectors, vector_ids, metadatas))
+            is_streaming_input = primary_input is not None
 
-            return (vector_ids, vectors, metadatas), is_single_input, is_streaming_input
+            return (vector_ids, vectors, metadatas), primary_input, is_single_input, is_streaming_input
 
         if method == VectorStoreActionMethod.UPDATE:
             vector_ids = await context.render_array(self.config.vector_id, single_as_array=True)
             vectors    = await context.render_vector_array(self.config.vector, single_as_array=True)
             metadatas  = await context.render_array(self.config.metadata, single_as_array=True)
 
+            primary_input      = next((value for value in (vector_ids, vectors, metadatas) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = isinstance(vector_ids, ArrayValue) and vector_ids.is_single
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vector_ids, vectors, metadatas))
+            is_streaming_input = primary_input is not None
 
-            return (vector_ids, vectors, metadatas), is_single_input, is_streaming_input
+            return (vector_ids, vectors, metadatas), primary_input, is_single_input, is_streaming_input
 
         if method == VectorStoreActionMethod.SEARCH:
             queries = await context.render_vector_array(self.config.query, single_as_array=True)
@@ -80,7 +85,7 @@ class VectorStoreAction(ComponentAction):
             is_single_input    = isinstance(queries, VectorArrayValue) and queries.is_single
             is_streaming_input = isinstance(queries, (StreamIterator, AsyncIterator))
 
-            return (queries,), is_single_input, is_streaming_input
+            return (queries,), queries, is_single_input, is_streaming_input
 
         if method == VectorStoreActionMethod.DELETE:
             vector_ids = await context.render_array(self.config.vector_id, single_as_array=True)
@@ -88,7 +93,7 @@ class VectorStoreAction(ComponentAction):
             is_single_input    = isinstance(vector_ids, ArrayValue) and vector_ids.is_single
             is_streaming_input = isinstance(vector_ids, (StreamIterator, AsyncIterator))
 
-            return (vector_ids,), is_single_input, is_streaming_input
+            return (vector_ids,), vector_ids, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported vector store action method: {method}")
 

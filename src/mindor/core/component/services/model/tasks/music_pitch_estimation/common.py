@@ -50,6 +50,9 @@ class MusicPitchEstimationTaskAction(ModelTaskComponentAction):
                             context.register_source("result", result)
                             yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
+            if isinstance(audio, StreamChunkIterator) and audio.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[Any] = []

@@ -41,6 +41,9 @@ class TextToTextTaskAction(ModelTaskComponentAction):
                         else:
                             yield self._process_sequences(sequences, streaming=False)
 
+            if isinstance(text, StreamChunkIterator) and text.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[Any] = []

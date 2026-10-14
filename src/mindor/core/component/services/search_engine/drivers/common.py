@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import SearchEngineActionConfig, SearchEngineActionMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -18,7 +18,7 @@ class SearchEngineAction(ComponentAction):
         self.database: Any = database
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         index  = await self._resolve_index(self.config.method, context)
@@ -34,6 +34,10 @@ class SearchEngineAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[Any] = []
@@ -51,14 +55,14 @@ class SearchEngineAction(ComponentAction):
         self,
         method: SearchEngineActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == SearchEngineActionMethod.INDEX:
             documents = await context.render_array(self.config.document, single_as_array=True)
 
             is_single_input    = isinstance(documents, ArrayValue) and documents.is_single
             is_streaming_input = isinstance(documents, (StreamIterator, AsyncIterator))
 
-            return (documents,), is_single_input, is_streaming_input
+            return (documents,), documents, is_single_input, is_streaming_input
 
         if method == SearchEngineActionMethod.SEARCH:
             queries = await context.render_array(self.config.query, single_as_array=True)
@@ -66,7 +70,7 @@ class SearchEngineAction(ComponentAction):
             is_single_input    = isinstance(queries, ArrayValue) and queries.is_single
             is_streaming_input = isinstance(queries, (StreamIterator, AsyncIterator))
 
-            return (queries,), is_single_input, is_streaming_input
+            return (queries,), queries, is_single_input, is_streaming_input
 
         if method == SearchEngineActionMethod.DELETE:
             document_ids = await context.render_array(self.config.document_id, single_as_array=True)
@@ -74,7 +78,7 @@ class SearchEngineAction(ComponentAction):
             is_single_input    = isinstance(document_ids, ArrayValue) and document_ids.is_single
             is_streaming_input = isinstance(document_ids, (StreamIterator, AsyncIterator))
 
-            return (document_ids,), is_single_input, is_streaming_input
+            return (document_ids,), document_ids, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported search engine action method: {method}")
 

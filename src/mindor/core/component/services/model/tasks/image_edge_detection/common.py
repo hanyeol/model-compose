@@ -5,7 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageEdgeDetectionModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
@@ -35,6 +35,9 @@ class ImageEdgeDetectionTaskAction(ModelTaskComponentAction):
                     for edge in batch_edges:
                         context.register_source("result", edge)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else edge
+
+            if isinstance(image, StreamChunkIterator) and image.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

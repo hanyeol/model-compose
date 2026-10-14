@@ -4,7 +4,7 @@ from mindor.dsl.schema.job import FilterJobConfig
 from mindor.dsl.schema.common.operator.condition import ConditionOperator
 from mindor.core.component import ComponentGlobalConfigs
 from mindor.core.foundation.condition import evaluate_condition, evaluate_where
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import Job, JobType, JobContext, RoutingTarget, register_job
 
@@ -42,7 +42,10 @@ class FilterJob(Job):
                             yield item
                         index += 1
 
-            output = _stream_output_generator()
+            if isinstance(input, StreamChunkIterator) and input.is_fragmented:
+                output = StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+            else:
+                output = _stream_output_generator()
         else:
             results: List[Any] = []
             index = 0

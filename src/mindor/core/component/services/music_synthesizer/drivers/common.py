@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import MusicSynthesizerActionConfig, MusicSynthesizerActionMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.time import parse_time
@@ -18,7 +18,7 @@ class MusicSynthesizerAction(ComponentAction):
         self.config: MusicSynthesizerActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         streaming = await context.render_scalar(self.config.streaming, bool, False)
 
         params = await self._resolve_params(self.config.method, context)
@@ -32,6 +32,9 @@ class MusicSynthesizerAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -49,7 +52,7 @@ class MusicSynthesizerAction(ComponentAction):
         self,
         method: MusicSynthesizerActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == MusicSynthesizerActionMethod.SEQUENCE:
             tracks = await context.render_array(self.config.tracks, item_is_list=True, single_as_array=True)
             beats  = await context.render_variable(self.config.beats)
@@ -57,7 +60,7 @@ class MusicSynthesizerAction(ComponentAction):
             is_single_input    = isinstance(tracks, list) and len(tracks) == 1
             is_streaming_input = isinstance(tracks, (StreamIterator, AsyncIterator))
 
-            return (tracks, beats), is_single_input, is_streaming_input
+            return (tracks, beats), tracks, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported music synthesizer action method: {method}")
 

@@ -11,7 +11,7 @@ from mindor.dsl.schema.action import (
     RankingMetric,
 )
 from mindor.core.foundation.variable.vector import VectorValue, VectorArrayValue
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
 from ....action.base import ComponentAction
@@ -21,7 +21,7 @@ class VectorProcessorAction(ComponentAction):
         self.config: VectorProcessorActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(self.config.method, context)
@@ -35,6 +35,10 @@ class VectorProcessorAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[Any] = []
@@ -51,7 +55,7 @@ class VectorProcessorAction(ComponentAction):
         self,
         method: VectorProcessorActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method in (
             VectorProcessorActionMethod.SIMILARITY,
             VectorProcessorActionMethod.DISTANCE,
@@ -66,10 +70,11 @@ class VectorProcessorAction(ComponentAction):
             if other is None:
                 raise ValueError(f"'other' must be specified for '{method.value}' method")
 
+            primary_input      = next((value for value in (vector, other) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = isinstance(vector, VectorValue) and isinstance(other, VectorValue)
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vector, other))
+            is_streaming_input = primary_input is not None
 
-            return (vector, other), is_single_input, is_streaming_input
+            return (vector, other), primary_input, is_single_input, is_streaming_input
 
         if method in (VectorProcessorActionMethod.TOP_K, VectorProcessorActionMethod.THRESHOLD_FILTER):
             query      = await context.render_vector(self.config.query)
@@ -81,10 +86,11 @@ class VectorProcessorAction(ComponentAction):
             if candidates is None:
                 raise ValueError(f"'candidates' must be specified for '{method.value}' method")
 
+            primary_input      = next((value for value in (query, candidates) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = isinstance(query, VectorValue) and isinstance(candidates, VectorArrayValue)
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (query, candidates))
+            is_streaming_input = primary_input is not None
 
-            return (query, candidates), is_single_input, is_streaming_input
+            return (query, candidates), primary_input, is_single_input, is_streaming_input
 
         if method == VectorProcessorActionMethod.NORMALIZE:
             vector = await context.render_vector(self.config.vector)
@@ -95,7 +101,7 @@ class VectorProcessorAction(ComponentAction):
             is_single_input    = isinstance(vector, VectorValue)
             is_streaming_input = isinstance(vector, (StreamIterator, AsyncIterator))
 
-            return (vector,), is_single_input, is_streaming_input
+            return (vector,), vector, is_single_input, is_streaming_input
 
         if method in (VectorProcessorActionMethod.MEAN, VectorProcessorActionMethod.SUM):
             vectors = await context.render_vector_array(self.config.vectors)
@@ -106,7 +112,7 @@ class VectorProcessorAction(ComponentAction):
             is_single_input    = isinstance(vectors, VectorArrayValue)
             is_streaming_input = isinstance(vectors, (StreamIterator, AsyncIterator))
 
-            return (vectors,), is_single_input, is_streaming_input
+            return (vectors,), vectors, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported vector processor action method: {method}")
 

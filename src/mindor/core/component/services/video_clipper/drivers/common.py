@@ -7,7 +7,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import VideoClipperActionConfig, VideoClipperPrecision
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -47,6 +47,9 @@ class VideoClipperAction(ComponentAction):
                     batch_results = await self._clip_batch(batch_videos, batch_spans, merge, precision, context.cancellation_token)
                     for result in batch_results:
                         yield await self._build_result(result, merge, is_single_span, return_timestamp)
+
+            if isinstance(video, StreamChunkIterator) and video.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

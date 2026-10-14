@@ -41,6 +41,9 @@ class VideoFrameExtractorAction(ComponentAction):
                         else:
                             yield result
 
+            if isinstance(video, StreamChunkIterator) and video.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results = []

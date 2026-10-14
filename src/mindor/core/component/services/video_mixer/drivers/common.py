@@ -12,7 +12,7 @@ from mindor.dsl.schema.action import (
     VideoOverlayPlacement,
 )
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.variable.video import VideoArrayValue
@@ -29,7 +29,7 @@ class VideoMixerAction(ComponentAction):
         self.config: VideoMixerActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_scalar(self.config.streaming, bool, False)
 
@@ -44,6 +44,9 @@ class VideoMixerAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -61,7 +64,7 @@ class VideoMixerAction(ComponentAction):
         self,
         method: VideoMixerActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == VideoMixerActionMethod.OVERLAY:
             video      = await context.render_video(self.config.video)
             overlays   = await context.render_video_array(self.config.overlay, single_as_array=True)
@@ -70,7 +73,7 @@ class VideoMixerAction(ComponentAction):
             is_single_input    = not isinstance(video, (list, StreamIterator, AsyncIterator))
             is_streaming_input = isinstance(video, (StreamIterator, AsyncIterator))
 
-            return (video, overlays, placements), is_single_input, is_streaming_input
+            return (video, overlays, placements), video, is_single_input, is_streaming_input
 
         if method == VideoMixerActionMethod.CONCAT:
             videos = await context.render_video_array(self.config.videos)
@@ -78,7 +81,7 @@ class VideoMixerAction(ComponentAction):
             is_single_input    = isinstance(videos, VideoArrayValue)
             is_streaming_input = isinstance(videos, (StreamIterator, AsyncIterator))
 
-            return videos, is_single_input, is_streaming_input
+            return videos, videos, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported video mixer action method: {method}")
 

@@ -44,8 +44,10 @@ class ForEachJob(CompositeJob):
                     for result in batch_results:
                         yield result
 
-            is_fragmented = isinstance(input, StreamChunkIterator) and input.is_fragmented
-            output = StreamChunkIterator(_stream_output_generator(), is_fragmented=is_fragmented)
+            if isinstance(input, StreamChunkIterator) and input.is_fragmented:
+                output = StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+            else:
+                output = _stream_output_generator()
         else:
             results = []
             async for batch_items in BatchSourceIterator(input, batch_size=batch_size or 1):

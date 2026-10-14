@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import AudioSilenceDetectorActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
@@ -32,6 +32,9 @@ class AudioSilenceDetectorAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(audio, StreamChunkIterator) and audio.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

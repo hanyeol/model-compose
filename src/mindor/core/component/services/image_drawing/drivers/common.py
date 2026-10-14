@@ -10,7 +10,7 @@ from mindor.dsl.schema.action import (
     TextAlign,
     FontConfig,
 )
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from mindor.core.logger import logging
 from ..base import ComponentActionContext
@@ -38,6 +38,9 @@ class ImageDrawingAction(ComponentAction):
                     for result in batch_results:
                         context.register_source("result[]", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(image, StreamChunkIterator) and image.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

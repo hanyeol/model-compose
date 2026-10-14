@@ -45,6 +45,9 @@ class SpeakerDiarizationTaskAction(ModelTaskComponentAction):
                         else:
                             yield result
 
+            if isinstance(audio, StreamChunkIterator) and audio.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[Any] = []

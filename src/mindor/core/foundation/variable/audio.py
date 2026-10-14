@@ -4,7 +4,6 @@ from ..streaming.audio import create_audio_source, AudioBufferStreamer, AudioBuf
 from ...utils.audio import AudioBuffer
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
-from .array import ArrayValue
 
 # A single audio, either materialized or streaming.
 AudioBufferValue: TypeAlias = Union[AudioBuffer, AudioBufferStreamIterator]
@@ -75,12 +74,14 @@ class AudioValueRenderer:
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[AudioArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+    ) -> Optional[Union[AudioArrayValue, List[Optional[AudioArrayValue]], AsyncIterator[Any]]]:
         """Render an audio array (or a nested list of them, with ``item_is_list=True``).
 
-        Mirrors ``ImageValueRenderer.render_array``'s matrix: outer axis is a
-        batch; ``item_is_list=True`` makes each batch element a group
-        (``AudioArrayValue``) and wraps the batch in an ``ArrayValue``.
+        With ``item_is_list=False`` (default) each ``value`` element is a single
+        audio source, and nested lists are interpreted as a batch of audio arrays.
+        With ``item_is_list=True`` each ``value`` element is itself a group of
+        audio refs; the batch axis is always an explicit Python list, with
+        non-batch inputs collapsing to a one-element list.
         """
         # Fragmented streams represent a single logical audio array delivered
         # in pieces — fall through to `_render_element_array` which wraps them
@@ -101,12 +102,10 @@ class AudioValueRenderer:
 
         if item_is_list:
             if self._is_nested_element_array(value):
-                groups = [ await self._render_element_array(item, single_as_array=True) for item in value ]
-                return ArrayValue(groups)
+                return [ await self._render_element_array(item, single_as_array=True) for item in value ]
 
             if single_as_array and value is not None:
-                group = await self._render_element_array(value, single_as_array=True)
-                return ArrayValue([ group ] if group is not None else [], is_single=True)
+                return [ await self._render_element_array(value, single_as_array=True) ]
 
             return None
 

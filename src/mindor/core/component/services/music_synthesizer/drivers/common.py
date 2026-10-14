@@ -8,7 +8,6 @@ from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.audio import PcmStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
 from ....action.base import ComponentAction
 from ..base import ComponentActionContext
@@ -55,7 +54,7 @@ class MusicSynthesizerAction(ComponentAction):
             tracks = await context.render_array(self.config.tracks, item_is_list=True, single_as_array=True)
             beats  = await context.render_variable(self.config.beats)
 
-            is_single_input    = isinstance(tracks, ArrayValue)
+            is_single_input    = isinstance(tracks, list) and len(tracks) == 1
             is_streaming_input = isinstance(tracks, (StreamIterator, AsyncIterator))
 
             return (tracks, beats), is_single_input, is_streaming_input

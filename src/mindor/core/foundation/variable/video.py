@@ -3,7 +3,6 @@ from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.video import create_video_source
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
-from .array import ArrayValue
 
 class VideoArrayValue:
     """A materialized or streaming array of video sources.
@@ -37,12 +36,14 @@ class VideoValueRenderer:
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[VideoArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+    ) -> Optional[Union[VideoArrayValue, List[Optional[VideoArrayValue]], AsyncIterator[Any]]]:
         """Render a video array (or a nested list of them, with ``item_is_list=True``).
 
-        Mirrors ``ImageValueRenderer.render_array``'s matrix: outer axis is a
-        batch; ``item_is_list=True`` makes each batch element a group
-        (``VideoArrayValue``) and wraps the batch in an ``ArrayValue``.
+        With ``item_is_list=False`` (default) each ``value`` element is a single
+        video source, and nested lists are interpreted as a batch of video arrays.
+        With ``item_is_list=True`` each ``value`` element is itself a group of
+        video refs; the batch axis is always an explicit Python list, with
+        non-batch inputs collapsing to a one-element list.
         """
         # Fragmented streams represent a single logical video array delivered
         # in pieces — fall through to `_render_element_array` which wraps them
@@ -63,12 +64,10 @@ class VideoValueRenderer:
 
         if item_is_list:
             if self._is_nested_element_array(value):
-                groups = [ await self._render_element_array(item, single_as_array=True) for item in value ]
-                return ArrayValue(groups)
+                return [ await self._render_element_array(item, single_as_array=True) for item in value ]
 
             if single_as_array and value is not None:
-                group = await self._render_element_array(value, single_as_array=True)
-                return ArrayValue([ group ] if group is not None else [], is_single=True)
+                return [ await self._render_element_array(value, single_as_array=True) ]
 
             return None
 

@@ -1,7 +1,6 @@
 from typing import List, Union, Optional, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
-from .array import ArrayValue
 
 class VectorValue:
     def __init__(self, values: List[Union[float, int]]):
@@ -43,13 +42,15 @@ class VectorValueRenderer:
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[VectorArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+    ) -> Optional[Union[VectorArrayValue, List[Optional[VectorArrayValue]], AsyncIterator[Any]]]:
         """Render a vector array (or a nested list of them, with ``item_is_list=True``).
 
         Vectors are one axis deeper than scalars: a single element is already
         a 1-D ``List[float]``. The matrix therefore recognises an *explicit
         batch* only when the input is **3-D nested** — a list whose items
         are themselves 2-D vector arrays (or fragmented streams of vectors).
+        Under ``item_is_list=True`` the batch axis is always an explicit
+        Python list, with non-batch inputs collapsing to a one-element list.
         """
         # Fragmented streams represent one logical vector array delivered in
         # pieces — fall through to ``_render_element_array`` which wraps them
@@ -70,12 +71,10 @@ class VectorValueRenderer:
 
         if item_is_list:
             if self._is_nested_element_array(value):
-                groups = [ self._render_element_array(item, single_as_array=True) for item in value ]
-                return ArrayValue(groups)
+                return [ self._render_element_array(item, single_as_array=True) for item in value ]
 
             if single_as_array and value is not None:
-                group = self._render_element_array(value, single_as_array=True)
-                return ArrayValue([ group ] if group is not None else [], is_single=True)
+                return [ self._render_element_array(value, single_as_array=True) ]
 
             return None
 

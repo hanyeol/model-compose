@@ -158,63 +158,48 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
     async def _build_pipeline_reference_images(
         self,
-        reference_images: List[Any],
+        reference_images: List[ImageArrayValue],
     ) -> List[Any]:
         """Collect per-input reference images into pipeline's shape.
 
         diffusers wants ``ip_adapter_image`` as a single PIL (one adapter,
-        one reference), a ``List[PIL]`` (one adapter, several references),
-        or ``List[PIL | List[PIL]]`` for multi-adapter with outer=adapter,
-        each slot being one or several PILs.
+        one reference) or a ``List[PIL]`` (one adapter, several references).
+        Multi-adapter (``List[PIL | List[PIL]]``) is not currently expressible
+        under the ``item_is_list=True`` matrix (which flattens the adapter
+        axis into the batch element's refs); the first adapter receives all
+        refs.
         """
-        reference_images = [
-            [ await images.collect() for images in await images.collect() ]
-            for images in reference_images
-        ]
-
-        if self.ip_adapter_count == 1:
-            return [
-                images[0][0] if len(images[0]) == 1 else images[0]
-                for images in reference_images
-            ]
+        reference_images = [ await images.collect() for images in reference_images ]
 
         return [
-            [ images[0] if len(images) == 1 else images for images in images ]
-            for images in zip(*reference_images)
+            images[0] if len(images) == 1 else images
+            for images in reference_images
         ]
 
     async def _build_pipeline_attention_masks(
         self,
-        attention_masks: List[Any],
+        attention_masks: List[ImageArrayValue],
         width: Optional[int],
         height: Optional[int],
     ) -> List[Any]:
         """Collect per-input attention masks into pipeline's shape.
 
         diffusers wants ``cross_attention_kwargs["ip_adapter_masks"]`` as a
-        list of length ``ip_adapter_count``, each slot either ``None`` (that
-        adapter is unmasked) or a tensor shaped
-        ``[1, num_references_for_adapter, H, W]``.
+        list of length ``ip_adapter_count``, each slot either ``None`` or a
+        tensor shaped ``[1, num_references_for_adapter, H, W]``. Multi-adapter
+        is not currently expressible (see ``_build_pipeline_reference_images``);
+        all refs land on the first adapter.
         """
-        attention_masks = [
-            [ await images.collect() for images in await images.collect() ]
-            for images in attention_masks
-        ]
-
-        if self.ip_adapter_count == 1:
-            return [
-                [ self._preprocess_ip_adapter_mask(images[0], width, height) ]
-                for images in attention_masks
-            ]
+        attention_masks = [ await images.collect() for images in attention_masks ]
 
         return [
-            [ self._preprocess_ip_adapter_mask(images, width, height) for images in images ]
-            for images in zip(*attention_masks)
+            [ self._preprocess_ip_adapter_mask(images[0] if len(images) == 1 else images, width, height) ]
+            for images in attention_masks
         ]
 
     async def _build_pipeline_conditioning_frames(
         self,
-        conditioning_frames: List[Any],
+        conditioning_frames: List[ImageArrayValue],
         num_frames: Optional[int],
         width: Optional[int],
         height: Optional[int],
@@ -227,18 +212,13 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         processor doesn't stretch mismatched aspect ratios.
 
         diffusers wants ``List[PIL]`` (one frame sequence) for a single
-        ControlNet and ``List[List[PIL]]`` for multi-ControlNet with
-        outer=ControlNet, inner=frames.
+        ControlNet. Multi-ControlNet (``List[List[PIL]]`` with
+        outer=ControlNet) is not currently expressible under the matrix.
         """
-        conditioning_frames = [
-            [ await self._collect_frames_from_image_array(images, num_frames, width, height) for images in await frames.collect() ]
+        return [
+            await self._collect_frames_from_image_array(frames, num_frames, width, height)
             for frames in conditioning_frames
         ]
-
-        if self.controlnet_count == 1:
-            return [ frames[0] for frames in conditioning_frames ]
-
-        return [ list(frames) for frames in zip(*conditioning_frames) ]
 
     def _preprocess_ip_adapter_mask(
         self,

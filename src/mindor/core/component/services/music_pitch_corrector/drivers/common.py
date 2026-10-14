@@ -117,7 +117,7 @@ class MusicPitchCorrectorAction(ComponentAction):
             melody        = await context.render_array(self.config.melody, item_is_list=True, single_as_array=True)
             melody_offset = await context.render_scalar(self.config.melody_offset, "time", 0.0)
 
-            is_single_input    = isinstance(pitch, ArrayValue) and pitch.is_single
+            is_single_input    = isinstance(pitch, list) and len(pitch) == 1
             is_streaming_input = isinstance(pitch, (StreamIterator, AsyncIterator))
 
             return (pitch, audio, key, scale, melody, melody_offset), is_single_input, is_streaming_input
@@ -129,7 +129,7 @@ class MusicPitchCorrectorAction(ComponentAction):
             melody        = await context.render_array(self.config.melody, item_is_list=True, single_as_array=True)
             melody_offset = await context.render_scalar(self.config.melody_offset, "time", 0.0)
 
-            is_single_input    = isinstance(pitch, ArrayValue) and pitch.is_single
+            is_single_input    = isinstance(pitch, list) and len(pitch) == 1
             is_streaming_input = isinstance(pitch, (StreamIterator, AsyncIterator))
 
             return (pitch, key, scale, melody, melody_offset), is_single_input, is_streaming_input

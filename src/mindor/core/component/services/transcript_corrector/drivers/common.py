@@ -33,13 +33,13 @@ class TranscriptCorrectorAction(ComponentAction):
         self.config: TranscriptCorrectorActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        transcript = await context.render_array(self.config.transcript, item_is_list=True)
+        transcript = await context.render_array(self.config.transcript, item_is_list=True, single_as_array=True)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
         params = await self._resolve_params(context)
 
-        is_single_input  = isinstance(transcript, ArrayValue)
+        is_single_input  = isinstance(transcript, list) and len(transcript) == 1
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
         if isinstance(transcript, (StreamIterator, AsyncIterator)):
@@ -60,7 +60,7 @@ class TranscriptCorrectorAction(ComponentAction):
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_transcripts in BatchSourceIterator([ transcript ] if is_single_input else transcript, batch_size=batch_size or 1):
+            async for batch_transcripts in BatchSourceIterator(transcript, batch_size=batch_size or 1):
                 batch_results = await self._correct_batch(batch_transcripts, params, streaming, context.cancellation_token)
                 for result in batch_results:
                     if streaming:

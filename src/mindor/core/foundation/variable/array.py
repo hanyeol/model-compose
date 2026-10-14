@@ -34,13 +34,14 @@ class ArrayValueRenderer:
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[ArrayValue, List[Any], AsyncIterator[Any]]]:
+    ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Any]]]:
         """Render a generic array (or a nested list of them, with ``item_is_list=True``).
 
-        Mirrors ``ImageValueRenderer.render_array``'s matrix. The per-element
-        wrapper is also ``ArrayValue`` since this is the generic renderer:
-        ``item_is_list=True`` returns a batch-``ArrayValue`` whose elements
-        are group-``ArrayValue``s.
+        With ``item_is_list=False`` (default) each ``value`` element is a single
+        scalar, and nested lists are interpreted as a batch of arrays.
+        With ``item_is_list=True`` each ``value`` element is itself a group of
+        scalars; the batch axis is always an explicit Python list, with
+        non-batch inputs collapsing to a one-element list.
         """
         # Fragmented streams represent a single logical array delivered as an
         # element stream — fall through to ``_render_element`` which wraps
@@ -61,12 +62,10 @@ class ArrayValueRenderer:
 
         if item_is_list:
             if self._is_nested_element(value):
-                groups = [ self._render_element(item, single_as_array=True) for item in value ]
-                return ArrayValue(groups)
+                return [ self._render_element(item, single_as_array=True) for item in value ]
 
             if single_as_array and value is not None:
-                group = self._render_element(value, single_as_array=True)
-                return ArrayValue([ group ] if group is not None else [], is_single=True)
+                return [ self._render_element(value, single_as_array=True) ]
 
             return None
 

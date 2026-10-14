@@ -3,7 +3,6 @@ from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.resources import StreamResource, read_stream_to_bytes
 from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
-from .array import ArrayValue
 from mindor.core.utils.files import get_file_extension, guess_file_extension
 from mindor.core.utils.image import probe_format
 from PIL import Image as PILImage
@@ -50,16 +49,16 @@ class ImageValueRenderer:
         item_is_list: bool = False,
         single_as_array: bool = False,
         as_stream: bool = False,
-    ) -> Optional[Union[ImageArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+    ) -> Optional[Union[ImageArrayValue, List[Optional[ImageArrayValue]], AsyncIterator[Any]]]:
         """Render an image array (or a nested list of them, with ``item_is_list=True``).
 
         With ``item_is_list=False`` (default) each ``value`` element is a single
         image, and nested lists are interpreted as a batch of image arrays.
-        With ``item_is_list=True`` each element is itself a list of image refs
-        (a group), so the renderer returns ``ArrayValue`` wrappers whose
-        elements are ``ImageArrayValue``s — matching the shape
-        ``ArrayValueRenderer`` produces for inner-is-list payloads, but with
-        images already materialized inside.
+        With ``item_is_list=True`` each ``value`` element is itself a group of
+        image refs; non-batch inputs collapse to one ``ImageArrayValue`` (unit)
+        and nested lists become ``List[ImageArrayValue]``. ``ArrayValue`` is
+        never added as an outer wrapper — it always means "one unit" elsewhere
+        in the codebase.
         """
         # Fragmented streams (e.g. per-html frame streams) represent a single
         # logical image array delivered in pieces — fall through to
@@ -80,12 +79,10 @@ class ImageValueRenderer:
 
         if item_is_list:
             if self._is_nested_element_array(value):
-                groups = [ await self._render_element_array(item, single_as_array=True, as_stream=as_stream) for item in value ]
-                return ArrayValue(groups)
+                return [ await self._render_element_array(item, single_as_array=True, as_stream=as_stream) for item in value ]
 
             if single_as_array and value is not None:
-                group = await self._render_element_array(value, single_as_array=True, as_stream=as_stream)
-                return ArrayValue([ group ] if group is not None else [], is_single=True)
+                return [ await self._render_element_array(value, single_as_array=True, as_stream=as_stream) ]
 
             return None
 

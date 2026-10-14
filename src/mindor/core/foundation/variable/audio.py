@@ -174,8 +174,10 @@ class AudioValueRenderer:
         )
 
     def _is_element_array(self, value: Any) -> bool:
-        """True when ``value`` is a list/tuple — a batch of audio refs."""
-        return isinstance(value, (list, tuple))
+        """True when ``value`` is a batch of audio refs — a list/tuple of
+        refs or an already-materialized ``AudioArrayValue``.
+        """
+        return isinstance(value, (list, tuple, AudioArrayValue))
 
     def _is_fragmented_stream(self, value: Any) -> bool:
         """True when ``value`` is a fragmented ``StreamChunkIterator`` — one
@@ -295,8 +297,10 @@ class AudioBufferValueRenderer:
         )
 
     def _is_element_array(self, value: Any) -> bool:
-        """True when ``value`` is a list/tuple — a batch of audio buffer refs."""
-        return isinstance(value, (list, tuple))
+        """True when ``value`` is a batch of audio buffer refs — a list/tuple
+        of refs or an already-materialized ``AudioBufferArrayValue``.
+        """
+        return isinstance(value, (list, tuple, AudioBufferArrayValue))
 
     def _is_fragmented_stream(self, value: Any) -> bool:
         """True when ``value`` is a fragmented ``StreamChunkIterator`` — one

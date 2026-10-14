@@ -105,8 +105,10 @@ class ArrayValueRenderer:
         )
 
     def _is_element(self, value: Any) -> bool:
-        """True when ``value`` is a list/tuple — a batch of elements."""
-        return isinstance(value, (list, tuple))
+        """True when ``value`` is a list/tuple or an already-materialized
+        ``ArrayValue`` — one element (= array).
+        """
+        return isinstance(value, (list, tuple, ArrayValue))
 
     def _is_fragmented_stream(self, value: Any) -> bool:
         """True when ``value`` is a fragmented ``StreamChunkIterator`` — one

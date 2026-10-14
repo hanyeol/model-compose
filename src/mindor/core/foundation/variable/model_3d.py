@@ -131,8 +131,10 @@ class Model3DValueRenderer:
         )
 
     def _is_element_array(self, value: Any) -> bool:
-        """True when ``value`` is a list/tuple — a batch of 3D-model refs."""
-        return isinstance(value, (list, tuple))
+        """True when ``value`` is a batch of 3D-model refs — a list/tuple
+        of refs or an already-materialized ``Model3DArrayValue``.
+        """
+        return isinstance(value, (list, tuple, Model3DArrayValue))
 
     def _is_fragmented_stream(self, value: Any) -> bool:
         """True when ``value`` is a fragmented ``StreamChunkIterator`` — one

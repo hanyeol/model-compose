@@ -142,8 +142,10 @@ class FileValueRenderer:
         )
 
     def _is_element_array(self, value: Any) -> bool:
-        """True when ``value`` is a list/tuple — a batch of file refs."""
-        return isinstance(value, (list, tuple))
+        """True when ``value`` is a batch of file refs — a list/tuple of
+        refs or an already-materialized ``FileArrayValue``.
+        """
+        return isinstance(value, (list, tuple, FileArrayValue))
 
     def _is_fragmented_stream(self, value: Any) -> bool:
         """True when ``value`` is a fragmented ``StreamChunkIterator`` — one

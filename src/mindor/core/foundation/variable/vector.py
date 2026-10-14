@@ -150,10 +150,13 @@ class VectorValueRenderer:
         )
 
     def _is_element_array(self, value: Any) -> bool:
-        """True when ``value`` is a batch of vectors (``[vector, vector, ...]``) —
-        a list/tuple whose first item is itself a 1-D vector (list, tuple,
-        or ``VectorValue``).
+        """True when ``value`` is a batch of vectors — a list/tuple whose
+        first item is itself a 1-D vector (list, tuple, or ``VectorValue``),
+        or an already-materialized ``VectorArrayValue``.
         """
+        if isinstance(value, VectorArrayValue):
+            return True
+
         return (
             isinstance(value, (list, tuple))
             and bool(value)

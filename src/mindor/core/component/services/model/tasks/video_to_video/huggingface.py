@@ -301,11 +301,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         negative_prompts = negative_prompts if negative_prompts is not None else [ None ] * len(batch_frames)
 
         def _generate() -> List[VideoStreamResource]:
-            # Toggle per invocation so a prior action's FreeNoise state doesn't carry over.
-            if "free_noise" in params:
-                self.pipeline.enable_free_noise(**params["free_noise"])
-            else:
-                self.pipeline.disable_free_noise()
+            free_noise = params.get("free_noise")
 
             if reference_images is not None:
                 self.pipeline.set_ip_adapter_scale(params["ip_adapter_scale"])
@@ -315,6 +311,17 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
             for index, (frames, fps, prompt, negative_prompt) in enumerate(zip(batch_frames, batch_fps, prompts, negative_prompts)):
                 if not frames:
                     raise ValueError("AnimateDiff received an empty frame batch.")
+
+                # Toggle per clip so a prior clip's FreeNoise state doesn't carry over,
+                # and so clips shorter than `context_length` (which diffusers can't window)
+                # fall back to a plain run. Guard `disable_free_noise` behind the public
+                # `free_noise_enabled` flag — calling it unconditionally crashes on motion
+                # adapters whose UNet mid-block lacks `motion_modules` (e.g. v1-5-3).
+                if free_noise is not None and len(frames) >= free_noise["context_length"]:
+                        self.pipeline.enable_free_noise(**free_noise)
+                else:
+                    if self.pipeline.free_noise_enabled:
+                        self.pipeline.disable_free_noise()
 
                 pipeline_params: Dict[str, Any] = {
                     **params["pipeline"],

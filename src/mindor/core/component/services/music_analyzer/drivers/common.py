@@ -167,8 +167,11 @@ class MusicAnalyzerAction(ComponentAction):
             }
 
         if metric == MusicAnalyzerMetric.KEY:
+            harmonic_only = await context.render_scalar(self.config.harmonic_only, bool)
+
             return {
-                "sample_rate": sample_rate,
+                "sample_rate":   sample_rate,
+                "harmonic_only": harmonic_only,
             }
 
         if metric == MusicAnalyzerMetric.CHROMA:

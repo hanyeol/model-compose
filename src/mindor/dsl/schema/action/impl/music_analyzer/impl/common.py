@@ -51,6 +51,7 @@ class MusicAnalyzerActivityActionConfig(CommonMusicAnalyzerActionConfig):
 
 class MusicAnalyzerKeyActionConfig(CommonMusicAnalyzerActionConfig):
     metric: Literal[MusicAnalyzerMetric.KEY]
+    harmonic_only: Union[bool, str] = Field(default=True, description="Separate out percussive content before chroma extraction so drums don't skew the key estimate.")
 
 class MusicAnalyzerChromaActionConfig(CommonMusicAnalyzerActionConfig):
     metric: Literal[MusicAnalyzerMetric.CHROMA]

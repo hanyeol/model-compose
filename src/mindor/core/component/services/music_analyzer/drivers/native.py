@@ -42,7 +42,23 @@ _DEFAULT_HOP_LENGTH = 512
 _KRUMHANSL_MAJOR = (6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88)
 _KRUMHANSL_MINOR = (6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17)
 
-_PITCH_CLASS_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+_PITCH_CLASS_NAMES = (
+    ("C",  "C"),
+    ("C#", "Db"),
+    ("D",  "D"),
+    ("D#", "Eb"),
+    ("E",  "E"),
+    ("F",  "F"),
+    ("F#", "Gb"),
+    ("G",  "G"),
+    ("G#", "Ab"),
+    ("A",  "A"),
+    ("A#", "Bb"),
+    ("B",  "B"),
+)
+
+_FLAT_MAJOR_TONICS = frozenset({1, 3, 6, 8, 10})
+_FLAT_MINOR_TONICS = frozenset({3, 10})
 
 # Chroma frames get folded to this many rows for a compact JSON payload. 12 is
 # the natural pitch-class count so no lossy downsampling is needed for chroma
@@ -241,27 +257,37 @@ class NativeMusicAnalyzerAction(MusicAnalyzerAction):
             import numpy as np
             import librosa
 
-            chroma = librosa.feature.chroma_cens(y=samples, sr=sample_rate, hop_length=_DEFAULT_HOP_LENGTH)
+            signal = librosa.effects.hpss(samples)[0] if params["harmonic_only"] else samples
+            chroma = librosa.feature.chroma_cens(y=signal, sr=sample_rate, hop_length=_DEFAULT_HOP_LENGTH)
             mean = chroma.mean(axis=1)
             norm = np.linalg.norm(mean) or 1.0
             mean = mean / norm
 
             major = np.asarray(_KRUMHANSL_MAJOR, dtype=np.float32)
             minor = np.asarray(_KRUMHANSL_MINOR, dtype=np.float32)
-            scores: List[Tuple[float, str, str]] = []
+            scores: List[Tuple[float, int, str, str]] = []
 
             for tonic in range(12):
-                scores.append((float(np.corrcoef(mean, np.roll(major, tonic))[0, 1]), _PITCH_CLASS_NAMES[tonic], "major"))
-                scores.append((float(np.corrcoef(mean, np.roll(minor, tonic))[0, 1]), _PITCH_CLASS_NAMES[tonic], "minor"))
+                sharp, flat = _PITCH_CLASS_NAMES[tonic]
+                major_name = flat if tonic in _FLAT_MAJOR_TONICS else sharp
+                minor_name = flat if tonic in _FLAT_MINOR_TONICS else sharp
+                scores.append((float(np.corrcoef(mean, np.roll(major, tonic))[0, 1]), tonic, major_name, "major"))
+                scores.append((float(np.corrcoef(mean, np.roll(minor, tonic))[0, 1]), tonic, minor_name, "minor"))
 
             scores.sort(key=lambda item: item[0], reverse=True)
-            best_score, key, mode = scores[0]
-            runner_up = scores[1][0]
+            best_score, best_tonic, key, mode = scores[0]
+
+            # The relative key (same key signature, different tonic) shares most
+            # of its pitch content with the winner, so it would otherwise crowd
+            # out the runner-up slot and collapse confidence toward zero.
+            relative_tonic = (best_tonic + 9) % 12 if mode == "major" else (best_tonic + 3) % 12
+            relative_mode = "minor" if mode == "major" else "major"
+            rival_score = next(score for score, tonic, _, mode in scores[1:] if (tonic, mode) != (relative_tonic, relative_mode))
 
             return {
                 "key":        key,
                 "mode":       mode,
-                "confidence": round(max(0.0, best_score - runner_up), _RESULT_DECIMALS),
+                "confidence": round(max(0.0, best_score - rival_score), _RESULT_DECIMALS),
             }
 
         return await self._run_in_executor(_analyze)

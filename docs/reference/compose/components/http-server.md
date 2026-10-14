@@ -177,7 +177,7 @@ component:
       type: polling
       path: /status/${response.task_id}
       method: GET
-      status: status
+      status: ${result.status}
       success_when: [ completed, finished ]
       fail_when: [ failed, error ]
       interval: 5s

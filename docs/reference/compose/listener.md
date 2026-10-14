@@ -84,12 +84,12 @@ Each callback endpoint in the `callbacks` array can be configured with the follo
 | `path` | string | **required** | URL path for this callback endpoint |
 | `method` | string | `"POST"` | HTTP method: `GET`, `POST`, `PUT`, `DELETE`, `PATCH` |
 | `bulk` | boolean | `false` | Whether this callback handles multiple items in a single request |
-| `item` | string | `null` | Field path to extract individual items from bulk payload |
-| `identify_by` | string | `null` | Field path used to match callback responses to pending requests |
-| `status` | string | `null` | Field path to check for completion status in callback payload |
+| `item` | string | `null` | Variable expression that extracts individual items from a bulk payload |
+| `identify_by` | string | `null` | Variable expression that matches a callback payload to a pending request |
+| `status` | string | `null` | Variable expression that resolves the completion status from the payload |
 | `success_when` | array | `null` | Status values that indicate successful completion |
 | `fail_when` | array | `null` | Status values that indicate failed completion |
-| `result` | any | `null` | Field path or transformation to extract final result from payload |
+| `result` | any | `null` | Variable expression that extracts the final result from the payload |
 
 ## Configuration Examples
 
@@ -117,20 +117,20 @@ listener:
   callbacks:
     - path: /job-status
       method: POST
-      identify_by: job_id
-      status: status
+      identify_by: ${body.job_id}
+      status: ${body.status}
       success_when: ["completed", "finished"]
       fail_when: ["failed", "error", "cancelled"]
-      result: result.data
+      result: ${body.result.data}
 ```
 
 This configuration:
 - Creates endpoint at `/api/callbacks/job-status`
 - Limits to 10 concurrent callback requests
-- Uses `job_id` field to match callbacks to pending requests
+- Uses `body.job_id` to match callbacks to pending requests
 - Considers job complete when status is "completed" or "finished"
 - Considers job failed when status is "failed", "error", or "cancelled"
-- Extracts final result from `result.data` field
+- Extracts final result from `body.result.data`
 
 ### Bulk Processing Callback
 
@@ -142,19 +142,19 @@ listener:
     - path: /batch-results
       method: POST
       bulk: true
-      item: results[]
-      identify_by: request_id
-      status: processing_status
+      item: ${body.results}
+      identify_by: ${body.request_id}
+      status: ${body.processing_status}
       success_when: success
       fail_when: ["failed", "timeout"]
-      result: output
+      result: ${body.output}
 ```
 
 This configuration:
 - Processes multiple results in a single callback request
 - Extracts individual items from the `results` array
-- Uses `request_id` to match each result to its original request
-- Checks `processing_status` field for completion status
+- Uses `request_id` on each item to match it to its original request
+- Checks `processing_status` on each item for completion status
 
 ### Multiple Callback Endpoints
 
@@ -166,19 +166,19 @@ listener:
   callbacks:
     - path: /payment-webhook
       method: POST
-      identify_by: transaction_id
-      status: payment_status
+      identify_by: ${body.transaction_id}
+      status: ${body.payment_status}
       success_when: completed
       fail_when: ["failed", "cancelled"]
-      result: payment_details
+      result: ${body.payment_details}
     
     - path: /notification-callback
       method: POST
-      identify_by: message_id
-      status: delivery_status
+      identify_by: ${body.message_id}
+      status: ${body.delivery_status}
       success_when: delivered
       fail_when: failed
-      result: delivery_info
+      result: ${body.delivery_info}
 ```
 
 This configuration creates two different callback endpoints on the same listener service.
@@ -193,10 +193,10 @@ listener:
   port: 8090
   path: /webhook
   method: POST
-  identify_by: id
-  status: "status"
+  identify_by: ${body.id}
+  status: ${body.status}
   success_when: done
-  result: data
+  result: ${body.data}
 ```
 
 This is equivalent to:
@@ -208,10 +208,10 @@ listener:
   callbacks:
     - path: /webhook
       method: POST
-      identify_by: id
-      status: status
+      identify_by: ${body.id}
+      status: ${body.status}
       success_when: done
-      result: data
+      result: ${body.data}
 ```
 
 ## Usage Patterns
@@ -246,3 +246,4 @@ Listeners enable event-driven architectures where external events trigger workfl
 ## Integration with Workflows
 
 Listeners work seamlessly with workflows to enable asynchronous processing patterns. The listener automatically matches incoming callbacks to pending workflow executions based on the `identify_by` field configuration.
+No newline at end of file

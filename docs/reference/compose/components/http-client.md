@@ -169,7 +169,7 @@ component:
       type: polling
       path: /jobs/${response.job_id}
       method: GET
-      status: status
+      status: ${result.status}
       success_when: [ completed, finished ]
       fail_when: [ failed, error ]
       interval: 5s

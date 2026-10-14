@@ -138,10 +138,16 @@ class ImageValueRenderer:
         if isinstance(value, (list, tuple)):
             return ImageArrayValue([ await self._render_element(item, as_stream) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             image = await self._render_element(value, as_stream)
             if image is not None:
                 return ImageArrayValue([ image ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected an image array (list, ImageArrayValue, or fragmented stream) "
+                f"but got a single image. Join a per-item stream with \"+\"."
+            )
 
         return None
 

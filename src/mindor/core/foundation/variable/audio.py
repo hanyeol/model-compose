@@ -149,10 +149,16 @@ class AudioValueRenderer:
         if isinstance(value, (list, tuple)):
             return AudioArrayValue([ await self._render_element(item) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             audio = await self._render_element(value)
             if audio is not None:
                 return AudioArrayValue([ audio ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected an audio array (list, AudioArrayValue, or fragmented stream) "
+                f"but got a single audio. Join a per-item stream with \"+\"."
+            )
 
         return None
 
@@ -254,10 +260,16 @@ class AudioBufferValueRenderer:
         if isinstance(value, (list, tuple)):
             return AudioBufferArrayValue([ await self._render_element(item, collect=collect) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             item = await self._render_element(value, collect=collect)
             if item is not None:
                 return AudioBufferArrayValue([ item ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected an audio buffer array (list, AudioBufferArrayValue, or fragmented stream) "
+                f"but got a single audio buffer. Join a per-item stream with \"+\"."
+            )
 
         return None
 

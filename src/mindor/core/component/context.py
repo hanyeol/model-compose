@@ -21,6 +21,7 @@ from mindor.core.foundation.variable.box import parse_box, Box
 from mindor.core.foundation.variable.array import ArrayValueRenderer, ArrayValue
 from mindor.core.foundation.variable.vector import VectorValueRenderer, VectorValue, VectorArrayValue
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.gateway import find_gateway_by_port
 from PIL import Image as PILImage
@@ -240,17 +241,19 @@ class ComponentActionContext:
 
     async def render_file(
         self,
-        value: Any
-    ) -> Optional[Union[str, List[Optional[str]], AsyncIterator[Optional[str]]]]:
-        return await FileValueRenderer().render(await self.render_variable(value))
+        value: Any,
+        as_stream: bool = False,
+    ) -> Optional[Union[str, StreamResource, List[Any], AsyncIterator[Any]]]:
+        return await FileValueRenderer().render(await self.render_variable(value), as_stream)
 
     async def render_file_array(
         self,
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
+        as_stream: bool = False,
     ) -> Optional[Union[FileArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
-        return await FileValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
+        return await FileValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array, as_stream)
 
     async def render_vector(
         self,

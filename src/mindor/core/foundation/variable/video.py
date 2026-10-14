@@ -111,10 +111,16 @@ class VideoValueRenderer:
         if isinstance(value, (list, tuple)):
             return VideoArrayValue([ await self._render_element(item) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             video = await self._render_element(value)
             if video is not None:
                 return VideoArrayValue([ video ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected a video array (list, VideoArrayValue, or fragmented stream) "
+                f"but got a single video. Join a per-item stream with \"+\"."
+            )
 
         return None
 

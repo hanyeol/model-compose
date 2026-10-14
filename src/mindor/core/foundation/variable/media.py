@@ -110,10 +110,16 @@ class MediaValueRenderer:
         if isinstance(value, (list, tuple)):
             return MediaArrayValue([ await self._render_element(item) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             media = await self._render_element(value)
             if media is not None:
                 return MediaArrayValue([ media ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected a media array (list, MediaArrayValue, or fragmented stream) "
+                f"but got a single media. Join a per-item stream with \"+\"."
+            )
 
         return None
 

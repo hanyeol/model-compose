@@ -32,7 +32,7 @@ class CameraPoseEstimatorAction(ComponentAction):
         self.context: ComponentActionContext = context
 
     async def run(self) -> Any:
-        images        = await self.context.render_file_array(self.config.images, single_as_array=True) if self.config.images is not None else None
+        images        = await self.context.render_file_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
         workspace_dir = await self.context.render_variable(self.config.workspace_dir)
         batch_size    = await self.context.render_variable(self.config.batch_size)
 

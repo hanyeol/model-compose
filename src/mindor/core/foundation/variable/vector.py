@@ -120,10 +120,16 @@ class VectorValueRenderer:
             return VectorArrayValue([ vector for vector in (self._render_element(item) for item in value) if vector is not None ])
 
         # 1-D input (bare vector) is a scalar — only lift under ``single_as_array``.
-        if single_as_array:
+        if single_as_array and value is not None:
             vector = self._render_element(value)
             if vector is not None:
                 return VectorArrayValue([ vector ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected a vector array (2-D list, VectorArrayValue, or fragmented stream) "
+                f"but got a single vector. Join a per-item stream with \"+\"."
+            )
 
         return None
 

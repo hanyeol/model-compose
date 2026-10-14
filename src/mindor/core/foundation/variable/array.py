@@ -91,6 +91,12 @@ class ArrayValueRenderer:
         if single_as_array and value is not None:
             return ArrayValue([ value ], is_single=True)
 
+        if value is not None:
+            raise TypeError(
+                f"expected an array (list, ArrayValue, or fragmented stream) "
+                f"but got a single value. Join a per-item stream with \"+\"."
+            )
+
         return None
 
     def _is_nested_element(self, value: Any) -> bool:

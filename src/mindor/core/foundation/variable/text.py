@@ -135,10 +135,16 @@ class TextValueRenderer:
         if isinstance(value, (list, tuple)):
             return TextArrayValue([ await self._render_element(item, collect=True) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             text = await self._render_element(value, collect=True)
             if text is not None:
                 return TextArrayValue([ text ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected a text array (list, TextArrayValue, or fragmented stream) "
+                f"but got a single text. Join a per-item stream with \"+\"."
+            )
 
         return None
 

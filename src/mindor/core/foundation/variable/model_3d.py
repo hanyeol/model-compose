@@ -106,10 +106,16 @@ class Model3DValueRenderer:
         if isinstance(value, (list, tuple)):
             return Model3DArrayValue([ await self._render_element(item) for item in value ])
 
-        if single_as_array:
+        if single_as_array and value is not None:
             model = await self._render_element(value)
             if model is not None:
                 return Model3DArrayValue([ model ], is_single=True)
+
+        if value is not None:
+            raise TypeError(
+                f"expected a 3D model array (list, Model3DArrayValue, or fragmented stream) "
+                f"but got a single 3D model. Join a per-item stream with \"+\"."
+            )
 
         return None
 

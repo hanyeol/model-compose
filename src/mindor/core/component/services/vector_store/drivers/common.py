@@ -6,7 +6,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import VectorStoreActionConfig, VectorStoreActionMethod
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.variable.array import ArrayValue
-from mindor.core.foundation.variable.vector import VectorArrayValue
+from mindor.core.foundation.variable.vector import VectorArrayValue, VectorValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
@@ -161,7 +161,10 @@ class VectorStoreAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Any:
         async def _collect(value: Any) -> Any:
-            return await value.collect() if value is not None else None
+            if value is not None:
+                return [ item.values if isinstance(item, VectorValue) else item for item in await value.collect() ]
+            
+            return None
 
         input = tuple(await asyncio.gather(*[ _collect(value) for value in input ]))
 

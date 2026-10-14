@@ -47,9 +47,9 @@ class ImageValueRenderer:
     async def render_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
         as_stream: bool = False,
-        item_is_list: bool = False,
     ) -> Optional[Union[ImageArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
         """Render an image array (or a nested list of them, with ``item_is_list=True``).
 
@@ -64,13 +64,11 @@ class ImageValueRenderer:
         # Fragmented streams (e.g. per-html frame streams) represent a single
         # logical image array delivered in pieces — fall through to
         # `_render_element_array` which wraps them into one streaming ImageArrayValue.
-        is_fragmented_stream = isinstance(value, StreamChunkIterator) and value.is_fragmented
-
-        if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
+        if isinstance(value, (StreamIterator, AsyncIterator)) and not self._is_fragmented_stream(value):
             async def _iterate():
                 async for chunk in value:
                     if item_is_list:
-                        yield await self._render_grouped_image_array(chunk, single_as_array, as_stream)
+                        yield await self._render_element_array(chunk, single_as_array=True, as_stream=as_stream)
                     else:
                         yield await self._render_element_array(chunk, single_as_array, as_stream)
 
@@ -81,38 +79,20 @@ class ImageValueRenderer:
             return _iterate()
 
         if item_is_list:
-            if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-                return [ await self._render_grouped_image_array(item, single_as_array, as_stream) for item in value ]
+            if self._is_nested_element_array(value):
+                groups = [ await self._render_element_array(item, single_as_array=True, as_stream=as_stream) for item in value ]
+                return ArrayValue(groups)
 
-            return await self._render_grouped_image_array(value, single_as_array, as_stream)
+            if single_as_array and value is not None:
+                group = await self._render_element_array(value, single_as_array=True, as_stream=as_stream)
+                return ArrayValue([ group ] if group is not None else [], is_single=True)
 
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
+            return None
+
+        if self._is_nested_element_array(value):
             return [ await self._render_element_array(item, single_as_array, as_stream) for item in value ]
 
         return await self._render_element_array(value, single_as_array, as_stream)
-
-    async def _render_grouped_image_array(
-        self,
-        value: Any,
-        single_as_array: bool,
-        as_stream: bool,
-    ) -> Optional[ArrayValue]:
-        """Materialize one `item_is_list` group: a list of image refs becomes
-        an ``ArrayValue`` whose elements are ``ImageArrayValue``s. A scalar
-        group — a single ref — is wrapped as ``is_single=True`` when
-        ``single_as_array`` is set, mirroring ``ArrayValueRenderer``'s behavior.
-        """
-        if isinstance(value, (list, tuple)):
-            group: List[Optional[ImageArrayValue]] = []
-            for item in value:
-                group.append(await self._render_element_array(item, single_as_array=True, as_stream=as_stream))
-            return ArrayValue(group, is_single=single_as_array)
-
-        if single_as_array and value is not None:
-            images = await self._render_element_array(value, single_as_array=True, as_stream=as_stream)
-            return ArrayValue([ images ] if images is not None else [], is_single=True)
-
-        return None
 
     async def render(
         self,
@@ -150,7 +130,7 @@ class ImageValueRenderer:
                         yield image
             return ImageArrayValue(_iterate(), is_single=value.is_single)
 
-        if isinstance(value, StreamChunkIterator) and value.is_fragmented:
+        if self._is_fragmented_stream(value):
             async def _iterate():
                 async for item in value:
                     image = await self._render_element(item, as_stream)
@@ -194,3 +174,24 @@ class ImageValueRenderer:
             return await load_image_from_stream(value)
 
         return None
+
+    def _is_nested_element_array(self, value: Any) -> bool:
+        """True when ``value`` is a list of element arrays — a top-level
+        list whose first item is itself an element array or a fragmented
+        stream.
+        """
+        return (
+            isinstance(value, (list, tuple))
+            and bool(value)
+            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
+        )
+
+    def _is_element_array(self, value: Any) -> bool:
+        """True when ``value`` is a list/tuple — a batch of image refs."""
+        return isinstance(value, (list, tuple))
+
+    def _is_fragmented_stream(self, value: Any) -> bool:
+        """True when ``value`` is a fragmented ``StreamChunkIterator`` — one
+        logical image array delivered in pieces.
+        """
+        return isinstance(value, StreamChunkIterator) and value.is_fragmented

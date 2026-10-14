@@ -142,9 +142,10 @@ class ComponentActionContext:
     async def render_text_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[TextArrayValue, List[Optional[TextArrayValue]], AsyncIterator[Optional[TextArrayValue]]]]:
-        return await TextValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[TextArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await TextValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_image(
         self,
@@ -156,11 +157,11 @@ class ComponentActionContext:
     async def render_image_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
         as_stream: bool = False,
-        item_is_list: bool = False,
     ) -> Optional[Union[ImageArrayValue, List[Any], AsyncIterator[Any]]]:
-        return await ImageValueRenderer().render_array(await self.render_variable(value), single_as_array, as_stream, item_is_list)
+        return await ImageValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array, as_stream)
 
     async def render_audio(
         self,
@@ -171,9 +172,10 @@ class ComponentActionContext:
     async def render_audio_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[AudioArrayValue, List[Optional[AudioArrayValue]], AsyncIterator[Optional[AudioArrayValue]]]]:
-        return await AudioValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[AudioArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await AudioValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_audio_buffer(
         self,
@@ -203,9 +205,10 @@ class ComponentActionContext:
     async def render_video_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[VideoArrayValue, List[Optional[VideoArrayValue]], AsyncIterator[Optional[VideoArrayValue]]]]:
-        return await VideoValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[VideoArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await VideoValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_model_3d(
         self,
@@ -216,9 +219,10 @@ class ComponentActionContext:
     async def render_model_3d_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[Model3DArrayValue, List[Optional[Model3DArrayValue]], AsyncIterator[Optional[Model3DArrayValue]]]]:
-        return await Model3DValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[Model3DArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await Model3DValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_media(
         self,
@@ -229,9 +233,10 @@ class ComponentActionContext:
     async def render_media_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[MediaArrayValue, List[Optional[MediaArrayValue]], AsyncIterator[Optional[MediaArrayValue]]]]:
-        return await MediaValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[MediaArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await MediaValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_file(
         self,
@@ -242,9 +247,10 @@ class ComponentActionContext:
     async def render_file_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[FileArrayValue, List[Optional[FileArrayValue]], AsyncIterator[Optional[FileArrayValue]]]]:
-        return await FileValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[FileArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await FileValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_vector(
         self,
@@ -255,9 +261,10 @@ class ComponentActionContext:
     async def render_vector_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[VectorArrayValue, List[Optional[VectorArrayValue]], AsyncIterator[Optional[VectorArrayValue]]]]:
-        return await VectorValueRenderer().render_array(await self.render_variable(value), single_as_array)
+    ) -> Optional[Union[VectorArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        return await VectorValueRenderer().render_array(await self.render_variable(value), item_is_list, single_as_array)
 
     async def render_array(
         self,

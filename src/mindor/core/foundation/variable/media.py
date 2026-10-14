@@ -2,6 +2,7 @@ from typing import List, Optional, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.media import MediaSource, create_media_source
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
+from .array import ArrayValue
 
 class MediaArrayValue:
     """A materialized or streaming array of media sources.
@@ -33,17 +34,25 @@ class MediaValueRenderer:
     async def render_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[MediaArrayValue, List[Optional[MediaArrayValue]], AsyncIterator[Optional[MediaArrayValue]]]]:
+    ) -> Optional[Union[MediaArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        """Render a media array (or a nested list of them, with ``item_is_list=True``).
+
+        Mirrors ``ImageValueRenderer.render_array``'s matrix: outer axis is a
+        batch; ``item_is_list=True`` makes each batch element a group
+        (``MediaArrayValue``) and wraps the batch in an ``ArrayValue``.
+        """
         # Fragmented streams represent a single logical media array delivered
         # in pieces — fall through to `_render_element_array` which wraps them
         # into one streaming MediaArrayValue.
-        is_fragmented_stream = isinstance(value, StreamChunkIterator) and value.is_fragmented
-
-        if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
+        if isinstance(value, (StreamIterator, AsyncIterator)) and not self._is_fragmented_stream(value):
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk, single_as_array)
+                    if item_is_list:
+                        yield await self._render_element_array(chunk, single_as_array=True)
+                    else:
+                        yield await self._render_element_array(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -51,7 +60,18 @@ class MediaValueRenderer:
 
             return _iterate()
 
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
+        if item_is_list:
+            if self._is_nested_element_array(value):
+                groups = [ await self._render_element_array(item, single_as_array=True) for item in value ]
+                return ArrayValue(groups)
+
+            if single_as_array and value is not None:
+                group = await self._render_element_array(value, single_as_array=True)
+                return ArrayValue([ group ] if group is not None else [], is_single=True)
+
+            return None
+
+        if self._is_nested_element_array(value):
             return [ await self._render_element_array(item, single_as_array) for item in value ]
 
         return await self._render_element_array(value, single_as_array)
@@ -80,7 +100,7 @@ class MediaValueRenderer:
         if isinstance(value, MediaArrayValue):
             return value
 
-        if isinstance(value, StreamChunkIterator) and value.is_fragmented:
+        if self._is_fragmented_stream(value):
             async def _iterate():
                 async for item in value:
                     media = await self._render_element(item)
@@ -103,3 +123,24 @@ class MediaValueRenderer:
             return create_media_source(value)
 
         return None
+
+    def _is_nested_element_array(self, value: Any) -> bool:
+        """True when ``value`` is a list of element arrays — a top-level
+        list whose first item is itself an element array or a fragmented
+        stream.
+        """
+        return (
+            isinstance(value, (list, tuple))
+            and bool(value)
+            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
+        )
+
+    def _is_element_array(self, value: Any) -> bool:
+        """True when ``value`` is a list/tuple — a batch of media refs."""
+        return isinstance(value, (list, tuple))
+
+    def _is_fragmented_stream(self, value: Any) -> bool:
+        """True when ``value`` is a fragmented ``StreamChunkIterator`` — one
+        logical media array delivered in pieces.
+        """
+        return isinstance(value, StreamChunkIterator) and value.is_fragmented

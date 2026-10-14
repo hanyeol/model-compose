@@ -40,6 +40,8 @@ class NativeVectorProcessorAction(VectorProcessorAction):
         return await self._run_in_executor(_dot_product)
 
     async def _top_k(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        candidates = [ await candidate.collect() for candidate in candidates ]
+
         def _top_k() -> List[Any]:
             import numpy as np
 
@@ -47,14 +49,14 @@ class NativeVectorProcessorAction(VectorProcessorAction):
             metric = params["metric"]
 
             results: List[Any] = []
+
             for query, candidate in zip(queries, candidates):
-                if not candidate.values:
+                if not candidate:
                     results.append([])
                     continue
 
-                vectors = self._as_array_list(candidate.values)
-                q = self._as_array(query)
-                scores = self._score(q, vectors, metric)
+                vectors = self._as_array_list(candidate)
+                scores = self._score(self._as_array(query), vectors, metric)
                 order = np.argsort(scores)
 
                 if isinstance(metric, SimilarityMetric):
@@ -67,25 +69,29 @@ class NativeVectorProcessorAction(VectorProcessorAction):
         return await self._run_in_executor(_top_k)
 
     async def _threshold_filter(self, queries: List[VectorValue], candidates: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        candidates = [ await candidate.collect() for candidate in candidates ]
+
         def _threshold_filter() -> List[Any]:
             threshold: float = params["threshold"]
             metric = params["metric"]
             keep_higher = isinstance(metric, SimilarityMetric)
 
             results: List[Any] = []
+
             for query, candidate in zip(queries, candidates):
-                if not candidate.values:
+                if not candidate:
                     results.append([])
                     continue
 
-                vectors = self._as_array_list(candidate.values)
-                q = self._as_array(query)
-                scores = self._score(q, vectors, metric)
+                vectors = self._as_array_list(candidate)
+                scores = self._score(self._as_array(query), vectors, metric)
 
                 matches: List[Dict[str, Any]] = []
+
                 for index, score in enumerate(scores):
                     if (score >= threshold if keep_higher else score <= threshold):
                         matches.append({ "index": index, "score": float(score) })
+
                 results.append(matches)
 
             return results
@@ -97,27 +103,33 @@ class NativeVectorProcessorAction(VectorProcessorAction):
             import numpy as np
 
             results: List[Any] = []
+
             for vector in vectors:
                 v = self._as_array(vector)
                 n = float(np.linalg.norm(v))
                 results.append((v / n if n > 0 else v).tolist())
+
             return results
 
         return await self._run_in_executor(_normalize)
 
     async def _mean(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        batches = [ await batch.collect() for batch in batches ]
+
         def _mean() -> List[Any]:
             import numpy as np
 
-            return [ self._as_native(np.mean(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+            return [ self._as_native(np.mean(self._as_matrix(batch), axis=params["axis"])) for batch in batches ]
 
         return await self._run_in_executor(_mean)
 
     async def _sum(self, batches: List[VectorArrayValue], params: Dict[str, Any]) -> List[Any]:
+        batches = [ await batch.collect() for batch in batches ]
+
         def _sum() -> List[Any]:
             import numpy as np
 
-            return [ self._as_native(np.sum(self._as_matrix(batch.values), axis=params["axis"])) for batch in batches ]
+            return [ self._as_native(np.sum(self._as_matrix(batch), axis=params["axis"])) for batch in batches ]
 
         return await self._run_in_executor(_sum)
 
@@ -145,8 +157,10 @@ class NativeVectorProcessorAction(VectorProcessorAction):
 
         if isinstance(value, np.ndarray):
             return value.tolist()
+
         if isinstance(value, (np.floating, np.integer)):
             return value.item()
+
         return value
 
     @staticmethod
@@ -155,8 +169,10 @@ class NativeVectorProcessorAction(VectorProcessorAction):
 
         na = float(np.linalg.norm(a))
         nb = float(np.linalg.norm(b))
+
         if na == 0.0 or nb == 0.0:
             return 0.0
+
         return float(np.dot(a, b) / (na * nb))
 
     @staticmethod
@@ -190,8 +206,10 @@ class NativeVectorProcessorAction(VectorProcessorAction):
             denom[denom == 0] = 1.0
             scores = (stacked @ query) / denom
             scores[cn == 0] = 0.0
+
             if qn == 0:
                 scores[:] = 0.0
+
             return scores
 
         if metric == DistanceMetric.EUCLIDEAN:

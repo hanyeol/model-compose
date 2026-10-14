@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.model_3d import create_model_3d_source
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
+from .array import ArrayValue
 
 class Model3DArrayValue:
     """A materialized or streaming array of 3D model sources.
@@ -34,21 +35,40 @@ class Model3DValueRenderer:
     async def render_array(
         self,
         value: Any,
+        item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[Model3DArrayValue, List[Optional[Model3DArrayValue]], AsyncIterator[Optional[Model3DArrayValue]]]]:
-        is_fragmented_stream = isinstance(value, StreamChunkIterator) and value.is_fragmented
+    ) -> Optional[Union[Model3DArrayValue, ArrayValue, List[Any], AsyncIterator[Any]]]:
+        """Render a 3D-model array (or a nested list of them, with ``item_is_list=True``).
 
-        if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
+        Mirrors ``ImageValueRenderer.render_array``'s matrix: outer axis is a
+        batch; ``item_is_list=True`` makes each batch element a group
+        (``Model3DArrayValue``) and wraps the batch in an ``ArrayValue``.
+        """
+        if isinstance(value, (StreamIterator, AsyncIterator)) and not self._is_fragmented_stream(value):
             async def _iterate():
                 async for chunk in value:
-                    yield await self._render_element_array(chunk, single_as_array)
+                    if item_is_list:
+                        yield await self._render_element_array(chunk, single_as_array=True)
+                    else:
+                        yield await self._render_element_array(chunk, single_as_array)
 
             if isinstance(value, StreamChunkIterator):
                 return StreamChunkIterator(_iterate(), is_fragmented=value.is_fragmented)
 
             return _iterate()
 
-        if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
+        if item_is_list:
+            if self._is_nested_element_array(value):
+                groups = [ await self._render_element_array(item, single_as_array=True) for item in value ]
+                return ArrayValue(groups)
+
+            if single_as_array and value is not None:
+                group = await self._render_element_array(value, single_as_array=True)
+                return ArrayValue([ group ] if group is not None else [], is_single=True)
+
+            return None
+
+        if self._is_nested_element_array(value):
             return [ await self._render_element_array(item, single_as_array) for item in value ]
 
         return await self._render_element_array(value, single_as_array)
@@ -76,7 +96,7 @@ class Model3DValueRenderer:
         if isinstance(value, Model3DArrayValue):
             return value
 
-        if isinstance(value, StreamChunkIterator) and value.is_fragmented:
+        if self._is_fragmented_stream(value):
             async def _iterate():
                 async for item in value:
                     model = await self._render_element(item)
@@ -99,3 +119,24 @@ class Model3DValueRenderer:
             return create_model_3d_source(value)
 
         return None
+
+    def _is_nested_element_array(self, value: Any) -> bool:
+        """True when ``value`` is a list of element arrays — a top-level
+        list whose first item is itself an element array or a fragmented
+        stream.
+        """
+        return (
+            isinstance(value, (list, tuple))
+            and bool(value)
+            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
+        )
+
+    def _is_element_array(self, value: Any) -> bool:
+        """True when ``value`` is a list/tuple — a batch of 3D-model refs."""
+        return isinstance(value, (list, tuple))
+
+    def _is_fragmented_stream(self, value: Any) -> bool:
+        """True when ``value`` is a fragmented ``StreamChunkIterator`` — one
+        logical 3D-model array delivered in pieces.
+        """
+        return isinstance(value, StreamChunkIterator) and value.is_fragmented

@@ -34,16 +34,24 @@ class ArrayValueRenderer:
         value: Any,
         item_is_list: bool = False,
         single_as_array: bool = False,
-    ) -> Optional[Union[ArrayValue, List[Optional[ArrayValue]], AsyncIterator[Optional[ArrayValue]]]]:
+    ) -> Optional[Union[ArrayValue, List[Any], AsyncIterator[Any]]]:
+        """Render a generic array (or a nested list of them, with ``item_is_list=True``).
+
+        Mirrors ``ImageValueRenderer.render_array``'s matrix. The per-element
+        wrapper is also ``ArrayValue`` since this is the generic renderer:
+        ``item_is_list=True`` returns a batch-``ArrayValue`` whose elements
+        are group-``ArrayValue``s.
+        """
         # Fragmented streams represent a single logical array delivered as an
         # element stream — fall through to ``_render_element`` which wraps
         # them into one streaming ArrayValue.
-        is_fragmented_stream = isinstance(value, StreamChunkIterator) and value.is_fragmented
-
-        if isinstance(value, (StreamIterator, AsyncIterator)) and not is_fragmented_stream:
+        if isinstance(value, (StreamIterator, AsyncIterator)) and not self._is_fragmented_stream(value):
             async def _iterate():
                 async for chunk in value:
-                    yield self._render_element(chunk, single_as_array)
+                    if item_is_list:
+                        yield self._render_element(chunk, single_as_array=True)
+                    else:
+                        yield self._render_element(chunk, single_as_array)
 
             # Preserve StreamChunkIterator type for downstream isinstance checks.
             if isinstance(value, StreamChunkIterator):
@@ -51,19 +59,19 @@ class ArrayValueRenderer:
 
             return _iterate()
 
-        # Batch detection: if a single item is itself a list (``item_is_list=True``),
-        # a batch requires nested lists; if items are scalars (``item_is_list=False``),
-        # any top-level list is a batch.
         if item_is_list:
-            if isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple, StreamChunkIterator)):
-                return [ self._render_element(item, single_as_array) for item in value ]
+            if self._is_nested_element(value):
+                groups = [ self._render_element(item, single_as_array=True) for item in value ]
+                return ArrayValue(groups)
 
-            # Single value that *is* a list — wrap as broadcast ArrayValue.
-            if single_as_array and isinstance(value, (list, tuple)):
-                return ArrayValue(list(value), is_single=True)
-        else:
-            if isinstance(value, (list, tuple)):
-                return [ self._render_element(item, single_as_array) for item in value ]
+            if single_as_array and value is not None:
+                group = self._render_element(value, single_as_array=True)
+                return ArrayValue([ group ] if group is not None else [], is_single=True)
+
+            return None
+
+        if self._is_nested_element(value):
+            return [ self._render_element(item, single_as_array) for item in value ]
 
         return self._render_element(value, single_as_array)
 
@@ -71,7 +79,7 @@ class ArrayValueRenderer:
         if isinstance(value, ArrayValue):
             return value
 
-        if isinstance(value, StreamChunkIterator) and value.is_fragmented:
+        if self._is_fragmented_stream(value):
             async def _iterate():
                 async for item in value:
                     if item is not None:
@@ -85,3 +93,24 @@ class ArrayValueRenderer:
             return ArrayValue([ value ], is_single=True)
 
         return None
+
+    def _is_nested_element(self, value: Any) -> bool:
+        """True when ``value`` is a list of element arrays — a top-level
+        list whose first item is itself an element array or a fragmented
+        stream.
+        """
+        return (
+            isinstance(value, (list, tuple))
+            and bool(value)
+            and (self._is_element(value[0]) or self._is_fragmented_stream(value[0]))
+        )
+
+    def _is_element(self, value: Any) -> bool:
+        """True when ``value`` is a list/tuple — a batch of elements."""
+        return isinstance(value, (list, tuple))
+
+    def _is_fragmented_stream(self, value: Any) -> bool:
+        """True when ``value`` is a fragmented ``StreamChunkIterator`` — one
+        logical array delivered in pieces.
+        """
+        return isinstance(value, StreamChunkIterator) and value.is_fragmented

@@ -124,12 +124,12 @@ async def test_plan_single_pitch_class_list(flat_vocal_setup):
 
 @pytest.mark.anyio
 async def test_plan_batch_pitch_tracks(flat_vocal_setup):
-    """Batch of 2 pitch tracks + single scale broadcast → 2 curves back."""
+    """Batch of 2 pitch tracks + broadcast key → 2 curves back, same key."""
     frames = flat_vocal_setup["frames"]
     config = WorldMusicPitchCorrectorPlanActionConfig(
         method="plan",
         pitch=[frames, frames],  # 2-track batch
-        key=["A", "C"],
+        key="A",  # broadcast to every batch item
         scale="major",
     )
     action = WorldMusicPitchCorrectorAction(config, frame_period=_FRAME_PERIOD, f0_estimator="dio")
@@ -137,7 +137,7 @@ async def test_plan_batch_pitch_tracks(flat_vocal_setup):
 
     assert isinstance(results, list) and len(results) == 2
     assert results[0]["curve"]["settings"]["key"] == "A"
-    assert results[1]["curve"]["settings"]["key"] == "C"
+    assert results[1]["curve"]["settings"]["key"] == "A"
 
 
 @pytest.mark.anyio

@@ -37,6 +37,15 @@ _STREAMABLE_AUDIO_FORMATS: Set[str] = {
     "mp3", "wav", "flac", "ogg", "opus", "aac",
 }
 
+# Formats that need a seek on the output side even when their headers decode
+# fine from a pipe on the input side. FLAC's STREAMINFO block records
+# total_samples at the start of the stream; ffmpeg leaves it zero when writing
+# to stdout and decoders then report 2^63 frames. Spool to a file so ffmpeg
+# can rewrite the header after muxing.
+_UNSEEKABLE_AUDIO_FORMATS: Set[str] = {
+    "flac",
+}
+
 # Container formats that carry only an audio stream (no video track). Includes
 # m4a on top of the streamable set — m4a needs seeking to decode but is still
 # audio-only from the container's perspective.
@@ -252,9 +261,18 @@ def parse_flac_header(data: bytes) -> Optional[Tuple[int, Dict[str, Any]]]:
         "bit_depth":   int(bits_per_sample),
     }
 
-def is_streamable_audio_format(format: Optional[str]) -> bool:
-    """True if the audio format can be fed to ffmpeg's pipe:0 without seeking."""
-    return format in _STREAMABLE_AUDIO_FORMATS or format in _PCM_FORMATS
+def is_streamable_audio_format(format: Optional[str], for_output: bool = False) -> bool:
+    """True if the audio format can cross ffmpeg's pipe without seeking.
+
+    Default checks the input side (pipe:0 decoding). Pass ``for_output=True``
+    to check the output side (pipe:1 muxing); some formats decode fine from a
+    pipe but need a seek when written (e.g. FLAC's STREAMINFO).
+    """
+    if format in _STREAMABLE_AUDIO_FORMATS or format in _PCM_FORMATS:
+        if not for_output or format not in _UNSEEKABLE_AUDIO_FORMATS:
+            return True
+
+    return False
 
 def is_audio_only_format(format: Optional[str]) -> bool:
     """True if the container carries only an audio stream (no video track)."""

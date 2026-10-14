@@ -79,7 +79,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
         logging.debug("Converting audio to '%s' (%s input)", format, "path" if input_path else "pipe")
 
-        if is_streamable_audio_format(format):
+        if is_streamable_audio_format(format, for_output=True):
             return await self._convert_to_stream(command, source, input_path, format, _cleanup, cancellation_token)
 
         return await self._convert_to_file(command, source, input_path, format, _cleanup, cancellation_token)

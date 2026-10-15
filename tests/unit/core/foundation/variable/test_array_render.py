@@ -52,9 +52,11 @@ class TestFlatBatch:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_scalar_without_lift_returns_none(self):
-        result = await ArrayValueRenderer().render("x")
-        assert result is None
+    async def test_scalar_without_lift_raises(self):
+        """Scalar input without ``single_as_array`` is not an array — the
+        renderer fails fast with a clear TypeError."""
+        with pytest.raises(TypeError):
+            await ArrayValueRenderer().render("x")
 
     @pytest.mark.anyio
     async def test_scalar_with_lift(self):
@@ -176,14 +178,16 @@ class TestGroupedBatch:
 
 class TestNonFragmentedStream:
     @pytest.mark.anyio
-    async def test_flat_stream_preserves_chunk_count(self):
+    async def test_flat_stream_of_scalars_without_lift_raises(self):
+        """A non-fragmented stream of scalar inputs without ``single_as_array``
+        is a contract violation — each per-chunk render raises TypeError."""
         source = StreamChunkIterator(async_iter(["a", "b"]))
 
         result = await ArrayValueRenderer().render(source)
 
         assert isinstance(result, StreamChunkIterator)
-        chunks = await collect(result)
-        assert len(chunks) == 2
+        with pytest.raises(TypeError):
+            await collect(result)
 
     @pytest.mark.anyio
     async def test_flat_stream_with_lift_wraps_each_as_single_batch_item(self):
@@ -260,3 +264,17 @@ class TestArrayValuePassthrough:
 
         assert isinstance(result, ArrayValue)
         assert result.is_single is True
+
+    @pytest.mark.anyio
+    async def test_list_of_array_values_is_batch(self):
+        """``[ArrayValue, ArrayValue]`` must be detected as a nested batch,
+        not treated as a flat list of refs."""
+        source = [ArrayValue(["a", "b"]), ArrayValue(["c"])]
+
+        result = await ArrayValueRenderer().render(source)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(x, ArrayValue) for x in result)
+        assert await collect(result[0]) == ["a", "b"]
+        assert await collect(result[1]) == ["c"]

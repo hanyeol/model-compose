@@ -63,10 +63,11 @@ class TestFlatBatch:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_scalar_vector_without_lift_returns_none(self):
-        """A 1-D list is one vector (scalar input)."""
-        result = await VectorValueRenderer().render_array(vec(1.0, 2.0))
-        assert result is None
+    async def test_scalar_vector_without_lift_raises(self):
+        """A 1-D list is one vector (scalar input) — without
+        ``single_as_array`` the renderer fails fast with a clear TypeError."""
+        with pytest.raises(TypeError):
+            await VectorValueRenderer().render_array(vec(1.0, 2.0))
 
     @pytest.mark.anyio
     async def test_scalar_vector_with_lift(self):
@@ -333,3 +334,20 @@ class TestVectorArrayValuePassthrough:
 
         assert isinstance(result, VectorArrayValue)
         assert result.is_single is True
+
+    @pytest.mark.anyio
+    async def test_list_of_vector_array_values_is_batch(self):
+        """``[VectorArrayValue, VectorArrayValue]`` must be detected as a
+        nested batch, not treated as a 2-D vector array."""
+        source = [
+            VectorArrayValue([VectorValue([1.0]), VectorValue([2.0])]),
+            VectorArrayValue([VectorValue([3.0])]),
+        ]
+
+        result = await VectorValueRenderer().render_array(source)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(x, VectorArrayValue) for x in result)
+        assert len(await collect(result[0])) == 2
+        assert len(await collect(result[1])) == 1

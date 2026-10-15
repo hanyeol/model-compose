@@ -31,11 +31,8 @@ class TestNestedFormParser:
         assert result == {"a": {"b": {"c": "v"}}}
 
     def test_array_suffix_collects_into_list(self):
-        # NOTE: FormData.items() deduplicates by key, so passing two ("tags[]", _) tuples
-        # only surfaces the last one to NestedFormParser. The parser's array branch wraps
-        # the surviving value in a list — confirming the [] suffix path runs.
-        result = NestedFormParser().parse(FormData([("tags[]", "y")]))
-        assert result == {"tags[]": ["y"]}
+        result = NestedFormParser().parse(FormData([("tags[]", "x"), ("tags[]", "y")]))
+        assert result == {"tags": ["x", "y"]}
 
     def test_mixed_flat_and_nested(self):
         result = NestedFormParser().parse(

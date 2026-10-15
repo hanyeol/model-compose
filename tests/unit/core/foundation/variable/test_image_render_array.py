@@ -66,10 +66,11 @@ class TestFlatBatch:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_single_image_without_lift_returns_none(self):
-        """Scalar image without ``single_as_array`` is not a batch."""
-        result = await ImageValueRenderer().render_array(make_image())
-        assert result is None
+    async def test_single_image_without_lift_raises(self):
+        """Scalar image without ``single_as_array`` is not an image array —
+        the renderer fails fast with a clear TypeError."""
+        with pytest.raises(TypeError):
+            await ImageValueRenderer().render_array(make_image())
 
     @pytest.mark.anyio
     async def test_single_image_with_lift(self):
@@ -221,20 +222,17 @@ class TestNonFragmentedStream:
     chunks are the per-batch-item renderings."""
 
     @pytest.mark.anyio
-    async def test_flat_stream_yields_rendered_batch_items(self):
-        """``item_is_list=False``: each chunk is a single image, which (per
-        the matrix) is a scalar input to the per-chunk render — with
-        ``single_as_array=False`` the per-chunk result is None, so this
-        combination is not meaningful. The stream must still *preserve
-        chunk count* and type."""
+    async def test_flat_stream_of_scalars_without_lift_raises(self):
+        """A non-fragmented stream of scalar images without ``single_as_array``
+        is a contract violation — each per-chunk render raises TypeError."""
         a, b = make_image("red"), make_image("blue")
         source = StreamChunkIterator(async_iter([a, b]))
 
         result = await ImageValueRenderer().render_array(source)
 
         assert isinstance(result, StreamChunkIterator)
-        chunks = await collect(result)
-        assert len(chunks) == 2
+        with pytest.raises(TypeError):
+            await collect(result)
 
     @pytest.mark.anyio
     async def test_flat_stream_with_lift_wraps_each_image_as_single_batch_item(self):
@@ -332,6 +330,21 @@ class TestImageArrayValuePassthrough:
 
         assert isinstance(result, ImageArrayValue)
         assert result.is_single is True
+
+    @pytest.mark.anyio
+    async def test_list_of_image_array_values_is_batch(self):
+        """``[ImageArrayValue, ImageArrayValue]`` is an explicit batch — must
+        not be mis-detected as a flat list of refs and silently corrupted."""
+        a, b, c = make_image("red"), make_image("green"), make_image("blue")
+        source = [ImageArrayValue([a, b]), ImageArrayValue([c])]
+
+        result = await ImageValueRenderer().render_array(source)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(x, ImageArrayValue) for x in result)
+        assert await collect(result[0]) == [a, b]
+        assert await collect(result[1]) == [c]
 
 
 # ============================================================================

@@ -2033,11 +2033,14 @@ class TestFileValueRenderer:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_str_returns_none(self):
+    async def test_str_spools_to_temp_file(self):
+        import os
         from mindor.core.foundation.variable.file import FileValueRenderer
-        # str is not StreamResource — falls through to None.
         result = await FileValueRenderer().render("some text")
-        assert result is None
+        assert isinstance(result, str) and os.path.isfile(result)
+        with open(result, "r") as f:
+            assert f.read() == "some text"
+        os.unlink(result)
 
 
 # ============================

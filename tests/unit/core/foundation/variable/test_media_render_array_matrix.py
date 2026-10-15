@@ -138,9 +138,11 @@ class TestFlatBatch:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_single_element_without_lift_returns_none(self, spec: _MatrixSpec):
-        result = await spec.make_renderer().render_array(spec.make_element())
-        assert result is None
+    async def test_single_element_without_lift_raises(self, spec: _MatrixSpec):
+        """Scalar input without ``single_as_array`` is not an array — the
+        renderer fails fast with a clear TypeError."""
+        with pytest.raises(TypeError):
+            await spec.make_renderer().render_array(spec.make_element())
 
     @pytest.mark.anyio
     async def test_single_element_with_lift(self, spec: _MatrixSpec):
@@ -285,15 +287,17 @@ class TestNonFragmentedStream:
     is one batch item. The return preserves the ``StreamChunkIterator`` type."""
 
     @pytest.mark.anyio
-    async def test_flat_stream_preserves_chunk_count(self, spec: _MatrixSpec):
+    async def test_flat_stream_of_scalars_without_lift_raises(self, spec: _MatrixSpec):
+        """A non-fragmented stream of scalar inputs without ``single_as_array``
+        is a contract violation — each per-chunk render raises TypeError."""
         a, b = spec.make_element(), spec.make_element()
         source = StreamChunkIterator(async_iter([a, b]))
 
         result = await spec.make_renderer().render_array(source)
 
         assert isinstance(result, StreamChunkIterator)
-        chunks = await collect(result)
-        assert len(chunks) == 2
+        with pytest.raises(TypeError):
+            await collect(result)
 
     @pytest.mark.anyio
     async def test_flat_stream_with_lift_wraps_each_as_single_batch_item(self, spec: _MatrixSpec):
@@ -384,3 +388,16 @@ class TestArrayValuePassthrough:
 
         assert isinstance(result, spec.array_cls)
         assert result.is_single is True
+
+    @pytest.mark.anyio
+    async def test_list_of_array_values_is_batch(self, spec: _MatrixSpec):
+        """``[XxxArrayValue, XxxArrayValue]`` must be detected as a nested
+        batch, not treated as a flat list of refs."""
+        a, b, c = spec.make_element(), spec.make_element(), spec.make_element()
+        source = [spec.array_cls([a, b]), spec.array_cls([c])]
+
+        result = await spec.make_renderer().render_array(source)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert all(isinstance(x, spec.array_cls) for x in result)

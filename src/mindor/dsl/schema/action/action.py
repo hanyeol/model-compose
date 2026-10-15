@@ -48,6 +48,7 @@ ActionConfig = Union[
     MusicPitchCorrectorActionConfig,
     MusicSynthesizerActionConfig,
     MusicScoreLoaderActionConfig,
+    MusicScoreRendererActionConfig,
     AudioSilenceDetectorActionConfig,
     AudioSynchronizerActionConfig,
     AudioPlaybackActionConfig,

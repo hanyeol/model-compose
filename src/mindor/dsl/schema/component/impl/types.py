@@ -61,6 +61,7 @@ class ComponentType(str, Enum):
     MUSIC_PITCH_CORRECTOR   = "music-pitch-corrector"
     MUSIC_SYNTHESIZER       = "music-synthesizer"
     MUSIC_SCORE_LOADER      = "music-score-loader"
+    MUSIC_SCORE_RENDERER    = "music-score-renderer"
     MODEL_3D_CONVERTER      = "model-3d-converter"
     MODEL_3D_RENDERER       = "model-3d-renderer"
     CAMERA_POSE_ESTIMATOR   = "camera-pose-estimator"

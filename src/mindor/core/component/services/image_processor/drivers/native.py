@@ -79,6 +79,18 @@ class NativeImageProcessorAction(ImageProcessorAction):
         if method == NativeImageProcessorActionMethod.GRAYSCALE:
             return {}
 
+        if method == NativeImageProcessorActionMethod.FILL:
+            color  = await context.render_scalar(self.config.color, "color")
+            x      = await context.render_scalar(self.config.x, int)
+            y      = await context.render_scalar(self.config.y, int)
+            width  = await context.render_scalar(self.config.width, int)
+            height = await context.render_scalar(self.config.height, int)
+
+            if any(value is not None for value in (x, y, width, height)) and any(value is None for value in (x, y, width, height)):
+                raise ValueError("'x', 'y', 'width', and 'height' must all be specified together, or all omitted to fill the whole image.")
+
+            return { "color": color, "x": x, "y": y, "width": width, "height": height }
+
         if method == NativeImageProcessorActionMethod.BLUR:
             radius = await context.render_scalar(self.config.radius, float)
 
@@ -255,9 +267,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
             except ValueError:
                 raise ValueError(f"Invalid mosaic mode: {mode}")
 
-            region_fields = (x, y, width, height)
-
-            if any(v is not None for v in region_fields) and any(v is None for v in region_fields):
+            if any(value is not None for value in (x, y, width, height)) and any(value is None for value in (x, y, width, height)):
                 raise ValueError("'x', 'y', 'width', and 'height' must all be specified together, or all omitted to apply to the whole image.")
 
             if block_size is not None and block_scale is not None:
@@ -325,6 +335,9 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         if method == NativeImageProcessorActionMethod.GRAYSCALE:
             return await self._grayscale(image, params)
+
+        if method == NativeImageProcessorActionMethod.FILL:
+            return await self._fill(image, params)
 
         if method == NativeImageProcessorActionMethod.BLUR:
             return await self._blur(image, params)
@@ -418,6 +431,29 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
         return await self._run_in_executor(_grayscale)
 
+    async def _fill(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
+        def _fill() -> PILImage.Image:
+            x      = params["x"] if params["x"] is not None else 0
+            y      = params["y"] if params["y"] is not None else 0
+            width  = params["width"]  if params["width"]  is not None else image.width
+            height = params["height"] if params["height"] is not None else image.height
+
+            cx1 = max(0, int(x))
+            cy1 = max(0, int(y))
+            cx2 = min(image.width,  int(x) + int(width))
+            cy2 = min(image.height, int(y) + int(height))
+
+            canvas = image.copy()
+
+            if cx2 <= cx1 or cy2 <= cy1:
+                return canvas
+
+            ImageDraw.Draw(canvas).rectangle((cx1, cy1, cx2 - 1, cy2 - 1), fill=params["color"])
+
+            return canvas
+
+        return await self._run_in_executor(_fill)
+
     async def _blur(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         def _blur() -> PILImage.Image:
             return image.filter(ImageFilter.GaussianBlur(radius=params["radius"]))
@@ -494,16 +530,17 @@ class NativeImageProcessorAction(ImageProcessorAction):
             mode       = params["mode"]
             spacing    = params["spacing"]
             background = params["background"]
-            converted  = [ image.convert("RGBA") for image in images if image is not None ]
+
+            images = [ image.convert("RGBA") for image in images if image is not None ]
 
             if mode == ImageConcatMode.HORIZONTAL:
-                return self._concat_horizontal(converted, spacing, background)
+                return self._concat_horizontal(images, spacing, background)
 
             if mode == ImageConcatMode.VERTICAL:
-                return self._concat_vertical(converted, spacing, background)
+                return self._concat_vertical(images, spacing, background)
 
             if mode == ImageConcatMode.GRID:
-                return self._concat_grid(converted, params["columns"], params["rows"], spacing, background)
+                return self._concat_grid(images, params["columns"], params["rows"], spacing, background)
 
             raise ValueError(f"Unsupported concat mode: {mode}")
 
@@ -513,15 +550,16 @@ class NativeImageProcessorAction(ImageProcessorAction):
         def _merge() -> PILImage.Image:
             anchor     = params["anchor"]
             background = params["background"]
-            converted  = [ image.convert("RGBA") for image in images if image is not None ]
 
-            max_width  = max(image.width  for image in converted)
-            max_height = max(image.height for image in converted)
+            images = [ image.convert("RGBA") for image in images if image is not None ]
+
+            max_width  = max(image.width  for image in images)
+            max_height = max(image.height for image in images)
             canvas     = PILImage.new("RGBA", (max_width, max_height), background)
 
             anchor_x, anchor_y = self._resolve_anchor_point(anchor, canvas.size)
 
-            for image in converted:
+            for image in images:
                 offset_x, offset_y = self._resolve_anchor_offset(anchor, anchor_x, anchor_y, image.size)
                 canvas.alpha_composite(image, (offset_x, offset_y))
 
@@ -584,43 +622,42 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
     async def _mosaic(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         def _mosaic() -> PILImage.Image:
-            mode = params["mode"]
+            x      = params["x"] if params["x"] is not None else 0
+            y      = params["y"] if params["y"] is not None else 0
+            width  = params["width"]  if params["width"]  is not None else image.width
+            height = params["height"] if params["height"] is not None else image.height
+            mode   = params["mode"]
 
-            if params["x"] is None:
-                rx, ry, rw, rh = 0, 0, image.width, image.height
-            else:
-                rx, ry, rw, rh = params["x"], params["y"], params["width"], params["height"]
-
-            cx1 = max(0, int(rx))
-            cy1 = max(0, int(ry))
-            cx2 = min(image.width,  int(rx) + int(rw))
-            cy2 = min(image.height, int(ry) + int(rh))
+            cx1 = max(0, int(x))
+            cy1 = max(0, int(y))
+            cx2 = min(image.width,  int(x) + int(width))
+            cy2 = min(image.height, int(y) + int(height))
 
             canvas = image.copy()
 
             if cx2 <= cx1 or cy2 <= cy1:
                 return canvas
 
-            target     = canvas.crop((cx1, cy1, cx2, cy2))
+            region = canvas.crop((cx1, cy1, cx2, cy2))
             block_size = None
 
             if mode == MosaicMode.PIXELATE:
                 block_size = params["block_size"]
 
                 if block_size is None:
-                    block_size = round(min(target.size) * params["block_scale"])
+                    block_size = round(min(region.size) * params["block_scale"])
                     block_size = min(params["max_block_size"], max(params["min_block_size"], block_size))
 
-                mosaic = self._mosaic_pixelate(target, block_size)
+                mosaic = self._mosaic_pixelate(region, block_size)
             elif mode == MosaicMode.BLUR:
-                mosaic = target.filter(ImageFilter.GaussianBlur(radius=params["blur_radius"]))
+                mosaic = region.filter(ImageFilter.GaussianBlur(radius=params["blur_radius"]))
             else:
                 raise ValueError(f"Unsupported mosaic mode: {mode}")
 
             corner_radius = params["corner_radius"]
 
             if corner_radius is None:
-                corner_radius = round(min(target.size) * params["corner_scale"])
+                corner_radius = round(min(region.size) * params["corner_scale"])
 
             if corner_radius > 0:
                 if mode == MosaicMode.PIXELATE:

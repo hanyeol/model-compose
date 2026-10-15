@@ -19,6 +19,7 @@ class NativeImageProcessorActionMethod(ImageProcessorActionMethod):
     ROTATE            = "rotate"
     FLIP              = "flip"
     GRAYSCALE         = "grayscale"
+    FILL              = "fill"
     BLUR              = "blur"
     SHARPEN           = "sharpen"
     ADJUST_COLOR      = "adjust-color"
@@ -60,6 +61,14 @@ class NativeImageProcessorFlipActionConfig(CommonImageProcessorActionConfig):
 
 class NativeImageProcessorGrayscaleActionConfig(CommonImageProcessorActionConfig):
     method: Literal[NativeImageProcessorActionMethod.GRAYSCALE]
+
+class NativeImageProcessorFillActionConfig(CommonImageProcessorActionConfig):
+    method: Literal[NativeImageProcessorActionMethod.FILL]
+    color: Union[Color, str] = Field(..., description="Fill color as a hex string or RGBA tuple.")
+    x: Optional[Union[int, str]] = Field(default=None, description="X coordinate of the region's top-left corner, in pixels. Omit (with y/width/height) to fill the whole image.")
+    y: Optional[Union[int, str]] = Field(default=None, description="Y coordinate of the region's top-left corner, in pixels.")
+    width: Optional[Union[int, str]] = Field(default=None, description="Region width in pixels.")
+    height: Optional[Union[int, str]] = Field(default=None, description="Region height in pixels.")
 
 class NativeImageProcessorBlurActionConfig(CommonImageProcessorActionConfig):
     method: Literal[NativeImageProcessorActionMethod.BLUR]
@@ -168,6 +177,7 @@ NativeImageProcessorActionConfig = Annotated[
         NativeImageProcessorRotateActionConfig,
         NativeImageProcessorFlipActionConfig,
         NativeImageProcessorGrayscaleActionConfig,
+        NativeImageProcessorFillActionConfig,
         NativeImageProcessorBlurActionConfig,
         NativeImageProcessorSharpenActionConfig,
         NativeImageProcessorAdjustColorActionConfig,

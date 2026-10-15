@@ -12,4 +12,8 @@ class CustomFaceDetectionTaskDriver:
             from .insightface import InsightfaceFaceDetectionTaskDriver
             return InsightfaceFaceDetectionTaskDriver(id, config, daemon)
 
+        if config.family == FaceDetectionModelFamily.YOLO:
+            from .ultralytics import YoloFaceDetectionTaskDriver
+            return YoloFaceDetectionTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

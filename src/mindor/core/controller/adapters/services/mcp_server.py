@@ -18,6 +18,7 @@ from mindor.core.utils.transport.stdout_relay import StdoutRelay
 from ..base import ControllerAdapterService, register_controller_adapter
 from mcp.server.fastmcp.server import FastMCP
 from mcp.server.stdio import stdio_server
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent, EmbeddedResource, BlobResourceContents
 import asyncio, uvicorn, json
 
@@ -42,9 +43,27 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         if self.config.transport == McpServerTransport.HTTP:
             app_params["streamable_http_path"] = self.config.base_path or "/"
 
+        transport_security = self._build_transport_security()
+
+        if transport_security is not None:
+            app_params["transport_security"] = transport_security
+
         self.app: FastMCP = FastMCP(self.controller.config.name, **app_params)
 
         self._configure_workflow_tools()
+
+    def _build_transport_security(self) -> Optional[TransportSecuritySettings]:
+        if self.config.disable_dns_rebinding_protection:
+            return TransportSecuritySettings(enable_dns_rebinding_protection=False)
+
+        if self.config.allowed_hosts is not None or self.config.allowed_origins is not None:
+            return TransportSecuritySettings(
+                enable_dns_rebinding_protection=True,
+                allowed_hosts=self.config.allowed_hosts or [],
+                allowed_origins=self.config.allowed_origins or [],
+            )
+
+        return None
 
     def _configure_workflow_tools(self) -> None:
         interruptable_workflow_ids = self._find_interruptable_workflow_ids()

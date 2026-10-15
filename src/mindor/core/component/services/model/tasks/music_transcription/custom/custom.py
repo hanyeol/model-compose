@@ -12,4 +12,8 @@ class CustomMusicTranscriptionTaskDriver:
             from .piano_transcription import PianoTranscriptionMusicTranscriptionTaskDriver
             return PianoTranscriptionMusicTranscriptionTaskDriver(id, config, daemon)
 
+        if config.family == MusicTranscriptionModelFamily.GAME:
+            from .game import GameMusicTranscriptionTaskDriver
+            return GameMusicTranscriptionTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

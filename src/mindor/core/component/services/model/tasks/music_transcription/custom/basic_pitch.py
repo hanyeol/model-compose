@@ -5,6 +5,7 @@ from typing import Union, Tuple, Dict, Optional, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, BasicPitchMusicTranscriptionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, BasicPitchMusicTranscriptionModelActionConfig
 from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
+from mindor.core.foundation.package.installer import install_package, is_package_installed
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -193,14 +194,32 @@ class BasicPitchMusicTranscriptionTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # basic-pitch ships four checkpoint formats (TF SavedModel, CoreML, TFLite,
         # ONNX). We target ONNX because onnxruntime installs cleanly on every
-        # platform without pulling in a large TF/CoreML stack.
+        # platform without pulling in a large TF/CoreML stack. basic-pitch itself
+        # is installed in `_setup` with `--no-deps` — its PyPI metadata pins
+        # tensorflow<2.15.1, which has no cp312 wheels, so the default resolve
+        # fails on Python 3.12+ even though this driver only uses the ONNX path.
         return [
-            "basic-pitch",
             ("onnxruntime", get_onnxruntime_distributions()),
+            "librosa>=0.8.0",
+            "mir_eval>=0.6",
+            "pretty_midi>=0.2.9",
+            "resampy>=0.2.2,<0.4.3",
+            "scikit-learn",
+            "scipy>=1.4.1",
+            "typing-extensions",
             "soundfile",
             "numpy",
             "soxr"
         ]
+
+    async def _setup(self) -> None:
+        # basic-pitch's PyPI metadata requires tensorflow<2.15.1 on Linux/Windows
+        # (and tensorflow-macos<2.15.1 on macOS), neither of which publishes
+        # cp312+ wheels — a plain `pip install basic-pitch` fails on Python 3.12+.
+        # The driver only loads the ONNX checkpoint via onnxruntime, so install
+        # with `--no-deps` and declare the actual runtime deps above.
+        if not is_package_installed("basic_pitch"):
+            await install_package("basic-pitch==0.4.0", [ "--no-deps" ])
 
     async def _load_model(self) -> None:
         from basic_pitch import build_icassp_2022_model_path, FilenameSuffix

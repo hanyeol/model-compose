@@ -125,6 +125,14 @@ class NativeImageProcessorOverlayActionConfig(CommonImageProcessorActionConfig):
     height: Optional[Union[int, str]] = Field(default=None, description="Height the overlay is resized to before pasting, in pixels.")
     anchor: Union[ImagePositionAnchor, str] = Field(default=ImagePositionAnchor.TOP_LEFT, description="Point of the overlay aligned at `(x, y)`.")
     opacity: Union[float, str] = Field(default=1.0, description="Alpha multiplier for the overlay, from 0.0 to 1.0.")
+    feather_radius: Optional[Union[int, str]] = Field(default=None, description="Gaussian feather radius in pixels for softening the overlay edges. Mutually exclusive with `feather_scale`.")
+    feather_scale: Optional[Union[float, str]] = Field(default=None, description="Feather radius relative to the overlay's shorter side, from 0 to 0.5. Mutually exclusive with `feather_radius`.")
+
+    @model_validator(mode="after")
+    def validate_feather_radius_or_scale(self) -> NativeImageProcessorOverlayActionConfig:
+        if self.feather_radius is not None and self.feather_scale is not None:
+            raise ValueError("'feather_radius' and 'feather_scale' are mutually exclusive; specify only one.")
+        return self
 
 class NativeImageProcessorMosaicActionConfig(CommonImageProcessorActionConfig):
     method: Literal[NativeImageProcessorActionMethod.MOSAIC]

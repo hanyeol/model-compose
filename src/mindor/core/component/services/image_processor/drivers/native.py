@@ -17,7 +17,7 @@ from mindor.core.foundation.variable.image import ImageArrayValue
 from ..base import ImageProcessorDriver, ImageProcessorDriverType, register_image_processor_driver
 from ..base import ComponentActionContext
 from .common import ImageProcessorAction
-from PIL import Image as PILImage, ImageFilter, ImageEnhance, ImageDraw
+from PIL import Image as PILImage, ImageFilter, ImageEnhance, ImageDraw, ImageChops
 import math
 
 class NativeImageProcessorAction(ImageProcessorAction):
@@ -188,13 +188,15 @@ class NativeImageProcessorAction(ImageProcessorAction):
             }
 
         if method == NativeImageProcessorActionMethod.OVERLAY:
-            overlay = await context.render_image(self.config.overlay)
-            x       = await context.render_scalar(self.config.x, int)
-            y       = await context.render_scalar(self.config.y, int)
-            width   = await context.render_scalar(self.config.width, int)
-            height  = await context.render_scalar(self.config.height, int)
-            anchor  = await context.render_variable(self.config.anchor)
-            opacity = await context.render_scalar(self.config.opacity, float)
+            overlay        = await context.render_image(self.config.overlay)
+            x              = await context.render_scalar(self.config.x, int)
+            y              = await context.render_scalar(self.config.y, int)
+            width          = await context.render_scalar(self.config.width, int)
+            height         = await context.render_scalar(self.config.height, int)
+            anchor         = await context.render_variable(self.config.anchor)
+            opacity        = await context.render_scalar(self.config.opacity, float)
+            feather_radius = await context.render_scalar(self.config.feather_radius, int)
+            feather_scale  = await context.render_scalar(self.config.feather_scale, float)
 
             if isinstance(overlay, (list, StreamIterator, AsyncIterator)):
                 raise ValueError("'overlay' must resolve to a single image, not a batch or stream")
@@ -210,14 +212,28 @@ class NativeImageProcessorAction(ImageProcessorAction):
             if not 0.0 <= opacity <= 1.0:
                 raise ValueError(f"'opacity' must be between 0.0 and 1.0, got {opacity}")
 
+            if feather_radius is not None and feather_scale is not None:
+                raise ValueError("'feather_radius' and 'feather_scale' are mutually exclusive; specify only one.")
+
+            if feather_radius is None and feather_scale is None:
+                feather_radius = 0
+
+            if feather_radius is not None and feather_radius < 0:
+                raise ValueError(f"'feather_radius' must be >= 0, got {feather_radius}")
+
+            if feather_scale is not None and not 0.0 <= feather_scale <= 0.5:
+                raise ValueError(f"'feather_scale' must be in [0.0, 0.5], got {feather_scale}")
+
             return {
-                "overlay": overlay,
-                "x":       x,
-                "y":       y,
-                "width":   width,
-                "height":  height,
-                "anchor":  anchor,
-                "opacity": opacity,
+                "overlay":        overlay,
+                "x":              x,
+                "y":              y,
+                "width":          width,
+                "height":         height,
+                "anchor":         anchor,
+                "opacity":        opacity,
+                "feather_radius": feather_radius,
+                "feather_scale":  feather_scale,
             }
 
         if method == NativeImageProcessorActionMethod.MOSAIC:
@@ -531,9 +547,30 @@ class NativeImageProcessorAction(ImageProcessorAction):
 
                 overlay = overlay.resize((width, height), PILImage.Resampling.LANCZOS)
 
+            alpha = overlay.split()[3]
+
+            feather_radius = params["feather_radius"]
+
+            if feather_radius is None:
+                feather_radius = round(min(overlay.size) * params["feather_scale"])
+
+            if feather_radius > 0:
+                feather = PILImage.new("L", overlay.size, 0)
+                feather_inset = (
+                    feather_radius,
+                    feather_radius,
+                    max(feather_radius + 1, overlay.width  - feather_radius),
+                    max(feather_radius + 1, overlay.height - feather_radius)
+                )
+
+                ImageDraw.Draw(feather).rectangle(feather_inset, fill=255)
+                feather = feather.filter(ImageFilter.GaussianBlur(radius=feather_radius))
+                alpha = ImageChops.multiply(alpha, feather)
+
             if params["opacity"] < 1.0:
-                alpha = overlay.split()[3].point(lambda a: int(a * params["opacity"]))
-                overlay.putalpha(alpha)
+                alpha = alpha.point(lambda a: int(a * params["opacity"]))
+
+            overlay.putalpha(alpha)
 
             offset_x, offset_y = self._resolve_anchor_offset(params["anchor"], params["x"], params["y"], overlay.size)
             canvas.alpha_composite(overlay, (offset_x, offset_y))
@@ -590,6 +627,7 @@ class NativeImageProcessorAction(ImageProcessorAction):
                     mask = self._blocky_rounded_rectangle_mask(mosaic.size, corner_radius, block_size)
                 else:
                     mask = self._rounded_rectangle_mask(mosaic.size, corner_radius)
+
                 canvas.paste(mosaic, (cx1, cy1), mask)
             else:
                 canvas.paste(mosaic, (cx1, cy1))

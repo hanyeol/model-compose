@@ -606,9 +606,6 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pipeline = self.pipelines.get(None) if self.pipelines else None
 
-        if pipeline is None:
-            raise ValueError(f"No pipeline loaded for architecture: {self.config.architecture}")
-
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
             return await AnimateDiffHuggingfaceVideoToVideoTaskAction(action, pipeline, self.device, self._get_ip_adapter_count(), self._get_controlnet_count()).run(context)
 

@@ -144,15 +144,17 @@ class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
             if self._get_controlnet_count() > 0:
                 from diffusers import FluxControlNetPipeline
                 return FluxControlNetPipeline
-            from diffusers import FluxPipeline
-            return FluxPipeline
+            else:
+                from diffusers import FluxPipeline
+                return FluxPipeline
 
         if method == ImageGenerationActionMethod.INPAINT:
             if self._get_controlnet_count() > 0:
                 from diffusers import FluxControlNetInpaintPipeline
                 return FluxControlNetInpaintPipeline
-            from diffusers import FluxInpaintPipeline
-            return FluxInpaintPipeline
+            else:
+                from diffusers import FluxInpaintPipeline
+                return FluxInpaintPipeline
 
         raise ValueError(f"Unknown method: {method}")
 
@@ -174,9 +176,6 @@ class FluxHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pipeline = self.pipelines.get(action.method)
-
-        if pipeline is None:
-            raise ValueError(f"No pipeline loaded for method: {action.method}")
 
         if action.method == ImageGenerationActionMethod.GENERATE:
             return await FluxHuggingfaceImageGenerationGenerateAction(

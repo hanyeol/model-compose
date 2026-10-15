@@ -195,9 +195,6 @@ class SdxlHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         pipeline = self.pipelines.get(action.method)
 
-        if pipeline is None:
-            raise ValueError(f"No pipeline loaded for method: {action.method}")
-
         if action.method == ImageGenerationActionMethod.GENERATE:
             return await SdxlHuggingfaceImageGenerationGenerateAction(
                 action, pipeline, self.device, self._get_controlnet_count()

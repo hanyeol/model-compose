@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Literal, Optional, Dict, List, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import FileStoreComponentConfig, FileStoreDriverType
 from mindor.dsl.schema.action import FileStoreActionConfig
@@ -12,9 +12,6 @@ class FileStoreDriver(ComponentDriver):
 
         self.id: str = id
         self.config: FileStoreComponentConfig = config
-
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return None
 
     async def run(self, action: FileStoreActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

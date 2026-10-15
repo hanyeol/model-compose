@@ -147,7 +147,11 @@ class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
         self.model: Optional[FaceAnalysis] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "insightface", "opencv-python", ("onnxruntime", get_onnxruntime_distributions()) ]
+        return [
+            "insightface",
+            "opencv-python",
+            ("onnxruntime", get_onnxruntime_distributions())
+        ]
 
     async def _load_model(self) -> None:
         self.model = await self._load_pretrained_model()

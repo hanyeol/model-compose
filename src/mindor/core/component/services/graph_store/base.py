@@ -1,4 +1,4 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Type, Literal, Optional, Dict, List, Set, Annotated, Callable, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import GraphStoreComponentConfig, GraphStoreDriverType
 from mindor.dsl.schema.action import GraphStoreActionConfig
@@ -12,9 +12,6 @@ class GraphStoreDriver(ComponentDriver):
 
         self.id: str = id
         self.config: GraphStoreComponentConfig = config
-
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return None
 
     async def run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

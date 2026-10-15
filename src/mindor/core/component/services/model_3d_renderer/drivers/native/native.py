@@ -780,12 +780,7 @@ class NativeModel3DRendererService(Model3DRendererDriver):
         super().__init__(id, config, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [
-            *(super()._get_setup_requirements() or []),
-            "trimesh",
-            "moderngl",
-            "numpy",
-        ]
+        return [ "trimesh", "moderngl", "numpy" ]
 
     async def _run(self, action: Model3DRendererActionConfig, context: ComponentActionContext) -> Any:
         return await NativeModel3DRendererAction(action).run(context)

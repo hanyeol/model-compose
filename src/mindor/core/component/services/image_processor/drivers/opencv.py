@@ -60,10 +60,7 @@ class OpenCvImageProcessorService(ImageProcessorDriver):
         super().__init__(id, config, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [
-            "opencv-python",
-            "numpy",
-        ]
+        return [ "opencv-python", "numpy" ]
 
     async def _run(self, action: ImageProcessorActionConfig, context: ComponentActionContext) -> Any:
         return await OpenCvImageProcessorAction(action).run(context)

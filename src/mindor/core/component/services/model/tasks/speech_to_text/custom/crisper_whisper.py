@@ -247,7 +247,11 @@ class CrisperWhisperSpeechToTextTaskDriver(ModelTaskDriver):
         # `crisperwhisper[transformers]` covers the portable pure-torch backend;
         # users who want the ct2 (Linux NVIDIA) fast path can install
         # crisperwhisper[ct2] separately.
-        return [ *torch_requirements("torchaudio"), "crisperwhisper[transformers]", "soxr" ]
+        return [
+            *torch_requirements("torchaudio"),
+            "crisperwhisper[transformers]",
+            "soxr"
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

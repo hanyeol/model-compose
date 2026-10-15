@@ -123,7 +123,10 @@ class BeatThisMusicBeatTrackingTaskDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ *torch_requirements("torch", "torchaudio"), "beat_this" ]
+        return [
+            *torch_requirements("torch", "torchaudio"),
+            "beat_this"
+        ]
 
     async def _load_model(self) -> None:
         self.tracker, self.device = await self._load_tracker()

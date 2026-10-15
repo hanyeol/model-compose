@@ -167,7 +167,12 @@ class PyannoteSpeakerDiarizationTaskDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ *torch_requirements("torch", "torchaudio"), "pyannote.audio", "numpy", "soxr" ]
+        return [
+            *torch_requirements("torch", "torchaudio"),
+            "pyannote.audio",
+            "numpy",
+            "soxr"
+        ]
 
     async def _load_model(self) -> None:
         self.pipeline, self.device = await self._load_pretrained_pipeline()

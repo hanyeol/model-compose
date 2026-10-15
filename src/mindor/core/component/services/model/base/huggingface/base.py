@@ -30,7 +30,6 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         requirements = [
-            *(super()._get_setup_requirements() or []),
             *self._get_torch_requirements(),
             *self._get_transformers_requirements(),
             *self._get_huggingface_hub_requirements(),

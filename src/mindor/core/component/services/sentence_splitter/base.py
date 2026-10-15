@@ -1,4 +1,4 @@
-from typing import Type, Optional, Dict, List, Any, Union, Tuple
+from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.component import SentenceSplitterComponentConfig, SentenceSplitterDriverType
 from mindor.dsl.schema.action import SentenceSplitterActionConfig
@@ -12,9 +12,6 @@ class SentenceSplitterDriver(ComponentDriver):
 
         self.id: str = id
         self.config: SentenceSplitterComponentConfig = config
-
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return None
 
     async def run(self, action: SentenceSplitterActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

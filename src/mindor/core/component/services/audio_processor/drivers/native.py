@@ -4,9 +4,6 @@ from typing import TYPE_CHECKING
 from typing import Optional, Dict, List, Any, Union, Tuple
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import AudioProcessorComponentConfig
-
-if TYPE_CHECKING:
-    import numpy as np
 from mindor.dsl.schema.action import AudioProcessorActionConfig, AudioProcessorNormalizeMode, AudioProcessorPeakLimitMode
 from mindor.core.utils.audio import AudioBuffer
 from mindor.core.foundation.package.torch import torch_requirements
@@ -14,6 +11,9 @@ from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from ..base import AudioProcessorDriver, AudioProcessorDriverType, register_audio_processor_driver
 from ..base import ComponentActionContext
 from .common import AudioProcessorAction
+
+if TYPE_CHECKING:
+    import numpy as np
 
 class NativeAudioProcessorAction(AudioProcessorAction):
     async def _resample(self, audio: AudioBufferStreamIterator, params: Dict[str, Any]) -> AudioBufferStreamIterator:
@@ -996,7 +996,14 @@ class NativeAudioProcessorService(AudioProcessorDriver):
         super().__init__(id, config, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ *torch_requirements("torchaudio"), "pedalboard", "numpy", "soxr", "pyloudnorm", "librosa" ]
+        return [
+            *torch_requirements("torchaudio"),
+            "pedalboard",
+            "numpy",
+            "soxr",
+            "pyloudnorm",
+            "librosa"
+        ]
 
     async def _run(self, action: AudioProcessorActionConfig, context: ComponentActionContext) -> Any:
         return await NativeAudioProcessorAction(action).run(context)

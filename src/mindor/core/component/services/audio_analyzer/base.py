@@ -1,4 +1,4 @@
-from typing import Type, Optional, Dict, List, Any, Union, Tuple
+from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.component import AudioAnalyzerComponentConfig, AudioAnalyzerDriverType
 from mindor.dsl.schema.action import AudioAnalyzerActionConfig
@@ -12,9 +12,6 @@ class AudioAnalyzerDriver(ComponentDriver):
 
         self.id: str = id
         self.config: AudioAnalyzerComponentConfig = config
-
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return None
 
     async def run(self, action: AudioAnalyzerActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

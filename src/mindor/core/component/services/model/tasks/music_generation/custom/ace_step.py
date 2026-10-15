@@ -192,11 +192,13 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
             for prompt, lyrics, reference_audio in inputs:
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="text2music",
                     reference_audio=reference_audio,
                 )
+
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
@@ -243,12 +245,14 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
             for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="cover",
                     src_audio=src_path,
                     reference_audio=reference_audio,
                 )
+
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
@@ -306,6 +310,7 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
             for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="repaint",
@@ -316,6 +321,7 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
                         "repainting_end":   float(params["end_time"]),
                     },
                 )
+
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
@@ -365,12 +371,14 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
             for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="complete",
                     src_audio=src_path,
                     reference_audio=reference_audio,
                 )
+
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
@@ -434,6 +442,7 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
             for (_, prompt, lyrics, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 generation_params = self._build_generation_params(
                     prompt, lyrics, params,
                     task_type="lego",
@@ -445,6 +454,7 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
                         ),
                     },
                 )
+
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results
@@ -507,6 +517,7 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
             for (_, prompt, reference_audio), (src_path, _) in zip(inputs, source_paths):
                 if cancellation_token is not None and cancellation_token.is_cancelled():
                     break
+
                 generation_params = self._build_generation_params(
                     prompt, None, params,
                     task_type="complete",
@@ -518,6 +529,7 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
                         ),
                     },
                 )
+
                 results.append(self._generate_music(generation_params, seed=params["seed"]))
 
             return results

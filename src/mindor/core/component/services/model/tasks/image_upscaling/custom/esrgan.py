@@ -155,7 +155,11 @@ class EsrganImageUpscalingTaskDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ *torch_requirements("torch", "torchvision"), "basicsr", "huggingface_hub" ]
+        return [
+            *torch_requirements("torch", "torchvision"),
+            "basicsr",
+            "huggingface_hub"
+        ]
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

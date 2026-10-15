@@ -203,7 +203,11 @@ class BasicPitchMusicTranscriptionTaskDriver(ModelTaskDriver):
             "librosa>=0.8.0",
             "mir_eval>=0.6",
             "pretty_midi>=0.2.9",
-            "resampy>=0.2.2,<0.4.3",
+            # resampy 0.4.2 imports `pkg_resources`, which is not shipped by
+            # setuptools>=81. basic-pitch's own metadata caps resampy at <0.4.3,
+            # but since we install basic-pitch with --no-deps we're free to
+            # allow 0.4.3+ (which drops the pkg_resources import).
+            "resampy>=0.2.2",
             "scikit-learn",
             "scipy>=1.4.1",
             "typing-extensions",

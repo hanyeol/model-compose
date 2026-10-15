@@ -5,7 +5,7 @@ from ....base import ModelTaskType, ModelDriverType, register_model_task_driver
 class CustomPoseTrackingTaskDriver:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == PoseTrackingModelFamily.YOLO:
-            from .yolo import YoloPoseTrackingTaskDriver
+            from .ultralytics import YoloPoseTrackingTaskDriver
             return YoloPoseTrackingTaskDriver(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

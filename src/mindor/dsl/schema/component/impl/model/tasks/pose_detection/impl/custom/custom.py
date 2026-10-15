@@ -1,7 +1,7 @@
 from typing import Union, Annotated
 from pydantic import Field
 from .mediapipe import BlazePosePoseDetectionModelComponentConfig
-from .yolo import YoloPoseDetectionModelComponentConfig
+from .ultralytics import YoloPoseDetectionModelComponentConfig
 
 CustomPoseDetectionModelComponentConfig = Annotated[
     Union[

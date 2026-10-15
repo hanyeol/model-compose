@@ -1,5 +1,5 @@
 from typing import Union
-from .yolo import YoloObjectDetectionModelActionConfig
+from .ultralytics import YoloObjectDetectionModelActionConfig
 
 CustomObjectDetectionModelActionConfig = Union[
     YoloObjectDetectionModelActionConfig,

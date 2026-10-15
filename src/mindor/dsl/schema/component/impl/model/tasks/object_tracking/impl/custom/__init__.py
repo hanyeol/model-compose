@@ -1,3 +1,3 @@
 from .common import *
-from .yolo import *
+from .ultralytics import *
 from .custom import *

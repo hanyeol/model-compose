@@ -5,7 +5,7 @@ from ....base import ModelTaskType, ModelDriverType, register_model_task_driver
 class CustomObjectDetectionTaskDriver:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == ObjectDetectionModelFamily.YOLO:
-            from .yolo import YoloObjectDetectionTaskDriver
+            from .ultralytics import YoloObjectDetectionTaskDriver
             return YoloObjectDetectionTaskDriver(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

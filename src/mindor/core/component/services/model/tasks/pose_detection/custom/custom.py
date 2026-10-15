@@ -9,7 +9,7 @@ class CustomPoseDetectionTaskDriver:
             return BlazePosePoseDetectionTaskDriver(id, config, daemon)
 
         if config.family == PoseDetectionModelFamily.YOLO:
-            from .yolo import YoloPoseDetectionTaskDriver
+            from .ultralytics import YoloPoseDetectionTaskDriver
             return YoloPoseDetectionTaskDriver(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .yolo import YoloObjectDetectionModelComponentConfig
+from .ultralytics import YoloObjectDetectionModelComponentConfig
 
 CustomObjectDetectionModelComponentConfig = Annotated[
     Union[

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 # Upstream piano_transcription_inference downloads this checkpoint on first use by
 # shelling out to `wget`, which is absent on macOS and fails silently. We fetch
 # it ourselves and hand the path to the library so its download path never runs.
-_PIANO_TRANSCRIPTION_CHECKPOINT_URL = "https://zenodo.org/record/4034264/files/CRNN_note_F1%3D0.9677_pedal_F1%3D0.9186.pth?download=1"
+_PIANO_TRANSCRIPTION_CHECKPOINT_URL = "https://zenodo.org/record/4034264/files/CRNN_note_F1=0.9677_pedal_F1=0.9186.pth?download=1"
 
 # ByteDance's model was trained on 16 kHz mono piano recordings; feeding anything
 # else silently degrades note recall.
@@ -206,7 +206,15 @@ class PianoTranscriptionMusicTranscriptionTaskDriver(ModelTaskDriver):
 
         if not checkpoint_path.exists():
             logging.info(f"Downloading piano-transcription checkpoint from {_PIANO_TRANSCRIPTION_CHECKPOINT_URL}")
-            await download_to_file(_PIANO_TRANSCRIPTION_CHECKPOINT_URL, checkpoint_path)
+
+            # Zenodo returns 403 to the shared HttpClient's default OS-browser
+            # User-Agent (Safari on macOS, Edge on Windows). Identify as a
+            # programmatic client so the download succeeds on every platform.
+            await download_to_file(
+                _PIANO_TRANSCRIPTION_CHECKPOINT_URL,
+                checkpoint_path,
+                headers={ "User-Agent": "mindor-agent" },
+            )
 
         return str(checkpoint_path)
 

@@ -87,8 +87,8 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
         submodules = await self._load_pipeline_submodules(device, dtype)
 
-        adapters = self.config.peft_adapter or []
-        adapter_paths = [ await self._provision_model(adapter.model) for adapter in adapters ]
+        peft_adapters = self.config.peft_adapter or []
+        peft_adapter_paths = [ await self._provision_model(adapter.model) for adapter in peft_adapters ]
 
         cpu_offload = self._get_cpu_offload()
         vae_tiling  = self._get_vae_tiling()
@@ -116,7 +116,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             if scheduler is not None:
                 self._apply_scheduler(base_pipeline, scheduler)
 
-            self._attach_peft_adapters(base_pipeline, adapters, adapter_paths)
+            self._attach_peft_adapters(base_pipeline, peft_adapters, peft_adapter_paths)
             self._configure_memory(base_pipeline, device, cpu_offload, vae_tiling)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}

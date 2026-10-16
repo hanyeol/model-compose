@@ -97,7 +97,7 @@ model-compose provides various component types for performing different tasks.
 - File/object storage → `file-store`
 - Text splitting → `text-splitter`
 - Structured extraction from free-form text (JSON/YAML/XML/table/list/regex) → `text-parser`
-- Image processing → `image-processor`
+- Image processing (resize, crop, filters, overlay, mosaic/fill regions) → `image-processor`
 - Image drawing (bounding boxes, labels, keypoints, mask overlays) → `image-drawing`
 - Image compression (PNG) → `image-compressor`
 - Image analysis (brightness, contrast, sharpness/blur, exposure clipping) → `image-analyzer`

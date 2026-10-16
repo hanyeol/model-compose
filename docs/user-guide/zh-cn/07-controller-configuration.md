@@ -442,6 +442,66 @@ controller:
   # origins: "*"  # 允许所有域（默认，用于开发）
 ```
 
+### 静态挂载
+
+可以在与工作流 API 相同的端口上，将磁盘上的目录作为 HTTP 路径对外提供。每个条目将 URL `path` 映射到磁盘上的 `base_dir`。此功能适用于发布工作流产物，或在与 API 相同的 origin 下托管单页前端以避免 CORS。
+
+发布工作流输出目录中的文件：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+    static:
+      - path: /outputs
+        base_dir: ./outputs
+```
+
+此配置下，写入 `./outputs/image.png` 的文件可通过 `http://localhost:8080/outputs/image.png` 访问。工作流 API 仍保留在 `/api/*` 之下。
+
+托管带客户端路由的单页应用 (SPA)：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+    static:
+      - path: /app
+        base_dir: ./dist
+        index: index.html
+```
+
+设置 `index` 后，目录请求（`GET /app/`）与挂载下未知路径（`GET /app/some/route`）都会返回该文件，从而使刷新时客户端路由仍能正确解析。
+
+单个挂载也可以写成映射形式，而非列表：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    static:
+      path: /outputs
+      base_dir: ./outputs
+```
+
+**字段参考：**
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `path` | string | **必填** | 对外暴露目录的 URL 路径前缀。必须以 `/` 开头，且不能落在 `base_path` 之下。 |
+| `base_dir` | string | **必填** | 在该 URL 前缀下提供的磁盘目录。目录不存在时控制器无法启动。 |
+| `index` | string | `null` | 用于目录请求以及该挂载下未知路径回退的文件（相对于 `base_dir` 的路径）。省略则仅进行普通文件服务，缺失路径返回 `404`。文件不存在时控制器无法启动。 |
+
+**注意：**
+
+- 静态挂载在 API 路由注册之后挂载，因此路径重叠时 API 路由始终优先。
+- 未设置 `index` 时，缺失路径返回 `404` —— 这是发布产物场景下的安全默认值。
+- 静态挂载仅适用于 `http-server` 适配器。
+
 ---
 
 ## 7.2 MCP 服务器

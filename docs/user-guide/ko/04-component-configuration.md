@@ -81,7 +81,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 풀텍스트 검색 → `search-engine`
 - 키-값 저장 → `key-value-store`
 - 텍스트 분할 → `text-splitter`
-- 이미지 처리 → `image-processor`
+- 이미지 처리 (리사이즈, 크롭, 필터, 오버레이, 영역 모자이크/채우기) → `image-processor`
 - 이미지 그리기 (바운딩 박스, 라벨, 키포인트, 마스크 오버레이) → `image-drawing`
 - 이미지 압축 (PNG) → `image-compressor`
 - 이미지 분석 (밝기, 대비, 선명도/블러, 노출 클리핑) → `image-analyzer`

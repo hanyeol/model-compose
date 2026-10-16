@@ -81,7 +81,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 全文搜索 → `search-engine`
 - 键值存储 → `key-value-store`
 - 文本分割 → `text-splitter`
-- 图像处理 → `image-processor`
+- 图像处理（调整大小、裁剪、滤镜、叠加、区域马赛克/填充）→ `image-processor`
 - 图像绘制（边界框、标签、关键点、掩膜叠加）→ `image-drawing`
 - 图像压缩 (PNG) → `image-compressor`
 - 图像分析（亮度、对比度、清晰度/模糊、曝光削波）→ `image-analyzer`

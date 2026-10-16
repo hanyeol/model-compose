@@ -38,6 +38,9 @@ controller:
   port: 8080             # Port number for the HTTP server
   base_path: /api      # Base path prefix for all API routes
   origins: "*"           # CORS allowed origins (comma-separated)
+  static:                # Static directories served alongside the API
+    - path: /outputs
+      base_dir: ./outputs
 ```
 
 **Example:**
@@ -50,6 +53,45 @@ controller:
     driver: gradio
     port: 8081
 ```
+
+#### Static Mounts
+
+The `static` field attaches disk directories as HTTP paths on the same port as the workflow API. Each entry maps a URL `path` prefix to a `base_dir` on disk and is mounted after the API router, so API routes always win on overlap.
+
+```yaml
+controller:
+  type: http-server
+  port: 8080
+  base_path: /api
+  static:
+    - path: /outputs                # Publish workflow artifacts
+      base_dir: ./outputs
+    - path: /app                    # Host a single-page frontend
+      base_dir: ./dist
+      index: index.html             # SPA fallback for unknown paths
+```
+
+A single mount may also be written as a mapping:
+
+```yaml
+controller:
+  type: http-server
+  static:
+    path: /outputs
+    base_dir: ./outputs
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | **required** | URL path prefix at which the directory is served. Must start with `/`. Must not fall under `base_path`. |
+| `base_dir` | string | **required** | Disk directory served under this URL prefix. The controller fails to start if the directory does not exist. |
+| `index` | string | `null` | File (relative to `base_dir`) served for directory requests and as a fallback for unknown paths under this mount. Omit for plain file serving. The controller fails to start if the file does not exist. |
+
+**Notes:**
+
+- Without `index`, missing paths return `404` — the safe default for publishing artifacts.
+- With `index`, directory requests (`GET /app/`) and unknown paths (`GET /app/some/route`) both serve the index file, enabling SPA client-side routing.
+- Static mounts are an `http-server` adapter feature; `mcp-server` and `queue-subscriber` ignore the field.
 
 ### MCP Server (`mcp-server`)
 
@@ -269,6 +311,7 @@ controller:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `origins` | string | `"*"` | CORS allowed origins (comma-separated string) |
+| `static` | list/object | `[]` | Static directory mounts served alongside the API. See [Static Mounts](#static-mounts). |
 
 ### Concurrency & Threading
 

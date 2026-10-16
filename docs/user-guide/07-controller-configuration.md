@@ -442,6 +442,66 @@ controller:
     origins: "https://example.com,https://app.example.com"  # Allow specific domains only
 ```
 
+### Static Mounts
+
+Expose directories on disk as HTTP paths alongside the workflow API, on the same port. Each entry maps a URL `path` to a `base_dir` on disk. Use this to publish workflow artifacts, host a single-page frontend together with the API, or avoid CORS by serving the UI from the same origin as the API.
+
+Serve generated files from a workflow output directory:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+    static:
+      - path: /outputs
+        base_dir: ./outputs
+```
+
+With this configuration, a file written to `./outputs/image.png` becomes available at `http://localhost:8080/outputs/image.png`. The workflow API continues to live under `/api/*`.
+
+Host a single-page app (SPA) with client-side routing:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+    static:
+      - path: /app
+        base_dir: ./dist
+        index: index.html
+```
+
+When `index` is set, directory requests (e.g. `GET /app/`) return that file, and unknown paths under the mount (e.g. `GET /app/some/route`) fall back to it as well, so client-side routes resolve correctly on reload.
+
+A single mount can be written as a mapping instead of a one-item list:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    static:
+      path: /outputs
+      base_dir: ./outputs
+```
+
+**Field reference:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | **required** | URL path prefix at which the directory is served. Must start with `/` and must not fall under `base_path`. |
+| `base_dir` | string | **required** | Disk directory served under this URL prefix. Validated at startup — the controller fails to start if the directory does not exist. |
+| `index` | string | `null` | File (relative to `base_dir`) served for directory requests and as a fallback for unknown paths under this mount. Omit for plain file serving (missing paths return `404`). Validated at startup — the controller fails to start if the file does not exist. |
+
+**Notes:**
+
+- Static mounts are attached after the API router, so API routes always take precedence over static files at overlapping paths.
+- Without `index`, requests for missing paths return `404` — the safe default for publishing artifacts.
+- Static mounts are a feature of the `http-server` adapter only.
+
 ---
 
 ## 7.2 MCP Server

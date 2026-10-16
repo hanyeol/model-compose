@@ -442,6 +442,66 @@ controller:
   # origins: "*"  # 모든 도메인 허용 (기본값, 개발 환경용)
 ```
 
+### 정적 마운트
+
+디스크의 디렉토리를 워크플로우 API와 같은 포트에서 HTTP 경로로 노출할 수 있습니다. 각 항목은 URL `path`를 디스크의 `base_dir`에 매핑합니다. 워크플로우 산출물을 공개하거나, API와 같은 origin에서 단일 페이지 프론트엔드를 제공하여 CORS를 피할 때 사용합니다.
+
+워크플로우 출력 디렉토리의 파일을 공개:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+    static:
+      - path: /outputs
+        base_dir: ./outputs
+```
+
+이 설정에서는 `./outputs/image.png`에 저장된 파일이 `http://localhost:8080/outputs/image.png`로 공개됩니다. 워크플로우 API는 그대로 `/api/*` 하위에 유지됩니다.
+
+클라이언트 사이드 라우팅을 사용하는 SPA 호스팅:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+    static:
+      - path: /app
+        base_dir: ./dist
+        index: index.html
+```
+
+`index`를 지정하면 디렉토리 요청(`GET /app/`)과 마운트 하위의 존재하지 않는 경로(`GET /app/some/route`) 모두 해당 파일로 응답하여, 새로고침 시에도 클라이언트 라우트가 정상 작동합니다.
+
+마운트가 하나뿐이라면 리스트 대신 매핑 형태로도 작성할 수 있습니다:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    static:
+      path: /outputs
+      base_dir: ./outputs
+```
+
+**필드 레퍼런스:**
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `path` | string | **필수** | 디렉토리가 노출될 URL 경로 prefix. `/`로 시작해야 하며 `base_path` 하위에 있을 수 없습니다. |
+| `base_dir` | string | **필수** | 해당 URL prefix 아래에 서빙할 디스크 디렉토리. 디렉토리가 존재하지 않으면 컨트롤러가 기동되지 않습니다. |
+| `index` | string | `null` | 디렉토리 요청과 마운트 하위의 존재하지 않는 경로에서 서빙할 파일(`base_dir` 기준 상대 경로). 생략하면 일반적인 파일 서빙만 수행하며, 존재하지 않는 경로는 `404`를 반환합니다. 파일이 존재하지 않으면 컨트롤러가 기동되지 않습니다. |
+
+**참고:**
+
+- 정적 마운트는 API 라우터 뒤에 부착되므로, 경로가 겹치는 경우 API 라우트가 항상 우선합니다.
+- `index`가 없으면 존재하지 않는 경로는 `404`를 반환합니다 — 산출물 공개 유스케이스의 안전한 기본값입니다.
+- 정적 마운트는 `http-server` 어댑터 전용 기능입니다.
+
 ---
 
 ## 7.2 MCP 서버

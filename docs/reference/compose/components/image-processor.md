@@ -149,6 +149,41 @@ component:
     output: ${output}
 ```
 
+### Fill
+
+Paint a solid color over an image or a specified rectangular region. Typical uses are building an inpainting mask from a detector's `bounding_box`, generating a solid-color canvas sized to another image, or redacting a region with an opaque block.
+
+```yaml
+component:
+  type: image-processor
+  action:
+    method: fill
+    image: ${input.image}
+    color: "#ffffff"
+    # A detection component's bounding_box is `{x, y, width, height}` and
+    # maps directly onto these four fields. Omit all four to fill the
+    # whole image with `color` instead.
+    x: ${jobs.detect.output.face.bounding_box.x}
+    y: ${jobs.detect.output.face.bounding_box.y}
+    width: ${jobs.detect.output.face.bounding_box.width}
+    height: ${jobs.detect.output.face.bounding_box.height}
+    output: ${output}
+```
+
+**Fill Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `color` | string / tuple | — | Fill color as a hex string (e.g. `"#ffffff"`, `"#ff0000aa"`) or an RGBA tuple. Required. |
+| `x` | integer | `null` | X coordinate of the region's top-left corner. Omit `x`/`y`/`width`/`height` together to fill the whole image. |
+| `y` | integer | `null` | Y coordinate of the region's top-left corner. |
+| `width` | integer | `null` | Region width in pixels. |
+| `height` | integer | `null` | Region height in pixels. |
+
+`x`, `y`, `width`, `height` must all be specified together or all omitted. When omitted, the entire image is overwritten with `color` while preserving the original image's size and mode — useful when you need a solid canvas sized to another input (e.g. an all-black base for an inpainting mask).
+
+Regions that extend past the image are clipped naturally. To fill multiple regions in the same image (e.g. several face boxes in a mask), invoke `fill` once per region — each call operates on the previous result.
+
 ### Blur
 
 Apply Gaussian blur to an image:

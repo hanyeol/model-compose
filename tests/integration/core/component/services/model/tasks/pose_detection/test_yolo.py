@@ -56,11 +56,11 @@ if not _torchvision_cpu_nms_available():
     )
 
 
-from mindor.core.component.services.model.tasks.pose_detection.custom.yolo import (
+from mindor.core.component.services.model.tasks.pose_detection.custom.ultralytics import (
     YoloPoseDetectionTaskAction,
     YoloPoseDetectionTaskDriver,
 )
-from mindor.dsl.schema.action.impl.model.tasks.pose_detection.impl.custom.yolo import (
+from mindor.dsl.schema.action.impl.model.tasks.pose_detection.impl.custom.ultralytics import (
     YoloPoseDetectionModelActionConfig,
 )
 

@@ -21,9 +21,9 @@ from mindor.dsl.schema.component import (
     HuggingfaceImageGenerationModelArchitecture,
 )
 from mindor.dsl.schema.action import (
-    SdxlHuggingfaceImageGenerationGenerateModelActionConfig,
-    FluxHuggingfaceImageGenerationGenerateModelActionConfig,
-    HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig,
+    SdxlHuggingfaceImageGenerationModelGenerateActionConfig,
+    FluxHuggingfaceImageGenerationModelGenerateActionConfig,
+    HunyuanImageHuggingfaceImageGenerationModelGenerateActionConfig,
     ImageGenerationActionMethod,
 )
 
@@ -51,7 +51,7 @@ class TestArchitectureDiscriminator:
         }))
         assert isinstance(cfg, SdxlHuggingfaceImageGenerationModelComponentConfig)
         assert len(cfg.actions) == 1
-        assert isinstance(cfg.actions[0], SdxlHuggingfaceImageGenerationGenerateModelActionConfig)
+        assert isinstance(cfg.actions[0], SdxlHuggingfaceImageGenerationModelGenerateActionConfig)
 
     def test_flux_component_resolves_to_flux_generate_action(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("flux", {
@@ -59,7 +59,7 @@ class TestArchitectureDiscriminator:
             "actions": [{"prompt": "a cat"}],
         }))
         assert isinstance(cfg, FluxHuggingfaceImageGenerationModelComponentConfig)
-        assert isinstance(cfg.actions[0], FluxHuggingfaceImageGenerationGenerateModelActionConfig)
+        assert isinstance(cfg.actions[0], FluxHuggingfaceImageGenerationModelGenerateActionConfig)
 
     def test_hunyuan_image_component_resolves_to_hunyuan_generate_action(self):
         cfg = COMPONENT_ADAPTER.validate_python(_base("hunyuan-image", {
@@ -67,7 +67,7 @@ class TestArchitectureDiscriminator:
             "actions": [{"prompt": "a cat"}],
         }))
         assert isinstance(cfg, HunyuanImageHuggingfaceImageGenerationModelComponentConfig)
-        assert isinstance(cfg.actions[0], HunyuanImageHuggingfaceImageGenerationGenerateModelActionConfig)
+        assert isinstance(cfg.actions[0], HunyuanImageHuggingfaceImageGenerationModelGenerateActionConfig)
 
     def test_unknown_architecture_rejected(self):
         with pytest.raises(ValidationError):

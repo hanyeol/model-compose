@@ -25,7 +25,7 @@ from mindor.core.component.context import ComponentActionContext
 from mindor.core.component.services.model.tasks.image_generation.common import ImageGenerationTaskAction
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.dsl.schema.action import SdxlHuggingfaceImageGenerationGenerateModelActionConfig
+from mindor.dsl.schema.action import SdxlHuggingfaceImageGenerationModelGenerateActionConfig
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ class _FakeImageGenerationAction(ImageGenerationTaskAction):
     fake image per prompt.
     """
 
-    def __init__(self, config: SdxlHuggingfaceImageGenerationGenerateModelActionConfig):
+    def __init__(self, config: SdxlHuggingfaceImageGenerationModelGenerateActionConfig):
         super().__init__(config, device=None)
         self.batches_seen: List[List[str]] = []
 
@@ -84,14 +84,14 @@ def _make_config(
     *,
     output: Any = None,
     batch_size: int = 2,
-) -> SdxlHuggingfaceImageGenerationGenerateModelActionConfig:
+) -> SdxlHuggingfaceImageGenerationModelGenerateActionConfig:
     raw: dict = {
         "prompt": prompt_expr,
         "batch_size": batch_size,
     }
     if output is not None:
         raw["output"] = output
-    return SdxlHuggingfaceImageGenerationGenerateModelActionConfig.model_validate(raw)
+    return SdxlHuggingfaceImageGenerationModelGenerateActionConfig.model_validate(raw)
 
 
 async def _make_async_iter(items: List[str]) -> AsyncIterator[str]:

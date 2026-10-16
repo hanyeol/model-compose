@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from mindor.core.component.services.model.tasks.object_tracking.custom.yolo import (
+from mindor.core.component.services.model.tasks.object_tracking.custom.ultralytics import (
     YoloObjectTrackingTaskAction,
 )
 

@@ -16,10 +16,10 @@ import pytest
 from mindor.core.component.services.model.tasks.face_tracking.custom.insightface import (
     InsightfaceFaceTrackingTaskAction,
 )
-from mindor.core.component.services.model.tasks.object_tracking.custom.yolo import (
+from mindor.core.component.services.model.tasks.object_tracking.custom.ultralytics import (
     YoloObjectTrackingTaskAction,
 )
-from mindor.core.component.services.model.tasks.pose_tracking.custom.yolo import (
+from mindor.core.component.services.model.tasks.pose_tracking.custom.ultralytics import (
     YoloPoseTrackingTaskAction,
 )
 

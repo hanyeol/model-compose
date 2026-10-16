@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from typing import Literal, Optional, Dict, List, Callable, Any
 from typing_extensions import Self
 from collections.abc import AsyncIterator
 from pydantic import BaseModel
@@ -9,12 +9,12 @@ from mindor.dsl.schema.listener import HttpTriggerListenerConfig, HttpTriggerCon
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from ..base import ListenerService, ListenerType, register_listener
-from fastapi import FastAPI, APIRouter, Body, HTTPException, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Request
 from fastapi.responses import Response, JSONResponse
-import asyncio, uvicorn
+import uvicorn
 
 if TYPE_CHECKING:
-    from mindor.core.controller import ControllerService, TaskState
+    from mindor.core.controller import TaskState
 
 class TaskStateResult(BaseModel):
     task_id: str

@@ -134,13 +134,27 @@ class AsyncIterableStreamResource(StreamResource):
                 pass
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        async for chunk in self.source:
-            if chunk is None:
-                continue
-            if isinstance(chunk, str):
-                yield chunk.encode("utf-8")
-            else:
-                yield bytes(chunk)
+        # Explicitly aclose the inner source on any exit (exhaustion, break,
+        # exception, cancellation). Native async-for cleanup propagates `aclose`
+        # down to generator sources, but when `self.source` is a non-generator
+        # async-iterable (e.g. `IpcStreamReader` which creates its own asyncgen
+        # on `__aiter__`), its lifecycle is tied to this frame and must be
+        # driven explicitly — otherwise it leaks until GC/transport teardown.
+        try:
+            async for chunk in self.source:
+                if chunk is None:
+                    continue
+                if isinstance(chunk, str):
+                    yield chunk.encode("utf-8")
+                else:
+                    yield bytes(chunk)
+        finally:
+            source_aclose = getattr(self.source, "aclose", None)
+            if source_aclose is not None:
+                try:
+                    await source_aclose()
+                except Exception:
+                    pass
 
 class ChunkedStreamResource(StreamResource):
     def __init__(self, stream: StreamResource, chunk_size: int):

@@ -163,21 +163,48 @@ class IpcOutboundStream:
 
     Held in `IpcRuntimeProxy._outbound_streams` (when manager produces input)
     or `IpcRuntimeWorker._outbound_streams` (when worker produces output).
+
+    `owner_kind` + `owner_id` identify the request that produced this stream
+    ("run" + request_id, or "call" + call_id). When that request is cancelled,
+    the owner sweeps `_outbound_streams` and aborts matching entries so chunks
+    stop flowing — without this, a cancelled handler leaves pumps alive until
+    the consumer times out or the transport dies.
     """
-    def __init__(self, stream_id: str, kind: StreamKind, source: Any, codec: VariableCodec):
+    def __init__(
+        self,
+        stream_id: str,
+        kind: StreamKind,
+        source: Any,
+        codec: VariableCodec,
+        owner_kind: str,
+        owner_id: str,
+    ):
         self.stream_id: str = stream_id
         self.kind: StreamKind = kind
         self.source: Any = source
         self.seq: int = 0
         self.closed: bool = False
+        self.owner_kind: str = owner_kind
+        self.owner_id: str = owner_id
 
         self._codec: VariableCodec = codec
         self._iterator: AsyncIterator[Any] = source.__aiter__()
 
+        # The pump task currently parked in `__anext__`, if any. When the
+        # consumer or an owner cancels, we cancel this task so an async
+        # generator source sees `GeneratorExit` and runs its `finally`.
+        self._pull_task: Optional[asyncio.Task] = None
+
     async def next_chunk(self) -> Any:
         """Pull the next raw chunk from the source. Raises `StopAsyncIteration`
-        when the source is exhausted."""
-        return await self._iterator.__anext__()
+        when the source is exhausted. Tracks the awaiting task so a close/abort
+        from the other side can interrupt a slow iterator."""
+        self._pull_task = asyncio.current_task()
+
+        try:
+            return await self._iterator.__anext__()
+        finally:
+            self._pull_task = None
 
     def encode_chunk(self, raw: Any) -> Any:
         """Convert a raw chunk yielded by the source into the on-wire form.
@@ -189,6 +216,7 @@ class IpcOutboundStream:
         if self.kind == StreamKind.BYTES:
             if isinstance(raw, (bytes, bytearray)):
                 return bytes(raw)
+
             raise TypeError(
                 f"bytes-kind stream yielded non-bytes chunk: {type(raw).__name__}"
             )
@@ -196,6 +224,7 @@ class IpcOutboundStream:
         if self.kind == StreamKind.TEXT:
             if isinstance(raw, str):
                 return raw
+
             raise TypeError(
                 f"text-kind stream yielded non-str chunk: {type(raw).__name__}"
             )
@@ -203,12 +232,55 @@ class IpcOutboundStream:
         # StreamKind.OBJECT
         return self._codec.encode(raw)
 
+    async def aclose(self) -> None:
+        """Terminate the source iterator cooperatively.
+
+        If a pull is in flight, cancel it so the iterator sees `GeneratorExit`
+        at its current `await` point. Then explicitly `aclose()` the iterator
+        for the "parked between pulls" case where no task is awaiting, and
+        close the resource so wrapper sources (e.g. AsyncIterableStreamResource)
+        release their inner iterable. Idempotent — safe to call multiple times.
+        """
+        self.closed = True
+
+        pull_task = self._pull_task
+
+        if pull_task is not None and not pull_task.done():
+            pull_task.cancel()
+
+        iterator_aclose = getattr(self._iterator, "aclose", None)
+
+        if iterator_aclose is not None:
+            try:
+                await iterator_aclose()
+            except Exception:
+                pass
+
+        # StreamResource wrappers hold the real source; closing the resource
+        # drives their `close()` which `aclose`s the inner async iterable.
+        source_close = getattr(self.source, "close", None)
+
+        if source_close is not None and callable(source_close):
+            try:
+                result = source_close()
+
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception:
+                pass
+
 class IpcStreamReader:
     """Async-iterable wrapped around an `IpcInboundStream`.
 
-    Sends `STREAM_PULL` on each consume and `STREAM_CLOSE` on `aclose()`. The
-    producer feeds chunks (or sentinels) into `stream.queue`; this proxy yields
-    them until END/ABORT/CLOSE.
+    Sends `STREAM_PULL` on each consume. STREAM_CLOSE fires automatically
+    whenever iteration terminates — exhaustion (`StopAsyncIteration`), early
+    exit (`break`), exception, cancellation, or an explicit `aclose()`.
+
+    This is achieved by letting `__aiter__` return a fresh async generator
+    with the pull/yield loop inside a `try/finally`: Python's async-generator
+    semantics guarantee the `finally` runs when the surrounding `async for`
+    goes out of scope, so `_on_close` is sent in all paths without the
+    consumer having to call anything explicitly.
     """
     def __init__(
         self,
@@ -219,35 +291,67 @@ class IpcStreamReader:
         self._stream = stream
         self._on_pull = on_pull
         self._on_close = on_close
-        self._started = False
+        self._iterator: Optional[AsyncIterator[Any]] = None
 
-    def __aiter__(self) -> "IpcStreamReader":
-        return self
+    def __aiter__(self) -> AsyncIterator[Any]:
+        # Return the same generator on repeated __aiter__ calls so that
+        # external `aclose()` on the reader can route to it.
+        if self._iterator is None:
+            self._iterator = self._iterate()
 
-    async def __anext__(self) -> Any:
-        if self._stream.closed:
-            raise StopAsyncIteration
+        return self._iterator
 
-        # Credit=1: request next chunk before waiting.
-        if not self._started:
-            self._started = True
-        await self._on_pull(self._stream.stream_id)
+    async def _iterate(self) -> AsyncIterator[Any]:
+        stream = self._stream
+        try:
+            while not stream.closed:
+                # Credit=1: request next chunk before waiting.
+                await self._on_pull(stream.stream_id)
+                item = await stream.queue.get()
 
-        item = await self._stream.queue.get()
+                if item is _STREAM_END:
+                    stream.closed = True
 
-        if item is _STREAM_END:
-            self._stream.closed = True
-            raise StopAsyncIteration
-        if item is _STREAM_ABORT:
-            self._stream.closed = True
-            raise IOError(f"Stream {self._stream.stream_id} aborted")
+                    return
 
-        return item
+                if item is _STREAM_ABORT:
+                    stream.closed = True
+                    raise IOError(f"Stream {stream.stream_id} aborted")
+
+                yield item
+        finally:
+            # Fires on exhaustion, break, exception, cancellation, or explicit
+            # aclose — guaranteeing STREAM_CLOSE lands on the producer.
+            if not stream.closed:
+                stream.closed = True
+                try:
+                    await self._on_close(stream.stream_id)
+                except Exception:
+                    pass
 
     async def aclose(self) -> None:
+        """Explicitly close the reader. Consumers rarely need this — the
+        `async for` cleanup path already runs `_iterate`'s finally — but
+        exposed for callers that hold the reader without iterating."""
+        if self._iterator is not None:
+            aclose = getattr(self._iterator, "aclose", None)
+
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception:
+                    pass
+
+            self._iterator = None
+
+            return
+
+        # Reader was never iterated — mark closed and notify directly.
         if self._stream.closed:
             return
+
         self._stream.closed = True
+
         try:
             await self._on_close(self._stream.stream_id)
         except Exception:

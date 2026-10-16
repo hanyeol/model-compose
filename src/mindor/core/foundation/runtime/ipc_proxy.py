@@ -5,9 +5,10 @@ from abc import ABC, abstractmethod
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 from .ipc_message import IpcMessage, IpcMessageType
 from .ipc_stream import IpcInboundStream, IpcOutboundStream, IpcStreamReader
-import asyncio, time, ulid
+import asyncio, time, traceback, ulid
 
 IpcEventCallback = Callable[[Dict[str, Any]], Awaitable[None]]
+IpcCallHandler = Callable[[str, Dict[str, Any]], Awaitable[Any]]
 
 class IpcRuntimeProxy(ABC):
     """
@@ -29,8 +30,14 @@ class IpcRuntimeProxy(ABC):
     def __init__(self, worker_id: str):
         self.worker_id = worker_id
 
+        # Subclass hook invoked when the worker sends a CALL — resolves the
+        # referenced component and runs the request. `_inbound_calls` tracks
+        # the in-flight handler task so CALL_CANCEL can abort it.
+        self.on_call: Optional[IpcCallHandler] = None
+
         self._pending_requests: Dict[str, asyncio.Future] = {}
         self._event_callbacks: Dict[str, IpcEventCallback] = {}
+        self._inbound_calls: Dict[str, asyncio.Task] = {}
         self._response_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
@@ -58,12 +65,12 @@ class IpcRuntimeProxy(ABC):
         if self._closed_error is not None:
             raise self._closed_error
 
+        request_id = ulid.ulid()
         encoded_payload = self._codec.encode(
             payload,
-            on_stream_encode=self._handle_outbound_stream,
+            on_stream_encode=self._build_outbound_stream_handler("run", request_id),
         )
 
-        request_id = ulid.ulid()
         future: asyncio.Future = self._loop.create_future()
         self._pending_requests[request_id] = future
 
@@ -100,6 +107,9 @@ class IpcRuntimeProxy(ABC):
                     ).serialize())
                 except Exception:
                     pass
+
+                await self._abort_streams_for_owner("run", request_id)
+
             raise
         finally:
             self._pending_requests.pop(request_id, None)
@@ -141,6 +151,7 @@ class IpcRuntimeProxy(ABC):
         try:
             while True:
                 data = await self._recv_message()
+
                 if data is None:
                     self._abort_pending_on_eof()
                     break
@@ -155,6 +166,34 @@ class IpcRuntimeProxy(ABC):
                     IpcMessageType.STREAM_CLOSE,
                 ):
                     await self._handle_stream_message(message)
+
+                    continue
+
+                if message.type == IpcMessageType.CALL:
+                    call_id = message.request_id
+
+                    if call_id:
+                        task = asyncio.create_task(self._handle_inbound_call(call_id, message.payload or {}))
+                        self._inbound_calls[call_id] = task
+                        task.add_done_callback(lambda _t, cid=call_id: self._inbound_calls.pop(cid, None))
+
+                    continue
+
+                if message.type == IpcMessageType.CALL_CANCEL:
+                    call_id = message.request_id
+                    if call_id:
+                        task = self._inbound_calls.get(call_id)
+                        if task is not None and not task.done():
+                            # Running handler: its own CancelledError branch
+                            # will owner-sweep the streams it registered.
+                            task.cancel()
+                        else:
+                            # Handler already returned, but the streams it put
+                            # in CALL_RESULT are orphaned — the worker will
+                            # never consume them. Abort them so pumps don't
+                            # tick forever against a disinterested consumer.
+                            asyncio.create_task(self._abort_streams_for_owner("call", call_id))
+
                     continue
 
                 if not message.request_id:
@@ -169,9 +208,11 @@ class IpcRuntimeProxy(ABC):
                             await callback(payload)
                         except Exception:
                             pass
+
                     continue
 
                 future = self._pending_requests.get(message.request_id)
+
                 if future is None or future.done():
                     continue
 
@@ -181,10 +222,12 @@ class IpcRuntimeProxy(ABC):
                         on_stream_decode=self._handle_inbound_stream,
                     )
                     future.set_result(output)
+
                     continue
 
                 if message.type == IpcMessageType.ERROR:
                     future.set_exception(Exception(self._format_error(payload)))
+
                     continue
         except asyncio.CancelledError:
             pass
@@ -197,19 +240,29 @@ class IpcRuntimeProxy(ABC):
 
         for stream in list(self._inbound_streams.values()):
             stream.push_abort()
+
         self._inbound_streams.clear()
         self._outbound_streams.clear()
 
         for future in list(self._pending_requests.values()):
             if not future.done():
                 future.set_exception(exc)
+
         self._pending_requests.clear()
         self._event_callbacks.clear()
+
+        # Worker is gone — any in-flight CALL it issued is orphaned.
+        for task in list(self._inbound_calls.values()):
+            if not task.done():
+                task.cancel()
+
+        self._inbound_calls.clear()
 
     def _handle_inbound_stream(self, variable: Dict[str, Any]) -> Any:
         stream_id = variable["id"]
         kind = StreamKind(variable.get("kind", StreamKind.BYTES.value))
         stream = IpcInboundStream(stream_id=stream_id, kind=kind, codec=self._codec)
+
         self._inbound_streams[stream_id] = stream
 
         return stream.build_resource(
@@ -224,9 +277,25 @@ class IpcRuntimeProxy(ABC):
             variable.get("attrs") or {},
         )
 
-    def _handle_outbound_stream(self, stream_id: str, source: Any, kind: StreamKind) -> None:
-        stream = IpcOutboundStream(stream_id=stream_id, kind=kind, source=source, codec=self._codec)
-        self._outbound_streams[stream_id] = stream
+    def _build_outbound_stream_handler(
+        self,
+        owner_kind: str,
+        owner_id: str,
+    ) -> Callable[[str, Any, StreamKind], None]:
+        """Build a stream-encode callback that tags each registered stream with
+        its owning request / call. The owner tag is what `_abort_streams_for_owner`
+        later uses to pick which streams to abort on cancel."""
+        def _handle_outbound_stream(stream_id: str, source: Any, kind: StreamKind) -> None:
+            self._outbound_streams[stream_id] = IpcOutboundStream(
+                stream_id=stream_id,
+                kind=kind,
+                source=source,
+                codec=self._codec,
+                owner_kind=owner_kind,
+                owner_id=owner_id,
+            )
+
+        return _handle_outbound_stream
 
     async def _handle_stream_message(self, message: IpcMessage) -> None:
         payload = message.payload or {}
@@ -235,39 +304,84 @@ class IpcRuntimeProxy(ABC):
             return
 
         if message.type == IpcMessageType.STREAM_PULL:
-            await self._pump_outbound_chunk(stream_id)
+            # Spawn pump as a child task so the dispatch loop can still process
+            # STREAM_CLOSE / STREAM_ABORT for this same stream mid-pull — the
+            # handler cancels the pump task to interrupt a slow iterator.
+            asyncio.create_task(self._pump_outbound_chunk(stream_id))
+
             return
 
         if message.type == IpcMessageType.STREAM_CHUNK:
             stream = self._inbound_streams.get(stream_id)
+
             if stream is None or stream.closed:
                 return
+
             # BYTES chunks travel in the binary trailer; other kinds ride in payload.data.
             data = message.binary if stream.kind == StreamKind.BYTES else payload.get("data")
             chunk = stream.decode_chunk(data)
             stream.queue.put_nowait(chunk)
+
             return
 
         if message.type == IpcMessageType.STREAM_END:
             stream = self._inbound_streams.pop(stream_id, None)
+
             if stream is not None:
                 stream.push_end()
+
             return
 
         if message.type == IpcMessageType.STREAM_ABORT:
             stream = self._inbound_streams.pop(stream_id, None)
+
             if stream is not None:
                 stream.push_abort()
+
             outbound = self._outbound_streams.pop(stream_id, None)
+
             if outbound is not None:
-                outbound.closed = True
+                await outbound.aclose()
+
             return
 
         if message.type == IpcMessageType.STREAM_CLOSE:
             outbound = self._outbound_streams.pop(stream_id, None)
+
             if outbound is not None:
-                outbound.closed = True
+                await outbound.aclose()
+
             return
+
+    async def _handle_inbound_call(self, call_id: str, payload: Dict[str, Any]) -> None:
+        """Execute a CALL from the worker and reply with CALL_RESULT / CALL_ERROR.
+
+        The handler receives the fully decoded payload — streams/tensors inside
+        are reconstituted the same way RUN inputs are. The returned value is
+        re-encoded on the way back so the worker also sees native objects.
+        """
+        if self.on_call is None:
+            await self._send_call_error_message(call_id, "no CALL handler registered on this proxy")
+
+            return
+
+        try:
+            decoded_payload = self._codec.decode(payload, on_stream_decode=self._handle_inbound_stream)
+            output = await self.on_call(call_id, decoded_payload)
+            encoded_output = self._codec.encode(
+                output,
+                on_stream_encode=self._build_outbound_stream_handler("call", call_id),
+            )
+
+            await self._send_call_result_message(call_id, encoded_output)
+        except asyncio.CancelledError:
+            await self._abort_streams_for_owner("call", call_id)
+            await self._send_call_error_message(call_id, "CALL was cancelled")
+
+            raise
+        except Exception as e:
+            await self._abort_streams_for_owner("call", call_id)
+            await self._send_call_error_message(call_id, e)
 
     async def _pump_outbound_chunk(self, stream_id: str) -> None:
         """Send exactly one chunk (or STREAM_END) in response to a STREAM_PULL.
@@ -275,6 +389,7 @@ class IpcRuntimeProxy(ABC):
         Credit=1 model: one PULL = one CHUNK or one END/ABORT.
         """
         stream = self._outbound_streams.get(stream_id)
+
         if stream is None or stream.closed:
             return
 
@@ -283,10 +398,23 @@ class IpcRuntimeProxy(ABC):
         except StopAsyncIteration:
             await self._send_stream_end_message(stream_id)
             self._outbound_streams.pop(stream_id, None)
+
+            return
+        except asyncio.CancelledError:
+            # We cancelled this pull ourselves (via `aclose()`) to tear down a
+            # slow iterator — not an upstream task cancel. Swallow it; the
+            # STREAM_CLOSE/ABORT handler already sent the wire message and
+            # removed us from `_outbound_streams`.
             return
         except Exception as e:
             await self._send_stream_abort_message(stream_id, str(e))
             self._outbound_streams.pop(stream_id, None)
+
+            return
+
+        # If close/abort landed between pull and send, don't ship an orphaned
+        # chunk. The handler already evicted us; just drop it.
+        if stream.closed:
             return
 
         try:
@@ -294,10 +422,34 @@ class IpcRuntimeProxy(ABC):
         except Exception as e:
             await self._send_stream_abort_message(stream_id, str(e))
             self._outbound_streams.pop(stream_id, None)
+
             return
 
         await self._send_stream_chunk_message(stream_id, stream.seq, chunk)
         stream.seq += 1
+
+    async def _abort_streams_for_owner(self, owner_kind: str, owner_id: str) -> None:
+        """Abort every outbound stream tagged with the given owner — used when
+        the owning RUN/CALL is cancelled so pumps don't keep ticking against a
+        dead handler. Also tears down the source iterator so its `finally`
+        blocks run (not just marks the stream closed)."""
+        matches = [
+            (stream_id, stream) for stream_id, stream in self._outbound_streams.items()
+            if stream.owner_kind == owner_kind and stream.owner_id == owner_id and not stream.closed
+        ]
+
+        for stream_id, stream in matches:
+            self._outbound_streams.pop(stream_id, None)
+
+            try:
+                await self._send_stream_abort_message(stream_id, "owner cancelled")
+            except Exception:
+                pass
+
+            try:
+                await stream.aclose()
+            except Exception:
+                pass
 
     async def _send_start_message(self, payload: Optional[Dict[str, Any]] = None) -> None:
         await self._send_message(IpcMessage(
@@ -309,6 +461,28 @@ class IpcRuntimeProxy(ABC):
         await self._send_message(IpcMessage(
             type=IpcMessageType.STOP,
             request_id=ulid.ulid()
+        ).serialize())
+
+    async def _send_call_result_message(self, call_id: str, output: Any) -> None:
+        await self._send_message(IpcMessage(
+            type=IpcMessageType.CALL_RESULT,
+            request_id=call_id,
+            payload={ "output": output },
+        ).serialize())
+
+    async def _send_call_error_message(self, call_id: str, error: Any) -> None:
+        if isinstance(error, BaseException):
+            payload = {
+                "error":     str(error) or type(error).__name__,
+                "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+            }
+        else:
+            payload = { "error": str(error) }
+
+        await self._send_message(IpcMessage(
+            type=IpcMessageType.CALL_ERROR,
+            request_id=call_id,
+            payload=payload,
         ).serialize())
 
     async def _send_stream_pull_message(self, stream_id: str) -> None:
@@ -336,6 +510,7 @@ class IpcRuntimeProxy(ABC):
                 type=IpcMessageType.STREAM_CHUNK,
                 payload={ "stream_id": stream_id, "seq": seq, "data": data },
             )
+
         await self._send_message(message.serialize())
 
     async def _send_stream_end_message(self, stream_id: str) -> None:

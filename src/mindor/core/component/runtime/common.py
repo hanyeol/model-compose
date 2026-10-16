@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.component import create_component
+from mindor.core.component.component import ComponentInstances, create_component
 from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
 from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.runtime.common import ContainerRuntimeBackend, ContainerRuntimeConfig
@@ -127,6 +127,8 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
     ):
         super().__init__(component_id)
 
+        self.on_call = self._handle_component_call
+
         self.component_config: ComponentConfig = component_config
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.channel: Any = channel
@@ -161,6 +163,23 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
             "run_id": run_id,
             "input": input_data,
         }, on_event=on_event)
+
+    async def _handle_component_call(self, call_id: str, payload: Dict[str, Any]) -> Any:
+        component_id = payload.get("component_id")
+        action_id = payload.get("action_id")
+        run_id = payload.get("run_id")
+        input_data = payload.get("input") or {}
+
+        if not isinstance(component_id, str):
+            raise ValueError("CALL payload missing 'component_id'")
+
+        target = ComponentInstances.get(component_id)
+        if target is None:
+            raise LookupError(
+                f"Referenced component '{component_id}' is not registered in the parent process"
+            )
+
+        return await target.run(action_id, run_id, input_data)
 
     async def _send_start_message(self) -> None:
         """Attach the component config / global configs to the START message.

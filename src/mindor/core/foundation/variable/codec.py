@@ -11,7 +11,7 @@ from ..streaming.file import UploadFileStreamResource
 from .atomic import AtomicDict, AtomicList
 from PIL import Image as PILImage
 from starlette.datastructures import UploadFile
-import base64, importlib, ulid
+import base64, importlib, sys, ulid
 
 class StreamKind(str, Enum):
     """Wire representation of stream chunk data."""
@@ -30,6 +30,10 @@ class VariableCodec:
 
     - `bytes` / `bytearray` → `{"__variable__": {"type": "bytes", "value": "<b64>"}}`
       with the data inlined as base64.
+    - `torch.Tensor` → `{"__variable__": {"type": "tensor", "value": "<b64>", ...}}`
+      with the tensor saved as safetensors and inlined as base64. Only active
+      when torch and safetensors are importable — the encode branch imports
+      lazily so core doesn't force the dep.
     - `StreamResource`, `StreamIterator`, `AsyncIterator`, `PIL.Image` →
       `{"__variable__": {"type": "stream", "id": "<ulid>", "kind": ...,
       "content_type": ..., ...}}`. Actual chunk data is shipped separately via
@@ -73,6 +77,11 @@ class VariableCodec:
         if isinstance(value, (bytes, bytearray)):
             return self._build_bytes_variable(bytes(value))
 
+        # torch.Tensor → inline safetensors variable. torch is probed via
+        # sys.modules — core must not import it just to check isinstance.
+        if self._is_torch_tensor(value):
+            return self._build_tensor_variable(value)
+
         # PIL.Image auto-lift to ImageStreamResource
         if isinstance(value, PILImage.Image):
             return self._build_stream_variable(ImageStreamResource(value), on_stream_encode)
@@ -108,6 +117,19 @@ class VariableCodec:
             }
         }
 
+    def _build_tensor_variable(self, value: Any) -> Dict[str, Any]:
+        from safetensors.torch import save as save_tensor
+
+        tensor = value.detach().contiguous().cpu()
+        data = save_tensor({ "t": tensor })
+
+        return {
+            "__variable__": {
+                "type": "tensor",
+                "value": base64.b64encode(data).decode("ascii"),
+            }
+        }
+
     def _build_stream_variable(
         self,
         source: Any,
@@ -126,6 +148,7 @@ class VariableCodec:
             variable["filename"] = source.filename
             variable["size"] = source.size
             attrs = getattr(source, "attrs", None)
+
             if attrs:
                 variable["attrs"] = dict(attrs)
 
@@ -140,6 +163,7 @@ class VariableCodec:
         on_stream_encode: Optional[StreamEncodeCallback],
     ) -> Dict[str, Any]:
         cls = type(value)
+
         if isinstance(value, AtomicDict):
             payload = { str(key): self._encode_value(item, on_stream_encode) for key, item in value.items() }
             shape = "dict"
@@ -161,8 +185,10 @@ class VariableCodec:
         if isinstance(source, StreamEncodingIterator):
             if source.format == StreamEncodingFormat.TEXT:
                 return StreamKind.TEXT
+
             if source.format == StreamEncodingFormat.JSON:
                 return StreamKind.OBJECT
+
             return StreamKind.OBJECT
 
         if isinstance(source, StreamResource):
@@ -173,8 +199,10 @@ class VariableCodec:
     def _decode_value(self, value: Any, on_stream_decode: Optional[StreamDecodeCallback]) -> Any:
         if isinstance(value, dict):
             variable = value.get("__variable__")
+
             if len(value) == 1 and isinstance(variable, dict) and isinstance(variable.get("type"), str):
                 return self._resolve_variable(variable, on_stream_decode)
+
             return { key: self._decode_value(item, on_stream_decode) for key, item in value.items() }
 
         if isinstance(value, list):
@@ -191,13 +219,28 @@ class VariableCodec:
 
         if variable_type == "bytes":
             value = variable.get("value", "")
+
             if not isinstance(value, str):
                 raise ValueError(f"Invalid bytes variable: 'value' must be a string, got {type(value).__name__}")
+
             return base64.b64decode(value)
+
+        if variable_type == "tensor":
+            value = variable.get("value", "")
+
+            if not isinstance(value, str):
+                raise ValueError(f"Invalid tensor variable: 'value' must be a string, got {type(value).__name__}")
+
+            # Decoding requires torch + safetensors — if the receiving side
+            # lacks either, it had no business asking for the tensor.
+            from safetensors.torch import load as load_tensor
+
+            return load_tensor(base64.b64decode(value))["t"]
 
         if variable_type == "stream":
             if on_stream_decode is None:
                 raise RuntimeError("on_stream_decode callback is required to decode stream variables")
+
             return on_stream_decode(variable)
 
         if variable_type == "atomic":
@@ -211,9 +254,9 @@ class VariableCodec:
         on_stream_decode: Optional[StreamDecodeCallback],
     ) -> Any:
         module_name = variable.get("module")
-        class_name = variable.get("class")
-        shape = variable.get("shape")
-        payload = variable.get("value")
+        class_name  = variable.get("class")
+        shape       = variable.get("shape")
+        payload     = variable.get("value")
 
         if not isinstance(module_name, str) or not isinstance(class_name, str):
             raise ValueError("Invalid atomic variable: 'module' and 'class' must be strings")
@@ -221,10 +264,10 @@ class VariableCodec:
         # Recursively decode inner values so nested streams/bytes/atomics resolve
         # back to their native forms before the wrapper class is reconstructed.
         if shape == "dict" and isinstance(payload, dict):
-            decoded: Any = { key: self._decode_value(item, on_stream_decode) for key, item in payload.items() }
+            value: Any = { key: self._decode_value(item, on_stream_decode) for key, item in payload.items() }
             expected_base = AtomicDict
         elif shape == "list" and isinstance(payload, list):
-            decoded = [ self._decode_value(v, on_stream_decode) for v in payload ]
+            value = [ self._decode_value(item, on_stream_decode) for item in payload ]
             expected_base = AtomicList
         else:
             raise ValueError(f"Invalid atomic variable: unsupported shape {shape!r}")
@@ -235,9 +278,25 @@ class VariableCodec:
         except (ImportError, AttributeError):
             # Wrapper class unavailable on this side — fall back to the plain
             # container so the payload is still usable (identity/log summary lost).
-            return decoded
+            return value
 
         if not (isinstance(cls, type) and issubclass(cls, expected_base)):
-            return decoded
+            return value
 
-        return cls(decoded)
+        return cls(value)
+
+    @staticmethod
+    def _is_torch_tensor(value: Any) -> bool:
+        """Probe for `torch.Tensor` without forcing a torch import.
+
+        If torch hasn't been imported anywhere in the process, no value can be
+        a Tensor — so the check is also effectively free in that case.
+        """
+        torch_module = sys.modules.get("torch")
+
+        if torch_module is None:
+            return False
+
+        tensor_cls = getattr(torch_module, "Tensor", None)
+
+        return tensor_cls is not None and isinstance(value, tensor_cls)

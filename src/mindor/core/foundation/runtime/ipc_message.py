@@ -25,6 +25,11 @@ class IpcMessageType(str, Enum):
     HEARTBEAT    = "heartbeat"
     STATUS       = "status"
     EVENT        = "event"
+    # Reverse-direction component calls.
+    CALL         = "call"
+    CALL_RESULT  = "call-result"
+    CALL_ERROR   = "call-error"
+    CALL_CANCEL  = "call-cancel"
     # Stream multiplexing
     STREAM_PULL  = "stream-pull"
     STREAM_CHUNK = "stream-chunk"
@@ -59,6 +64,7 @@ class IpcMessage:
         """Serialize to a complete wire frame: 8-byte prefix + JSON header + binary trailer."""
         header = json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         binary = self.binary or b""
+
         return _FRAME_PREFIX.pack(len(header), len(binary)) + header + binary
 
     @classmethod

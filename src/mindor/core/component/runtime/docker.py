@@ -172,7 +172,7 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
         global_configs: ComponentGlobalConfigs,
         verbose: bool = False,
     ):
-        super().__init__(component_id, component_config, global_configs, verbose)
+        super().__init__(component_id, component_config, global_configs, verbose=verbose)
 
         self._start_timeout = parse_time(component_config.runtime.start_timeout) if component_config.runtime.start_timeout is not None else None
         self._stop_timeout  = parse_time(component_config.runtime.stop_timeout) if component_config.runtime.stop_timeout is not None else None
@@ -225,6 +225,7 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
             "stderr": 1,
             "stream": 1,
         })
+
         return DockerAttachChannel(sock)
 
 def main() -> None:

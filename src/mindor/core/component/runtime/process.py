@@ -145,8 +145,10 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
             request_queue,
             response_queue,
         )
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+
         try:
             loop.run_until_complete(worker.run())
         except KeyboardInterrupt:

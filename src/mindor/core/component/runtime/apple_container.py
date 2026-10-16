@@ -147,7 +147,6 @@ class ComponentAppleContainerRuntimeWorker(ComponentRuntimeWorker):
             except Exception:
                 pass
 
-
 class ComponentAppleContainerRuntimeProxy(ComponentRuntimeProxy):
     """Apple Container attach-based IPC proxy.
 
@@ -162,7 +161,6 @@ class ComponentAppleContainerRuntimeProxy(ComponentRuntimeProxy):
     async def _recv_message(self) -> Optional[bytes]:
         return await self.channel.recv()
 
-
 class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
     """Component-side manager: composes a `ComponentAppleContainerRuntimeBackend`
     with a `ComponentAppleContainerRuntimeProxy` over an
@@ -175,7 +173,7 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
         global_configs: ComponentGlobalConfigs,
         verbose: bool = False,
     ):
-        super().__init__(component_id, component_config, global_configs, verbose)
+        super().__init__(component_id, component_config, global_configs, verbose=verbose)
 
         self._start_timeout = parse_time(component_config.runtime.start_timeout) if component_config.runtime.start_timeout is not None else None
         self._stop_timeout  = parse_time(component_config.runtime.stop_timeout) if component_config.runtime.stop_timeout is not None else None
@@ -224,13 +222,11 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
 
         return proxy
 
-
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.apple_container`."""
     channel = IpcStdioChannel(stdio_worker_factory(ComponentAppleContainerRuntimeWorker))
     channel.setup()
     channel.run()
-
 
 if __name__ == "__main__":
     main()

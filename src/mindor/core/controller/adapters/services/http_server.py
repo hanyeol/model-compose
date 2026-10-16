@@ -24,8 +24,11 @@ from .websocket_server import WebSocketServer
 from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from PIL import Image as PILImage
+from pathlib import Path
 import uvicorn, logging
 
 if TYPE_CHECKING:
@@ -247,6 +250,23 @@ class WorkflowSchemaResult(BaseModel):
             return WorkflowVariableGroupResult.from_instance(variable)
         return WorkflowVariableResult.from_instance(variable)
 
+class IndexStaticFiles(StaticFiles):
+    def __init__(self, *, directory: Path, index: str) -> None:
+        super().__init__(directory=directory, check_dir=False)
+
+        self.index = index
+
+    async def get_response(self, path, scope):
+        if path in ("", "."):
+            path = self.index
+
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exception:
+            if exception.status_code != 404:
+                raise
+            return await super().get_response(self.index, scope)
+
 @register_controller_adapter(ControllerAdapterType.HTTP_SERVER)
 class HttpServerControllerAdapterService(ControllerAdapterService):
     def __init__(
@@ -272,6 +292,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             self.websocket_server.configure_routes(self.router)
 
         self.app.include_router(self.router, prefix=self.config.base_path or "")
+
+        self._configure_static_mounts()
 
     def _configure_server(self) -> None:
         self.app.add_middleware(
@@ -412,6 +434,30 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 return JSONResponse(status_code=503, content={ "status": "shutting_down" })
 
             return JSONResponse(content={ "status": "ok" })
+
+    def _configure_static_mounts(self) -> None:
+        base_path = (self.config.base_path or "").rstrip("/")
+
+        for mount in self.config.static:
+            if not mount.path.startswith("/"):
+                raise ValueError(f"Static mount path must start with '/': {mount.path!r}")
+
+            if base_path and (mount.path == base_path or mount.path.startswith(base_path + "/")):
+                raise ValueError(f"Static mount path {mount.path!r} collides with controller base_path {base_path!r}.")
+
+            base_dir = Path(mount.base_dir).resolve()
+
+            if not base_dir.is_dir():
+                raise ValueError(f"Static mount base_dir does not exist or is not a directory: {base_dir}")
+
+            if mount.index:
+                if not (base_dir / mount.index).is_file():
+                    raise ValueError(f"Static mount index file not found: {base_dir / mount.index}")
+                static_files = IndexStaticFiles(directory=base_dir, index=mount.index)
+            else:
+                static_files = StaticFiles(directory=base_dir)
+
+            self.app.mount(mount.path, static_files, name=f"static:{mount.path}")
 
     async def _start(self) -> None:
         self.controller.add_task_state_listener(self._on_task_state_change)

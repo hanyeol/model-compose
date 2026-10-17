@@ -4,7 +4,7 @@ The music score renderer component takes a **MusicXML score** and engraves it in
 
 Rendering is delegated to [Verovio](https://www.verovio.org/), an open-source music engraver. SVG is Verovio's native output; PDF is produced by converting the SVG with svglib + reportlab, and PNG by rasterizing the SVG with resvg-py.
 
-For symbolic score **parsing** (score → notes list), use [`music-score-loader`](music-score-loader.md). This component is purely for rendering already-symbolic data to a visual format.
+For symbolic score **parsing** (score → `MusicScore`), use [`music-score-loader`](music-score-loader.md). This component is purely for rendering already-symbolic data to a visual format.
 
 ## Basic Configuration
 
@@ -156,13 +156,13 @@ components:
 
 ## Related Components
 
-- [`music-score-loader`](music-score-loader.md) — Parses the same MusicXML files into a notes list for programmatic use (vs this component's visual output)
+- [`music-score-loader`](music-score-loader.md) — Parses the same MusicXML files into a `MusicScore` for programmatic use (vs this component's visual output)
 - [`image-processor`](image-processor.md) — For post-processing PNG output (resize, crop, format conversion)
 - [`document-loader`](document-loader.md) — To embed rendered PDF pages into a document pipeline
 
 ## Known Limitations
 
-- **MIDI input is not supported** — Verovio cannot parse MIDI. Use `music-score-loader` to read MIDI into notes, or convert MIDI → MusicXML upstream.
+- **MIDI input is not supported** — Verovio cannot parse MIDI. Use `music-score-loader` to read MIDI into a `MusicScore`, or convert MIDI → MusicXML upstream.
 - **ABC, MEI, Humdrum, and PAE** are accepted by the Verovio toolkit but not currently exposed by this component.
 - The **page layout is Verovio's choice** — the component does not expose fine-grained engraving options (beam angles, slur shapes, spacing rules). Advanced typesetting should edit the MusicXML directly or use dedicated engraving software.
 - **PDF/PNG rendering goes through SVG** — advanced SVG features that svglib/resvg don't fully support (filters, complex gradients) may render differently than in a browser.

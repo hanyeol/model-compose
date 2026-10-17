@@ -55,7 +55,7 @@ model-compose provides various component types for performing different tasks.
 | `music-analyzer` | Analyze music properties | Beats/BPM, onsets, tempogram, active regions, key/chroma/tonnetz, spectral brightness/flatness, and harmonic-vs-percussive ratio via librosa |
 | `music-synthesizer` | Synthesize music from a score | Beat-timeline sequencer: instrument voices (kick, snare, hat, chord, whoosh, ...) placed on beats, with kick-driven sidechain ducking and a soft-clip/normalize/fade master chain |
 | `music-pitch-corrector` | Correct vocal pitch | Offline Auto-Tune: snap each sung note to a scale (or follow a reference melody) and resynthesize via WORLD vocoder while preserving timbre |
-| `music-score-loader` | Load symbolic music scores | Parse MIDI or MusicXML files into a normalized notes list + tempo/time-signature metadata; the symbolic counterpart to subtitle-loader |
+| `music-score-loader` | Load symbolic music scores | Parse MIDI or MusicXML files into a `MusicScore` — parts (notes/lyrics/clefs) plus score-level tempos, time/key signatures, and harmonies; the symbolic counterpart to subtitle-loader |
 | `music-score-renderer` | Render music scores to SVG/PDF/PNG | Rasterize MusicXML scores into per-page SVG (native), PDF (via svglib + reportlab), or PNG (via resvg-py) using Verovio for engraving |
 | `audio-silence-detector` | Detect silence regions | Locate silent runs in audio using ffmpeg's `silencedetect` filter; useful for trimming dead air or splitting on quiet gaps |
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
@@ -117,7 +117,7 @@ model-compose provides various component types for performing different tasks.
 - Music analysis (beats/BPM, onsets, tempogram, key, chroma, tonnetz, brightness, flatness, harmonicity) → `music-analyzer`
 - Music synthesis (build a WAV from a beat-timeline score with drums, chords, whooshes, and sidechain ducking) → `music-synthesizer`
 - Vocal pitch correction (snap sung notes to a scale or reference melody via WORLD vocoder) → `music-pitch-corrector`
-- Music score loading (parse MIDI/MusicXML into a notes list + tempo/time-signature) → `music-score-loader`
+- Music score loading (parse MIDI/MusicXML into a `MusicScore` — parts, tempos, time/key signatures, harmonies) → `music-score-loader`
 - Music score rendering (MusicXML → per-page SVG/PDF/PNG via Verovio engraving) → `music-score-renderer`
 - Silence detection (locate silent regions for trimming or splitting) → `audio-silence-detector`
 - Media metadata inspection (probe codecs, duration, EXIF/GPS) → `media-inspector`

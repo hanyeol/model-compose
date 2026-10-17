@@ -573,6 +573,25 @@ components:
           categories: ${response.results[0].categories}
 ```
 
+### Transport Security
+
+The MCP server validates the `Host` and `Origin` headers on every request to defend against DNS-rebinding attacks. By default only localhost is allowed, which is what you want for local Claude Desktop usage. When the server sits behind a tunnel (ngrok, Cloudflare Tunnel) or a reverse proxy that forwards external `Host` headers, declare the hostnames it should accept:
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp
+    allowed_hosts:
+      - mcp.example.com
+      - '*.example.com'
+    allowed_origins:
+      - https://mcp.example.com
+```
+
+If you cannot enumerate the allowed values up front, set `disable_dns_rebinding_protection: true` to turn the check off entirely — but prefer the allow-list when possible, since it leaves the protection in place. The two settings are mutually exclusive.
+
 ### MCP Workflow Features
 
 MCP server workflows have the following characteristics:

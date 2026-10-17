@@ -573,6 +573,25 @@ components:
           categories: ${response.results[0].categories}
 ```
 
+### 전송 계층 보안
+
+MCP 서버는 DNS 리바인딩 공격을 막기 위해 모든 요청의 `Host` 및 `Origin` 헤더를 검증합니다. 기본값은 localhost만 허용이며 로컬 Claude Desktop 사용에는 그대로 적합합니다. 서버가 터널(ngrok, Cloudflare Tunnel) 또는 외부 `Host` 헤더를 그대로 전달하는 리버스 프록시 뒤에 있을 경우, 허용할 호스트명을 명시적으로 선언해야 합니다:
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp
+    allowed_hosts:
+      - mcp.example.com
+      - '*.example.com'
+    allowed_origins:
+      - https://mcp.example.com
+```
+
+허용 값을 미리 열거할 수 없는 상황이라면 `disable_dns_rebinding_protection: true`로 검사를 완전히 끌 수 있지만, 보호를 유지하는 쪽인 allow-list를 가능한 한 우선 사용하세요. 두 설정은 상호 배타적입니다.
+
 ### MCP 워크플로우 특징
 
 MCP 서버에서 워크플로우는 다음과 같은 특징이 있습니다:

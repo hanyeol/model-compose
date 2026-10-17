@@ -1,6 +1,6 @@
 # Music Score Loader Component
 
-The music score loader component reads a **symbolic music score file** — MIDI or MusicXML — and emits a normalized notes list plus tempo/time-signature metadata. Use it to feed a reference melody into [`music-pitch-corrector`](music-pitch-corrector.md), align lyrics to a score, or drive any pipeline that needs structured note data from a score file.
+The music score loader component reads a **symbolic music score file** — MIDI or MusicXML — and emits a `MusicScore`: notes grouped into parts plus score-level tempos, time/key signatures, and harmonies, modeled on MusicXML `<score-partwise>`. Use it to feed a reference melody into [`music-pitch-corrector`](music-pitch-corrector.md), align lyrics to a score, or drive any pipeline that needs structured note data from a score file.
 
 For audio-level transcription (audio → notes), use the `music-transcription` model task (basic-pitch, piano-transcription) instead. This component is purely for parsing already-symbolic data.
 
@@ -29,7 +29,7 @@ component:
 |-------|------|---------|-------------|
 | `source` | any | **required** | Score file source: file path, upload stream, raw bytes, or variable reference |
 | `format` | string | `null` | Score format (`midi` or `musicxml`); inferred from file content/extension when omitted |
-| `track` | integer | `null` | Track/part index to extract; defaults to the first track containing notes |
+| `part` | integer | `null` | Part index to extract; defaults to all parts in the score |
 | `batch_size` | integer | `null` | Number of sources processed per batch |
 | `output` | string | `null` | Output template applied to the parsed result |
 
@@ -51,7 +51,7 @@ component:
 
 | Format | Extensions | Notes |
 |--------|------------|-------|
-| MIDI | `.mid`, `.midi` | Type-0 and Type-1 (multi-track). Tempo map is folded across tracks so note times are consistent. |
+| MIDI | `.mid`, `.midi` | Type-0 and Type-1 (multi-track). Each `(track, channel)` with note activity becomes one part; tempo/time-signature/key-signature maps are folded across tracks so per-part note times stay consistent. |
 | MusicXML | `.xml`, `.musicxml` | Score-partwise layout only. Score-timewise is rejected (used by <5% of real-world files). |
 | MusicXML (compressed) | `.mxl` | ZIP container; reads the root score from `META-INF/container.xml`. |
 
@@ -65,21 +65,44 @@ The driver sniffs the file in this order:
 
 ## Output Format
 
+The loader emits a `MusicScore` dict modeled on MusicXML `<score-partwise>`. MIDI loads populate the subset of fields MIDI can carry; MusicXML-only fields (`harmonies`, lyric `syllabic`/`number`, `clefs`) are left as `[]` or `null`.
+
 ```python
 {
-  "notes": [
+  "format":   "midi",            # 'midi' or 'musicxml'
+  "duration": 32.0,              # seconds; end_time of the last note across all parts
+  "parts": [
     {
-      "start_time": 0.0,        # seconds from the start of the score
-      "end_time":   0.5,         # seconds
-      "pitch":      60,          # MIDI note number (0-127; middle C = 60)
-      "velocity":   0.787,       # 0.0 to 1.0; MusicXML files default to 0.75
+      "id":                "P1",            # <score-part id> or synthesized "T{track}_C{channel}" for MIDI
+      "part_name":         "Melody",        # <part-name> or MIDI track name
+      "part_abbreviation": None,
+      "midi_channel":      0,
+      "midi_program":      53,
+      "notes": [
+        {
+          "start_time": 0.0,     # seconds from the start of the score
+          "end_time":   0.5,
+          "pitch":      60,      # MIDI note number (0-127; middle C = 60)
+          "velocity":   0.787,   # 0.0 to 1.0; MusicXML files default to 0.75
+        },
+        ...
+      ],
+      "lyrics": [                # per-note; MIDI loads leave `syllabic`/`number` as None
+        {"note_index": 0, "text": "do", "syllabic": "single", "number": 1},
+      ],
+      "clefs": [                 # [] for MIDI loads
+        {"time": 0.0, "sign": "G", "line": 2, "staff": 1},
+      ],
     },
-    ...
   ],
-  "tempo":          120.0,       # BPM (first tempo in the file)
-  "time_signature": [4, 4],      # [numerator, denominator] or null if unspecified
-  "format":         "midi",      # 'midi' or 'musicxml'
-  "duration":       32.0,        # seconds; end_time of the last note
+  "tempos":          [{"time": 0.0, "beats_per_minute": 120.0}, ...],
+  "time_signatures": [{"time": 0.0, "beats": 4, "beat_type": 4}, ...],
+  "key_signatures":  [{"time": 0.0, "fifths": 0, "mode": "major"}, ...],
+  "harmonies": [                 # [] for MIDI loads
+    {"time": 0.0, "part_id": "P1",
+     "root_step": "C", "root_alter": 0, "kind": "major",
+     "bass_step": None, "bass_alter": None},
+  ],
 }
 ```
 
@@ -87,22 +110,20 @@ The driver sniffs the file in this order:
 
 - `pitch` is always a MIDI note number (integer). Microtonal MusicXML (`<alter>` with fractional values) is quantized to the nearest semitone.
 - `velocity` is normalized to `[0.0, 1.0]`. MIDI velocities (0-127) are scaled; MusicXML — which lacks a universal dynamic — defaults to 0.75 (mf).
-- `tempo` reports only the first tempo marker. Scores with tempo changes should be re-parsed by downstream consumers if the full tempo map is needed.
-- `time_signature` reports only the first meter.
+- `tempos`, `time_signatures`, `key_signatures` list every change point, in order. `tempos` always has at least one entry (defaulting to 120 BPM when the file is silent).
+- `harmonies`, `clefs`, and lyric `syllabic`/`number` are MusicXML-only. MIDI loads leave them empty / `None`.
 
-### Multi-Track Handling
+### Multi-Part Handling
 
-By default, the loader picks the **first track that contains note-on events**. This matches the common structure of DAW-exported MIDI (track 0 is tempo map, track 1 is the lead melody).
+By default, the loader returns **every part** in the score. For MIDI, each `(track, channel)` combination with note activity becomes one part — this preserves GM conventions (channel 10 = drums) and handles Format-0 (one track, many channels) and Format-1 (one track per instrument) uniformly.
 
-To extract a specific track, set `track:`:
+To extract a single part, set `part:` to its index in the parts list:
 
 ```yaml
 action:
   source: ${input.score as file}
-  track: 2            # 0-indexed
+  part: 2             # 0-indexed part
 ```
-
-For MusicXML, `track` is the 0-indexed part number.
 
 ## Example Workflow
 
@@ -129,7 +150,7 @@ workflow:
         audio: ${input.vocal as audio}
         pitch: ${jobs.pitch.output.frames}
         mode: melody
-        melody: ${jobs.score.output.notes}
+        melody: ${jobs.score.output.parts[0].notes}
 
 components:
   - id: pitch-estimator
@@ -152,13 +173,13 @@ components:
 
 ## Related Components
 
-- [`music-pitch-corrector`](music-pitch-corrector.md) — Primary downstream consumer; `melody` field accepts this component's `notes` output
+- [`music-pitch-corrector`](music-pitch-corrector.md) — Primary downstream consumer; `melody` field accepts a part's `notes` list
 - [`subtitle-loader`](subtitle-loader.md) — Analogous component for subtitle files (SRT/VTT/ASS)
 - [`music-transcription`](model.md) — For extracting notes from **audio** (basic-pitch, piano-transcription); use when you have a guide vocal rather than a score file
 
 ## Known Limitations
 
 - Only **score-partwise** MusicXML is supported. Score-timewise files raise `ValueError`.
-- **Tempo changes** are not preserved in the output; only the first tempo is reported.
 - **ABC**, **MEI**, **Guido**, and other symbolic music formats are not implemented.
-- MusicXML **articulations, slurs, dynamics, and lyrics** are discarded — only pitch and timing are kept.
+- MusicXML **articulations, slurs, dynamics, and ties** are discarded — notes carry only pitch, timing, and lyrics.
+- MIDI loads leave MusicXML-only fields (`harmonies`, `clefs`, lyric `syllabic`/`number`) empty; MIDI's `key_signature` meta is translated into `key_signatures` entries.

@@ -573,6 +573,25 @@ components:
           categories: ${response.results[0].categories}
 ```
 
+### 传输层安全
+
+MCP 服务器会对每个请求的 `Host` 和 `Origin` 头进行校验，以防御 DNS 重绑定攻击。默认仅允许 localhost，这适用于本地 Claude Desktop 场景。当服务器位于隧道（ngrok、Cloudflare Tunnel）或会转发外部 `Host` 头的反向代理之后时，需要显式声明允许的主机名：
+
+```yaml
+controller:
+  adapter:
+    type: mcp-server
+    port: 8080
+    base_path: /mcp
+    allowed_hosts:
+      - mcp.example.com
+      - '*.example.com'
+    allowed_origins:
+      - https://mcp.example.com
+```
+
+如果无法事先列举允许值，可以通过 `disable_dns_rebinding_protection: true` 完全关闭该校验；但在可能的情况下优先使用 allow-list，以保留保护机制。两个设置互斥。
+
 ### MCP 工作流特性
 
 MCP 服务器工作流具有以下特征：

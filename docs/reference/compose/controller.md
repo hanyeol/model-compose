@@ -116,6 +116,19 @@ controller:
     port: 8081
 ```
 
+**Example — behind a tunnel / reverse proxy:**
+```yaml
+controller:
+  type: mcp-server
+  base_path: /mcp
+  port: 8080
+  allowed_hosts:
+    - mcp.example.com
+    - '*.example.com'
+  allowed_origins:
+    - https://mcp.example.com
+```
+
 ### Queue Subscriber (`queue-subscriber`)
 
 Creates a queue subscriber that consumes tasks from a message queue (e.g., Redis) and executes workflows. Used for distributed worker patterns where multiple model-compose instances process tasks from a shared queue.
@@ -312,6 +325,15 @@ controller:
 |-------|------|---------|-------------|
 | `origins` | string | `"*"` | CORS allowed origins (comma-separated string) |
 | `static` | list/object | `[]` | Static directory mounts served alongside the API. See [Static Mounts](#static-mounts). |
+
+### MCP Server Specific
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `transport` | string | `http` | Transport used by the MCP server. One of `http`, `stdio` |
+| `disable_dns_rebinding_protection` | boolean | `false` | Skip the DNS-rebinding Host/Origin header check. Set to `true` when fronting the server with a tunnel or reverse proxy that forwards non-localhost Host headers but you cannot enumerate the allowed values. Mutually exclusive with `allowed_hosts` / `allowed_origins`. |
+| `allowed_hosts` | list | `null` | Allowed Host header values as glob patterns (e.g., `example.com`, `*.example.com`). Overrides the FastMCP default localhost allow-list. |
+| `allowed_origins` | list | `null` | Allowed Origin header values as glob patterns (e.g., `https://example.com`). Overrides the FastMCP default localhost allow-list. |
 
 ### Concurrency & Threading
 

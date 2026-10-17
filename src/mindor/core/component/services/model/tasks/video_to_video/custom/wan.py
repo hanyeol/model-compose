@@ -16,7 +16,7 @@ from mindor.core.component.action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import VideoToVideoTaskAction
 from PIL import Image as PILImage
-import io, os, sys, shutil, tempfile
+import io, os, sys, shutil, tempfile, platform
 
 if TYPE_CHECKING:
     import torch
@@ -287,7 +287,7 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
             "sentencepiece",
             "imageio-ffmpeg",
             "imageio",
-            "decord",
+            "decord2" if platform.machine() == "aarch64" else "decord",
             "opencv-python",
             "wan@git+https://github.com/Wan-Video/Wan2.2.git",
         ]

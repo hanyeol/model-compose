@@ -11,7 +11,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageToVideoTaskAction
 from PIL import Image as PILImage
-import io
+import io, platform
 
 if TYPE_CHECKING:
     import torch
@@ -128,6 +128,7 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
             "sentencepiece",
             "imageio-ffmpeg",
             "imageio",
+            "decord2" if platform.machine() == "aarch64" else "decord",
             "wan@git+https://github.com/Wan-Video/Wan2.2.git",
         ]
 

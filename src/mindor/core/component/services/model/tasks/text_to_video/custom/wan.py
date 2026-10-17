@@ -12,7 +12,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TextToVideoTaskAction
-import io
+import io, platform
 
 if TYPE_CHECKING:
     import torch
@@ -129,6 +129,7 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
             "sentencepiece",
             "imageio",
             "imageio-ffmpeg",
+            "decord2" if platform.machine() == "aarch64" else "decord",
             "wan@git+https://github.com/Wan-Video/Wan2.2.git",
         ]
 

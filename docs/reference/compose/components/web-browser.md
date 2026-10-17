@@ -1,6 +1,6 @@
 # Web Browser Component
 
-The web browser component provides full browser automation with pluggable drivers. It supports navigation, clicking, text input, screenshots, JavaScript evaluation, element extraction, cookie management, scrolling, and waiting for elements.
+The web browser component provides full browser automation with pluggable drivers. It supports navigation, clicking, text input, screenshots, JavaScript evaluation, element extraction, cookie and `localStorage` management, scrolling, and waiting for elements.
 
 ## Basic Configuration
 
@@ -103,7 +103,7 @@ All web browser actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Action method: `navigate`, `click`, `input-text`, `screenshot`, `evaluate`, `wait-for`, `extract`, `get-cookies`, `set-cookies`, `scroll`, `capture-video` |
+| `method` | string | **required** | Action method: `navigate`, `click`, `input-text`, `screenshot`, `evaluate`, `wait-for`, `extract`, `get-cookies`, `set-cookies`, `get-local-storage`, `set-local-storage`, `scroll`, `capture-video` |
 | `timeout` | string | `null` | Per-action timeout override. Falls back to component-level timeout |
 | `output` | string | `null` | Output variable mapping |
 
@@ -314,13 +314,71 @@ component:
         domain: example.com
 ```
 
+The `cookies` field also accepts a variable reference, so you can pipe the output of `get-cookies` from another session (e.g. from a headed login session into a headless worker):
+
+```yaml
+action:
+  method: set-cookies
+  cookies: ${jobs.export-cookies.output}
+```
+
 **Set Cookies Configuration:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `cookies` | array | **required** | List of cookie dicts (`name`, `value`, `domain`, `path`, ...) |
+| `cookies` | array \| string | **required** | List of cookie dicts (`name`, `value`, `domain`, `path`, ...), or a `${...}` reference to such a list |
 
-**Returns:** `{ "set": <count> }`
+**Returns:** `null`
+
+### Get Local Storage
+
+Retrieve `localStorage` entries for the current page's origin:
+
+```yaml
+component:
+  type: web-browser
+  action:
+    method: get-local-storage
+```
+
+The action reads from the origin of whatever page is currently loaded in the session, so make sure a `navigate` to the target origin has run first.
+
+**Returns:** list of `{ name, value }` dicts, matching the shape of Playwright's `storage_state().origins[].localStorage`.
+
+### Set Local Storage
+
+Write `localStorage` entries into the current page's origin:
+
+```yaml
+component:
+  type: web-browser
+  action:
+    method: set-local-storage
+    values:
+      - name: auth_token
+        value: eyJhbGciOi...
+```
+
+Like `set-cookies`, the `values` field accepts a variable reference, so a headed session can hand its `localStorage` state to a headless worker:
+
+```yaml
+action:
+  method: set-local-storage
+  values: ${jobs.export-local-storage.output}
+```
+
+Notes:
+
+- `localStorage` is scoped per origin. Call `navigate` to the target origin before `set-local-storage` — unlike cookies, there is no browser-context-level API to pre-seed `localStorage`.
+- `set-local-storage` is an upsert; existing keys with the same name are overwritten but other keys are left alone. To start from an empty store, run `evaluate` with `localStorage.clear()` first.
+
+**Set Local Storage Configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `values` | array \| string | **required** | List of `{ name, value }` dicts, or a `${...}` reference to such a list |
+
+**Returns:** `null`
 
 ### Scroll
 

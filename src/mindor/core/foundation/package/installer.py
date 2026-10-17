@@ -54,12 +54,36 @@ async def install_package(package_spec: str, pip_options: Optional[List[str]] = 
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        raise subprocess.CalledProcessError(
+        raise PackageInstallError(
             process.returncode,
             command,
             output=stdout,
             stderr=stderr
         )
+
+class PackageInstallError(subprocess.CalledProcessError):
+    """`CalledProcessError` whose message carries the tail of the installer's output.
+
+    The plain `str(CalledProcessError)` is only "Command [...] returned non-zero
+    exit status 1", so a failed install (e.g. a flash-attn sdist build) left no
+    trace of why in the logs (hanyeol/model-compose#50).
+    """
+    _TAIL_LINES = 40
+
+    def __str__(self) -> str:
+        message = super().__str__()
+
+        for stream in (self.stderr, self.output):
+            if not stream:
+                continue
+
+            text = stream.decode("utf-8", errors="replace") if isinstance(stream, bytes) else str(stream)
+            tail = "\n".join(text.strip().splitlines()[-self._TAIL_LINES:])
+
+            if tail:
+                return f"{message}\n{tail}"
+
+        return message
 
 async def install_package_from_github(
     module_name: str,

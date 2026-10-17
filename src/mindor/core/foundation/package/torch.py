@@ -195,6 +195,23 @@ def resolve_torch_build(*specs: str) -> Tuple[Optional[str], Optional[str]]:
 
     return torch_version, channel
 
+def supported_torch_minors(*specs: str) -> List[str]:
+    """Return the tabled torch minors (`"2.10"`, `"2.9"`, ...) that satisfy the torch spec, newest first.
+
+    Lets companion helpers (`flash_attn_torch_spec`) walk a torch range one
+    minor at a time and pin it to a minor their wheels cover.
+    """
+    minors: List[str] = []
+
+    for version in _supported_torch_versions(_get_torch_specifier(specs)):
+        parsed = Version(version)
+        minor = f"{parsed.major}.{parsed.minor}"
+
+        if minor not in minors:
+            minors.append(minor)
+
+    return minors
+
 def _resolve_torch_and_channel(
     torch_specifier: Optional[SpecifierSet],
     torch_siblings: List[str],
@@ -219,7 +236,7 @@ def _resolve_torch_and_channel(
         if all(_resolve_sibling_version(sibling, installed_version) is not None for sibling in torch_siblings):
             return installed_version, channel, False
 
-    for version in _candidate_torch_versions(torch_specifier):
+    for version in _supported_torch_versions(torch_specifier):
         if not all(_resolve_sibling_version(sibling, version) is not None for sibling in torch_siblings):
             continue
 
@@ -247,7 +264,7 @@ def _resolve_torch_without_channel(torch_specifier: Optional[SpecifierSet]) -> O
         if torch_specifier is None or torch_specifier.contains(installed_version, prereleases=True):
             return installed_version
 
-    candidates = _candidate_torch_versions(torch_specifier)
+    candidates = _supported_torch_versions(torch_specifier)
 
     if not candidates:
         return None
@@ -299,12 +316,6 @@ def _get_torch_siblings(specs: Iterable[str]) -> List[str]:
             siblings.append(requirement.name)
 
     return siblings
-
-def _candidate_torch_versions(torch_specifier: Optional[SpecifierSet]) -> List[str]:
-    if torch_specifier is None:
-        return _TORCH_VERSIONS_DESC
-
-    return [ version for version in _TORCH_VERSIONS_DESC if torch_specifier.contains(version, prereleases=True) ]
 
 def _get_reusable_installed_torch(
     torch_specifier: Optional[SpecifierSet],
@@ -375,6 +386,17 @@ def _get_installed_torch_spec() -> Optional[Tuple[str, Optional[str]]]:
         return None
 
     return f"{version.major}.{version.minor}.{version.micro}", version.local
+
+def _supported_torch_versions(torch_specifier: Optional[SpecifierSet]) -> List[str]:
+    versions: List[str] = []
+
+    for version in _TORCH_VERSIONS_DESC:
+        if torch_specifier is not None and not torch_specifier.contains(version, prereleases=True):
+            continue
+
+        versions.append(version)
+
+    return versions
 
 def _pick_channel_for_cuda_driver(
     torch_version: str,

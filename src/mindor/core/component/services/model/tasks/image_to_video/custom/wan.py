@@ -5,7 +5,7 @@ from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, WanImageToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanImageToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.flash_attn import flash_attn_requirements
+from mindor.core.foundation.package.flash_attn import flash_attn_requirements, flash_attn_torch_spec
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -119,9 +119,14 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        # Pin the torch range to a minor with a pre-built flash-attn wheel for
+        # this host (e.g. torch 2.9 on an x86_64 CUDA 12 driver, where upstream
+        # has no torch 2.10 + cu12 wheel) — see hanyeol/model-compose#50.
+        torch_spec = flash_attn_torch_spec("torch>=2.9,<2.11", "flash-attn==2.8.3.post1")
+
         return [
-            *torch_requirements("torch>=2.9,<2.11", "torchvision"),
-            *flash_attn_requirements("torch>=2.9,<2.11", "flash-attn==2.8.3.post1"),
+            *torch_requirements(torch_spec, "torchvision"),
+            *flash_attn_requirements(torch_spec, "flash-attn==2.8.3.post1"),
             "diffusers",
             "transformers",
             "accelerate",

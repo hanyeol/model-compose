@@ -8,7 +8,7 @@ from mindor.core.foundation.package.natten import natten_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from .....base import ModelTaskDriver
-import os
+import os, sys, platform
 
 if TYPE_CHECKING:
     import torch
@@ -76,10 +76,12 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        torch_spec, natten_spec = self._get_torch_and_natten_specs()
+
         return [
-            *torch_requirements("torch==2.7.*", "torchvision"),
-            *flash_attn_requirements("torch==2.7.*", "flash-attn==2.8.3.post1"),
-            *natten_requirements("torch==2.7.*", "natten==0.21.0"),
+            *torch_requirements(torch_spec, "torchvision"),
+            *flash_attn_requirements(torch_spec, "flash-attn==2.8.3.post1"),
+            *natten_requirements(torch_spec, natten_spec),
             "diffusers==0.37.1",
             "transformers==4.57.3",
             "accelerate==1.13.0",
@@ -101,6 +103,26 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
             "moge@git+https://github.com/microsoft/MoGe.git",
             "huggingface_hub>=0.34.0,<1.0",
         ]
+
+    def _get_torch_and_natten_specs(self) -> Tuple[str, str]:
+        """Pick the torch / natten pins for this host.
+
+        x86_64 keeps the stack the component was validated on (torch 2.7 +
+        natten 0.21.0). natten publishes no aarch64 wheel below torch 2.9, and
+        torch 2.7 itself is a poor fit on Linux aarch64 CUDA hosts such as DGX
+        Spark (GB10, sm_121): its SDPA gate stops at sm_120, so every fused
+        attention backend is refused and SDPA falls back to the math kernel; the
+        bundled Triton's ptxas cannot target sm_121a; and its cu128 build forces
+        a CUDA 12 toolkit next to the system CUDA 13 for the source-built
+        extensions below. aarch64 therefore moves to torch 2.13 (cu130 on a CUDA
+        13 driver) with natten 0.21.7, the first release whose cutlass-fna
+        config selection is fixed for SM120/SM121 — every piece of which ships
+        an aarch64 wheel, and whose Triton bundles a ptxas that knows sm_121.
+        """
+        if sys.platform == "linux" and platform.machine() == "aarch64":
+            return "torch==2.13.*", "natten==0.21.7"
+
+        return "torch==2.7.*", "natten==0.21.0"
 
     async def _setup(self) -> None:
         # Pixal3D leans on three CUDA-extension packages that are not on PyPI

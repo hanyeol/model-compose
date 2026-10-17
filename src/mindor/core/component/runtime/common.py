@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Optional
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
+from mindor.dsl.schema.logger import ConsoleLoggerConfig, LoggerType
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import ComponentInstances, create_component
 from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
 from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.runtime.common import ContainerRuntimeBackend, ContainerRuntimeConfig
-from mindor.core.logger import logging
+from mindor.core.logger import logging, create_logger, LoggerInstances
 from mindor.version import __version__
 import asyncio, re
 
@@ -59,11 +60,18 @@ class ComponentRuntimeWorker(IpcRuntimeWorker):
         self.component_config: ComponentConfig = component_config
         self.global_configs: ComponentGlobalConfigs = global_configs
         self.component = None
+        self.logger = None
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def _start(self) -> None:
         self._loop = asyncio.get_event_loop()
+
+        # Worker processes inherit no logger, so route `logging.*` to stderr
+        # which the parent captures as the worker's log channel.
+        if not LoggerInstances:
+            self.logger = create_logger(f"{self.worker_id}-logger", ConsoleLoggerConfig(type=LoggerType.CONSOLE), daemon=False)
+            await self.logger.start()
 
         embedded_config = self.component_config.model_copy(deep=True)
         embedded_config.runtime = EmbeddedRuntimeConfig(type="embedded")
@@ -78,11 +86,16 @@ class ComponentRuntimeWorker(IpcRuntimeWorker):
         await self.component.start()
 
     async def _stop(self) -> None:
-        if self.component is not None:
-            try:
-                await self.component.stop()
-            finally:
-                await self.component.teardown()
+        try:
+            if self.component is not None:
+                try:
+                    await self.component.stop()
+                finally:
+                    await self.component.teardown()
+        finally:
+            if self.logger is not None:
+                await self.logger.stop()
+                self.logger = None
 
     async def _execute_task(
         self,

@@ -4,7 +4,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 from mindor.core.logger import logging
 from .cuda import is_cuda_installed
-from .torch import resolve_torch_build
+from .torch import resolve_torch_build, supported_torch_minors
 import sys, platform, re
 
 # flash-attn ships pre-built wheels only via GitHub releases. PyPI has just the
@@ -27,11 +27,15 @@ import sys, platform, re
 #        v2.8.3       — cu12 x torch 2.9 and cu13 x torch 2.10, cp312
 #                       (x86_64 + aarch64)
 #      v2.8.3.post2 only re-ships x86_64 cu12 x torch 2.4–2.8 and is not tabled.
-#   2. On aarch64 only, the community builds of
-#      mjun0812/flash-attention-prebuild-wheels (GitHub-hosted ubuntu-22.04-arm
-#      runners, torch from download.pytorch.org), matched on the exact torch
-#      CUDA channel. Upstream has nothing for aarch64 below torch 2.9 and only
-#      cp312 above it; this fills that gap.
+#   2. The community builds of mjun0812/flash-attention-prebuild-wheels
+#      (GitHub-hosted runners, torch from download.pytorch.org), matched on the
+#      exact torch CUDA channel. Upstream has nothing for aarch64 below torch
+#      2.9, and above torch 2.8 it only ships cp312 for one CUDA major per torch
+#      minor (no torch 2.10 + cu12 at all) on either arch; this fills those gaps.
+#
+# Callers that accept a torch range should pin it with
+# `flash_attn_torch_spec` first, so torch lands on a minor that has a wheel —
+# preferring upstream builds — instead of the newest minor in the range.
 #
 # Neither source has an aarch64 wheel for torch 2.8. Wheels built with CUDA
 # >= 12.8 carry sm_120 SASS, which also runs on GB10 (DGX Spark, sm_121);
@@ -66,7 +70,9 @@ _FLASH_ATTN_WHEELS: Dict[Tuple[str, str], Tuple[str, str, str, Tuple[int, ...], 
 # different tags). Derived from doc/packages.md of
 # mjun0812/flash-attention-prebuild-wheels (bc11b19), keeping only cells whose
 # CUDA channel torch itself ships and skipping free-threaded (cp313t/cp314t)
-# builds.
+# builds. x86_64 rows start at torch 2.9: upstream already covers 2.4–2.8
+# there, and several older x86_64 cells sit on pre-v0.5 tags whose wheel
+# metadata carries no local version label.
 _FLASH_ATTN_COMMUNITY_WHEELS: Dict[Tuple[str, str, str], List[Tuple[str, str, Tuple[int, ...]]]] = {
     ("aarch64", "2.5",  "cu124"): [ ("v0.6.4",  "2.8.3", (10, 11, 12)) ],
     ("aarch64", "2.7",  "cu128"): [ ("v0.6.4",  "2.8.3", (10, 11, 12)) ],
@@ -88,6 +94,24 @@ _FLASH_ATTN_COMMUNITY_WHEELS: Dict[Tuple[str, str, str], List[Tuple[str, str, Tu
     ("aarch64", "2.14", "cu126"): [ ("v0.10.1", "2.8.3", (10, 11, 12, 13, 14)) ],
     ("aarch64", "2.14", "cu130"): [ ("v0.10.1", "2.8.3", (10, 11, 12, 13, 14)) ],
     ("aarch64", "2.14", "cu132"): [ ("v0.10.1", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.9",  "cu126"): [ ("v0.9.0",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.9",  "cu128"): [ ("v0.9.0",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.9",  "cu130"): [ ("v0.9.0",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.10", "cu126"): [ ("v0.9.0",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.10", "cu128"): [ ("v0.9.0",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.10", "cu130"): [ ("v0.9.0",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.11", "cu126"): [ ("v0.9.4",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.11", "cu128"): [ ("v0.9.4",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.11", "cu130"): [ ("v0.9.4",  "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.12", "cu126"): [ ("v0.9.17", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.12", "cu130"): [ ("v0.9.17", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.12", "cu132"): [ ("v0.9.17", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.13", "cu126"): [ ("v0.9.47", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.13", "cu130"): [ ("v0.9.47", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.13", "cu132"): [ ("v0.9.47", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.14", "cu126"): [ ("v0.10.0", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.14", "cu130"): [ ("v0.10.0", "2.8.3", (10, 11, 12, 13, 14)) ],
+    ("x86_64",  "2.14", "cu132"): [ ("v0.10.0", "2.8.3", (10, 11, 12, 13, 14)) ],
 }
 
 # Pins that a differently-versioned wheel may serve because the releases differ
@@ -149,6 +173,104 @@ def flash_attn_requirements(torch_spec: str, *specs: str) -> List[str]:
         rewritten_specs.append(_rewrite_wheel_spec(spec, requirement, candidates, target_build))
 
     return rewritten_specs
+
+def flash_attn_torch_spec(torch_spec: str, *specs: str) -> str:
+    """Pin a torch range to a minor that has a pre-built flash-attn wheel on this host.
+
+    `torch_requirements` picks the newest torch the range allows, which can be
+    a minor with no flash-attn wheel for this (CUDA channel, python, arch) —
+    e.g. `torch>=2.9,<2.11` on an x86_64 CUDA 12 driver resolves to
+    2.10.0+cu128, and upstream ships torch 2.10 wheels for cu13 only. Pass the
+    flash-attn specs the caller will install; the returned torch spec goes to
+    both `torch_requirements` and `flash_attn_requirements`.
+
+    Keeps `torch_spec` when the build it already resolves to has an upstream
+    wheel. Otherwise walks the range newest-first and returns
+    `<torch_spec>,==X.Y.*` for the first minor with an upstream wheel, then —
+    failing that — keeps the original spec if it has a community wheel, or
+    pins to the first minor that does. Returns `torch_spec` unchanged when
+    nothing fits (flash_attn_requirements then warns) or on unsupported hosts.
+    """
+    arch = _get_wheel_arch()
+
+    if arch is None or not is_cuda_installed():
+        return torch_spec
+
+    torch_requirement = _parse_requirement(torch_spec)
+    flash_requirements: List[Requirement] = []
+
+    for spec in specs:
+        requirement = _parse_requirement(spec)
+
+        if requirement is None or canonicalize_name(requirement.name) != _FLASH_ATTN_PACKAGE_NAME or requirement.url is not None:
+            continue
+
+        flash_requirements.append(requirement)
+
+    if torch_requirement is None or not flash_requirements:
+        return torch_spec
+
+    py_minor = sys.version_info.minor
+
+    torch_version, channel = resolve_torch_build(torch_spec)
+    torch_minor = _get_torch_minor(torch_version) if torch_version is not None else None
+    cuda_major = _get_cuda_major(channel) if channel is not None else None
+    wheel_sources: List[str] = []
+
+    if torch_minor is not None and cuda_major is not None:
+        for _, version, source in _find_supported_wheels(arch, torch_minor, cuda_major, channel, py_minor):
+            if not all(_match_spec_to_wheel(str(requirement), requirement, version) is not None for requirement in flash_requirements):
+                continue
+
+            wheel_sources.append(source)
+
+    if "upstream" in wheel_sources:
+        return torch_spec
+
+    specifier = str(torch_requirement.specifier)
+    torch_specs: List[Tuple[str, str]] = []
+
+    for minor in supported_torch_minors(torch_spec):
+        pinned_spec = f"{torch_requirement.name}{specifier + ',' if specifier else ''}=={minor}.*"
+        torch_specs.append((minor, pinned_spec))
+
+    for minor, pinned_spec in torch_specs:
+        torch_version, channel = resolve_torch_build(pinned_spec)
+        torch_minor = _get_torch_minor(torch_version) if torch_version is not None else None
+        cuda_major = _get_cuda_major(channel) if channel is not None else None
+
+        if torch_minor is None or cuda_major is None:
+            continue
+
+        for _, version, source in _find_supported_wheels(arch, torch_minor, cuda_major, channel, py_minor):
+            if source != "upstream":
+                continue
+
+            if not all(_match_spec_to_wheel(str(requirement), requirement, version) is not None for requirement in flash_requirements):
+                continue
+
+            logging.info(f"Pinning '{torch_spec}' to torch {minor} so flash-attn can use an upstream pre-built wheel.")
+            return pinned_spec
+
+    if wheel_sources:
+        return torch_spec
+
+    for minor, pinned_spec in torch_specs:
+        torch_version, channel = resolve_torch_build(pinned_spec)
+        torch_minor = _get_torch_minor(torch_version) if torch_version is not None else None
+        cuda_major = _get_cuda_major(channel) if channel is not None else None
+
+        if torch_minor is None or cuda_major is None:
+            continue
+
+        for _, version, source in _find_supported_wheels(arch, torch_minor, cuda_major, channel, py_minor):
+            if not all(_match_spec_to_wheel(str(requirement), requirement, version) is not None for requirement in flash_requirements):
+                continue
+
+            logging.info(f"Pinning '{torch_spec}' to torch {minor} so flash-attn can use a community pre-built wheel.")
+            return pinned_spec
+
+    return torch_spec
 
 def _rewrite_wheel_spec(spec: str, requirement: Requirement, candidates: List[Tuple[str, str, str]], target_build: str) -> str:
     """Pair `spec` with the first candidate its version pin accepts, or return it unchanged."""
@@ -248,7 +370,7 @@ def _get_cuda_major(channel: str) -> Optional[str]:
 
     if match:
         return match.group(1)
-    
+
     return None
 
 def _get_torch_minor(torch_version: str) -> Optional[str]:

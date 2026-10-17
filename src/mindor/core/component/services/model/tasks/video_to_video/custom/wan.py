@@ -145,7 +145,7 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
         reference_path = os.path.join(workspace, "reference.png")
         src_root_path = os.path.join(workspace, "src")
         os.makedirs(src_root_path, exist_ok=True)
-        reference_image.save(reference_path)
+        reference_image.convert("RGB").save(reference_path)
 
         video_path, video_spooled = await self._resolve_source_path(source, workspace, params)
 

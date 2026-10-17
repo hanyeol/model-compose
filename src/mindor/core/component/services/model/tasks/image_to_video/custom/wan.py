@@ -61,6 +61,7 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
             results: List[VideoStreamResource] = []
 
             for image, caption, negative in zip(images, captions, negatives):
+                image = image.convert("RGB")
                 width = int(params["width"]) if params["width"] is not None else image.width
                 height = int(params["height"]) if params["height"] is not None else image.height
                 pixel_area = width * height

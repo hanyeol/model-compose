@@ -62,6 +62,8 @@ def _outbound(kind: StreamKind, codec=None) -> IpcOutboundStream:
         kind=kind,
         source=_EmptyAsyncIterable(),
         codec=codec or _IdentityCodec(),
+        owner_kind="run",
+        owner_id="test",
     )
 
 
@@ -211,9 +213,11 @@ class TestIpcStreamReader:
         assert stream.closed is True
         assert rec.closes == ["closing-stream"]
 
-        # Subsequent iteration raises immediately without another PULL.
-        with pytest.raises(StopAsyncIteration):
-            await reader.__anext__()
+        # Subsequent iteration yields nothing without another PULL.
+        received: list = []
+        async for item in reader:
+            received.append(item)
+        assert received == []
         assert rec.pulls == []
 
     @pytest.mark.anyio

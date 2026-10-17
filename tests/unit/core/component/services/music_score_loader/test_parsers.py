@@ -1,11 +1,9 @@
 """End-to-end tests for the local music-score-loader parsers.
 
 Each test builds a tiny score file (MIDI or MusicXML) on disk, runs it through
-the parser, and checks the emitted notes/tempo/duration are what we expect.
+the parser, and checks the emitted ``MusicScore`` is what we expect.
 """
 
-import os
-import tempfile
 import pytest
 
 from mindor.core.component.services.music_score_loader.drivers.local import (
@@ -22,10 +20,13 @@ _MINIMAL_MUSICXML = """<?xml version="1.0" encoding="UTF-8"?>
     <measure number="1">
       <attributes>
         <divisions>480</divisions>
+        <key><fifths>0</fifths><mode>major</mode></key>
         <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
       </attributes>
       <sound tempo="120"/>
-      <note><pitch><step>C</step><octave>4</octave></pitch><duration>480</duration></note>
+      <harmony><root><root-step>C</root-step></root><kind>major</kind></harmony>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>480</duration><lyric><syllabic>single</syllabic><text>do</text></lyric></note>
       <note><pitch><step>E</step><octave>4</octave></pitch><duration>480</duration></note>
       <note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch><duration>480</duration></note>
       <note><rest/><duration>480</duration></note>
@@ -59,12 +60,19 @@ class TestMidiParser:
         result = LocalMusicScoreLoaderAction._parse_score_file(midi_path, "midi", None)
 
         assert result["format"] == "midi"
-        assert result["tempo"] == pytest.approx(120.0)
-        assert result["time_signature"] == [4, 4]
+        assert result["tempos"][0]["beats_per_minute"] == pytest.approx(120.0)
+        assert result["time_signatures"] == [{ "time": 0.0, "beats": 4, "beat_type": 4 }]
         assert result["duration"] == pytest.approx(1.0)
-        assert len(result["notes"]) == 2
+        assert result["harmonies"] == []
+        assert len(result["parts"]) == 1
 
-        first, second = result["notes"]
+        part = result["parts"][0]
+        assert part["id"] == "T0_C0"
+        assert part["midi_channel"] == 0
+        assert part["clefs"] == []
+        assert len(part["notes"]) == 2
+
+        first, second = part["notes"]
         assert first["pitch"] == 60
         assert first["start_time"] == pytest.approx(0.0)
         assert first["end_time"] == pytest.approx(0.5)
@@ -88,14 +96,29 @@ class TestMusicXmlParser:
         result = LocalMusicScoreLoaderAction._parse_score_file(str(xml_path), "musicxml", None)
 
         assert result["format"] == "musicxml"
-        assert result["tempo"] == pytest.approx(120.0)
-        assert result["time_signature"] == [4, 4]
-        assert len(result["notes"]) == 3  # Rest is skipped
-
-        # Pitches: C4=60, E4=64, F#4=66 (alter=+1)
-        assert [note["pitch"] for note in result["notes"]] == [60, 64, 66]
+        assert result["tempos"] == [{ "time": 0.0, "beats_per_minute": pytest.approx(120.0) }]
+        assert result["time_signatures"] == [{ "time": 0.0, "beats": 4, "beat_type": 4 }]
+        assert result["key_signatures"] == [{ "time": 0.0, "fifths": 0, "mode": "major" }]
         # Rest preserves the cursor, so duration is 1.5s not 1.0s
         assert result["duration"] == pytest.approx(1.5)
+        assert len(result["parts"]) == 1
+
+        part = result["parts"][0]
+        assert part["id"] == "P1"
+        assert part["part_name"] == "Melody"
+        assert part["clefs"] == [{ "time": 0.0, "sign": "G", "line": 2, "staff": 1 }]
+        assert len(part["notes"]) == 3  # Rest is skipped
+        # Pitches: C4=60, E4=64, F#4=66 (alter=+1)
+        assert [note["pitch"] for note in part["notes"]] == [60, 64, 66]
+        assert part["lyrics"] == [{
+            "note_index": 0, "text": "do", "syllabic": "single", "number": None,
+        }]
+
+        assert result["harmonies"] == [{
+            "time": 0.0, "part_id": "P1",
+            "root_step": "C", "root_alter": 0, "kind": "major",
+            "bass_step": None, "bass_alter": None,
+        }]
 
     def test_format_sniffed_from_xml_prolog(self, tmp_path):
         xml_path = tmp_path / "noext"

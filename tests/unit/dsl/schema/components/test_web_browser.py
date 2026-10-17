@@ -14,6 +14,8 @@ from mindor.dsl.schema.action import (
     WebBrowserExtractActionConfig,
     WebBrowserGetCookiesActionConfig,
     WebBrowserSetCookiesActionConfig,
+    WebBrowserGetLocalStorageActionConfig,
+    WebBrowserSetLocalStorageActionConfig,
     WebBrowserScrollActionConfig,
     WebBrowserActionMethod,
 )
@@ -349,6 +351,52 @@ class TestWebBrowserCookieActionConfig:
         with pytest.raises(ValidationError):
             WebBrowserSetCookiesActionConfig(method="set-cookies")
 
+    def test_set_cookies_accepts_variable_reference(self):
+        """set-cookies accepts a `${...}` string so cookies can be piped from another job."""
+        config = WebBrowserSetCookiesActionConfig(
+            method="set-cookies",
+            cookies="${jobs.export-cookies.output}",
+        )
+        assert config.cookies == "${jobs.export-cookies.output}"
+
+    def test_get_cookies_accepts_variable_reference(self):
+        """get-cookies urls accepts a `${...}` string in addition to a list."""
+        config = WebBrowserGetCookiesActionConfig(
+            method="get-cookies",
+            urls="${input.urls}",
+        )
+        assert config.urls == "${input.urls}"
+
+
+class TestWebBrowserLocalStorageActionConfig:
+    """Test local-storage action schema validation."""
+
+    def test_get_local_storage(self):
+        """get-local-storage takes no additional fields."""
+        config = WebBrowserGetLocalStorageActionConfig(method="get-local-storage")
+        assert config.method == WebBrowserActionMethod.GET_LOCAL_STORAGE
+
+    def test_set_local_storage_literal(self):
+        """set-local-storage accepts a literal values list."""
+        config = WebBrowserSetLocalStorageActionConfig(
+            method="set-local-storage",
+            values=[{"name": "token", "value": "abc"}],
+        )
+        assert len(config.values) == 1
+
+    def test_set_local_storage_variable_reference(self):
+        """set-local-storage values accepts a `${...}` string so values can be piped between sessions."""
+        config = WebBrowserSetLocalStorageActionConfig(
+            method="set-local-storage",
+            values="${jobs.export-local-storage.output}",
+        )
+        assert config.values == "${jobs.export-local-storage.output}"
+
+    def test_set_local_storage_missing(self):
+        """set-local-storage without values raises a validation error."""
+        with pytest.raises(ValidationError):
+            WebBrowserSetLocalStorageActionConfig(method="set-local-storage")
+
 
 class TestWebBrowserScrollActionConfig:
     """Test scroll action schema validation."""
@@ -429,6 +477,16 @@ class TestWebBrowserActionConfigDiscriminator:
         """Test that set-cookies method resolves to WebBrowserSetCookiesActionConfig."""
         config = ActionAdapter.validate_python({"method": "set-cookies", "cookies": [{"name": "a", "value": "b"}]})
         assert isinstance(config, WebBrowserSetCookiesActionConfig)
+
+    def test_discriminator_get_local_storage(self):
+        """Test that get-local-storage method resolves to WebBrowserGetLocalStorageActionConfig."""
+        config = ActionAdapter.validate_python({"method": "get-local-storage"})
+        assert isinstance(config, WebBrowserGetLocalStorageActionConfig)
+
+    def test_discriminator_set_local_storage(self):
+        """Test that set-local-storage method resolves to WebBrowserSetLocalStorageActionConfig."""
+        config = ActionAdapter.validate_python({"method": "set-local-storage", "values": [{"name": "a", "value": "b"}]})
+        assert isinstance(config, WebBrowserSetLocalStorageActionConfig)
 
     def test_discriminator_scroll(self):
         """Test that scroll method resolves to WebBrowserScrollActionConfig."""

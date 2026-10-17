@@ -58,8 +58,8 @@ class TestActionValidation:
             ]))
             assert cfg.actions[0].format == format
 
-    def test_track_optional(self):
+    def test_part_optional(self):
         cfg = COMPONENT_ADAPTER.validate_python(_component([
-            { "id": "load", "source": "song.mid", "track": 1 },
+            { "id": "load", "source": "song.mid", "part": 1 },
         ]))
-        assert cfg.actions[0].track == 1
+        assert cfg.actions[0].part == 1

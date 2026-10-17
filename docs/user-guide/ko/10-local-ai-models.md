@@ -768,7 +768,7 @@ component:
 
 ### 10.3.15 text-to-speech
 
-텍스트에서 음성 오디오를 합성합니다. 이 태스크는 `driver: custom`과 `family` 필드로 모델 패밀리를 선택하고, 액션의 `method` 필드로 생성 방식을 선택합니다. 일곱 개의 패밀리가 지원됩니다: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`.
+텍스트에서 음성 오디오를 합성합니다. 이 태스크는 `driver: custom`과 `family` 필드로 모델 패밀리를 선택하고, 액션의 `method` 필드로 생성 방식을 선택합니다. 여덟 개의 패밀리가 지원됩니다: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`, `supertonic`.
 
 **사용 가능한 메서드:**
 
@@ -1066,6 +1066,30 @@ component:
 ```
 
 편집 모드: 자유 형식 내용 편집은 `semantic`, `adjust the speed to 1.2`같은 템플릿 지시는 `acoustic`. 출력 샘플레이트: 두 프리셋 모두 24 kHz. `base` 프리셋에서 `design`/`edit`을 호출하면 런타임 오류가 발생합니다.
+
+#### 패밀리: `supertonic`
+
+Supertone Supertonic 3. ONNX Runtime 기반의 온디바이스 다국어 TTS로, CPU 우선 실행이며 CUDA/MPS 코드 경로는 없습니다. `generate`만 지원하며, 10가지 내장 보이스 스타일과 31개의 네이티브 언어 코드, 그리고 그 외 입력에 대한 `na` 폴백을 제공합니다.
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: supertonic
+  model:
+    repository: supertone-oss-archive/supertonic-3
+    revision: aafc6e32416a594460b32413efc49d7fe4ce6d46
+  device: cpu
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | F1}
+    language: ${input.language | en}
+    speed: ${input.speed | 1.05}
+```
+
+내장 보이스: `M1`-`M5` (남성), `F1`-`F5` (여성). `voice` 값에 경로 구분자가 포함되어 있거나 `.json`으로 끝나면 Voice Builder export로 로드됩니다. 지원 언어: 아랍어, 불가리아어, 크로아티아어, 체코어, 덴마크어, 네덜란드어, 영어, 에스토니아어, 핀란드어, 프랑스어, 독일어, 그리스어, 힌디어, 헝가리어, 인도네시아어, 이탈리아어, 일본어, 한국어, 라트비아어, 리투아니아어, 폴란드어, 포르투갈어, 루마니아어, 러시아어, 슬로바키아어, 슬로베니아어, 스페인어, 스웨덴어, 터키어, 우크라이나어, 베트남어. 이 집합을 벗어나는 코드는 `na`로 매핑되어 추론은 계속 진행됩니다. 선택적 액션 필드: `speed` (0.7-2.0), `total_steps` (5-12, 기본 8), `max_chunk_length`, `silence_duration`. 출력 샘플레이트: 44.1 kHz, 16-bit 모노.
 
 ### 10.3.16 speech-to-text
 

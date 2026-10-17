@@ -768,7 +768,7 @@ component:
 
 ### 10.3.15 text-to-speech
 
-从文本合成语音音频。此任务使用 `driver: custom`，通过 `family` 字段选择模型系列，通过动作的 `method` 字段选择生成方式。支持七个系列：`qwen`、`kokoro`、`chatterbox`、`luxtts`、`tada`、`cosyvoice`、`fireredtts3`。
+从文本合成语音音频。此任务使用 `driver: custom`，通过 `family` 字段选择模型系列，通过动作的 `method` 字段选择生成方式。支持八个系列：`qwen`、`kokoro`、`chatterbox`、`luxtts`、`tada`、`cosyvoice`、`fireredtts3`、`supertonic`。
 
 **可用方法：**
 
@@ -1066,6 +1066,30 @@ component:
 ```
 
 编辑模式：`semantic` 用于自由格式的内容编辑，`acoustic` 用于诸如 `adjust the speed to 1.2` 之类的模板指令。两个预设的输出采样率均为 24 kHz。在 `base` 预设上调用 `design`/`edit` 会抛出运行时错误。
+
+#### 系列：`supertonic`
+
+Supertone Supertonic 3。基于 ONNX Runtime 的端上多语言 TTS，默认在 CPU 上运行（没有 CUDA/MPS 代码路径）。只支持 `generate`，提供 10 种内置声线和 31 种原生语言代码，以及用于其他输入的 `na` 回退。
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: supertonic
+  model:
+    repository: supertone-oss-archive/supertonic-3
+    revision: aafc6e32416a594460b32413efc49d7fe4ce6d46
+  device: cpu
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | F1}
+    language: ${input.language | en}
+    speed: ${input.speed | 1.05}
+```
+
+内置声线：`M1`-`M5`（男声）与 `F1`-`F5`（女声）。`voice` 值中含有路径分隔符或以 `.json` 结尾时，将作为 Voice Builder 导出文件加载。支持语言：阿拉伯语、保加利亚语、克罗地亚语、捷克语、丹麦语、荷兰语、英语、爱沙尼亚语、芬兰语、法语、德语、希腊语、印地语、匈牙利语、印度尼西亚语、意大利语、日语、韩语、拉脱维亚语、立陶宛语、波兰语、葡萄牙语、罗马尼亚语、俄语、斯洛伐克语、斯洛文尼亚语、西班牙语、瑞典语、土耳其语、乌克兰语、越南语。超出此集合的代码会被映射为 `na`，推理仍会继续执行。可选动作字段：`speed`（0.7-2.0）、`total_steps`（5-12，默认 8）、`max_chunk_length`、`silence_duration`。输出采样率：44.1 kHz，16-bit 单声道。
 
 ### 10.3.16 speech-to-text
 

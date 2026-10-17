@@ -808,7 +808,7 @@ component:
 
 ### 10.3.15 text-to-speech
 
-Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to pick the model family and a `method` field on the action to choose the generation method. Seven families are supported: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`.
+Synthesizes speech audio from text. This task uses `driver: custom` with a `family` field to pick the model family and a `method` field on the action to choose the generation method. Eight families are supported: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`, `supertonic`.
 
 **Available methods:**
 
@@ -1106,6 +1106,30 @@ component:
 ```
 
 Edit modes: `semantic` for free-form content edits, `acoustic` for template instructions like `adjust the speed to 1.2`. Output sample rate: 24 kHz for both presets. Calling `design`/`edit` on the `base` preset raises a runtime error.
+
+#### Family: `supertonic`
+
+Supertone Supertonic 3. On-device multilingual synthesis via ONNX Runtime (CPU-first; no CUDA/MPS code paths). `generate` only, with 10 built-in voice styles and 31 native language codes plus an `na` fallback for anything else.
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: supertonic
+  model:
+    repository: supertone-oss-archive/supertonic-3
+    revision: aafc6e32416a594460b32413efc49d7fe4ce6d46
+  device: cpu
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | F1}
+    language: ${input.language | en}
+    speed: ${input.speed | 1.05}
+```
+
+Built-in voices: `M1`-`M5` (male) and `F1`-`F5` (female). Any `voice` value containing a path separator or ending in `.json` is loaded as a Voice Builder export instead. Supported languages: Arabic, Bulgarian, Croatian, Czech, Danish, Dutch, English, Estonian, Finnish, French, German, Greek, Hindi, Hungarian, Indonesian, Italian, Japanese, Korean, Latvian, Lithuanian, Polish, Portuguese, Romanian, Russian, Slovak, Slovenian, Spanish, Swedish, Turkish, Ukrainian, Vietnamese. Any code outside this set is remapped to `na` so inference still runs. Optional action fields: `speed` (0.7-2.0), `total_steps` (5-12, default 8), `max_chunk_length`, `silence_duration`. Output sample rate: 44.1 kHz, 16-bit mono.
 
 ### 10.3.16 speech-to-text
 

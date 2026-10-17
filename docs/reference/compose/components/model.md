@@ -2504,7 +2504,7 @@ Returns a single mp4 stream (or a list of streams for batched inputs), each with
 
 ### Text to Speech
 
-Generate speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field on the action to select the generation method. Supported families: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`.
+Generate speech audio from text. This task uses `driver: custom` with a `family` field to select the model family, and a `method` field on the action to select the generation method. Supported families: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`, `supertonic`.
 
 **Component Settings:**
 
@@ -2512,7 +2512,7 @@ Generate speech audio from text. This task uses `driver: custom` with a `family`
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `text-to-speech` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3` |
+| `family` | string | **required** | Model family: `qwen`, `kokoro`, `chatterbox`, `luxtts`, `tada`, `cosyvoice`, `fireredtts3`, `supertonic` |
 | `model` | string / config | **required** | Model source (HuggingFace repo, local path, or named model) |
 
 Each family may add its own component-level fields (e.g. `preset`, CUDA acceleration flags). See the family sections below.
@@ -2537,6 +2537,7 @@ Each family may add its own component-level fields (e.g. `preset`, CUDA accelera
 | `tada` | — | ✅ | — | — |
 | `cosyvoice` | ✅ | ✅ | ✅ | — |
 | `fireredtts3` | — | ✅ | ✅ | ✅ |
+| `supertonic` | ✅ | — | — | — |
 
 #### Family: `qwen`
 
@@ -2954,6 +2955,46 @@ component:
 | `mode` | string | `semantic` | `semantic` (content edit) or `acoustic` (speed/pitch/volume edit) |
 
 Output sample rate: 24 kHz (both presets). Calling `design` or `edit` on the `base` preset raises a runtime error.
+
+#### Family: `supertonic`
+
+Supertone Supertonic 3. Lightweight on-device TTS backed by ONNX Runtime (CPU-first); no CUDA/MPS code path. Only `generate` is supported.
+
+**Component fields:** inherits common model fields only. Pin the archived snapshot revision via `model.revision` and set `device: cpu`.
+
+**Method: `generate`**
+
+```yaml
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: supertonic
+  model:
+    repository: supertone-oss-archive/supertonic-3
+    revision: aafc6e32416a594460b32413efc49d7fe4ce6d46
+  device: cpu
+  action:
+    method: generate
+    text: ${input.text as text}
+    voice: ${input.voice | F1}
+    language: ${input.language | en}
+    speed: ${input.speed | 1.05}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `voice` | string | `F1` | Built-in voice ID (`M1`-`M5`, `F1`-`F5`), or path to a Voice Builder JSON file |
+| `speed` | float | `1.05` | Speech speed multiplier (range `0.7` - `2.0`) |
+| `total_steps` | int | `8` | Diffusion sampling steps (range `5` - `12`); higher trades speed for quality |
+| `max_chunk_length` | int | `null` | Max characters per synthesis chunk; defaults are language-aware (120 for Korean, 300 elsewhere) |
+| `silence_duration` | float | `0.3` | Silence inserted between synthesized chunks, in seconds |
+
+Any `voice` value containing a path separator or ending in `.json` is loaded as a Voice Builder export; everything else resolves against the built-in voice set.
+
+Supported `language` codes: `ar`, `bg`, `cs`, `da`, `de`, `el`, `en`, `es`, `et`, `fi`, `fr`, `hi`, `hr`, `hu`, `id`, `it`, `ja`, `ko`, `lt`, `lv`, `nl`, `pl`, `pt`, `ro`, `ru`, `sk`, `sl`, `sv`, `tr`, `uk`, `vi`. Any code outside this set is remapped to `na` (Supertonic's language-agnostic fallback) so inference still runs.
+
+Output sample rate: 44.1 kHz, 16-bit mono.
 
 ### Speech to Text
 

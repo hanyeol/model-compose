@@ -14,5 +14,5 @@ class WanImageToVideoModelComponentConfig(CommonImageToVideoModelComponentConfig
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[ImageToVideoModelFamily.WAN]
     preset: WanImageToVideoPreset = Field(default=WanImageToVideoPreset.I2V_A14B, description="Wan model preset selecting the checkpoint variant.")
-    cpu_offload: bool = Field(default=False, description="Offload submodules to CPU during generation to save VRAM.")
+    cpu_offload: bool = Field(default=False, description="Low-VRAM mode: offload DiT between steps, keep T5 on CPU, and cast DiT to its config dtype.")
     actions: List[ImageToVideoModelActionConfig] = Field(default_factory=list, description="Actions this image-to-video component exposes to workflows.")

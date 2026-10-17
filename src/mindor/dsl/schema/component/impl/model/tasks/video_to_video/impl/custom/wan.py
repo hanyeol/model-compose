@@ -14,7 +14,7 @@ class WanVideoToVideoModelComponentConfig(CommonVideoToVideoModelComponentConfig
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[VideoToVideoModelFamily.WAN]
     preset: WanVideoToVideoPreset = Field(default=WanVideoToVideoPreset.ANIMATE_14B, description="Wan model preset selecting the checkpoint variant.")
-    cpu_offload: bool = Field(default=False, description="Offload submodules to CPU during generation to save VRAM.")
+    cpu_offload: bool = Field(default=False, description="Low-VRAM mode: offload DiT between steps, keep T5 on CPU, and cast DiT to its config dtype.")
     pose2d_model: ModelConfig = Field(..., description="ViTPose whole-body ONNX checkpoint used to extract driving poses.")
     det_model: ModelConfig = Field(..., description="Person detector ONNX checkpoint (e.g. YOLOv10) used by the pose extractor.")
     sam2_model: Optional[ModelConfig] = Field(default=None, description="SAM2 checkpoint; required only when an action uses `replace_flag`.")

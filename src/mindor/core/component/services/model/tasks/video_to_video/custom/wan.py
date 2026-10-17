@@ -334,9 +334,19 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
         device_id = device.index if device.index is not None else 0
         task = _WAN_V2V_TASKS[self.config.preset]
 
+        # Wan2.2's 24 GB recipe needs all three: `offload_model`, `t5_cpu`,
+        # `convert_model_dtype`. Drop any and a 24 GB board OOMs.
+        cpu_offload = bool(self.config.cpu_offload)
+
         def _load() -> Any:
             if self.config.preset == WanVideoToVideoPreset.ANIMATE_14B:
-                return wan.WanAnimate(config=WAN_CONFIGS[task], checkpoint_dir=model_path, device_id=device_id)
+                return wan.WanAnimate(
+                    config=WAN_CONFIGS[task],
+                    checkpoint_dir=model_path,
+                    device_id=device_id,
+                    t5_cpu=cpu_offload,
+                    convert_model_dtype=cpu_offload
+                )
 
             raise ValueError(f"Unsupported Wan video-to-video preset: {self.config.preset}")
 

@@ -131,11 +131,11 @@ class WebBrowserEvaluateActionConfig(CommonWebBrowserActionConfig):
 
 class WebBrowserGetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.GET_COOKIES]
-    urls: Optional[List[str]] = Field(default=None, description="URLs whose cookies are returned; when omitted, all cookies are returned.")
+    urls: Optional[Union[List[str], str]] = Field(default=None, description="URLs whose cookies are returned; when omitted, all cookies are returned.")
 
 class WebBrowserSetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.SET_COOKIES]
-    cookies: List[Dict[str, Any]] = Field(..., description="Cookies to set on the browser session (each with name, value, domain, path, etc.).")
+    cookies: Union[List[Dict[str, Any]], str] = Field(..., description="Cookies to set on the browser session, in the shape returned by get-cookies.")
 
 WebBrowserActionConfig = Annotated[
     Union[

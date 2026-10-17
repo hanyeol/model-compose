@@ -84,3 +84,20 @@ class TestIsRequirementSatisfied:
         with patch("mindor.core.foundation.package.installer.version", return_value="2.0.0a1"):
             # Per the implementation, prereleases are always considered.
             assert is_requirement_satisfied(Requirement("foo>=2.0.0a0")) is True
+
+
+class TestPackageInstallError:
+    def test_message_includes_installer_output_tail(self):
+        from mindor.core.foundation.package.installer import PackageInstallError
+
+        error = PackageInstallError(1, [ "uv", "pip", "install", "flash-attn" ], output=b"", stderr=b"line 1\nModuleNotFoundError: No module named 'torch'\n")
+
+        assert "returned non-zero exit status 1" in str(error)
+        assert "No module named 'torch'" in str(error)
+
+    def test_is_still_a_called_process_error(self):
+        import subprocess
+        from mindor.core.foundation.package.installer import PackageInstallError
+
+        assert issubclass(PackageInstallError, subprocess.CalledProcessError)
+        assert str(PackageInstallError(2, [ "pip" ])) == str(subprocess.CalledProcessError(2, [ "pip" ]))

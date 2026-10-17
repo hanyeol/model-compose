@@ -14,8 +14,8 @@ import pytest
 
 from mindor.core.foundation.package import flash_attn as flash_attn_module
 from mindor.core.foundation.package import torch as torch_module
-from mindor.core.foundation.package.flash_attn import flash_attn_requirements
-from mindor.core.foundation.package.torch import resolve_torch_build, torch_requirements
+from mindor.core.foundation.package.flash_attn import flash_attn_requirements, flash_attn_torch_spec
+from mindor.core.foundation.package.torch import supported_torch_minors, resolve_torch_build, torch_requirements
 
 UPSTREAM = "https://github.com/Dao-AILab/flash-attention/releases/download"
 COMMUNITY = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download"
@@ -143,10 +143,20 @@ class TestX86_64:
             f"flash-attn@{UPSTREAM}/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl",
         ]
 
-    def test_community_builds_are_aarch64_only(self, monkeypatch: pytest.MonkeyPatch):
-        _set_host(monkeypatch, machine="x86_64", torch_build=("2.11.0", "cu130"))
+    def test_torch210_on_cuda12_torch_falls_back_to_community_build(self, monkeypatch: pytest.MonkeyPatch):
+        # hanyeol/model-compose#50: upstream has no torch 2.10 + cu12 wheel.
+        _set_host(monkeypatch, machine="x86_64", torch_build=("2.10.0", "cu128"))
 
-        assert flash_attn_requirements("torch==2.11.*", "flash-attn") == [ "flash-attn" ]
+        assert flash_attn_requirements("torch>=2.9,<2.11", "flash-attn==2.8.3.post1") == [
+            f"flash-attn==2.8.3@{COMMUNITY}/v0.9.0/flash_attn-2.8.3+cu128torch2.10-cp312-cp312-linux_x86_64.whl",
+        ]
+
+    def test_non_cp312_python_uses_community_build(self, monkeypatch: pytest.MonkeyPatch):
+        _set_host(monkeypatch, machine="x86_64", py_minor=11, torch_build=("2.9.1", "cu130"))
+
+        assert flash_attn_requirements("torch==2.9.*", "flash-attn") == [
+            f"flash-attn@{COMMUNITY}/v0.9.0/flash_attn-2.8.3+cu130torch2.9-cp311-cp311-linux_x86_64.whl",
+        ]
 
     def test_cuda11_torch_is_left_unresolved(self, monkeypatch: pytest.MonkeyPatch):
         _set_host(monkeypatch, machine="x86_64", torch_build=("2.7.1", "cu118"))
@@ -236,3 +246,56 @@ class TestResolveTorchBuild:
         monkeypatch.setattr(torch_module, "get_cuda_driver_version", lambda: (11, 0))
 
         assert resolve_torch_build("torch==2.9.*") == (None, "cpu")
+
+
+class TestFlashAttnTorchSpec:
+    """`flash_attn_torch_spec` pins a torch range to a minor with a wheel (#50)."""
+
+    @staticmethod
+    def _host(monkeypatch: pytest.MonkeyPatch, builds, machine: str = "x86_64", py_minor: int = 12):
+        _set_host(monkeypatch, machine=machine, py_minor=py_minor)
+
+        def _resolve(spec: str):
+            for minor, build in builds.items():
+                if f"=={minor}.*" in spec:
+                    return build
+            return builds["default"]
+
+        monkeypatch.setattr(flash_attn_module, "resolve_torch_build", _resolve)
+        monkeypatch.setattr(flash_attn_module, "supported_torch_minors", lambda *specs: [ "2.10", "2.9" ])
+
+    def test_cuda12_x86_pins_to_torch29_upstream(self, monkeypatch: pytest.MonkeyPatch):
+        self._host(monkeypatch, { "default": ("2.10.0", "cu128"), "2.10": ("2.10.0", "cu128"), "2.9": ("2.9.1", "cu128") })
+
+        spec = flash_attn_torch_spec("torch>=2.9,<2.11", "flash-attn==2.8.3.post1")
+
+        assert spec == "torch<2.11,>=2.9,==2.9.*"
+        assert flash_attn_requirements(spec, "flash-attn==2.8.3.post1") == [
+            f"flash-attn==2.8.3@{UPSTREAM}/v2.8.3/flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl",
+        ]
+
+    def test_cuda13_keeps_the_range(self, monkeypatch: pytest.MonkeyPatch):
+        self._host(monkeypatch, { "default": ("2.10.0", "cu130"), "2.10": ("2.10.0", "cu130"), "2.9": ("2.9.1", "cu130") })
+
+        assert flash_attn_torch_spec("torch>=2.9,<2.11", "flash-attn==2.8.3.post1") == "torch>=2.9,<2.11"
+
+    def test_community_only_keeps_the_range(self, monkeypatch: pytest.MonkeyPatch):
+        # Python 3.11: upstream ships cp312 only, so no minor beats the original.
+        self._host(monkeypatch, { "default": ("2.10.0", "cu128"), "2.10": ("2.10.0", "cu128"), "2.9": ("2.9.1", "cu128") }, py_minor=11)
+
+        assert flash_attn_torch_spec("torch>=2.9,<2.11", "flash-attn==2.8.3.post1") == "torch>=2.9,<2.11"
+
+    def test_unsupported_host_keeps_the_range(self, monkeypatch: pytest.MonkeyPatch):
+        _set_host(monkeypatch, machine="ppc64le")
+
+        assert flash_attn_torch_spec("torch>=2.9,<2.11", "flash-attn") == "torch>=2.9,<2.11"
+
+
+class TestSupportedTorchMinors:
+    def test_lists_minors_newest_first(self):
+        assert supported_torch_minors("torch>=2.9,<2.11") == [ "2.10", "2.9" ]
+
+    def test_bare_spec_lists_every_tabled_minor(self):
+        minors = supported_torch_minors("torch")
+
+        assert minors[0] == "2.13" and minors[-1] == "2.4" and len(minors) == len(set(minors))

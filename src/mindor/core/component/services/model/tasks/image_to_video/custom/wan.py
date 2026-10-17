@@ -5,6 +5,7 @@ from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, WanImageToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanImageToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -119,7 +120,8 @@ class WanImageToVideoTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch", "torchvision"),
+            *torch_requirements("torch>=2.9,<2.11", "torchvision"),
+            *flash_attn_requirements("torch>=2.9,<2.11", "flash-attn==2.8.3.post1"),
             "diffusers",
             "transformers",
             "accelerate",

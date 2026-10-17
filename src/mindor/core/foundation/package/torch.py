@@ -165,6 +165,36 @@ def torch_requirements(*specs: str) -> List[str]:
 
     return _rewrite_specs(specs, torch_version, channel, pin_torch=pin, pin_siblings=pin)
 
+def resolve_torch_build(*specs: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return the (torch version, wheel channel) that `torch_requirements(*specs)` settles on.
+
+    Packages that ship binaries ABI-locked to a single torch build (flash-attn,
+    natten) key their wheel choice on this instead of re-deriving a torch
+    version from the specifier, so they always target the torch that actually
+    lands in the environment — including an already-installed torch that
+    `torch_requirements` decides to reuse.
+
+    The channel is a CUDA channel such as `cu128`, `cpu` when no CUDA channel
+    serves the requested torch, or None on hosts without a detectable NVIDIA
+    driver. The version is None when nothing in the matrix satisfies the
+    specifier (or, on the `cpu` fallback, when pip will pick it). Mirrors the
+    branches of `torch_requirements`; keep the two in sync.
+    """
+    cuda_version = get_cuda_driver_version()
+    torch_specifier = _get_torch_specifier(specs)
+
+    if cuda_version is None:
+        return _resolve_torch_without_channel(torch_specifier), None
+
+    resolved_torch = _resolve_torch_and_channel(torch_specifier, _get_torch_siblings(specs), cuda_version)
+
+    if resolved_torch is None:
+        return None, _CPU_CHANNEL
+
+    torch_version, channel, _ = resolved_torch
+
+    return torch_version, channel
+
 def _resolve_torch_and_channel(
     torch_specifier: Optional[SpecifierSet],
     torch_siblings: List[str],

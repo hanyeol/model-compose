@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, WanTextToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanTextToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
@@ -120,7 +121,8 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch", "torchvision"),
+            *torch_requirements("torch>=2.9,<2.11", "torchvision"),
+            *flash_attn_requirements("torch>=2.9,<2.11", "flash-attn==2.8.3.post1"),
             "diffusers",
             "transformers",
             "accelerate",

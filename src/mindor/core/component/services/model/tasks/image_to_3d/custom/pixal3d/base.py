@@ -79,7 +79,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
         return [
             *torch_requirements("torch==2.7.*", "torchvision"),
             *flash_attn_requirements("torch==2.7.*", "flash-attn==2.8.3.post1"),
-            *natten_requirements("natten==0.21.0"),
+            *natten_requirements("torch==2.7.*", "natten==0.21.0"),
             "diffusers==0.37.1",
             "transformers==4.57.3",
             "accelerate==1.13.0",

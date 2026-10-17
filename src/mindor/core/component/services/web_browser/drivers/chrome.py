@@ -289,11 +289,36 @@ class ChromeBrowserSession(WebBrowserSession):
 
     async def get_cookies(self, urls: Optional[List[str]]) -> List[Dict[str, Any]]:
         result = await self.client.send_command("Network.getCookies", { "urls": urls } if urls else {})
- 
+
         return result.get("cookies", [])
 
     async def set_cookies(self, cookies: List[Dict[str, Any]]) -> None:
         await self.client.send_command("Network.setCookies", {"cookies": cookies})
+
+    async def get_local_storage(self) -> List[Dict[str, Any]]:
+        script = "Object.keys(localStorage).map(name => ({ name, value: localStorage.getItem(name) }))"
+        result = await self.client.send_command("Runtime.evaluate", {
+            "expression": script, "returnByValue": True
+        })
+
+        if "exceptionDetails" in result:
+            raise RuntimeError(f"get_local_storage JavaScript error: { result['exceptionDetails'] }")
+
+        return result.get("result", {}).get("value") or []
+
+    async def set_local_storage(self, values: List[Dict[str, Any]]) -> None:
+        script = (
+            f"(function(values) {{"
+            f" for (const v of values) localStorage.setItem(v.name, v.value);"
+            f" return true;"
+            f"}})({json.dumps(values)})"
+        )
+        result = await self.client.send_command("Runtime.evaluate", {
+            "expression": script, "returnByValue": True
+        })
+
+        if "exceptionDetails" in result:
+            raise RuntimeError(f"set_local_storage JavaScript error: { result['exceptionDetails'] }")
 
     async def close(self) -> None:
         await self.client.close()

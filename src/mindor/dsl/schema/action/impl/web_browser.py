@@ -5,17 +5,19 @@ from .common import CommonActionConfig
 from .media import VideoAudioEncodingConfig
 
 class WebBrowserActionMethod(str, Enum):
-    NAVIGATE      = "navigate"
-    WAIT_FOR      = "wait-for"
-    EXTRACT       = "extract"
-    SCREENSHOT    = "screenshot"
-    CAPTURE_VIDEO = "capture-video"
-    CLICK         = "click"
-    INPUT_TEXT    = "input-text"
-    SCROLL        = "scroll"
-    EVALUATE      = "evaluate"
-    GET_COOKIES   = "get-cookies"
-    SET_COOKIES   = "set-cookies"
+    NAVIGATE          = "navigate"
+    WAIT_FOR          = "wait-for"
+    EXTRACT           = "extract"
+    SCREENSHOT        = "screenshot"
+    CAPTURE_VIDEO     = "capture-video"
+    CLICK             = "click"
+    INPUT_TEXT        = "input-text"
+    SCROLL            = "scroll"
+    EVALUATE          = "evaluate"
+    GET_COOKIES       = "get-cookies"
+    SET_COOKIES       = "set-cookies"
+    GET_LOCAL_STORAGE = "get-local-storage"
+    SET_LOCAL_STORAGE = "set-local-storage"
 
 class CommonWebBrowserActionConfig(CommonActionConfig):
     method: WebBrowserActionMethod = Field(..., description="Browser operation this action performs.")
@@ -137,6 +139,13 @@ class WebBrowserSetCookiesActionConfig(CommonWebBrowserActionConfig):
     method: Literal[WebBrowserActionMethod.SET_COOKIES]
     cookies: Union[List[Dict[str, Any]], str] = Field(..., description="Cookies to set on the browser session, in the shape returned by get-cookies.")
 
+class WebBrowserGetLocalStorageActionConfig(CommonWebBrowserActionConfig):
+    method: Literal[WebBrowserActionMethod.GET_LOCAL_STORAGE]
+
+class WebBrowserSetLocalStorageActionConfig(CommonWebBrowserActionConfig):
+    method: Literal[WebBrowserActionMethod.SET_LOCAL_STORAGE]
+    values: Union[List[Dict[str, Any]], str] = Field(..., description="localStorage values to set on the current page's origin, in the shape returned by get-local-storage.")
+
 WebBrowserActionConfig = Annotated[
     Union[
         WebBrowserNavigateActionConfig,
@@ -149,6 +158,8 @@ WebBrowserActionConfig = Annotated[
         WebBrowserEvaluateActionConfig,
         WebBrowserGetCookiesActionConfig,
         WebBrowserSetCookiesActionConfig,
+        WebBrowserGetLocalStorageActionConfig,
+        WebBrowserSetLocalStorageActionConfig,
         WebBrowserCaptureVideoActionConfig,
     ],
     Field(discriminator="method")

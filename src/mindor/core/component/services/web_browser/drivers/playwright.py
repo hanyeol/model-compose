@@ -166,6 +166,17 @@ class PlaywrightBrowserSession(WebBrowserSession):
     async def set_cookies(self, cookies: List[Dict[str, Any]]) -> None:
         await self._page.context.add_cookies(cookies)
 
+    async def get_local_storage(self) -> List[Dict[str, Any]]:
+        return await self._page.evaluate(
+            "() => Object.keys(localStorage).map(name => ({ name, value: localStorage.getItem(name) }))"
+        )
+
+    async def set_local_storage(self, values: List[Dict[str, Any]]) -> None:
+        await self._page.evaluate(
+            "values => { for (const { name, value } of values) localStorage.setItem(name, value); }",
+            values,
+        )
+
     async def close(self) -> None:
         await self._page.close()
 

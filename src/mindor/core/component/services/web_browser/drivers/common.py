@@ -17,6 +17,10 @@ class WebBrowserCookie(AtomicDict):
     def __log__(self) -> str:
         return f"<WebBrowserCookie name={self.get('name')!r} domain={self.get('domain')!r}>"
 
+class WebBrowserLocalStorageValue(AtomicDict):
+    def __log__(self) -> str:
+        return f"<WebBrowserLocalStorageValue name={self.get('name')!r}>"
+
 class WebBrowserSession(ABC):
     """Abstract browser session exposing high-level browser actions."""
     @abstractmethod
@@ -108,6 +112,14 @@ class WebBrowserSession(ABC):
 
     @abstractmethod
     async def set_cookies(self, cookies: List[Dict[str, Any]]) -> None:
+        pass
+
+    @abstractmethod
+    async def get_local_storage(self) -> List[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    async def set_local_storage(self, values: List[Dict[str, Any]]) -> None:
         pass
 
     @abstractmethod
@@ -254,5 +266,16 @@ class WebBrowserAction(ComponentAction):
                 raise ValueError("'cookies' must be specified for 'set-cookies' method")
 
             return await session.set_cookies(cookies)
+
+        if method == WebBrowserActionMethod.GET_LOCAL_STORAGE:
+            return [ WebBrowserLocalStorageValue(value) for value in await session.get_local_storage() ]
+
+        if method == WebBrowserActionMethod.SET_LOCAL_STORAGE:
+            values = await context.render_variable(self.config.values)
+
+            if values is None:
+                raise ValueError("'values' must be specified for 'set-local-storage' method")
+
+            return await session.set_local_storage(values)
 
         raise ValueError(f"Unsupported web-browser action method: {method}")

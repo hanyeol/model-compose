@@ -135,6 +135,8 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
             "imageio",
             "imageio-ffmpeg",
             "decord2" if platform.machine() == "aarch64" else "decord",
+            "librosa",
+            "peft",
             "wan@git+https://github.com/Wan-Video/Wan2.2.git",
         ]
 

@@ -294,6 +294,8 @@ class WanVideoToVideoTaskDriver(ModelTaskDriver):
             "imageio",
             "decord2" if platform.machine() == "aarch64" else "decord",
             "opencv-python",
+            "librosa",
+            "peft",
             "wan@git+https://github.com/Wan-Video/Wan2.2.git",
         ]
 

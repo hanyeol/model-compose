@@ -6,6 +6,7 @@ from .luxtts import LuxttsTextToSpeechModelActionConfig
 from .tada import TadaTextToSpeechModelActionConfig
 from .cosyvoice import CosyvoiceTextToSpeechModelActionConfig
 from .fireredtts3 import FireRedTextToSpeechModelActionConfig
+from .supertonic import SupertonicTextToSpeechModelActionConfig
 
 CustomTextToSpeechModelActionConfig = Union[
     QwenTextToSpeechModelActionConfig,
@@ -15,4 +16,5 @@ CustomTextToSpeechModelActionConfig = Union[
     TadaTextToSpeechModelActionConfig,
     CosyvoiceTextToSpeechModelActionConfig,
     FireRedTextToSpeechModelActionConfig,
+    SupertonicTextToSpeechModelActionConfig,
 ]

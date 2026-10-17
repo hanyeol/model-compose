@@ -32,4 +32,8 @@ class CustomTextToSpeechTaskDriver:
             from .fireredtts3 import FireRedTextToSpeechTaskDriver
             return FireRedTextToSpeechTaskDriver(id, config, daemon)
 
+        if config.family == TextToSpeechModelFamily.SUPERTONIC:
+            from .supertonic import SupertonicTextToSpeechTaskDriver
+            return SupertonicTextToSpeechTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

@@ -8,3 +8,4 @@ class TextToSpeechModelFamily(str, Enum):
     TADA        = "tada"
     COSYVOICE   = "cosyvoice"
     FIREREDTTS3 = "fireredtts3"
+    SUPERTONIC  = "supertonic"

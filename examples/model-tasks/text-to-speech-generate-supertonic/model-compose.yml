@@ -1,0 +1,41 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Text to Speech (Supertonic 3)
+  description: Multilingual on-device speech synthesis via Supertonic 3, running on CPU through ONNX Runtime at 44.1 kHz.
+  job:
+    input: ${input}
+    output: ${output}
+
+component:
+  type: model
+  task: text-to-speech
+  driver: custom
+  family: supertonic
+  # Pin the Supertonic 3 archived weights snapshot; the library expects every
+  # ONNX asset present under one directory, so we hand it the snapshot dir.
+  model:
+    repository: supertone-oss-archive/supertonic-3
+    revision: aafc6e32416a594460b32413efc49d7fe4ce6d46
+  # Supertonic runs on ONNX Runtime (CPU by default); set device: cpu to be
+  # explicit even on CUDA/MPS hosts.
+  device: cpu
+  max_concurrent_count: 1
+  action:
+    method: generate
+    text: ${input.text as text}
+    # Built-in voices: M1..M5 (male), F1..F5 (female).
+    voice: ${input.voice as select/M1,M2,M3,M4,M5,F1,F2,F3,F4,F5 | F1}
+    # Pick an ISO 639-1 language code supported by Supertonic 3; anything
+    # outside the native set falls back to "na" (language-agnostic).
+    language: ${input.language as select/en,ko,ja,ar,bg,cs,da,de,el,es,et,fi,fr,hi,hr,hu,id,it,lt,lv,nl,pl,pt,ro,ru,sk,sl,sv,tr,uk,vi,na | en}
+    # Speech speed; 1.0 is normal, higher is faster (range 0.7-2.0).
+    speed: ${input.speed as number | 1.05}
+    output: ${result as audio/wav}

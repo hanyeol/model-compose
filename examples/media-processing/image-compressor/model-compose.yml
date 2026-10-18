@@ -1,0 +1,83 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: compress-native
+    title: Compress PNG (Pillow)
+    description: |
+      Encode the input image as a PNG using Pillow with `optimize=True`.
+      No extra dependencies; small, predictable gains driven by the DEFLATE
+      compression level (0 = store, 9 = maximum).
+    default: true
+    job:
+      component: compressor-native
+      input:
+        image: ${input.image as image}
+        compress_level: ${input.compress_level as integer | 9}
+        strip_metadata: ${input.strip_metadata as boolean | true}
+      output: ${output as image;base64}
+
+  - id: compress-oxipng
+    title: Lossless Shrink (oxipng)
+    description: |
+      Run oxipng on top of a Pillow-encoded PNG for an extra 10–30% lossless
+      size reduction. `level` trades speed for size (0 = fast, 6 = best).
+    job:
+      component: compressor-oxipng
+      input:
+        image: ${input.image as image}
+        level: ${input.level as integer | 4}
+        strip_metadata: ${input.strip_metadata as boolean | true}
+      output: ${output as image;base64}
+
+  - id: compress-pngquant
+    title: Lossy Palette Quantization (pngquant)
+    description: |
+      Reduce the PNG to a ≤256-color adaptive palette. Typically 50–70%
+      smaller than lossless at visually similar quality for photographic or
+      gradient-heavy images. Requires the `pngquant` CLI in `PATH`.
+    job:
+      component: compressor-pngquant
+      input:
+        image: ${input.image as image}
+        speed: ${input.speed as integer | 3}
+        min_quality: ${input.min_quality as integer | 65}
+        max_quality: ${input.max_quality as integer | 85}
+        strip_metadata: ${input.strip_metadata as boolean | true}
+      output: ${output as image;base64}
+
+components:
+  - id: compressor-native
+    type: image-compressor
+    driver: native
+    action:
+      image: ${input.image}
+      compress_level: ${input.compress_level}
+      strip_metadata: ${input.strip_metadata}
+      output: ${result as base64}
+
+  - id: compressor-oxipng
+    type: image-compressor
+    driver: oxipng
+    action:
+      image: ${input.image}
+      level: ${input.level}
+      strip_metadata: ${input.strip_metadata}
+      output: ${result as base64}
+
+  - id: compressor-pngquant
+    type: image-compressor
+    driver: pngquant
+    action:
+      image: ${input.image}
+      speed: ${input.speed}
+      min_quality: ${input.min_quality}
+      max_quality: ${input.max_quality}
+      strip_metadata: ${input.strip_metadata}
+      output: ${result as base64}

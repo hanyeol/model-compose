@@ -1,0 +1,61 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: render-score-svg
+    default: true
+    title: Render Score as SVG
+    description: Rasterize a MusicXML score (`.xml`/`.musicxml`/`.mxl`) into one SVG per page. Returns a list of SVG files in page order.
+    job:
+      component: score-renderer
+      action: render-svg
+
+  - id: render-score-pdf
+    title: Render Score as PDF
+    description: Rasterize a MusicXML score into one single-page PDF per page.
+    job:
+      component: score-renderer
+      action: render-pdf
+
+  - id: render-score-png
+    title: Render Score as PNG
+    description: Rasterize a MusicXML score into one PNG per page at a chosen DPI.
+    job:
+      component: score-renderer
+      action: render-png
+
+components:
+  - id: score-renderer
+    type: music-score-renderer
+    # driver defaults to `verovio`; the component auto-installs verovio +
+    # svglib/reportlab (for pdf) + resvg-py (for png) based on the formats
+    # declared in the actions below.
+    actions:
+      # Verovio page defaults: A4-ish layout in Verovio units (1 unit ≈ 0.1 mm).
+      - id: render-svg
+        source: ${input.score as file}
+        format: svg
+
+      - id: render-pdf
+        source: ${input.score as file}
+        format: pdf
+        page_width: 2100   # ~A4 width in Verovio units
+        page_height: 2970  # ~A4 height
+        margin: 60.0       # scalar applies to all four sides
+
+      - id: render-png
+        source: ${input.score as file}
+        format: png
+        dpi: 300
+        scale: 100
+        margin:
+          top: 80
+          right: 60
+          bottom: 80
+          left: 60

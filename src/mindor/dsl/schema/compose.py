@@ -23,6 +23,12 @@ class ComposeConfig(BaseModel):
     loggers: List[LoggerConfig] = Field(default_factory=list, description="Loggers that capture and store execution logs.")
 
     @model_validator(mode="before")
+    def inflate_missing_controller(cls, values: Dict[str, Any]):
+        if values.get("controller") is None:
+            values["controller"] = {}
+        return values
+
+    @model_validator(mode="before")
     def inflate_single_component(cls, values: Dict[str, Any]):
         if "components" not in values:
             component = values.pop("component", None)

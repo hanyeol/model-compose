@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.dsl.schema.component import ModelComponentConfig, Yue2Backend, Yue2NarConfig, Yue2Submodule
+from mindor.dsl.schema.component import ModelComponentConfig, Yue2Backend, Yue2Submodule
 from mindor.dsl.schema.action import (
     ModelActionConfig,
     MusicGenerationActionMethod,

@@ -1,11 +1,10 @@
 from typing import Literal, List, Optional, Union, Dict, Any
 from enum import Enum
-from pydantic import BaseModel, Field, model_validator
-from mindor.dsl.utils.path import is_local_path
+from pydantic import Field, model_validator
 from mindor.dsl.schema.action import MusicGenerationModelActionConfig
 from ..common import CommonMusicGenerationModelComponentConfig
 from .common import MusicGenerationModelFamily
-from ....common import ModelDriverType, ModelConfig, ModelProvider, ModelQuantizationConfig, ModelQuantizationType, PeftAdapterType
+from ....common import ModelDriverType, ModelSubmoduleConfig, ModelQuantizationConfig, ModelQuantizationType, PeftAdapterType
 
 _DEFAULT_VAE_MODEL_REPOSITORY = "m-a-p/YuE2-Vae"
 
@@ -29,58 +28,14 @@ class Yue2QuantizationConfig(ModelQuantizationConfig):
             raise ValueError("double_quant is only supported for 4-bit quantization, not fp8.")
         return self
 
-class Yue2VaeConfig(BaseModel):
-    model: ModelConfig = Field(..., description="VAE model identifier — a HuggingFace repo ID or a local path.")
+class Yue2VaeConfig(ModelSubmoduleConfig):
     tile_size: Optional[Union[int, str]] = Field(default=None, description="VAE decode tile size in frames; defaults to 512 for <=12 GiB budgets and 1024 otherwise.")
-
-    @model_validator(mode="before")
-    def inflate_model(cls, values: Dict[str, Any]):
-        model = values.get("model")
-        if isinstance(model, str):
-            if is_local_path(model):
-                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
-            else:
-                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-
-        model = values.get("model")
-        if isinstance(model, dict) and "provider" not in model:
-            if "repository" in model:
-                model["provider"] = ModelProvider.HUGGINGFACE
-            elif "name" in model:
-                model["provider"] = ModelProvider.NAMED
-            else:
-                model["provider"] = ModelProvider.LOCAL
-
-        return values
-
-class Yue2NarConfig(BaseModel):
-    model: ModelConfig = Field(..., description="NAR LoRA model identifier — a HuggingFace repo ID or a local path.")
-
-    @model_validator(mode="before")
-    def inflate_model(cls, values: Dict[str, Any]):
-        model = values.get("model")
-        if isinstance(model, str):
-            if is_local_path(model):
-                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
-            else:
-                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-
-        model = values.get("model")
-        if isinstance(model, dict) and "provider" not in model:
-            if "repository" in model:
-                model["provider"] = ModelProvider.HUGGINGFACE
-            elif "name" in model:
-                model["provider"] = ModelProvider.NAMED
-            else:
-                model["provider"] = ModelProvider.LOCAL
-
-        return values
 
 class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicGenerationModelFamily.YUE2]
     vae: Yue2VaeConfig = Field(default_factory=lambda: Yue2VaeConfig(model=_DEFAULT_VAE_MODEL_REPOSITORY), description="VAE decoder used to render audio; defaults to the m-a-p/YuE2-Vae Hub repository.")
-    nar: Optional[Yue2NarConfig] = Field(default=None, description="NAR LoRA weights merged into the base pipeline; None uses the stock NAR shipped with the AR model.")
+    nar: Optional[ModelSubmoduleConfig] = Field(default=None, description="NAR LoRA weights merged into the base pipeline; None uses the stock NAR shipped with the AR model.")
     backend: Yue2Backend = Field(default=Yue2Backend.TORCH, description="Inference backend for autoregressive generation (torch, torch-eager, vllm).")
     quantization: Optional[Yue2QuantizationConfig] = Field(default=None, description="Weight quantization applied to the AR model; None disables quantization.")
     memory_budget_gib: Union[float, str] = Field(default=24, description="GPU memory budget in GiB reserved for generation.")
@@ -89,19 +44,9 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
     actions: List[MusicGenerationModelActionConfig] = Field(default_factory=list, description="Actions this YuE2 music generation component exposes to workflows.")
 
     @model_validator(mode="before")
-    def inflate_vae(cls, values: Dict[str, Any]):
-        vae = values.get("vae")
-        if vae is None:
+    def apply_default_vae(cls, values: Dict[str, Any]):
+        if values.get("vae") is None:
             values["vae"] = { "model": _DEFAULT_VAE_MODEL_REPOSITORY }
-        elif isinstance(vae, str):
-            values["vae"] = { "model": vae }
-        return values
-
-    @model_validator(mode="before")
-    def inflate_nar(cls, values: Dict[str, Any]):
-        nar = values.get("nar")
-        if isinstance(nar, str):
-            values["nar"] = { "model": nar }
         return values
 
     @model_validator(mode="after")

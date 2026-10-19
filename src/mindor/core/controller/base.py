@@ -342,7 +342,7 @@ class ControllerService(AsyncService):
             self._task_event_callbacks[task_id] = on_event
 
         try:
-            if self.task_queue:
+            if self.task_queue and any(workflow.id == workflow_id for workflow in self.workflows):
                 future = await self.task_queue.schedule(task_id, workflow_id, input, on_interrupt, session_id, metadata)
                 task = asyncio.ensure_future(future)
             else:

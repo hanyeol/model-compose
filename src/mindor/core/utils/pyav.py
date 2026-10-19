@@ -40,10 +40,12 @@ async def encode_video_from_frames(
         chunk = buffer.getvalue()
         buffer.seek(0)
         buffer.truncate(0)
+
         return chunk
 
     def _encode_frame(image: PILImage.Image) -> None:
         video_frame = av.VideoFrame.from_image(image)
+
         for packet in stream.encode(video_frame):
             container.mux(packet)
 
@@ -54,18 +56,23 @@ async def encode_video_from_frames(
     try:
         for frame in frames:
             image = convert_image(frame, width, height)
+
             await loop.run_in_executor(None, _encode_frame, image)
+
             chunk = _drain()
+
             if chunk:
                 yield chunk
 
         await loop.run_in_executor(None, _flush)
         tail = _drain()
+
         if tail:
             yield tail
     finally:
         container.close()
         tail = _drain()
+
         if tail:
             yield tail
 

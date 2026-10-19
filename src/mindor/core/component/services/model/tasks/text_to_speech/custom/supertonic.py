@@ -166,6 +166,11 @@ class SupertonicTextToSpeechTaskDriver(ModelTaskDriver):
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
-            return await SupertonicTextToSpeechGenerateTaskAction(action, self.model, self._resolve_voice_style, self.device).run(context)
+            return await SupertonicTextToSpeechGenerateTaskAction(
+                action,
+                self.model,
+                self._resolve_voice_style,
+                self.device
+            ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

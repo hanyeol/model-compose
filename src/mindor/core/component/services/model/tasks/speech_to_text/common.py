@@ -75,20 +75,23 @@ class SpeechToTextTaskAction(ModelTaskComponentAction):
 
     @staticmethod
     def _apply_time_offset(value: Any, offset: float) -> Any:
-        """Shift `start_time` / `end_time` on a segment dict (or a list of them)
-        by `offset` seconds. Non-timestamped outputs (plain strings from
-        return_timestamps=False) pass through unchanged."""
-        if not offset:
-            return value
         if isinstance(value, dict):
-            shifted = dict(value)
-            if "start_time" in shifted:
-                shifted["start_time"] = shifted["start_time"] + offset
-            if "end_time" in shifted:
-                shifted["end_time"] = shifted["end_time"] + offset
-            return shifted
+            value = dict(value)
+
+            if "start_time" in value:
+                value["start_time"] = value["start_time"] + offset
+
+            if "end_time" in value:
+                value["end_time"] = value["end_time"] + offset
+
+            if isinstance(value.get("words"), list):
+                value["words"] = [ SpeechToTextTaskAction._apply_time_offset(word, offset) for word in value["words"] ]
+
+            return value
+
         if isinstance(value, list):
             return [ SpeechToTextTaskAction._apply_time_offset(item, offset) for item in value ]
+
         return value
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

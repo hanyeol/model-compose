@@ -38,13 +38,12 @@ class AgentAction:
 
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        initial_messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
-        messages: List[Dict[str, Any]] = []
+        messages: List[Dict[str, Any]] = await self._build_initial_messages(context)
 
         if streaming:
             async def _stream_message_generator():
                 for _ in range(max_iteration_count):
-                    input = await self._render_model_input(context, messages or initial_messages, tools)
+                    input = await self._render_model_input(context, messages, tools)
                     response = await self.model_component.run(
                         self.model_config.action,
                         ulid.ulid(),
@@ -71,7 +70,7 @@ class AgentAction:
             return _stream_message_generator()
         else:
             for _ in range(max_iteration_count):
-                input = await self._render_model_input(context, messages or initial_messages, tools)
+                input = await self._render_model_input(context, messages, tools)
                 response = await self.model_component.run(
                     self.model_config.action,
                     ulid.ulid(),

@@ -10,6 +10,7 @@ from mindor.core.logger import logging
 from ..base import SubtitleLoaderDriver, register_subtitle_loader_driver
 from ..base import ComponentActionContext
 from .common import SubtitleLoaderAction
+from .parser import parse_subtitle_file
 import asyncio, os
 
 class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
@@ -97,7 +98,9 @@ class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
 
         for subtitle_path, language, is_auto_generated in subtitle_files:
             try:
-                result = await asyncio.to_thread(self._parse_subtitle_file, subtitle_path, subtitle_format)
+                # yt-dlp always re-writes subtitles as UTF-8, but some extractors emit
+                # a UTF-8 BOM. `utf-8-sig` strips it when present and is harmless otherwise.
+                result = await asyncio.to_thread(parse_subtitle_file, subtitle_path, subtitle_format, "utf-8-sig")
             finally:
                 try:
                     os.remove(subtitle_path)
@@ -190,50 +193,15 @@ class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
         auto_captions = (info.get("automatic_captions") or {}) if isinstance(info, dict) else {}
 
         results: List[Tuple[str, str, bool]] = []
+
         for language in languages:
             candidate = f"{base_path}.{language}.{subtitle_format}"
+
             if os.path.exists(candidate):
                 is_auto = language in auto_captions and language not in human_subs
                 results.append((candidate, language, is_auto))
 
         return results
-
-    @staticmethod
-    def _parse_subtitle_file(path: str, format: Optional[str]) -> Dict[str, Any]:
-        import pysubs2
-
-        # yt-dlp always re-writes subtitles as UTF-8, but some extractors emit
-        # a UTF-8 BOM. Use `utf-8-sig` to strip the BOM when present so it does
-        # not leak into the first segment's text; harmless when absent.
-        load_params: Dict[str, Any] = { "encoding": "utf-8-sig" }
-
-        if format:
-            load_params["format_"] = format
-
-        subtitles = pysubs2.load(path, **load_params)
-        segments: List[Dict[str, Any]] = []
-
-        for event in subtitles.events:
-            if event.type != "Dialogue":
-                continue
-
-            start_time = event.start / 1000.0
-            end_time   = event.end / 1000.0
-
-            segments.append({
-                "text":       event.plaintext,
-                "start_time": start_time,
-                "end_time":   end_time,
-                "duration":   end_time - start_time,
-            })
-
-        full_text = " ".join(segment["text"] for segment in segments)
-
-        return {
-            "segments":  segments,
-            "full_text": full_text,
-            "format":    subtitles.format,
-        }
 
     @staticmethod
     def _build_js_runtimes_option(runtimes: Any) -> Dict[str, Dict[str, Any]]:
@@ -268,7 +236,7 @@ class YtdlpSubtitleLoaderService(SubtitleLoaderDriver):
         super().__init__(id, config, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "yt-dlp", "pysubs2" ]
+        return [ "yt-dlp", "pysubs2", "webvtt-py" ]
 
     async def _run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:
         return await YtdlpSubtitleLoaderAction(action, context).run()

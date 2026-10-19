@@ -10,6 +10,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..base import SubtitleLoaderDriver, register_subtitle_loader_driver
 from ..base import ComponentActionContext
 from .common import SubtitleLoaderAction
+from .parser import parse_subtitle_file
 import asyncio, os
 
 class LocalSubtitleLoaderAction(SubtitleLoaderAction):
@@ -48,7 +49,7 @@ class LocalSubtitleLoaderAction(SubtitleLoaderAction):
         path, spooled = await self._resolve_source_path(source, params["format"])
 
         try:
-            result = await asyncio.to_thread(self._parse_subtitle_file, path, params["format"], params["encoding"])
+            result = await asyncio.to_thread(parse_subtitle_file, path, params["format"], params["encoding"])
         finally:
             if spooled:
                 try:
@@ -82,52 +83,13 @@ class LocalSubtitleLoaderAction(SubtitleLoaderAction):
 
         return spooled_path, True
 
-    @staticmethod
-    def _parse_subtitle_file(path: str, format: Optional[str], encoding: Optional[str]) -> Dict[str, Any]:
-        import pysubs2
-
-        load_params: Dict[str, Any] = {}
-
-        if encoding is not None:
-            load_params["encoding"] = encoding
-
-        if format:
-            load_params["format_"] = format
-
-        subtitles = pysubs2.load(path, **load_params)
-        segments: List[Dict[str, Any]] = []
-
-        for event in subtitles.events:
-            # SSA/ASS allows non-dialogue lines (Comment/Picture/Sound/etc.);
-            # only Dialogue events represent spoken captions we want to surface.
-            if event.type != "Dialogue":
-                continue
-
-            start_time = event.start / 1000.0
-            end_time   = event.end / 1000.0
-
-            segments.append({
-                "text":       event.plaintext,
-                "start_time": start_time,
-                "end_time":   end_time,
-                "duration":   end_time - start_time,
-            })
-
-        full_text = " ".join(segment["text"] for segment in segments)
-
-        return {
-            "segments":  segments,
-            "full_text": full_text,
-            "format":    subtitles.format,
-        }
-
 @register_subtitle_loader_driver(SubtitleLoaderDriverType.LOCAL)
 class LocalSubtitleLoaderService(SubtitleLoaderDriver):
     def __init__(self, id: str, config: SubtitleLoaderComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "pysubs2" ]
+        return [ "pysubs2", "webvtt-py" ]
 
     async def _run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:
         return await LocalSubtitleLoaderAction(action, context).run()

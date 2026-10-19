@@ -100,6 +100,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         if tool.parameters:
             lines.append("")
             lines.append("Args:")
+
             for param in tool.parameters:
                 type_label = f"list[{param.type.value}]" if param.is_list else param.type.value
                 description = param.get_annotation_value("description") or ""
@@ -108,9 +109,11 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         if tool.returns:
             lines.append("")
             lines.append("Returns:")
+
             for variable in tool.returns:
                 if isinstance(variable, WorkflowVariableGroupConfig):
                     lines.append(f"    {variable.name or 'output'} (list[object]): each item has:")
+
                     for inner in variable.variables:
                         type_label = f"list[{inner.type.value}]" if inner.is_list else inner.type.value
                         description = inner.get_annotation_value("description") or ""
@@ -188,13 +191,16 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return [ TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error})) ]
 
         workflow = self.controller.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
+
         if workflow:
             return await self._build_output_value(state, workflow)
 
         if state.output is None:
             return [ TextContent(type="text", text=json.dumps({"status": "completed"})) ]
+
         if isinstance(state.output, (dict, list)):
             return [ TextContent(type="text", text=json.dumps(state.output)) ]
+
         return [ TextContent(type="text", text=str(state.output)) ]
 
     async def _build_output_value(self, state: TaskState, workflow: WorkflowSchema) -> List[ContentBlock]:
@@ -321,6 +327,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             port=self.config.port,
             log_level="info"
         ))
+
         try:
             await self.http_server.serve()
         finally:
@@ -334,6 +341,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                     write_stream,
                     self.app._mcp_server.create_initialization_options(),
                 ))
+
                 try:
                     await self.stdio_task
                 except asyncio.CancelledError:

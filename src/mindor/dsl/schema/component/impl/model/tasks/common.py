@@ -13,6 +13,7 @@ class ModelTaskType(str, Enum):
     TEXT_TO_TEXT             = "text-to-text"
     TEXT_CLASSIFICATION      = "text-classification"
     TEXT_EMBEDDING           = "text-embedding"
+    TEXT_ENCODING            = "text-encoding"
     TEXT_RERANKING           = "text-reranking"
     TYPED_DECISION           = "typed-decision"
     IMAGE_TO_TEXT            = "image-to-text"

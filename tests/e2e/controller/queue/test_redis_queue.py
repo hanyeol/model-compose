@@ -601,3 +601,108 @@ async def test_cancel_listener_stops_on_subscriber_shutdown(redis_available, que
     assert all(worker.done() for worker in subscriber._workers) or subscriber._workers == []
 
     await dispatcher._stop()
+
+
+@pytest.mark.anyio
+async def test_cancel_while_queued_prevents_execution(redis_available, queue_name):
+    """Regression for issue #58: cancelling a task that is still in the Redis
+    list (worker has not popped it yet) must prevent the worker from ever
+    executing it.
+
+    Setup:
+    - subscriber with `max_concurrent_count=1` so a long-running A keeps B queued.
+    - handler blocks on an event tied to its own task_id.
+    - dispatch A then B. B sits in the Redis list.
+    - cancel B *before* A finishes.
+    - release A. Worker pops B next; before the fix it ran B to completion,
+      after the fix it consumes B's cancel tombstone and skips the handler.
+    """
+    if not redis_available:
+        pytest.skip("Redis not available on localhost:6379")
+
+    invocations: List[str] = []
+
+    async def handler(workflow_id: str, input: Dict[str, Any], on_interrupt: Any) -> Dict[str, Any]:
+        task_id = input["task_id"]
+        invocations.append(task_id)
+        # Block until this task_id's cancel event fires so A's slot stays busy
+        # while B sits in the Redis list.
+        await controller.cancel_event(task_id).wait()
+        return { "ran": task_id }
+
+    controller = DummyController(workflows=[WORKFLOW_ID], handler=handler)
+    dispatcher = await _start_dispatcher(queue_name, timeout="10s")
+    subscriber = await _start_subscriber(queue_name, [WORKFLOW_ID], controller)
+
+    dispatch_a = asyncio.create_task(dispatcher._dispatch(
+        task_id="task-A",
+        workflow_id=WORKFLOW_ID,
+        input={ "task_id": "task-A" },
+        on_interrupt=None,
+    ))
+
+    # Wait until A is actively running on the single worker slot before
+    # enqueuing B. Otherwise brpop races with the second lpush and may pop B
+    # first, defeating the "queued-while-busy" setup.
+    for _ in range(50):
+        if "task-A" in controller.running_task_ids:
+            break
+        await asyncio.sleep(0.05)
+    assert "task-A" in controller.running_task_ids
+    assert invocations == ["task-A"]
+
+    dispatch_b = asyncio.create_task(dispatcher._dispatch(
+        task_id="task-B",
+        workflow_id=WORKFLOW_ID,
+        input={ "task_id": "task-B" },
+        on_interrupt=None,
+    ))
+
+    try:
+        # Wait until B's dispatch has reached its lpush (so B is actually in the
+        # Redis list). Dispatcher's _dispatch builds the codec + subscribes to
+        # the result key before pushing, so this needs a brief grace period.
+        import redis.asyncio as aioredis
+        probe = aioredis.from_url("redis://localhost:6379", decode_responses=False)
+        try:
+            for _ in range(50):
+                llen = await probe.llen(f"{queue_name}:{WORKFLOW_ID}")
+                if llen == 1:
+                    break
+                await asyncio.sleep(0.05)
+            assert llen == 1, f"expected B queued in Redis list, got llen={llen}"
+        finally:
+            await probe.aclose()
+
+        # Cancel B while it is still queued. The dispatcher writes a tombstone
+        # at `<queue>:cancelled:task-B`; the subscriber consumes it on pop and
+        # skips the handler.
+        await dispatcher.cancel("task-B")
+
+        # Release A so its slot frees up and the worker pops B next.
+        controller.cancel_event("task-A").set()
+        await asyncio.wait_for(dispatch_a, timeout=3.0)
+
+        # Give the worker time to pop B and (if the bug were live) invoke the
+        # handler. If the fix is working, B is popped and silently discarded.
+        await asyncio.sleep(0.5)
+
+        # If the bug is live, the worker is now blocked inside B's handler
+        # waiting on its cancel event. Release it so teardown does not hang.
+        if "task-B" in controller.running_task_ids:
+            controller.cancel_event("task-B").set()
+
+        assert invocations == ["task-A"], (
+            f"handler ran for a cancelled-while-queued task: invocations={invocations}"
+        )
+    finally:
+        for task in (dispatch_a, dispatch_b):
+            if not task.done():
+                task.cancel()
+        # Drain dispatch_b so pending pubsub cleanup inside _dispatch runs.
+        try:
+            await asyncio.wait_for(dispatch_b, timeout=2.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+            pass
+        await _stop_subscriber(subscriber)
+        await dispatcher._stop()

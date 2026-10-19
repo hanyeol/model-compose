@@ -33,6 +33,7 @@ from .face_detection import *
 from .face_embedding import *
 from .face_tracking import *
 from .face_swap import *
+from .face_emotion_classification import *
 from .pose_detection import *
 from .pose_tracking import *
 from .text_to_speech import *

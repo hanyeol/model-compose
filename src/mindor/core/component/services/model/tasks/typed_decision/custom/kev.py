@@ -43,8 +43,8 @@ class KevTypedDecisionTaskAction(TypedDecisionTaskAction):
                 request = SystemOneRequest(state=text, model="kev", questions=schema)
                 record, meta = to_record(request)
                 encoding = self.model.encode(self.tokenizer, record, max_state=self.max_state_length, max_branch=self.max_branch_length)
-                probabilities = self.model.probs(encoding)
-                answers = to_answers([ probability.tolist() for probability in probabilities ], meta)
+                probs = self.model.probs(encoding)
+                answers = to_answers([ prob.tolist() for prob in probs ], meta)
                 results.append(self._build_decision_result(answers, params))
 
             return results

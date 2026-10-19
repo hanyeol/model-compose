@@ -1,0 +1,4 @@
+from ..common import CommonFaceEmotionClassificationModelActionConfig
+
+class HSEmotionFaceEmotionClassificationModelActionConfig(CommonFaceEmotionClassificationModelActionConfig):
+    pass

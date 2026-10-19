@@ -34,6 +34,7 @@ from .pose_tracking import *
 from .face_embedding import *
 from .face_tracking import *
 from .face_swap import *
+from .face_emotion_classification import *
 from .text_to_speech import *
 from .speech_to_text import *
 from .audio_text_alignment import *

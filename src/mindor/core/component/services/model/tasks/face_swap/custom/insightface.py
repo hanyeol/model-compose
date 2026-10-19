@@ -9,6 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import FaceSwapTaskAction
 from ....base import ComponentActionContext, ModelTaskDriver
+from ....utils.onnxruntime import resolve_onnx_providers
 from PIL import Image as PILImage
 import os, shutil
 
@@ -137,7 +138,7 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
         from insightface.model_zoo import get_model
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
-        providers = self._resolve_onnx_providers()
+        providers = resolve_onnx_providers()
 
         def _load() -> Tuple[INSwapper, FaceAnalysis]:
             model = get_model(os.path.join(root, name), download=False, download_zip=False)
@@ -212,27 +213,6 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
             return
 
         os.symlink(target, link_path, target_is_directory=True)
-
-    @staticmethod
-    def _resolve_onnx_providers() -> List[str]:
-        """Prefer hardware-accelerated onnxruntime providers over CPU. InsightFace's
-        default is `[CUDA, CPU]`, so on Apple Silicon it silently falls back to CPU
-        and per-frame detection can take seconds. Adding CoreML (Apple), then any
-        available GPU providers ahead of CPU restores hardware acceleration."""
-        import onnxruntime as ort
-
-        available = set(ort.get_available_providers())
-        preferred = [
-            "CUDAExecutionProvider",
-            "TensorrtExecutionProvider",
-            "ROCMExecutionProvider",
-            "CoreMLExecutionProvider",
-            "DmlExecutionProvider",
-        ]
-        providers = [ provider for provider in preferred if provider in available ]
-        providers.append("CPUExecutionProvider")
-
-        return providers
 
     def _get_device_id(self) -> int:
         return 0

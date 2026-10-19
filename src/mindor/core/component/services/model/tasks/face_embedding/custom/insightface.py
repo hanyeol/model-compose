@@ -9,6 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ..common import FaceEmbeddingTaskAction, FaceEmbedding
 from ....base import ComponentActionContext, ModelTaskDriver
+from ....utils.onnxruntime import resolve_onnx_providers
 from PIL import Image as PILImage
 import os, shutil
 
@@ -163,7 +164,7 @@ class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
         from insightface.app import FaceAnalysis
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
-        providers = self._resolve_onnx_providers()
+        providers = resolve_onnx_providers()
 
         def _load() -> FaceAnalysis:
             logging.debug(f"InsightFace providers: {providers}")
@@ -195,27 +196,6 @@ class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
             root = os.path.dirname(root)
 
         return (root, name)
-
-    @staticmethod
-    def _resolve_onnx_providers() -> List[str]:
-        """Prefer hardware-accelerated onnxruntime providers over CPU. InsightFace's
-        default is `[CUDA, CPU]`, so on Apple Silicon it silently falls back to CPU
-        and per-frame detection can take seconds. Adding CoreML (Apple), then any
-        available GPU providers ahead of CPU restores hardware acceleration."""
-        import onnxruntime as ort
-
-        available = set(ort.get_available_providers())
-        preferred = [
-            "CUDAExecutionProvider",
-            "TensorrtExecutionProvider",
-            "ROCMExecutionProvider",
-            "CoreMLExecutionProvider",
-            "DmlExecutionProvider",
-        ]
-        providers = [ provider for provider in preferred if provider in available ]
-        providers.append("CPUExecutionProvider")
-
-        return providers
 
     @staticmethod
     def _flatten_nested_pack(path: str, name: str) -> None:

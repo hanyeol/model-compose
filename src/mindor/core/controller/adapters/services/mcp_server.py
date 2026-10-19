@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Optional, List, Set, Any
 from mindor.dsl.schema.controller import McpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.controller.adapter.impl.mcp_server import McpServerTransport
+from mindor.dsl.schema.job import CommonJobConfig, PipelineJobConfig, ForEachJobConfig, AccumulateJobConfig, LoopJobConfig
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.core.workflow.tool import WorkflowToolGenerator, ResumeToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import WorkflowSchema
@@ -125,12 +126,22 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         workflow_ids: Set[str] = set()
 
         for workflow in self.controller.workflows:
-            for job in workflow.jobs:
-                if job.interrupt and (job.interrupt.before or job.interrupt.after):
-                    workflow_ids.add(workflow.id)
-                    break
+            if any(self._job_has_interrupt(job) for job in workflow.jobs):
+                workflow_ids.add(workflow.id)
 
         return workflow_ids
+
+    def _job_has_interrupt(self, job: CommonJobConfig) -> bool:
+        if job.interrupt and (job.interrupt.before or job.interrupt.after):
+            return True
+
+        if isinstance(job, PipelineJobConfig):
+            return any(self._job_has_interrupt(step) for step in job.steps)
+
+        if isinstance(job, (ForEachJobConfig, AccumulateJobConfig, LoopJobConfig)):
+            return self._job_has_interrupt(job.do)
+
+        return False
 
     async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> List[ContentBlock]:
         state = await self.controller.run_workflow(

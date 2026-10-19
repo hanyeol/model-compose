@@ -7,7 +7,7 @@ ModelActionConfig = Union[
     TextToTextModelActionConfig,
     TextClassificationModelActionConfig,
     TextEmbeddingModelActionConfig,
-    TextEncodingModelActionConfig,
+    VisionTextEncodingModelActionConfig,
     TextRerankingModelActionConfig,
     TypedDecisionModelActionConfig,
     ImageToTextModelActionConfig,

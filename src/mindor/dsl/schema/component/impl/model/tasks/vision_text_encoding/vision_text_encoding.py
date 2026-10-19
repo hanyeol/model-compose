@@ -2,9 +2,9 @@ from typing import Union, Annotated
 from pydantic import Field
 from .impl import *
 
-TextEncodingModelComponentConfig = Annotated[
+VisionTextEncodingModelComponentConfig = Annotated[
     Union[
-        HuggingfaceTextEncodingModelComponentConfig,
+        HuggingfaceVisionTextEncodingModelComponentConfig,
     ],
     Field(discriminator="driver")
 ]

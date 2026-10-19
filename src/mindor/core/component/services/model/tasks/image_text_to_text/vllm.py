@@ -75,45 +75,21 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return params
 
-    async def _generate_batch(
+    async def _generate(
         self,
-        messages: List[List[Dict[str, Any]]],
-        images: List[List[PILImage.Image]],
-        params: Dict[str, Any],
-        streaming: bool,
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
-        num_return_sequences = params["num_return_sequences"] or 1
-
-        prompts = [
-            self.tokenizer.apply_chat_template(single_messages, tokenize=False, add_generation_prompt=True)
-            for single_messages in messages
-        ]
-
-        if streaming:
-            return [
-                self._stream_text(prompt, prompt_images, params["sampling"], num_return_sequences, cancellation_token)
-                for prompt, prompt_images in zip(prompts, images)
-            ]
-
-        return [
-            await self._generate_text(prompt, prompt_images, params["sampling"], num_return_sequences, cancellation_token)
-            for prompt, prompt_images in zip(prompts, images)
-        ]
-
-    async def _generate_text(
-        self,
-        prompt: str,
+        messages: List[Dict[str, Any]],
         images: List[PILImage.Image],
-        sampling: SamplingParams,
-        num_return_sequences: int,
+        params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[str]:
-        request_id = f"request-{ulid.ulid()}"
-        texts: List[str] = [ "" ] * num_return_sequences
-        request = { "prompt": prompt, "multi_modal_data": { "image": images } }
+        num_return_sequences = params["num_return_sequences"] or 1
+        prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-        async for output in self.engine.generate(request, sampling, request_id=request_id):
+        request_id = f"request-{ulid.ulid()}"
+        request = { "prompt": prompt, "multi_modal_data": { "image": images } } if images else { "prompt": prompt }
+        texts: List[str] = [ "" ] * num_return_sequences
+
+        async for output in self.engine.generate(request, params["sampling"], request_id=request_id):
             if cancellation_token is not None and cancellation_token.is_cancelled():
                 await self.engine.abort(request_id)
                 break
@@ -123,12 +99,11 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return texts
 
-    def _stream_text(
+    def _stream(
         self,
-        prompt: str,
+        messages: List[Dict[str, Any]],
         images: List[PILImage.Image],
-        sampling: SamplingParams,
-        num_return_sequences: int,
+        params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[AsyncIterator[str]]:
         # vLLM emits every sequence's cumulative text in one shared async
@@ -136,8 +111,11 @@ class VllmImageTextToTextTaskAction(ImageTextToTextTaskAction):
         # each returned iterator can be consumed on its own. Queues are
         # bounded to apply backpressure on the engine when consumers are
         # slow, and the fan-out task is aborted if any consumer stops early.
+        num_return_sequences = params["num_return_sequences"] or 1
+        prompt     = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        sampling   = params["sampling"]
         request_id = f"request-{ulid.ulid()}"
-        request = { "prompt": prompt, "multi_modal_data": { "image": images } }
+        request = { "prompt": prompt, "multi_modal_data": { "image": images } } if images else { "prompt": prompt }
         queues: List[asyncio.Queue] = [ asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE) for _ in range(num_return_sequences) ]
         active = [ True ] * num_return_sequences
         end_of_stream = object()

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Union, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelSubmoduleConfig
 from mindor.dsl.schema.action import ModelActionConfig, MinimaxH3TextToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
@@ -13,6 +13,7 @@ from ...common import TextToVideoTaskAction
 import io
 
 if TYPE_CHECKING:
+    from transformers import PreTrainedModel
     import torch
 
 class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
@@ -251,6 +252,11 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
+        if self.config.text_encoder is not None:
+            text_encoder = await self._load_pretrained_text_encoder(self.config.text_encoder)
+        else:
+            text_encoder = None
+
         def _load() -> Any:
             import torch
 
@@ -258,6 +264,12 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             # text-only workflow (`t2va`) so only the text transformer partition
             # is fetched and the pipeline's declared signature is text-to-video.
             pipeline = ModularPipeline.from_pretrained(model_path, workflow="t2va")
+
+            # Attach the externally-loaded text_encoder BEFORE load_components;
+            # load_components skips components that are already registered.
+            if text_encoder is not None:
+                pipeline.update_components(text_encoder=text_encoder)
+
             pipeline.load_components(dtype=torch.bfloat16)
 
             # ModularPipeline doesn't ship `enable_model_cpu_offload`; the
@@ -275,6 +287,30 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             pipeline = pipeline.to(self.device)
 
             return pipeline
+
+        return await self._run_in_executor(_load)
+
+    async def _load_pretrained_text_encoder(self, text_encoder: ModelSubmoduleConfig) -> PreTrainedModel:
+        from transformers import Qwen3VLForConditionalGeneration
+
+        encoder_path = await self._provision_model(text_encoder.model)
+
+        def _load() -> PreTrainedModel:
+            import torch
+
+            logging.info(f"Component '{self.id}': loading {Qwen3VLForConditionalGeneration.__name__} from {encoder_path}")
+
+            params: Dict[str, Any] = {}
+
+            if text_encoder.precision is not None:
+                params["torch_dtype"] = getattr(torch, text_encoder.precision.value)
+            else:
+                params["torch_dtype"] = torch.bfloat16
+
+            if text_encoder.low_cpu_mem_usage:
+                params["low_cpu_mem_usage"] = True
+
+            return Qwen3VLForConditionalGeneration.from_pretrained(encoder_path, **params)
 
         return await self._run_in_executor(_load)
 

@@ -5,8 +5,7 @@ from typing import Type, Union, Optional, Dict, List, Any
 from mindor.dsl.schema.component import (
     HuggingfaceTextClassificationModelComponentConfig,
     CommonModelComponentConfig,
-    PeftAdapterConfig,
-    DiffusionVaeConfig,
+    ModelSubmoduleConfig,
 )
 from mindor.dsl.schema.action import ModelActionConfig, TextClassificationModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -110,7 +109,7 @@ class HuggingfaceTextClassificationTaskDriver(HuggingfaceLanguageModelTaskDriver
 
     def _get_model_options(
         self,
-        config: Union[CommonModelComponentConfig, PeftAdapterConfig, DiffusionVaeConfig],
+        config: Union[CommonModelComponentConfig, ModelSubmoduleConfig],
         default_dtype: Optional[torch.dtype] = None,
     ) -> Dict[str, Any]:
         options = super()._get_model_options(config, default_dtype)

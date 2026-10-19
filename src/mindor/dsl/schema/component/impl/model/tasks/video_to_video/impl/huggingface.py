@@ -5,8 +5,8 @@ from typing import Dict, Any
 from mindor.dsl.utils.path import is_local_path
 from mindor.dsl.schema.action import AnimateDiffHuggingfaceVideoToVideoModelActionConfig
 from .common import CommonVideoToVideoModelComponentConfig
-from ...base.diffusion import DiffusionControlNetConfig, DiffusionCpuOffload, DiffusionIpAdapterConfig, DiffusionSchedulerConfig
-from ...common import ModelDriverType, ModelConfig, ModelProvider
+from ...base.diffusion import DiffusionCpuOffload, DiffusionIpAdapterConfig, DiffusionSchedulerConfig
+from ...common import ModelDriverType, ModelConfig, ModelProvider, ModelSubmoduleConfig
 
 class HuggingfaceVideoToVideoModelArchitecture(str, Enum):
     ANIMATEDIFF = "animatediff"
@@ -21,7 +21,7 @@ class AnimateDiffHuggingfaceVideoToVideoModelComponentConfig(CommonHuggingfaceVi
     architecture: Literal[HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF]
     motion_adapter: ModelConfig = Field(..., description="Motion adapter model applied on top of the base diffusion model.")
     ip_adapter: Optional[List[DiffusionIpAdapterConfig]] = Field(default=None, description="Optional IP-Adapter(s) used when actions supply a `reference_image`; accepts a single entry or a list for stacking multiple IP-Adapters.")
-    controlnet: Optional[List[DiffusionControlNetConfig]] = Field(default=None, description="ControlNet models conditioning the diffusion pipeline; accepts a single entry or a list for stacking multiple ControlNets.")
+    controlnet: Optional[List[ModelSubmoduleConfig]] = Field(default=None, description="ControlNet models conditioning the diffusion pipeline; accepts a single entry or a list for stacking multiple ControlNets.")
     actions: List[AnimateDiffHuggingfaceVideoToVideoModelActionConfig] = Field(default_factory=list, description="Actions this video-to-video component exposes to workflows.")
 
     @model_validator(mode="before")
@@ -54,16 +54,8 @@ class AnimateDiffHuggingfaceVideoToVideoModelComponentConfig(CommonHuggingfaceVi
     @model_validator(mode="before")
     def normalize_controlnet(cls, values: Dict[str, Any]):
         controlnet = values.get("controlnet", None)
-        if controlnet is not None:
-            controlnets = []
-            if not isinstance(controlnet, list):
-                controlnet = [ controlnet ]
-            for value in controlnet:
-                if isinstance(value, str):
-                    controlnets.append({ "model": value })
-                else:
-                    controlnets.append(value)
-            values["controlnet"] = controlnets
+        if controlnet is not None and not isinstance(controlnet, list):
+            values["controlnet"] = [ controlnet ]
         return values
 
 HuggingfaceVideoToVideoModelComponentConfig = Annotated[

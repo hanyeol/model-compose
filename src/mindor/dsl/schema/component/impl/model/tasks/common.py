@@ -184,38 +184,56 @@ ModelConfig = Annotated[
     Field(discriminator="provider")
 ]
 
+class ModelSubmoduleConfig(BaseModel):
+    model: ModelConfig = Field(..., description="Submodule model identifier — a HuggingFace repo ID or a local path.")
+    checkpoint: Optional[str] = Field(default=None, description="Checkpoint file to load from the submodule (e.g. `models/ip-adapter_sd15.bin`).")
+    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for submodule weights and computation.")
+    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the submodule with reduced CPU RAM usage.")
+
+    @model_validator(mode="before")
+    def inflate_model(cls, values: Any):
+        if isinstance(values, str):
+            if is_local_path(values):
+                return { "model": { "provider": ModelProvider.LOCAL, "path": values } }
+            return { "model": { "provider": ModelProvider.HUGGINGFACE, "repository": values } }
+
+        if isinstance(values, dict):
+            # Flat shorthand: `{provider: ..., repository: ..., checkpoint: ...}`
+            # desugars into `{model: {provider: ..., repository: ...}, checkpoint: ...}`.
+            if "model" not in values:
+                model_keys = { "provider", "repository", "path", "name", "revision" }
+                if any(key in values for key in model_keys):
+                    extra_keys = set(cls.model_fields.keys()) - { "model" }
+                    extras = { key: values.pop(key) for key in extra_keys if key in values }
+                    values = { **extras, "model": values }
+
+            model = values.get("model")
+            if isinstance(model, str):
+                if is_local_path(model):
+                    values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+                else:
+                    values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
+
+            model = values.get("model")
+            if isinstance(model, dict) and "provider" not in model:
+                if "repository" in model:
+                    model["provider"] = ModelProvider.HUGGINGFACE
+                elif "name" in model:
+                    model["provider"] = ModelProvider.NAMED
+                else:
+                    model["provider"] = ModelProvider.LOCAL
+
+        return values
+
 class ModelQuantizationConfig(BaseModel):
     type: ModelQuantizationType = Field(..., description="Quantization scheme applied to model weights.")
     compute_dtype: Optional[str] = Field(default=None, description="Compute dtype used with 4-bit quantization (e.g., float16, bfloat16).")
     double_quant: bool = Field(default=True, description="Whether to apply nested quantization for 4-bit weights.")
 
-class PeftAdapterConfig(BaseModel):
+class PeftAdapterConfig(ModelSubmoduleConfig):
     type: PeftAdapterType = Field(..., description="Type of PEFT adapter to load.")
     name: Optional[str] = Field(default=None, description="Name assigned to the adapter for reference.")
-    model: ModelConfig = Field(..., description="Adapter model identifier — a HuggingFace repo ID or a local path.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight applied when merging with the base model (0.0-1.0).")
-    precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for adapter weights and computation.")
-    low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the adapter with reduced CPU RAM usage.")
-
-    @model_validator(mode="before")
-    def inflate_model(cls, values: Dict[str, Any]):
-        model = values.get("model")
-        if isinstance(model, str):
-            if is_local_path(model):
-                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
-            else:
-                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
-
-        model = values.get("model")
-        if isinstance(model, dict) and "provider" not in model:
-            if "repository" in model:
-                model["provider"] = ModelProvider.HUGGINGFACE
-            elif "name" in model:
-                model["provider"] = ModelProvider.NAMED
-            else:
-                model["provider"] = ModelProvider.LOCAL
-
-        return values
 
 class OnDemandConfig(BaseModel):
     priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Retention priority when memory pressure forces the model to be unloaded.")

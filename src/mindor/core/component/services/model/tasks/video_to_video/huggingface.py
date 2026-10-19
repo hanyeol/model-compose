@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Tuple, Type, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
-from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceVideoToVideoModelArchitecture, DiffusionControlNetConfig, DiffusionImageEncoderConfig
+from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, ModelSubmoduleConfig, HuggingfaceVideoToVideoModelArchitecture
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
@@ -459,7 +459,7 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
     async def _load_pretrained_controlnet_models(
         self,
-        controlnets: List[DiffusionControlNetConfig],
+        controlnets: List[ModelSubmoduleConfig],
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
@@ -487,7 +487,7 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
     async def _load_pretrained_image_encoder(
         self,
-        image_encoder: DiffusionImageEncoderConfig,
+        image_encoder: ModelSubmoduleConfig,
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
@@ -507,7 +507,7 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
 
         return await self._run_in_executor(_load)
 
-    def _get_shared_image_encoder(self) -> Optional[DiffusionImageEncoderConfig]:
+    def _get_shared_image_encoder(self) -> Optional[ModelSubmoduleConfig]:
         """Pick the one image_encoder shared across IP-Adapters, if any.
 
         diffusers wires a single `image_encoder` onto the pipeline, so when
@@ -540,12 +540,12 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
         weight_names: List[str] = []
 
         for index, adapter in enumerate(self.config.ip_adapter):
-            if not adapter.filename:
+            if not adapter.checkpoint:
                 raise ValueError(
-                    f"`ip_adapter[{index}].filename` must specify `<subfolder>/<weight_name>` "
+                    f"`ip_adapter[{index}].checkpoint` must specify `<subfolder>/<weight_name>` "
                     "(e.g. `models/ip-adapter_sd15.bin`)."
                 )
-            subfolder, _, weight_name = adapter.filename.rpartition("/")
+            subfolder, _, weight_name = adapter.checkpoint.rpartition("/")
             adapter_paths.append(await self._provision_model(adapter.model))
             subfolders.append(subfolder or None)
             weight_names.append(weight_name)

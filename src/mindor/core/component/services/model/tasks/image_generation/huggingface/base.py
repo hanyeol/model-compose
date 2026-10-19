@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import HuggingfaceImageGenerationModelActionConfig, ImageGenerationActionMethod
-from mindor.dsl.schema.component import DiffusionVaeConfig, DiffusionControlNetConfig, DiffusionCpuOffload
+from mindor.dsl.schema.component import ModelSubmoduleConfig, DiffusionCpuOffload
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.logger import logging
 from ....base import ComponentActionContext
@@ -170,7 +170,7 @@ class HuggingfaceImageGenerationBaseDriver(HuggingfaceDiffusionPipelineTaskDrive
 
         return submodules
 
-    async def _load_pretrained_vae_model(self, vae: DiffusionVaeConfig, device: torch.device, dtype: torch.dtype) -> Any:
+    async def _load_pretrained_vae_model(self, vae: ModelSubmoduleConfig, device: torch.device, dtype: torch.dtype) -> Any:
         model_class = self._get_vae_model_class()
         model_path = await self._provision_model(vae.model)
 
@@ -188,7 +188,7 @@ class HuggingfaceImageGenerationBaseDriver(HuggingfaceDiffusionPipelineTaskDrive
 
     async def _load_pretrained_controlnet_models(
         self,
-        controlnets: List[DiffusionControlNetConfig],
+        controlnets: List[ModelSubmoduleConfig],
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:

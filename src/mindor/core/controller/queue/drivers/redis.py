@@ -182,6 +182,12 @@ class RedisControllerQueueService(CommonControllerQueueService):
                     task.cancel()
 
     async def _cancel(self, task_id: str) -> None:
+        # Tombstone first so a worker that pops a still-queued message sees the
+        # cancel before invoking the handler. The pubsub below only reaches
+        # tasks already running on a subscriber.
+        tombstone_key = f"{self.config.name}:cancelled:{task_id}"
+        await self.client.set(tombstone_key, b"1", ex=self._blob_ttl or None)
+
         cancel_key = f"{self.config.name}:cancel"
         await self.client.publish(cancel_key, json.dumps({"task_id": task_id}))
 

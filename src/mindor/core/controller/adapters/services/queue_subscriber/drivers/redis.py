@@ -108,6 +108,14 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
                 except json.JSONDecodeError:
                     continue
 
+                # Skip work that was cancelled while queued — never invoke handler.
+                # The dispatcher writes `<name>:cancelled:<task_id>` on cancel; we
+                # consume it atomically so a late pop can't run the task.
+                task_id = message.get("task_id")
+
+                if task_id and await self._consume_cancel_tombstone(task_id):
+                    continue
+
                 await self._handle_workflow_task(workflow_id, message)
 
             except asyncio.CancelledError:
@@ -389,6 +397,24 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             if message["type"] == "message":
                 data = json.loads(message["data"])
                 return data.get("answer")
+
+    async def _consume_cancel_tombstone(self, task_id: str) -> bool:
+        key = f"{self.config.name}:cancelled:{task_id}"
+
+        try:
+            return bool(await self._client.execute_command("GETDEL", key))
+        except Exception as e:
+            from redis.exceptions import ResponseError
+
+            if not isinstance(e, ResponseError):
+                raise
+
+        async with self._client.pipeline(transaction=True) as pipeline:
+            pipeline.get(key)
+            pipeline.delete(key)
+            value, _ = await pipeline.execute()
+
+        return bool(value)
 
     def _build_redis_url(self) -> str:
         if not self.config.url:

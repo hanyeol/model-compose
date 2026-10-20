@@ -501,14 +501,41 @@ PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FA
 
 任务将保持在 `INTERRUPTED` 状态，直到被恢复。恢复时携带 `answer` 会替换作业的输入（before 阶段）或输出（after 阶段）；若 answer 为 null/空，则数据保持不变。
 
+**批量中断：**
+
+`state.interrupt` 始终是 pending 中断点的**列表**，即使只有一个作业被暂停也是列表。多个并行作业同时到达中断时，会被合并到一个 `INTERRUPTED` 状态中。每个点都有一个稳定的 `id`，客户端用它将 answer 路由回去。
+
+中断状态下的 `GET /tasks/{task_id}` 响应示例：
+
+```json
+{
+  "task_id": "01HXX...",
+  "status": "interrupted",
+  "interrupt": [
+    { "id": "01HZA...", "job_id": "approve-a", "run_id": null, "phase": "before",
+      "message": "是否批准 A？", "metadata": {"target": "a"} },
+    { "id": "01HZB...", "job_id": "approve-b", "run_id": null, "phase": "before",
+      "message": "是否批准 B？", "metadata": {"target": "b"} }
+  ]
+}
+```
+
 **恢复负载：**
 
-每次恢复调用都需要 `task_id`、`job_id`、`run_id`，以及可选的 `answer`。仅当 `component` 作业的 `repeat_count > 1` 时 `run_id` 才为非空 —— 此时每个并行的重复会独立中断；其他所有情形请传 `null`。
+恢复采用单一的 `answer` 对象，将每个点的 `id` 映射到其 answer 值。你可以**一次性应答所有 pending 点**，也可以仅应答**部分**点 —— 未应答的点保持 pending 状态，任务保持 `INTERRUPTED` 直到每个点都被应答。
 
 ```bash
 curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
   -H "Content-Type: application/json" \
-  -d '{"job_id": "send-invoice", "run_id": null, "answer": {"approved": true}}'
+  -d '{"answer": {"01HZA...": {"approved": true}, "01HZB...": {"approved": true}}}'
+```
+
+若希望一次性将所有 pending 点以 null answer 批准，可省略 `answer`（或传 `null`）：
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 关于 CLI、WebSocket 和 MCP 流程，请参见 [第 3 章](./03-cli-usage.md#中断处理)、[第 7 章](./07-controller-configuration.md) 和 [第 8 章](./08-websocket-interface.md)。

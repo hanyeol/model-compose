@@ -365,22 +365,30 @@ HTTP/1.1 500 Internal Server Error
 POST /api/tasks/{task_id}/resume
 ```
 
-인터럽트된 워크플로우를 재개합니다. Task가 `interrupted` 상태일 때, 이 요청을 보내 답변을 제공하고 실행을 계속합니다.
+인터럽트된 워크플로우를 재개합니다. Task가 `interrupted` 상태일 때, 이 요청을 보내 하나 이상의 pending 인터럽트 포인트에 응답하고 실행을 계속합니다.
+
+`state.interrupt`는 pending 포인트들의 리스트이며, 각 포인트에는 안정적인 `id`가 있습니다. 재개 본문은 각 포인트의 `id`를 answer 값에 매핑하는 단일 `answer` 객체를 담습니다. **pending 포인트 전체에 한 번에 응답**하거나 **일부만** 응답할 수도 있으며, 응답되지 않은 포인트는 pending 상태를 유지하고 Task는 모든 포인트가 응답될 때까지 `interrupted` 상태로 남습니다.
 
 요청 본문 파라미터:
-- `job_id` (string, 필수): 인터럽트 응답에서 받은 job ID
-- `run_id` (string, 선택): 인터럽트 응답에서 받은 실행별 ID. `repeat_count > 1`인 `component` Job에서만 필요합니다. 이 경우 병렬로 반복 실행되는 각 인스턴스가 독립적으로 인터럽트되기 때문입니다. 그 외의 모든 경우에는 `null`을 전달하거나 생략합니다.
-- `answer` (any, 선택): 워크플로우에 전달할 답변 데이터 (JSON 또는 문자열). Job의 입력(before 단계) 또는 출력(after 단계)을 대체합니다. 생략하면 데이터가 변경되지 않은 채 유지됩니다.
+- `answer` (object, 선택): `{ "<point_id>": <answer_value> }` 매핑. 생략하면 (또는 `null`을 전달하면) 모든 pending 포인트를 null answer로 해소합니다. 알 수 없는 id는 조용히 무시됩니다.
 
-요청 예시:
+요청 예시 (두 pending 포인트에 응답):
 ```bash
 curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
   -H "Content-Type: application/json" \
   -d '{
-    "job_id": "review-step",
-    "run_id": null,
-    "answer": "approved"
+    "answer": {
+      "01HZA...": "approved",
+      "01HZB...": {"edited": true}
+    }
   }'
+```
+
+요청 예시 (모든 pending 포인트를 null answer로 승인):
+```bash
+curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 응답 예시 (재개됨):

@@ -297,10 +297,9 @@ This is the WebSocket equivalent of `POST /tasks/{task_id}/resume`.
   "id": "msg-004",
   "data": {
     "task_id": "01HXYZ...",
-    "job_id": "review-step",
-    "run_id": null,
     "answer": {
-      "approved": true
+      "01HZA...": { "approved": true },
+      "01HZB...": "edited value"
     }
   }
 }
@@ -308,9 +307,7 @@ This is the WebSocket equivalent of `POST /tasks/{task_id}/resume`.
 
 **Fields:**
 - `task_id` (string, required): Task to resume
-- `job_id` (string, required): Interrupted job ID (from `interrupt.job_id`)
-- `run_id` (string, optional): Per-run ID from `interrupt.run_id`. Required only for `component` jobs with `repeat_count > 1`; pass `null` (or omit) otherwise.
-- `answer` (any, optional): Response value to pass to the workflow
+- `answer` (object, optional): A `{ "<point_id>": <answer_value> }` map. Each key is a pending interrupt point `id` (from `state.interrupt[*].id`). Omit (or send `null`) to resolve every pending point with a null answer. Unknown ids are silently ignored. You may answer a subset — the task stays `interrupted` until every point has been answered.
 
 **Response:** `task_resumed` or `error` message.
 
@@ -707,18 +704,22 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
   if (msg.type === 'task_state' && msg.data.status === 'interrupted') {
-    const interrupt = msg.data.interrupt;
-    console.log(`Interrupt at job '${interrupt.job_id}': ${interrupt.message}`);
+    const points = msg.data.interrupt;  // array of pending interrupt points
+    for (const point of points) {
+      console.log(`Interrupt at job '${point.job_id}': ${point.message}`);
+    }
 
-    // Respond to the interrupt
+    // Answer every pending point by id.
+    const answer = Object.fromEntries(
+      points.map(p => [p.id, { approved: true }])
+    );
+
     ws.send(JSON.stringify({
       type: 'resume_task',
       id: 'msg-002',
       data: {
         task_id: msg.data.task_id,
-        job_id: interrupt.job_id,
-        run_id: interrupt.run_id,
-        answer: { approved: true }
+        answer
       }
     }));
   }

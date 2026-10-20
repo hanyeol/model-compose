@@ -297,10 +297,9 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
   "id": "msg-004",
   "data": {
     "task_id": "01HXYZ...",
-    "job_id": "review-step",
-    "run_id": null,
     "answer": {
-      "approved": true
+      "01HZA...": { "approved": true },
+      "01HZB...": "edited value"
     }
   }
 }
@@ -308,9 +307,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 
 **字段：**
 - `task_id`（string，必填）：要恢复的任务
-- `job_id`（string，必填）：中断的作业 ID（来自 `interrupt.job_id`）
-- `run_id`（string，可选）：来自 `interrupt.run_id` 的单次运行 ID。仅当 `component` 作业的 `repeat_count > 1` 时必填；其他情况请传 `null`（或省略）。
-- `answer`（any，可选）：传递给工作流的响应值
+- `answer`（object，可选）：`{ "<point_id>": <answer_value> }` 映射。每个键是 pending 中断点的 `id`（来自 `state.interrupt[*].id`）。省略（或传 `null`）会以 null answer 解析所有 pending 点。未知 id 将被静默忽略。你可以只应答部分点 —— 任务保持 `interrupted` 直到每个点都被应答。
 
 **响应：** `task_resumed` 或 `error` 消息。
 
@@ -703,18 +700,22 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
   if (msg.type === 'task_state' && msg.data.status === 'interrupted') {
-    const interrupt = msg.data.interrupt;
-    console.log(`作业 '${interrupt.job_id}' 中断: ${interrupt.message}`);
+    const points = msg.data.interrupt;  // pending 中断点数组
+    for (const point of points) {
+      console.log(`作业 '${point.job_id}' 中断: ${point.message}`);
+    }
 
-    // 响应中断
+    // 以 id 应答每个 pending 点
+    const answer = Object.fromEntries(
+      points.map(p => [p.id, { approved: true }])
+    );
+
     ws.send(JSON.stringify({
       type: 'resume_task',
       id: 'msg-002',
       data: {
         task_id: msg.data.task_id,
-        job_id: interrupt.job_id,
-        run_id: interrupt.run_id,
-        answer: { approved: true }
+        answer
       }
     }));
   }

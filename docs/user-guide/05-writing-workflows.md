@@ -502,14 +502,41 @@ PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FA
 
 The task remains in `INTERRUPTED` until it is resumed. Resuming with an `answer` replaces the job's input (before phase) or output (after phase); a null/empty answer leaves the data unchanged.
 
+**Batched interrupts:**
+
+`state.interrupt` is always a **list** of pending interrupt points, even when only one job is paused. When multiple parallel jobs reach their interrupts simultaneously, the task surfaces them together in a single `INTERRUPTED` state. Each point has a stable `id` that the client uses to route an answer back.
+
+Example `GET /tasks/{task_id}` response while interrupted:
+
+```json
+{
+  "task_id": "01HXX...",
+  "status": "interrupted",
+  "interrupt": [
+    { "id": "01HZA...", "job_id": "approve-a", "run_id": null, "phase": "before",
+      "message": "Approve A?", "metadata": {"target": "a"} },
+    { "id": "01HZB...", "job_id": "approve-b", "run_id": null, "phase": "before",
+      "message": "Approve B?", "metadata": {"target": "b"} }
+  ]
+}
+```
+
 **Resume payload:**
 
-Every resume call needs `task_id`, `job_id`, `run_id`, and optionally `answer`. `run_id` is non-null only for `component` jobs with `repeat_count > 1`, where each parallel repeat interrupts independently — for all other jobs pass `null`.
+Resume takes a single `answer` object mapping each point's `id` to its answer value. You may answer **all pending points at once** or just a **subset** — unresolved points stay pending and the task remains `INTERRUPTED` until every point has been answered.
 
 ```bash
 curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
   -H "Content-Type: application/json" \
-  -d '{"job_id": "send-invoice", "run_id": null, "answer": {"approved": true}}'
+  -d '{"answer": {"01HZA...": {"approved": true}, "01HZB...": {"approved": true}}}'
+```
+
+To approve every pending point with a null answer in one call, omit `answer` entirely (or send `null`):
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 For CLI, WebSocket, and MCP flows, see [Chapter 3](./03-cli-usage.md#interrupt-handling), [Chapter 7](./07-controller-configuration.md), and [Chapter 8](./08-websocket-interface.md).

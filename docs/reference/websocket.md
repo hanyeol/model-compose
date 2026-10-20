@@ -109,9 +109,10 @@ Resume an interrupted workflow. Equivalent to `POST /tasks/{task_id}/resume`.
   "id": "msg-004",
   "data": {
     "task_id": "01HXYZ...",
-    "job_id": "review-step",
-    "run_id": null,
-    "answer": { "approved": true }
+    "answer": {
+      "01HZA...": { "approved": true },
+      "01HZB...": "edited value"
+    }
   }
 }
 ```
@@ -119,9 +120,7 @@ Resume an interrupted workflow. Equivalent to `POST /tasks/{task_id}/resume`.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `task_id` | string | yes | Task to resume |
-| `job_id` | string | yes | Must match the interrupted job (`interrupt.job_id`) |
-| `run_id` | string \| null | no | Must match `interrupt.run_id`. Non-null only for `component` jobs with `repeat_count > 1`; pass `null` (or omit) otherwise |
-| `answer` | any | no | Value passed to the workflow as the interrupt answer |
+| `answer` | object \| null | no | A `{ "<point_id>": <answer_value> }` map. Each key is a pending interrupt point `id` (from `state.interrupt[*].id`). Omit (or send `null`) to resolve every pending point with a null answer. Unknown ids are silently ignored. Partial resume is allowed — the task stays `interrupted` until every point has been answered. |
 
 **Response:** `task_resumed` on success, or `error`.
 

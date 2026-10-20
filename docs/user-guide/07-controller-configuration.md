@@ -366,22 +366,30 @@ HTTP/1.1 500 Internal Server Error
 POST /api/tasks/{task_id}/resume
 ```
 
-Resumes an interrupted workflow. When a task is in `interrupted` status, send this request to provide an answer and continue execution.
+Resumes an interrupted workflow. When a task is in `interrupted` status, send this request to answer one or more pending interrupt points and continue execution.
+
+`state.interrupt` is a list of pending points, each with a stable `id`. The resume body carries a single `answer` object mapping each point's `id` to its answer value. You can answer **all pending points at once** or just a **subset** — unresolved points stay pending and the task remains `interrupted` until every point has been answered.
 
 Request body parameters:
-- `job_id` (string, required): The job ID from the interrupt response
-- `run_id` (string, optional): The per-run ID from the interrupt response. Required only for `component` jobs with `repeat_count > 1`, where each parallel run interrupts independently. Pass `null` (or omit) for all other cases.
-- `answer` (any, optional): Answer data to pass to the workflow (JSON or string). Replaces the job's input (before phase) or output (after phase); if omitted, the data is left unchanged.
+- `answer` (object, optional): A `{ "<point_id>": <answer_value> }` map. Omit (or send `null`) to resolve every pending point with a null answer. Unknown ids are silently ignored.
 
-Request example:
+Request example (answer two pending points):
 ```bash
 curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
   -H "Content-Type: application/json" \
   -d '{
-    "job_id": "review-step",
-    "run_id": null,
-    "answer": "approved"
+    "answer": {
+      "01HZA...": "approved",
+      "01HZB...": {"edited": true}
+    }
   }'
+```
+
+Request example (approve every pending point with a null answer):
+```bash
+curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 Response example (completed):

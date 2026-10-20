@@ -297,10 +297,9 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
   "id": "msg-004",
   "data": {
     "task_id": "01HXYZ...",
-    "job_id": "review-step",
-    "run_id": null,
     "answer": {
-      "approved": true
+      "01HZA...": { "approved": true },
+      "01HZB...": "edited value"
     }
   }
 }
@@ -308,9 +307,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 
 **필드:**
 - `task_id` (string, 필수): 재개할 태스크 ID
-- `job_id` (string, 필수): 중단된 작업 ID (`interrupt.job_id`)
-- `run_id` (string, 선택): `interrupt.run_id`에서 받은 실행별 ID. `repeat_count > 1`인 `component` Job에서만 필요하며, 그 외의 경우에는 `null`을 전달하거나 생략합니다.
-- `answer` (any, 선택): 워크플로우에 전달할 응답 값
+- `answer` (object, 선택): `{ "<point_id>": <answer_value> }` 매핑. 각 키는 pending 인터럽트 포인트의 `id` (`state.interrupt[*].id`)입니다. 생략하면 (또는 `null`을 전달하면) 모든 pending 포인트를 null answer로 해소합니다. 알 수 없는 id는 조용히 무시됩니다. 일부만 응답할 수 있으며, Task는 모든 포인트가 응답될 때까지 `interrupted` 상태로 남습니다.
 
 **응답:** `task_resumed` 또는 `error` 메시지.
 
@@ -703,18 +700,22 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
   if (msg.type === 'task_state' && msg.data.status === 'interrupted') {
-    const interrupt = msg.data.interrupt;
-    console.log(`작업 '${interrupt.job_id}'에서 인터럽트: ${interrupt.message}`);
+    const points = msg.data.interrupt;  // pending 인터럽트 포인트 배열
+    for (const point of points) {
+      console.log(`작업 '${point.job_id}'에서 인터럽트: ${point.message}`);
+    }
 
-    // 인터럽트에 응답
+    // 각 pending 포인트에 id로 응답
+    const answer = Object.fromEntries(
+      points.map(p => [p.id, { approved: true }])
+    );
+
     ws.send(JSON.stringify({
       type: 'resume_task',
       id: 'msg-002',
       data: {
         task_id: msg.data.task_id,
-        job_id: interrupt.job_id,
-        run_id: interrupt.run_id,
-        answer: { approved: true }
+        answer
       }
     }));
   }

@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `face-emotion-classification`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -1386,6 +1386,77 @@ Downstream consumers should treat the latest `track` chunk for a given `track_id
 |--------|---------|-------|
 | `insightface` | [deepinsight/insightface](https://github.com/deepinsight/insightface) (pip) | Detection + 512-d ArcFace embedding. Requires an InsightFace model pack (e.g. `antelopev2`). Uses `onnxruntime`; prefers CUDA/CoreML/DirectML/ROCm providers when available. |
 
+### Face Emotion Classification
+
+Classify the facial expression in a face crop and return the top-1 label plus a per-class probability distribution. Expects an already-cropped face image (chain after `face-detection` or `face-tracking` with a `for-each`). This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `face-emotion-classification` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `hsemotion`) |
+| `model` | string/object | family-dependent | Model source. For `hsemotion`, a HuggingFace-style identifier or a local path to an ONNX checkpoint (auto-downloads `enet_b0_8_best_afew.onnx` to `~/.cache/models/hsemotion/` when omitted). |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input face crop, list of face crops, or async stream of face crops |
+| `return_probabilities` | bool | `true` | Include the per-class probability vector in the result. |
+| `batch_size` | int | `1` | Number of images to process per batch |
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: face-emotion-classification
+  driver: custom
+  family: hsemotion
+  action:
+    image: ${input.face_image as image}
+    output:
+      label: ${result.label}
+      scores: ${result.probabilities}
+```
+
+**Chaining after `face-tracking`:**
+
+```yaml
+jobs:
+  - id: track
+    component: face-tracker
+    input:
+      frames: ${input.frames}
+      return_tracks: true
+      return_track_image: true
+  - id: classify-expressions
+    component: emotion
+    for-each: ${track.result.tracks[].segments[].image}
+    input:
+      image: ${item}
+```
+
+**Result Shape:**
+
+```json
+{
+  "label": "Happiness",
+  "label_id": 4,
+  "probabilities": [0.01, 0.00, 0.00, 0.00, 0.97, 0.01, 0.00, 0.01]
+}
+```
+
+When the input is a list, the action returns a list of result dicts. When the input is an async stream, the action returns an async iterator that yields per-frame result dicts.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `hsemotion` | [av-savchenko/face-emotion-recognition](https://github.com/av-savchenko/face-emotion-recognition) (ONNX via onnxruntime) | EfficientNet-B0 trained on AffectNet 8-class (Anger, Contempt, Disgust, Fear, Happiness, Neutral, Sadness, Surprise). ~16 MB, CPU-cheap. Prefers CUDA/CoreML/DirectML/ROCm providers when available. |
+
 ### Pose Detection
 
 Detect human bodies in an image and return per-pose keypoints (2D, optionally 3D, optionally with segmentation mask). This task uses `driver: custom` with a `family` field to select the model family.
@@ -2336,7 +2407,7 @@ Restyle the source clip with a text prompt while preserving its motion.
 | `architecture` | string | **required** | Currently `animatediff` |
 | `model` | model | **required** | Base SD 1.5 style checkpoint (HuggingFace repo or local path); any SD 1.5 fine-tune works |
 | `motion_adapter` | model | **required** | AnimateDiff motion adapter matching the base architecture |
-| `ip_adapter` | model | `null` | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `filename` to `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`) |
+| `ip_adapter` | model | `null` | Optional IP-Adapter weights used when actions supply a `reference_image`. Set `checkpoint` to `<sub_dir>/<weight_name>` (e.g. `models/ip-adapter_sd15.bin`) |
 | `controlnet` | model/list | `null` | ControlNet model(s) conditioning the pipeline. String shorthand (`controlnet: <repo>`) and single-dict forms expand to a one-entry list; use a list to stack multiple ControlNets. Each entry supports `model`, `precision`, `low_cpu_mem_usage` |
 
 **Action Fields (in addition to the common fields):**
@@ -2374,7 +2445,7 @@ component:
   ip_adapter:
     provider: huggingface
     repository: h94/IP-Adapter
-    filename: models/ip-adapter_sd15.bin
+    checkpoint: models/ip-adapter_sd15.bin
   device: cuda
   action:
     video: ${input.video as video}

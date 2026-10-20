@@ -501,14 +501,41 @@ PENDING → PROCESSING → INTERRUPTED → PROCESSING → ... → COMPLETED / FA
 
 재개될 때까지 태스크는 `INTERRUPTED` 상태를 유지합니다. `answer`와 함께 재개하면 Job의 입력(before 단계) 또는 출력(after 단계)이 대체되며, null 또는 빈 answer를 전달하면 데이터가 변경되지 않은 채 그대로 유지됩니다.
 
+**묶음 인터럽트:**
+
+`state.interrupt`는 pending 상태인 인터럽트 포인트들의 **리스트**이며, Job 하나만 멈춘 경우에도 항상 리스트입니다. 여러 병렬 Job이 동시에 인터럽트에 도달하면 하나의 `INTERRUPTED` 상태로 묶여 노출됩니다. 각 포인트는 안정적인 `id`를 가지며, 클라이언트는 이 `id`로 응답을 라우팅합니다.
+
+인터럽트 상태의 `GET /tasks/{task_id}` 응답 예시:
+
+```json
+{
+  "task_id": "01HXX...",
+  "status": "interrupted",
+  "interrupt": [
+    { "id": "01HZA...", "job_id": "approve-a", "run_id": null, "phase": "before",
+      "message": "A를 승인하시겠습니까?", "metadata": {"target": "a"} },
+    { "id": "01HZB...", "job_id": "approve-b", "run_id": null, "phase": "before",
+      "message": "B를 승인하시겠습니까?", "metadata": {"target": "b"} }
+  ]
+}
+```
+
 **재개 페이로드:**
 
-모든 재개 호출에는 `task_id`, `job_id`, `run_id`가 필요하며, 선택적으로 `answer`를 함께 전달합니다. `run_id`는 `repeat_count > 1`인 `component` Job에서만 non-null 값을 갖습니다. 이 경우 병렬로 반복 실행되는 각 인스턴스가 독립적으로 인터럽트되기 때문입니다. 그 외의 모든 Job에서는 `null`을 전달합니다.
+재개는 각 포인트의 `id`를 answer 값으로 매핑하는 단일 `answer` 객체를 받습니다. **pending 포인트 전체에 한 번에 응답**하거나 **일부만** 응답할 수도 있으며, 응답되지 않은 포인트는 pending 상태를 유지하고 태스크는 모든 포인트가 응답될 때까지 `INTERRUPTED` 상태로 남습니다.
 
 ```bash
 curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
   -H "Content-Type: application/json" \
-  -d '{"job_id": "send-invoice", "run_id": null, "answer": {"approved": true}}'
+  -d '{"answer": {"01HZA...": {"approved": true}, "01HZB...": {"approved": true}}}'
+```
+
+모든 pending 포인트를 null answer로 한 번에 승인하려면 `answer`를 생략하거나 `null`을 전달합니다:
+
+```bash
+curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 CLI, WebSocket, MCP 흐름에 대해서는 [3장](./03-cli-usage.md#인터럽트-처리), [7장](./07-controller-configuration.md), [8장](./08-websocket-interface.md)을 참고하세요.

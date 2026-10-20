@@ -272,6 +272,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `image-to-3d` | 단일 이미지 3D 메시 생성 | 참조 이미지에서 텍스처가 입혀진 GLB 자산 생성 |
 | `face-embedding` | 얼굴 임베딩 | 얼굴 인식, 비교 |
 | `face-tracking` | 얼굴 추적 | 비디오 프레임 전반에서 아이덴티티를 추적하고 타임코드 세그먼트로 정리 |
+| `face-emotion-classification` | 얼굴 표정 분류 | 얼굴 crop에 감정 라벨(분노, 행복, 놀람 등)과 클래스별 확률 분포 부여 |
 | `pose-tracking` | 자세 추적 | 비디오 프레임 전반에서 사람(자세)을 트랙별 타임코드 세그먼트로 추적 |
 | `object-tracking` | 객체 추적 | 비디오 프레임 전반에서 객체를 트랙별 타임코드 세그먼트로 추적 |
 | `shot-boundary-detection` | 샷 경계 검출 | 비디오에서 하드 컷을 검출하고 샷별 시작/종료 타임코드 반환 |
@@ -1305,7 +1306,26 @@ component:
 
 단일 프레임 시퀀스, 시퀀스 리스트, 프레임 배치의 async 스트림을 모두 받으며 스트리밍 입력은 전체 비디오를 버퍼링하지 않고 지연 실행됩니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#face-tracking)를 참고하세요.
 
-### 10.3.21 pose-tracking
+### 10.3.21 face-emotion-classification
+
+이미 crop된 얼굴 이미지의 표정을 분류해 최상위 라벨과 클래스별 확률 벡터를 반환합니다. `face-detection` 또는 `face-tracking` 뒤에 `for-each`로 체이닝해 사용합니다. HSEmotion(AffectNet 8 클래스 기반 EfficientNet-B0)을 사용합니다.
+
+```yaml
+component:
+  type: model
+  task: face-emotion-classification
+  driver: custom
+  family: hsemotion
+  action:
+    image: ${input.face_image as image}
+    output:
+      label: ${result.label}
+      scores: ${result.probabilities}
+```
+
+단일 얼굴 crop, crop 리스트, crop의 async 스트림을 모두 받습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#face-emotion-classification)를 참고하세요.
+
+### 10.3.22 pose-tracking
 
 비디오 프레임 시퀀스에서 사람(자세)을 추적합니다. 프레임별 자세 검출을 트래커의 지속 `track_id`로 그룹핑하고, 연속된 히트를 타임코드 세그먼트로 병합합니다. Ultralytics YOLO-pose를 사용합니다.
 
@@ -1328,7 +1348,7 @@ component:
 
 face-tracking과 동일한 입력 형태를 받습니다. 전체 옵션, 스트리밍 청크 스키마, 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#pose-tracking)를 참고하세요.
 
-### 10.3.22 object-tracking
+### 10.3.23 object-tracking
 
 비디오 프레임 시퀀스에서 객체를 추적합니다. 프레임별 검출을 트래커의 지속 `track_id`로 그룹핑하고, 연속된 히트를 타임코드 세그먼트로 병합하며 짧은 갭은 선택적으로 보간합니다. Ultralytics YOLO를 사용합니다.
 
@@ -1352,7 +1372,7 @@ component:
 
 face-tracking과 동일한 입력 형태를 받습니다. 전체 옵션, 스트리밍 청크 스키마, 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#object-tracking)를 참고하세요.
 
-### 10.3.23 object-detection
+### 10.3.24 object-detection
 
 이미지에서 객체를 검출하고, 객체별로 바운딩 박스, 클래스 라벨, 신뢰도 점수를 반환합니다. Ultralytics YOLO를 사용합니다.
 
@@ -1372,7 +1392,7 @@ component:
 
 Ultralytics YOLO 검출(또는 세그멘테이션) `.pt` 체크포인트 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#object-detection)를 참고하세요.
 
-### 10.3.24 image-segmentation
+### 10.3.25 image-segmentation
 
 이미지에서 영역별 이진 세그멘테이션 마스크를 생성합니다. **자동 모드**(모든 뚜렷한 영역을 마스크)와 **박스 프롬프트 모드**(사용자가 제공한 바운딩 박스 주변을 정밀하게 세그멘트, 예: `object-detection` 출력)를 지원합니다. Meta의 Segment Anything Model(SAM)을 Ultralytics를 통해 사용합니다.
 
@@ -1392,7 +1412,7 @@ component:
 
 Ultralytics SAM 체크포인트(`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt` 등) 어느 것이나 사용할 수 있습니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#image-segmentation)를 참고하세요.
 
-### 10.3.25 text-to-video
+### 10.3.26 text-to-video
 
 텍스트 프롬프트에서 짧은 비디오 클립을 생성합니다. `driver: custom`을 사용하며 `family` 필드로 모델 패밀리를, `preset` 필드로 체크포인트 변형을 선택합니다.
 
@@ -1450,7 +1470,7 @@ component:
 
 결과는 단일 mp4 스트림(배치 프롬프트에는 mp4 스트림 리스트)이며, 패밀리가 `minimax-h3`일 때는 mp4가 비디오와 오디오 트랙을 모두 포함합니다. 전체 옵션은 [Model Component 레퍼런스](../reference/compose/components/model.md#text-to-video)를 참고하세요.
 
-### 10.3.26 image-to-video
+### 10.3.27 image-to-video
 
 입력 이미지를 애니메이션화한 짧은 비디오 클립을 생성하며, 선택적으로 텍스트 프롬프트로 유도할 수 있습니다.
 
@@ -1480,7 +1500,7 @@ component:
 
 `width`/`height`는 선택 사항이며, 생략하면 입력 이미지의 크기를 사용합니다. 결과 형태는 `text-to-video`와 동일합니다 (입력당 mp4 스트림).
 
-### 10.3.27 video-to-video
+### 10.3.28 video-to-video
 
 기존 비디오 클립을 변환합니다. 두 개의 드라이버 패밀리가 지원됩니다:
 
@@ -1504,7 +1524,7 @@ component:
   ip_adapter:
     provider: huggingface
     repository: h94/IP-Adapter
-    filename: models/ip-adapter_sd15.bin
+    checkpoint: models/ip-adapter_sd15.bin
   device: cuda
   action:
     video: ${input.video as video}
@@ -1562,7 +1582,7 @@ component:
 
 결과는 입력당 mp4 스트림(배치 입력에는 리스트)입니다. 전체 옵션은 [Model Component 레퍼런스](../reference/compose/components/model.md#video-to-video)를 참고하세요.
 
-### 10.3.28 image-to-3d
+### 10.3.29 image-to-3d
 
 단일 이미지에서 3D GLB 자산을 생성합니다. `family: pixal3d`는 sparse-structure / shape / texture flow-matching 단계를 체이닝해 PBR 맵이 구워진 메시를 만들어내고, `family: anigen`은 리그드 메시(뼈 + 스키닝 가중치가 표준 glTF skinned-mesh에 구워짐)와 별도 스켈레톤 시각화를 함께 생성합니다.
 
@@ -1617,7 +1637,7 @@ component:
 
 Pixal3D의 경우 `low_vram: true`는 스테이지 모델을 CPU에 두고 필요할 때만 GPU로 옮겨 최대 VRAM을 지연 시간과 맞바꾸고, `manual_fov`(라디안)는 MoGe 기반 자동 FOV 추정을 대체합니다. AniGen의 경우 `slat_variant: control`은 `params.joints_density`(0-4)를 따르며, 기본 `auto`는 관절 수를 스스로 결정합니다. 출력 형태는 패밀리마다 다릅니다 — `pixal3d`는 입력당 하나의 `.glb` 스트림(`model/gltf-binary`)을 반환하고, `anigen`은 `mesh`와 `skeleton` GLB 스트림을 담은 dict를 입력당 하나씩 반환합니다(`return_image: true`이면 `image`도 포함). 전체 옵션은 [Model Component 레퍼런스](../reference/compose/components/model.md#image-to-3d)를 참고하세요.
 
-### 10.3.29 shot-boundary-detection
+### 10.3.30 shot-boundary-detection
 
 비디오에서 샷 경계(하드 컷과 트랜지션)를 검출하고, 샷별 시작/종료 타임코드와 프레임 인덱스를 반환합니다. 딥러닝 모델을 사용하여 프레임 단위로 정확한 컷 지점을 식별합니다. `driver: custom`을 사용하며 `family` 필드로 모델 패밀리를 선택합니다.
 
@@ -1683,7 +1703,7 @@ component:
 
 `video-scene-detector` 컴포넌트(PySceneDetect/FFmpeg의 고전적 CV 휴리스틱을 사용해 시맨틱적으로 유사한 프레임을 그룹핑)와 비교하면, `shot-boundary-detection`은 컷 지점 로컬라이제이션에 특화된 학습을 거친 신경망을 실행하므로 현대 편집 컨텐츠에서 일반적으로 더 정확합니다.
 
-### 10.3.30 music-generation
+### 10.3.31 music-generation
 
 음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`를 사용합니다.
 
@@ -1772,7 +1792,7 @@ component:
 
 오디오를 생성하는 메서드는 입력당 PCM 오디오 스트림(배치 입력에는 스트림 리스트)을 반환합니다. YuE2의 `score`는 대신 `{ abc, truncated }`를 반환합니다. 메서드별 전체 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-generation)를 참고하세요.
 
-### 10.3.31 music-source-separation
+### 10.3.32 music-source-separation
 
 믹스된 녹음을 개별 악기 스템(보컬, 드럼, 베이스, 기타)으로 분리합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1805,7 +1825,7 @@ component:
 
 `music-transcription`과 연결하면 각 스템을 개별 MIDI로 전사할 수 있고, 보컬 스템에 `speech-to-text`를 연결하면 더 깨끗한 가사 전사가 가능합니다. 전체 family별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-source-separation)를 참고하세요.
 
-### 10.3.32 music-transcription
+### 10.3.33 music-transcription
 
 녹음된 오디오를 MIDI 파일과 노트 이벤트(시작 시간, 종료 시간, 음높이, 벨로시티) JSON 리스트로 전사합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1836,7 +1856,7 @@ component:
 
 `music-source-separation`과 연결하면 믹스의 각 스템을 독립적으로 전사할 수 있습니다(예: 보컬 라인과 반주를 별도 파트로 전사). 전체 family별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-transcription)를 참고하세요.
 
-### 10.3.33 music-beat-tracking
+### 10.3.34 music-beat-tracking
 
 음악 녹음에서 비트와 다운비트 위치를 검출합니다. 각 비트는 마디 내에서의 위치를 함께 기록하므로 비트 동기화 편집, 템포/박자 분석, DJ 스타일 워핑, 구조 세그멘테이션 등에 활용할 수 있습니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1864,7 +1884,7 @@ component:
 
 전체 family별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-beat-tracking)를 참고하세요.
 
-### 10.3.34 music-pitch-estimation
+### 10.3.35 music-pitch-estimation
 
 단성(monophonic) 녹음의 프레임별 기본 주파수(f0)를 추정하여 조밀한 피치 컨투어를 반환합니다. 멜로디 추출, 보컬 음정 분석, 악보 정렬, 프레임 단위 pitch-shift / autotune / vocoder 구동 등에 유용합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1913,7 +1933,7 @@ PESTO는 단성 추정기입니다 — 코드와 밀집 믹스에서 신뢰도�
 
 전체 family별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-pitch-estimation)를 참고하세요.
 
-### 10.3.35 talking-head
+### 10.3.36 talking-head
 
 정지 초상화 이미지를 구동 오디오 클립에 맞춰 립싱크(그리고 머리 움직임)를 시킵니다. 기존 비디오의 입을 편집하는 `lip-sync`와 달리, `talking-head`는 단일 이미지로부터 머리 움직임과 표정을 합성합니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -1959,7 +1979,7 @@ component:
 
 결과는 mp4 스트림(배치 입력에는 스트림 리스트)이며, 각각 `format: "mp4"`와 요청한 프레임률에 맞는 `fps` 속성을 가집니다. 전체 패밀리별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#talking-head)를 참고하세요.
 
-### 10.3.36 lip-sync
+### 10.3.37 lip-sync
 
 얼굴 비디오의 입 움직임을 구동 오디오 클립에 맞춰 재싱크합니다. 입 영역만 재생성되고 아이덴티티, 표정, 머리 자세, 배경은 원본 비디오에서 그대로 가져옵니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 
@@ -2003,7 +2023,7 @@ component:
 
 결과는 mp4 스트림(배치 입력에는 스트림 리스트)이며, 각각 `format: "mp4"`와 출력 프레임률에 맞는 `fps` 속성을 가집니다. 전체 패밀리별 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#lip-sync)를 참고하세요.
 
-### 10.3.37 motion-generation
+### 10.3.38 motion-generation
 
 텍스트 프롬프트로부터 3D 휴먼 또는 휴머노이드 모션 시퀀스를 생성합니다. 출력은 모델의 네이티브 프레임레이트로 디퓨전 샘플링된 관절 위치, 회전 행렬, 발 접촉 레이블의 시퀀스이며 NPZ 파일로 패키징됩니다. `driver: custom`을 사용하며 `family` 필드로 모델 백엔드를 선택합니다.
 

@@ -365,22 +365,30 @@ HTTP/1.1 500 Internal Server Error
 POST /api/tasks/{task_id}/resume
 ```
 
-恢复中断的工作流。当任务处于 `interrupted` 状态时，发送此请求提供答案并继续执行。
+恢复中断的工作流。当任务处于 `interrupted` 状态时，发送此请求应答一个或多个 pending 中断点并继续执行。
+
+`state.interrupt` 是 pending 点的列表，每个点都带有稳定的 `id`。恢复体采用单一的 `answer` 对象，将每个点的 `id` 映射到其 answer 值。你可以**一次性应答所有 pending 点**，也可以仅应答**部分**点 —— 未应答的点保持 pending 状态，任务保持 `interrupted` 直到每个点都被应答。
 
 请求体参数：
-- `job_id` (string, 必填): 中断响应中的 job ID
-- `run_id` (string, 可选): 中断响应中每次运行的 ID。仅当 `component` 作业的 `repeat_count > 1` 时必填，此时每个并行运行会独立中断。其他所有情况请传 `null`（或省略）。
-- `answer` (any, 可选): 传递给工作流的答案数据（JSON 或字符串）。会替换作业的输入（before 阶段）或输出（after 阶段）；若省略，则数据保持不变。
+- `answer` (object, 可选): `{ "<point_id>": <answer_value> }` 映射。省略（或传 `null`）会以 null answer 解析所有 pending 点。未知 id 将被静默忽略。
 
-请求示例：
+请求示例（应答两个 pending 点）：
 ```bash
 curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
   -H "Content-Type: application/json" \
   -d '{
-    "job_id": "review-step",
-    "run_id": null,
-    "answer": "approved"
+    "answer": {
+      "01HZA...": "approved",
+      "01HZB...": {"edited": true}
+    }
   }'
+```
+
+请求示例（以 null answer 批准所有 pending 点）：
+```bash
+curl -X POST http://localhost:8080/api/tasks/01JBQR5KSXM8HNXF7N9VYW3K2T/resume \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 响应示例（已恢复）：

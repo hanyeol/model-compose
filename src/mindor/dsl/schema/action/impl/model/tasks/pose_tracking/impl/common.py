@@ -24,8 +24,9 @@ class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
     return_keypoints: Union[bool, str] = Field(default=True, description="Whether natural-layout 2D keypoints are included on each pose; also emitted per-frame when 'return_detections' is enabled.")
     return_openpose_keypoints: Union[bool, str] = Field(default=False, description="Whether OpenPose BODY_18 keypoints are included on each pose; also emitted per-frame when 'return_detections' is enabled.")
     return_skeleton_image: Union[bool, str] = Field(default=False, description="Whether a rendered skeleton image is included on each pose; also emitted per-frame when 'return_detections' is enabled.")
-    return_track_image: Union[bool, str] = Field(default=False, description="Whether the source frame cropped to the pose bounding box is included on each pose; also emitted per-frame when 'return_detections' is enabled.")
+    return_track_image: Union[bool, str] = Field(default=False, description="Whether each track segment's representative pose crop is included; requires 'return_tracks' to be enabled.")
     return_detections: Union[bool, str] = Field(default=False, description="Whether a frame-centric view is included alongside tracks, tagging each pose by its track ID.")
+    return_detection_image: Union[bool, str] = Field(default=False, description="Whether a pose crop is included on each per-frame detection; requires 'return_detections' to be enabled.")
     return_frame_image: Union[bool, str] = Field(default=False, description="Whether the source frame image is included in each per-frame view; requires 'return_detections' to be enabled.")
     return_metadata: Union[bool, str] = Field(default=False, description="Whether processing metadata (frame_count, ...) is included; a 'metadata' chunk is appended in streaming mode.")
     batch_size: Union[int, str] = Field(default=1, description="Number of frame batches processed per iteration.")
@@ -36,6 +37,10 @@ class CommonPoseTrackingModelActionConfig(CommonModelActionConfig):
     def validate_return_tracks_or_detections(self):
         if self.return_tracks is False and self.return_detections is False:
             raise ValueError("Either 'return_tracks' or 'return_detections' must be true.")
+        if self.return_track_image is True and self.return_tracks is False:
+            raise ValueError("'return_track_image' requires 'return_tracks' to be true.")
+        if self.return_detection_image is True and self.return_detections is False:
+            raise ValueError("'return_detection_image' requires 'return_detections' to be true.")
         if self.return_frame_image is True and self.return_detections is False:
             raise ValueError("'return_frame_image' requires 'return_detections' to be true.")
         return self

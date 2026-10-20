@@ -118,9 +118,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
+        need_image_source = params["return_track_image"] or params["return_detection_image"]
+
         def _track_frame(image: PILImage.Image, timestamp: float, frame_period: float) -> Dict[str, Any]:
             faces, image_cv = self._detect_faces_in_frame(image, params)
-            extract_image_source = self._image_source_extractor(image_cv, params) if params["return_track_image"] else None
+            extract_image_source = self._image_source_extractor(image_cv, params) if need_image_source else None
             tracked_faces, _ = self._cluster_faces(
                 faces,
                 timestamp,
@@ -203,9 +205,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         pending_frames: List[Dict[str, Any]] = []
         last_face_by_cluster: Dict[int, Tuple[float, Dict[str, Any]]] = {}
 
+        need_image_source = params["return_track_image"] or params["return_detection_image"]
+
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
             faces, image_cv = self._detect_faces_in_frame(image, params)
-            extract_image_source = self._image_source_extractor(image_cv, params) if params["return_track_image"] else None
+            extract_image_source = self._image_source_extractor(image_cv, params) if need_image_source else None
             tracked_faces, tracked_segments = self._cluster_faces(
                 faces,
                 timestamp,
@@ -465,7 +469,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 frame_period,
                 bounding_box_padding,
                 bounding_box_smoothing,
-                extract_image_source
+                extract_image_source,
+                stash_image_source=bool(params["return_detection_image"]),
             )
 
             if tracked_segment is not None:
@@ -500,6 +505,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         bounding_box_padding: float,
         bounding_box_smoothing: Optional[float],
         extract_image_source: Optional[ExtractImageSourceCallable] = None,
+        stash_image_source: bool = False,
     ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
         """Fold a new detection into its cluster's segment history. The
         cluster's `current` segment is extended if this frame is within one
@@ -563,28 +569,39 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             if image_source is not None:
                 face = { **face, "image_source": image_source, "image_source_origin": origin }
 
+        # `face_with_image` aliases the current face while it still carries
+        # the padded sub-crop reference, so `best_face` can crop the
+        # representative image later; the per-frame `face` is then rebound to
+        # a sub-dict without `image_source` unless the caller asked for
+        # per-detection crops, so non-streaming runs don't pin a padded BGR
+        # sub-crop per detected face in `tracked_frames`.
+        face_with_image = face
+
+        if "image_source" in face and not stash_image_source:
+            face = { key: value for key, value in face.items() if key not in ("image_source", "image_source_origin") }
+
         if in_same_segment:
             current["end"] = timestamp
             current["frame_count"] += 1
 
             if score > current["best_face"]["score"]:
-                current["best_face"] = self._build_face_with_image(face, bounding_box_padding)
+                current["best_face"] = self._build_face_with_image(face_with_image, bounding_box_padding)
 
-            return face, None
+            tracked_segment = None
+        else:
+            tracked_segment = current
 
-        tracked_segment = current
+            if tracked_segment is not None:
+                track["segments"].append(tracked_segment)
 
-        if tracked_segment is not None:
-            track["segments"].append(tracked_segment)
+            track["current"] = {
+                "start":       timestamp,
+                "end":         timestamp,
+                "frame_count": 1,
+                "best_face":   self._build_face_with_image(face_with_image, bounding_box_padding),
+            }
 
-        track["current"] = {
-            "start":       timestamp,
-            "end":         timestamp,
-            "frame_count": 1,
-            "best_face":   self._build_face_with_image(face, bounding_box_padding),
-        }
-
-        track["emitted"] = False
+            track["emitted"] = False
 
         return face, tracked_segment
 
@@ -1078,7 +1095,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             "score":        tracked_face["score"],
         }
 
-        if params["return_track_image"]:
+        if params["return_detection_image"]:
             image_source = tracked_face.get("image_source")
 
             if image_source is not None and not tracked_face.get("interpolated"):

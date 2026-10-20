@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple, Optional, Dict, List, Any
+from typing import Callable, Union, Tuple, Optional, Dict, List, Any
 from collections.abc import AsyncIterable, AsyncIterator
+from functools import partial
 from mindor.dsl.schema.component import ModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseTrackingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -21,6 +22,12 @@ if TYPE_CHECKING:
     from ultralytics.engine.results import Results
     import numpy as np
     import torch
+
+    # Per-frame image_source extractor passed into tracking. Binds the frame's
+    # PIL image and padding into a closure so the tracking path never touches
+    # the raw image; the callback is only valid for the duration of its
+    # originating `_track_frame` call and must not be stashed on any track state.
+    ExtractImageSourceCallable = Callable[[Tuple[int, int, int, int]], Tuple[Optional[PILImage.Image], Tuple[int, int]]]
 
 class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     config: YoloPoseTrackingModelActionConfig
@@ -108,14 +115,18 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
+        need_image_source = params["return_track_image"] or params["return_detection_image"]
+
         def _track_frame(image: PILImage.Image, timestamp: float, frame_period: float) -> Dict[str, Any]:
             poses = self._detect_poses_in_frame(image, params)
+            extract_image_source = self._image_source_extractor(image, params) if need_image_source else None
             tracked_poses, _ = self._add_poses_to_tracks(
                 poses,
                 timestamp,
                 frame_period,
                 track_segments,
-                params
+                params,
+                extract_image_source,
             )
 
             tracked_frame: Dict[str, Any] = {
@@ -187,14 +198,18 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         pending_frames: List[Dict[str, Any]] = []
         last_pose_by_track: Dict[int, Tuple[float, Dict[str, Any]]] = {}
 
+        need_image_source = params["return_track_image"] or params["return_detection_image"]
+
         def _track_frame(image: PILImage.Image, timestamp: float) -> Dict[str, Any]:
             poses = self._detect_poses_in_frame(image, params)
+            extract_image_source = self._image_source_extractor(image, params) if need_image_source else None
             tracked_poses, tracked_segments = self._add_poses_to_tracks(
                 poses,
                 timestamp,
                 frame_period,
                 track_segments,
-                params
+                params,
+                extract_image_source,
             )
 
             tracked_frame: Dict[str, Any] = {
@@ -332,7 +347,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         prediction = predictions[0]
         width, height = image.size
 
-        return self._build_detected_poses(prediction, image, width, height, params)
+        return self._build_detected_poses(prediction, width, height, params)
 
     def _filter_poses(
         self,
@@ -355,6 +370,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         frame_period: float,
         track_segments: Dict[int, Dict[str, Any]],
         params: Dict[str, Any],
+        extract_image_source: Optional[ExtractImageSourceCallable] = None,
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
         """Fold this frame's detections into their tracks' segment histories.
         Unlike face_tracking, association is already done by YOLO's tracker —
@@ -411,29 +427,42 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             else:
                 track["last_bbox"] = tuple(float(value) for value in pose["bounding_box"])
 
+            if extract_image_source is not None:
+                image_source, origin = extract_image_source(pose["bounding_box"])
+
+                if image_source is not None:
+                    pose = { **pose, "image_source": image_source, "image_source_origin": origin }
+
+            # `pose_with_image` aliases the current pose while it still carries
+            # the padded sub-crop reference, so `best_pose` can crop the
+            # representative image later; the per-frame `pose` is then rebound
+            # to a sub-dict without `image_source` unless the caller asked for
+            # per-detection crops, so non-streaming runs don't pin a padded
+            # PIL sub-crop per detected pose in `tracked_frames`.
+            pose_with_image = pose
+
+            if "image_source" in pose and not params["return_detection_image"]:
+                pose = { key: value for key, value in pose.items() if key not in ("image_source", "image_source_origin") }
+
             if in_same_segment:
                 current["end"] = timestamp
                 current["frame_count"] += 1
 
                 if score > current["best_pose"]["score"]:
-                    current["best_pose"] = pose
+                    current["best_pose"] = pose_with_image
+            else:
+                if current is not None:
+                    track["segments"].append(current)
+                    tracked_segments.append((int(track_id), current))
 
-                tracked_poses.append((pose, track_id))
+                track["current"] = {
+                    "start":       timestamp,
+                    "end":         timestamp,
+                    "frame_count": 1,
+                    "best_pose":   pose_with_image,
+                }
 
-                continue
-
-            if current is not None:
-                track["segments"].append(current)
-                tracked_segments.append((int(track_id), current))
-
-            track["current"] = {
-                "start":       timestamp,
-                "end":         timestamp,
-                "frame_count": 1,
-                "best_pose":   pose,
-            }
-
-            track["emitted"] = False
+                track["emitted"] = False
 
             tracked_poses.append((pose, track_id))
 
@@ -628,7 +657,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     def _build_detected_poses(
         self,
         prediction: Results,
-        image: PILImage.Image,
         width: int,
         height: int,
         params: Dict[str, Any],
@@ -676,9 +704,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             if openpose_keypoints is not None:
                 pose["openpose_keypoints"] = openpose_keypoints
 
-            if params["return_track_image"]:
-                pose["image_source"] = image
-
             poses.append(pose)
 
         return self._filter_poses(poses, params["min_pose_size"], params["max_pose_count_per_frame"])
@@ -711,18 +736,71 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         return coco.render_skeleton(pose.get("keypoints"), width, height, background=background)
 
+    def _image_source_extractor(self, image: PILImage.Image, params: Dict[str, Any]) -> ExtractImageSourceCallable:
+        """Bind the current frame and padding into an image_source extractor.
+
+        Valid only while the originating `_track_frame` call runs; never store
+        the returned callable on track state, or the frame buffer outlives it.
+        """
+        return partial(self._extract_pose_region, image, bounding_box_padding=params["bounding_box_padding"] or 0.0)
+
+    @classmethod
+    def _extract_pose_region(
+        cls,
+        image: PILImage.Image,
+        bounding_box: Tuple[int, int, int, int],
+        bounding_box_padding: float = 0.0,
+    ) -> Tuple[Optional[PILImage.Image], Tuple[int, int]]:
+        """Crop the region of `image` around `bounding_box` grown by
+        `bounding_box_padding` on each side, returning `(sub_crop, (ox, oy))`.
+        Callers invoke this after smoothing is applied so the sub-crop is sized
+        to exactly match `_crop_pose_image(padding=...)`; margin and crop share
+        the same `int(w * padding)` / `int(h * padding)` truncation, so pixels
+        line up at the boundary with no "pixel-identical only on paper" caveat.
+        PIL `.crop()` returns an independent copy — not a view — so dropping
+        the original frame still releases its buffer while retaining just the
+        pose's neighborhood.
+        Returns `(None, (0, 0))` if the padded box has no valid overlap with
+        the frame."""
+        width, height = image.size
+        x1, y1, x2, y2 = bounding_box
+        margin = max(0.0, bounding_box_padding)
+
+        mx1 = max(0, x1 - int((x2 - x1) * margin))
+        my1 = max(0, y1 - int((y2 - y1) * margin))
+        mx2 = min(width, x2 + int((x2 - x1) * margin))
+        my2 = min(height, y2 + int((y2 - y1) * margin))
+
+        if mx2 <= mx1 or my2 <= my1:
+            return None, (0, 0)
+
+        return image.crop((mx1, my1, mx2, my2)), (mx1, my1)
+
     def _crop_pose_image(self, pose: Dict[str, Any], padding: float) -> Optional[PILImage.Image]:
-        """Crop the pose at its bounding box from the source frame. Returns None
-        when the source frame wasn't retained on the pose (per-segment `best_pose`
-        currently keeps only metadata; per-frame poses carry `image_source` when
-        `return_track_image` is enabled)."""
+        """Crop the pose at its detected bounding box (as `(x1, y1, x2, y2)`
+        in the original frame's coordinate system) at the frame's native
+        resolution. `padding` grows the box by that ratio of its own
+        width/height on each side before clipping to the stashed sub-crop.
+        Interpreted against `image_source_origin`: when `_extract_pose_region`
+        pre-cropped a sub-region of the frame, the bounding box is translated
+        into the sub-crop's local coordinates before clipping, so a sub-crop
+        with its top-left offset yields the same pixels as the full frame as
+        long as the padded box stays inside the sub-crop.
+        Returns None when the source frame wasn't retained on the pose or the
+        bounding box has no valid overlap with the sub-crop (fully outside or
+        zero-area)."""
         image_source: Optional[PILImage.Image] = pose.get("image_source")
 
         if image_source is None:
             return None
 
         width, height = image_source.size
+        ox, oy = pose.get("image_source_origin", (0, 0))
         x1, y1, x2, y2 = pose["bounding_box"]
+        x1 -= ox
+        y1 -= oy
+        x2 -= ox
+        y2 -= oy
 
         if padding > 0.0:
             w = x2 - x1
@@ -904,7 +982,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             else:
                 pose["skeleton_image"] = None
 
-        if params["return_track_image"]:
+        if params["return_detection_image"]:
             # Interpolated poses carry the anchor frame's `image_source`, so
             # cropping at the interpolated bbox would show the person from the
             # wrong frame; skip the crop for those and rely on the real anchors.

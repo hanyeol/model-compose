@@ -93,6 +93,7 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
         return_track_image       = await context.render_scalar(self.config.return_track_image, bool)
         return_embedding         = await context.render_scalar(self.config.return_embedding, bool)
         return_detections        = await context.render_scalar(self.config.return_detections, bool)
+        return_detection_image   = await context.render_scalar(self.config.return_detection_image, bool)
         return_frame_image       = await context.render_scalar(self.config.return_frame_image, bool)
         return_metadata          = await context.render_scalar(self.config.return_metadata, bool)
 
@@ -111,12 +112,6 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
         if merge_gap < 0.0:
             raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
 
-        if not return_tracks and not return_detections:
-            raise ValueError("Either 'return_tracks' or 'return_detections' must be true.")
-
-        if return_frame_image and not return_detections:
-            raise ValueError("'return_frame_image' requires 'return_detections' to be true.")
-
         return {
             "similarity_threshold":     similarity_threshold,
             "min_face_size":            min_face_size,
@@ -128,6 +123,7 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
             "return_track_image":       return_track_image,
             "return_embedding":         return_embedding,
             "return_detections":        return_detections,
+            "return_detection_image":   return_detection_image,
             "return_frame_image":       return_frame_image,
             "return_metadata":          return_metadata,
             "bounding_box_padding":     bounding_box_padding,

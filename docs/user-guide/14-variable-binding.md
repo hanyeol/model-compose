@@ -87,10 +87,18 @@ ${jobs.job-id.output.field}     # Specific field of job output
 
 ### 14.2.4 Environment Variables
 
+Environment variables are resolved at config load time (before YAML parsing), so they can appear in any field — including those not evaluated at runtime, such as `type`, `driver`, or `port`.
+
 ```yaml
-${env.OPENAI_API_KEY}       # Environment variable
-${env.PORT | 8080}          # With default value
+${env.OPENAI_API_KEY}                      # Environment variable
+${env.PORT | 8080}                         # With default value
+${env.GREETING | hello world}              # Default may contain spaces
+${env.SERVER_PORT as integer | 8000}       # Cast to a scalar type
+${env.ENABLED as boolean | false}
+${env.TIMEOUT as number | 0.5}
 ```
+
+Supported cast types: `integer`, `number`, `boolean`, `string`. Casting runs at load time; invalid values (e.g. `FLAG=maybe as boolean`) and unsupported types raise an error immediately.
 
 ### 14.2.5 Streaming Chunk References
 

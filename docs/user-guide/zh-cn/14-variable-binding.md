@@ -86,10 +86,18 @@ ${jobs.job-id.output.field}     # 作业输出的特定字段
 
 ### 14.2.4 环境变量
 
+环境变量在配置加载时(YAML 解析之前)完成替换,因此可用于任何字段,包括 `type`、`driver`、`port` 等运行时不参与求值的字段。
+
 ```yaml
-${env.OPENAI_API_KEY}       # 环境变量
-${env.PORT | 8080}          # 带默认值
+${env.OPENAI_API_KEY}                      # 环境变量
+${env.PORT | 8080}                         # 带默认值
+${env.GREETING | hello world}              # 默认值可包含空格
+${env.SERVER_PORT as integer | 8000}       # 转换为标量类型
+${env.ENABLED as boolean | false}
+${env.TIMEOUT as number | 0.5}
 ```
+
+支持的转换类型:`integer`、`number`、`boolean`、`string`。转换在加载时执行;无效值(例如 `FLAG=maybe as boolean`)或不支持的类型会立即报错。
 
 ### 14.2.5 流式块引用
 

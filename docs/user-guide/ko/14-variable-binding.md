@@ -86,10 +86,18 @@ ${jobs.job-id.output.field}     # 작업 출력의 특정 필드
 
 ### 14.2.4 환경 변수
 
+환경 변수는 설정 로드 시점(YAML 파싱 이전)에 치환되므로, `type`·`driver`·`port`처럼 런타임에 평가되지 않는 필드를 포함해 어떤 필드에도 사용할 수 있습니다.
+
 ```yaml
-${env.OPENAI_API_KEY}       # 환경 변수
-${env.PORT | 8080}          # 기본값 포함
+${env.OPENAI_API_KEY}                      # 환경 변수
+${env.PORT | 8080}                         # 기본값 포함
+${env.GREETING | hello world}              # 기본값에 공백 허용
+${env.SERVER_PORT as integer | 8000}       # 스칼라 타입으로 캐스팅
+${env.ENABLED as boolean | false}
+${env.TIMEOUT as number | 0.5}
 ```
+
+지원되는 캐스팅 타입: `integer`, `number`, `boolean`, `string`. 캐스팅은 로드 시점에 수행되며, 잘못된 값(`FLAG=maybe as boolean` 등)이나 지원하지 않는 타입은 즉시 에러로 처리됩니다.
 
 ### 14.2.5 스트리밍 청크 참조
 

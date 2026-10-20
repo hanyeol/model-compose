@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from mindor.core.controller.base import TaskEventCallback
 
 if TYPE_CHECKING:
@@ -35,11 +35,9 @@ class ControllerRunner:
     async def resume_workflow(
         self,
         task_id: str,
-        job_id: str,
-        run_id: Optional[str],
-        answer: Any = None
+        answer: Dict[str, Any],
     ) -> None:
-        await self.service.resume_workflow(task_id, job_id, run_id, answer)
+        await self.service.resume_workflow(task_id, answer)
 
     async def cancel_workflow(self, task_id: str) -> TaskState:
         return await self.service.cancel_workflow(task_id, wait_for_completion=True)

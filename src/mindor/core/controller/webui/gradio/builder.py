@@ -415,18 +415,23 @@ class GradioWebUIBuilder:
                     *_keep_model_3d_updates(),
                 ]
 
-                task_id, job_id, run_id = interrupt_point["task_id"], interrupt_point["job_id"], interrupt_point.get("run_id")
+                task_id = interrupt_point["task_id"]
 
-                # Parse answer: try JSON first, fallback to string
-                answer = answer_text
+                # Parse answer as a `{point_id: value}` dict. Empty input means
+                # "approve every pending point with a null answer".
+                answer: Optional[Dict[str, Any]] = None
+
                 if answer_text:
                     try:
                         answer = json.loads(answer_text)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+
+                        if not isinstance(answer, dict):
+                            raise ValueError("resume answer must be a JSON object mapping point id to value")
+                    except (json.JSONDecodeError, TypeError, ValueError) as e:
+                        raise PrettyGradioError(f"Invalid answer: {e}")
 
                 try:
-                    await runner().resume_workflow(task_id, job_id, run_id, answer if answer_text else None)
+                    await runner().resume_workflow(task_id, answer)
                     async_task = asyncio.create_task(runner().wait_for_completion(task_id, stop_at_streaming=True))
                 except Exception as e:
                     yield [
@@ -653,27 +658,36 @@ class GradioWebUIBuilder:
         return value if value != "" else None
 
     def _build_interrupt_components(self):
-        message  = gr.Markdown("")
-        metadata = gr.JSON(label="Metadata", visible=False)
-        answer   = gr.Textbox(label="Answer", lines=2, placeholder="Press Resume to continue, or type an answer (JSON or text)")
+        message = gr.Markdown("")
+        details = gr.JSON(label="Interrupts", visible=False)
+        answer  = gr.Textbox(
+            label="Answer",
+            lines=4,
+            placeholder='Press Resume to approve every pending point with null, or type a JSON object: { "<point_id>": <answer>, ... }',
+        )
 
-        return [ message, metadata, answer ]
+        return [ message, details, answer ]
 
     def _build_interrupt_updates(self, state: TaskState) -> List[Any]:
-        interrupt = state.interrupt
-        interrupt_point = {
-            "task_id": state.task_id,
-            "job_id": interrupt.job_id if interrupt else None,
-            "run_id": interrupt.run_id if interrupt else None,
-        }
-        message = (interrupt.message if interrupt else None) or "The workflow is waiting for your input."
-        metadata = interrupt.metadata if interrupt else None
+        interrupts = state.interrupt or []
+        answer_label = "answer" if len(interrupts) == 1 else "answers"
+        instruction = f"**Awaiting {len(interrupts)} {answer_label} — provide each by `id` in the JSON below.**"
+        details: List[Dict[str, Any]] = []
+
+        for interrupt in interrupts:
+            details.append({
+                "id": interrupt.id,
+                "job_id": interrupt.job_id,
+                "phase": interrupt.phase,
+                "message": interrupt.message,
+                "metadata": interrupt.metadata,
+            })
 
         return [
-            interrupt_point,
+            { "task_id": state.task_id },
             gr.update(visible=True),
-            gr.update(value=message),
-            gr.update(value=metadata, visible=metadata is not None),
+            gr.update(value=instruction),
+            gr.update(value=details, visible=bool(details)),
             gr.update(value=""),
         ]
 

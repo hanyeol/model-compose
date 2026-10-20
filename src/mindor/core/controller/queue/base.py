@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Optional, Dict, Any, Callable, Awaitable
+from typing import Type, Optional, Dict, List, Any, Callable, Awaitable
 from abc import abstractmethod
 from mindor.dsl.schema.controller import ControllerQueueDriverType
 from mindor.dsl.schema.controller.queue.impl.common import CommonControllerQueueConfig
@@ -9,7 +9,9 @@ from mindor.core.foundation import AsyncService
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 import asyncio
 
-InterruptCallback = Callable[[Dict[str, Any]], Awaitable[Any]]
+# The queue dispatcher receives a batched list of interrupt dicts and returns
+# a `{point.id: answer}` dict.
+InterruptCallback = Callable[[List[Dict[str, Any]]], Awaitable[Dict[str, Any]]]
 
 class CommonControllerQueueService(AsyncService):
     def __init__(self, config: CommonControllerQueueConfig):
@@ -24,18 +26,32 @@ class CommonControllerQueueService(AsyncService):
         input: Dict[str, Any],
         interrupt_handler: InterruptHandler
     ) -> Any:
-        async def _on_interrupt(data: Dict[str, Any]) -> Any:
-            point = InterruptPoint(
-                task_id=task_id,
-                job_id=data.get("job_id", ""),
-                run_id=data.get("run_id"),
-                phase=data.get("phase", "before"),
-                message=data.get("message"),
-                metadata=data.get("metadata"),
-                future=asyncio.get_event_loop().create_future(),
-            )
-            await interrupt_handler.interrupt(point)
-            return await point.future
+        async def _on_interrupt(items: List[Dict[str, Any]]) -> Dict[str, Any]:
+            # Each remote interrupt becomes a local pending point; running them
+            # concurrently lets `interrupt()` register-then-await while the
+            # Runner's quiescence detector observes them one by one and
+            # eventually flushes the batch to the controller callback.
+            points: List[InterruptPoint] = [
+                InterruptPoint(
+                    id=item["id"],
+                    task_id=task_id,
+                    job_id=item.get("job_id", ""),
+                    run_id=item.get("run_id"),
+                    phase=item.get("phase", "before"),
+                    message=item.get("message"),
+                    metadata=item.get("metadata"),
+                    future=asyncio.get_event_loop().create_future(),
+                )
+                for item in items
+            ]
+
+            async def _await_point(point: InterruptPoint) -> tuple[str, Any]:
+                answer = await interrupt_handler.interrupt(point)
+                return point.id, answer
+
+            results = await asyncio.gather(*[ _await_point(point) for point in points ])
+
+            return dict(results)
 
         return await self._dispatch(task_id, workflow_id, input, _on_interrupt)
 

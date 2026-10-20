@@ -46,9 +46,7 @@ class TaskUnsubscribePayload(BaseModel):
 
 class TaskResumePayload(BaseModel):
     task_id: str
-    job_id: str
-    run_id: Optional[str] = None
-    answer: Optional[Any] = None
+    answer: Optional[Dict[str, Any]] = None
 
 class TaskGetPayload(BaseModel):
     task_id: str
@@ -412,7 +410,7 @@ class WebSocketServer:
         @self.router.handler("resume_task")
         async def resume_task(client_id: str, message_id: Optional[str], payload: TaskResumePayload) -> None:
             try:
-                state = await self.controller.resume_workflow(payload.task_id, payload.job_id, payload.run_id, payload.answer)
+                state = await self.controller.resume_workflow(payload.task_id, payload.answer)
 
                 await self.manager.send_message(client_id, WebSocketMessage(
                     type="task_resumed",

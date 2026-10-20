@@ -31,7 +31,6 @@ from mindor.core.controller.errors import (
     TaskNotInterruptedError,
     TaskAlreadyFinishedError,
     TaskCancelInProgressError,
-    JobIdMismatchError,
     InterruptNotActiveError,
 )
 from mindor.core.errors import ShutdownError
@@ -70,6 +69,7 @@ class TaskStatus(str, Enum):
 
 @dataclass
 class InterruptState:
+    id: str
     job_id: str
     phase: Literal[ "before", "after" ]
     run_id: Optional[str] = None
@@ -84,7 +84,7 @@ class TaskState:
     input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
-    interrupt: Optional[InterruptState] = None
+    interrupt: Optional[List[InterruptState]] = None
     elapsed: Optional[float] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
@@ -98,7 +98,7 @@ class TaskEvent:
     input: Optional[Any] = None
     output: Optional[Any] = None
     error: Optional[str] = None
-    interrupt: Optional[InterruptState] = None
+    interrupt: Optional[List[InterruptState]] = None
     elapsed: Optional[float] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
@@ -318,7 +318,7 @@ class ControllerService(AsyncService):
         task_id: Optional[str] = None,
         wait_for_completion: bool = True,
         stop_at_streaming: bool = False,
-        on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
+        on_interrupt: Optional[Callable[[List[InterruptState]], Awaitable[Any]]] = None,
         on_event: Optional[TaskEventCallback] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Any] = None
@@ -384,9 +384,7 @@ class ControllerService(AsyncService):
     async def resume_workflow(
         self,
         task_id: str,
-        job_id: str,
-        run_id: Optional[str] = None,
-        answer: Any = None,
+        answer: Optional[Dict[str, Any]] = None,
         wait_for_completion: bool = False,
         stop_at_streaming: bool = False,
     ) -> TaskState:
@@ -399,27 +397,47 @@ class ControllerService(AsyncService):
         if state.status != TaskStatus.INTERRUPTED:
             raise TaskNotInterruptedError(f"Task '{task_id}' is not in interrupted state (current: {state.status})")
 
-        if state.interrupt and state.interrupt.job_id != job_id:
-            raise JobIdMismatchError(f"Job ID mismatch: expected '{state.interrupt.job_id}', got '{job_id}'")
-
         handler = self.interrupt_handlers.get(task_id)
 
         if not handler:
             raise InterruptNotActiveError(f"No active interrupt handler for task '{task_id}'")
 
-        success = handler.resolve(task_id, job_id, run_id, answer)
+        # Partial resume: resolve the ids provided; keep the rest pending.
+        # Unknown ids are silently ignored. `answer=None` resolves every
+        # pending point for this task with a None answer (auto-approve path).
+        handler.resolve(task_id, answer)
+        points = handler.points_for_task(task_id)
 
-        if not success:
-            raise InterruptNotActiveError(f"No active interrupt found for task '{task_id}', job '{job_id}'")
-
-        state = TaskState(
-            task_id=task_id,
-            status=TaskStatus.PROCESSING,
-            workflow_id=state.workflow_id,
-            input=state.input,
-            session_id=state.session_id,
-            metadata=state.metadata
-        )
+        if points:
+            interrupts = [
+                InterruptState(
+                    id=point.id,
+                    job_id=point.job_id,
+                    run_id=point.run_id,
+                    phase=point.phase,
+                    message=point.message,
+                    metadata=point.metadata,
+                )
+                for point in points
+            ]
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.INTERRUPTED,
+                workflow_id=state.workflow_id,
+                input=state.input,
+                interrupt=interrupts,
+                session_id=state.session_id,
+                metadata=state.metadata,
+            )
+        else:
+            state = TaskState(
+                task_id=task_id,
+                status=TaskStatus.PROCESSING,
+                workflow_id=state.workflow_id,
+                input=state.input,
+                session_id=state.session_id,
+                metadata=state.metadata,
+            )
 
         with self.task_states_lock:
             self.task_states.set(task_id, state)
@@ -749,7 +767,7 @@ class ControllerService(AsyncService):
         task_id: str,
         workflow_id: str,
         input: Dict[str, Any],
-        on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
+        on_interrupt: Optional[Callable[[List[InterruptState]], Awaitable[Any]]] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Any] = None
     ) -> TaskState:
@@ -949,27 +967,31 @@ class ControllerService(AsyncService):
         self,
         task_id: str,
         workflow_id: str,
-        on_interrupt: Optional[Callable[[InterruptState], Awaitable[Any]]] = None,
+        on_interrupt: Optional[Callable[[List[InterruptState]], Awaitable[Any]]] = None,
         task_metadata: Optional[Any] = None
     ) -> InterruptHandler:
-        async def _callback(point: InterruptPoint):
-            interrupt = InterruptState(
-                job_id=point.job_id,
-                run_id=point.run_id,
-                phase=point.phase,
-                message=point.message,
-                metadata=point.metadata
-            )
+        async def _callback(points: List[InterruptPoint]):
+            interrupts = [
+                InterruptState(
+                    id=point.id,
+                    job_id=point.job_id,
+                    run_id=point.run_id,
+                    phase=point.phase,
+                    message=point.message,
+                    metadata=point.metadata,
+                )
+                for point in points
+            ]
             session_id = self.get_task_state(task_id).session_id if self.get_task_state(task_id) else None
             state = TaskState(
                 task_id=task_id,
                 status=TaskStatus.INTERRUPTED,
                 workflow_id=workflow_id,
-                interrupt=interrupt,
+                interrupt=interrupts,
                 session_id=session_id,
                 metadata=task_metadata
             )
-    
+
             with self.task_states_lock:
                 self.task_states.set(task_id, state)
 
@@ -977,8 +999,10 @@ class ControllerService(AsyncService):
             self._notify_task_state_change(task_id)
 
             if on_interrupt:
-                answer = await on_interrupt(interrupt)
-                point.future.set_result(answer)
+                answers = await on_interrupt(interrupts)
+
+                if isinstance(answers, dict):
+                    handler.resolve(task_id, answers)
 
         handler = InterruptHandler(_callback)
         self.interrupt_handlers[task_id] = handler

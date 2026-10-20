@@ -242,7 +242,7 @@ def run_command(
 ) -> None:
     from mindor.core.compose.manager import ComposeManager
     from mindor.core.controller.base import TaskStatus
-    from mindor.cli.interrupt import prompt_for_interrupt
+    from mindor.cli.interrupt import prompt_for_interrupts
 
     async def _async_command():
         try:
@@ -267,11 +267,10 @@ def run_command(
                     click.echo("❌ Workflow interrupted but no TTY available. Use --auto-resume to skip.", err=True)
                     raise SystemExit(1)
 
-                answer = None if auto_resume else prompt_for_interrupt(state)
+                answer = None if auto_resume else prompt_for_interrupts(state)
+
                 state = await manager.resume_workflow(
                     state.task_id,
-                    state.interrupt.job_id,
-                    state.interrupt.run_id,
                     answer,
                     output_path,
                 )

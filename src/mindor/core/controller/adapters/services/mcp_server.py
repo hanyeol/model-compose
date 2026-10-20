@@ -156,14 +156,12 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         return await self._build_state_response(state)
 
-    async def _resume_workflow_as_tool(self, task_id: str, job_id: str, run_id: Optional[str] = None, answer: str = "") -> List[ContentBlock]:
-        answer = json.loads(answer) if answer else None
+    async def _resume_workflow_as_tool(self, task_id: str, answer: str) -> List[ContentBlock]:
+        answer = json.loads(answer) if answer else {}
 
         try:
             state = await self.controller.resume_workflow(
                 task_id,
-                job_id,
-                run_id,
                 answer,
                 wait_for_completion=True,
                 stop_at_streaming=True,
@@ -178,13 +176,17 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return [ TextContent(type="text", text=json.dumps({
                 "status": "interrupted",
                 "task_id": state.task_id,
-                "interrupt": {
-                    "job_id": state.interrupt.job_id,
-                    "run_id": state.interrupt.run_id,
-                    "phase": state.interrupt.phase,
-                    "message": state.interrupt.message,
-                    "metadata": state.interrupt.metadata
-                }
+                "interrupt": [
+                    {
+                        "id": interrupt.id,
+                        "job_id": interrupt.job_id,
+                        "run_id": interrupt.run_id,
+                        "phase": interrupt.phase,
+                        "message": interrupt.message,
+                        "metadata": interrupt.metadata,
+                    }
+                    for interrupt in (state.interrupt or [])
+                ],
             })) ]
 
         if state.status == TaskStatus.FAILED:

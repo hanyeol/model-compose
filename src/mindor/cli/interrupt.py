@@ -1,30 +1,41 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Any
+from typing import Any, Dict
 import click
 import json
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import TaskState
 
-def prompt_for_interrupt(state: TaskState) -> Any:
-    interrupt = state.interrupt
+def prompt_for_interrupts(state: TaskState) -> Dict[str, Any]:
+    """Prompt the user for each pending interrupt point and return a
+    `{point.id: answer}` dict suitable for `resume_workflow`.
+    """
+    points = state.interrupt or []
+    answers: Dict[str, Any] = {}
 
-    if interrupt.message:
-        click.echo(interrupt.message, err=True)
+    for index, point in enumerate(points, start=1):
+        if len(points) > 1:
+            click.echo(f"[{index}/{len(points)}] interrupt — job '{point.job_id}' ({point.phase})", err=True)
 
-    if interrupt.metadata:
-        click.echo(json.dumps(interrupt.metadata, indent=2, ensure_ascii=False), err=True)
+        if point.message:
+            click.echo(point.message, err=True)
 
-    click.echo("", err=True)
-    click.echo("✋ Action required — press Enter to continue, or type an answer (JSON or text):", err=True)
-    answer = input()
+        if point.metadata:
+            click.echo(json.dumps(point.metadata, indent=2, ensure_ascii=False), err=True)
 
-    if not answer:
-        return None
+        click.echo("", err=True)
+        click.echo("✋ Action required — press Enter to continue, or type an answer (JSON or text):", err=True)
+        raw = input()
 
-    try:
-        return json.loads(answer)
-    except json.JSONDecodeError:
-        return answer
+        if not raw:
+            answers[point.id] = None
+            continue
+
+        try:
+            answers[point.id] = json.loads(raw)
+        except json.JSONDecodeError:
+            answers[point.id] = raw
+
+    return answers

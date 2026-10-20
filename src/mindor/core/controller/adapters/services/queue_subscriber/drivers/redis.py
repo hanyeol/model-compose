@@ -6,7 +6,7 @@ from mindor.core.foundation.variable.codec import VariableCodec
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.foundation.variable.size import parse_size
 from mindor.dsl.schema.controller import RedisQueueSubscriberControllerAdapterConfig, QueueSubscriberDriverType
-from mindor.core.controller.base import TaskState, TaskStatus
+from mindor.core.controller.base import InterruptState, TaskState, TaskStatus
 from mindor.core.controller.queue.codec import QueueCodec, RedisStreamMeta
 from mindor.core.controller.queue.stream import RedisInboundStream, RedisOutboundStream
 from mindor.core.controller.queue.errors import (
@@ -170,14 +170,16 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
             return
 
-        async def _on_interrupt(interrupt):
+        async def _on_interrupt(interrupts):
             # Subscribe before publishing so the dispatcher's resume publish
-            # cannot race past us and be lost.
+            # cannot race past us and be lost. `interrupts` is a list of
+            # InterruptState — the dispatcher is expected to answer with a
+            # `{point.id: answer}` dict.
             pubsub = self._client.pubsub()
             await pubsub.subscribe(resume_key)
+
             try:
-                state = TaskState(task_id=task_id, status=TaskStatus.INTERRUPTED, interrupt=interrupt)
-                await self._publish_interrupt(workflow_id, task_id, run_id, state)
+                await self._publish_interrupts(workflow_id, task_id, run_id, interrupts)
                 return await self._read_resume(pubsub)
             finally:
                 await pubsub.unsubscribe(resume_key)
@@ -316,7 +318,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
 
         return factory
 
-    async def _publish_interrupt(self, workflow_id: str, task_id: str, run_id: str, state: TaskState) -> None:
+    async def _publish_interrupts(self, workflow_id: str, task_id: str, run_id: str, interrupts: List[InterruptState]) -> None:
         result_key = f"{self.config.name}:{workflow_id}:{run_id}"
         payload = {
             "protocol": _PROTOCOL_VERSION,
@@ -324,14 +326,19 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             "run_id": run_id,
             "status": TaskStatus.INTERRUPTED.value,
             "worker_id": self._worker_id,
-            "interrupt": {
-                "job_id": state.interrupt.job_id if state.interrupt else "",
-                "run_id": state.interrupt.run_id if state.interrupt else "",
-                "phase": state.interrupt.phase if state.interrupt else "",
-                "message": state.interrupt.message if state.interrupt else None,
-                "metadata": state.interrupt.metadata if state.interrupt else None,
-            },
+            "interrupt": [
+                {
+                    "id": interrupt.id,
+                    "job_id": interrupt.job_id,
+                    "run_id": interrupt.run_id,
+                    "phase": interrupt.phase,
+                    "message": interrupt.message,
+                    "metadata": interrupt.metadata,
+                }
+                for interrupt in interrupts
+            ],
         }
+
         # Interrupts are transient — only publish, do not persist.
         await self._client.publish(result_key, json.dumps(payload, default=str))
 

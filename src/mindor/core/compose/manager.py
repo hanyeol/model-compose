@@ -65,15 +65,11 @@ class ComposeManager:
     async def resume_workflow(
         self,
         task_id: str,
-        job_id: str,
-        run_id: Optional[str],
-        answer: Any = None,
+        answer: Dict[str, Any],
         output_path: Optional[str] = None,
     ) -> TaskState:
         state = await self.controller.resume_workflow(
             task_id,
-            job_id,
-            run_id,
             answer,
             wait_for_completion=True,
             stop_at_streaming=True,

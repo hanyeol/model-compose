@@ -1,10 +1,11 @@
-from typing import Optional, Callable, Awaitable, Dict, List, Literal, Any
+from typing import Optional, Callable, Awaitable, Dict, List, Literal, Any, Set
 from dataclasses import dataclass
 from threading import Lock
 import asyncio
 
 @dataclass
 class InterruptPoint:
+    id: str
     task_id: str
     job_id: str
     run_id: Optional[str]
@@ -14,32 +15,64 @@ class InterruptPoint:
     future: asyncio.Future
 
 class InterruptHandler:
-    def __init__(self, callback: Optional[Callable[[InterruptPoint], Awaitable[None]]] = None):
+    def __init__(
+        self,
+        callback: Optional[Callable[[List["InterruptPoint"]], Awaitable[None]]] = None,
+        on_point_entered: Optional[Callable[["InterruptPoint"], None]] = None,
+    ):
         self._points: Dict[str, InterruptPoint] = {}
+        self._pending_points: Dict[str, InterruptPoint] = {}
         self._lock: Lock = Lock()
-        self._callback: Optional[Callable[[InterruptPoint], Awaitable[None]]] = callback
+        self._callback: Optional[Callable[[List[InterruptPoint]], Awaitable[None]]] = callback
+        self._on_point_entered: Optional[Callable[[InterruptPoint], None]] = on_point_entered
 
     async def interrupt(self, point: InterruptPoint) -> Any:
-        key = f"{point.task_id}:{point.job_id}:{point.run_id}:{point.phase}"
         with self._lock:
-            self._points[key] = point
+            self._points[point.id] = point
+            self._pending_points[point.id] = point
 
-        if self._callback:
-            await self._callback(point)
+        if self._on_point_entered:
+            self._on_point_entered(point)
 
         return await point.future
 
-    def resolve(self, task_id: str, job_id: str, run_id: Optional[str], answer: Any) -> bool:
+    async def flush(self) -> None:
+        """Invoke the callback with every point that has entered since the last flush."""
         with self._lock:
-            point = self._pop_point_for_job(task_id, job_id, run_id)
+            points = list(self._pending_points.values())
+            self._pending_points.clear()
 
-        if point is None:
-            return False
+        if points and self._callback:
+            await self._callback(points)
 
-        loop = point.future.get_loop()
-        loop.call_soon_threadsafe(point.future.set_result, answer)
+    def resolve(self, task_id: str, answers: Optional[Dict[str, Any]] = None) -> Set[str]:
+        points: List[tuple[InterruptPoint, Any]] = []
 
-        return True
+        with self._lock:
+            if answers is not None:
+                for id, answer in answers.items():
+                    point = self._points.pop(id, None)
+
+                    if point is None:
+                        continue
+
+                    if point.task_id != task_id:
+                        # id collision across tasks is not supported — put it back.
+                        self._points[id] = point
+                        continue
+
+                    # Resolved points are no longer eligible for the next flush.
+                    self._pending_points.pop(id, None)
+                    points.append((point, answer))
+            else:
+                for point in self._pop_points_for_task(task_id):
+                    points.append((point, None))
+
+        for point, answer in points:
+            loop = point.future.get_loop()
+            loop.call_soon_threadsafe(point.future.set_result, answer)
+
+        return { point.id for point, _ in points }
 
     def cancel(self, task_id: str) -> None:
         with self._lock:
@@ -48,17 +81,23 @@ class InterruptHandler:
         for point in points:
             if point.future.done():
                 continue
+
             loop = point.future.get_loop()
             loop.call_soon_threadsafe(point.future.cancel)
 
-    def _pop_point_for_job(self, task_id: str, job_id: str, run_id: Optional[str]) -> Optional[InterruptPoint]:
-        for key, point in self._points.items():
-            if point.task_id == task_id and point.job_id == job_id and (run_id is None or point.run_id == run_id):
-                return self._points.pop(key)
-        return None
+    def points_for_task(self, task_id: str) -> List[InterruptPoint]:
+        with self._lock:
+            return [ point for point in self._points.values() if point.task_id == task_id ]
+
+    def set_on_point_entered(self, callback: Optional[Callable[[InterruptPoint], None]]) -> None:
+        with self._lock:
+            self._on_point_entered = callback
 
     def _pop_points_for_task(self, task_id: str) -> List[InterruptPoint]:
         points: List[InterruptPoint] = []
-        for key in [ key for key, point in self._points.items() if point.task_id == task_id ]:
-            points.append(self._points.pop(key))
+
+        for id in [ id for id, point in self._points.items() if point.task_id == task_id ]:
+            points.append(self._points.pop(id))
+            self._pending_points.pop(id, None)
+
         return points

@@ -46,11 +46,10 @@ class WorkflowRunBody(BaseModel):
     callback_headers: Optional[Dict[str, str]] = None
 
 class WorkflowResumeBody(BaseModel):
-    job_id: str
-    run_id: Optional[str] = None
-    answer: Optional[Any] = None
+    answer: Optional[Dict[str, Any]] = None
 
 class InterruptResult(BaseModel):
+    id: str
     job_id: str
     run_id: Optional[str] = None
     phase: Literal[ "before", "after" ]
@@ -60,6 +59,7 @@ class InterruptResult(BaseModel):
     @classmethod
     def from_instance(cls, instance: InterruptState) -> Self:
         return cls(
+            id=instance.id,
             job_id=instance.job_id,
             run_id=instance.run_id,
             phase=instance.phase,
@@ -73,7 +73,7 @@ class TaskStateResult(BaseModel):
     workflow_id: Optional[str] = None
     output: Optional[Any] = None
     error: Optional[str] = None
-    interrupt: Optional[InterruptResult] = None
+    interrupt: Optional[List[InterruptResult]] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
 
@@ -85,7 +85,7 @@ class TaskStateResult(BaseModel):
             workflow_id=instance.workflow_id,
             output=instance.output,
             error=instance.error,
-            interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None,
+            interrupt=[ InterruptResult.from_instance(interrupt) for interrupt in instance.interrupt ] if instance.interrupt else None,
             session_id=instance.session_id,
             metadata=instance.metadata,
         )
@@ -148,7 +148,7 @@ class TaskEventResult(BaseModel):
     status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
     output: Optional[Any] = None
     error: Optional[str] = None
-    interrupt: Optional[InterruptResult] = None
+    interrupt: Optional[List[InterruptResult]] = None
     elapsed: Optional[float] = None
     session_id: Optional[str] = None
     metadata: Optional[Any] = None
@@ -162,7 +162,7 @@ class TaskEventResult(BaseModel):
             status=instance.status,
             output=instance.output,
             error=instance.error,
-            interrupt=InterruptResult.from_instance(instance.interrupt) if instance.interrupt else None,
+            interrupt=[ InterruptResult.from_instance(interrupt) for interrupt in instance.interrupt ] if instance.interrupt else None,
             elapsed=instance.elapsed,
             session_id=instance.session_id,
             metadata=instance.metadata,
@@ -407,7 +407,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             body: WorkflowResumeBody = Body(...)
         ):
             try:
-                state = await self.controller.resume_workflow(task_id, body.job_id, body.run_id, body.answer)
+                state = await self.controller.resume_workflow(task_id, body.answer)
                 return JSONResponse(content=TaskStateResult.to_dict(state))
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))

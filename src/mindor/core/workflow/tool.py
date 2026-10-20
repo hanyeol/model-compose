@@ -133,15 +133,15 @@ class ResumeToolGenerator():
     def generate(
         self,
         workflow_id: str,
-        runner: Callable[[str, str, Optional[str], Any], Awaitable[Any]]
+        runner: Callable[[str, Any], Awaitable[Any]]
     ) -> WorkflowTool:
-        async def _resume_workflow(task_id, job_id, run_id=None, answer=None) -> Any:
-            return await runner(task_id, job_id, run_id, answer)
+        async def _resume_workflow(task_id, answer) -> Any:
+            return await runner(task_id, answer)
 
         safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
         code = (
-            f"async def _resume_workflow_{safe_workflow_id}(task_id=None, job_id=None, run_id=None, answer=''):\n"
-            f"    return await _resume_workflow(task_id, job_id, run_id, answer)"
+            f"async def _resume_workflow_{safe_workflow_id}(task_id, answer):\n"
+            f"    return await _resume_workflow(task_id, answer)"
         )
         context = { "_resume_workflow": _resume_workflow }
         exec(compile(code, f"<string>", "exec"), context)
@@ -151,15 +151,13 @@ class ResumeToolGenerator():
             description="Resume the workflow that was paused at a Human-in-the-Loop interrupt point.",
             parameters=[
                 self._build_variable("task_id", WorkflowVariableType.STRING, "The task ID of the interrupted workflow", required=True),
-                self._build_variable("job_id",  WorkflowVariableType.STRING, "The job ID where the interrupt occurred",  required=True),
-                self._build_variable("run_id",  WorkflowVariableType.STRING, "The run ID where the interrupt occurred", default=None, required=False),
-                self._build_variable("answer",  WorkflowVariableType.STRING, "Optional JSON string with answer to resume with", default="", required=False),
+                self._build_variable("answer",  WorkflowVariableType.STRING, "JSON object mapping interrupt point id to its answer value", required=True),
             ],
             returns=[
                 self._build_variable(None, WorkflowVariableType.ANY, (
-                    "The output of the resumed workflow, or a status object with a task_id/job_id "
-                    "if it pauses again at another Human-in-the-Loop interrupt point (call "
-                    "`resume_workflow` again with the new answer)."
+                    "The output of the resumed workflow, or a status object with pending interrupt points "
+                    "if it is still paused at a Human-in-the-Loop interrupt point (call `resume_workflow` "
+                    "again with answers for the remaining points)."
                 )),
             ],
         )

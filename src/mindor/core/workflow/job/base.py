@@ -10,7 +10,7 @@ from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.hook import HookPoint
 from mindor.core.logger import logging
 from .context import JobContext
-import asyncio, inspect
+import asyncio, inspect, ulid
 
 OnStartCallback = Callable[[Any], Awaitable[None]]
 
@@ -142,6 +142,7 @@ class Job(ABC):
         future = loop.create_future()
 
         point = InterruptPoint(
+            id=ulid.ulid(),
             task_id=context.workflow.task_id,
             job_id=self.id,
             run_id=run_id,

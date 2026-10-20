@@ -223,6 +223,7 @@ class AgentAction:
         # in InterruptHandler._points — do not mix them.
         future = asyncio.get_running_loop().create_future()
         point = InterruptPoint(
+            id=ulid.ulid(),
             task_id=context.workflow.task_id,
             job_id=context.job_id,
             run_id=context.run_id,
@@ -246,8 +247,10 @@ class AgentAction:
         tool_results = answer if isinstance(answer, dict) else {}
 
         blocks: List[Dict[str, Any]] = []
+
         for tool_call in tool_calls:
             call_id = tool_call.get("id", "")
+
             if call_id in tool_results:
                 result = tool_results[call_id]
                 content = json.dumps(result) if isinstance(result, (dict, list)) else str(result)

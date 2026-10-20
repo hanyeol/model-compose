@@ -155,8 +155,8 @@ class RedisControllerQueueService(CommonControllerQueueService):
                 status = result.get("status", "failed")
 
                 if status == "interrupted" and on_interrupt:
-                    answer = await on_interrupt(result.get("interrupt", {}))
-                    await self.client.publish(resume_key, json.dumps({"answer": answer}, default=str))
+                    answers = await on_interrupt(result.get("interrupt", []))
+                    await self.client.publish(resume_key, json.dumps({"answer": answers}, default=str))
                     continue
 
                 if status == "failed":

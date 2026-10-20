@@ -344,11 +344,11 @@ class TestResumeWorkflowOutput:
             assert state.status == TaskStatus.INTERRUPTED
             assert state.output is None
 
+            assert isinstance(state.interrupt, list)
+            assert len(state.interrupt) == 1
             resumed = await manager.resume_workflow(
                 state.task_id,
-                state.interrupt.job_id,
-                state.interrupt.run_id,
-                None,
+                answer={ state.interrupt[0].id: None },
                 output_path=None,
             )
             assert resumed.status == TaskStatus.COMPLETED
@@ -366,12 +366,12 @@ class TestResumeWorkflowOutput:
             state = await manager.run_workflow("wf", {}, None, False)
             assert state.status == TaskStatus.INTERRUPTED
 
+            assert isinstance(state.interrupt, list)
+            assert len(state.interrupt) == 1
             out = tmp_path / "resumed.txt"
             resumed = await manager.resume_workflow(
                 state.task_id,
-                state.interrupt.job_id,
-                state.interrupt.run_id,
-                None,
+                answer={ state.interrupt[0].id: None },
                 output_path=str(out),
             )
             assert resumed.status == TaskStatus.COMPLETED

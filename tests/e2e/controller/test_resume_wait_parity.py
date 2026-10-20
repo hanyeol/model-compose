@@ -149,12 +149,12 @@ class TestResumeWaitParity:
         try:
             interrupted = await controller.run_workflow("wf", {}, wait_for_completion=True)
             assert interrupted.status == TaskStatus.INTERRUPTED
+            assert isinstance(interrupted.interrupt, list)
+            assert len(interrupted.interrupt) == 1
 
             resumed = await controller.resume_workflow(
                 interrupted.task_id,
-                interrupted.interrupt.job_id,
-                interrupted.interrupt.run_id,
-                None,
+                answer={ interrupted.interrupt[0].id: None },
             )
             assert resumed.status == TaskStatus.PROCESSING
 
@@ -173,13 +173,13 @@ class TestResumeWaitParity:
         try:
             interrupted = await controller.run_workflow("wf", {}, wait_for_completion=True)
             assert interrupted.status == TaskStatus.INTERRUPTED
+            assert isinstance(interrupted.interrupt, list)
+            assert len(interrupted.interrupt) == 1
 
             final = await asyncio.wait_for(
                 controller.resume_workflow(
                     interrupted.task_id,
-                    interrupted.interrupt.job_id,
-                    interrupted.interrupt.run_id,
-                    None,
+                    answer={ interrupted.interrupt[0].id: None },
                     wait_for_completion=True,
                 ),
                 timeout=5.0,

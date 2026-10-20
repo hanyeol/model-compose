@@ -142,11 +142,15 @@ class TestAgentExternalToolInterrupt:
             )
 
             assert interrupted.status == TaskStatus.INTERRUPTED, f"Expected INTERRUPTED, got {interrupted.status}: {interrupted.error}"
-            assert interrupted.interrupt is not None
-            assert interrupted.interrupt.phase == "after"
-            assert interrupted.interrupt.job_id == "run_agent"
+            assert isinstance(interrupted.interrupt, list)
+            assert len(interrupted.interrupt) == 1
 
-            metadata = interrupted.interrupt.metadata or {}
+            point = interrupted.interrupt[0]
+            assert point.phase == "after"
+            assert point.job_id == "run_agent"
+            assert isinstance(point.id, str) and point.id
+
+            metadata = point.metadata or {}
             assert metadata.get("kind") == "tool_calls"
             calls = metadata.get("tool_calls") or []
             assert len(calls) == 1
@@ -156,8 +160,7 @@ class TestAgentExternalToolInterrupt:
 
             await controller.resume_workflow(
                 task_id=interrupted.task_id,
-                job_id="run_agent",
-                answer={ "call_1": { "temp": 21, "unit": "C" } },
+                answer={ point.id: { "call_1": { "temp": 21, "unit": "C" } } },
             )
             final = await controller.wait_for_terminal_state(interrupted.task_id)
 

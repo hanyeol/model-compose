@@ -233,7 +233,7 @@ class TestResumeToolGenerator:
 
         assert all(isinstance(p, WorkflowVariableConfig) for p in tool.parameters)
         names = [p.name for p in tool.parameters]
-        assert names == ["task_id", "job_id", "run_id", "answer"]
+        assert names == ["task_id", "answer"]
 
     def test_parameter_types_and_required_flags_match_original_contract(self) -> None:
         tool = ResumeToolGenerator().generate("resume", _noop_resume_runner)
@@ -243,17 +243,11 @@ class TestResumeToolGenerator:
         assert params["task_id"].required is True
         assert params["task_id"].default is None
 
-        assert params["job_id"].type == WorkflowVariableType.STRING
-        assert params["job_id"].required is True
-        assert params["job_id"].default is None
-
+        # `answer` is a JSON object mapping interrupt point id -> answer value.
         assert params["answer"].type == WorkflowVariableType.STRING
-        assert params["answer"].required is False
-        # `answer` intentionally defaults to empty string to remain optional at call site.
-        assert params["answer"].default == ""
+        assert params["answer"].required is True
 
     def test_description_is_stored_as_annotation(self) -> None:
-        # Descriptions must round-trip through the annotations list, not a top-level field.
         tool = ResumeToolGenerator().generate("resume", _noop_resume_runner)
         params = {p.name: p for p in tool.parameters}
 
@@ -262,12 +256,8 @@ class TestResumeToolGenerator:
             == "The task ID of the interrupted workflow"
         )
         assert (
-            params["job_id"].get_annotation_value("description")
-            == "The job ID where the interrupt occurred"
-        )
-        assert (
             params["answer"].get_annotation_value("description")
-            == "Optional JSON string with answer to resume with"
+            == "JSON object mapping interrupt point id to its answer value"
         )
 
     def test_tool_description_present(self) -> None:
@@ -279,20 +269,20 @@ class TestResumeToolGenerator:
     async def test_generated_function_forwards_arguments_to_runner(self) -> None:
         captured: dict = {}
 
-        async def runner(task_id: str, job_id: str, run_id: Any, answer: Any) -> Any:
-            captured.update(task_id=task_id, job_id=job_id, run_id=run_id, answer=answer)
+        async def runner(task_id: str, answer: Any) -> Any:
+            captured.update(task_id=task_id, answer=answer)
             return "resumed"
 
         tool = ResumeToolGenerator().generate("resume", runner)
-        result = await tool.function(task_id="t1", job_id="j1", run_id="r1", answer='{"ok":true}')
+        result = await tool.function(task_id="t1", answer='{"01HZA":"ok"}')
 
         assert result == "resumed"
-        assert captured == {"task_id": "t1", "job_id": "j1", "run_id": "r1", "answer": '{"ok":true}'}
+        assert captured == {"task_id": "t1", "answer": '{"01HZA":"ok"}'}
 
 
 async def _noop_runner(workflow_id: str, input: Any, context: Any = None) -> Any:
     return None
 
 
-async def _noop_resume_runner(task_id: str, job_id: str, run_id: Any, answer: Any) -> Any:
+async def _noop_resume_runner(task_id: str, answer: Any) -> Any:
     return None

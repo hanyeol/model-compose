@@ -410,25 +410,34 @@ async def test_dispatch_timeout_when_subscriber_absent(redis_available, queue_na
 
 @pytest.mark.anyio
 async def test_interrupt_resume_round_trip(redis_available, queue_name):
-    """A workflow interrupts mid-execution, dispatcher answers, workflow resumes."""
+    """A workflow interrupts mid-execution, dispatcher answers, workflow resumes.
+
+    Under the batched-interrupt envelope, dispatcher receives a list of
+    InterruptState dicts and returns a `{point.id: answer}` dict.
+    """
     if not redis_available:
         pytest.skip("Redis not available on localhost:6379")
 
-    received_by_dispatcher: List[Dict[str, Any]] = []
+    received_by_dispatcher: List[List[Dict[str, Any]]] = []
 
-    async def dispatcher_on_interrupt(interrupt: Dict[str, Any]) -> Any:
-        # subscriber serialized state.interrupt into this dict in _get_task_output
-        received_by_dispatcher.append(interrupt)
-        return { "decision": "approve", "echoed_message": interrupt.get("message") }
+    async def dispatcher_on_interrupt(interrupts: List[Dict[str, Any]]) -> Any:
+        received_by_dispatcher.append(interrupts)
+        return {
+            point["id"]: { "decision": "approve", "echoed_message": point.get("message") }
+            for point in interrupts
+        }
 
     async def handler(workflow_id: str, input: Dict[str, Any], on_interrupt: Any) -> Dict[str, Any]:
-        answer = await on_interrupt(InterruptState(
-            job_id="job-A",
-            phase="before",
-            message="please approve",
-            metadata={ "step": 1 },
-        ))
-        return { "resumed_with": answer, "input": input }
+        answers = await on_interrupt([
+            InterruptState(
+                id="01HZA0000000000000000000AA",
+                job_id="job-A",
+                phase="before",
+                message="please approve",
+                metadata={ "step": 1 },
+            ),
+        ])
+        return { "resumed_with": answers, "input": input }
 
     controller = DummyController(workflows=[WORKFLOW_ID], handler=handler)
     dispatcher = await _start_dispatcher(queue_name)
@@ -442,16 +451,22 @@ async def test_interrupt_resume_round_trip(redis_available, queue_name):
             on_interrupt=dispatcher_on_interrupt,
         )
 
-        # Dispatcher's interrupt callback was invoked with subscriber-side interrupt data
         assert len(received_by_dispatcher) == 1
-        assert received_by_dispatcher[0]["job_id"] == "job-A"
-        assert received_by_dispatcher[0]["phase"] == "before"
-        assert received_by_dispatcher[0]["message"] == "please approve"
-        assert received_by_dispatcher[0]["metadata"] == { "step": 1 }
+        received = received_by_dispatcher[0]
+        assert isinstance(received, list) and len(received) == 1
+        assert received[0]["id"] == "01HZA0000000000000000000AA"
+        assert received[0]["job_id"] == "job-A"
+        assert received[0]["phase"] == "before"
+        assert received[0]["message"] == "please approve"
+        assert received[0]["metadata"] == { "step": 1 }
 
-        # Workflow resumed with dispatcher's answer and produced final output
         assert result == {
-            "resumed_with": { "decision": "approve", "echoed_message": "please approve" },
+            "resumed_with": {
+                "01HZA0000000000000000000AA": {
+                    "decision": "approve",
+                    "echoed_message": "please approve",
+                },
+            },
             "input": { "n": 1 },
         }
     finally:

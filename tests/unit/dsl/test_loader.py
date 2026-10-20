@@ -48,6 +48,86 @@ class TestResolveEnvironmentVariables:
         result = loader._resolve_environment_variables("${  env.X  }", {"X": "ok"})
         assert result == "ok"
 
+    def test_default_with_spaces(self, loader):
+        result = loader._resolve_environment_variables(
+            "msg: ${env.MSG | hello world}", {}
+        )
+        assert result == "msg: hello world"
+
+    def test_default_with_spaces_overridden_by_env(self, loader):
+        result = loader._resolve_environment_variables(
+            "msg: ${env.MSG | hello world}", {"MSG": "overridden value"}
+        )
+        assert result == "msg: overridden value"
+
+    def test_cast_integer(self, loader):
+        result = loader._resolve_environment_variables(
+            "port: ${env.PORT as integer | 8080}", {"PORT": "9090"}
+        )
+        assert result == "port: 9090"
+
+    def test_cast_integer_from_default(self, loader):
+        result = loader._resolve_environment_variables(
+            "port: ${env.PORT as integer | 8080}", {}
+        )
+        assert result == "port: 8080"
+
+    def test_cast_integer_rejects_non_integer(self, loader):
+        with pytest.raises(ValueError, match="cannot be cast to integer"):
+            loader._resolve_environment_variables(
+                "port: ${env.PORT as integer}", {"PORT": "abc"}
+            )
+
+    def test_cast_number(self, loader):
+        result = loader._resolve_environment_variables(
+            "t: ${env.T as number | 0.2}", {"T": "0.7"}
+        )
+        assert result == "t: 0.7"
+
+    def test_cast_boolean_true_forms(self, loader):
+        for raw in ["true", "1", "TRUE", "True"]:
+            result = loader._resolve_environment_variables(
+                "v: ${env.FLAG as boolean}", {"FLAG": raw}
+            )
+            assert result == "v: true", f"input: {raw}"
+
+    def test_cast_boolean_false_forms(self, loader):
+        for raw in ["false", "0", "FALSE", "False"]:
+            result = loader._resolve_environment_variables(
+                "v: ${env.FLAG as boolean}", {"FLAG": raw}
+            )
+            assert result == "v: false", f"input: {raw}"
+
+    def test_cast_boolean_rejects_invalid(self, loader):
+        with pytest.raises(ValueError, match="cannot be cast to boolean"):
+            loader._resolve_environment_variables(
+                "v: ${env.FLAG as boolean}", {"FLAG": "yes"}
+            )
+
+    def test_cast_string_quotes_result(self, loader):
+        result = loader._resolve_environment_variables(
+            "name: ${env.NAME as string}", {"NAME": "hello world"}
+        )
+        assert result == 'name: "hello world"'
+
+    def test_cast_string_escapes_special_chars(self, loader):
+        result = loader._resolve_environment_variables(
+            "v: ${env.V as string}", {"V": 'a"b\nc'}
+        )
+        assert result == 'v: "a\\"b\\nc"'
+
+    def test_cast_unsupported_type_raises(self, loader):
+        with pytest.raises(ValueError, match="unsupported cast type 'image'"):
+            loader._resolve_environment_variables(
+                "v: ${env.V as image}", {"V": "x"}
+            )
+
+    def test_cast_integer_rejects_missing_without_default(self, loader):
+        with pytest.raises(ValueError, match="is not set and no default"):
+            loader._resolve_environment_variables(
+                "port: ${env.PORT as integer}", {}
+            )
+
 
 class TestMergeConfigDict:
     def test_top_level_keys_override(self, loader):
@@ -100,6 +180,28 @@ controller:
 """)
         config = loader.load(tmp_path, [config_file], env={})
         assert config.controller.adapters[0].port == 8080
+
+    def test_load_resolves_env_with_integer_cast(self, tmp_path, loader):
+        config_file = tmp_path / "main.yml"
+        self._write(config_file, """
+controller:
+  adapter:
+    type: http-server
+    port: ${env.SERVER_PORT as integer | 8000}
+""")
+        config = loader.load(tmp_path, [config_file], env={"SERVER_PORT": "9090"})
+        assert config.controller.adapters[0].port == 9090
+
+    def test_load_resolves_env_with_integer_cast_default(self, tmp_path, loader):
+        config_file = tmp_path / "main.yml"
+        self._write(config_file, """
+controller:
+  adapter:
+    type: http-server
+    port: ${env.SERVER_PORT as integer | 8000}
+""")
+        config = loader.load(tmp_path, [config_file], env={})
+        assert config.controller.adapters[0].port == 8000
 
     def test_load_merges_multiple_files(self, tmp_path, loader):
         base = tmp_path / "base.yml"

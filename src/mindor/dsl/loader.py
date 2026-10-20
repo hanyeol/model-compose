@@ -108,6 +108,7 @@ class ComposeConfigLoader:
         for key, override_value in override_dict.items():
             if key in merged_dict:
                 base_value = merged_dict[key]
+
                 if isinstance(base_value, dict) and isinstance(override_value, dict):
                     merged_dict[key] = self._merge_config_dict(base_value, override_value)
                 else:

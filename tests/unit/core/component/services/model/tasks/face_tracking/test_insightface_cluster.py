@@ -67,6 +67,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "bounding_box_smoothing":   None,
         "max_track_distance":       0.0,
         "return_track_image":       False,
+        "return_detection_image":   False,
         "return_frame_image":       False,
         "return_metadata":          False,
     }

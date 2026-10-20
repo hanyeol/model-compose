@@ -34,6 +34,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_frame_image":        False,
         "return_metadata":           False,
         "return_detections":             False,
+        "return_detection_image":    False,
         "bounding_box_padding":      0.0,
         "bounding_box_smoothing":    None,
     }

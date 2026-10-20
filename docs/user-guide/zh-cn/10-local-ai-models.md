@@ -1304,7 +1304,7 @@ component:
       merge_gap: 1.0
 ```
 
-接受单个帧序列、序列列表或帧批次的 async 流；对流式输入延迟运行，不缓存整个视频。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#face-tracking)。
+接受单个帧序列、序列列表或帧批次的 async 流；对流式输入延迟运行，不缓存整个视频。`return_track_image` 为每个片段附加 1 张裁剪，`return_detection_image` 则为每帧的每个检测各附加 1 张裁剪 — 仅在下游需对每一帧独立分类时开启后者，内存开销与 `帧数 × 每帧脸数` 成正比。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#face-tracking)。
 
 ### 10.3.21 face-emotion-classification
 
@@ -1346,7 +1346,7 @@ component:
       merge_gap: 0.5
 ```
 
-接受与 face-tracking 相同的输入形态。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#pose-tracking)。
+接受与 face-tracking 相同的输入形态。`return_track_image` 为每个片段附加 1 张裁剪，`return_detection_image` 为每帧的每个检测各附加 1 张裁剪（内存开销与 `帧数 × 每帧姿态数` 成正比）。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#pose-tracking)。
 
 ### 10.3.23 object-tracking
 
@@ -1370,7 +1370,7 @@ component:
       tracker: bytetrack
 ```
 
-接受与 face-tracking 相同的输入形态。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#object-tracking)。
+接受与 face-tracking 相同的输入形态。`return_track_image` 为每个片段附加 1 张裁剪，`return_detection_image` 为每帧的每个检测各附加 1 张裁剪（内存开销与 `帧数 × 每帧目标数` 成正比）。完整选项、流式 chunk 结构与结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#object-tracking)。
 
 ### 10.3.24 object-detection
 

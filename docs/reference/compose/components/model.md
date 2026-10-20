@@ -1272,11 +1272,12 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
 | `return_tracks` | bool | `true` | Include the per-identity track list (`tracks[]`) in the result. |
 | `return_embedding` | bool | `false` | Include the track's L2-normalized identity centroid embedding in the result. |
-| `return_track_image` | bool | `false` | Include one representative face crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_track_image` | bool | `false` | Include one representative face crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). Requires `return_tracks: true`. |
 | `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each face with its `track_id`. |
+| `return_detection_image` | bool | `false` | Include a face crop on every per-frame detection entry (one per detected face per frame, not one per segment). Requires `return_detections: true`. Keeps a padded sub-crop per detected face until the run ends, so memory scales with `frames × faces per frame` — enable only when a downstream step classifies each frame independently. |
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
-| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned face image. Grows the box by this fraction of its width/height on each side (e.g. `0.2` = +20% on each side). Only affects `segment.image`; embeddings and clustering still use the un-padded box. |
+| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned face image. Grows the box by this fraction of its width/height on each side (e.g. `0.2` = +20% on each side). Only affects face crops; embeddings and clustering still use the un-padded box. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream instead of a single result dict. See [Streaming chunks](#streaming-chunks-face-tracking) below. |
 | `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
@@ -1286,7 +1287,7 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
 | `params.max_track_distance` | float | `1.5` | Maximum distance a track may move between consecutive detections, as a multiple of the face size. `0` disables the check. |
 
-At least one of `return_tracks` or `return_detections` must be `true`. `return_frame_image` requires `return_detections: true`.
+At least one of `return_tracks` or `return_detections` must be `true`. `return_track_image` requires `return_tracks: true`; `return_detection_image` and `return_frame_image` require `return_detections: true`.
 
 **Family-Specific Fields (`insightface`):**
 
@@ -1360,7 +1361,8 @@ component:
 - `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box in the frame's native resolution.
 - `tracks[i].gender` (`"male"` / `"female"`) and `tracks[i].age` (integer) are present only when `return_gender_age` is enabled — taken from the track's highest-scoring frame. Absent if the model pack doesn't ship gender/age submodels.
 - `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with `number`, `timestamp`, and a `faces[]` list of per-frame detections tagged by `track_id`. When `return_frame_image` is enabled, each entry also carries the source frame `image`.
-- `detections[i].faces[j].interpolated: true` appears when the face was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_track_image`.
+- `detections[i].faces[j].image` is present only when `return_detection_image` is enabled — the face crop at the detected bounding box in the frame's native resolution.
+- `detections[i].faces[j].interpolated: true` appears when the face was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_detection_image`.
 - `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
 
 When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
@@ -1597,8 +1599,9 @@ Track people (as poses) across a sequence of video frames. Per-frame pose detect
 | `return_keypoints` | bool | `true` | Include natural-layout 2D keypoints on each pose. Also emitted per-frame when `return_detections` is enabled. |
 | `return_openpose_keypoints` | bool | `false` | Include OpenPose BODY_18 keypoints on each pose. Also emitted per-frame when `return_detections` is enabled. |
 | `return_skeleton_image` | bool | `false` | Include a rendered skeleton image on each pose (see `skeleton_format` / `skeleton_background`). Also emitted per-frame when `return_detections` is enabled. |
-| `return_track_image` | bool | `false` | Include one representative body crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_track_image` | bool | `false` | Include one representative body crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). Requires `return_tracks: true`. |
 | `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each pose with its `track_id`. |
+| `return_detection_image` | bool | `false` | Include a body crop on every per-frame detection entry (one per detected pose per frame, not one per segment). Requires `return_detections: true`. Keeps a padded sub-crop per detected pose until the run ends, so memory scales with `frames × poses per frame`. |
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
 | `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned body image. Grows the box by this fraction of its width/height on each side. |
@@ -1611,7 +1614,7 @@ Track people (as poses) across a sequence of video frames. Per-frame pose detect
 | `params.max_pose_count_per_frame` | int | `0` | Maximum number of poses to keep per frame. `0` disables the limit. |
 | `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
 
-At least one of `return_tracks` or `return_detections` must be `true`. `return_frame_image` requires `return_detections: true`.
+At least one of `return_tracks` or `return_detections` must be `true`. `return_track_image` requires `return_tracks: true`; `return_detection_image` and `return_frame_image` require `return_detections: true`.
 
 **Family-Specific Fields (`yolo`):**
 
@@ -1675,8 +1678,8 @@ component:
 - `tracks[i].score` is the highest detection confidence across all frames in the track.
 - `tracks[i].segments[j].keypoints` / `openpose_keypoints` / `skeleton_image` are present only when the corresponding `return_*` flag is enabled — taken from the highest-scoring frame in the segment.
 - `tracks[i].segments[j].image` is present only when `return_track_image` is enabled.
-- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with a `poses[]` list tagged by `track_id`. Each pose carries the same optional fields (`keypoints`, `openpose_keypoints`, `skeleton_image`, `image`) as track segments.
-- `detections[i].poses[j].interpolated: true` appears when the pose was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_track_image`.
+- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with a `poses[]` list tagged by `track_id`. Each pose carries `keypoints` / `openpose_keypoints` / `skeleton_image` under their respective flags, and `image` only when `return_detection_image` is enabled.
+- `detections[i].poses[j].interpolated: true` appears when the pose was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_detection_image`.
 - `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
 
 When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
@@ -1787,8 +1790,9 @@ Track objects across a sequence of video frames. Per-frame detections are groupe
 | `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
 | `labels` | string[]/null | `null` | Class labels detections are restricted to. Unset returns all classes. |
 | `return_tracks` | bool | `true` | Include the per-object track list (`tracks[]`) in the result. |
-| `return_track_image` | bool | `false` | Include one representative object crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). |
+| `return_track_image` | bool | `false` | Include one representative object crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). Requires `return_tracks: true`. |
 | `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each object with its `track_id`. |
+| `return_detection_image` | bool | `false` | Include an object crop on every per-frame detection entry (one per detected object per frame, not one per segment). Requires `return_detections: true`. Keeps a padded sub-crop per detected object until the run ends, so memory scales with `frames × objects per frame`. |
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
 | `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned object image. Grows the box by this fraction of its width/height on each side. |
@@ -1802,7 +1806,7 @@ Track objects across a sequence of video frames. Per-frame detections are groupe
 | `params.max_object_count_per_frame` | int | `0` | Maximum number of objects to keep per frame. `0` disables the limit. |
 | `params.merge_gap` | float | `0.5` | Extra seconds an object may be undetected before its segment is split; consecutive frames always merge. |
 
-At least one of `return_tracks` or `return_detections` must be `true`. `return_frame_image` requires `return_detections: true`.
+At least one of `return_tracks` or `return_detections` must be `true`. `return_track_image` requires `return_tracks: true`; `return_detection_image` and `return_frame_image` require `return_detections: true`.
 
 **Family-Specific Fields (`yolo`):**
 
@@ -1869,7 +1873,8 @@ component:
 - `tracks[i].score` is the highest detection confidence across all frames in the track.
 - `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box (with `bounding_box_padding` applied).
 - `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with an `objects[]` list tagged by `track_id`.
-- `detections[i].objects[j].interpolated: true` appears when the object was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_track_image`.
+- `detections[i].objects[j].image` is present only when `return_detection_image` is enabled — the object crop at the detected bounding box in the frame's native resolution.
+- `detections[i].objects[j].interpolated: true` appears when the object was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_detection_image`.
 - `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
 
 When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.

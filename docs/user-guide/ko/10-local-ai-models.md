@@ -1304,7 +1304,7 @@ component:
       merge_gap: 1.0
 ```
 
-단일 프레임 시퀀스, 시퀀스 리스트, 프레임 배치의 async 스트림을 모두 받으며 스트리밍 입력은 전체 비디오를 버퍼링하지 않고 지연 실행됩니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#face-tracking)를 참고하세요.
+단일 프레임 시퀀스, 시퀀스 리스트, 프레임 배치의 async 스트림을 모두 받으며 스트리밍 입력은 전체 비디오를 버퍼링하지 않고 지연 실행됩니다. `return_track_image`는 세그먼트당 크롭 1장을 붙이고, `return_detection_image`는 매 프레임의 각 검출마다 크롭을 붙입니다. 프레임마다 독립적으로 분류하는 다운스트림이 있을 때만 후자를 켜세요 — 메모리는 `프레임 수 × 프레임당 얼굴 수`에 비례합니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#face-tracking)를 참고하세요.
 
 ### 10.3.21 face-emotion-classification
 
@@ -1346,7 +1346,7 @@ component:
       merge_gap: 0.5
 ```
 
-face-tracking과 동일한 입력 형태를 받습니다. 전체 옵션, 스트리밍 청크 스키마, 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#pose-tracking)를 참고하세요.
+face-tracking과 동일한 입력 형태를 받습니다. `return_track_image`는 세그먼트당 크롭 1장을, `return_detection_image`는 매 프레임의 각 검출마다 크롭을 붙입니다(메모리는 `프레임 수 × 프레임당 자세 수`에 비례). 전체 옵션, 스트리밍 청크 스키마, 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#pose-tracking)를 참고하세요.
 
 ### 10.3.23 object-tracking
 
@@ -1370,7 +1370,7 @@ component:
       tracker: bytetrack
 ```
 
-face-tracking과 동일한 입력 형태를 받습니다. 전체 옵션, 스트리밍 청크 스키마, 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#object-tracking)를 참고하세요.
+face-tracking과 동일한 입력 형태를 받습니다. `return_track_image`는 세그먼트당 크롭 1장을, `return_detection_image`는 매 프레임의 각 검출마다 크롭을 붙입니다(메모리는 `프레임 수 × 프레임당 객체 수`에 비례). 전체 옵션, 스트리밍 청크 스키마, 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#object-tracking)를 참고하세요.
 
 ### 10.3.24 object-detection
 

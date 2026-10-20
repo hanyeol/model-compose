@@ -1344,7 +1344,7 @@ component:
       merge_gap: 1.0
 ```
 
-Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
+Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). `return_track_image` attaches one crop per segment; use `return_detection_image` instead to attach a crop to every per-frame detection — only enable the latter when a downstream step classifies each frame independently, since memory then scales with `frames × faces per frame`. See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
 
 ### 10.3.21 face-emotion-classification
 
@@ -1386,7 +1386,7 @@ component:
       merge_gap: 0.5
 ```
 
-Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#pose-tracking) for the full option list, streaming chunk schema, and result shape.
+Accepts the same input shapes as face-tracking. `return_track_image` attaches one crop per segment; use `return_detection_image` to attach a crop to every per-frame detection (memory scales with `frames × poses per frame`). See the [Model Component reference](../reference/compose/components/model.md#pose-tracking) for the full option list, streaming chunk schema, and result shape.
 
 ### 10.3.23 object-tracking
 
@@ -1410,7 +1410,7 @@ component:
       tracker: bytetrack
 ```
 
-Accepts the same input shapes as face-tracking. See the [Model Component reference](../reference/compose/components/model.md#object-tracking) for the full option list, streaming chunk schema, and result shape.
+Accepts the same input shapes as face-tracking. `return_track_image` attaches one crop per segment; use `return_detection_image` to attach a crop to every per-frame detection (memory scales with `frames × objects per frame`). See the [Model Component reference](../reference/compose/components/model.md#object-tracking) for the full option list, streaming chunk schema, and result shape.
 
 ### 10.3.24 object-detection
 

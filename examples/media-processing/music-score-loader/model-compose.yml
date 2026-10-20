@@ -11,15 +11,15 @@ workflows:
   - id: load-score
     default: true
     title: Load a Score File
-    description: Parse a MIDI (`.mid`/`.midi`) or MusicXML (`.xml`/`.musicxml`/`.mxl`) file into the shared score shape — notes with start/end seconds, pitch, velocity, plus tempo and time signature.
+    description: Parse a MIDI (`.mid`/`.midi`) or MusicXML (`.xml`/`.musicxml`/`.mxl`) file into a `MusicScore` — parts with notes/lyrics/clefs plus score-level tempos, time/key signatures, and harmonies.
     job:
       component: score-loader
       action: load
       output: ${output as json}
 
   - id: load-score-track
-    title: Load a Specific Track
-    description: Pick one track/part by index. MIDI files often reserve track 0 for tempo-map metadata — pass `track=1` to skip it, or omit to auto-select tracks that actually contain notes.
+    title: Load a Specific Part
+    description: Pick one part by index. MIDI files split note activity per `(track, channel)`, so each combination is a separate part — pass the index of the one you want, or omit to return every part.
     job:
       component: score-loader
       action: load-track
@@ -46,14 +46,14 @@ components:
     type: music-score-loader
     driver: local
     actions:
-      # format and track are both omitted → auto-detect by header/extension,
-      # auto-pick the first non-empty track.
+      # format and part are both omitted → auto-detect by header/extension,
+      # emit every part in the score.
       - id: load
         source: ${input.score as file}
 
       - id: load-track
         source: ${input.score as file}
-        track: ${input.track as number | 0}
+        part: ${input.part as number | 0}
 
       - id: load-as-midi
         source: ${input.score as file}

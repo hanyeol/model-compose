@@ -135,6 +135,7 @@ graph TD
 | `min_frame_count` | number | No | 2 | 出现帧数少于该值的轨迹被丢弃 |
 | `merge_gap` | number | No | 1.0 | 相邻片段之间间隔小于该秒数则合并 |
 | `return_track_image` | boolean | No | true | 为每个片段附加一张人脸裁剪。在原始帧分辨率下按检测到的 bounding box 直接裁切，适用于 UI 显示、缩放，或送入其他嵌入主干网络重新嵌入（见下方[使用其他模型重新嵌入](#使用其他模型重新嵌入)）。仅需时间码时设为 `false` 可减小载荷 |
+| `return_detection_image` | boolean | No | false | 为每条逐帧检测项附加一张人脸裁剪（不是每片段 1 张，而是**每帧每张脸各 1 张**）。仅在下游需要对每一帧独立分类（如逐帧表情分类）时才有用。检测到的每张脸都会在运行结束前保留一个带 padding 的子裁剪，内存开销与 `帧数 × 每帧脸数` 成正比 — 长视频会很大 |
 | `return_gender_age` | boolean | No | false | 为每条轨迹附加 `gender`（`"male"` / `"female"`）与 `age`（整数），取自轨迹中得分最高的帧。需要模型包含 gender/age 子模型（`antelopev2`、`buffalo_l`） |
 | `bounding_box_padding` | number | No | 0.2 | 将人脸裁剪的 bounding box 按此比例向每一侧扩展（例如 `0.2` = 上下左右各 +20%）。仅影响返回的裁剪图像；嵌入与聚类仍使用未扩展的框。适用于检测框过紧（头发/下巴/耳朵被切）或人脸在画面中较小导致裁剪显得模糊的情况 |
 

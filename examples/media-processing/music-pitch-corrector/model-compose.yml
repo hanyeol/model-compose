@@ -92,7 +92,7 @@ workflows:
         input:
           audio: ${input.vocal as audio}
           pitch: ${jobs.pitch.output.frames}
-          melody: ${jobs.score.output.notes}
+          melody: ${jobs.score.output.parts[0].notes}
           melody_offset: ${input.melody_offset as string | 0ms}
           params:
             strength: ${input.strength as number | 0.8}
@@ -126,7 +126,7 @@ workflows:
         depends_on: [ pitch, score ]
         input:
           pitch: ${jobs.pitch.output.frames}
-          melody: ${jobs.score.output.notes}
+          melody: ${jobs.score.output.parts[0].notes}
           melody_offset: ${input.melody_offset as string | 0ms}
           params:
             strength: ${input.strength as number | 0.8}

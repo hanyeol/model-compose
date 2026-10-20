@@ -9,7 +9,7 @@ Correction runs in two stages so you can inspect or edit the result in the middl
 1. **plan** — pick a target pitch for each sung note from a pitch track and build a correction curve (JSON). Takes only `pitch`, not the recording.
 2. **apply** — resynthesize the vocal along the curve. Takes the recording (`audio`) and the curve. The curve is the sole handoff from plan; nothing in the audio pipeline is implicit.
 
-The default `correct` workflow runs both at once (needs both `audio` and `pitch`). The two secondary workflows show the split path.
+The default `correct-pitch` workflow runs both at once (needs both `audio` and `pitch`). The other workflows expose the split path — plan-only variants emit the curve as JSON, and `apply-curve` takes an edited curve back for resynthesis.
 
 `audio` always means "the recording to resynthesize" — never a pitch estimation source. Pitch estimation happens in a separate component (`music-pitch-estimation`), so `plan` is engine-agnostic and never silently falls back to a built-in estimator.
 

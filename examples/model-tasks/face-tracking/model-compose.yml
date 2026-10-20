@@ -43,6 +43,7 @@ workflow:
         merge_gap: ${input.merge_gap | 0.5}
         bounding_box_padding: ${input.bounding_box_padding | 0.2}
         return_track_image: ${input.return_track_image as boolean | true}
+        return_detection_image: ${input.return_detection_image as boolean | false}
         return_embedding: ${input.return_embedding as boolean | false}
         return_gender_age: ${input.return_gender_age as boolean | false}
       output: ${output}
@@ -72,6 +73,7 @@ components:
       frame_rate: ${input.frame_rate}
       time_offset: 0.0
       return_track_image: ${input.return_track_image}
+      return_detection_image: ${input.return_detection_image}
       return_embedding: ${input.return_embedding}
       return_gender_age: ${input.return_gender_age}
       return_detections: true

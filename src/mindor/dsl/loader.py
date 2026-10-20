@@ -26,8 +26,9 @@ class ComposeConfigLoader:
         env: Dict[str, str]
     ) -> ComposeConfig:
         if len(config_files) == 0:
-            for ext in [ ".yml", ".yaml" ]:
-                config_file = Path(work_dir) / f"{self.config_name}{ext}"
+            for extension in [ ".yml", ".yaml" ]:
+                config_file = Path(work_dir) / f"{self.config_name}{extension}"
+
                 if config_file.exists():
                     config_files.append(config_file)
                     break

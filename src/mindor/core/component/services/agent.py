@@ -1,5 +1,5 @@
 from typing import Optional, Union, Dict, List, Any
-from mindor.dsl.schema.component import AgentComponentConfig, AgentModelConfig
+from mindor.dsl.schema.component import AgentComponentConfig, ComponentRunConfig
 from mindor.dsl.schema.action import ActionConfig, AgentActionConfig
 from mindor.dsl.schema.common.model.tool import ModelTool
 from mindor.core.component import ComponentService, ComponentGlobalConfigs
@@ -16,7 +16,7 @@ class AgentAction:
         self,
         config: AgentActionConfig,
         model_component: ComponentService,
-        model_config: AgentModelConfig,
+        model_config: ComponentRunConfig,
         tools: Dict[str, Union[WorkflowTool, ModelTool]],
         tool_schemas: List[Dict[str, Any]],
         instructions: Optional[str],
@@ -24,7 +24,7 @@ class AgentAction:
     ):
         self.config: AgentActionConfig = config
         self.model_component: ComponentService = model_component
-        self.model_config: AgentModelConfig = model_config
+        self.model_config: ComponentRunConfig = model_config
         self.tools: Dict[str, Union[WorkflowTool, ModelTool]] = tools
         self.tool_schemas: List[Dict[str, Any]] = tool_schemas
         self.instructions: Optional[str] = instructions

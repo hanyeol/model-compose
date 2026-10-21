@@ -2,6 +2,7 @@ from typing import Union, Literal, Optional, Dict, List, Annotated, Any
 from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.action import ModelMemoryActionConfig
 from .impl import *
+from ...common import ComponentRunConfig
 from ..common import CommonComponentConfig, ComponentType
 
 ModelMemoryStorageConfig = Annotated[
@@ -30,11 +31,8 @@ class ModelMemoryWindowConfig(BaseModel):
             raise ValueError("window requires at least one of max_turn_count or max_message_count")
         return self
 
-class ModelMemorySummaryConfig(BaseModel):
-    component: str = Field(..., description="ID of the component that generates conversation summaries.")
-    action: str = Field(default="__default__", description="Action on the summary component invoked to produce a summary.")
+class ModelMemorySummaryConfig(ComponentRunConfig):
     instruction: Optional[str] = Field(default=None, description="Prompt guiding the summarizer; a built-in default is used when omitted.")
-    input: Optional[Dict[str, Any]] = Field(default=None, description="Input mapping passed to the summary component.")
 
 class ModelMemoryComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL_MEMORY]

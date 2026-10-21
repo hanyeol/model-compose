@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Callable, Any
+from typing import List, Optional, Callable, Tuple, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoProcessorComponentConfig
 from mindor.dsl.schema.action import (
@@ -8,6 +8,7 @@ from mindor.dsl.schema.action import (
     VideoScaleMode,
     VideoFlipDirection,
     VideoFreezePosition,
+    VideoZoomEasing,
 )
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
@@ -17,6 +18,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
+from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -232,6 +234,119 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     ) -> VideoStreamResource:
         return await self._run_ffmpeg_filter(video, f"fps={frame_rate}", None, encoding, cancellation_token)
 
+    async def _zoom(
+        self,
+        video: MediaSource,
+        width: Optional[int],
+        height: Optional[int],
+        from_region: Tuple[int, int, int, int],
+        to_region: Optional[Tuple[int, int, int, int]],
+        duration: float,
+        easing: VideoZoomEasing,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        # Build the zoom animation as a single pass:
+        #   1. `zoompan` samples a (crop) rectangle per output frame and scales it
+        #      to the output canvas. We feed it `fps=<input>` and `d=1` so one
+        #      output frame comes from one input frame (zoompan defaults to 25fps
+        #      and `d=25`, which would both resample the stream and freeze on the
+        #      first frame).
+        #   2. After `duration` elapses the expressions clamp to the end region,
+        #      so the rest of the clip plays through at that framing.
+        #   3. A trailing `setsar=1` normalises the output pixel aspect ratio —
+        #      zoompan can emit a non-square SAR when the crop/canvas don't match,
+        #      which breaks downstream `concat`.
+        #
+        # zoompan's `s=WxH` only accepts fixed numbers (not `iw`/`ih` expressions),
+        # and its expressions can't reference `t` — only `on` (output frame
+        # index). So we resolve the input width/height/fps up front, substitute
+        # the numeric values, and reuse the (now file-backed) MediaSource for
+        # the downstream run so `_run_ffmpeg_filter` doesn't re-spool. The
+        # `-s` input option is a rawvideo setter — it errors on mp4-like
+        # containers — so we strip `resolution` from the forwarded attrs; the
+        # container already carries the dimensions.
+        resolution = video.attrs.get("resolution")
+        frame_rate = video.attrs.get("frame_rate")
+
+        if resolution and frame_rate:
+            source_width, source_height = (int(part) for part in str(resolution).split("x", 1))
+            frame_rate = float(frame_rate)
+        else:
+            input_path, _ = await MediaInputPathResolver().resolve(video, streamable_media=[ "video" ])
+
+            if input_path is None:
+                raise ValueError(
+                    "'zoom' requires the input video resolution and frame rate; "
+                    "attach them as source.attrs or spool to a file first"
+                )
+
+            source_width, source_height, frame_rate = await probe_video(
+                input_path, ("width", "height", "frame_rate")
+            )
+
+            if source_width is None or source_height is None or not frame_rate:
+                raise RuntimeError(f"ffprobe could not read width/height/frame_rate from {input_path}")
+
+            frame_rate = float(frame_rate)
+            video = MediaSource(
+                FileStreamResource(input_path),
+                format=video.format,
+                attrs={
+                    **{ k: v for k, v in video.attrs.items() if k != "resolution" },
+                    "frame_rate": frame_rate,
+                },
+            )
+
+        from_x, from_y, from_width, from_height = from_region
+        to_x, to_y, to_width, to_height = to_region if to_region is not None else (0, 0, source_width, source_height)
+
+        # Convert duration to a frame count against the input fps so `on`
+        # (output frame index, matched 1:1 to input frames via d=1,fps=input)
+        # grows linearly in time.
+        progress = f"min(1,on/{duration * frame_rate})"
+        eased_progress = self._zoom_easing_expression(easing, progress)
+
+        # Interpolate size then derive the top-left so the region's own anchor
+        # (centre of `from` → centre of `to`) is honoured. For constant-pixels
+        # we interpolate 1/size — a harmonic blend — which gives the perceived
+        # uniform rate; otherwise we linearly interpolate size with the eased t.
+        if easing == VideoZoomEasing.CONSTANT_PIXELS:
+            current_width  = f"1/((1-{eased_progress})/{from_width}+{eased_progress}/{to_width})"
+            current_height = f"1/((1-{eased_progress})/{from_height}+{eased_progress}/{to_height})"
+        else:
+            current_width  = f"{from_width}+({to_width}-{from_width})*{eased_progress}"
+            current_height = f"{from_height}+({to_height}-{from_height})*{eased_progress}"
+
+        # Interpolate the region centre linearly in the eased parameter, then
+        # convert back to top-left for zoompan's x/y (which take the crop origin).
+        start_center_x = from_x + from_width  / 2.0
+        start_center_y = from_y + from_height / 2.0
+        end_center_x   = to_x   + to_width    / 2.0
+        end_center_y   = to_y   + to_height   / 2.0
+        current_center_x = f"{start_center_x}+({end_center_x}-{start_center_x})*{eased_progress}"
+        current_center_y = f"{start_center_y}+({end_center_y}-{start_center_y})*{eased_progress}"
+
+        # zoompan has no direct "crop w/h" knobs; the standard trick is to set
+        # z = iw / current_width (so the "zoomed" view is exactly current_width
+        # wide at 1:1), and translate x/y to the top-left of our region,
+        # remembering that zoompan's x/y are in the *source* coordinate space.
+        zoom_expression = f"{source_width}/({current_width})"
+        x_expression    = f"({current_center_x})-({current_width})/2"
+        y_expression    = f"({current_center_y})-({current_height})/2"
+
+        width  = width  if width  is not None else source_width
+        height = height if height is not None else source_height
+
+        video_filter = (
+            f"zoompan=z='{zoom_expression}':"
+            f"x='{x_expression}':y='{y_expression}':"
+            f"d=1:s={width}x{height}:fps={frame_rate},"
+            f"setsar=1"
+        )
+
+        return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
+
     async def _adjust_color(
         self,
         video: MediaSource,
@@ -334,10 +449,13 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         if source.format and input_path is None:
             command.extend([ "-f", source.format ])
+
         if source.attrs.get("resolution"):
             command.extend([ "-s", str(source.attrs["resolution"]) ])
+
         if source.attrs.get("frame_rate"):
             command.extend([ "-r", str(source.attrs["frame_rate"]) ])
+
         if source.attrs.get("pixel_format"):
             command.extend([ "-pix_fmt", str(source.attrs["pixel_format"]) ])
 
@@ -353,16 +471,21 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         if video_codec:
             command.extend([ "-c:v", video_codec ])
+
         if video_encoder and video_encoder.quality is not None:
             command.extend([ "-crf", str(video_encoder.quality) ])
         elif video_encoder and video_encoder.bitrate:
             command.extend([ "-b:v", str(video_encoder.bitrate) ])
+
         if audio_codec:
             command.extend([ "-c:a", audio_codec ])
+
         if audio_encoder and audio_encoder.bitrate:
             command.extend([ "-b:a", str(audio_encoder.bitrate) ])
+
         if video_encoder and video_encoder.resolution:
             command.extend([ "-s", video_encoder.resolution ])
+
         if video_encoder and video_encoder.frame_rate is not None:
             command.extend([ "-r", str(video_encoder.frame_rate) ])
 
@@ -595,6 +718,23 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         return None
 
     @staticmethod
+    def _zoom_easing_expression(easing: VideoZoomEasing, progress: str) -> str:
+        """Return the eased progress expression for zoompan's parametric t.
+
+        `progress` is itself an ffmpeg-expr string clamped to [0, 1]. The output
+        is substituted directly into the x/y/w/h interpolation expressions. The
+        CONSTANT_PIXELS mode uses the raw progress — the perceptual-rate curve
+        is applied in the size interpolation itself (harmonic blend), not here.
+        """
+        if easing == VideoZoomEasing.EASE_IN:
+            return f"({progress})*({progress})"
+
+        if easing == VideoZoomEasing.EASE_OUT:
+            return f"(1-(1-({progress}))*(1-({progress})))"
+
+        return progress
+
+    @staticmethod
     def _format_color(color: Any) -> str:
         if isinstance(color, str):
             return color
@@ -603,6 +743,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             if len(color) == 4:
                 r, g, b, a = color
                 return f"0x{r:02X}{g:02X}{b:02X}{a:02X}"
+
             if len(color) == 3:
                 r, g, b = color
                 return f"0x{r:02X}{g:02X}{b:02X}"

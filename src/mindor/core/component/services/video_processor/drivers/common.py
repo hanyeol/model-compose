@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Tuple, Any
 
 from collections.abc import AsyncIterator
 from abc import abstractmethod
@@ -10,6 +10,7 @@ from mindor.dsl.schema.action import (
     VideoScaleMode,
     VideoFlipDirection,
     VideoFreezePosition,
+    VideoZoomEasing,
 )
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
@@ -47,16 +48,16 @@ class VideoProcessorAction(ComponentAction):
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
+        else:
+            results = []
+            async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
+                batch_results = await self._process_batch(self.config.method, batch_videos, params, context.cancellation_token)
+                results.extend(batch_results)
 
-        results = []
-        async for batch_videos in BatchSourceIterator(video, batch_size=batch_size or 1):
-            batch_results = await self._process_batch(self.config.method, batch_videos, params, context.cancellation_token)
-            results.extend(batch_results)
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
 
-        result = results[0] if is_single_input else results
-        context.register_source("result", result)
-
-        return (await context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, method: VideoProcessorActionMethod, context: ComponentActionContext) -> Dict[str, Any]:
         encoding = await VideoAudioEncodingResolver().resolve(context, self.config.encoding) if self.config.encoding else VideoAudioEncodingParams()
@@ -166,6 +167,54 @@ class VideoProcessorAction(ComponentAction):
                 raise ValueError("'frame_rate' must be a positive number for 'resample' method")
 
             return { "encoding": encoding, "frame_rate": frame_rate }
+
+        if method == VideoProcessorActionMethod.ZOOM:
+            width  = await context.render_scalar(self.config.width,  int)
+            height = await context.render_scalar(self.config.height, int)
+
+            from_x      = await context.render_scalar(self.config.from_.x,      int)
+            from_y      = await context.render_scalar(self.config.from_.y,      int)
+            from_width  = await context.render_scalar(self.config.from_.width,  int)
+            from_height = await context.render_scalar(self.config.from_.height, int)
+
+            if self.config.to is not None:
+                to_x      = await context.render_scalar(self.config.to.x,      int)
+                to_y      = await context.render_scalar(self.config.to.y,      int)
+                to_width  = await context.render_scalar(self.config.to.width,  int)
+                to_height = await context.render_scalar(self.config.to.height, int)
+                to_region: Optional[Tuple[int, int, int, int]] = (to_x, to_y, to_width, to_height)
+            else:
+                to_region = None
+
+            duration = await context.render_scalar(self.config.duration, float)
+            easing   = await context.render_variable(self.config.easing)
+
+            if from_x is None or from_y is None or from_width is None or from_height is None:
+                raise ValueError("'from.x', 'from.y', 'from.width', and 'from.height' must all be specified for 'zoom' method")
+
+            if from_width <= 0 or from_height <= 0:
+                raise ValueError("'from.width' and 'from.height' must be positive for 'zoom' method")
+
+            if to_region is not None and (to_region[2] <= 0 or to_region[3] <= 0):
+                raise ValueError("'to.width' and 'to.height' must be positive for 'zoom' method")
+
+            if duration is None or duration <= 0:
+                raise ValueError("'duration' must be positive for 'zoom' method")
+
+            try:
+                easing = VideoZoomEasing(easing)
+            except ValueError:
+                raise ValueError(f"Invalid zoom easing: {easing}")
+
+            return {
+                "encoding":    encoding,
+                "width":       width,
+                "height":      height,
+                "from_region": (from_x, from_y, from_width, from_height),
+                "to_region":   to_region,
+                "duration":    duration,
+                "easing":      easing,
+            }
 
         if method == VideoProcessorActionMethod.ADJUST_COLOR:
             brightness = await context.render_scalar(self.config.brightness, float)
@@ -332,6 +381,19 @@ class VideoProcessorAction(ComponentAction):
             return await self._resample(
                 video,
                 params["frame_rate"],
+                params["encoding"],
+                cancellation_token,
+            )
+
+        if method == VideoProcessorActionMethod.ZOOM:
+            return await self._zoom(
+                video,
+                params["width"],
+                params["height"],
+                params["from_region"],
+                params["to_region"],
+                params["duration"],
+                params["easing"],
                 params["encoding"],
                 cancellation_token,
             )
@@ -509,6 +571,21 @@ class VideoProcessorAction(ComponentAction):
         self,
         video: MediaSource,
         frame_rate: float,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        pass
+
+    @abstractmethod
+    async def _zoom(
+        self,
+        video: MediaSource,
+        width: Optional[int],
+        height: Optional[int],
+        from_region: Tuple[int, int, int, int],
+        to_region: Optional[Tuple[int, int, int, int]],
+        duration: float,
+        easing: VideoZoomEasing,
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:

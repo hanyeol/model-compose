@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Union, Literal, Optional, List, Tuple
 from enum import Enum
-from pydantic import Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 from mindor.dsl.schema.common.color import Color
 from ...common import CommonActionConfig
 from ...media import VideoAudioEncodingConfig
@@ -19,6 +19,7 @@ class VideoProcessorActionMethod(str, Enum):
     FREEZE            = "freeze"
     REVERSE           = "reverse"
     RESAMPLE          = "resample"
+    ZOOM              = "zoom"
     ADJUST_COLOR      = "adjust-color"
     ADJUST_BRIGHTNESS = "adjust-brightness"
     ADJUST_CONTRAST   = "adjust-contrast"
@@ -38,6 +39,18 @@ class VideoScaleMode(str, Enum):
 class VideoFlipDirection(str, Enum):
     HORIZONTAL = "horizontal"
     VERTICAL   = "vertical"
+
+class VideoZoomEasing(str, Enum):
+    LINEAR          = "linear"
+    CONSTANT_PIXELS = "constant-pixels"
+    EASE_IN         = "ease-in"
+    EASE_OUT        = "ease-out"
+
+class VideoRegionConfig(BaseModel):
+    x: Union[int, str] = Field(..., description="X coordinate of the region's top-left corner, in input pixels.")
+    y: Union[int, str] = Field(..., description="Y coordinate of the region's top-left corner, in input pixels.")
+    width: Union[int, str] = Field(..., description="Region width in input pixels.")
+    height: Union[int, str] = Field(..., description="Region height in input pixels.")
 
 class CommonVideoProcessorActionConfig(CommonActionConfig):
     method: VideoProcessorActionMethod = Field(..., description="Video processing operation this action performs.")
@@ -102,6 +115,15 @@ class VideoProcessorReverseActionConfig(CommonVideoProcessorActionConfig):
 class VideoProcessorResampleActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.RESAMPLE]
     frame_rate: Union[float, int, str] = Field(..., description="Target output frame rate. Frames are resampled onto a uniform grid.")
+
+class VideoProcessorZoomActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ZOOM]
+    width: Optional[Union[int, str]] = Field(default=None, description="Target output width in pixels; defaults to the input width.")
+    height: Optional[Union[int, str]] = Field(default=None, description="Target output height in pixels; defaults to the input height.")
+    from_: VideoRegionConfig = Field(..., alias="from", description="Region that fills the frame at the start of the animation.")
+    to: Optional[VideoRegionConfig] = Field(default=None, description="Region that fills the frame at the end of the animation; defaults to the full input frame.")
+    duration: Union[float, str] = Field(..., description="Animation length in seconds.")
+    easing: Union[VideoZoomEasing, str] = Field(default=VideoZoomEasing.LINEAR, description="How the zoom rate is distributed across the duration.")
 
 class VideoProcessorAdjustColorActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.ADJUST_COLOR]

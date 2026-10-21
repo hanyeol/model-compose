@@ -51,7 +51,7 @@ from .runtime.docker import ControllerDockerRuntimeManager
 from .runtime.apple_container import ControllerAppleContainerRuntimeManager
 from threading import Lock
 from pathlib import Path
-import asyncio, ulid, os, threading, traceback
+import asyncio, ulid, threading
 
 if TYPE_CHECKING:
     from mindor.core.controller.adapters.base import ControllerAdapterService

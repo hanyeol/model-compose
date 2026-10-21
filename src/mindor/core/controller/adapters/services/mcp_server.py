@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Optional, List, Set, Any
+from typing import Optional, List, Dict, Set, Tuple, Any
 from mindor.dsl.schema.controller import McpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.controller.adapter.impl.mcp_server import McpServerTransport
 from mindor.dsl.schema.job import CommonJobConfig, PipelineJobConfig, ForEachJobConfig, AccumulateJobConfig, LoopJobConfig
@@ -20,7 +20,7 @@ from ..base import ControllerAdapterService, register_controller_adapter
 from mcp.server.fastmcp.server import FastMCP
 from mcp.server.stdio import stdio_server
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent, EmbeddedResource, BlobResourceContents
+from mcp.types import CallToolResult, ContentBlock, TextContent, ImageContent, AudioContent, EmbeddedResource, BlobResourceContents
 import asyncio, uvicorn, json
 
 if TYPE_CHECKING:
@@ -146,7 +146,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         return False
 
-    async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> List[ContentBlock]:
+    async def _run_workflow_as_tool(self, workflow_id: Optional[str], input: Any, context: Any = None) -> CallToolResult:
         state = await self.controller.run_workflow(
             workflow_id,
             input,
@@ -156,7 +156,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         return await self._build_state_response(state)
 
-    async def _resume_workflow_as_tool(self, task_id: str, answer: str) -> List[ContentBlock]:
+    async def _resume_workflow_as_tool(self, task_id: str, answer: str) -> CallToolResult:
         answer = json.loads(answer) if answer else {}
 
         try:
@@ -167,13 +167,13 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                 stop_at_streaming=True,
             )
         except ValueError as e:
-            return [ TextContent(type="text", text=json.dumps({"error": str(e)})) ]
+            return CallToolResult(content=[ TextContent(type="text", text=json.dumps({"error": str(e)})) ])
 
         return await self._build_state_response(state)
 
-    async def _build_state_response(self, state: TaskState) -> List[ContentBlock]:
+    async def _build_state_response(self, state: TaskState) -> CallToolResult:
         if state.status == TaskStatus.INTERRUPTED:
-            return [ TextContent(type="text", text=json.dumps({
+            return CallToolResult(content=[ TextContent(type="text", text=json.dumps({
                 "status": "interrupted",
                 "task_id": state.task_id,
                 "interrupt": [
@@ -187,10 +187,10 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                     }
                     for interrupt in (state.interrupt or [])
                 ],
-            })) ]
+            })) ])
 
         if state.status == TaskStatus.FAILED:
-            return [ TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error})) ]
+            return CallToolResult(content=[ TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error})) ])
 
         workflow = self.controller.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
 
@@ -198,64 +198,62 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return await self._build_output_value(state, workflow)
 
         if state.output is None:
-            return [ TextContent(type="text", text=json.dumps({"status": "completed"})) ]
+            return CallToolResult(content=[ TextContent(type="text", text=json.dumps({"status": "completed"})) ])
 
         if isinstance(state.output, (dict, list)):
-            return [ TextContent(type="text", text=json.dumps(state.output)) ]
+            return CallToolResult(content=[ TextContent(type="text", text=json.dumps(state.output)) ])
 
-        return [ TextContent(type="text", text=str(state.output)) ]
+        return CallToolResult(content=[ TextContent(type="text", text=str(state.output)) ])
 
-    async def _build_output_value(self, state: TaskState, workflow: WorkflowSchema) -> List[ContentBlock]:
-        output: List[ContentBlock] = []
+    async def _build_output_value(self, state: TaskState, workflow: WorkflowSchema) -> CallToolResult:
+        results: Dict[str, Any] = {}
+        content: List[ContentBlock] = []
 
         if state.output:
             if len(workflow.output) == 1 and isinstance(workflow.output[0], WorkflowVariableConfig) and not workflow.output[0].name:
                 variable = workflow.output[0]
-                output.append(await self._convert_output_value(state.task_id, state.output, variable.name, variable.type, variable.subtype, variable.format))
+                content.append(await self._convert_output_value(state.task_id, state.output, variable))
             else:
                 for variable in workflow.output:
                     if isinstance(variable, WorkflowVariableGroupConfig):
-                        output.append(TextContent(type="text", text=json.dumps(state.output[variable.name], default=str)))
+                        content.append(TextContent(type="text", text=json.dumps(state.output[variable.name], default=str)))
+                        results[variable.name] = state.output[variable.name]
                     else:
-                        output.append(await self._convert_output_value(state.task_id, state.output[variable.name], variable.name, variable.type, variable.subtype, variable.format))
+                        value = state.output[variable.name]
+                        content.append(await self._convert_output_value(state.task_id, value, variable))
 
-        return output
+                        if not self._is_media_variable(variable) and not isinstance(value, (StreamIterator, StreamResource)):
+                            results[variable.name] = self._to_json_safe(value)
 
-    async def _convert_output_value(
-        self,
-        task_id: str,
-        value: Any,
-        name: Optional[str],
-        type: WorkflowVariableType,
-        subtype: Optional[str],
-        format: Optional[WorkflowVariableFormat]
-    ) -> ContentBlock:
-        if type in (WorkflowVariableType.IMAGE, WorkflowVariableType.AUDIO, WorkflowVariableType.VIDEO, WorkflowVariableType.MODEL_3D, WorkflowVariableType.FILE):
+        return CallToolResult(content=content, structuredContent=results or None)
+
+    async def _convert_output_value(self, task_id: str, value: Any, variable: WorkflowVariableConfig) -> ContentBlock:
+        if self._is_media_variable(variable):
             # Everything else must land as a base64 string (MCP media blocks demand it).
-            data = await self._encode_media_value_to_base64(value, format)
+            data = await self._encode_media_value_to_base64(value, variable.format)
 
-            if type == WorkflowVariableType.IMAGE:
-                return ImageContent(type="image", data=data, mimeType=f"image/{subtype or 'png'}")
+            if variable.type == WorkflowVariableType.IMAGE:
+                return ImageContent(type="image", data=data, mimeType=f"image/{variable.subtype or 'png'}")
 
-            if type == WorkflowVariableType.AUDIO:
-                return AudioContent(type="audio", data=data, mimeType=f"audio/{subtype or 'wav'}")
+            if variable.type == WorkflowVariableType.AUDIO:
+                return AudioContent(type="audio", data=data, mimeType=f"audio/{variable.subtype or 'wav'}")
 
-            if type == WorkflowVariableType.VIDEO:
+            if variable.type == WorkflowVariableType.VIDEO:
                 return EmbeddedResource(
                     type="resource",
                     resource=BlobResourceContents(
-                        uri=f"resource://{task_id}/{name or 'output'}",
-                        mimeType=f"video/{subtype or 'mp4'}",
+                        uri=f"resource://{task_id}/{variable.name or 'output'}",
+                        mimeType=f"video/{variable.subtype or 'mp4'}",
                         blob=data
                     )
                 )
 
-            if type == WorkflowVariableType.MODEL_3D:
+            if variable.type == WorkflowVariableType.MODEL_3D:
                 return EmbeddedResource(
                     type="resource",
                     resource=BlobResourceContents(
-                        uri=f"resource://{task_id}/{name or 'output'}",
-                        mimeType=resolve_model_3d_content_type(subtype or "glb"),
+                        uri=f"resource://{task_id}/{variable.name or 'output'}",
+                        mimeType=resolve_model_3d_content_type(variable.subtype or "glb"),
                         blob=data
                     )
                 )
@@ -263,13 +261,13 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return EmbeddedResource(
                 type="resource",
                 resource=BlobResourceContents(
-                    uri=f"resource://{task_id}/{name or 'output'}",
+                    uri=f"resource://{task_id}/{variable.name or 'output'}",
                     mimeType="application/octet-stream",
                     blob=data
                 )
             )
 
-        if type == WorkflowVariableType.NONE:
+        if variable.type == WorkflowVariableType.NONE:
             return TextContent(type="text", text="")
 
         if isinstance(value, StreamIterator):
@@ -290,7 +288,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return EmbeddedResource(
                 type="resource",
                 resource=BlobResourceContents(
-                    uri=f"resource://{task_id}/{name or 'output'}",
+                    uri=f"resource://{task_id}/{variable.name or 'output'}",
                     mimeType="application/octet-stream",
                     blob= await encode_value_to_base64(value),
                 ),
@@ -315,6 +313,22 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             return await encode_value_to_base64(DataUriStreamResource(value))
 
         return await encode_value_to_base64(value)
+
+    def _is_media_variable(self, variable: WorkflowVariableConfig) -> bool:
+        return variable.type in (
+            WorkflowVariableType.IMAGE,
+            WorkflowVariableType.AUDIO,
+            WorkflowVariableType.VIDEO,
+            WorkflowVariableType.MODEL_3D,
+            WorkflowVariableType.FILE,
+        )
+
+    def _to_json_safe(self, value: Any) -> Any:
+        try:
+            json.dumps(value)
+            return value
+        except (TypeError, ValueError):
+            return str(value)
 
     async def _serve(self) -> None:
         if self.config.transport == McpServerTransport.STDIO:

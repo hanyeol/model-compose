@@ -293,7 +293,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
                 FileStreamResource(input_path),
                 format=video.format,
                 attrs={
-                    **{ k: v for k, v in video.attrs.items() if k != "resolution" },
+                    **{ key: value for key, value in video.attrs.items() if key != "resolution" },
                     "frame_rate": frame_rate,
                 },
             )

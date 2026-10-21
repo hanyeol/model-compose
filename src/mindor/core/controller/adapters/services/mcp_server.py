@@ -190,7 +190,10 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             })) ])
 
         if state.status == TaskStatus.FAILED:
-            return CallToolResult(content=[ TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error})) ])
+            return CallToolResult(
+                content=[ TextContent(type="text", text=json.dumps({"status": "failed", "error": state.error})) ],
+                isError=True,
+            )
 
         workflow = self.controller.workflow_schemas.get(state.workflow_id) if state.workflow_id else None
 

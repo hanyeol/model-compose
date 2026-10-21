@@ -903,12 +903,12 @@ class ControllerService(AsyncService):
                 metadata=metadata
             )
         except Exception as e:
-            error = f"{str(e)}\n\nTraceback:\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}"
+            logging.exception("Workflow run failed for task %s", task_id)
             state = TaskState(
                 task_id=task_id,
                 status=TaskStatus.FAILED,
                 workflow_id=workflow_id,
-                error=error,
+                error=f"{type(e).__name__}: {e}",
                 elapsed=time_tracker.elapsed(),
                 session_id=session_id,
                 metadata=metadata
@@ -1030,11 +1030,16 @@ class ControllerService(AsyncService):
         if state and state.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
             return
 
+        logging.error(
+            "Unhandled task exception for task %s",
+            task_id,
+            exc_info=task.exception(),
+        )
         state = TaskState(
             task_id=task_id,
             status=TaskStatus.FAILED,
             workflow_id=workflow_id,
-            error=str(task.exception()),
+            error=f"{type(task.exception()).__name__}: {task.exception()}",
             session_id=state.session_id if state else None,
             metadata=state.metadata if state else None
         )

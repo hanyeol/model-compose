@@ -53,15 +53,15 @@ component:
   action:
     prompt: ${input.prompt}
     negative_prompt: ${input.negative_prompt}
+    # Short-side 768 is the model's default; 2K generation needs the
+    # separate H3-Regenerate-2K stage not wired up in this example.
+    width: ${input.width as integer | 1280}
+    height: ${input.height as integer | 720}
+    # Native output is 24 fps. The model was trained at this frame rate;
+    # changing frame_rate re-encodes the mp4 but does not resample frames.
+    frame_rate: ${input.frame_rate as integer | 24}
     seed: ${input.seed as integer}
     params:
-      # Native output is 24 fps. The model was trained at this frame rate;
-      # changing frame_rate re-encodes the mp4 but does not resample frames.
-      frame_rate: ${input.frame_rate as integer | 24}
-      # Short-side 768 is the model's default; 2K generation needs the
-      # separate H3-Regenerate-2K stage not wired up in this example.
-      width: ${input.width as integer | 1280}
-      height: ${input.height as integer | 720}
       # 24 fps × 4-15 s window → 96..360 frames. Longer clips grow the packed
       # sequence quadratically in attention cost.
       num_frames: ${input.num_frames as integer | 96}

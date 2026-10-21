@@ -46,6 +46,13 @@ component:
     negative_prompt: ${input.negative_prompt | "bad quality, worst quality, low resolution"}
     # Reference image passed to the IP-Adapter. Omit to disable image conditioning.
     reference_image: ${input.reference_image as image}
+    # Output resolution. Leave unset to inherit the input video's dimensions.
+    # SD 1.5 is trained around 512×512, so odd aspect ratios may degrade quality.
+    width: ${input.width as integer | 512}
+    height: ${input.height as integer | 512}
+    # Output frame rate. Leave unset to inherit the input video's frame rate so
+    # the output preserves the source playback duration.
+    frame_rate: ${input.frame_rate as integer}
     seed: ${input.seed as integer}
     params:
       # Number of frames to sample from the input video. Leave unset to
@@ -53,13 +60,6 @@ component:
       # the `free_noise` block below so the motion module slides over the
       # clip in windows instead of attending to all frames at once.
       num_frames: ${input.num_frames as integer | 32}
-      # Output frame rate. Leave unset to inherit the input video's frame rate so
-      # the output preserves the source playback duration.
-      frame_rate: ${input.frame_rate as integer}
-      # Output resolution. Leave unset to inherit the input video's dimensions.
-      # SD 1.5 is trained around 512×512, so odd aspect ratios may degrade quality.
-      width: ${input.width as integer | 512}
-      height: ${input.height as integer | 512}
       # Number of diffusion inference steps per frame.
       inference_steps: ${input.inference_steps as integer | 25}
       # Classifier-free guidance scale.

@@ -79,7 +79,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         seed             = await context.render_scalar(self.config.seed, int)
         num_frames       = await context.render_scalar(self.config.params.num_frames, int)
-        frame_rate       = await context.render_scalar(self.config.params.frame_rate, float)
+        frame_rate       = await context.render_scalar(self.config.frame_rate, float)
         ip_adapter_scale = await context.render_variable(self.config.params.ip_adapter_scale)
 
         params.update({
@@ -114,8 +114,8 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         inference_steps   = await context.render_scalar(self.config.params.inference_steps, int)
         guidance_scale    = await context.render_scalar(self.config.params.guidance_scale, float)
         denoise_strength  = await context.render_scalar(self.config.params.denoise_strength, float)
-        width             = await context.render_scalar(self.config.params.width, int)
-        height            = await context.render_scalar(self.config.params.height, int)
+        width             = await context.render_scalar(self.config.width, int)
+        height            = await context.render_scalar(self.config.height, int)
         clip_skip         = await context.render_scalar(self.config.params.clip_skip, int) if self.config.params.clip_skip is not None else None
         decode_chunk_size = await context.render_scalar(self.config.params.decode_chunk_size, int) if self.config.params.decode_chunk_size is not None else None
 

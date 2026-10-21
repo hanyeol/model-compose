@@ -108,10 +108,10 @@
 | `prompt`                      | 引导重绘外观的文本提示词。                                                                                              | （无）                                                   |
 | `negative_prompt`             | 描述生成结果中应避免的内容的文本。                                                                                       | `"bad quality, worst quality, low resolution"`           |
 | `reference_image`             | 传给 IP-Adapter 用于外观条件化的参考图像。需要组件的 `ip_adapter` 已配置。                                              | （无）                                                   |
+| `width` / `height`            | 输出视频分辨率。未设置时沿用输入视频的尺寸。                                                                            | (源尺寸)                                                 |
+| `frame_rate`                  | 输出视频帧率。留空则沿用输入片段的原始帧率，使输出保留源播放时长。                                                       | （源帧率）                                                |
 | `seed`                        | 用于可复现性的随机种子。留空则每次调用都产生新的样本。                                                                  | （无）                                                   |
 | `params.num_frames`           | 从输入视频中采样并输出的帧数。留空则使用输入的所有帧 — FreeNoise 会通过滑动上下文窗口处理长片段。                        | （输入的所有帧）                                          |
-| `params.frame_rate`           | 输出视频帧率。留空则沿用输入片段的原始帧率，使输出保留源播放时长。                                                       | （源帧率）                                                |
-| `params.height` / `.width`    | 输出视频分辨率。未设置时沿用输入视频的尺寸。                                                                            | (源尺寸)                                                 |
 | `params.denoise_strength`     | 去噪强度。`0.4-0.5` 强力保留运动；`0.6-0.7` 更强地遵循提示词。                                                          | `0.5`                                                    |
 | `params.guidance_scale`       | Classifier-free guidance 缩放。                                                                                         | `7.5`                                                    |
 | `params.inference_steps`      | 每帧的 diffusion 推理步数。步数越多质量越好，但速度越慢。                                                               | `25`                                                     |

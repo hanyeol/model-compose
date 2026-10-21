@@ -59,16 +59,16 @@ class TextToVideoTaskAction(ModelTaskComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_frames = await context.render_scalar(self.config.params.num_frames, int)
-        frame_rate = await context.render_scalar(self.config.params.frame_rate, float)
-        height     = await context.render_scalar(self.config.params.height, int)
-        width      = await context.render_scalar(self.config.params.width, int)
+        width      = await context.render_scalar(self.config.width, int)
+        height     = await context.render_scalar(self.config.height, int)
+        frame_rate = await context.render_scalar(self.config.frame_rate, float)
         seed       = await context.render_scalar(self.config.seed, int)
 
         return {
             "num_frames": num_frames,
-            "frame_rate": frame_rate,
-            "height":     height,
             "width":      width,
+            "height":     height,
+            "frame_rate": frame_rate,
             "seed":       seed,
         }
 

@@ -2087,12 +2087,12 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 |-------|------|---------|-------------|
 | `prompt` | string/array | **required** | Text description of the video to generate |
 | `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `width` | int | `1280` | Output video width in pixels |
+| `height` | int | `720` | Output video height in pixels |
+| `frame_rate` | float | `24` | Output video frame rate |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of prompts processed per batch |
 | `params.num_frames` | int | `81` | Number of frames to generate |
-| `params.frame_rate` | int | `24` | Output video frame rate |
-| `params.width` | int | `1280` | Output video width in pixels |
-| `params.height` | int | `720` | Output video height in pixels |
 | `params.inference_steps` | int | `50` | Number of diffusion inference steps |
 | `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
 | `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
@@ -2103,12 +2103,12 @@ Generate a short video clip from a text prompt. This task uses `driver: custom` 
 |-------|------|---------|-------------|
 | `prompt` | string/array | **required** | Text description of the video to generate |
 | `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `width` | int | `1280` | Output video width in pixels |
+| `height` | int | `720` | Output video height in pixels |
+| `frame_rate` | float | `24` | Output video frame rate |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of prompts processed per batch |
 | `params.num_frames` | int | `81` | Number of frames to generate |
-| `params.frame_rate` | int | `24` | Output video frame rate |
-| `params.width` | int | `1280` | Output video width in pixels |
-| `params.height` | int | `720` | Output video height in pixels |
 | `params.inference_steps` | int | `50` | Number of diffusion inference steps |
 | `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
 | `params.sol_attn.tau` | float | `1.0` | **sol backend only.** Sol-Attn routing threshold scale (τ); higher skips more KV blocks |
@@ -2129,11 +2129,11 @@ component:
   device: cuda:0
   action:
     prompt: ${input.prompt as text}
+    width: 1280
+    height: 720
+    frame_rate: 24
     params:
       num_frames: 81
-      frame_rate: 24
-      width: 1280
-      height: 720
       inference_steps: 50
       guidance_scale: 5.0
 ```
@@ -2194,12 +2194,12 @@ Generate a short video clip that animates an input image, optionally guided by a
 | `image` | image/array | **required** | Input image (or list/stream of images) used as the first frame |
 | `prompt` | string/array | `null` | Text prompt guiding motion and content |
 | `negative_prompt` | string/array | `null` | Text describing content to avoid |
+| `width` | int | `null` | Output video width in pixels; defaults to the input image width |
+| `height` | int | `null` | Output video height in pixels; defaults to the input image height |
+| `frame_rate` | float | `24` | Output video frame rate |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.num_frames` | int | `81` | Number of frames to generate |
-| `params.frame_rate` | int | `24` | Output video frame rate |
-| `params.width` | int | `null` | Output video width in pixels; defaults to the input image width |
-| `params.height` | int | `null` | Output video height in pixels; defaults to the input image height |
 | `params.inference_steps` | int | `40` | Number of diffusion inference steps |
 | `params.guidance_scale` | float | `5.0` | Classifier-free guidance scale |
 | `params.shift` | float | `5.0` | Flow-matching timestep shift applied to the scheduler |
@@ -2218,9 +2218,9 @@ component:
   action:
     image: ${input.image as image}
     prompt: ${input.prompt | ""}
+    frame_rate: 24
     params:
       num_frames: 81
-      frame_rate: 24
       inference_steps: 40
       guidance_scale: 5.0
 ```
@@ -2392,12 +2392,12 @@ Transform an existing video clip. Two driver families are supported: `huggingfac
 | `prompt` | string/array | `null` | Text prompt guiding the output |
 | `negative_prompt` | string/array | `null` | Text describing content to avoid |
 | `reference_image` | image | `null` | Reference image; usage depends on the driver — appearance IP-Adapter conditioning for `huggingface`, target character for `custom` (**required** on Wan-Animate) |
+| `width` | int | `null` | Output video width in pixels; defaults to the input width |
+| `height` | int | `null` | Output video height in pixels; defaults to the input height |
+| `frame_rate` | float | `8` | Output video frame rate |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.num_frames` | int | `null` | Frames sampled from the input; unset consumes every input frame |
-| `params.frame_rate` | int | `null` | Output video frame rate; unset inherits the input clip's native frame rate |
-| `params.width` | int | `null` | Output video width in pixels; defaults to the input width |
-| `params.height` | int | `null` | Output video height in pixels; defaults to the input height |
 
 #### Driver: huggingface (AnimateDiff)
 

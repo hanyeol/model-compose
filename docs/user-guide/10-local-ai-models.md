@@ -1468,11 +1468,11 @@ component:
   action:
     prompt: ${input.prompt as text}
     negative_prompt: ${input.negative_prompt | ""}
+    width: 1280
+    height: 720
+    frame_rate: 24
     params:
       num_frames: 81
-      frame_rate: 24
-      width: 1280
-      height: 720
       inference_steps: 50
       guidance_scale: 5.0
 ```
@@ -1526,9 +1526,9 @@ component:
   action:
     image: ${input.image as image}
     prompt: ${input.prompt | ""}
+    frame_rate: 24
     params:
       num_frames: 81
-      frame_rate: 24
       inference_steps: 40
       guidance_scale: 5.0
 ```
@@ -1571,10 +1571,10 @@ component:
     prompt: ${input.prompt}
     negative_prompt: ${input.negative_prompt | "bad quality, worst quality, low resolution"}
     reference_image: ${input.reference_image as image?}
+    frame_rate: ${input.frame_rate as integer}
     seed: ${input.seed as integer}
     params:
       num_frames: ${input.num_frames as integer}
-      frame_rate: ${input.frame_rate as integer}
       inference_steps: ${input.inference_steps as integer | 25}
       guidance_scale: ${input.guidance_scale as number | 7.5}
       denoise_strength: ${input.denoise_strength as number | 0.5}

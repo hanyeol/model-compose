@@ -346,16 +346,34 @@ class FireRedTextToSpeechTaskDriver(ModelTaskDriver):
         preset = self.config.preset
 
         if action.method == TextToSpeechActionMethod.CLONE:
-            return await FireRedTextToSpeechCloneTaskAction(action, self.model, self.sample_rate, self.device, preset).run(context)
+            return await FireRedTextToSpeechCloneTaskAction(
+                action,
+                self.model,
+                self.sample_rate,
+                self.device,
+                preset
+            ).run(context)
 
         if action.method == TextToSpeechActionMethod.DESIGN:
             if preset != FireRedTextToSpeechPreset.INSTRUCT:
                 raise RuntimeError("The 'design' method requires preset=instruct (FireRedTTS3-Instruct).")
-            return await FireRedTextToSpeechDesignTaskAction(action, self.model, self.sample_rate, self.device).run(context)
+
+            return await FireRedTextToSpeechDesignTaskAction(
+                action,
+                self.model,
+                self.sample_rate,
+                self.device
+            ).run(context)
 
         if action.method == TextToSpeechActionMethod.EDIT:
             if preset != FireRedTextToSpeechPreset.INSTRUCT:
                 raise RuntimeError("The 'edit' method requires preset=instruct (FireRedTTS3-Instruct).")
-            return await FireRedTextToSpeechEditTaskAction(action, self.model, self.sample_rate, self.device).run(context)
+
+            return await FireRedTextToSpeechEditTaskAction(
+                action,
+                self.model,
+                self.sample_rate,
+                self.device
+            ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

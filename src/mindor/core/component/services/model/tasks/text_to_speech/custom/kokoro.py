@@ -158,6 +158,10 @@ class KokoroTextToSpeechTaskDriver(ModelTaskDriver):
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
-            return await KokoroTextToSpeechGenerateTaskAction(action, self._get_or_create_pipeline, self.device).run(context)
+            return await KokoroTextToSpeechGenerateTaskAction(
+                action,
+                self._get_or_create_pipeline,
+                self.device
+            ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

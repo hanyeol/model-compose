@@ -92,4 +92,9 @@ class HuggingfaceTextRerankingTaskDriver(HuggingfaceLanguageModelTaskDriver):
         return AutoTokenizer
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextRerankingTaskAction(action, self.model, self.tokenizer, self.device).run(context)
+        return await HuggingfaceTextRerankingTaskAction(
+            action,
+            self.model,
+            self.tokenizer,
+            self.device
+        ).run(context)

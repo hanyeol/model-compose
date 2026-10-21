@@ -184,6 +184,11 @@ class TadaTextToSpeechTaskDriver(ModelTaskDriver):
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.CLONE:
-            return await TadaTextToSpeechCloneTaskAction(action, self.model, self.encoder, self.device).run(context)
+            return await TadaTextToSpeechCloneTaskAction(
+                action,
+                self.model,
+                self.encoder,
+                self.device
+            ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

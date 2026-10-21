@@ -391,4 +391,10 @@ class VibeVoiceSpeechToTextTaskDriver(ModelTaskDriver):
         return torch.float32
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await VibeVoiceSpeechToTextTaskAction(action, self.model, self.processor, self.streaming_info, self.device).run(context)
+        return await VibeVoiceSpeechToTextTaskAction(
+            action,
+            self.model,
+            self.processor,
+            self.streaming_info,
+            self.device
+        ).run(context)

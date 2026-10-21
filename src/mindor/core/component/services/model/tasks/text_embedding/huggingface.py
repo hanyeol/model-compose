@@ -215,4 +215,10 @@ class HuggingfaceTextEmbeddingTaskDriver(HuggingfaceLanguageModelTaskDriver):
         return AutoTokenizer
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextEmbeddingTaskAction(action, self.config.architecture, self.model, self.tokenizer, self.device).run(context)
+        return await HuggingfaceTextEmbeddingTaskAction(
+            action,
+            self.config.architecture,
+            self.model,
+            self.tokenizer,
+            self.device
+        ).run(context)

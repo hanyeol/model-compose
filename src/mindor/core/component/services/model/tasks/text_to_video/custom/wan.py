@@ -187,4 +187,9 @@ class WanTextToVideoTaskDriver(ModelTaskDriver):
         return pipeline, device
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await WanTextToVideoTaskAction(action, self.pipeline, self.config.preset, self.config.cpu_offload).run(context)
+        return await WanTextToVideoTaskAction(
+            action,
+            self.pipeline,
+            self.config.preset,
+            self.config.cpu_offload
+        ).run(context)

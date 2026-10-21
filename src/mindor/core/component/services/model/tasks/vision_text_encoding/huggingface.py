@@ -111,7 +111,11 @@ class HuggingfaceVisionTextEncodingTaskDriver(HuggingfaceMultimodalModelTaskDriv
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await HuggingfaceVisionTextEncodingTaskAction(
-            action, self.model, self.processor, self.device, self.config.chat_template,
+            action,
+            self.model,
+            self.processor,
+            self.device,
+            self.config.chat_template,
         ).run(context)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:

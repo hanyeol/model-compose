@@ -607,6 +607,12 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
         pipeline = self.pipelines.get(None) if self.pipelines else None
 
         if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(action, pipeline, self.device, self._get_ip_adapter_count(), self._get_controlnet_count()).run(context)
+            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(
+                action,
+                pipeline,
+                self.device,
+                self._get_ip_adapter_count(),
+                self._get_controlnet_count()
+            ).run(context)
 
         raise ValueError(f"Unknown architecture: {self.config.architecture}")

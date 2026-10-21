@@ -330,12 +330,27 @@ class CosyvoiceTextToSpeechTaskDriver(ModelTaskDriver):
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         if action.method == TextToSpeechActionMethod.GENERATE:
-            return await CosyvoiceTextToSpeechGenerateTaskAction(action, self.model, self.sample_rate, self.device).run(context)
+            return await CosyvoiceTextToSpeechGenerateTaskAction(
+                action,
+                self.model,
+                self.sample_rate,
+                self.device
+            ).run(context)
 
         if action.method == TextToSpeechActionMethod.CLONE:
-            return await CosyvoiceTextToSpeechCloneTaskAction(action, self.model, self.sample_rate, self.device).run(context)
+            return await CosyvoiceTextToSpeechCloneTaskAction(
+                action,
+                self.model,
+                self.sample_rate,
+                self.device
+            ).run(context)
 
         if action.method == TextToSpeechActionMethod.DESIGN:
-            return await CosyvoiceTextToSpeechDesignTaskAction(action, self.model, self.sample_rate, self.device).run(context)
+            return await CosyvoiceTextToSpeechDesignTaskAction(
+                action,
+                self.model,
+                self.sample_rate,
+                self.device
+            ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

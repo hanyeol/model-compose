@@ -126,4 +126,10 @@ class HuggingfaceTextClassificationTaskDriver(HuggingfaceLanguageModelTaskDriver
         return options
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextClassificationTaskAction(action, self.model, self.tokenizer, self.device, self.labels).run(context)
+        return await HuggingfaceTextClassificationTaskAction(
+            action,
+            self.model,
+            self.tokenizer,
+            self.device,
+            self.labels
+        ).run(context)

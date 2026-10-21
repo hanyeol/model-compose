@@ -204,4 +204,9 @@ class HuggingfaceTextGenerationTaskDriver(HuggingfaceLanguageModelTaskDriver):
         return AutoTokenizer
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceTextGenerationTaskAction(action, self.model, self.tokenizer, self.device).run(context)
+        return await HuggingfaceTextGenerationTaskAction(
+            action,
+            self.model,
+            self.tokenizer,
+            self.device
+        ).run(context)

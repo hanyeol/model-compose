@@ -156,8 +156,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         return await self._build_state_response(state)
 
-    async def _resume_workflow_as_tool(self, task_id: str, answer: str) -> CallToolResult:
-        answer = json.loads(answer) if answer else {}
+    async def _resume_workflow_as_tool(self, task_id: str, answer: Optional[str] = None) -> CallToolResult:
+        answer = json.loads(answer) if answer else None
 
         try:
             state = await self.controller.resume_workflow(

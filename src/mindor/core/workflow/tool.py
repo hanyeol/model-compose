@@ -135,12 +135,12 @@ class ResumeToolGenerator():
         workflow_id: str,
         runner: Callable[[str, Any], Awaitable[Any]]
     ) -> WorkflowTool:
-        async def _resume_workflow(task_id, answer) -> Any:
+        async def _resume_workflow(task_id, answer=None) -> Any:
             return await runner(task_id, answer)
 
         safe_workflow_id = re.sub(_INVALID_FUNCTION_CHARS_REGEX, "_", workflow_id)
         code = (
-            f"async def _resume_workflow_{safe_workflow_id}(task_id, answer):\n"
+            f"async def _resume_workflow_{safe_workflow_id}(task_id, answer=None):\n"
             f"    return await _resume_workflow(task_id, answer)"
         )
         context = { "_resume_workflow": _resume_workflow }
@@ -151,7 +151,7 @@ class ResumeToolGenerator():
             description="Resume the workflow that was paused at a Human-in-the-Loop interrupt point.",
             parameters=[
                 self._build_variable("task_id", WorkflowVariableType.STRING, "The task ID of the interrupted workflow", required=True),
-                self._build_variable("answer",  WorkflowVariableType.STRING, "JSON object mapping interrupt point id to its answer value", required=True),
+                self._build_variable("answer",  WorkflowVariableType.STRING, "JSON object mapping interrupt point id to its answer value; omit to resolve every pending point with a None answer (auto-approve)."),
             ],
             returns=[
                 self._build_variable(None, WorkflowVariableType.ANY, (

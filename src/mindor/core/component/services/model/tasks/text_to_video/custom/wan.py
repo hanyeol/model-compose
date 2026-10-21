@@ -66,10 +66,9 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
             results: List[VideoStreamResource] = []
 
             for prompt, negative in zip(prompts, negatives):
-                size = f"{params['width']}*{params['height']}"
                 video = self.pipeline.generate(
                     input_prompt=prompt,
-                    size=size,
+                    size=(params["width"], params["height"]),
                     frame_num=params["num_frames"],
                     shift=params["shift"],
                     sample_solver="unipc",

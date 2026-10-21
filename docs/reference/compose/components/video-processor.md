@@ -1,6 +1,6 @@
 # Video Processor Component
 
-The video processor component applies per-frame video transforms (resize, crop, pad, flip, rotate, speed) via FFmpeg video filters. The video track is always re-encoded (filter graphs decode frames, so `-c:v copy` is not valid); the audio track is stream-copied by default and re-encoded only when the method requires it (e.g., `speed` uses `atempo` on the audio track).
+The video processor component applies per-frame video transforms (resize, crop, pad, flip, rotate, speed, zoom) via FFmpeg video filters. The video track is always re-encoded (filter graphs decode frames, so `-c:v copy` is not valid); the audio track is stream-copied by default and re-encoded only when the method requires it (e.g., `speed` uses `atempo` on the audio track).
 
 ## Basic Configuration
 
@@ -29,7 +29,7 @@ All video processor actions share these common settings:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Processing method: `resize`, `crop`, `pad`, `flip`, `rotate`, `speed` |
+| `method` | string | **required** | Processing method: `resize`, `crop`, `pad`, `flip`, `rotate`, `speed`, `zoom` |
 | `video` | string / array | **required** | Input video (a file path, upload, or upstream video reference — single or list) |
 | `encoding` | object | `null` | Output encoding overrides (`format`, `video.codec`, `video.bitrate`, `audio.codec`, `audio.bitrate`, etc.). When unset, the container follows the input format and the audio track is stream-copied (unless the method requires an audio re-encode). |
 | `batch_size` | integer / string | `null` | Number of input videos processed per batch |
@@ -173,6 +173,54 @@ component:
 
 **Audio behavior**: `speed` installs an `-af "atempo=..."` filter, which forces the audio track to be re-encoded (`-c:a copy` becomes invalid). The audio codec defaults to the container's default (e.g., `aac` for `mp4`) unless overridden via `encoding.audio.codec`. `atempo` preserves pitch; for speeds far outside `0.5..2.0` the driver chains multiple `atempo` stages automatically to keep A/V in sync.
 
+### Zoom
+
+Animate between two regions of the input in a single pass. Both `from` and `to` default to the full input frame; specify one, the other, or both to get zoom-out, zoom-in, or an arbitrary move. The animation runs for `duration` seconds and then clamps to the `to` framing for the rest of the clip.
+
+```yaml
+# Zoom out from a cropped region to the full frame
+component:
+  type: video-processor
+  action:
+    method: zoom
+    video: ${input.video as video}
+    from:
+      x: 320
+      y: 120
+      width: 640
+      height: 360
+    duration: 0.6
+    easing: linear
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `from` | object | *full input frame* | Region (in input pixels) that fills the frame at the **start** of the animation. Fields: `x`, `y`, `width`, `height` |
+| `to` | object | *full input frame* | Region (in input pixels) that fills the frame at the **end** of the animation. Fields: `x`, `y`, `width`, `height` |
+| `duration` | number | **required** | Animation length in seconds. After `duration` elapses, the output clamps to the `to` framing for the rest of the clip |
+| `easing` | string | `linear` | How the zoom rate is distributed: `linear` (uniform size interpolation), `constant-pixels` (perceptually uniform rate via harmonic blend), `ease-in` (slow start), `ease-out` (slow end) |
+| `width` | integer | *input width* | Target output canvas width in pixels. When omitted, matches the input |
+| `height` | integer | *input height* | Target output canvas height in pixels. When omitted, matches the input |
+
+At least one of `from` or `to` must be specified; otherwise there is nothing to animate and schema validation rejects the action.
+
+**Shapes of a zoom:**
+
+- **Zoom-out**: specify `from` as the inner region, omit `to`. The clip opens on `from` and widens to the full frame.
+- **Zoom-in**: omit `from`, specify `to` as the inner region. The clip opens on the full frame and tightens into `to`.
+- **Arbitrary move**: specify both. Useful for a "crop-to-crop" push across two subjects.
+
+**Easing modes:**
+
+- **`linear`**: Width/height interpolate linearly in time. Perceptually "fast at the start, slow at the end" because of perspective.
+- **`constant-pixels`**: The region size changes along a harmonic curve so the perceived rate stays uniform throughout the animation.
+- **`ease-in`**: Quadratic acceleration from rest. Natural when the animation leads into a subsequent cut.
+- **`ease-out`**: Quadratic deceleration into rest. Natural when the animation settles on a final framing.
+
+**SAR normalization**: The output is normalized to a square pixel aspect ratio (`setsar=1`). Clips from `zoom` concatenate cleanly even when their inputs had non-square SAR.
+
+**Pre-conditions**: The driver needs the input width, height, and frame rate to assemble the FFmpeg expressions (`zoompan` can't evaluate `iw`/`ih` for its output size, and its expressions reference `on` instead of `t`). These are read from `source.attrs` when available, otherwise probed via `ffprobe` once per invocation.
+
 ## Multiple Actions Configuration
 
 Define multiple video processing actions on the same component:
@@ -275,6 +323,48 @@ component:
     expand: true
 ```
 
+### Zoom-Out Transition at a Cut
+
+Apply a short zoom-out at the head of each clip so a multi-cam edit reads as a move rather than a jump cut:
+
+```yaml
+component:
+  type: video-processor
+  action:
+    method: zoom
+    video: ${input.clip as video}
+    from:
+      x: 320
+      y: 120
+      width: 640
+      height: 360
+    duration: 0.6
+    easing: ease-out
+```
+
+The region at `from` fills the frame for the first instant, widens to the full input over `0.6s`, and the rest of the clip plays through at the full framing. Driving this with a single `zoompan` pass keeps the move continuous (no visible stepping) and avoids per-step encoding.
+
+### Zoom-In at the End of a Shot
+
+Tighten onto a subject at the tail of a clip by specifying `to` instead of `from`:
+
+```yaml
+component:
+  type: video-processor
+  action:
+    method: zoom
+    video: ${input.clip as video}
+    to:
+      x: 480
+      y: 200
+      width: 320
+      height: 180
+    duration: 0.8
+    easing: ease-in
+```
+
+The clip opens on the full frame and tightens into the `to` region over `0.8s`. Combined with a cut, this reads as a push-in on a subject before the next shot.
+
 ### Crop and Watermark-Ready Padding
 
 Crop a region of interest, then pad to a fixed aspect ratio:
@@ -365,6 +455,7 @@ When `encoding.format` is unset, the container follows the input format (falling
 4. **Aspect-preserving resize with one axis**: Leave either `width` or `height` unset to auto-derive the missing dimension from the source aspect ratio.
 5. **Batch parallelism**: When the input is a list of videos, the batch runs its FFmpeg subprocesses concurrently. Use `batch_size` to bound how many videos are in flight at a time.
 6. **`speed` for A/V-synced timelapse/slowmo**: `atempo` chains automatically for speeds outside `0.5..2.0`, so 8× or 0.1× still produce correctly synced audio without extra configuration.
+7. **`zoom` is a single-pass animation**: Prefer `zoom` over chaining per-step crops when you need a continuous move; `zoompan` interpolates the region every output frame and emits one encode. The output always carries `setsar=1`, so clips concatenate cleanly.
 
 ## Troubleshooting
 
@@ -373,3 +464,4 @@ When `encoding.format` is unset, the container follows the input format (falling
 3. **Rotate crops the corners**: With `expand: false` the output is the same size as the input, so rotated frame corners are cropped. Set `expand: true` to keep everything.
 4. **`fit` / `fill` vs `stretch`**: `fit` letterboxes (adds transparent padding to preserve aspect), `fill` covers and centre-crops the overflow, `stretch` ignores aspect ratio and distorts.
 5. **`speed` audio pitch changed unexpectedly**: `atempo` should preserve pitch — if it doesn't, check that `encoding.audio.codec` isn't set to something that resamples in-place. Overriding `encoding.audio` is optional; leave it unset unless you have a specific reason.
+6. **`zoom` fails with "requires the input video resolution and frame rate"**: The driver couldn't read the input's width/height/fps from `source.attrs` and the input wasn't a file that `ffprobe` could inspect (e.g., a pipe without a known format). Spool the input to a file first, or attach `resolution` (`"WxH"`) and `frame_rate` to `source.attrs`.

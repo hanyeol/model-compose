@@ -45,7 +45,7 @@ model-compose provides various component types for performing different tasks.
 | `html-frame-renderer` | Render HTML as video frames | Drive an HTML/CSS/JS animation via a `window.render(t)` contract and capture each frame as a PIL image |
 | `video-clipper` | Clip video segments | Cut one or more time ranges from a video, losslessly via ffmpeg stream copy |
 | `video-mixer` | Composite videos | Concat videos end-to-end or overlay one/more videos on a base (watermark, PIP) via ffmpeg |
-| `video-processor` | Per-frame video DSP | Resize, crop, pad, flip, rotate, and speed change (A/V-synced via `setpts` + `atempo`) via ffmpeg |
+| `video-processor` | Per-frame video DSP | Resize, crop, pad, flip, rotate, speed change (A/V-synced via `setpts` + `atempo`), and single-pass zoom animations (`zoompan`) via ffmpeg |
 | `video-analyzer` | Measure video properties | Black frames, freezes, brightness, and motion summary via ffmpeg filters |
 | `audio-extractor` | Extract audio | Pull audio streams out of video or other media files |
 | `audio-converter` | Convert audio | Transcode/reformat audio (codec, sample rate, channels, etc.) |
@@ -107,7 +107,7 @@ model-compose provides various component types for performing different tasks.
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
 - Video / audio clipping (cut time ranges losslessly) → `video-clipper` / `audio-clipper`
 - Video mixing (concat / overlay for watermarks and PIP) → `video-mixer`
-- Video per-frame DSP (resize, crop, pad, flip, rotate, speed change with synced audio) → `video-processor`
+- Video per-frame DSP (resize, crop, pad, flip, rotate, speed change with synced audio, single-pass zoom animation) → `video-processor`
 - Video analysis (black frames, freezes, brightness, motion) → `video-analyzer`
 - Audio mixing (concat / overlay for narration over background, layered SFX) → `audio-mixer`
 - Audio DSP (speed / pitch-shift, EQ, compressor, normalize, trim silence, fade in/out, voice anonymization) → `audio-processor`

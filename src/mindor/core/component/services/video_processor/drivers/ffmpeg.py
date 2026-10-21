@@ -47,22 +47,30 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         target_h = str(height) if height is not None else "-2"
 
         if scale_mode == VideoScaleMode.STRETCH:
-            video_filter = f"scale={target_w}:{target_h}"
+            # `setsar=1` is defensive: ffmpeg's scale can propagate a non-square
+            # SAR from the source when the pixel dimensions don't preserve it.
+            video_filter = f"scale={target_w}:{target_h},setsar=1"
         elif width is None or height is None:
             # For fit/fill both dimensions must be known; if only one is set the aspect-preserving
-            # -2 already gives fit semantics, so we can short-circuit.
-            video_filter = f"scale={target_w}:{target_h}"
+            # -2 already gives fit semantics, so we can short-circuit. A trailing `setsar=1`
+            # pins the output to square pixels — aspect-preserving scales fold their rounding
+            # into SAR (e.g. 356x412 → width=1280 lands as SAR 131809:131840), and clips with
+            # mismatched SAR fail downstream `concat`.
+            video_filter = f"scale={target_w}:{target_h},setsar=1"
         elif scale_mode == VideoScaleMode.FIT:
             # Fit inside the target box, then pad to exact size so downstream sees width x height.
+            # `setsar=1` guards against non-square SAR leaking through from `force_original_aspect_ratio`.
             video_filter = (
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0,"
+                f"setsar=1"
             )
         else:
             # FILL: cover the target box and center-crop the overflow.
             video_filter = (
                 f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height}"
+                f"crop={width}:{height},"
+                f"setsar=1"
             )
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)

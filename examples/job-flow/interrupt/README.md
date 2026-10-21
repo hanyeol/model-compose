@@ -56,12 +56,20 @@ This workflow showcases the interrupt functionality:
      -d '{}'
    ```
 
-   The API returns with `status: "interrupted"`. Resume with:
+   The API returns with `status: "interrupted"` and an `interrupt` array of pending points. Pick each point's `id` from `interrupt[*].id` and resume. The simplest form approves every pending point with a null answer:
 
    ```bash
    curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
      -H "Content-Type: application/json" \
-     -d '{"job_id": "run-command"}'
+     -d '{}'
+   ```
+
+   Or supply an explicit answer per point id:
+
+   ```bash
+   curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+     -H "Content-Type: application/json" \
+     -d '{"answer": {"01HZA...": {"approved": true}}}'
    ```
 
 ## Workflow Details

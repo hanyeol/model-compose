@@ -56,12 +56,20 @@
      -d '{}'
    ```
 
-   API 返回 `status: "interrupted"` 状态。使用以下命令恢复：
+   API 返回 `status: "interrupted"` 状态和 pending 点的 `interrupt` 数组。从 `interrupt[*].id` 中取出每个点的 `id`，然后恢复。最简形式是以 null answer 批准所有 pending 点：
 
    ```bash
    curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
      -H "Content-Type: application/json" \
-     -d '{"job_id": "run-command"}'
+     -d '{}'
+   ```
+
+   或者为每个点的 id 提供明确的 answer：
+
+   ```bash
+   curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+     -H "Content-Type: application/json" \
+     -d '{"answer": {"01HZA...": {"approved": true}}}'
    ```
 
 ## 工作流详情

@@ -56,12 +56,20 @@
      -d '{}'
    ```
 
-   API는 `status: "interrupted"` 상태로 반환됩니다. 다음으로 재개합니다:
+   API는 `status: "interrupted"` 상태와 pending 포인트들의 `interrupt` 배열을 반환합니다. 각 포인트의 `id`를 `interrupt[*].id`에서 가져와 재개합니다. 가장 간단한 형태는 모든 pending 포인트를 null answer로 승인하는 것입니다:
 
    ```bash
    curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
      -H "Content-Type: application/json" \
-     -d '{"job_id": "run-command"}'
+     -d '{}'
+   ```
+
+   또는 각 포인트 id별로 명시적인 answer를 제공할 수 있습니다:
+
+   ```bash
+   curl -X POST http://localhost:8080/api/tasks/{task_id}/resume \
+     -H "Content-Type: application/json" \
+     -d '{"answer": {"01HZA...": {"approved": true}}}'
    ```
 
 ## 워크플로우 세부사항

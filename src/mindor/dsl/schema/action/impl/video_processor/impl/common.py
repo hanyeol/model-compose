@@ -47,10 +47,16 @@ class VideoZoomEasing(str, Enum):
     EASE_OUT        = "ease-out"
 
 class VideoRegionConfig(BaseModel):
-    x: Union[int, str] = Field(..., description="X coordinate of the region's top-left corner, in input pixels.")
-    y: Union[int, str] = Field(..., description="Y coordinate of the region's top-left corner, in input pixels.")
-    width: Union[int, str] = Field(..., description="Region width in input pixels.")
-    height: Union[int, str] = Field(..., description="Region height in input pixels.")
+    x: Optional[Union[int, str]] = Field(default=None, description="X coordinate of the region's top-left corner, in input pixels.")
+    y: Optional[Union[int, str]] = Field(default=None, description="Y coordinate of the region's top-left corner, in input pixels.")
+    width: Optional[Union[int, str]] = Field(default=None, description="Region width in input pixels.")
+    height: Optional[Union[int, str]] = Field(default=None, description="Region height in input pixels.")
+
+    def is_empty(self) -> bool:
+        return self.x is None and self.y is None and self.width is None and self.height is None
+
+    def is_complete(self) -> bool:
+        return self.x is not None and self.y is not None and self.width is not None and self.height is not None
 
 class CommonVideoProcessorActionConfig(CommonActionConfig):
     method: VideoProcessorActionMethod = Field(..., description="Video processing operation this action performs.")
@@ -120,10 +126,19 @@ class VideoProcessorZoomActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.ZOOM]
     width: Optional[Union[int, str]] = Field(default=None, description="Target output width in pixels; defaults to the input width.")
     height: Optional[Union[int, str]] = Field(default=None, description="Target output height in pixels; defaults to the input height.")
-    from_: VideoRegionConfig = Field(..., alias="from", description="Region that fills the frame at the start of the animation.")
-    to: Optional[VideoRegionConfig] = Field(default=None, description="Region that fills the frame at the end of the animation; defaults to the full input frame.")
+    from_: VideoRegionConfig = Field(default_factory=VideoRegionConfig, alias="from", description="Region that fills the frame at the start of the animation; defaults to the full input frame.")
+    to: VideoRegionConfig = Field(default_factory=VideoRegionConfig, description="Region that fills the frame at the end of the animation; defaults to the full input frame.")
     duration: Union[float, str] = Field(..., description="Animation length in seconds.")
     easing: Union[VideoZoomEasing, str] = Field(default=VideoZoomEasing.LINEAR, description="How the zoom rate is distributed across the duration.")
+
+    @model_validator(mode="after")
+    def validate_regions(self):
+        for name, region in (("from", self.from_), ("to", self.to)):
+            if not region.is_empty() and not region.is_complete():
+                raise ValueError(f"'{name}' region must specify all of 'x', 'y', 'width', 'height' (or none to default to the full input frame)")
+        if self.from_.is_empty() and self.to.is_empty():
+            raise ValueError("'zoom' requires at least one of 'from' or 'to' to be specified")
+        return self
 
 class VideoProcessorAdjustColorActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.ADJUST_COLOR]

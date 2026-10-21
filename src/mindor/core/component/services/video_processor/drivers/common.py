@@ -11,6 +11,7 @@ from mindor.dsl.schema.action import (
     VideoFlipDirection,
     VideoFreezePosition,
     VideoZoomEasing,
+    VideoRegionConfig,
 )
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
@@ -172,31 +173,14 @@ class VideoProcessorAction(ComponentAction):
             width  = await context.render_scalar(self.config.width,  int)
             height = await context.render_scalar(self.config.height, int)
 
-            from_x      = await context.render_scalar(self.config.from_.x,      int)
-            from_y      = await context.render_scalar(self.config.from_.y,      int)
-            from_width  = await context.render_scalar(self.config.from_.width,  int)
-            from_height = await context.render_scalar(self.config.from_.height, int)
+            from_x, from_y, from_width, from_height = await self._resolve_zoom_region("from", self.config.from_, context)
+            to_x,   to_y,   to_width,   to_height   = await self._resolve_zoom_region("to",   self.config.to,    context)
 
-            if self.config.to is not None:
-                to_x      = await context.render_scalar(self.config.to.x,      int)
-                to_y      = await context.render_scalar(self.config.to.y,      int)
-                to_width  = await context.render_scalar(self.config.to.width,  int)
-                to_height = await context.render_scalar(self.config.to.height, int)
-                to_region: Optional[Tuple[int, int, int, int]] = (to_x, to_y, to_width, to_height)
-            else:
-                to_region = None
+            if from_x is None and to_x is None:
+                raise ValueError("'zoom' requires at least one of 'from' or 'to' to be specified")
 
             duration = await context.render_scalar(self.config.duration, float)
             easing   = await context.render_variable(self.config.easing)
-
-            if from_x is None or from_y is None or from_width is None or from_height is None:
-                raise ValueError("'from.x', 'from.y', 'from.width', and 'from.height' must all be specified for 'zoom' method")
-
-            if from_width <= 0 or from_height <= 0:
-                raise ValueError("'from.width' and 'from.height' must be positive for 'zoom' method")
-
-            if to_region is not None and (to_region[2] <= 0 or to_region[3] <= 0):
-                raise ValueError("'to.width' and 'to.height' must be positive for 'zoom' method")
 
             if duration is None or duration <= 0:
                 raise ValueError("'duration' must be positive for 'zoom' method")
@@ -210,8 +194,14 @@ class VideoProcessorAction(ComponentAction):
                 "encoding":    encoding,
                 "width":       width,
                 "height":      height,
-                "from_region": (from_x, from_y, from_width, from_height),
-                "to_region":   to_region,
+                "from_x":      from_x,
+                "from_y":      from_y,
+                "from_width":  from_width,
+                "from_height": from_height,
+                "to_x":        to_x,
+                "to_y":        to_y,
+                "to_width":    to_width,
+                "to_height":   to_height,
                 "duration":    duration,
                 "easing":      easing,
             }
@@ -264,6 +254,28 @@ class VideoProcessorAction(ComponentAction):
             return { "encoding": encoding, "hue": hue }
 
         raise ValueError(f"Unsupported video processing action method: {method}")
+
+    async def _resolve_zoom_region(
+        self,
+        name: str,
+        region: VideoRegionConfig,
+        context: ComponentActionContext,
+    ) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
+        if region.is_empty():
+            return (None, None, None, None)
+
+        x      = await context.render_scalar(region.x,      int)
+        y      = await context.render_scalar(region.y,      int)
+        width  = await context.render_scalar(region.width,  int)
+        height = await context.render_scalar(region.height, int)
+
+        if x is None or y is None or width is None or height is None:
+            raise ValueError(f"'{name}.x', '{name}.y', '{name}.width', and '{name}.height' must all be specified for 'zoom' method")
+
+        if width <= 0 or height <= 0:
+            raise ValueError(f"'{name}.width' and '{name}.height' must be positive for 'zoom' method")
+
+        return (x, y, width, height)
 
     async def _process_batch(
         self,
@@ -390,8 +402,14 @@ class VideoProcessorAction(ComponentAction):
                 video,
                 params["width"],
                 params["height"],
-                params["from_region"],
-                params["to_region"],
+                params["from_x"],
+                params["from_y"],
+                params["from_width"],
+                params["from_height"],
+                params["to_x"],
+                params["to_y"],
+                params["to_width"],
+                params["to_height"],
                 params["duration"],
                 params["easing"],
                 params["encoding"],
@@ -582,8 +600,14 @@ class VideoProcessorAction(ComponentAction):
         video: MediaSource,
         width: Optional[int],
         height: Optional[int],
-        from_region: Tuple[int, int, int, int],
-        to_region: Optional[Tuple[int, int, int, int]],
+        from_x: Optional[int],
+        from_y: Optional[int],
+        from_width: Optional[int],
+        from_height: Optional[int],
+        to_x: Optional[int],
+        to_y: Optional[int],
+        to_width: Optional[int],
+        to_height: Optional[int],
         duration: float,
         easing: VideoZoomEasing,
         encoding: VideoAudioEncodingParams,

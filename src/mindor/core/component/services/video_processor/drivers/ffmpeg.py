@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Callable, Tuple, Any
+from typing import List, Optional, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import VideoProcessorComponentConfig
 from mindor.dsl.schema.action import (
@@ -239,8 +239,14 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         video: MediaSource,
         width: Optional[int],
         height: Optional[int],
-        from_region: Tuple[int, int, int, int],
-        to_region: Optional[Tuple[int, int, int, int]],
+        from_x: Optional[int],
+        from_y: Optional[int],
+        from_width: Optional[int],
+        from_height: Optional[int],
+        to_x: Optional[int],
+        to_y: Optional[int],
+        to_width: Optional[int],
+        to_height: Optional[int],
         duration: float,
         easing: VideoZoomEasing,
         encoding: VideoAudioEncodingParams,
@@ -298,8 +304,11 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
                 },
             )
 
-        from_x, from_y, from_width, from_height = from_region
-        to_x, to_y, to_width, to_height = to_region if to_region is not None else (0, 0, source_width, source_height)
+        if from_x is None:
+            from_x, from_y, from_width, from_height = 0, 0, source_width, source_height
+
+        if to_x is None:
+            to_x,   to_y,   to_width,   to_height   = 0, 0, source_width, source_height
 
         # Convert duration to a frame count against the input fps so `on`
         # (output frame index, matched 1:1 to input frames via d=1,fps=input)

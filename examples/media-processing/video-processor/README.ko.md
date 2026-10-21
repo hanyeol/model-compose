@@ -1,10 +1,10 @@
 # Video Processor 예제
 
-이 예제는 ffmpeg를 사용해 비디오의 프레임 단위 변환(resize, crop, pad, flip, rotate)을 수행하는 `video-processor` 컴포넌트를 보여줍니다. 모든 메서드가 ffmpeg 비디오 필터를 통과하므로 비디오 트랙은 항상 재인코딩되며, 오디오 트랙은 기본적으로 stream copy되어 무손실로 유지됩니다.
+이 예제는 ffmpeg를 사용해 비디오의 프레임 단위 변환(resize, crop, pad, flip, rotate, speed, zoom)을 수행하는 `video-processor` 컴포넌트를 보여줍니다. 모든 메서드가 ffmpeg 비디오 필터를 통과하므로 비디오 트랙은 항상 재인코딩되며, 오디오 트랙은 기본적으로 stream copy되어 무손실로 유지됩니다.
 
 ## 개요
 
-동일한 `video-processor` 컴포넌트를 기반으로 여섯 개의 워크플로우를 제공합니다:
+동일한 `video-processor` 컴포넌트를 기반으로 일곱 개의 워크플로우를 제공합니다:
 
 1. **Resize Video**: `fit`, `fill`, `stretch` 방식으로 비디오 크기 조정
 2. **Crop Video**: 모든 프레임에서 사각 영역을 잘라냄
@@ -12,6 +12,7 @@
 4. **Flip Video**: 비디오를 수평/수직으로 뒤집음
 5. **Rotate Video**: 임의 각도로 비디오 회전, 캔버스 확장 옵션 지원
 6. **Change Speed**: 오디오 트랙과 sync를 유지한 채 비디오 배속 조절
+7. **Zoom Animation**: 두 영역 사이에서(zoom-in, zoom-out, 또는 임의의 move) 한 번의 인코딩 안에서 ease 애니메이션
 
 ## 준비
 
@@ -95,6 +96,22 @@ ffmpeg -version
      "video": "/path/to/input.mp4",
      "speed": 1.5
    }'
+
+   # Zoom out: 640x360 내부 영역에서 시작해 전체 프레임으로 0.6초 동안 widen
+   model-compose run zoom --input '{
+     "video": "/path/to/input.mp4",
+     "from_x": 320, "from_y": 120, "from_width": 640, "from_height": 360,
+     "duration": 0.6,
+     "easing": "ease-out"
+   }'
+
+   # Zoom in: 전체 프레임에서 시작해 640x360 내부 영역으로 0.8초 동안 tighten
+   model-compose run zoom --input '{
+     "video": "/path/to/input.mp4",
+     "to_x": 320, "to_y": 120, "to_width": 640, "to_height": 360,
+     "duration": 0.8,
+     "easing": "ease-in"
+   }'
    ```
 
    **API 사용:**
@@ -113,13 +130,13 @@ ffmpeg -version
 
 - **타입**: `video-processor`
 - **드라이버**: `ffmpeg`
-- **목적**: ffmpeg 비디오 필터를 통해 프레임 단위 변환(resize, crop, pad, flip, rotate)을 비디오에 적용. 비디오 트랙은 재인코딩되며, 오디오 트랙은 기본적으로 stream copy됨.
+- **목적**: ffmpeg 비디오 필터를 통해 프레임 단위 변환(resize, crop, pad, flip, rotate, speed, zoom)을 비디오에 적용. 비디오 트랙은 재인코딩되며, 오디오 트랙은 기본적으로 stream copy됨.
 
 #### 공통 필드
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |-------|------|----------|---------|-------------|
-| `method` | string | 예 | - | `resize`, `crop`, `pad`, `flip`, `rotate`, `speed` 중 하나 |
+| `method` | string | 예 | - | `resize`, `crop`, `pad`, `flip`, `rotate`, `speed`, `zoom` 중 하나 |
 | `video` | 비디오 소스 | 예 | - | 입력 비디오 (파일 경로, 업로드, 또는 상위 비디오 참조) |
 | `encoding` | 객체 | 아니오 | - | 출력 인코딩 오버라이드 (`format`, `video.codec`, `video.bitrate` 등). 미지정 시 컨테이너는 입력 형식을 따르고 오디오는 stream copy됨 |
 | `batch_size` | integer | 아니오 | `1` | 입력이 리스트/스트림일 때 배치당 처리할 비디오 수. 배치는 동시에 실행됨 |
@@ -240,6 +257,34 @@ ffmpeg -version
 |-------|------|-------------|
 | `video` | video | 오디오 sync가 유지된 배속 변경 비디오 |
 
+### 7. Zoom Animation
+
+**설명**: 입력의 두 영역 사이에서 ffmpeg 한 번의 패스로 애니메이션합니다. `from`과 `to` 모두 기본값은 전체 입력 프레임이라, 하나만 지정하거나 둘 다 지정할 수 있습니다:
+
+- **Zoom-out**: `from_*` 필드만 채우고 `to_*`는 비웁니다. 내부 영역에서 시작해 전체 프레임으로 widen.
+- **Zoom-in**: `to_*` 필드만 채우고 `from_*`는 비웁니다. 전체 프레임에서 시작해 내부 영역으로 tighten.
+- **임의의 move**: 두 영역을 모두 지정해 "crop-to-crop" 이동.
+
+애니메이션이 끝나면 나머지 클립은 `to` framing으로 계속 재생됩니다. 단일 `zoompan` 패스로 처리하므로 move가 끊김 없이 연속적이고, 스텝별 인코딩이 필요 없습니다.
+
+각 영역은 **네 필드 전부 또는 전무**입니다 — `from_x`만 주고 `from_y`/`from_width`/`from_height`를 빠뜨리면 스키마 검증이 거부합니다 (`to`도 동일). `from` / `to` 중 적어도 하나는 지정되어야 합니다.
+
+#### 입력 파라미터
+
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|-----------|------|----------|---------|-------------|
+| `video` | file | 예 | - | 원본 비디오 파일 |
+| `from_x` / `from_y` / `from_width` / `from_height` | integer | 아니요 | *전체 입력 프레임* | 시작 영역 (입력 픽셀 단위). 네 필드 전부 또는 전무 |
+| `to_x` / `to_y` / `to_width` / `to_height` | integer | 아니요 | *전체 입력 프레임* | 목표 영역 (입력 픽셀 단위). 네 필드 전부 또는 전무 |
+| `duration` | number | 아니요 | `0.6` | 애니메이션 길이 (초) |
+| `easing` | select | 아니요 | `linear` | `linear`, `constant-pixels`, `ease-in`, `ease-out` 중 하나 |
+
+#### 출력
+
+| 필드 | 타입 | 설명 |
+|-------|------|-------------|
+| `video` | video | zoom 애니메이션이 적용된 비디오. 출력의 pixel aspect ratio는 `setsar=1`로 정규화되어, 소스별 SAR이 달라도 깨끗하게 concat됩니다 |
+
 ## 팁
 
 - **비디오는 재인코딩, 오디오는 아님**: 필터 그래프는 프레임을 디코드하므로 `-c:v copy`가 불가능하며 비디오 트랙은 항상 재인코딩됩니다. `encoding.audio.codec`으로 오버라이드하지 않으면 오디오 트랙은 `-c:a copy`로 처리됩니다.
@@ -247,6 +292,7 @@ ffmpeg -version
 - **회전 방향**: `angle`은 `image-processor`의 `rotate`와 동일하게 반시계 방향 도(°) 단위입니다. 내부적으로 ffmpeg의 `rotate` 필터(시계 방향 라디안)로 부호를 반전해 전달합니다.
 - **한 축만 지정한 종횡비 유지 리사이즈**: `width` 또는 `height` 중 하나를 비워두면 나머지 축은 소스 종횡비에서 자동 계산됩니다.
 - **배치 병렬화**: 입력이 비디오 리스트일 때 배치의 ffmpeg 서브프로세스가 동시에 실행됩니다. 동시에 실행되는 비디오 수는 `batch_size`로 제한할 수 있습니다.
+- **`zoom`은 단일 패스 애니메이션**: 연속적인 move가 필요할 때는 step별 crop을 체이닝하지 말고 `zoom`을 쓰세요. `zoompan`이 매 출력 프레임마다 영역을 보간하고 인코딩은 한 번이면 됩니다. 출력은 항상 `setsar=1`을 가져, 서로 다른 소스 해상도의 클립끼리도 concat이 깨끗합니다.
 
 ## 문제 해결
 

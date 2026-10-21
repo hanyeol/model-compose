@@ -1,10 +1,10 @@
 # Video Processor 示例
 
-本示例展示了 `video-processor` 组件，该组件使用 ffmpeg 对视频应用逐帧变换（resize、crop、pad、flip、rotate）。由于每个方法都会安装一个 ffmpeg 视频滤镜，视频轨道始终会被重新编码；音频轨道默认使用 stream copy，因此保持无损。
+本示例展示了 `video-processor` 组件，该组件使用 ffmpeg 对视频应用逐帧变换（resize、crop、pad、flip、rotate、speed、zoom）。由于每个方法都会安装一个 ffmpeg 视频滤镜，视频轨道始终会被重新编码；音频轨道默认使用 stream copy，因此保持无损。
 
 ## 概述
 
-该示例基于同一个 `video-processor` 组件提供六个工作流：
+该示例基于同一个 `video-processor` 组件提供七个工作流：
 
 1. **Resize Video**：使用 `fit`、`fill` 或 `stretch` 方式重新缩放视频
 2. **Crop Video**：从每一帧中裁剪矩形区域
@@ -12,6 +12,7 @@
 4. **Flip Video**：水平或垂直翻转视频
 5. **Rotate Video**：以任意角度旋转视频，可选择扩展画布
 6. **Change Speed**：加速或减慢视频，同时保持音频轨道同步
+7. **Zoom Animation**：在两个区域之间（zoom-in、zoom-out 或任意 move）于单次编码中进行缓动动画
 
 ## 准备工作
 
@@ -95,6 +96,22 @@ ffmpeg -version
      "video": "/path/to/input.mp4",
      "speed": 1.5
    }'
+
+   # Zoom out：从 640x360 内部区域开始，用 0.6 秒 widen 到整个帧
+   model-compose run zoom --input '{
+     "video": "/path/to/input.mp4",
+     "from_x": 320, "from_y": 120, "from_width": 640, "from_height": 360,
+     "duration": 0.6,
+     "easing": "ease-out"
+   }'
+
+   # Zoom in：从整个帧开始，用 0.8 秒 tighten 到 640x360 内部区域
+   model-compose run zoom --input '{
+     "video": "/path/to/input.mp4",
+     "to_x": 320, "to_y": 120, "to_width": 640, "to_height": 360,
+     "duration": 0.8,
+     "easing": "ease-in"
+   }'
    ```
 
    **使用 API：**
@@ -113,13 +130,13 @@ ffmpeg -version
 
 - **类型**：`video-processor`
 - **驱动**：`ffmpeg`
-- **用途**：通过 ffmpeg 视频滤镜对视频应用逐帧变换（resize、crop、pad、flip、rotate）。视频轨道会被重新编码；音频轨道默认使用 stream copy。
+- **用途**：通过 ffmpeg 视频滤镜对视频应用逐帧变换（resize、crop、pad、flip、rotate、speed、zoom）。视频轨道会被重新编码；音频轨道默认使用 stream copy。
 
 #### 通用字段
 
 | 字段 | 类型 | 必需 | 默认值 | 说明 |
 |-------|------|----------|---------|-------------|
-| `method` | string | 是 | - | `resize`、`crop`、`pad`、`flip`、`rotate`、`speed` 之一 |
+| `method` | string | 是 | - | `resize`、`crop`、`pad`、`flip`、`rotate`、`speed`、`zoom` 之一 |
 | `video` | 视频源 | 是 | - | 输入视频（文件路径、上传或上游视频引用） |
 | `encoding` | 对象 | 否 | - | 输出编码覆盖（`format`、`video.codec`、`video.bitrate` 等）。未设置时容器沿用输入格式，音频轨道使用 stream copy |
 | `batch_size` | integer | 否 | `1` | 当输入是列表/流时每批处理的视频数量。批次内并发执行 |
@@ -240,6 +257,34 @@ ffmpeg -version
 |-------|------|-------------|
 | `video` | video | 音频保持同步的时间缩放视频 |
 
+### 7. Zoom Animation
+
+**说明**：通过 ffmpeg 单次 pass 在输入的两个区域之间进行缓动动画。`from` 和 `to` 的默认值都是整个输入帧，因此你可以指定其中一个、另一个，或两者都指定：
+
+- **Zoom-out**：填写 `from_*` 字段，留空 `to_*`。片段从内部区域开始 widen 到整个帧。
+- **Zoom-in**：填写 `to_*` 字段，留空 `from_*`。片段从整个帧开始 tighten 到内部区域。
+- **任意 move**：两者都填写，形成"crop-to-crop"推移。
+
+动画结束后，剩余片段保持在 `to` framing 继续播放。使用单次 `zoompan` pass 可保持 move 连续（无可见 stepping），并避免逐步编码。
+
+每个区域都是**四个字段全有或全无**——只给 `from_x` 而不给 `from_y`/`from_width`/`from_height` 会被 schema 校验拒绝（`to` 同理）。`from` / `to` 必须至少指定一个。
+
+#### 输入参数
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|-----------|------|----------|---------|-------------|
+| `video` | file | 是 | - | 源视频文件 |
+| `from_x` / `from_y` / `from_width` / `from_height` | integer | 否 | *整个输入帧* | 起始区域（输入像素）。四个字段全有或全无 |
+| `to_x` / `to_y` / `to_width` / `to_height` | integer | 否 | *整个输入帧* | 目标区域（输入像素）。四个字段全有或全无 |
+| `duration` | number | 否 | `0.6` | 动画时长（秒） |
+| `easing` | select | 否 | `linear` | `linear`、`constant-pixels`、`ease-in`、`ease-out` 之一 |
+
+#### 输出
+
+| 字段 | 类型 | 说明 |
+|-------|------|-------------|
+| `video` | video | 带缩放动画的视频。输出的 pixel aspect ratio 被规范化为 `setsar=1`，因此即便源 SAR 不同，各片段也能干净地 concat |
+
 ## 提示
 
 - **视频重新编码，音频不变**：滤镜图会解码帧，因此 `-c:v copy` 不可行；视频轨道始终会重新编码。除非通过 `encoding.audio.codec` 覆盖，否则音频轨道使用 `-c:a copy`。
@@ -247,6 +292,7 @@ ffmpeg -version
 - **旋转方向**：`angle` 与 `image-processor` 的 `rotate` 一致，为逆时针度数。内部会将 ffmpeg 的 `rotate` 滤镜（顺时针弧度）取反后传入。
 - **仅指定单轴的等比缩放**：将 `width` 或 `height` 之一留空，缺失的维度会根据源宽高比自动推导。
 - **批次并行**：当输入是视频列表时，批次内的 ffmpeg 子进程并发运行。使用 `batch_size` 限制同时处理的视频数量。
+- **`zoom` 是单次 pass 动画**：需要连续的 move 时，优先使用 `zoom` 而非逐步 crop 的组合——`zoompan` 会在每一个输出帧上插值区域，只需一次编码。输出始终带有 `setsar=1`，不同分辨率的片段也能干净地 concat。
 
 ## 故障排查
 

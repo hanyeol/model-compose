@@ -1,10 +1,10 @@
 # Video Processor Example
 
-This example demonstrates the `video-processor` component, which applies per-frame transforms (resize, crop, pad, flip, rotate) to a video using ffmpeg. Because every method installs an ffmpeg video filter, the video track is always re-encoded; the audio track is stream-copied by default so it stays lossless.
+This example demonstrates the `video-processor` component, which applies per-frame transforms (resize, crop, pad, flip, rotate, speed, zoom) to a video using ffmpeg. Because every method installs an ffmpeg video filter, the video track is always re-encoded; the audio track is stream-copied by default so it stays lossless.
 
 ## Overview
 
-This example exposes six workflows built on the same `video-processor` component:
+This example exposes seven workflows built on the same `video-processor` component:
 
 1. **Resize Video**: Rescale a video with `fit`, `fill`, or `stretch` semantics
 2. **Crop Video**: Cut a rectangular region out of every frame
@@ -12,6 +12,7 @@ This example exposes six workflows built on the same `video-processor` component
 4. **Flip Video**: Mirror a video horizontally or vertically
 5. **Rotate Video**: Rotate a video by an arbitrary angle, optionally expanding the canvas
 6. **Change Speed**: Speed a video up or down while keeping the audio track in sync
+7. **Zoom Animation**: Animate between two regions (zoom-in, zoom-out, or an arbitrary move) in a single pass
 
 ## Preparation
 
@@ -95,6 +96,22 @@ ffmpeg -version
      "video": "/path/to/input.mp4",
      "speed": 1.5
    }'
+
+   # Zoom out: open on a 640x360 inner region and widen to the full frame over 0.6s
+   model-compose run zoom --input '{
+     "video": "/path/to/input.mp4",
+     "from_x": 320, "from_y": 120, "from_width": 640, "from_height": 360,
+     "duration": 0.6,
+     "easing": "ease-out"
+   }'
+
+   # Zoom in: open on the full frame and tighten into a 640x360 region over 0.8s
+   model-compose run zoom --input '{
+     "video": "/path/to/input.mp4",
+     "to_x": 320, "to_y": 120, "to_width": 640, "to_height": 360,
+     "duration": 0.8,
+     "easing": "ease-in"
+   }'
    ```
 
    **Using API:**
@@ -113,13 +130,13 @@ ffmpeg -version
 
 - **Type**: `video-processor`
 - **Driver**: `ffmpeg`
-- **Purpose**: Apply per-frame transforms (resize, crop, pad, flip, rotate) to a video via ffmpeg video filters. The video track is re-encoded; the audio track is stream-copied by default.
+- **Purpose**: Apply per-frame transforms (resize, crop, pad, flip, rotate, speed, zoom) to a video via ffmpeg video filters. The video track is re-encoded; the audio track is stream-copied by default.
 
 #### Common Fields
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `method` | string | Yes | - | One of `resize`, `crop`, `pad`, `flip`, `rotate`, `speed` |
+| `method` | string | Yes | - | One of `resize`, `crop`, `pad`, `flip`, `rotate`, `speed`, `zoom` |
 | `video` | video source | Yes | - | The input video (path, upload, or upstream video reference) |
 | `encoding` | object | No | - | Output encoding overrides (`format`, `video.codec`, `video.bitrate`, etc.). When unset, the container follows the input format and the audio track is stream-copied |
 | `batch_size` | integer | No | `1` | Number of input videos processed per batch when the input is a list/stream; the batch runs concurrently |
@@ -240,6 +257,34 @@ If no `encoding` is supplied, the container is inherited from the input format (
 |-------|------|-------------|
 | `video` | video | The time-scaled video with audio kept in sync |
 
+### 7. Zoom Animation
+
+**Description**: Animate between two regions of the input in a single ffmpeg pass. Both `from` and `to` default to the full input frame, so you specify one, the other, or both:
+
+- **Zoom-out**: fill in the `from_*` fields, leave `to_*` empty. The clip opens on the inner region and widens to the full frame.
+- **Zoom-in**: fill in the `to_*` fields, leave `from_*` empty. The clip opens on the full frame and tightens into the inner region.
+- **Arbitrary move**: fill in both for a "crop-to-crop" push across subjects.
+
+After the animation finishes, the output stays on the `to` framing for the rest of the clip. Driving this with a single `zoompan` pass keeps the move continuous (no visible stepping) and avoids per-step encoding.
+
+Each region is **all four fields or none** — supplying `from_x` without `from_y`/`from_width`/`from_height` is rejected by schema validation (and similarly for `to`). At least one of `from` / `to` must be specified.
+
+#### Input Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `video` | file | Yes | - | Source video file |
+| `from_x` / `from_y` / `from_width` / `from_height` | integer | No | *full input frame* | Starting region (in input pixels). Supply all four or none |
+| `to_x` / `to_y` / `to_width` / `to_height` | integer | No | *full input frame* | Target region (in input pixels). Supply all four or none |
+| `duration` | number | No | `0.6` | Animation length in seconds |
+| `easing` | select | No | `linear` | `linear`, `constant-pixels`, `ease-in`, or `ease-out` |
+
+#### Output
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `video` | video | The zoomed video. The output pixel aspect ratio is normalized (`setsar=1`), so clips concatenate cleanly even when sources had non-square SAR |
+
 ## Tips
 
 - **Video is re-encoded, audio is not**: Filter graphs decode frames, so `-c:v copy` is impossible; the video track is always re-encoded. The audio track is `-c:a copy` unless you override it via `encoding.audio.codec`.
@@ -247,6 +292,7 @@ If no `encoding` is supplied, the container is inherited from the input format (
 - **Rotation direction**: `angle` is counter-clockwise degrees, matching `image-processor`'s `rotate`. Under the hood the ffmpeg `rotate` filter (which is clockwise radians) is negated for you.
 - **Aspect-preserving resize with one axis**: Leave either `width` or `height` unset to auto-derive the missing dimension from the source aspect ratio.
 - **Batch parallelism**: When the input is a list of videos, the batch runs its ffmpeg subprocesses concurrently. Use `batch_size` to bound how many videos are in flight at a time.
+- **`zoom` is a single-pass animation**: Prefer `zoom` over chaining per-step crops when you need a continuous move; `zoompan` interpolates the region every output frame and emits one encode. The output always carries `setsar=1`, so clips concatenate cleanly across source resolutions.
 
 ## Troubleshooting
 

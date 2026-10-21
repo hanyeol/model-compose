@@ -62,6 +62,15 @@ workflows:
       output:
         video: ${output as video}
 
+  - id: zoom
+    title: Zoom Animation
+    description: Animate between two regions (zoom-in, zoom-out, or an arbitrary move) in a single pass
+    job:
+      component: processor
+      action: zoom
+      output:
+        video: ${output as video}
+
 components:
   - id: processor
     type: video-processor
@@ -105,3 +114,22 @@ components:
         method: speed
         video: ${input.video as video}
         speed: ${input.speed as number}
+
+      - id: zoom
+        method: zoom
+        video: ${input.video as video}
+        # Each region is "all four or none". Specify from for a zoom-out, to for
+        # a zoom-in, or both for an arbitrary crop-to-crop move. Empty fields
+        # (default) resolve to the full input frame.
+        from:
+          x: ${input.from_x as integer}
+          y: ${input.from_y as integer}
+          width: ${input.from_width as integer}
+          height: ${input.from_height as integer}
+        to:
+          x: ${input.to_x as integer}
+          y: ${input.to_y as integer}
+          width: ${input.to_width as integer}
+          height: ${input.to_height as integer}
+        duration: ${input.duration as number | 0.6}
+        easing: ${input.easing as select/linear,constant-pixels,ease-in,ease-out | linear}

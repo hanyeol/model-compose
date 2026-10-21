@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import VideoProcessorComponentConfig
 from mindor.dsl.schema.action import (
     VideoProcessorActionConfig,
     VideoScaleMode,
+    VideoZoomEasing,
     VideoFlipDirection,
     VideoFreezePosition,
 )
@@ -17,6 +18,7 @@ from mindor.core.foundation.streaming.resources import AsyncIterableStreamResour
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.ffmpeg.executable import resolve_ffmpeg_executable
 from mindor.core.utils.ffmpeg.codecs import get_video_codecs_for_format
+from mindor.core.utils.ffmpeg.probe import probe_video
 from mindor.core.utils.video import is_streamable_video_format
 from mindor.core.utils.files import get_temporary_path
 from mindor.core.utils.shell import run_subprocess, stream_subprocess
@@ -54,13 +56,15 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             # Fit inside the target box, then pad to exact size so downstream sees width x height.
             video_filter = (
                 f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0,"
+                f"setsar=1"
             )
         else:
             # FILL: cover the target box and center-crop the overflow.
             video_filter = (
                 f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height}"
+                f"crop={width}:{height},"
+                f"setsar=1"
             )
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
@@ -78,6 +82,64 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
         video_filter = f"crop={width}:{height}:{x}:{y}"
 
         return await self._run_ffmpeg_filter(video, video_filter, None, encoding, cancellation_token)
+
+    async def _zoom(
+        self,
+        video: MediaSource,
+        width: int,
+        height: int,
+        from_x: int,
+        from_y: int,
+        from_width: int,
+        from_height: int,
+        duration: float,
+        easing: VideoZoomEasing,
+        encoding: VideoAudioEncodingParams,
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> VideoStreamResource:
+        if duration <= 0:
+            return await self._run_ffmpeg_filter(
+                video,
+                f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1",
+                None,
+                encoding,
+                cancellation_token,
+            )
+
+        async def build_video_filter(input_path: Optional[str]) -> str:
+            frame_rate = None
+
+            if input_path is not None:
+                (frame_rate,) = await probe_video(input_path, [ "frame_rate" ])
+
+            if frame_rate is None:
+                frame_rate = video.attrs.get("fps")
+
+            if frame_rate is None:
+                raise ValueError("'zoom' method needs the input's frame rate, which could not be determined")
+
+            progress = f"min(ot/{duration},1)"
+            start_zoom = f"min(iw/{from_width},ih/{from_height})"
+
+            if easing == VideoZoomEasing.LINEAR:
+                zoom = f"1/((1-{progress})/({start_zoom})+{progress})"
+            else:
+                zoom = f"pow({start_zoom},1-{progress})"
+
+            start_center_x = from_x + from_width / 2
+            start_center_y = from_y + from_height / 2
+            center_x = f"{start_center_x}+(iw/2-{start_center_x})*{progress}"
+            center_y = f"{start_center_y}+(ih/2-{start_center_y})*{progress}"
+
+            return (
+                f"zoompan=z='{zoom}':"
+                f"x='max(0,min(iw-iw/zoom,({center_x})-(iw/zoom)/2))':"
+                f"y='max(0,min(ih-ih/zoom,({center_y})-(ih/zoom)/2))':"
+                f"d=1:s={width}x{height}:fps={frame_rate},"
+                f"setsar=1"
+            )
+
+        return await self._run_ffmpeg_filter(video, build_video_filter, None, encoding, cancellation_token)
 
     async def _pad(
         self,
@@ -318,7 +380,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     async def _run_ffmpeg_filter(
         self,
         source: MediaSource,
-        video_filter: str,
+        video_filter: Any,
         audio_filter: Optional[str],
         encoding: VideoAudioEncodingParams,
         cancellation_token: Optional[CancellationToken] = None,
@@ -329,6 +391,9 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         input_path, spooled = await MediaInputPathResolver().resolve(source, streamable_media=[ "video" ])
         is_streamable_output = is_streamable_video_format(format.lower())
+
+        if callable(video_filter):
+            video_filter = await video_filter(input_path)
 
         command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner" ]
 

@@ -10,6 +10,7 @@ from ...media import VideoAudioEncodingConfig
 class VideoProcessorActionMethod(str, Enum):
     RESIZE            = "resize"
     CROP              = "crop"
+    ZOOM              = "zoom"
     PAD               = "pad"
     FLIP              = "flip"
     ROTATE            = "rotate"
@@ -35,6 +36,10 @@ class VideoScaleMode(str, Enum):
     FILL    = "fill"
     STRETCH = "stretch"
 
+class VideoZoomEasing(str, Enum):
+    LINEAR    = "linear"
+    GEOMETRIC = "geometric"
+
 class VideoFlipDirection(str, Enum):
     HORIZONTAL = "horizontal"
     VERTICAL   = "vertical"
@@ -57,6 +62,17 @@ class VideoProcessorCropActionConfig(CommonVideoProcessorActionConfig):
     y: Union[int, str] = Field(..., description="Y coordinate of the crop's top-left corner, in pixels.")
     width: Union[int, str] = Field(..., description="Crop width in pixels.")
     height: Union[int, str] = Field(..., description="Crop height in pixels.")
+
+class VideoProcessorZoomActionConfig(CommonVideoProcessorActionConfig):
+    method: Literal[VideoProcessorActionMethod.ZOOM]
+    width: Union[int, str] = Field(..., description="Target output width in pixels.")
+    height: Union[int, str] = Field(..., description="Target output height in pixels.")
+    from_x: Union[int, str] = Field(..., description="X coordinate of the region filling the frame when the move starts, in pixels.")
+    from_y: Union[int, str] = Field(..., description="Y coordinate of the region filling the frame when the move starts, in pixels.")
+    from_width: Union[int, str] = Field(..., description="Width of the region filling the frame when the move starts, in pixels.")
+    from_height: Union[int, str] = Field(..., description="Height of the region filling the frame when the move starts, in pixels.")
+    duration: Union[float, str] = Field(..., description="Seconds the move back to the full frame takes; the rest of the video plays at the full frame.")
+    easing: Union[VideoZoomEasing, str] = Field(default=VideoZoomEasing.GEOMETRIC, description="Whether the zoom advances at a constant relative rate or a constant pixel rate.")
 
 class VideoProcessorPadActionConfig(CommonVideoProcessorActionConfig):
     method: Literal[VideoProcessorActionMethod.PAD]

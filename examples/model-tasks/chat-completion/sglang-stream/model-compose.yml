@@ -1,0 +1,40 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat Completion Streaming (SGLang)
+  description: Stream chat responses token-by-token using a small instruction-tuned model served by SGLang.
+  job:
+    input: ${input}
+    output: ${output as stream/text}
+
+component:
+  type: model
+  task: chat-completion
+  driver: sglang
+  model: Qwen/Qwen2.5-0.5B-Instruct
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/sglang
+  options:
+    context_length: 2048
+    mem_fraction_static: 0.85
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+    max_output_length: 256
+    streaming: true
+    params:
+      temperature: 0.7
+      do_sample: true

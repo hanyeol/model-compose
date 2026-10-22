@@ -1,0 +1,40 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Chat Completion Streaming (vLLM)
+  description: Stream chat responses token-by-token using a small instruction-tuned model served by vLLM.
+  job:
+    input: ${input}
+    output: ${output as stream/text}
+
+component:
+  type: model
+  task: chat-completion
+  driver: vllm
+  model: Qwen/Qwen2.5-0.5B-Instruct
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/vllm
+  options:
+    max_model_len: 2048
+    gpu_memory_utilization: 0.9
+  action:
+    messages:
+      - role: system
+        content: ${input.system_prompt}
+      - role: user
+        content: ${input.user_prompt}
+    max_output_length: 256
+    streaming: true
+    params:
+      temperature: 0.7
+      do_sample: true

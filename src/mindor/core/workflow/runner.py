@@ -77,7 +77,7 @@ class WorkflowRunner:
             elapsed = workflow_time_tracker.elapsed()
 
             tracing.on_workflow_error(context.task_id, self.id, e, elapsed)
-            logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, e, exc_info=True)
+            logging.exception("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, e)
 
             raise
 

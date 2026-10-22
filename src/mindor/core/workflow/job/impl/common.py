@@ -47,19 +47,19 @@ class CompositeJob(ComponentRunnerJob):
         try:
             return await job.run(context, run_id=run_id, default_input=input, is_terminal=is_terminal)
         finally:
-            siblings = self._inline_jobs[job_id]
-            siblings.remove(job)
+            jobs = self._inline_jobs[job_id]
+            jobs.remove(job)
 
-            if not siblings:
+            if not jobs:
                 del self._inline_jobs[job_id]
 
     def contains_inline_job(self, job_id: str) -> bool:
         if job_id in self._inline_jobs:
             return True
 
-        for siblings in self._inline_jobs.values():
-            for child in siblings:
-                if isinstance(child, CompositeJob) and child.contains_inline_job(job_id):
+        for jobs in self._inline_jobs.values():
+            for job in jobs:
+                if isinstance(job, CompositeJob) and job.contains_inline_job(job_id):
                     return True
 
         return False

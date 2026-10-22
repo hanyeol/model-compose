@@ -7,6 +7,7 @@ TextGenerationModelComponentConfig = Annotated[
         HuggingfaceTextGenerationModelComponentConfig,
         LlamaCppTextGenerationModelComponentConfig,
         VllmTextGenerationModelComponentConfig,
+        SglangTextGenerationModelComponentConfig,
         CustomTextGenerationModelComponentConfig,
     ],
     Field(discriminator="driver")

@@ -6,10 +6,9 @@ from abc import abstractmethod
 from mindor.dsl.schema.action import ImageTextToTextModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator, StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
-from PIL import Image as PILImage
-import asyncio
 
 class ImageTextToTextTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageTextToTextModelActionConfig):
@@ -91,61 +90,27 @@ class ImageTextToTextTaskAction(ModelTaskComponentAction):
             "stop_sequences":       stop_sequences,
         }
 
+    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
+        return sequences[0] if len(sequences) == 1 else sequences
+
+    @abstractmethod
     async def _generate_batch(
         self,
         prompts: List[str],
-        images: List[Any],
+        images: List[Optional[ImageArrayValue]],
         system_prompt: Optional[str],
         params: Dict[str, Any],
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
-        images = [ (await item.collect() if item is not None else []) for item in images ]
-        messages = [
-            self._build_messages(prompt, len(images[index]), system_prompt)
-            for index, prompt in enumerate(prompts)
-        ]
+        """Generate outputs for each (prompt, images) pair, with `num_return_sequences` variants each.
 
-        if streaming:
-            return [
-                self._stream(messages[index], images[index], params, cancellation_token)
-                for index in range(len(prompts))
-            ]
-
-        return await asyncio.gather(*[
-            self._generate(messages[index], images[index], params, cancellation_token)
-            for index in range(len(prompts))
-        ])
-
-    def _process_sequences(self, sequences: Union[List[str], List[AsyncIterator[str]]], streaming: bool) -> Any:
-        return sequences[0] if len(sequences) == 1 else sequences
-
-    @abstractmethod
-    async def _generate(
-        self,
-        messages: List[Dict[str, Any]],
-        images: List[PILImage.Image],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[str]:
-        """Generate outputs for one (messages, images) request, returning
-        `num_return_sequences` variants."""
-        pass
-
-    @abstractmethod
-    def _stream(
-        self,
-        messages: List[Dict[str, Any]],
-        images: List[PILImage.Image],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[AsyncIterator[str]]:
-        """Stream outputs for one (messages, images) request, returning
-        `num_return_sequences` async iterators. Drivers whose native generator
-        is sync should wrap it with
-        SyncGeneratorStreamer(gen, asyncio.get_running_loop()) before returning."""
-        pass
-
-    @abstractmethod
-    def _build_messages(self, prompt: str, image_count: int, system_prompt: Optional[str]) -> List[Dict[str, Any]]:
+        Contract:
+          - non-streaming: returns List[List[str]] — outer list is per-prompt,
+            inner list holds n completions per prompt.
+          - streaming: returns List[List[AsyncIterator[str]]] — one async
+            iterator per (prompt, sequence). Drivers whose native generator is
+            sync should wrap it with
+            SyncGeneratorStreamer(gen, asyncio.get_running_loop()) before returning.
+        """
         pass

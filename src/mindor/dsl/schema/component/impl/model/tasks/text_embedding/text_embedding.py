@@ -7,6 +7,7 @@ TextEmbeddingModelComponentConfig = Annotated[
         HuggingfaceTextEmbeddingModelComponentConfig,
         LlamaCppTextEmbeddingModelComponentConfig,
         VllmTextEmbeddingModelComponentConfig,
+        SglangTextEmbeddingModelComponentConfig,
         CustomTextEmbeddingModelComponentConfig,
     ],
     Field(discriminator="driver")

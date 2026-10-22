@@ -62,6 +62,7 @@ class ModelDriverType(str, Enum):
     HUGGINGFACE = "huggingface"
     UNSLOTH     = "unsloth"
     VLLM        = "vllm"
+    SGLANG      = "sglang"
     LLAMACPP    = "llamacpp"
     CUSTOM      = "custom"
 

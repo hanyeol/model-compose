@@ -6,19 +6,20 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import HuggingfaceImageTextToTextModelArchitecture
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.package.installer import remove_requirement
 from mindor.core.utils.streamer import SyncGeneratorStreamer
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from ...base.huggingface.streamer import BatchTextIteratorStreamer
+from ...base.huggingface.cancellation import create_cancellation_criteria
 from .common import ImageTextToTextTaskAction
-from PIL import Image as PILImage
 from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin
+    from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin, GenerationMixin, StoppingCriteriaList
     from torch import Tensor
     import torch
 
@@ -107,26 +108,66 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
 
         return params
 
-    async def _generate(
+    async def _generate_batch(
         self,
-        messages: List[Dict[str, Any]],
-        images: List[PILImage.Image],
+        prompts: List[str],
+        images: List[Optional[ImageArrayValue]],
+        system_prompt: Optional[str],
         params: Dict[str, Any],
+        streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[str]:
+    ) -> Union[List[List[str]], List[List[AsyncIterator[str]]]]:
+        images = [ (await item.collect() if item is not None else []) for item in images ]
         num_return_sequences = params["num_return_sequences"] or 1
 
-        def _generate() -> List[str]:
-            from transformers import StopStringCriteria, GenerationConfig
+        def _generate() -> Union[List[List[str]], List[Any]]:
+            from transformers import GenerationConfig
             import torch
 
-            stopping_criteria = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
-            rendered_prompt   = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            stopping_criteria = self._build_stopping_criteria(params["stop_sequences"], cancellation_token)
+            text = [
+                self.processor.apply_chat_template(
+                    self._build_messages(prompts[index], len(images[index]), system_prompt),
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                for index in range(len(prompts))
+            ]
 
-            inputs: Tensor = self.processor(images=images or None, text=rendered_prompt, **params["processor"])
+            inputs: Tensor = self.processor(images=images, text=text, **params["processor"])
             inputs = inputs.to(self.device)
 
-            input_lengths = inputs["input_ids"].shape[1] if "input_ids" in inputs else None
+            if streaming:
+                # generate() flattens (prompt, sequence) into the batch dim, so
+                # allocate one streamer per (prompt, sequence) pair.
+                streamer = BatchTextIteratorStreamer(
+                    self.processor.tokenizer,
+                    batch_size=len(prompts) * num_return_sequences,
+                    skip_prompt=True,
+                    skip_special_tokens=True,
+                )
+
+                def _run():
+                    try:
+                        with torch.inference_mode():
+                            self.model.generate(
+                                **inputs,
+                                generation_config=GenerationConfig(**params["generation"]),
+                                stopping_criteria=stopping_criteria,
+                                streamer=streamer,
+                            )
+                    finally:
+                        streamer.end()
+
+                Thread(target=_run, daemon=True).start()
+
+                return [
+                    [
+                        streamer[index * num_return_sequences + sequence]
+                        for sequence in range(num_return_sequences)
+                    ]
+                    for index in range(len(prompts))
+                ]
 
             with torch.inference_mode():
                 outputs = self.model.generate(
@@ -135,56 +176,27 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
                     stopping_criteria=stopping_criteria,
                 )
 
-            if input_lengths is not None:
-                outputs = outputs[:, input_lengths:]
+            outputs = outputs[:, inputs["input_ids"].shape[1]:]
+            outputs = self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-            return self.processor.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            return [
+                [
+                    outputs[index * num_return_sequences + sequence]
+                    for sequence in range(num_return_sequences)
+                ]
+                for index in range(len(prompts))
+            ]
 
-        return await self._run_in_executor(_generate)
+        results = await self._run_in_executor(_generate)
 
-    def _stream(
-        self,
-        messages: List[Dict[str, Any]],
-        images: List[PILImage.Image],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[AsyncIterator[str]]:
-        from transformers import StopStringCriteria, GenerationConfig
-        import torch
+        if streaming:
+            loop = asyncio.get_running_loop()
+            return [
+                [ SyncGeneratorStreamer(streamer, loop) for streamer in sequences ]
+                for sequences in results
+            ]
 
-        num_return_sequences = params["num_return_sequences"] or 1
-        stopping_criteria    = [ StopStringCriteria(self.processor.tokenizer, params["stop_sequences"]) ] if params["stop_sequences"] else None
-        rendered_prompt      = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-        inputs: Tensor = self.processor(images=images or None, text=rendered_prompt, **params["processor"])
-        inputs = inputs.to(self.device)
-
-        # generate() flattens sequences into the batch dim, so allocate one
-        # streamer slot per return sequence.
-        streamer = BatchTextIteratorStreamer(
-            self.processor.tokenizer,
-            batch_size=num_return_sequences,
-            skip_prompt=True,
-            skip_special_tokens=True,
-        )
-
-        def _run():
-            try:
-                with torch.inference_mode():
-                    self.model.generate(
-                        **inputs,
-                        generation_config=GenerationConfig(**params["generation"]),
-                        stopping_criteria=stopping_criteria,
-                        streamer=streamer,
-                    )
-            finally:
-                streamer.end()
-
-        Thread(target=_run, daemon=True).start()
-
-        loop = asyncio.get_running_loop()
-
-        return [ SyncGeneratorStreamer(streamer[sequence], loop) for sequence in range(num_return_sequences) ]
+        return results
 
     def _build_messages(
         self,
@@ -211,6 +223,23 @@ class HuggingfaceImageTextToTextTaskAction(ImageTextToTextTaskAction):
         })
 
         return messages
+
+    def _build_stopping_criteria(
+        self,
+        stop_sequences: Optional[List[str]],
+        cancellation_token: Optional[CancellationToken]
+    ) -> Optional[StoppingCriteriaList]:
+        from transformers import StopStringCriteria, StoppingCriteriaList
+
+        criteria = []
+
+        if stop_sequences:
+            criteria.append(StopStringCriteria(self.processor.tokenizer, stop_sequences))
+
+        if cancellation_token:
+            criteria.append(create_cancellation_criteria(cancellation_token))
+
+        return StoppingCriteriaList(criteria) if criteria else None
 
 @register_model_task_driver(ModelTaskType.IMAGE_TEXT_TO_TEXT, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageTextToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):

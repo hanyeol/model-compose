@@ -1,0 +1,105 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from collections.abc import AsyncIterator
+from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceChatCompletionModelActionConfig
+from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.sglang import SglangChatCompletionModelComponentConfig
+from mindor.dsl.schema.common.model.tool import ModelTool
+from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common import ToolCallParserConfig, ReasoningParserConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator
+from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
+from ...base import SglangModelTaskDriver, ComponentActionContext
+from ..text_generation.sglang import SglangTextGenerationTaskAction
+from .common import ChatChoicesBuilder, ToolCallParser, ReasoningParser
+from .huggingface import HuggingfaceToolBuilder
+
+if TYPE_CHECKING:
+    from sglang import Engine
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+
+class SglangChatCompletionTaskAction(SglangTextGenerationTaskAction):
+    config: HuggingfaceChatCompletionModelActionConfig
+
+    def __init__(
+        self,
+        config: HuggingfaceChatCompletionModelActionConfig,
+        engine: Engine,
+        tokenizer: PreTrainedTokenizerBase,
+        tools: Optional[List[ModelTool]] = None,
+        chat_template: Optional[str] = None,
+        tool_call_parser: Optional[ToolCallParserConfig] = None,
+        reasoning_parser: Optional[ReasoningParserConfig] = None,
+    ):
+        super().__init__(config, engine)
+
+        self.tokenizer: PreTrainedTokenizerBase = tokenizer
+        self.tools: Optional[List[ModelTool]] = tools
+        self.chat_template: Optional[str] = chat_template
+        self.tool_call_parser: Optional[ToolCallParser] = ToolCallParser(tool_call_parser) if tool_call_parser else None
+        self.reasoning_parser: Optional[ReasoningParser] = ReasoningParser(reasoning_parser) if reasoning_parser else None
+
+    async def _prepare_input(self, context: ComponentActionContext) -> Union[str, List[str], AsyncIterator[str]]:
+        messages = await context.render_variable(self.config.messages)
+        tools    = await context.render_variable(self.config.tools)
+
+        tools = HuggingfaceToolBuilder(self.tools or []).build(tools) or None
+
+        if isinstance(messages, (StreamIterator, AsyncIterator)):
+            async def _iterate_prompts(batch_messages):
+                async for messages in batch_messages:
+                    yield await self._run_in_executor(self._build_chat_prompt, messages, tools)
+
+            return _iterate_prompts(messages)
+
+        if isinstance(messages, list) and len(messages) > 0 and isinstance(messages[0], list):
+            def _list_prompts(batch_messages):
+                return [ self._build_chat_prompt(messages, tools) for messages in batch_messages ]
+
+            return await self._run_in_executor(_list_prompts, messages)
+
+        return await self._run_in_executor(self._build_chat_prompt, messages, tools)
+
+    def _build_chat_prompt(
+        self,
+        messages: Union[Dict[str, Any], List[Dict[str, Any]]],
+        tools: Optional[List[Dict[str, Any]]]
+    ) -> str:
+        return self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            **({ "tools": tools } if tools else {}),
+            **({ "chat_template": self.chat_template } if self.chat_template else {}),
+        )
+
+    def _process_sequences(
+        self,
+        sequences: Union[List[str], List[AsyncIterator[str]]],
+        streaming: bool
+    ) -> Any:
+        builder = ChatChoicesBuilder(self.tool_call_parser, self.reasoning_parser)
+
+        if streaming:
+            return builder.stream(sequences)
+
+        return builder.build(sequences)
+
+@register_model_task_driver(ModelTaskType.CHAT_COMPLETION, ModelDriverType.SGLANG)
+class SglangChatCompletionTaskDriver(SglangModelTaskDriver):
+    config: SglangChatCompletionModelComponentConfig
+
+    async def _run(
+        self,
+        action: ModelActionConfig,
+        context: ComponentActionContext
+    ) -> Any:
+        return await SglangChatCompletionTaskAction(
+            action,
+            self.engine,
+            self.tokenizer,
+            self.config.tools,
+            self.config.chat_template,
+            self.config.tool_call_parser,
+            self.config.reasoning_parser,
+        ).run(context)

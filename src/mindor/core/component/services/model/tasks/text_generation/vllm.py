@@ -82,7 +82,7 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         if streaming:
             return [
-                self._stream_text(prompt, params["sampling"], num_return_sequences, cancellation_token)
+                await self._stream_text(prompt, params["sampling"], num_return_sequences, cancellation_token)
                 for prompt in texts
             ]
 
@@ -111,7 +111,7 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 
         return texts
 
-    def _stream_text(
+    async def _stream_text(
         self,
         prompt: str,
         sampling: SamplingParams,

@@ -6,6 +6,7 @@ ImageTextToTextModelComponentConfig = Annotated[
     Union[
         HuggingfaceImageTextToTextModelComponentConfig,
         VllmImageTextToTextModelComponentConfig,
+        SglangImageTextToTextModelComponentConfig,
         CustomImageTextToTextModelComponentConfig,
     ],
     Field(discriminator="driver")

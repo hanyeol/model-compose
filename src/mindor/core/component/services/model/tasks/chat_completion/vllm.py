@@ -48,7 +48,7 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
         if isinstance(messages, (StreamIterator, AsyncIterator)):
             async def _iterate_prompts(batch_messages):
                 async for messages in batch_messages:
-                    yield self._build_chat_prompt(messages, tools)
+                    yield await self._run_in_executor(self._build_chat_prompt, messages, tools)
 
             return _iterate_prompts(messages)
 
@@ -56,9 +56,9 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
             def _list_prompts(batch_messages):
                 return [ self._build_chat_prompt(messages, tools) for messages in batch_messages ]
 
-            return _list_prompts(messages)
+            return await self._run_in_executor(_list_prompts, messages)
 
-        return self._build_chat_prompt(messages, tools)
+        return await self._run_in_executor(self._build_chat_prompt, messages, tools)
 
     def _build_chat_prompt(
         self,

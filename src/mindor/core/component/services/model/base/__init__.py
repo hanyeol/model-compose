@@ -3,3 +3,4 @@ from .huggingface import *
 from .unsloth import *
 from .llamacpp import *
 from .vllm import *
+from .sglang import *

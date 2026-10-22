@@ -95,17 +95,17 @@ class WorkflowRunner:
         job_run_counts: Dict[str, int] = {}
         output: Any = None
 
-        # Quiescence detection: Jobs that have entered an interrupt and are
+        # Quiescence detection: Jobs that have hit an interrupt and are
         # currently parked on their future. When every running Job is parked,
         # the Runner tells the handler to flush the batch to the controller.
-        entered_job_ids: Set[str] = set()
+        interrupted_job_ids: Set[str] = set()
         quiescence_event = asyncio.Event()
 
-        def _on_point_entered(point: InterruptPoint) -> None:
-            entered_job_ids.add(point.job_id)
+        def _on_interrupted(point: InterruptPoint) -> None:
+            interrupted_job_ids.add(point.job_id)
             quiescence_event.set()
 
-        context.interrupt_handler.set_on_point_entered(_on_point_entered)
+        context.interrupt_handler.set_on_interrupted(_on_interrupted)
 
         try:
             while pending_jobs:
@@ -190,7 +190,7 @@ class WorkflowRunner:
                         # Flush when every running Job is parked at an interrupt
                         # AND no Job completed in this wake (completed Jobs may
                         # unblock dependents that would then schedule more work).
-                        if not completed_job_tasks and running_job_ids.issubset(entered_job_ids):
+                        if not completed_job_tasks and running_job_ids.issubset(interrupted_job_ids):
                             await context.interrupt_handler.flush()
 
                             continue
@@ -207,7 +207,7 @@ class WorkflowRunner:
                     is_job_completed = True
 
                     # A finished Job is no longer parked at any interrupt.
-                    entered_job_ids.discard(completed_job_id)
+                    interrupted_job_ids.discard(completed_job_id)
 
                     try:
                         completed_job_output = await completed_job_task
@@ -353,7 +353,7 @@ class WorkflowRunner:
                         completed_job_ids.add(completed_job_id)
                         del pending_jobs[completed_job_id]
         finally:
-            context.interrupt_handler.set_on_point_entered(None)
+            context.interrupt_handler.set_on_interrupted(None)
 
         return output
 

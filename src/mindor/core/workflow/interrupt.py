@@ -18,21 +18,21 @@ class InterruptHandler:
     def __init__(
         self,
         callback: Optional[Callable[[List["InterruptPoint"]], Awaitable[None]]] = None,
-        on_point_entered: Optional[Callable[["InterruptPoint"], None]] = None,
+        on_interrupted: Optional[Callable[["InterruptPoint"], None]] = None,
     ):
         self._points: Dict[str, InterruptPoint] = {}
         self._pending_points: Dict[str, InterruptPoint] = {}
         self._lock: Lock = Lock()
         self._callback: Optional[Callable[[List[InterruptPoint]], Awaitable[None]]] = callback
-        self._on_point_entered: Optional[Callable[[InterruptPoint], None]] = on_point_entered
+        self._on_interrupted: Optional[Callable[[InterruptPoint], None]] = on_interrupted
 
     async def interrupt(self, point: InterruptPoint) -> Any:
         with self._lock:
             self._points[point.id] = point
             self._pending_points[point.id] = point
 
-        if self._on_point_entered:
-            self._on_point_entered(point)
+        if self._on_interrupted:
+            self._on_interrupted(point)
 
         return await point.future
 
@@ -89,9 +89,9 @@ class InterruptHandler:
         with self._lock:
             return [ point for point in self._points.values() if point.task_id == task_id ]
 
-    def set_on_point_entered(self, callback: Optional[Callable[[InterruptPoint], None]]) -> None:
+    def set_on_interrupted(self, callback: Optional[Callable[[InterruptPoint], None]]) -> None:
         with self._lock:
-            self._on_point_entered = callback
+            self._on_interrupted = callback
 
     def _pop_points_for_task(self, task_id: str) -> List[InterruptPoint]:
         points: List[InterruptPoint] = []

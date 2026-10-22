@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Dict, Optional, Any
+from typing import Union, Tuple, Dict, List, Optional, Any
 from mindor.dsl.schema.job import JobConfig, InlineJobConfig
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
@@ -29,7 +29,7 @@ class CompositeJob(ComponentRunnerJob):
     def __init__(self, id: str, config: JobConfig, global_configs: ComponentGlobalConfigs):
         super().__init__(id, config, global_configs)
 
-        self._inline_jobs: Dict[str, Job] = {}
+        self._inline_jobs: Dict[str, List[Job]] = {}
 
     async def _run_inline_job(
         self,
@@ -42,19 +42,24 @@ class CompositeJob(ComponentRunnerJob):
     ) -> Any:
         job_id = f"{self.id}[{tag}]"
         job = create_job(job_id, config, self.global_configs)
-        self._inline_jobs[job_id] = job
+        self._inline_jobs.setdefault(job_id, []).append(job)
 
         try:
             return await job.run(context, run_id=run_id, default_input=input, is_terminal=is_terminal)
         finally:
-            del self._inline_jobs[job_id]
+            siblings = self._inline_jobs[job_id]
+            siblings.remove(job)
+
+            if not siblings:
+                del self._inline_jobs[job_id]
 
     def contains_inline_job(self, job_id: str) -> bool:
         if job_id in self._inline_jobs:
             return True
 
-        for child in self._inline_jobs.values():
-            if isinstance(child, CompositeJob) and child.contains_inline_job(job_id):
-                return True
+        for siblings in self._inline_jobs.values():
+            for child in siblings:
+                if isinstance(child, CompositeJob) and child.contains_inline_job(job_id):
+                    return True
 
         return False

@@ -17,6 +17,11 @@ def error(message: str, *args, **kwargs) -> None:
     for logger in LoggerInstances.values():
         logger.log(LoggingLevel.ERROR, message, *args, **kwargs)
 
+def exception(message: str, *args, **kwargs) -> None:
+    kwargs.setdefault("exc_info", True)
+    for logger in LoggerInstances.values():
+        logger.log(LoggingLevel.ERROR, message, *args, **kwargs)
+
 def critical(message: str, *args, **kwargs) -> None:
     for logger in LoggerInstances.values():
         logger.log(LoggingLevel.CRITICAL, message, *args, **kwargs)

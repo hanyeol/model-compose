@@ -89,6 +89,7 @@ class WorkflowRunner:
     ) -> Any:
         running_job_ids: Set[str] = set()
         completed_job_ids: Set[str] = set()
+        skipped_job_ids: Set[str] = set()
         scheduled_job_tasks: Dict[str, asyncio.Task] = {}
         job_time_trackers: Dict[str, TimeTracker] = {}
         job_run_counts: Dict[str, int] = {}
@@ -108,6 +109,25 @@ class WorkflowRunner:
 
         try:
             while pending_jobs:
+                # Propagate skip to any pending job whose dependencies can no
+                # longer be satisfied (every candidate in each AND group is
+                # already skipped). Fixed-point loop because skipping one job
+                # may dead-lock the next.
+                while True:
+                    skippable_jobs = [ job for job in pending_jobs.values() if self._is_skippable_job(job, completed_job_ids, skipped_job_ids) ]
+
+                    if not skippable_jobs:
+                        break
+
+                    for job in skippable_jobs:
+                        skipped_job_ids.add(job.id)
+                        del pending_jobs[job.id]
+
+                        logging.debug("[task-%s] Job '%s:%s' skipped: no reachable dependencies.", context.task_id, job.id, self.id)
+
+                if not pending_jobs:
+                    break
+
                 runnable_jobs = [ job for job in pending_jobs.values() if self._is_runnable_job(job, running_job_ids, completed_job_ids) ]
 
                 for job in runnable_jobs:
@@ -136,7 +156,7 @@ class WorkflowRunner:
                 try:
                     try:
                         done, _ = await asyncio.wait(
-                            [*scheduled_job_tasks.values(), quiescence_waiter],
+                            [ *scheduled_job_tasks.values(), quiescence_waiter ],
                             return_when=asyncio.FIRST_COMPLETED,
                         )
                     except asyncio.CancelledError:
@@ -208,6 +228,14 @@ class WorkflowRunner:
                     if isinstance(completed_job_output, RoutingTarget):
                         next_job_id = completed_job_output.job_id
                         job_elapsed = job_time_trackers[completed_job_id].elapsed()
+
+                        # Unrouted candidates are dead for this run. Move them
+                        # out of routing_jobs so skip propagation can dead-lock
+                        # their downstream dependents.
+                        for unrouted_id in self.jobs[completed_job_id].get_routing_jobs() - { next_job_id }:
+                            if unrouted_id in routing_jobs:
+                                del routing_jobs[unrouted_id]
+                                skipped_job_ids.add(unrouted_id)
 
                         if next_job_id in completed_job_ids:
                             rewind_job_ids = self._get_dependent_job_ids(next_job_id, completed_job_ids | { completed_job_id })
@@ -379,6 +407,31 @@ class WorkflowRunner:
                     return False
             else:
                 if item not in completed_job_ids:
+                    return False
+
+        return True
+
+    def _is_skippable_job(
+        self,
+        job: Job,
+        completed_job_ids: Set[str],
+        skipped_job_ids: Set[str],
+    ) -> bool:
+        if not job.config.depends_on:
+            return False
+
+        for item in job.config.depends_on:
+            if isinstance(item, list):
+                if any(job_id in completed_job_ids for job_id in item):
+                    return False
+
+                if not all(job_id in skipped_job_ids for job_id in item):
+                    return False
+            else:
+                if item in completed_job_ids:
+                    return False
+
+                if item not in skipped_job_ids:
                     return False
 
         return True

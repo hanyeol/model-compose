@@ -18,23 +18,29 @@ class InterruptHandler:
     def __init__(
         self,
         callback: Optional[Callable[[List["InterruptPoint"]], Awaitable[None]]] = None,
-        on_interrupted: Optional[Callable[["InterruptPoint"], None]] = None,
+        on_job_interrupted: Optional[Callable[["InterruptPoint"], None]] = None,
+        on_interrupt_resolved: Optional[Callable[["InterruptPoint"], None]] = None,
     ):
         self._points: Dict[str, InterruptPoint] = {}
         self._pending_points: Dict[str, InterruptPoint] = {}
         self._lock: Lock = Lock()
         self._callback: Optional[Callable[[List[InterruptPoint]], Awaitable[None]]] = callback
-        self._on_interrupted: Optional[Callable[[InterruptPoint], None]] = on_interrupted
+        self._on_job_interrupted: Optional[Callable[[InterruptPoint], None]] = on_job_interrupted
+        self._on_interrupt_resolved: Optional[Callable[[InterruptPoint], None]] = on_interrupt_resolved
 
     async def interrupt(self, point: InterruptPoint) -> Any:
         with self._lock:
             self._points[point.id] = point
             self._pending_points[point.id] = point
 
-        if self._on_interrupted:
-            self._on_interrupted(point)
+        if self._on_job_interrupted:
+            self._on_job_interrupted(point)
 
-        return await point.future
+        try:
+            return await point.future
+        finally:
+            if self._on_interrupt_resolved:
+                self._on_interrupt_resolved(point)
 
     async def flush(self) -> None:
         """Invoke the callback with every point that has entered since the last flush."""
@@ -89,9 +95,13 @@ class InterruptHandler:
         with self._lock:
             return [ point for point in self._points.values() if point.task_id == task_id ]
 
-    def set_on_interrupted(self, callback: Optional[Callable[[InterruptPoint], None]]) -> None:
+    def set_on_job_interrupted(self, callback: Optional[Callable[[InterruptPoint], None]]) -> None:
         with self._lock:
-            self._on_interrupted = callback
+            self._on_job_interrupted = callback
+
+    def set_on_interrupt_resolved(self, callback: Optional[Callable[[InterruptPoint], None]]) -> None:
+        with self._lock:
+            self._on_interrupt_resolved = callback
 
     def _pop_points_for_task(self, task_id: str) -> List[InterruptPoint]:
         points: List[InterruptPoint] = []

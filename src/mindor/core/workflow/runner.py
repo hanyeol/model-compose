@@ -10,6 +10,7 @@ from mindor.core.tracer import tracing
 from .context import WorkflowContext
 from .interrupt import InterruptPoint
 from .job import Job, RoutingTarget, create_job
+from .job.impl.common import CompositeJob
 from .job.streaming import JobOutputStreamIterator, JobOutputStreamEncodingIterator, StreamTerminatedEvent
 from .job.context import JobContext
 import asyncio
@@ -95,17 +96,22 @@ class WorkflowRunner:
         job_run_counts: Dict[str, int] = {}
         output: Any = None
 
-        # Quiescence detection: Jobs that have hit an interrupt and are
-        # currently parked on their future. When every running Job is parked,
-        # the Runner tells the handler to flush the batch to the controller.
-        interrupted_job_ids: Set[str] = set()
+        # Quiescence detection: points currently parked on their future, keyed
+        # by point id so parallel points on the same Job (e.g. for-each inline
+        # iterations) are tracked independently. When every running Job has at
+        # least one parked point, the Runner tells the handler to flush.
+        interrupted_jobs: Dict[str, str] = {}
         quiescence_event = asyncio.Event()
 
-        def _on_interrupted(point: InterruptPoint) -> None:
-            interrupted_job_ids.add(point.job_id)
+        def _on_job_interrupted(point: InterruptPoint) -> None:
+            interrupted_jobs[point.id] = point.job_id
             quiescence_event.set()
 
-        context.interrupt_handler.set_on_interrupted(_on_interrupted)
+        def _on_interrupt_resolved(point: InterruptPoint) -> None:
+            interrupted_jobs.pop(point.id, None)
+
+        context.interrupt_handler.set_on_job_interrupted(_on_job_interrupted)
+        context.interrupt_handler.set_on_interrupt_resolved(_on_interrupt_resolved)
 
         try:
             while pending_jobs:
@@ -190,7 +196,7 @@ class WorkflowRunner:
                         # Flush when every running Job is parked at an interrupt
                         # AND no Job completed in this wake (completed Jobs may
                         # unblock dependents that would then schedule more work).
-                        if not completed_job_tasks and running_job_ids.issubset(interrupted_job_ids):
+                        if not completed_job_tasks and self._running_jobs_quiesced(running_job_ids, set(interrupted_jobs.values()), pending_jobs):
                             await context.interrupt_handler.flush()
 
                             continue
@@ -205,9 +211,6 @@ class WorkflowRunner:
                 for completed_job_task in completed_job_tasks:
                     completed_job_id = next(job_id for job_id, job_task in scheduled_job_tasks.items() if job_task == completed_job_task)
                     is_job_completed = True
-
-                    # A finished Job is no longer parked at any interrupt.
-                    interrupted_job_ids.discard(completed_job_id)
 
                     try:
                         completed_job_output = await completed_job_task
@@ -353,7 +356,8 @@ class WorkflowRunner:
                         completed_job_ids.add(completed_job_id)
                         del pending_jobs[completed_job_id]
         finally:
-            context.interrupt_handler.set_on_interrupted(None)
+            context.interrupt_handler.set_on_job_interrupted(None)
+            context.interrupt_handler.set_on_interrupt_resolved(None)
 
         return output
 
@@ -391,6 +395,25 @@ class WorkflowRunner:
             JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id)),
             on_start=on_job_start,
         ))
+
+    def _running_jobs_quiesced(
+        self,
+        running_job_ids: Set[str],
+        interrupted_job_ids: Set[str],
+        pending_jobs: Dict[str, Job],
+    ) -> bool:
+        for job_id in running_job_ids:
+            if job_id in interrupted_job_ids:
+                continue
+
+            job = pending_jobs.get(job_id)
+
+            if isinstance(job, CompositeJob) and any(job.contains_inline_job(job_id) for job_id in interrupted_job_ids):
+                continue
+
+            return False
+
+        return True
 
     def _is_runnable_job(
         self,

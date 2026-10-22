@@ -1,7 +1,7 @@
-from typing import Union, Tuple, Optional, Any
-from mindor.dsl.schema.job import InlineJobConfig
+from typing import Union, Tuple, Dict, Optional, Any
+from mindor.dsl.schema.job import JobConfig, InlineJobConfig
 from mindor.dsl.schema.component import ComponentConfig
-from mindor.core.component import ComponentService, ComponentResolver, create_component
+from mindor.core.component import ComponentService, ComponentGlobalConfigs, ComponentResolver, create_component
 from ..base import Job
 from ..context import JobContext
 from ..job import create_job
@@ -26,6 +26,11 @@ class ComponentRunnerJob(Job):
 class CompositeJob(ComponentRunnerJob):
     """A job whose body is one or more inline jobs, dispatched per iteration or step."""
 
+    def __init__(self, id: str, config: JobConfig, global_configs: ComponentGlobalConfigs):
+        super().__init__(id, config, global_configs)
+
+        self._inline_jobs: Dict[str, Job] = {}
+
     async def _run_inline_job(
         self,
         config: InlineJobConfig,
@@ -35,6 +40,21 @@ class CompositeJob(ComponentRunnerJob):
         input: Optional[Any] = None,
         is_terminal: bool = False,
     ) -> Any:
-        job = create_job(f"{self.id}[{tag}]", config, self.global_configs)
+        job_id = f"{self.id}[{tag}]"
+        job = create_job(job_id, config, self.global_configs)
+        self._inline_jobs[job_id] = job
 
-        return await job.run(context, run_id=run_id, default_input=input, is_terminal=is_terminal)
+        try:
+            return await job.run(context, run_id=run_id, default_input=input, is_terminal=is_terminal)
+        finally:
+            del self._inline_jobs[job_id]
+
+    def contains_inline_job(self, job_id: str) -> bool:
+        if job_id in self._inline_jobs:
+            return True
+
+        for child in self._inline_jobs.values():
+            if isinstance(child, CompositeJob) and child.contains_inline_job(job_id):
+                return True
+
+        return False

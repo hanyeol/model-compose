@@ -26,6 +26,25 @@ import asyncio, uvicorn, json
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
 
+_ANNOTATION_TYPE_MAP: Dict[WorkflowVariableType, type] = {
+    WorkflowVariableType.STRING:   str,
+    WorkflowVariableType.TEXT:     str,
+    WorkflowVariableType.MARKDOWN: str,
+    WorkflowVariableType.BASE64:   str,
+    WorkflowVariableType.IMAGE:    str,
+    WorkflowVariableType.AUDIO:    str,
+    WorkflowVariableType.VIDEO:    str,
+    WorkflowVariableType.MODEL_3D: str,
+    WorkflowVariableType.FILE:     str,
+    WorkflowVariableType.SELECT:   str,
+    WorkflowVariableType.INTEGER:  int,
+    WorkflowVariableType.NUMBER:   float,
+    WorkflowVariableType.BOOLEAN:  bool,
+    WorkflowVariableType.LIST:     list,
+    WorkflowVariableType.OBJECT:   dict,
+    WorkflowVariableType.JSON:     dict,
+}
+
 @register_controller_adapter(ControllerAdapterType.MCP_SERVER)
 class McpServerControllerAdapterService(ControllerAdapterService):
     def __init__(
@@ -76,6 +95,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                 self._run_workflow_as_tool,
                 interruptable=workflow_id in interruptable_workflow_ids,
             )
+            self._annotate_tool_function(tool)
             self.app.add_tool(
                 fn=tool.function,
                 name=workflow.name or workflow_id,
@@ -86,6 +106,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         if interruptable_workflow_ids:
             tool = ResumeToolGenerator().generate("resume", self._resume_workflow_as_tool)
+            self._annotate_tool_function(tool)
             self.app.add_tool(
                 fn=tool.function,
                 name="resume_workflow",
@@ -93,6 +114,22 @@ class McpServerControllerAdapterService(ControllerAdapterService):
                 description=self._build_tool_description(tool),
                 annotations=None
             )
+
+    def _annotate_tool_function(self, tool: WorkflowTool) -> None:
+        annotations: Dict[str, Any] = {}
+
+        for parameter in tool.parameters:
+            annotation: Any = _ANNOTATION_TYPE_MAP.get(parameter.type, Any)
+
+            if parameter.is_list:
+                annotation = List[annotation]
+
+            if not parameter.required:
+                annotation = Optional[annotation]
+
+            annotations[parameter.name or "input"] = annotation
+
+        tool.function.__annotations__ = annotations
 
     def _build_tool_description(self, tool: WorkflowTool) -> str:
         lines = [ tool.description or "" ]
@@ -156,9 +193,7 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         return await self._build_state_response(state)
 
-    async def _resume_workflow_as_tool(self, task_id: str, answer: Optional[str] = None) -> CallToolResult:
-        answer = json.loads(answer) if answer else None
-
+    async def _resume_workflow_as_tool(self, task_id: str, answer: Optional[Dict[str, Any]] = None) -> CallToolResult:
         try:
             state = await self.controller.resume_workflow(
                 task_id,

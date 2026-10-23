@@ -40,6 +40,7 @@ class WorkflowTool:
         for param in self.parameters:
             param_name = param.name or "input"
             properties[param_name] = self._build_parameter_property(param)
+
             if param.required:
                 required.append(param_name)
 
@@ -146,20 +147,35 @@ class ResumeToolGenerator():
         context = { "_resume_workflow": _resume_workflow }
         exec(compile(code, f"<string>", "exec"), context)
 
+        parameters = [
+            self._build_variable(
+                "task_id",
+                WorkflowVariableType.STRING,
+                "The task ID of the interrupted workflow",
+                required=True
+            ),
+            self._build_variable(
+                "answer",
+                WorkflowVariableType.OBJECT,
+                "Object mapping interrupt point id to its answer value; omit to resolve every pending point with a None answer (auto-approve)."
+            ),
+        ]
+
+        description = "Resume the workflow that was paused at a Human-in-the-Loop interrupt point."
+
+        returns = [
+            self._build_variable(None, WorkflowVariableType.ANY, (
+                "The output of the resumed workflow, or a status object with pending interrupt points "
+                "if it is still paused at a Human-in-the-Loop interrupt point (call `resume_workflow` "
+                "again with answers for the remaining points)."
+            )),
+        ]
+
         return WorkflowTool(
             function=context[f"_resume_workflow_{safe_workflow_id}"],
-            description="Resume the workflow that was paused at a Human-in-the-Loop interrupt point.",
-            parameters=[
-                self._build_variable("task_id", WorkflowVariableType.STRING, "The task ID of the interrupted workflow", required=True),
-                self._build_variable("answer",  WorkflowVariableType.STRING, "JSON object mapping interrupt point id to its answer value; omit to resolve every pending point with a None answer (auto-approve)."),
-            ],
-            returns=[
-                self._build_variable(None, WorkflowVariableType.ANY, (
-                    "The output of the resumed workflow, or a status object with pending interrupt points "
-                    "if it is still paused at a Human-in-the-Loop interrupt point (call `resume_workflow` "
-                    "again with answers for the remaining points)."
-                )),
-            ],
+            description=description,
+            parameters=parameters,
+            returns=returns,
         )
 
     def _build_variable(

@@ -415,3 +415,224 @@ class TestWebSocketManagerDispose:
         assert not manager.has_connection("c1")
         assert not manager.has_connection("c2")
         assert not manager.has_task_subscribers("task-1")
+
+
+class FakeWebSocket:
+    """Frames in through `inbox`, messages out in `sent`, for driving the real receive loop."""
+
+    def __init__(self):
+        import asyncio
+
+        self.inbox = asyncio.Queue()
+        self.sent = []
+        self._changed = asyncio.Event()
+
+    async def accept(self):
+        pass
+
+    async def close(self, *args, **kwargs):
+        pass
+
+    async def receive(self):
+        return await self.inbox.get()
+
+    async def send_text(self, text):
+        self.sent.append(json.loads(text))
+        self._changed.set()
+
+    def push(self, message_type, data=None, message_id=None):
+        message = {"type": message_type, "data": data or {}, **({"id": message_id} if message_id else {})}
+        self.inbox.put_nowait({"type": "websocket.receive", "text": json.dumps(message)})
+
+    def push_bytes(self, payload):
+        self.inbox.put_nowait({"type": "websocket.receive", "bytes": payload})
+
+    def disconnect(self):
+        self.inbox.put_nowait({"type": "websocket.disconnect"})
+
+    def types(self):
+        return [m["type"] for m in self.sent]
+
+    async def wait_for(self, predicate):
+        # A loop stalled by a pull fails here instead of hanging.
+        import asyncio
+
+        async def wait():
+            while not predicate(self.sent):
+                self._changed.clear()
+                await self._changed.wait()
+
+        await asyncio.wait_for(wait(), timeout=1)
+
+
+class TestWebSocketStreamPull:
+    """stream_pull is pumped in a child task: the connection keeps reading frames
+    while the source is slow, and close/disconnect interrupts a waiting pull."""
+
+    @pytest.fixture
+    def adapter(self):
+        config = HttpServerControllerAdapterConfig(
+            type=ControllerAdapterType.HTTP_SERVER,
+            websocket=WebSocketConfig(),
+        )
+        return HttpServerControllerAdapterService(config, MagicMock(), daemon=False)
+
+    @staticmethod
+    async def _serve(adapter, source):
+        """Run the WebSocket endpoint for client c1 with `source` registered as outbound stream s1."""
+        import asyncio
+        from mindor.core.controller.adapters.services.websocket_stream import WebSocketOutboundStream
+        from mindor.core.foundation.variable.codec import StreamKind
+
+        server = adapter.websocket_server
+        endpoint = next(route.endpoint for route in adapter.router.routes if route.path == adapter.config.websocket.path)
+        ws = FakeWebSocket()
+        loop = asyncio.ensure_future(endpoint(websocket=ws, session="c1", task=None))
+        await asyncio.sleep(0)
+
+        if source is not None:
+            server.streams.register_outbound("c1", WebSocketOutboundStream("s1", StreamKind.TEXT, source, server.codec))
+
+        return server, ws, loop
+
+    @staticmethod
+    async def _disconnect(ws, loop):
+        import asyncio
+
+        ws.disconnect()
+        await asyncio.wait_for(loop, timeout=1)
+
+    @pytest.mark.anyio
+    async def test_ping_is_answered_while_a_pull_waits(self, adapter):
+        import asyncio
+
+        ready = asyncio.Event()
+
+        async def source():
+            await ready.wait()
+            yield "a"
+
+        server, ws, loop = await self._serve(adapter, source())
+        ws.push("stream_pull", {"id": "s1"})
+        ws.push("ping", message_id="p1")
+        await ws.wait_for(lambda sent: "pong" in [m["type"] for m in sent])
+
+        ready.set()
+        await ws.wait_for(lambda sent: "stream_chunk" in [m["type"] for m in sent])
+        assert ws.sent[-1]["data"] == {"id": "s1", "seq": 0, "value": "a"}
+        await self._disconnect(ws, loop)
+
+    @pytest.mark.anyio
+    async def test_output_that_reads_an_inbound_stream_on_the_same_connection(self, adapter):
+        import struct
+        from mindor.core.controller.adapters.services.websocket_server import WebSocketMessage
+        from mindor.core.controller.adapters.services.websocket_stream import (
+            WebSocketInboundStream, WebSocketOutboundStream, WebSocketStreamReader,
+        )
+        from mindor.core.foundation.variable.codec import StreamKind
+
+        server, ws, loop = await self._serve(adapter, None)
+        inbound = WebSocketInboundStream("in1", StreamKind.BYTES, server.codec)
+        server.streams.register_inbound("c1", inbound)
+        reader = WebSocketStreamReader(
+            inbound,
+            on_pull=lambda stream_id: server.manager.send_message("c1", WebSocketMessage(type="stream_pull", data={"id": stream_id})),
+            on_close=lambda stream_id: server._close_inbound("c1", stream_id),
+        )
+
+        async def source():
+            async for chunk in reader:
+                yield chunk.decode().upper()
+
+        server.streams.register_outbound("c1", WebSocketOutboundStream("s1", StreamKind.TEXT, source(), server.codec))
+
+        ws.push("stream_pull", {"id": "s1"})
+        await ws.wait_for(lambda sent: {"type": "stream_pull", "id": "in1"} in [{"type": m["type"], "id": m["data"].get("id")} for m in sent])
+        ws.push_bytes(struct.pack(">H", 3) + b"in1" + struct.pack(">I", 0) + b"hello")
+        await ws.wait_for(lambda sent: "stream_chunk" in [m["type"] for m in sent])
+
+        assert ws.sent[-1]["data"]["value"] == "HELLO"
+        await self._disconnect(ws, loop)
+
+    @pytest.mark.anyio
+    async def test_pulls_sent_ahead_are_answered_in_order(self, adapter):
+        import asyncio
+
+        async def source():
+            for token in ("a", "b", "c"):
+                await asyncio.sleep(0.001)
+                yield token
+
+        server, ws, loop = await self._serve(adapter, source())
+        for _ in range(5):
+            ws.push("stream_pull", {"id": "s1"})
+        await ws.wait_for(lambda sent: "stream_end" in [m["type"] for m in sent])
+        await asyncio.sleep(0.01)
+
+        assert [(m["type"], m["data"].get("seq"), m["data"].get("value")) for m in ws.sent] == [
+            ("stream_chunk", 0, "a"), ("stream_chunk", 1, "b"), ("stream_chunk", 2, "c"), ("stream_end", None, None),
+        ]
+        assert server.streams.get_outbound("c1", "s1") is None
+        await self._disconnect(ws, loop)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("close", ["stream_close", "disconnect"])
+    async def test_close_interrupts_a_waiting_pull(self, adapter, close):
+        import asyncio
+
+        started, finished = asyncio.Event(), asyncio.Event()
+
+        async def source():
+            try:
+                started.set()
+                await asyncio.Event().wait()
+                yield "never"
+            finally:
+                finished.set()
+
+        server, ws, loop = await self._serve(adapter, source())
+        stream = server.streams.get_outbound("c1", "s1")
+        ws.push("stream_pull", {"id": "s1"})
+        ws.push("stream_pull", {"id": "s1"})
+        await asyncio.wait_for(started.wait(), timeout=1)
+
+        if close == "stream_close":
+            ws.push("stream_close", {"id": "s1"})
+        else:
+            ws.disconnect()
+
+        await asyncio.wait_for(finished.wait(), timeout=1)
+        await asyncio.sleep(0.01)
+        assert stream.pump_task is None
+        assert ws.sent == []
+        assert server.streams.get_outbound("c1", "s1") is None
+
+        if close == "stream_close":
+            await self._disconnect(ws, loop)
+        else:
+            await asyncio.wait_for(loop, timeout=1)
+
+    @pytest.mark.anyio
+    async def test_source_cancelled_on_its_own_aborts_the_stream(self, adapter):
+        import asyncio
+
+        producer = asyncio.get_running_loop().create_future()
+
+        async def source():
+            yield "a"
+            await producer
+            yield "b"
+
+        server, ws, loop = await self._serve(adapter, source())
+        ws.push("stream_pull", {"id": "s1"})
+        ws.push("stream_pull", {"id": "s1"})
+        await ws.wait_for(lambda sent: "stream_chunk" in [m["type"] for m in sent])
+        await asyncio.sleep(0.01)
+        producer.cancel()
+
+        await ws.wait_for(lambda sent: "stream_abort" in [m["type"] for m in sent])
+        assert server.streams.get_outbound("c1", "s1") is None
+
+        ws.push("ping", message_id="p1")
+        await ws.wait_for(lambda sent: "pong" in [m["type"] for m in sent])
+        await self._disconnect(ws, loop)

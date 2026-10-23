@@ -23,6 +23,23 @@ from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
 import re, aiofiles, os, asyncio
 
+def unquote_default(default: str, type: Optional[str] = None, is_list: bool = False) -> str:
+    """The text of a default written in quotes (`| "gpt-4o"`, `| 'auto'`, `| ""`), without the quotes.
+
+    Any other default is returned as is: an unquoted one, one with the same quote inside
+    (`| "a" or "b"`), and one that is read as JSON (`as json`, `as object`, `as list`, `as <type>[]`),
+    where the quotes belong to the JSON string. Backslashes are kept as written.
+    """
+    if is_list or type in [ "json", "object", "list" ]:
+        return default
+
+    text = default.rstrip()
+
+    if len(text) >= 2 and text[0] in "\"'" and text[-1] == text[0] and text[0] not in text[1:-1]:
+        return text[1:-1]
+
+    return default
+
 class FieldResolver:
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
@@ -195,7 +212,7 @@ class VariableRenderer:
                 value = None
 
             if value is None and default is not None:
-                value = await self._render_element(state, default)
+                value = await self._render_element(state, unquote_default(default, type, is_list))
 
             if type and value is not None:
                 value = await self._convert_value_to_type(state, value, type, is_list, subtype, attrs, format)

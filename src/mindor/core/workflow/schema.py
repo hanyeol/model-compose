@@ -7,6 +7,7 @@ from mindor.dsl.schema.component import ComponentConfig, ComponentType
 from mindor.dsl.schema.action import ActionConfig
 from mindor.core.component import ComponentResolver, ActionResolver
 from mindor.core.workflow import WorkflowResolver
+from mindor.core.foundation.variable.renderer import unquote_default
 import re, json
 
 @dataclass
@@ -76,6 +77,9 @@ class WorkflowVariableResolver:
 
                 if annotations:
                     annotations = self._parse_annotations(annotations)
+
+                if default:
+                    default = unquote_default(default, type, is_list)
 
                 if default and type:
                     default = self._convert_value_to_type(default, type, is_list)
@@ -169,6 +173,9 @@ class WorkflowVariableResolver:
 
         if annotations:
             annotations = self._parse_annotations(annotations)
+
+        if default:
+            default = unquote_default(default, type, is_list)
 
         if default and type:
             default = self._convert_value_to_type(default, type, is_list)

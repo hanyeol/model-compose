@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator, close_iterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.logger import logging
 import asyncio
@@ -16,8 +16,9 @@ class TaskOutputStreamIterator(StreamIterator):
         self._notified_terminated: bool = False
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
+        iterator = self.source.__aiter__()
         try:
-            async for chunk in self.source:
+            async for chunk in iterator:
                 yield chunk
         except asyncio.CancelledError:
             await self._notify_terminated("cancelled", None)
@@ -28,6 +29,7 @@ class TaskOutputStreamIterator(StreamIterator):
         else:
             await self._notify_terminated("completed", None)
         finally:
+            await close_iterator(iterator)
             if not self._notified_terminated:
                 await self._notify_terminated("cancelled", "consumer closed stream")
 
@@ -73,8 +75,9 @@ class TaskOutputStreamResource(StreamResource):
                 await self._notify_terminated("cancelled", "consumer closed stream")
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
+        iterator = self.source.__aiter__()
         try:
-            async for chunk in self.source:
+            async for chunk in iterator:
                 yield chunk
         except asyncio.CancelledError:
             await self._notify_terminated("cancelled", None)
@@ -85,6 +88,7 @@ class TaskOutputStreamResource(StreamResource):
         else:
             await self._notify_terminated("completed", None)
         finally:
+            await close_iterator(iterator)
             if not self._notified_terminated:
                 await self._notify_terminated("cancelled", "consumer closed stream")
 

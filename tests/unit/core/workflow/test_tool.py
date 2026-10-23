@@ -243,9 +243,10 @@ class TestResumeToolGenerator:
         assert params["task_id"].required is True
         assert params["task_id"].default is None
 
-        # `answer` is a JSON object mapping interrupt point id -> answer value.
-        assert params["answer"].type == WorkflowVariableType.STRING
-        assert params["answer"].required is True
+        # `answer` is an object mapping interrupt point id -> answer value;
+        # omitting it triggers an auto-approve path, so the parameter is optional.
+        assert params["answer"].type == WorkflowVariableType.OBJECT
+        assert params["answer"].required is False
 
     def test_description_is_stored_as_annotation(self) -> None:
         tool = ResumeToolGenerator().generate("resume", _noop_resume_runner)
@@ -257,7 +258,7 @@ class TestResumeToolGenerator:
         )
         assert (
             params["answer"].get_annotation_value("description")
-            == "JSON object mapping interrupt point id to its answer value"
+            == "Object mapping interrupt point id to its answer value; omit to resolve every pending point with a None answer (auto-approve)."
         )
 
     def test_tool_description_present(self) -> None:

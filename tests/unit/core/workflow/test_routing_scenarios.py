@@ -267,26 +267,28 @@ class TestChainedBranches:
         assert output == "t2_final"
 
     @pytest.mark.anyio
-    async def test_non_selected_chain_leaves_dangling_pending_job(self, monkeypatch):
-        """If router picks T-side, F2 (which depends on F1, a routing target
-        the router did not select) sits in pending with an unmet dependency."""
+    async def test_non_selected_chain_is_skipped(self, monkeypatch):
+        """Router picks T-side. F1 is an unrouted branch target, and F2 is a
+        normal pending job whose only dep is F1. Skip propagation (seeded by
+        the router moving unrouted targets to skipped_job_ids) must mark F2
+        skippable and drop it from pending, so the workflow completes on T1."""
         cfg = {
             "check": make_cfg("check", routes=["T1", "F1"]),
             "T1":    make_cfg("T1"),
             "F1":    make_cfg("F1"),
             "F2":    make_cfg("F2", depends_on=["F1"]),
         }
-        with pytest.raises(RuntimeError, match="No runnable jobs but pending jobs remain"):
-            await run(
-                monkeypatch,
-                cfg,
-                scripts={
-                    "check": [[RoutingTarget("T1")]],
-                    "T1":    [["t1"]],
-                    "F1":    [["f1"]],
-                    "F2":    [["f2"]],
-                },
-            )
+        output = await run(
+            monkeypatch,
+            cfg,
+            scripts={
+                "check": [[RoutingTarget("T1")]],
+                "T1":    [["t1"]],
+                "F1":    [["f1"]],
+                "F2":    [["f2"]],
+            },
+        )
+        assert output == "t1"
 
 
 # --------------------------------------------------------------------------- #
@@ -323,26 +325,99 @@ class TestJoinAfterBranches:
         assert output == "joined"
 
     @pytest.mark.anyio
-    async def test_and_group_join_deadlocks_when_only_one_branch_runs(self, monkeypatch):
-        """`depends_on: [T, F]` is AND of both; a router that only ever picks
-        one leaves the other unresolved and the join cannot progress."""
+    async def test_and_group_join_runs_on_selected_branch_alone(self, monkeypatch):
+        """`depends_on: [T, F]` treats a skipped dep as resolved, so the join
+        runs on the selected branch alone instead of deadlocking."""
         cfg = {
             "check": make_cfg("check", routes=["T", "F"]),
             "T":     make_cfg("T"),
             "F":     make_cfg("F"),
             "join":  make_cfg("join", depends_on=["T", "F"]),  # AND
         }
-        with pytest.raises(RuntimeError, match="No runnable jobs but pending jobs remain"):
-            await run(
-                monkeypatch,
-                cfg,
-                scripts={
-                    "check": [[RoutingTarget("T")]],
-                    "T":     [["t"]],
-                    "F":     [["f"]],
-                    "join":  [["joined"]],
-                },
-            )
+        output = await run(
+            monkeypatch,
+            cfg,
+            scripts={
+                "check": [[RoutingTarget("T")]],
+                "T":     [["t"]],
+                "F":     [["f"]],
+                "join":  [["joined"]],
+            },
+        )
+        assert output == "joined"
+
+    @pytest.mark.anyio
+    async def test_and_group_join_across_three_branches(self, monkeypatch):
+        """A 3-way router with the join hard-AND-depending on all three
+        branches must still run when only one branch is selected."""
+        cfg = {
+            "check": make_cfg("check", routes=["A", "B", "C"]),
+            "A":     make_cfg("A"),
+            "B":     make_cfg("B"),
+            "C":     make_cfg("C"),
+            "join":  make_cfg("join", depends_on=["A", "B", "C"]),
+        }
+        output = await run(
+            monkeypatch,
+            cfg,
+            scripts={
+                "check": [[RoutingTarget("B")]],
+                "A":     [["a"]],
+                "B":     [["b"]],
+                "C":     [["c"]],
+                "join":  [["joined-via-b"]],
+            },
+        )
+        assert output == "joined-via-b"
+
+    @pytest.mark.anyio
+    async def test_and_group_join_after_selected_chain(self, monkeypatch):
+        """Selected branch is a chain (T1 → T2); unselected is a single step
+        (F1). Join AND-depends on the chain tail and the unselected target."""
+        cfg = {
+            "check": make_cfg("check", routes=["T1", "F1"]),
+            "T1":    make_cfg("T1"),
+            "T2":    make_cfg("T2", depends_on=["T1"]),
+            "F1":    make_cfg("F1"),
+            "join":  make_cfg("join", depends_on=["T2", "F1"]),
+        }
+        output = await run(
+            monkeypatch,
+            cfg,
+            scripts={
+                "check": [[RoutingTarget("T1")]],
+                "T1":    [["t1"]],
+                "T2":    [["t2"]],
+                "F1":    [["f1"]],
+                "join":  [["joined"]],
+            },
+        )
+        assert output == "joined"
+
+    @pytest.mark.anyio
+    async def test_join_below_dangling_chain_is_also_skipped(self, monkeypatch):
+        """F2 depends on F1 (unrouted branch target), and join further depends
+        on F2. Skip propagation must cascade: F2 skipped → join also skipped
+        → workflow terminates on the selected T branch."""
+        cfg = {
+            "check": make_cfg("check", routes=["T", "F1"]),
+            "T":     make_cfg("T"),
+            "F1":    make_cfg("F1"),
+            "F2":    make_cfg("F2", depends_on=["F1"]),
+            "join":  make_cfg("join", depends_on=["F2"]),
+        }
+        output = await run(
+            monkeypatch,
+            cfg,
+            scripts={
+                "check": [[RoutingTarget("T")]],
+                "T":     [["t"]],
+                "F1":    [["f1"]],
+                "F2":    [["f2"]],
+                "join":  [["joined"]],
+            },
+        )
+        assert output == "t"
 
 
 # --------------------------------------------------------------------------- #

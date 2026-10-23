@@ -163,6 +163,7 @@ def _make_job(cfg, per_step_component, monkeypatch: Optional[pytest.MonkeyPatch]
     job.id = "test-pipeline"
     job.config = cfg
     job.global_configs = None
+    job._inline_jobs = {}
     job._create_component = _create_component  # type: ignore[assignment]
 
     return job

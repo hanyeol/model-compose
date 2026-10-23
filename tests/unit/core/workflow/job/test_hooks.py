@@ -513,6 +513,7 @@ async def test_for_each_after_hook_runs_before_output_render(monkeypatch):
     job.id = "fej"
     job.config = cfg
     job.global_configs = None
+    job._inline_jobs = {}
     job._create_component = _create_component  # type: ignore[assignment]
 
     result = await job.run(_FakeCtx())

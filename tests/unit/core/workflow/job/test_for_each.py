@@ -142,6 +142,7 @@ def _make_job(cfg, component: FakeComponent, monkeypatch: Optional[pytest.Monkey
     job.id = "test-for-each"
     job.config = cfg
     job.global_configs = None
+    job._inline_jobs = {}
     job._create_component = _create_component  # type: ignore[assignment]
     return job
 

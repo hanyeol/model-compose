@@ -48,6 +48,7 @@ def make_job_config(job_id: str, depends_on: Optional[List[Any]] = None, max_run
         on_error=None,
         get_dependency_groups=_groups,
         get_dependency_ids=_ids,
+        get_routing_jobs=lambda: set(),
     )
 
 

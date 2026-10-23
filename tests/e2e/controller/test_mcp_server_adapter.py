@@ -120,7 +120,10 @@ async def _run_scenario(port: int) -> None:
 
             greet = next(t for t in tools if t.name == "greet")
             assert greet.description and "greeting" in greet.description.lower()
-            assert greet.inputSchema.get("properties", {}).get("name", {}).get("type") == "string"
+            name_schema = greet.inputSchema.get("properties", {}).get("name", {})
+            assert name_schema.get("type") == "string" or any(
+                variant.get("type") == "string" for variant in name_schema.get("anyOf", [])
+            )
 
             content = await client.call_tool("greet", { "name": "world" })
             assert content, "call_tool returned no content"

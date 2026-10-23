@@ -181,6 +181,7 @@ def _install_component_lookup(
     outer.id = f"outer-{job_class.__name__.lower()}"
     outer.config = cfg
     outer.global_configs = None
+    outer._inline_jobs = {}
     outer._create_component = _fake_create_component  # type: ignore[assignment]
     return outer
 

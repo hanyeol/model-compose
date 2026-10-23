@@ -134,7 +134,7 @@ class WorkflowRunner:
                 if not pending_jobs:
                     break
 
-                runnable_jobs = [ job for job in pending_jobs.values() if self._is_runnable_job(job, running_job_ids, completed_job_ids) ]
+                runnable_jobs = [ job for job in pending_jobs.values() if self._is_runnable_job(job, running_job_ids, completed_job_ids, skipped_job_ids) ]
 
                 for job in runnable_jobs:
                     if job.id not in scheduled_job_tasks:
@@ -420,16 +420,17 @@ class WorkflowRunner:
         job: Job,
         running_job_ids: Set[str],
         completed_job_ids: Set[str],
+        skipped_job_ids: Set[str],
     ) -> bool:
         if job.id in running_job_ids:
             return False
 
         for item in job.config.depends_on:
             if isinstance(item, list):
-                if not any(job_id in completed_job_ids for job_id in item):
+                if not any(job_id in completed_job_ids or job_id in skipped_job_ids for job_id in item):
                     return False
             else:
-                if item not in completed_job_ids:
+                if item not in completed_job_ids and item not in skipped_job_ids:
                     return False
 
         return True

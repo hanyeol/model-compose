@@ -3,7 +3,8 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Any
 from typing_extensions import Self
-from pydantic import BaseModel
+from collections.abc import AsyncIterator
+from pydantic import BaseModel, ConfigDict
 from mindor.dsl.schema.controller import HttpServerControllerAdapterConfig, ControllerAdapterType
 from mindor.dsl.schema.workflow import WorkflowVariableConfig, WorkflowVariableGroupConfig
 from mindor.core.foundation.streaming.image import ImageStreamResource
@@ -11,7 +12,7 @@ from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.controller.streaming import TaskOutputStreamEncodingIterator
-from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent
+from mindor.core.controller.base import TaskState, TaskStatus, InterruptState, TaskEvent, JobEvent, TaskEventType
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.workflow import WorkflowResolver
 from mindor.core.utils.transport.http_client import request_with_url
@@ -48,6 +49,14 @@ class WorkflowRunBody(BaseModel):
 class WorkflowResumeBody(BaseModel):
     answer: Optional[Dict[str, Any]] = None
 
+def _serializable_output(output: Any) -> Any:
+    # A streaming task's output is the live stream itself: it is read through the
+    # run response or a WebSocket subscription, never put into a JSON body.
+    if isinstance(output, (StreamResource, StreamIterator, AsyncIterator)):
+        return None
+
+    return output
+
 class InterruptResult(BaseModel):
     id: str
     job_id: str
@@ -68,8 +77,10 @@ class InterruptResult(BaseModel):
         )
 
 class TaskStateResult(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     task_id: str
-    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
+    status: TaskStatus
     workflow_id: Optional[str] = None
     output: Optional[Any] = None
     error: Optional[str] = None
@@ -83,7 +94,7 @@ class TaskStateResult(BaseModel):
             task_id=instance.task_id,
             status=instance.status,
             workflow_id=instance.workflow_id,
-            output=instance.output,
+            output=_serializable_output(instance.output),
             error=instance.error,
             interrupt=[ InterruptResult.from_instance(interrupt) for interrupt in instance.interrupt ] if instance.interrupt else None,
             session_id=instance.session_id,
@@ -142,10 +153,12 @@ class JobEventResult(BaseModel):
         return cls.from_instance(instance).model_dump(exclude_none=True)
 
 class TaskEventResult(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     task_id: str
     workflow_id: Optional[str] = None
-    event: Literal[ "started", "interrupted", "resumed", "cancelled", "completed", "failed" ]
-    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
+    event: TaskEventType
+    status: TaskStatus
     output: Optional[Any] = None
     error: Optional[str] = None
     interrupt: Optional[List[InterruptResult]] = None
@@ -160,7 +173,7 @@ class TaskEventResult(BaseModel):
             workflow_id=instance.workflow_id,
             event=instance.event,
             status=instance.status,
-            output=instance.output,
+            output=_serializable_output(instance.output),
             error=instance.error,
             interrupt=[ InterruptResult.from_instance(interrupt) for interrupt in instance.interrupt ] if instance.interrupt else None,
             elapsed=instance.elapsed,
@@ -531,7 +544,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool, allow_streaming: bool = False) -> Response:
-        if not output_only and isinstance(state.output, (StreamResource, StreamIterator)):
+        if allow_streaming and not output_only and isinstance(state.output, (StreamResource, StreamIterator)):
             raise HTTPException(
                 status_code=400,
                 detail=(

@@ -410,7 +410,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 ```
 
 **필드:**
-- `status`: `"pending"` | `"processing"` | `"interrupted"` | `"completed"` | `"failed"`
+- `status`: `"pending"` | `"processing"` | `"interrupted"` | `"cancelling"` | `"cancelled"` | `"streaming"` | `"completed"` | `"failed"`
 - `output`: 완료 시 결과 데이터 (JSON 직렬화 가능한 값만. 이미지 등 직렬화 불가한 출력은 `null`)
 - `error`: 실패 시 에러 메시지
 - `interrupt`: `"interrupted"` 상태일 때 인터럽트 상세 정보 (`job_id`, `run_id`, `phase`, `message`, `metadata`). `run_id`는 `repeat_count > 1`인 `component` Job에서만 non-null 값을 갖습니다.

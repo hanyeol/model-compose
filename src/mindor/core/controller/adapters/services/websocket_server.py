@@ -3,9 +3,9 @@ from typing import TYPE_CHECKING
 
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Any, Callable, get_type_hints
 from collections.abc import AsyncIterator
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from mindor.dsl.schema.controller.adapter.impl.http_server import WebSocketConfig
-from mindor.core.controller.base import TaskState, TaskEvent, JobEvent
+from mindor.core.controller.base import TaskState, TaskStatus, TaskEvent, JobEvent
 from mindor.core.errors import TaskError
 from mindor.core.logger import logging
 from mindor.core.foundation.streaming.resources import StreamResource
@@ -68,9 +68,11 @@ class StreamClosePayload(BaseModel):
     id: str
 
 class WorkflowStartedResult(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     task_id: str
     workflow_id: str
-    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
+    status: TaskStatus
 
 class TaskSubscribedResult(BaseModel):
     task_id: str
@@ -80,8 +82,10 @@ class TaskUnsubscribedResult(BaseModel):
     task_id: str
 
 class TaskResumedResult(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     task_id: str
-    status: Literal[ "pending", "processing", "interrupted", "cancelling", "cancelled", "completed", "failed" ]
+    status: TaskStatus
 
 class WebSocketManager:
     def __init__(self):
@@ -501,6 +505,13 @@ class WebSocketServer:
             return
 
         base = self._task_event_to_dict(event)
+
+        if event.status == TaskStatus.STREAMING:
+            # The live output can be read only once: it is offered in the task_state
+            # of the same change, and this event goes without it.
+            await self.manager.broadcast_task_message(event.task_id, WebSocketMessage(type="task_event", data=base))
+            return
+
         await self._broadcast_with_output(event.task_id, "task_event", base, event.output)
 
     async def broadcast_job_event(self, event: JobEvent) -> None:

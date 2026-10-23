@@ -414,7 +414,7 @@ Sent in response to `subscribe_task`. Includes the current task state at the tim
 ```
 
 **Fields:**
-- `status`: `"pending"` | `"processing"` | `"interrupted"` | `"completed"` | `"failed"`
+- `status`: `"pending"` | `"processing"` | `"interrupted"` | `"cancelling"` | `"cancelled"` | `"streaming"` | `"completed"` | `"failed"`
 - `output`: Result data on completion (JSON-serializable values only; non-serializable outputs like images return `null`)
 - `error`: Error message on failure
 - `interrupt`: Interrupt details when status is `"interrupted"` (`job_id`, `run_id`, `phase`, `message`, `metadata`). `run_id` is non-null only for `component` jobs with `repeat_count > 1`.
@@ -947,6 +947,8 @@ When a workflow's output (or a job's intermediate output) contains a stream, the
   }
 }
 ```
+
+A task's live output is offered once, in this `task_state`: the `task_event` of the same change carries no `output`, because a stream can be read only once.
 
 To consume, send `stream_pull` for `s3` and receive one binary frame per pull. When the producer is exhausted the server sends `stream_end`. You can stop early with `stream_close`.
 

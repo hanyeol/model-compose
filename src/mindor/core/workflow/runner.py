@@ -140,6 +140,7 @@ class WorkflowRunner:
                     if job.id not in scheduled_job_tasks:
                         job_time_trackers[job.id] = TimeTracker()
                         context.job_run_ids[job.id] = []
+
                         try:
                             scheduled_job_tasks[job.id] = self._schedule_job(job, context, job_run_counts)
                         except Exception as e:
@@ -150,6 +151,7 @@ class WorkflowRunner:
                                 context=context,
                                 error=str(e)
                             )
+
                             raise
 
                         running_job_ids.add(job.id)

@@ -76,6 +76,7 @@ class TaskOutputStreamResource(StreamResource):
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         iterator = self.source.__aiter__()
+
         try:
             async for chunk in iterator:
                 yield chunk
@@ -89,6 +90,7 @@ class TaskOutputStreamResource(StreamResource):
             await self._notify_terminated("completed", None)
         finally:
             await close_iterator(iterator)
+
             if not self._notified_terminated:
                 await self._notify_terminated("cancelled", "consumer closed stream")
 

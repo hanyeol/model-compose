@@ -102,9 +102,13 @@ class HttpServerAction:
 
         if isinstance(response, HttpEventStreamResource):
             async def _stream_chunk_generator(response=response, scope=f"stream:{id(response)}"):
-                async for chunk in response:
-                    context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
-                    yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                try:
+                    async for chunk in response:
+                        context.register_source("response[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
+                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                finally:
+                    # Stopped early (a client closed the stream), the request ends too.
+                    await response.close()
 
             return _stream_chunk_generator()
 
@@ -119,9 +123,12 @@ class HttpServerAction:
 
             if isinstance(result, HttpEventStreamResource):
                 async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
-                    async for chunk in result:
-                        context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
-                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                    try:
+                        async for chunk in result:
+                            context.register_source("result[]", self._convert_stream_chunk(chunk, self.config.stream_format), scope=scope)
+                            yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else chunk
+                    finally:
+                        await result.close()
 
                 return _stream_chunk_generator()
 

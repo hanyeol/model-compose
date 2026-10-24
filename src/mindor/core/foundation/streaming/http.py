@@ -18,7 +18,8 @@ class HttpStreamResource(StreamResource):
         self.stream: aiohttp.StreamReader = response.content
 
     async def close(self) -> None:
-        self.response.close()
+        if self.response is not None:
+            self.response.close()
         self.response = None
         self.stream = None
 

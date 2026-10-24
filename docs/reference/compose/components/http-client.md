@@ -35,7 +35,7 @@ HTTP client actions support the following options:
 | `headers` | object | `{}` | HTTP headers to include in the request |
 | `body` | object | `{}` | Request body data |
 | `params` | object | `{}` | URL query parameters |
-| `stream_format` | string | `null` | Stream format: `server-sent-events`, `json-lines` |
+| `stream_format` | string | `null` | How each Server-Sent Events chunk is decoded for `${response[]}`: `json` or `text` (raw bytes when unset) |
 | `completion` | object | `null` | Asynchronous completion configuration |
 
 ## Usage Examples
@@ -136,7 +136,7 @@ component:
   action:
     path: /chat/completions
     method: POST
-    stream_format: server-sent-events
+    stream_format: json
     headers:
       Authorization: Bearer ${env.OPENAI_API_KEY}
     body:
@@ -225,20 +225,18 @@ component:
 
 ## Stream Formats
 
-### Server-Sent Events
+A response is streamed when it arrives as Server-Sent Events (`Content-Type: text/event-stream`).
+`stream_format` sets how the data of each event reaches `${response[]}`:
 
-Handle Server-Sent Events (SSE) streams:
-
-```yaml
-stream_format: server-sent-events
-```
-
-### JSON Lines
-
-Handle newline-delimited JSON streams:
+| Value | Each chunk becomes |
+|-------|--------------------|
+| `json` | The data parsed as JSON (`null` if it does not parse, e.g. a `[DONE]` marker) |
+| `text` | The data as a UTF-8 string |
+| unset | The raw bytes |
 
 ```yaml
-stream_format: json-lines
+stream_format: json
+output: ${response[].choices[0].delta.content}
 ```
 
 ## Authentication Patterns

@@ -28,6 +28,7 @@ class StreamChunkIterator(StreamIterator):
             async for chunk in iterator:
                 if chunk is None and self.is_fragmented:
                     continue
+
                 yield chunk
         finally:
             await close_iterator(iterator)

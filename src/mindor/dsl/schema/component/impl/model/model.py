@@ -41,6 +41,7 @@ ModelComponentConfig = Annotated[
         FaceTrackingModelComponentConfig,
         FaceSwapModelComponentConfig,
         FaceEmotionClassificationModelComponentConfig,
+        ActiveSpeakerDetectionModelComponentConfig,
         TextToSpeechModelComponentConfig,
         SpeechToTextModelComponentConfig,
         AudioTextAlignmentModelComponentConfig,

@@ -1,0 +1,8 @@
+from pydantic import Field
+from ..common import CommonActiveSpeakerDetectionParamsConfig, CommonActiveSpeakerDetectionModelActionConfig
+
+class LightAsdActiveSpeakerDetectionParamsConfig(CommonActiveSpeakerDetectionParamsConfig):
+    pass
+
+class LightAsdActiveSpeakerDetectionModelActionConfig(CommonActiveSpeakerDetectionModelActionConfig):
+    params: LightAsdActiveSpeakerDetectionParamsConfig = Field(default_factory=LightAsdActiveSpeakerDetectionParamsConfig, description="Light-ASD scoring parameters.")

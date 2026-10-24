@@ -36,6 +36,7 @@ ModelActionConfig = Union[
     FaceTrackingModelActionConfig,
     FaceSwapModelActionConfig,
     FaceEmotionClassificationModelActionConfig,
+    ActiveSpeakerDetectionModelActionConfig,
     TextToSpeechModelActionConfig,
     SpeechToTextModelActionConfig,
     AudioTextAlignmentModelActionConfig,

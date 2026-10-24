@@ -8,18 +8,6 @@ class StreamEncodingFormat(str, Enum):
     TEXT = "text"
     JSON = "json"
 
-async def close_iterator(iterator: Any) -> None:
-    """Close an iterator that an `async for` stopped reading early, which Python does not
-    do by itself (PEP 533): the source it reads from (an HTTP response, a model still
-    generating) is released now, not when the source ends. Best effort."""
-    aclose = getattr(iterator, "aclose", None)
-
-    if aclose is not None:
-        try:
-            await aclose()
-        except Exception:
-            pass
-
 class StreamIterator(ABC):
     def __aiter__(self) -> AsyncIterator[Any]:
         return self._iterate_stream()
@@ -35,6 +23,7 @@ class StreamChunkIterator(StreamIterator):
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         iterator = self.source.__aiter__()
+
         try:
             async for chunk in iterator:
                 if chunk is None and self.is_fragmented:
@@ -54,6 +43,7 @@ class StreamEncodingIterator(StreamIterator):
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         iterator = self.source.__aiter__()
+
         try:
             async for chunk in iterator:
                 if chunk is None or chunk == "":
@@ -79,3 +69,15 @@ class StreamEncodingIterator(StreamIterator):
             return await encode_value_to_json(chunk)
 
         return chunk
+
+async def close_iterator(iterator: Any) -> None:
+    """Close an iterator that an `async for` stopped reading early, which Python does not
+    do by itself (PEP 533): the source it reads from (an HTTP response, a model still
+    generating) is released now, not when the source ends. Best effort."""
+    aclose = getattr(iterator, "aclose", None)
+
+    if aclose is not None:
+        try:
+            await aclose()
+        except Exception:
+            pass

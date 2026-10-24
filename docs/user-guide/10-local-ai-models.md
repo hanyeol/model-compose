@@ -272,6 +272,7 @@ model-compose supports the following task types:
 | `image-to-3d` | 3D mesh generation from a single image | Turn a reference image into a textured GLB asset |
 | `face-embedding` | Face embedding | Face recognition, comparison |
 | `face-tracking` | Face tracking | Track identities across video frames with timecoded segments |
+| `active-speaker-detection` | Active speaker detection | Decide which on-screen face is speaking at each moment, given frames, audio, and face-tracking detections |
 | `face-emotion-classification` | Facial expression classification | Label a face crop with an emotion (anger, happiness, surprise, etc.) and a per-class probability distribution |
 | `pose-tracking` | Pose tracking | Track people (as poses) across video frames with per-track timecoded segments |
 | `object-tracking` | Object tracking | Track objects across video frames with per-track timecoded segments |
@@ -1346,7 +1347,30 @@ component:
 
 Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). `return_track_image` attaches one crop per segment; use `return_detection_image` instead to attach a crop to every per-frame detection — only enable the latter when a downstream step classifies each frame independently, since memory then scales with `frames × faces per frame`. See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
 
-### 10.3.21 face-emotion-classification
+### 10.3.21 active-speaker-detection
+
+Decides which on-screen face is actively speaking at each moment. Pairs the same frames and `frame_rate` passed to a face-tracking component with the source audio and the tracker's per-frame `detections[]`, re-crops each face track for the model, and emits per-track speaking segments. Uses Light-ASD (CVPR 2023, ~1M parameters).
+
+```yaml
+component:
+  type: model
+  task: active-speaker-detection
+  driver: custom
+  family: light-asd
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    audio: ${input.audio}
+    tracks: ${input.tracks}
+    return_timeline: true
+    params:
+      smoothing_window: 0.4s
+      threshold: 0.0
+```
+
+Reuse the exact `frames` passed to the paired face-tracking component so bounding boxes line up — ASD re-crops each face from these frames in the tracker's coordinate space. `tracks` is the face-tracker's `detections[]` output (set `return_detections: true` on the tracker). Each `speakers[i].track_id` matches the tracker's `track_id`, so joining the two outputs attaches speech turns to identity. See the [Model Component reference](../reference/compose/components/model.md#active-speaker-detection) for the full option list and result shape.
+
+### 10.3.22 face-emotion-classification
 
 Classifies the facial expression in an already-cropped face image, returning the top-1 label plus a per-class probability vector. Chain after `face-detection` or `face-tracking` with a `for-each`. Uses HSEmotion (EfficientNet-B0 on AffectNet 8 classes).
 
@@ -1365,7 +1389,7 @@ component:
 
 Accepts a single face crop, a list of crops, or an async stream of crops. See the [Model Component reference](../reference/compose/components/model.md#face-emotion-classification) for the full option list and result shape.
 
-### 10.3.22 pose-tracking
+### 10.3.23 pose-tracking
 
 Tracks people (as poses) across a sequence of video frames. Per-frame pose detections are grouped by the underlying tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments. Uses Ultralytics YOLO-pose.
 
@@ -1388,7 +1412,7 @@ component:
 
 Accepts the same input shapes as face-tracking. `return_track_image` attaches one crop per segment; use `return_detection_image` to attach a crop to every per-frame detection (memory scales with `frames × poses per frame`). See the [Model Component reference](../reference/compose/components/model.md#pose-tracking) for the full option list, streaming chunk schema, and result shape.
 
-### 10.3.23 object-tracking
+### 10.3.24 object-tracking
 
 Tracks objects across a sequence of video frames. Per-frame detections are grouped by the tracker's persistent `track_id`, and consecutive hits are merged into timecoded segments with optional interpolation across small gaps. Uses Ultralytics YOLO.
 
@@ -1412,7 +1436,7 @@ component:
 
 Accepts the same input shapes as face-tracking. `return_track_image` attaches one crop per segment; use `return_detection_image` to attach a crop to every per-frame detection (memory scales with `frames × objects per frame`). See the [Model Component reference](../reference/compose/components/model.md#object-tracking) for the full option list, streaming chunk schema, and result shape.
 
-### 10.3.24 object-detection
+### 10.3.25 object-detection
 
 Detects objects in an image and returns per-object bounding boxes with class labels and confidence scores. Uses Ultralytics YOLO.
 
@@ -1432,7 +1456,7 @@ component:
 
 Any Ultralytics YOLO detection (or segmentation) `.pt` checkpoint is accepted. See the [Model Component reference](../reference/compose/components/model.md#object-detection) for the full option list and result shape.
 
-### 10.3.25 image-segmentation
+### 10.3.26 image-segmentation
 
 Generates per-region binary segmentation masks from an image. Runs in **automatic mode** (masks every distinct region) or **box-prompted mode** (refines masks around user-supplied bounding boxes, e.g. from `object-detection`). Uses Meta's Segment Anything Model (SAM) via Ultralytics.
 
@@ -1452,7 +1476,7 @@ component:
 
 Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam2_b.pt`, `mobile_sam.pt`, etc.) is accepted. See the [Model Component reference](../reference/compose/components/model.md#image-segmentation) for the full option list and result shape.
 
-### 10.3.26 text-to-video
+### 10.3.27 text-to-video
 
 Generates a short video clip from a text prompt. Uses `driver: custom` with a `family` field to select the model family and a `preset` field to select the checkpoint variant.
 
@@ -1510,7 +1534,7 @@ component:
 
 The result is a single mp4 stream (or a list of mp4 streams for batched prompts); when the family is `minimax-h3` the mp4 carries both video and audio tracks. See the [Model Component reference](../reference/compose/components/model.md#text-to-video) for the full option list.
 
-### 10.3.27 image-to-video
+### 10.3.28 image-to-video
 
 Generates a short video clip that animates an input image, optionally guided by a text prompt.
 
@@ -1540,7 +1564,7 @@ component:
 
 `width`/`height` are optional; when omitted, the input image's dimensions are used. The result shape mirrors `text-to-video` (an mp4 stream per input).
 
-### 10.3.28 video-to-video
+### 10.3.29 video-to-video
 
 Transforms an existing video clip. Two driver families are supported:
 
@@ -1668,7 +1692,7 @@ ControlNet can be combined with the IP-Adapter — supply both `reference_image`
 
 The result is an mp4 stream per input (or a list for batched inputs). See the [Model Component reference](../reference/compose/components/model.md#video-to-video) for the full option list.
 
-### 10.3.29 image-to-3d
+### 10.3.30 image-to-3d
 
 Generates a 3D GLB asset from a single image. `family: pixal3d` chains sparse-structure, shape, and texture flow-matching stages to produce a mesh with baked PBR maps; `family: anigen` produces a rigged mesh (bones + skin weights baked into a standard glTF skinned-mesh) plus a stand-alone skeleton visualization.
 
@@ -1723,7 +1747,7 @@ component:
 
 For Pixal3D, `low_vram: true` swaps peak VRAM for latency by keeping stage models on CPU and paging each to GPU on demand; `manual_fov` (in radians) overrides the MoGe-based camera FOV auto-estimation. For AniGen, `slat_variant: control` respects `params.joints_density` (0-4); the default `auto` picks joint count on its own. The output shape depends on the family: `pixal3d` returns a single `.glb` stream per input (`model/gltf-binary`); `anigen` returns a dict per input with `mesh` and `skeleton` GLB streams (and optionally `image` when `return_image: true`). See the [Model Component reference](../reference/compose/components/model.md#image-to-3d) for the full option list.
 
-### 10.3.30 shot-boundary-detection
+### 10.3.31 shot-boundary-detection
 
 Detects shot boundaries (hard cuts and transitions) in a video and returns per-shot start/end timecodes and frame indices. Uses a deep learning model to identify precise cut points frame-by-frame. Uses `driver: custom` with a `family` field to select the model family.
 
@@ -1789,7 +1813,7 @@ With `streaming: true`, per-input results are async iterators that yield one sho
 
 Compared with the `video-scene-detector` component (which uses classical CV heuristics via PySceneDetect/FFmpeg to group semantically similar frames), `shot-boundary-detection` runs a neural network trained specifically to localize cut points and is generally more accurate on modern edited content.
 
-### 10.3.31 music-generation
+### 10.3.32 music-generation
 
 Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `nar`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`, and `peft_adapter` (AR LoRAs).
 
@@ -1880,7 +1904,7 @@ component:
 
 Audio-producing methods return a PCM audio stream per input (or a list for batched inputs). YuE2's `score` returns `{ abc, truncated }` instead. See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.
 
-### 10.3.32 music-source-separation
+### 10.3.33 music-source-separation
 
 Splits a mixed recording into individual instrument stems (vocals, drums, bass, other). Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1913,7 +1937,7 @@ When one stem is requested, the action returns a single audio stream. When multi
 
 Chain with `music-transcription` to transcribe each stem into its own MIDI, or with `speech-to-text` on the vocal stem for cleaner lyric transcription. See the [Model Component reference](../reference/compose/components/model.md#music-source-separation) for the full per-family field list.
 
-### 10.3.33 music-transcription
+### 10.3.34 music-transcription
 
 Transcribes recorded audio into a MIDI file and a JSON list of note events (start time, end time, pitch, velocity). Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1944,7 +1968,7 @@ The action returns a dict with two fields per input: `midi` (a MIDI file) and `n
 
 Chain with `music-source-separation` to transcribe each stem of a mix independently (e.g. transcribe the vocal line and the accompaniment as separate parts). See the [Model Component reference](../reference/compose/components/model.md#music-transcription) for the full per-family field list.
 
-### 10.3.34 music-beat-tracking
+### 10.3.35 music-beat-tracking
 
 Detects beat and downbeat positions in a music recording. Each detected beat carries its position within the measure — useful for beat-synchronised editing, tempo/meter analysis, DJ-style warping, and structural segmentation. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -1972,7 +1996,7 @@ The action returns a dict per input with a `beats` list — each event carries `
 
 See the [Model Component reference](../reference/compose/components/model.md#music-beat-tracking) for the full per-family field list.
 
-### 10.3.35 music-pitch-estimation
+### 10.3.36 music-pitch-estimation
 
 Estimates the per-frame fundamental frequency (f0) of a monophonic recording and returns a dense pitch contour. Useful for melody extraction, vocal intonation analysis, score alignment, and frame-by-frame pitch-shift / autotune / vocoder driving. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -2021,7 +2045,7 @@ PESTO is a monophonic estimator — confidence collapses on chords and dense mix
 
 See the [Model Component reference](../reference/compose/components/model.md#music-pitch-estimation) for the full per-family field list.
 
-### 10.3.36 talking-head
+### 10.3.37 talking-head
 
 Animates a still portrait so it lip-syncs (and moves the head) to a driving audio clip. In contrast to `lip-sync` — which edits the mouth of an existing video — `talking-head` synthesises head motion and expression from a single image. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -2067,7 +2091,7 @@ component:
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the requested frame rate. See the [Model Component reference](../reference/compose/components/model.md#talking-head) for the full per-family field list.
 
-### 10.3.37 lip-sync
+### 10.3.38 lip-sync
 
 Re-syncs a face video's mouth movements to a driving audio clip. Only the mouth region is regenerated; identity, expression, head pose, and background come straight from the source video. Uses `driver: custom` with a `family` field to select the model backend.
 
@@ -2111,7 +2135,7 @@ If the audio is longer than the video, Wav2Lip and MuseTalk loop the source fram
 
 The result is an mp4 stream (or a list of streams for batched inputs), each with `format: "mp4"` and an `fps` attribute matching the output frame rate. See the [Model Component reference](../reference/compose/components/model.md#lip-sync) for the full per-family field list.
 
-### 10.3.38 motion-generation
+### 10.3.39 motion-generation
 
 Generates 3D human or humanoid motion sequences from a text prompt. The output is a diffusion-sampled sequence of joint positions, rotation matrices, and foot-contact labels at the model's native frame rate, packaged as an NPZ file. Uses `driver: custom` with a `family` field to select the model backend.
 

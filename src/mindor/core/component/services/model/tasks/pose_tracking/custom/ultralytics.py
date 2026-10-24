@@ -69,11 +69,11 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     ) -> List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]]:
         results: List[Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]] = []
 
-        for index, (frames_, offset) in enumerate(zip(frames, offsets)):
+        for index in range(len(frames)):
             results.append(await self._track(
-                frames_,
+                frames[index],
                 timestamps[index] if timestamps is not None else None,
-                float(offset or 0.0),
+                offsets[index],
                 frame_rate,
                 streaming,
                 params,

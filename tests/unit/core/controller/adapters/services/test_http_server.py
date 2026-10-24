@@ -2,7 +2,7 @@
 
 import inspect
 import json
-from typing import Annotated, Optional, get_type_hints
+from typing import Annotated, Optional, get_args, get_type_hints
 
 import pytest
 
@@ -14,8 +14,12 @@ from mindor.dsl.schema.controller.adapter.impl.http_server import (
     WebSocketConfig,
 )
 from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
+from mindor.core.controller.base import TaskEvent, TaskEventType, TaskState, TaskStatus
+from mindor.core.controller.streaming import TaskOutputStreamIterator
 from mindor.core.controller.adapters.services.http_server import (
     HttpServerControllerAdapterService,
+    TaskEventResult,
+    TaskStateResult,
 )
 from mindor.core.controller.adapters.services.websocket_server import (
     PingPayload,
@@ -27,10 +31,12 @@ from mindor.core.controller.adapters.services.websocket_server import (
     TaskResumePayload,
     TaskSubscribePayload,
     TaskUnsubscribePayload,
+    TaskResumedResult,
     WebSocketManager,
     WebSocketMessage,
     WebSocketRouter,
     WorkflowRunPayload,
+    WorkflowStartedResult,
 )
 
 
@@ -415,6 +421,109 @@ class TestWebSocketManagerDispose:
         assert not manager.has_connection("c1")
         assert not manager.has_connection("c2")
         assert not manager.has_task_subscribers("task-1")
+
+
+class TestTaskResultsServeEveryStatus:
+    """The API result models take the controller's own status and event types, so
+    every state the controller produces (including STREAMING) can be served."""
+
+    @pytest.mark.parametrize("status", list(TaskStatus))
+    def test_task_state_result(self, status):
+        state = TaskState(task_id="t1", status=status, workflow_id="wf")
+        assert TaskStateResult.to_dict(state)["status"] == status.value
+
+    @pytest.mark.parametrize("event", get_args(TaskEventType))
+    def test_task_event_result(self, event):
+        result = TaskEventResult.from_instance(TaskEvent(task_id="t1", event=event, status=TaskStatus.STREAMING))
+        payload = result.model_dump(exclude_none=True, mode="json")
+        assert payload["event"] == event
+        assert payload["status"] == "streaming"
+
+    @pytest.mark.parametrize("status", list(TaskStatus))
+    @pytest.mark.parametrize("result_type", [ WorkflowStartedResult, TaskResumedResult ])
+    def test_started_and_resumed_results(self, result_type, status):
+        fields = {"task_id": "t1", "status": status}
+        if "workflow_id" in result_type.model_fields:
+            fields["workflow_id"] = "wf"
+        assert result_type(**fields).model_dump()["status"] == status.value
+
+    def test_status_is_dumped_as_plain_string(self):
+        state = TaskState(task_id="t1", status=TaskStatus.STREAMING, workflow_id="wf")
+        status = TaskStateResult.to_dict(state)["status"]
+        assert type(status) is str
+        assert json.dumps({"status": status}) == '{"status": "streaming"}'
+
+
+class TestStreamingTaskDelivery:
+    """A workflow whose output is a stream reaches WebSocket subscribers and HTTP polls."""
+
+    @pytest.fixture
+    def adapter(self):
+        config = HttpServerControllerAdapterConfig(
+            type=ControllerAdapterType.HTTP_SERVER,
+            websocket=WebSocketConfig(),
+        )
+        return HttpServerControllerAdapterService(config, MagicMock(), daemon=False)
+
+    @staticmethod
+    async def _tokens():
+        yield "a"
+
+    @pytest.mark.anyio
+    async def test_streaming_state_reaches_subscriber_with_stream_marker(self, adapter):
+        server = adapter.websocket_server
+        ws = make_websocket()
+        await server.manager.accept("c1", ws)
+        server.manager.subscribe_task("c1", "t1")
+
+        state = TaskState(task_id="t1", status=TaskStatus.STREAMING, workflow_id="wf", output=self._tokens())
+        await server.broadcast_task_state("t1", state)
+
+        message = json.loads(ws.send_text.await_args.args[0])
+        assert message["type"] == "task_state"
+        assert message["data"]["status"] == "streaming"
+        marker = message["data"]["output"]["__variable__"]
+        assert marker["type"] == "stream"
+        assert server.streams.get_outbound("c1", marker["id"]) is not None
+
+    @pytest.mark.anyio
+    async def test_streaming_event_reaches_subscriber_without_a_second_marker(self, adapter):
+        # The stream can be read once; the task_state of the same change carries it.
+        server = adapter.websocket_server
+        ws = make_websocket()
+        await server.manager.accept("c1", ws)
+        server.manager.subscribe_task("c1", "t1")
+
+        event = TaskEvent(task_id="t1", event="streaming", status=TaskStatus.STREAMING, workflow_id="wf", output=self._tokens())
+        await server.broadcast_task_event(event)
+
+        message = json.loads(ws.send_text.await_args.args[0])
+        assert message["type"] == "task_event"
+        assert message["data"]["event"] == "streaming"
+        assert message["data"]["status"] == "streaming"
+        assert "output" not in message["data"]
+
+    def test_http_poll_of_streaming_task_is_accepted(self, adapter):
+        state = TaskState(task_id="t1", status=TaskStatus.STREAMING, workflow_id="wf", output=self._tokens())
+        response = adapter._render_task_output(state, allow_streaming=False)
+        assert response.status_code == 202
+        assert json.loads(response.body)["status"] == "streaming"
+
+    def test_http_state_poll_of_streaming_task_omits_the_stream(self, adapter):
+        state = TaskState(task_id="t1", status=TaskStatus.STREAMING, workflow_id="wf", output=self._tokens())
+        response = adapter._render_task_response(state, output_only=False)
+        assert response.status_code == 200
+        body = json.loads(response.body)
+        assert body["status"] == "streaming"
+        assert "output" not in body
+
+    def test_run_without_output_only_still_asks_for_it(self, adapter):
+        from fastapi import HTTPException
+
+        state = TaskState(task_id="t1", status=TaskStatus.STREAMING, workflow_id="wf", output=TaskOutputStreamIterator(self._tokens(), AsyncMock()))
+        with pytest.raises(HTTPException) as error:
+            adapter._render_task_response(state, output_only=False, allow_streaming=True)
+        assert error.value.status_code == 400
 
 
 class FakeWebSocket:

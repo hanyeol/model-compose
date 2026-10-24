@@ -260,8 +260,8 @@ Latest-state snapshot of the workflow as a whole. Pushed automatically to subscr
 | Field | Type | Description |
 |-------|------|-------------|
 | `task_id` | string | Task ID |
-| `status` | string | `"pending"` \| `"processing"` \| `"interrupted"` \| `"completed"` \| `"failed"` |
-| `output` | any \| null | Final output on `completed`. Only JSON-serializable values; non-serializable outputs (e.g. raw images) become `null` |
+| `status` | string | `"pending"` \| `"processing"` \| `"interrupted"` \| `"cancelling"` \| `"cancelled"` \| `"streaming"` \| `"completed"` \| `"failed"` |
+| `output` | any \| null | Final output on `completed`. Only JSON-serializable values; non-serializable outputs (e.g. raw images) become `null`. On `streaming`, a stream marker for the live output (see [Streaming Values](#streaming-values)) |
 | `error` | string \| null | Error message on `failed` |
 | `interrupt` | object \| null | Interrupt details on `interrupted` (`job_id`, `run_id`, `phase`, `message`, `metadata`) |
 | `session_id` | string \| null | Session associated with the task |

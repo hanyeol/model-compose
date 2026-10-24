@@ -901,7 +901,7 @@ class ControllerService(AsyncService):
             # still generating) is released. Shielded so a redundant cancel can't
             # cut the close short mid-await.
             if output is not None:
-                await asyncio.shield(self._close_output_on_cancel(output))
+                await asyncio.shield(self._close_task_output(output))
 
             state = TaskState(
                 task_id=task_id,
@@ -972,7 +972,7 @@ class ControllerService(AsyncService):
     async def _render_task_output(self, output: Any) -> Any:
         return await self._output_renderer.render(output)
 
-    async def _close_output_on_cancel(self, output: Any) -> None:
+    async def _close_task_output(self, output: Any) -> None:
         closer = getattr(output, "aclose", None) or getattr(output, "close", None)
 
         if closer is None:
@@ -981,7 +981,7 @@ class ControllerService(AsyncService):
         try:
             await closer()
         except Exception:
-            logging.warning("Failed to close task output on cancel", exc_info=True)
+            logging.warning("Failed to close task output", exc_info=True)
 
     def _attach_interrupt_handler(
         self,

@@ -162,13 +162,17 @@ class FFmpegAudioMixerAction(AudioMixerAction):
             streams = "".join(f"[{index}:a:0]" for index in range(count))
             return f"{streams}concat=n={count}:v=0:a=1[aout]", "[aout]"
 
-        # Crossfade path: chain acrossfade across adjacent pairs.
-        # Full offset chaining requires per-input duration probing, which is
-        # out of scope for the current implementation.
-        raise NotImplementedError(
-            "concat with crossfade requires per-input duration probing and is not yet supported; "
-            "omit `crossfade` to use plain concat."
-        )
+        # `acrossfade` is a two-input filter; chain it left-to-right so each new
+        # input is faded into the running mix.
+        filter_parts: List[str] = []
+        prev_label = "[0:a:0]"
+
+        for index in range(1, count):
+            out_label = "[aout]" if index == count - 1 else f"[a{index}]"
+            filter_parts.append(f"{prev_label}[{index}:a:0]acrossfade=d={crossfade}{out_label}")
+            prev_label = out_label
+
+        return ";".join(filter_parts), "[aout]"
 
     @staticmethod
     def _build_overlay_filter(

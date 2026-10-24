@@ -404,17 +404,6 @@ class GradioWebUIBuilder:
                     yield update
 
             async def _resume_workflow(interrupt_point: Optional[Dict[str, str]], answer_text: str):
-                yield [
-                    _run_button_running(),
-                    _resume_button_running(),
-                    _cancel_button_active(),
-                    gr.update(),
-                    *(gr.update() for _ in interrupt_components),
-                    *(gr.update() for _ in flattened_output_components),
-                    *log_panel.update(self._log_spinner_message("Running...")),
-                    *_keep_model_3d_updates(),
-                ]
-
                 task_id = interrupt_point["task_id"]
 
                 # Parse answer as a `{point_id: value}` dict. Empty input means
@@ -428,7 +417,36 @@ class GradioWebUIBuilder:
                         if not isinstance(answer, dict):
                             raise ValueError("resume answer must be a JSON object mapping point id to value")
                     except (json.JSONDecodeError, TypeError, ValueError) as e:
-                        raise PrettyGradioError(f"Invalid answer: {e}")
+                        # Surface via gr.Warning + a restored-panel yield rather than raising:
+                        # gradio's queueing drops every prior yield when the fn raises, which
+                        # would wipe the interrupt panel and strand the task un-answerable.
+                        gr.Warning(f"Invalid answer: {e}", title="Error")
+
+                        interrupted_state = await runner().get_task_state(task_id)
+
+                        yield [
+                            _run_button_running(),
+                            _resume_button_ready(),
+                            _cancel_button_active(),
+                            task_id,
+                            *self._build_interrupt_updates(interrupted_state),
+                            *(gr.update() for _ in flattened_output_components),
+                            *log_panel.ignore(),
+                            *_keep_model_3d_updates(),
+                        ]
+
+                        return
+
+                yield [
+                    _run_button_running(),
+                    _resume_button_running(),
+                    _cancel_button_active(),
+                    gr.update(),
+                    *(gr.update() for _ in interrupt_components),
+                    *(gr.update() for _ in flattened_output_components),
+                    *log_panel.update(self._log_spinner_message("Running...")),
+                    *_keep_model_3d_updates(),
+                ]
 
                 try:
                     await runner().resume_workflow(task_id, answer)

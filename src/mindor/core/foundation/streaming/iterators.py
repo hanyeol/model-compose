@@ -16,10 +16,22 @@ class StreamIterator(ABC):
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         pass
 
+    async def _close_stream(self, iterator: AsyncIterable) -> None:
+        aclose = getattr(iterator, "aclose", None)
+
+        if aclose is not None:
+            try:
+                await aclose()
+            except Exception:
+                pass
+
 class StreamChunkIterator(StreamIterator):
     def __init__(self, source: AsyncIterable, is_fragmented: bool = False):
         self.source: AsyncIterable = source
         self.is_fragmented: bool = is_fragmented
+
+    async def aclose(self) -> None:
+        await self._close_stream(self.source)
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         iterator = self.source.__aiter__()
@@ -31,7 +43,7 @@ class StreamChunkIterator(StreamIterator):
 
                 yield chunk
         finally:
-            await close_iterator(iterator)
+            await self._close_stream(iterator)
 
 class StreamEncodingIterator(StreamIterator):
     def __init__(
@@ -41,6 +53,9 @@ class StreamEncodingIterator(StreamIterator):
     ):
         self.source: AsyncIterable = source
         self.format: Optional[StreamEncodingFormat] = format
+
+    async def aclose(self) -> None:
+        await self._close_stream(self.source)
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         iterator = self.source.__aiter__()
@@ -57,7 +72,7 @@ class StreamEncodingIterator(StreamIterator):
 
                 yield encoded
         finally:
-            await close_iterator(iterator)
+            await self._close_stream(iterator)
 
     async def _encode_chunk(self, chunk: Any) -> Optional[Any]:
         if self.format == StreamEncodingFormat.TEXT:
@@ -70,15 +85,3 @@ class StreamEncodingIterator(StreamIterator):
             return await encode_value_to_json(chunk)
 
         return chunk
-
-async def close_iterator(iterator: Any) -> None:
-    """Close an iterator that an `async for` stopped reading early, which Python does not
-    do by itself (PEP 533): the source it reads from (an HTTP response, a model still
-    generating) is released now, not when the source ends. Best effort."""
-    aclose = getattr(iterator, "aclose", None)
-
-    if aclose is not None:
-        try:
-            await aclose()
-        except Exception:
-            pass

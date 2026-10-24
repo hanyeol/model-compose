@@ -53,6 +53,18 @@ class StreamResource(ABC):
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         pass
 
+    async def _close_stream(self, iterator: AsyncIterable) -> None:
+        """Close an iterator that an `async for` stopped reading early, which Python does not
+        do by itself (PEP 533): the source it reads from (an HTTP response, a model still
+        generating) is released now, not when the source ends. Best effort."""
+        aclose = getattr(iterator, "aclose", None)
+
+        if aclose is not None:
+            try:
+                await aclose()
+            except Exception:
+                pass
+
 class TeeStreamResource(StreamResource):
     def __init__(
         self,
@@ -63,19 +75,16 @@ class TeeStreamResource(StreamResource):
     ):
         super().__init__(content_type, filename, size=size)
 
-        self._source: AsyncIterator[bytes] = source
+        self.source: AsyncIterator[bytes] = source
 
     def copyable(self) -> bool:
         return False
 
     async def close(self) -> None:
-        try:
-            await self._source.aclose()
-        except Exception:
-            pass
+        await self._close_stream(self.source)
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
-        async for chunk in self._source:
+        async for chunk in self.source:
             yield chunk
 
 class ReaderStreamResource(StreamResource):
@@ -127,11 +136,7 @@ class AsyncIterableStreamResource(StreamResource):
         self.source: AsyncIterable = source
 
     async def close(self) -> None:
-        if isinstance(self.source, ClosableAsyncIterable):
-            try:
-                await self.source.aclose()
-            except Exception:
-                pass
+        await self._close_stream(self.source)
 
     async def _iterate_stream(self) -> AsyncIterator[bytes]:
         # Explicitly aclose the inner source on any exit (exhaustion, break,
@@ -149,12 +154,7 @@ class AsyncIterableStreamResource(StreamResource):
                 else:
                     yield bytes(chunk)
         finally:
-            source_aclose = getattr(self.source, "aclose", None)
-            if source_aclose is not None:
-                try:
-                    await source_aclose()
-                except Exception:
-                    pass
+            await self._close_stream(self.source)
 
 class ChunkedStreamResource(StreamResource):
     def __init__(self, stream: StreamResource, chunk_size: int):

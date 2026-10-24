@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator, StreamEncodingIterator, close_iterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator, StreamEncodingIterator
 from mindor.core.logger import logging
 import asyncio
 
@@ -37,7 +37,7 @@ class ComponentOutputStreamIterator(StreamChunkIterator):
         else:
             await self._notify_terminated("completed", None)
         finally:
-            await close_iterator(iterator)
+            await self._close_stream(iterator)
 
             if not self._notified_terminated:
                 await self._notify_terminated("cancelled", "consumer closed stream")

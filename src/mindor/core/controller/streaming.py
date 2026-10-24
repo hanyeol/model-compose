@@ -1,6 +1,6 @@
 from typing import Union, Literal, Optional, Callable, Awaitable, Any
 from collections.abc import AsyncIterator
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator, close_iterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.logger import logging
 import asyncio
@@ -15,8 +15,15 @@ class TaskOutputStreamIterator(StreamIterator):
 
         self._notified_terminated: bool = False
 
+    async def aclose(self) -> None:
+        await self._close_stream(self.source)
+
+        if not self._notified_terminated:
+            await self._notify_terminated("cancelled", "consumer closed stream")
+
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         iterator = self.source.__aiter__()
+
         try:
             async for chunk in iterator:
                 yield chunk
@@ -29,21 +36,10 @@ class TaskOutputStreamIterator(StreamIterator):
         else:
             await self._notify_terminated("completed", None)
         finally:
-            await close_iterator(iterator)
+            await self._close_stream(iterator)
+
             if not self._notified_terminated:
                 await self._notify_terminated("cancelled", "consumer closed stream")
-
-    async def aclose(self) -> None:
-        aclose = getattr(self.source, "aclose", None)
-
-        if aclose is not None:
-            try:
-                await aclose()
-            except Exception:
-                pass
-
-        if not self._notified_terminated:
-            await self._notify_terminated("cancelled", "consumer closed stream")
 
     async def _notify_terminated(self, event: StreamTerminatedEvent, error: Optional[str]) -> None:
         self._notified_terminated = True
@@ -89,7 +85,7 @@ class TaskOutputStreamResource(StreamResource):
         else:
             await self._notify_terminated("completed", None)
         finally:
-            await close_iterator(iterator)
+            await self._close_stream(iterator)
 
             if not self._notified_terminated:
                 await self._notify_terminated("cancelled", "consumer closed stream")

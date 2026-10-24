@@ -293,12 +293,14 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         """
         smoothing_window = max(1, int(round(params["smoothing_window"] / frame_period)))
         scores = self._smooth_scores(scores, smoothing_window)
-
-        frame_scores: List[Dict[str, Any]] = []
+        frame_scores: Optional[List[Dict[str, Any]]] = None
 
         if params["return_frame_scores"]:
             frame_scores = [
-                { "timestamp": format_timecode(timestamps[start_frame + index]), "score": float(scores[index]) }
+                {
+                    "timestamp": format_timecode(timestamps[start_frame + index]),
+                    "score": float(scores[index])
+                }
                 for index in range(scores.size)
             ]
 

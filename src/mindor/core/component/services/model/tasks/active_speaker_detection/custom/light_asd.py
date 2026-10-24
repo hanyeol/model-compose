@@ -552,16 +552,16 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
             })
 
         if merge_gap > 0.0 and segments:
-            merged: List[Dict[str, Any]] = [ dict(segments[0]) ]
+            merged_segments: List[Dict[str, Any]] = [ dict(segments[0]) ]
 
             for segment in segments[1:]:
-                if segment["start_time"] - merged[-1]["end_time"] <= merge_gap:
-                    merged[-1]["end_time"] = segment["end_time"]
-                    merged[-1]["score"] = max(merged[-1]["score"], segment["score"])
+                if segment["start_time"] - merged_segments[-1]["end_time"] <= merge_gap:
+                    merged_segments[-1]["end_time"] = segment["end_time"]
+                    merged_segments[-1]["score"] = max(merged_segments[-1]["score"], segment["score"])
                 else:
-                    merged.append(dict(segment))
+                    merged_segments.append(dict(segment))
 
-            segments = merged
+            segments = merged_segments
 
         segments = [ segment for segment in segments if (segment["end_time"] - segment["start_time"]) >= min_segment_duration ]
 

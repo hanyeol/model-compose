@@ -13,7 +13,8 @@ but adapted for a WebSocket transport where:
 Inbound streams (client -> server) are used for workflow input; outbound
 streams (server -> client) for workflow output. Backpressure is credit=1:
 the consumer sends a stream_pull for each chunk it wants; the producer
-responds with one chunk frame.
+responds with one chunk frame. A consumer may send several pulls ahead; they
+are answered one at a time, in order.
 """
 from __future__ import annotations
 
@@ -165,8 +166,20 @@ class WebSocketOutboundStream:
         self._codec: VariableCodec = codec
         self._iterator: AsyncIterator[Any] = source.__aiter__()
 
+        # Each stream_pull adds a credit; one pump task per stream answers them in
+        # order (see WebSocketServer). `_pull_task` is the pump while it waits in
+        # `__anext__`, which aclose() cancels to interrupt a slow source.
+        self.credits: int = 0
+        self.pump_task: Optional[asyncio.Task] = None
+        self._pull_task: Optional[asyncio.Task] = None
+
     async def next_chunk(self) -> Any:
-        return await self._iterator.__anext__()
+        self._pull_task = asyncio.current_task()
+
+        try:
+            return await self._iterator.__anext__()
+        finally:
+            self._pull_task = None
 
     def encode_chunk(self, payload: Any) -> Any:
         if self.kind == StreamKind.BYTES:
@@ -204,6 +217,15 @@ class WebSocketOutboundStream:
         return payload
 
     async def aclose(self) -> None:
+        """Stop the source. A pump waiting in `__anext__` is cancelled so the source
+        sees the cancellation at its `await`; credits left are not answered."""
+        self.closed = True
+
+        pull_task = self._pull_task
+
+        if pull_task is not None and not pull_task.done():
+            pull_task.cancel()
+
         aclose = getattr(self._iterator, "aclose", None)
         if aclose is not None:
             try:

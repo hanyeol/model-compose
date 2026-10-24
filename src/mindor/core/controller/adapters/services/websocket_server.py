@@ -468,7 +468,14 @@ class WebSocketServer:
                 return
 
             if not stream.closed:
-                await self._stream_to_outbound(client_id, stream)
+                # Pump in a child task, as the IPC transport does: while the source is
+                # slow to produce, this connection must keep reading frames (inbound
+                # stream chunks, stream_close, other requests). Awaiting here would
+                # stall them, and deadlock a workflow whose output waits on its input.
+                stream.credits += 1
+
+                if stream.pump_task is None:
+                    stream.pump_task = asyncio.ensure_future(self._pump_outbound(client_id, stream))
 
         @self.router.handler("stream_close")
         async def stream_close(client_id: str, message_id: Optional[str], payload: StreamClosePayload) -> None:
@@ -477,7 +484,6 @@ class WebSocketServer:
             if stream is None:
                 return
 
-            stream.closed = True
             await stream.aclose()
 
         @self.router.handler("ping")
@@ -616,9 +622,36 @@ class WebSocketServer:
             WebSocketMessage(type="stream_close", data={"id": stream_id}),
         )
 
+    async def _pump_outbound(self, client_id: str, stream: WebSocketOutboundStream) -> None:
+        """Answer the stream's pulls one at a time, in order: each with one chunk, or
+        with stream_end / stream_abort."""
+        try:
+            while stream.credits > 0 and not stream.closed:
+                stream.credits -= 1
+                await self._stream_to_outbound(client_id, stream)
+        except Exception:
+            logging.warning("Failed to send a chunk of stream %s to WebSocket client %s", stream.stream_id, client_id, exc_info=True)
+        finally:
+            stream.pump_task = None
+
     async def _stream_to_outbound(self, client_id: str, stream: WebSocketOutboundStream) -> None:
         try:
             chunk = await stream.next_chunk()
+        except asyncio.CancelledError:
+            if stream.closed:
+                # aclose() cancelled this pull (stream_close or disconnect); whoever
+                # closed the stream has already removed it.
+                return
+
+            # The source itself was cancelled: tell the client, as for any other failure.
+            stream.closed = True
+            self.streams.remove_outbound(client_id, stream.stream_id)
+
+            await self.manager.send_message(
+                client_id,
+                WebSocketMessage(type="stream_abort", data={"id": stream.stream_id, "reason": "cancelled"}),
+            )
+            raise
         except StopAsyncIteration:
             stream.closed = True
             self.streams.remove_outbound(client_id, stream.stream_id)
@@ -636,6 +669,10 @@ class WebSocketServer:
                 client_id,
                 WebSocketMessage(type="stream_abort", data={"id": stream.stream_id, "reason": str(e)}),
             )
+            return
+
+        # A stream_close that landed while the source was producing: drop the chunk.
+        if stream.closed:
             return
 
         try:

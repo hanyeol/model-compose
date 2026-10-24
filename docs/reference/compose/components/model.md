@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `face-emotion-classification`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `active-speaker-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `face-emotion-classification`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -1387,6 +1387,113 @@ Downstream consumers should treat the latest `track` chunk for a given `track_id
 | Family | Backend | Notes |
 |--------|---------|-------|
 | `insightface` | [deepinsight/insightface](https://github.com/deepinsight/insightface) (pip) | Detection + 512-d ArcFace embedding. Requires an InsightFace model pack (e.g. `antelopev2`). Uses `onnxruntime`; prefers CUDA/CoreML/DirectML/ROCm providers when available. |
+
+### Active Speaker Detection
+
+Decide which on-screen face is actively speaking at each moment. Pairs a video frame sequence with its audio and the per-frame face-tracking detections, re-crops each face track for the model's visual frontend, and emits per-track speaking segments. The input contract mirrors `face-tracking` — pass the same `frames` and `frame_rate` the tracker consumed — plus the audio source and the tracker's `detections[]` output. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `active-speaker-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `light-asd`) |
+| `preset` | string | family-dependent | Checkpoint variant to load. For `light-asd`: `finetuning-talkset` (default) or `pretrain-ava-cvpr`. |
+| `model` | string/object | preset-dependent | Model checkpoint. For `light-asd`, defaults to the preset's checkpoint URL on the upstream GitHub repo (auto-downloads under `~/.cache/models/light_asd/`). Override to point at a local path or HuggingFace mirror. |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frames` | image/array | **required** | Frame images aligned with `tracks`. Reuse the exact frames passed to the paired face-tracking component so bounding boxes line up. |
+| `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
+| `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
+| `audio` | audio | **required** | Audio paired with `frames`. Downmixed to 16 kHz mono internally. |
+| `tracks` | array | **required** | Face-tracking detections — the per-frame `detections[]` list emitted by a face-tracking component with `return_detections: true`. |
+| `return_speakers` | bool | `true` | Include the per-track speaking segment list (`speakers[]`) in the result. |
+| `return_frame_scores` | bool | `false` | Include per-frame speaking scores on each track. Requires `return_speakers: true`. |
+| `return_timeline` | bool | `false` | Include a flat time-ordered `active_timeline[]` across all tracks. Overlapping entries from different tracks are kept distinct. |
+| `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, `track_count`) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
+| `batch_size` | int | `1` | Number of frame batches per iteration. |
+| `streaming` | bool | `false` | Emit speaking-segment events incrementally as a stream instead of a single result dict. The model needs the full window to score — streaming re-emits collected segments after scoring, matching the `speaker-diarization` pattern. |
+| `params.smoothing_window` | duration | `0.4s` | Centered moving-average window applied to per-frame speaking scores before thresholding; suppresses flicker so segment boundaries land on the plateau edges rather than every noisy peak. Set to `0s` to disable. |
+| `params.threshold` | float | `0.0` | Score threshold for "speaking". Scores are raw logits, so `0.0` is the natural cutoff; raise to tighten, lower to catch quieter speech. |
+| `params.min_segment_duration` | duration | `0.3s` | Discard speaking segments shorter than this after merging. |
+| `params.merge_gap` | duration | `0.2s` | Merge same-track speaking segments separated by no more than this gap. |
+
+At least one of `return_speakers` or `return_timeline` must be `true`. `return_frame_scores` requires `return_speakers: true`.
+
+**Example:**
+
+```yaml
+component:
+  type: model
+  task: active-speaker-detection
+  driver: custom
+  family: light-asd
+  preset: finetuning-talkset
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    audio: ${input.audio}
+    tracks: ${input.tracks}
+    return_speakers: true
+    return_timeline: true
+    params:
+      smoothing_window: 0.4s
+      threshold: 0.0
+      min_segment_duration: 0.3s
+      merge_gap: 0.2s
+```
+
+**Result Shape:**
+
+```json
+{
+  "speakers": [
+    {
+      "track_id": 1,
+      "segments": [
+        { "start_time": "0:00:02.000", "end_time": "0:00:08.500", "duration": "0:00:06.500", "score": 1.42 }
+      ],
+      "frame_scores": [
+        { "timestamp": "0:00:02.000", "score": 1.21 }
+      ]
+    }
+  ],
+  "active_timeline": [
+    { "start_time": "0:00:02.000", "end_time": "0:00:08.500", "track_id": 1, "score": 1.42 }
+  ],
+  "frame_count": 450,
+  "track_count": 2
+}
+```
+
+- `speakers[i].track_id` matches the `track_id` emitted by the paired face-tracking component — join on it to attach bounding boxes, representative crops, or identity embeddings to each speaking track.
+- `speakers[i].segments[j].score` is the highest smoothed logit across all frames in the segment.
+- `speakers[i].frame_scores` is present only when `return_frame_scores` is enabled — one entry per scored frame with the smoothed logit.
+- `active_timeline[]` is present only when `return_timeline` is enabled — a flat sort of every speaking segment across all tracks. Overlapping entries from different tracks are kept distinct; downstream code that needs an exclusive "who is speaking now" assignment can pick the highest-score segment per instant.
+- `frame_count` and `track_count` are present only when `return_metadata: true`.
+
+When `frames` is a list of sequences, the action returns a list of result dicts (one per sequence). When it is an async stream of frame batches, the action returns an async iterator that yields one result dict per batch.
+
+**Streaming chunks (`streaming: true`):**
+
+Instead of a single result dict, the action returns an async iterator of chunks. Each chunk has a `type` field:
+
+| `type` | When emitted | Payload shape |
+|--------|--------------|---------------|
+| `"segment"` | Once per detected speaking segment, after the full window has been scored. Suppressed when `return_speakers: false`. | `{ type, track_id, start_time, end_time, duration, score }` |
+| `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count, track_count }` |
+
+The model needs the entire audio/track window for stable scores, so there is no true incremental mode — streaming scores internally first, then re-emits segments one chunk at a time. The `speaker-diarization` task follows the same shape.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `light-asd` | [Junhua-Liao/Light-ASD](https://github.com/Junhua-Liao/Light-ASD) (GitHub) | CVPR 2023, ~1M parameters. Visual: 25fps grayscale 112x112 face crops (mouth-centered). Audio: 16kHz mono MFCC via `python_speech_features`. Upstream source is cloned once on first run and installed as the `lightasd` package next to `mindor`. |
 
 ### Face Emotion Classification
 

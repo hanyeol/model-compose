@@ -41,11 +41,11 @@ class JobOutputStreamIterator(StreamChunkIterator):
                 await self._notify_terminated("cancelled", "consumer closed stream")
 
     async def aclose(self) -> None:
-        aclose = getattr(self.source, "aclose", None)
+        closer = getattr(self.source, "aclose", None)
 
-        if aclose is not None:
+        if closer is not None:
             try:
-                await aclose()
+                await closer()
             except Exception:
                 pass
 

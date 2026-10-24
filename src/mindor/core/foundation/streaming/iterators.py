@@ -17,11 +17,11 @@ class StreamIterator(ABC):
         pass
 
     async def _close_stream(self, iterator: AsyncIterable) -> None:
-        aclose = getattr(iterator, "aclose", None)
+        closer = getattr(iterator, "aclose", None)
 
-        if aclose is not None:
+        if closer is not None:
             try:
-                await aclose()
+                await closer()
             except Exception:
                 pass
 

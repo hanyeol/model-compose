@@ -26,7 +26,7 @@ from mindor.core.foundation.streaming.text import TextStreamResource
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 import asyncio, struct
 
@@ -57,11 +57,13 @@ class WebSocketInboundStream:
         if self.kind == StreamKind.BYTES:
             if not isinstance(data, (bytes, bytearray)):
                 raise TypeError(f"bytes-kind chunk wire data must be bytes, got {type(data).__name__}")
+
             return bytes(data)
 
         if self.kind == StreamKind.TEXT:
             if not isinstance(data, str):
                 raise TypeError(f"text-kind chunk wire data must be a string, got {type(data).__name__}")
+
             return data
 
         return self._codec.decode(data)
@@ -155,7 +157,10 @@ class WebSocketInboundStream:
         return StreamChunkIterator
 
 class WebSocketOutboundStream:
-    """Producer-side bookkeeping for one outbound stream (server -> client)."""
+    """Producer-side bookkeeping for one outbound stream (server -> client).
+
+    Each instance owns its `source` exclusively — closing the stream closes the
+    source. Sharing one source across holders is not supported."""
     def __init__(self, stream_id: str, kind: StreamKind, source: Any, codec: VariableCodec):
         self.stream_id: str = stream_id
         self.kind: StreamKind = kind
@@ -169,9 +174,34 @@ class WebSocketOutboundStream:
         # Each stream_pull adds a credit; one pump task per stream answers them in
         # order (see WebSocketServer). `_pull_task` is the pump while it waits in
         # `__anext__`, which aclose() cancels to interrupt a slow source.
-        self.credits: int = 0
-        self.pump_task: Optional[asyncio.Task] = None
+        self._credits: int = 0
+        self._pump_task: Optional[asyncio.Task] = None
         self._pull_task: Optional[asyncio.Task] = None
+
+    def accept_pull(self) -> None:
+        """Record that the consumer is ready for one more chunk."""
+        self._credits += 1
+
+    def claim_pull(self) -> bool:
+        """Take one pending pull. Returns False when the pump should stop."""
+        if self._credits > 0:
+            self._credits -= 1
+
+            return True
+
+        return False
+
+    def attach_pump(self, task: asyncio.Task) -> None:
+        """Store the pump task so a second pull does not start another one."""
+        self._pump_task = task
+
+    def detach_pump(self) -> None:
+        """Clear the pump handle so the next pull can start a fresh pump."""
+        self._pump_task = None
+
+    @property
+    def is_pumping(self) -> bool:
+        return self._pump_task is not None
 
     async def next_chunk(self) -> Any:
         self._pull_task = asyncio.current_task()
@@ -218,20 +248,27 @@ class WebSocketOutboundStream:
 
     async def aclose(self) -> None:
         """Stop the source. A pump waiting in `__anext__` is cancelled so the source
-        sees the cancellation at its `await`; credits left are not answered."""
+        sees the cancellation at its `await`; credits left are not answered.
+
+        We close `self.source`, not `self._iterator`: the iterator is the bare
+        async generator returned by `source.__aiter__()`, and an async generator
+        whose body has not entered yet does not run its `finally` on aclose —
+        the resource the source holds (an HTTP response, a model still generating)
+        would leak. The source's own close drives cleanup regardless."""
         self.closed = True
 
-        pull_task = self._pull_task
+        if self._pull_task is not None and not self._pull_task.done():
+            self._pull_task.cancel()
 
-        if pull_task is not None and not pull_task.done():
-            pull_task.cancel()
+        closer = getattr(self.source, "aclose", None) or getattr(self.source, "close", None)
 
-        aclose = getattr(self._iterator, "aclose", None)
-        if aclose is not None:
-            try:
-                await aclose()
-            except Exception:
-                pass
+        if closer is None:
+            return
+
+        try:
+            await closer()
+        except Exception:
+            pass
 
 class WebSocketStreamReader:
     """Async-iterable wrapped around a WebSocketInboundStream.
@@ -263,6 +300,7 @@ class WebSocketStreamReader:
         if item is _STREAM_END:
             self._stream.closed = True
             raise StopAsyncIteration
+
         if item is _STREAM_ABORT:
             self._stream.closed = True
             raise IOError(f"Stream {self._stream.stream_id} aborted")

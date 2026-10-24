@@ -56,11 +56,13 @@ class IpcInboundStream:
         if self.kind == StreamKind.BYTES:
             if not isinstance(data, (bytes, bytearray)):
                 raise TypeError(f"bytes-kind chunk wire data must be bytes, got {type(data).__name__}")
+
             return bytes(data)
 
         if self.kind == StreamKind.TEXT:
             if not isinstance(data, str):
                 raise TypeError(f"text-kind chunk wire data must be a string, got {type(data).__name__}")
+
             return data
 
         # StreamKind.OBJECT
@@ -233,41 +235,29 @@ class IpcOutboundStream:
         return self._codec.encode(raw)
 
     async def aclose(self) -> None:
-        """Terminate the source iterator cooperatively.
+        """Terminate the source cooperatively.
 
-        If a pull is in flight, cancel it so the iterator sees `GeneratorExit`
-        at its current `await` point. Then explicitly `aclose()` the iterator
-        for the "parked between pulls" case where no task is awaiting, and
-        close the resource so wrapper sources (e.g. AsyncIterableStreamResource)
-        release their inner iterable. Idempotent — safe to call multiple times.
-        """
+        If a pull is in flight, cancel it so the source sees cancellation at
+        its current `await`. Then close `self.source` (not `self._iterator`):
+        the iterator is the bare async generator returned by `source.__aiter__()`,
+        and an async generator whose body has not entered yet does not run its
+        `finally` on aclose — the resource the source holds (an HTTP response,
+        a model still generating) would leak. The source's own close drives
+        cleanup regardless. Idempotent — safe to call multiple times."""
         self.closed = True
 
-        pull_task = self._pull_task
+        if self._pull_task is not None and not self._pull_task.done():
+            self._pull_task.cancel()
 
-        if pull_task is not None and not pull_task.done():
-            pull_task.cancel()
+        closer = getattr(self.source, "aclose", None) or getattr(self.source, "close", None)
 
-        iterator_aclose = getattr(self._iterator, "aclose", None)
+        if closer is None:
+            return
 
-        if iterator_aclose is not None:
-            try:
-                await iterator_aclose()
-            except Exception:
-                pass
-
-        # StreamResource wrappers hold the real source; closing the resource
-        # drives their `close()` which `aclose`s the inner async iterable.
-        source_close = getattr(self.source, "close", None)
-
-        if source_close is not None and callable(source_close):
-            try:
-                result = source_close()
-
-                if hasattr(result, "__await__"):
-                    await result
-            except Exception:
-                pass
+        try:
+            await closer()
+        except Exception:
+            pass
 
 class IpcStreamReader:
     """Async-iterable wrapped around an `IpcInboundStream`.
@@ -334,11 +324,11 @@ class IpcStreamReader:
         `async for` cleanup path already runs `_iterate`'s finally — but
         exposed for callers that hold the reader without iterating."""
         if self._iterator is not None:
-            aclose = getattr(self._iterator, "aclose", None)
+            closer = getattr(self._iterator, "aclose", None)
 
-            if aclose is not None:
+            if closer is not None:
                 try:
-                    await aclose()
+                    await closer()
                 except Exception:
                     pass
 

@@ -57,11 +57,11 @@ class StreamResource(ABC):
         """Close an iterator that an `async for` stopped reading early, which Python does not
         do by itself (PEP 533): the source it reads from (an HTTP response, a model still
         generating) is released now, not when the source ends. Best effort."""
-        aclose = getattr(iterator, "aclose", None)
+        closer = getattr(iterator, "aclose", None)
 
-        if aclose is not None:
+        if closer is not None:
             try:
-                await aclose()
+                await closer()
             except Exception:
                 pass
 

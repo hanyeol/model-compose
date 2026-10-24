@@ -472,10 +472,10 @@ class WebSocketServer:
                 # slow to produce, this connection must keep reading frames (inbound
                 # stream chunks, stream_close, other requests). Awaiting here would
                 # stall them, and deadlock a workflow whose output waits on its input.
-                stream.credits += 1
+                if not stream.is_pumping:
+                    stream.attach_pump(asyncio.ensure_future(self._pump_outbound(client_id, stream)))
 
-                if stream.pump_task is None:
-                    stream.pump_task = asyncio.ensure_future(self._pump_outbound(client_id, stream))
+                stream.accept_pull()
 
         @self.router.handler("stream_close")
         async def stream_close(client_id: str, message_id: Optional[str], payload: StreamClosePayload) -> None:
@@ -626,13 +626,12 @@ class WebSocketServer:
         """Answer the stream's pulls one at a time, in order: each with one chunk, or
         with stream_end / stream_abort."""
         try:
-            while stream.credits > 0 and not stream.closed:
-                stream.credits -= 1
+            while stream.claim_pull() and not stream.closed:
                 await self._stream_to_outbound(client_id, stream)
         except Exception:
             logging.warning("Failed to send a chunk of stream %s to WebSocket client %s", stream.stream_id, client_id, exc_info=True)
         finally:
-            stream.pump_task = None
+            stream.detach_pump()
 
     async def _stream_to_outbound(self, client_id: str, stream: WebSocketOutboundStream) -> None:
         try:

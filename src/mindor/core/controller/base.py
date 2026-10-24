@@ -823,6 +823,7 @@ class ControllerService(AsyncService):
             self._notify_component_event(event)
 
         cancellation_token = self._attach_cancellation_token(task_id)
+        output: Any = None
 
         try:
             async def _run_workflow(workflow_id, input, interrupt_handler):
@@ -896,6 +897,12 @@ class ControllerService(AsyncService):
                     metadata=metadata
                 )
         except asyncio.CancelledError:
+            # Close the output stream so the upstream (an HTTP response, a model
+            # still generating) is released. Shielded so a redundant cancel can't
+            # cut the close short mid-await.
+            if output is not None:
+                await asyncio.shield(self._close_output_on_cancel(output))
+
             state = TaskState(
                 task_id=task_id,
                 status=TaskStatus.CANCELLED,
@@ -964,6 +971,17 @@ class ControllerService(AsyncService):
 
     async def _render_task_output(self, output: Any) -> Any:
         return await self._output_renderer.render(output)
+
+    async def _close_output_on_cancel(self, output: Any) -> None:
+        closer = getattr(output, "aclose", None) or getattr(output, "close", None)
+
+        if closer is None:
+            return
+
+        try:
+            await closer()
+        except Exception:
+            logging.warning("Failed to close task output on cancel", exc_info=True)
 
     def _attach_interrupt_handler(
         self,

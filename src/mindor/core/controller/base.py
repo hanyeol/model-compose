@@ -67,6 +67,8 @@ class TaskStatus(str, Enum):
     COMPLETED   = "completed"
     FAILED      = "failed"
 
+TaskEventType = Literal[ "started", "interrupted", "resumed", "cancelled", "streaming", "completed", "failed" ]
+
 @dataclass
 class InterruptState:
     id: str
@@ -92,7 +94,7 @@ class TaskState:
 @dataclass
 class TaskEvent:
     task_id: str
-    event: Literal[ "started", "interrupted", "resumed", "cancelled", "streaming", "completed", "failed" ]
+    event: TaskEventType
     status: TaskStatus
     workflow_id: Optional[str] = None
     input: Optional[Any] = None

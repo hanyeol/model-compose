@@ -410,7 +410,7 @@ const ws = new WebSocket(`ws://localhost:8080/ws?task=${taskId}`);
 ```
 
 **字段：**
-- `status`：`"pending"` | `"processing"` | `"interrupted"` | `"completed"` | `"failed"`
+- `status`：`"pending"` | `"processing"` | `"interrupted"` | `"cancelling"` | `"cancelled"` | `"streaming"` | `"completed"` | `"failed"`
 - `output`：完成时的结果数据（仅 JSON 可序列化的值；不可序列化的输出如图像返回 `null`）
 - `error`：失败时的错误消息
 - `interrupt`：状态为 `"interrupted"` 时的中断详情（`job_id`、`run_id`、`phase`、`message`、`metadata`）。仅当 `component` 作业的 `repeat_count > 1` 时 `run_id` 非空。

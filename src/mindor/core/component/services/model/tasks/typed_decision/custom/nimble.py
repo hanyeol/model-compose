@@ -127,6 +127,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         import torch
 
         dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else torch.bfloat16
+
         # Cache per dtype so switching precision doesn't silently reuse a merge
         # saved under a different one.
         merged_root = os.path.join(self._get_model_cache_dir(), "nimble-merged")

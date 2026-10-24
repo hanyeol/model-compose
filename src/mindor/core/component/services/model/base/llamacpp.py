@@ -46,11 +46,13 @@ class LlamaCppModelTaskDriver(ModelTaskDriver):
     def _get_model_options(self, config: BaseModel) -> Dict[str, Any]:
         options: Dict[str, Any] = {}
 
-        device = self._resolve_device(self.config.device)
-        if device.type != "cpu":
+        offload, main_gpu = self._resolve_gpu_offload(self.config.device)
+
+        if offload:
             options["n_gpu_layers"] = -1
-            if device.index is not None:
-                options["main_gpu"] = device.index
+
+            if main_gpu is not None:
+                options["main_gpu"] = main_gpu
 
         engine_options = getattr(config, "options", None)
 
@@ -61,3 +63,22 @@ class LlamaCppModelTaskDriver(ModelTaskDriver):
         options.setdefault("verbose", False)
 
         return options
+
+    def _resolve_gpu_offload(self, device: str) -> Tuple[bool, Optional[int]]:
+        if device in ("auto", "cuda", "mps"):
+            return True, None
+
+        if device == "cpu":
+            return False, None
+
+        device_type, _, device_index = device.partition(":")
+
+        if device_type == "cuda" and device_index:
+            try:
+                return True, int(device_index)
+            except ValueError:
+                pass
+
+        logging.warning(f"Invalid device '{device}', falling back to 'cpu'")
+
+        return False, None

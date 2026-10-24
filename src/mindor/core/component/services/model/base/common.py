@@ -86,19 +86,34 @@ class ModelTaskDriver(ComponentDriver):
         async with self._model_load_lock:
             if not self._model_loaded:
                 logging.info(f"Component '{self.id}': loading model on demand...")
+
                 await self._load_model()
                 self._model_loaded = True
 
     async def _reclaim_device_memory(self) -> None:
-        import gc, torch
+        import gc
+
+        if self._is_torch_installed():
+            self._empty_torch_cache()
 
         gc.collect()
 
+    def _empty_torch_cache(self) -> None:
+        import torch
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        
+
         if torch.backends.mps.is_available():
             torch.mps.empty_cache()
+
+    def _is_torch_installed(self) -> bool:
+        import importlib.util
+
+        if importlib.util.find_spec("torch") is not None:
+            return True
+
+        return False
 
     @abstractmethod
     async def _load_model(self) -> None:
@@ -138,7 +153,7 @@ class ModelTaskDriver(ComponentDriver):
 
         model.load_state_dict(state_dict, strict=True)
 
-    def _get_state_dict_from_checkpoint(self, checkpoint: Any) -> Mapping[str, Any]:
+    def _get_state_dict_from_checkpoint(self, checkpoint: Mapping[str, Any]) -> Mapping[str, Any]:
         for key in [ "params", "state_dict" ]:
             if key in checkpoint:
                 return checkpoint[key]

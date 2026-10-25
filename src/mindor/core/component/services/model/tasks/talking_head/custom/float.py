@@ -172,6 +172,7 @@ class FloatTalkingHeadTaskDriver(ModelTaskDriver):
 
         if not clone_dir.exists():
             clone_dir.parent.mkdir(parents=True, exist_ok=True)
+
             # `_install_float_package` already runs inside an executor thread,
             # so it has no event loop of its own — spin one up just for the
             # tarball fetch (which is the only async call here).

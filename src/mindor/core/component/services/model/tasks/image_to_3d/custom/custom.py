@@ -24,4 +24,8 @@ class CustomImageTo3DTaskDriver:
             from .hi3d import Hi3DImageTo3DTaskDriver
             return Hi3DImageTo3DTaskDriver(id, config, daemon)
 
+        if config.family == ImageTo3DModelFamily.TRIPOSPLAT:
+            from .triposplat import TripoSplatImageTo3DTaskDriver
+            return TripoSplatImageTo3DTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

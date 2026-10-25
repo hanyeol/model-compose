@@ -6,3 +6,4 @@ class ImageTo3DModelFamily(str, Enum):
     ANIGEN      = "anigen"
     WORLD_MIRROR = "world-mirror"
     HI3D        = "hi3d"
+    TRIPOSPLAT  = "triposplat"

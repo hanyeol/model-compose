@@ -4,6 +4,7 @@ from .pixal3d.pixal3d_mv import Pixal3DMultiViewImageTo3DModelActionConfig
 from .anigen import AniGenImageTo3DModelActionConfig
 from .world_mirror import WorldMirrorImageTo3DModelActionConfig
 from .hi3d import Hi3DImageTo3DModelActionConfig
+from .triposplat import TripoSplatImageTo3DModelActionConfig
 
 CustomImageTo3DModelActionConfig = Union[
     Pixal3DImageTo3DModelActionConfig,
@@ -11,4 +12,5 @@ CustomImageTo3DModelActionConfig = Union[
     AniGenImageTo3DModelActionConfig,
     WorldMirrorImageTo3DModelActionConfig,
     Hi3DImageTo3DModelActionConfig,
+    TripoSplatImageTo3DModelActionConfig,
 ]

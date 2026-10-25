@@ -117,7 +117,7 @@ class HttpClientAction:
                     # Stopped early (a client closed the stream), the request ends too.
                     await response.close()
 
-            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=self.config.stream_fragmented)
+            return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=self.config.stream_fragmented, resource=response)
 
         context.register_source("response", response)
 
@@ -135,7 +135,7 @@ class HttpClientAction:
                     finally:
                         await result.close()
 
-                return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=self.config.completion.stream_fragmented)
+                return StreamChunkIterator(_stream_chunk_generator(), is_fragmented=self.config.completion.stream_fragmented, resource=result)
 
             context.register_source("result", result)
 

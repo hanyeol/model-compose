@@ -423,7 +423,7 @@
   - 17.9.1 [使用 MCP 服务器构建 Slack Bot](./17-practical-examples.md#1791-使用-mcp-服务器构建-slack-bot)
   - 17.9.2 [AI 驱动的 Slack 自动回复 Bot](./17-practical-examples.md#1792-ai-驱动的-slack-自动回复-bot)
 - 17.10 [带对话记忆的聊天机器人](./17-practical-examples.md#1710-带对话记忆的聊天机器人)
-  - 17.10.1 [有状态聊天机器人 (model-memory)](./17-practical-examples.md#17101-有状态聊天机器人-model-memory)
+  - 17.10.1 [有状态聊天机器人 (agent-memory)](./17-practical-examples.md#17101-有状态聊天机器人-agent-memory)
   - 17.10.2 [使用 Redis 记忆的多用户聊天](./17-practical-examples.md#17102-使用-redis-记忆的多用户聊天)
 
 ## 18. [故障排除](./18-troubleshooting.md)

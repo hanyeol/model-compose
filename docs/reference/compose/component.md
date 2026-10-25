@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | model-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | music-pitch-corrector | music-score-loader | music-score-renderer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | agent-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | music-pitch-corrector | music-score-loader | music-score-renderer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
   max_concurrent_count: 0
@@ -47,7 +47,7 @@ Model-compose supports the following component types:
 | `mcp-server` | MCP server for protocol support | [mcp-server.md](components/mcp-server.md) |
 | `mcp-client` | MCP (Model Context Protocol) client | [mcp-client.md](components/mcp-client.md) |
 | `model` | AI model inference (local/remote) | [model.md](components/model.md) |
-| `model-memory` | Session-based conversation memory | [model-memory.md](components/model-memory.md) |
+| `agent-memory` | Session-based conversation memory | [agent-memory.md](components/agent-memory.md) |
 | `model-tokenizer` | Model tokenization (encode, decode, count) | [model-tokenizer.md](components/model-tokenizer.md) |
 | `model-trainer` | Model fine-tuning (SFT, classification, LoRA) | [model-trainer.md](components/model-trainer.md) |
 | `datasets` | Dataset loading and transformation | [datasets.md](components/datasets.md) |

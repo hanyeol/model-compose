@@ -20,7 +20,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `mcp-server` | 提供 MCP 服务 | 实现模型上下文协议服务器 |
 | `mcp-client` | MCP 客户端 | 与 MCP 服务器通信 |
 | `model` | 运行本地 AI 模型 | 本地模型推理，如文本生成、图像分析等 |
-| `model-memory` | 模型对话记忆 | 基于会话的对话历史存储/窗口/摘要 |
+| `agent-memory` | 智能体对话记忆 | 基于会话的对话历史存储/窗口/摘要 |
 | `model-tokenizer` | 模型分词器 | 使用模型分词器进行 token 编码、解码、计数 |
 | `model-trainer` | 训练模型 | 微调、LoRA 训练 |
 | `datasets` | 加载数据集 | 加载和处理训练/评估数据集 |
@@ -74,7 +74,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 训练 → `model-trainer`
 
 **数据处理**
-- 对话记忆 → `model-memory`
+- 对话记忆 → `agent-memory`
 - 向量运算（相似度、top-k、归一化、聚合）→ `vector-processor`
 - 向量存储 → `vector-store`
 - 图存储 → `graph-store`

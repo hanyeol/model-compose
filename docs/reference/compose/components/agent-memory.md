@@ -1,12 +1,12 @@
-# Model Memory Component
+# Agent Memory Component
 
-The model-memory component provides session-based conversation history management for AI models. It declaratively handles storing, loading, summarizing, and windowing of chat messages, enabling stateful multi-turn conversations without custom code.
+The agent-memory component provides session-based conversation history management for AI agents. It declaratively handles storing, loading, summarizing, and windowing of chat messages, enabling stateful multi-turn conversations without custom code.
 
 ## Basic Configuration
 
 ```yaml
 component:
-  type: model-memory
+  type: agent-memory
   storage:
     driver: sqlite
     path: ./memory.db
@@ -24,7 +24,7 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `type` | string | **required** | Must be `model-memory` |
+| `type` | string | **required** | Must be `agent-memory` |
 | `buffer` | object | `{driver: memory}` | In-memory buffer settings. Temporarily holds appended data before save |
 | `storage` | object | `{driver: sqlite}` | Persistent storage settings. Target for save/load/delete |
 | `window` | int \| object | - | Window settings. If int, inflates to `{max_turn_count: N}`. If omitted, returns all messages |
@@ -52,11 +52,11 @@ Persistent storage. On `save`, buffered turns are persisted here. `load` and `de
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `path` | string | `.model-memory.db` | SQLite database file path |
+| `path` | string | `.agent-memory.db` | SQLite database file path |
 
 ```yaml
 component:
-  type: model-memory
+  type: agent-memory
   storage:
     driver: sqlite
     path: ./memory.db
@@ -75,7 +75,7 @@ component:
 
 ```yaml
 component:
-  type: model-memory
+  type: agent-memory
   storage:
     driver: redis
     host: redis-server
@@ -138,7 +138,7 @@ Summary is **updated incrementally at append time**:
 
 #### Summary Input Modes
 
-**Default (no `input` specified)** — model-memory assembles `{ "messages": [...] }` and passes it directly. The messages array contains: `instruction` (as a system message), `previous_summary` (as a system message), and the original conversation turns with their roles preserved.
+**Default (no `input` specified)** — agent-memory assembles `{ "messages": [...] }` and passes it directly. The messages array contains: `instruction` (as a system message), `previous_summary` (as a system message), and the original conversation turns with their roles preserved.
 
 **Custom `input` mapping** — when you specify `input`, you take full control of the request shape. The following raw variables are exposed for use in your mapping:
 
@@ -286,7 +286,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: sqlite
       path: ./memory.db
@@ -398,7 +398,7 @@ workflows:
 
 ```yaml
 component:
-  type: model-memory
+  type: agent-memory
   storage:
     driver: redis
     url: ${env.REDIS_URL}
@@ -422,7 +422,7 @@ component:
 
 ```yaml
 component:
-  type: model-memory
+  type: agent-memory
   storage:
     driver: sqlite
     path: ./chat.db

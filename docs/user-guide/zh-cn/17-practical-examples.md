@@ -1656,9 +1656,9 @@ component:
 
 ## 17.10 带对话记忆的聊天机器人
 
-### 17.10.1 有状态聊天机器人 (model-memory)
+### 17.10.1 有状态聊天机器人 (agent-memory)
 
-**目标**：使用 `model-memory` 组件构建一个能够跨多轮对话记住先前上下文的聊天机器人。
+**目标**：使用 `agent-memory` 组件构建一个能够跨多轮对话记住先前上下文的聊天机器人。
 
 **配置文件** (`model-compose.yml`)：
 
@@ -1688,7 +1688,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: sqlite
       path: ./memory.db
@@ -1795,7 +1795,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: redis
       url: ${env.REDIS_URL}

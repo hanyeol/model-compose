@@ -1656,9 +1656,9 @@ component:
 
 ## 17.10 Chatbot with Conversation Memory
 
-### 17.10.1 Stateful Chatbot (model-memory)
+### 17.10.1 Stateful Chatbot (agent-memory)
 
-**Goal**: Build a chatbot that remembers previous conversation context across multiple turns using the `model-memory` component.
+**Goal**: Build a chatbot that remembers previous conversation context across multiple turns using the `agent-memory` component.
 
 **Configuration File** (`model-compose.yml`):
 
@@ -1688,7 +1688,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: sqlite
       path: ./memory.db
@@ -1795,7 +1795,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: redis
       url: ${env.REDIS_URL}

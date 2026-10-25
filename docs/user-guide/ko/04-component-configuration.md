@@ -20,7 +20,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `mcp-server` | MCP 서비스 제공 | Model Context Protocol 서버 구현 |
 | `mcp-client` | MCP 클라이언트 | MCP 서버와 통신 |
 | `model` | 로컬 AI 모델 실행 | 텍스트 생성, 이미지 분석 등 로컬 모델 추론 |
-| `model-memory` | 모델 대화 메모리 | 세션 기반 대화 히스토리 저장/윈도우/요약 |
+| `agent-memory` | 에이전트 대화 메모리 | 세션 기반 대화 히스토리 저장/윈도우/요약 |
 | `model-tokenizer` | 모델 토크나이저 | 모델 토크나이저를 사용한 토큰 인코딩, 디코딩, 카운팅 |
 | `model-trainer` | 모델 훈련 | 파인튜닝, LoRA 훈련 |
 | `datasets` | 데이터셋 로드 | 훈련/평가 데이터셋 로드 및 처리 |
@@ -74,7 +74,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 훈련 → `model-trainer`
 
 **데이터 처리**
-- 대화 메모리 → `model-memory`
+- 대화 메모리 → `agent-memory`
 - 벡터 연산 (유사도, top-k, 정규화, 집계) → `vector-processor`
 - 벡터 저장 → `vector-store`
 - 그래프 저장 → `graph-store`

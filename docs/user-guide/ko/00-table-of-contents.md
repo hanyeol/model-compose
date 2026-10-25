@@ -410,7 +410,7 @@
   - 17.9.1 [MCP 서버로 Slack 봇 구축](./17-practical-examples.md#1791-mcp-서버로-slack-봇-구축)
   - 17.9.2 [AI 기반 Slack 자동 응답 봇](./17-practical-examples.md#1792-ai-기반-slack-자동-응답-봇)
 - 17.10 [대화 메모리를 활용한 챗봇](./17-practical-examples.md#1710-대화-메모리를-활용한-챗봇)
-  - 17.10.1 [상태 유지 챗봇 (model-memory)](./17-practical-examples.md#17101-상태-유지-챗봇-model-memory)
+  - 17.10.1 [상태 유지 챗봇 (agent-memory)](./17-practical-examples.md#17101-상태-유지-챗봇-agent-memory)
   - 17.10.2 [Redis 메모리를 사용한 다중 사용자 챗봇](./17-practical-examples.md#17102-redis-메모리를-사용한-다중-사용자-챗봇)
 
 ## 18. [문제 해결](./18-troubleshooting.md)

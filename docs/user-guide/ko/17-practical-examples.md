@@ -1656,9 +1656,9 @@ component:
 
 ## 17.10 대화 메모리를 활용한 챗봇
 
-### 17.10.1 상태 유지 챗봇 (model-memory)
+### 17.10.1 상태 유지 챗봇 (agent-memory)
 
-**목표**: `model-memory` 컴포넌트를 사용하여 여러 대화 턴에 걸쳐 이전 대화 맥락을 기억하는 챗봇 구축
+**목표**: `agent-memory` 컴포넌트를 사용하여 여러 대화 턴에 걸쳐 이전 대화 맥락을 기억하는 챗봇 구축
 
 **구성 파일** (`model-compose.yml`):
 
@@ -1688,7 +1688,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: sqlite
       path: ./memory.db
@@ -1795,7 +1795,7 @@ components:
       output: ${response.choices[0].message.content}
 
   - id: chat-memory
-    type: model-memory
+    type: agent-memory
     storage:
       driver: redis
       url: ${env.REDIS_URL}

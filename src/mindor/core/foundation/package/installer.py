@@ -91,17 +91,18 @@ async def install_package_from_github(
     revision: Optional[str] = None,
     source_path: Optional[str] = None,
     subdirs: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    bundle: Optional[Tuple[str, List[str]]] = None,
     pip_options: Optional[List[str]] = None,
 ) -> None:
     """Fetch a GitHub repository and install selected pieces of it locally.
 
     Downloads once into ``$TMPDIR/mindor-git-sources/<module_name>/<revision>``
     (or ``.../<module_name>/HEAD`` when ``revision`` is not pinned), then
-    processes ``source_path`` and ``subdirs`` against the cached tree. Keying
-    the cache by revision keeps two callers that request different revisions
-    of the same module from clobbering each other — the earlier caller's
-    clone stays intact under its own revision directory, and a later caller
-    with a different revision creates a fresh clone next to it.
+    processes ``source_path``, ``subdirs``, and ``bundle`` against the cached
+    tree. Keying the cache by revision keeps two callers that request different
+    revisions of the same module from clobbering each other — the earlier
+    caller's clone stays intact under its own revision directory, and a later
+    caller with a different revision creates a fresh clone next to it.
 
     ``source_path`` names a directory whose ``setup.py`` / ``pyproject.toml``
     should be built by pip (single build root). Use for upstream packages
@@ -115,6 +116,17 @@ async def install_package_from_github(
     renames the copied subdirectory; renamed entries also get their internal
     ``import``/``from`` references to the original top rewritten to the new
     name.
+
+    ``bundle`` groups several loose repo-root modules under a single new
+    package. Pass ``(package_name, [source, ...])`` where each ``source`` is
+    either a directory or a bare ``.py`` file at the repo root (relative to
+    the clone). The sources are copied under ``_MINDOR_INSTALL_ROOT/
+    <package_name>/`` with a generated ``__init__.py``, and every top-level
+    reference to one of the bundled names is rewritten to
+    ``<package_name>.<name>`` so cross-module imports inside the bundle
+    resolve. Use for upstream repos that ship scripts/modules at the root
+    without packaging metadata (e.g. TripoSplat, FLOAT) — this avoids both
+    polluting the top-level import namespace and the need for pip.
 
     Downloads via ``git clone --recursive`` when the ``git`` binary is on
     PATH (needed for repos with submodules or LFS assets); falls back to a
@@ -191,6 +203,31 @@ async def install_package_from_github(
 
                 if top_module is not None and top_module != package_name:
                     rewrite_python_imports(target, { top_module: package_name })
+
+    if bundle is not None:
+        package_name, sources = bundle
+        target = _MINDOR_INSTALL_ROOT / package_name
+
+        if not target.exists():
+            target.mkdir(parents=True, exist_ok=False)
+            (target / "__init__.py").write_text("", encoding="utf-8")
+
+            top_modules: List[str] = []
+
+            for source_path in sources:
+                source = clone_dir / source_path
+                top_module = Path(source_path).stem
+
+                if source.is_dir():
+                    shutil.copytree(source, target / top_module)
+                elif source.is_file():
+                    shutil.copy2(source, target / f"{top_module}.py")
+                else:
+                    raise FileNotFoundError(f"Bundle source '{source_path}' not found in downloaded repo at {clone_dir}")
+
+                top_modules.append(top_module)
+
+            rewrite_python_imports(target, { name: f"{package_name}.{name}" for name in top_modules })
 
     importlib.invalidate_caches()
 

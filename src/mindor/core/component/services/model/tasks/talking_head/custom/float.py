@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Optional, Dict, List, Any
-from pathlib import Path
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, FloatTalkingHeadModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -10,14 +9,12 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import is_package_installed, rewrite_python_imports, get_mindor_install_root
-from mindor.core.utils.github import download_github_tarball
+from mindor.core.foundation.package.installer import is_package_installed, install_package_from_github
 from ......action.media import MediaInputPathResolver
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import TalkingHeadTaskAction
 from PIL import Image as PILImage
-import importlib
-import os, tempfile, shutil, asyncio, argparse
+import os, argparse
 
 if TYPE_CHECKING:
     import torch
@@ -155,48 +152,16 @@ class FloatTalkingHeadTaskDriver(ModelTaskDriver):
 
     async def _setup(self) -> None:
         if not is_package_installed("float_talker"):
-            await asyncio.get_running_loop().run_in_executor(None, self._install_float_package)
-
-    def _install_float_package(self) -> None:
-        # `models/`, `options/`, and `generate.py` sit at Float's repo root;
-        # funnel them all into one `float_talker/` package so top-level names
-        # don't collide with anything else installed alongside model-compose.
-        internal_modules = ("models", "options", "generate")
-
-        target = get_mindor_install_root() / "float_talker"
-
-        if target.exists():
-            return
-
-        clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / "float_talker"
-
-        if not clone_dir.exists():
-            clone_dir.parent.mkdir(parents=True, exist_ok=True)
-
-            # `_install_float_package` already runs inside an executor thread,
-            # so it has no event loop of its own — spin one up just for the
-            # tarball fetch (which is the only async call here).
-            asyncio.run(download_github_tarball(
-                "https://github.com/deepbrainai-research/float.git",
-                "3b5b2dfc3e65",
-                clone_dir,
-            ))
-
-        target.mkdir(parents=True, exist_ok=False)
-        (target / "__init__.py").write_text("", encoding="utf-8")
-
-        for name in internal_modules:
-            src_dir = clone_dir / name
-            src_file = clone_dir / f"{name}.py"
-
-            if src_dir.exists() and src_dir.is_dir():
-                shutil.copytree(src_dir, target / name)
-            elif src_file.exists():
-                shutil.copy2(src_file, target / f"{name}.py")
-
-        rewrite_python_imports(target, { name: f"float_talker.{name}" for name in internal_modules })
-
-        importlib.invalidate_caches()
+            # `models/`, `options/`, and `generate.py` sit at Float's repo root
+            # with no packaging metadata; funnel them into one `float_talker/`
+            # package so top-level names don't collide with anything else
+            # installed alongside model-compose.
+            await install_package_from_github(
+                module_name="float_talker",
+                repo_url="https://github.com/deepbrainai-research/float.git",
+                revision="3b5b2dfc3e65",
+                bundle=("float_talker", [ "models", "options", "generate.py" ]),
+            )
 
     async def _load_model(self) -> None:
         self.agent, self.device = await self._load_pipeline()

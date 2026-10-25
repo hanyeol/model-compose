@@ -2,20 +2,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Optional, Dict, List, Any
-from pathlib import Path
 from mindor.dsl.schema.component import TripoSplatImageTo3DModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TripoSplatImageTo3DModelActionConfig, TripoSplatOutputFormat
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import is_package_installed, rewrite_python_imports, get_mindor_install_root
+from mindor.core.foundation.package.installer import is_package_installed, install_package_from_github
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
-from mindor.core.utils.github import download_github_tarball
 from mindor.core.utils.files import get_temporary_path
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import ImageTo3DTaskAction
 from PIL import Image as PILImage
-import asyncio, importlib, os, shutil, tempfile
+import os
 
 if TYPE_CHECKING:
     import torch
@@ -137,46 +135,15 @@ class TripoSplatImageTo3DTaskDriver(ModelTaskDriver):
 
     async def _setup(self) -> None:
         if not is_package_installed("triposplat_pipeline"):
-            await asyncio.get_running_loop().run_in_executor(None, self._install_triposplat_package)
-
-    def _install_triposplat_package(self) -> None:
-        # TripoSplat ships `triposplat.py` and `model.py` as bare top-level
-        # files without `__init__.py` or packaging metadata, so
-        # `install_package_from_github` can't pip-install it. Funnel both into
-        # one `triposplat_pipeline/` package next to `mindor` — same approach
-        # the FLOAT talking-head driver uses for its upstream.
-        internal_modules = ("triposplat", "model")
-
-        target = get_mindor_install_root() / "triposplat_pipeline"
-
-        if target.exists():
-            return
-
-        clone_dir = Path(tempfile.gettempdir()) / "mindor-git-sources" / "triposplat_pipeline"
-
-        if not clone_dir.exists():
-            clone_dir.parent.mkdir(parents=True, exist_ok=True)
-
-            # `_install_triposplat_package` already runs inside an executor
-            # thread, so it has no event loop of its own — spin one up just
-            # for the tarball fetch (which is the only async call here).
-            asyncio.run(download_github_tarball(
-                "https://github.com/VAST-AI-Research/TripoSplat.git",
-                "main",
-                clone_dir,
-            ))
-
-        target.mkdir(parents=True, exist_ok=False)
-        (target / "__init__.py").write_text("", encoding="utf-8")
-
-        for name in internal_modules:
-            shutil.copy2(clone_dir / f"{name}.py", target / f"{name}.py")
-
-        # `triposplat.py` imports `model` as a top-level module; rewrite it so
-        # the copied `triposplat_pipeline.model` resolves inside the package.
-        rewrite_python_imports(target, { name: f"triposplat_pipeline.{name}" for name in internal_modules })
-
-        importlib.invalidate_caches()
+            # TripoSplat ships `triposplat.py` and `model.py` as bare top-level
+            # files without `__init__.py` or packaging metadata, so pip-install
+            # isn't an option — bundle both into one package next to `mindor`.
+            await install_package_from_github(
+                module_name="triposplat_pipeline",
+                repo_url="https://github.com/VAST-AI-Research/TripoSplat.git",
+                revision="main",
+                bundle=("triposplat_pipeline", [ "triposplat.py", "model.py" ]),
+            )
 
     async def _load_model(self) -> None:
         self.pipeline, self.device = await self._load_pipeline()

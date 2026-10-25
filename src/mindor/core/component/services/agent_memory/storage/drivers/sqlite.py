@@ -2,17 +2,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Tuple, Optional, List, Any
-from mindor.dsl.schema.component import SqliteModelMemoryStorageConfig, ModelMemoryStorageDriverType
-from ..base import ModelMemoryStorage, register_model_memory_storage
+from mindor.dsl.schema.component import SqliteAgentMemoryStorageConfig, AgentMemoryStorageDriverType
+from ..base import AgentMemoryStorage, register_agent_memory_storage
 import json, os
 
 if TYPE_CHECKING:
     import aiosqlite
 
-@register_model_memory_storage(ModelMemoryStorageDriverType.SQLITE)
-class SqliteModelMemoryStorage(ModelMemoryStorage):
-    def __init__(self, config: SqliteModelMemoryStorageConfig):
-        self.config: SqliteModelMemoryStorageConfig = config
+@register_agent_memory_storage(AgentMemoryStorageDriverType.SQLITE)
+class SqliteAgentMemoryStorage(AgentMemoryStorage):
+    def __init__(self, config: SqliteAgentMemoryStorageConfig):
+        self.config: SqliteAgentMemoryStorageConfig = config
         self.database: Optional[aiosqlite.Connection] = None
 
     def get_setup_requirements(self) -> Optional[List[str]]:
@@ -23,7 +23,7 @@ class SqliteModelMemoryStorage(ModelMemoryStorage):
 
         self.database = await aiosqlite.connect(os.path.expanduser(self.config.path))
         await self.database.execute("""
-            CREATE TABLE IF NOT EXISTS model_memory_sessions (
+            CREATE TABLE IF NOT EXISTS agent_memory_sessions (
                 session_id TEXT PRIMARY KEY,
                 turns TEXT NOT NULL DEFAULT '[]',
                 summary TEXT NOT NULL DEFAULT ''
@@ -38,7 +38,7 @@ class SqliteModelMemoryStorage(ModelMemoryStorage):
 
     async def load(self, session_id: str) -> Tuple[List[List[Any]], str]:
         cursor = await self.database.execute(
-            "SELECT turns, summary FROM model_memory_sessions WHERE session_id = ?",
+            "SELECT turns, summary FROM agent_memory_sessions WHERE session_id = ?",
             ( session_id, )
         )
         row = await cursor.fetchone()
@@ -51,7 +51,7 @@ class SqliteModelMemoryStorage(ModelMemoryStorage):
     async def save(self, session_id: str, turns: List[List[Any]], summary: str) -> None:
         await self.database.execute(
             """
-            INSERT INTO model_memory_sessions (session_id, turns, summary)
+            INSERT INTO agent_memory_sessions (session_id, turns, summary)
             VALUES (?, ?, ?)
             ON CONFLICT(session_id) DO UPDATE SET turns = excluded.turns, summary = excluded.summary
             """,
@@ -61,7 +61,7 @@ class SqliteModelMemoryStorage(ModelMemoryStorage):
 
     async def delete(self, session_id: str) -> None:
         await self.database.execute(
-            "DELETE FROM model_memory_sessions WHERE session_id = ?",
+            "DELETE FROM agent_memory_sessions WHERE session_id = ?",
             ( session_id, )
         )
         await self.database.commit()

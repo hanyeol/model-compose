@@ -9,7 +9,7 @@ class ComponentType(str, Enum):
     MCP_CLIENT              = "mcp-client"
     AGENT                   = "agent"
     MODEL                   = "model"
-    MODEL_MEMORY            = "model-memory"
+    AGENT_MEMORY            = "agent-memory"
     MODEL_TRAINER           = "model-trainer"
     MODEL_TOKENIZER         = "model-tokenizer"
     DATASETS                = "datasets"

@@ -66,5 +66,5 @@ from .graph_store import *
 from .file_store import *
 from .search_engine import *
 from .model_tokenizer import *
-from .model_memory import *
+from .agent_memory import *
 from .data_queue import *

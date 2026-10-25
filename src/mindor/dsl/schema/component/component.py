@@ -12,7 +12,7 @@ ComponentConfig = Annotated[
         McpClientComponentConfig,
         ModelComponentConfig,
         ModelTrainerComponentConfig,
-        ModelMemoryComponentConfig,
+        AgentMemoryComponentConfig,
         ModelTokenizerComponentConfig,
         DatasetsComponentConfig,
         VectorStoreComponentConfig,

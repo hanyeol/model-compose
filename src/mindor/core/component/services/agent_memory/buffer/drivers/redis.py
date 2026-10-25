@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, List, Any
-from mindor.dsl.schema.component import RedisModelMemoryBufferConfig, ModelMemoryBufferDriverType
-from ..base import ModelMemoryBuffer, register_model_memory_buffer
+from mindor.dsl.schema.component import RedisAgentMemoryBufferConfig, AgentMemoryBufferDriverType
+from ..base import AgentMemoryBuffer, register_agent_memory_buffer
 import asyncio
 import json
 import ulid
@@ -11,13 +11,13 @@ import ulid
 if TYPE_CHECKING:
     import redis.asyncio as aioredis
 
-@register_model_memory_buffer(ModelMemoryBufferDriverType.REDIS)
-class RedisModelMemoryBuffer(ModelMemoryBuffer):
+@register_agent_memory_buffer(AgentMemoryBufferDriverType.REDIS)
+class RedisAgentMemoryBuffer(AgentMemoryBuffer):
 
-    def __init__(self, config: RedisModelMemoryBufferConfig):
+    def __init__(self, config: RedisAgentMemoryBufferConfig):
         super().__init__()
 
-        self.config: RedisModelMemoryBufferConfig = config
+        self.config: RedisAgentMemoryBufferConfig = config
         self.client: Optional[aioredis.Redis] = None
 
         self._node_id: str = ulid.ulid()

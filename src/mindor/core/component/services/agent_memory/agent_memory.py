@@ -1,31 +1,31 @@
 from __future__ import annotations
 
 from typing import Any, Union, Tuple
-from mindor.dsl.schema.component import ModelMemoryComponentConfig
-from mindor.dsl.schema.component import ModelMemoryWindowConfig, ModelMemorySummaryConfig
-from mindor.dsl.schema.component import ModelMemoryBufferDriverType, ModelMemoryStorageDriverType
-from mindor.dsl.schema.action import ActionConfig, ModelMemoryActionConfig, ModelMemoryActionMethod
+from mindor.dsl.schema.component import AgentMemoryComponentConfig
+from mindor.dsl.schema.component import AgentMemoryWindowConfig, AgentMemorySummaryConfig
+from mindor.dsl.schema.component import AgentMemoryBufferDriverType, AgentMemoryStorageDriverType
+from mindor.dsl.schema.action import ActionConfig, AgentMemoryActionConfig, AgentMemoryActionMethod
 from mindor.core.logger import logging
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
-from .buffer.base import ModelMemoryBuffer, ModelMemoryBufferRegistry
-from .storage.base import ModelMemoryStorage, ModelMemoryStorageRegistry
+from .buffer.base import AgentMemoryBuffer, AgentMemoryBufferRegistry
+from .storage.base import AgentMemoryStorage, AgentMemoryStorageRegistry
 import ulid, json, importlib
 
-class ModelMemoryAction:
+class AgentMemoryAction:
     def __init__(
         self,
-        config: ModelMemoryActionConfig,
-        window_config: Optional[ModelMemoryWindowConfig],
-        summary_config: Optional[ModelMemorySummaryConfig],
+        config: AgentMemoryActionConfig,
+        window_config: Optional[AgentMemoryWindowConfig],
+        summary_config: Optional[AgentMemorySummaryConfig],
         summary_component: Optional[ComponentService],
     ):
-        self.config: ModelMemoryActionConfig = config
-        self.window_config: Optional[ModelMemoryWindowConfig] = window_config
-        self.summary_config: Optional[ModelMemorySummaryConfig] = summary_config
+        self.config: AgentMemoryActionConfig = config
+        self.window_config: Optional[AgentMemoryWindowConfig] = window_config
+        self.summary_config: Optional[AgentMemorySummaryConfig] = summary_config
         self.summary_component: Optional[ComponentService] = summary_component
 
-    async def run(self, context: ComponentActionContext, buffer: ModelMemoryBuffer, storage: ModelMemoryStorage) -> Any:
+    async def run(self, context: ComponentActionContext, buffer: AgentMemoryBuffer, storage: AgentMemoryStorage) -> Any:
         session_id = await context.render_variable(self.config.session_id)
 
         if not session_id:
@@ -41,12 +41,12 @@ class ModelMemoryAction:
     async def _dispatch(
         self,
         context: ComponentActionContext,
-        method: ModelMemoryActionMethod,
+        method: AgentMemoryActionMethod,
         session_id: str,
-        buffer: ModelMemoryBuffer,
-        storage: ModelMemoryStorage,
+        buffer: AgentMemoryBuffer,
+        storage: AgentMemoryStorage,
     ) -> Any:
-        if method == ModelMemoryActionMethod.LOAD:
+        if method == AgentMemoryActionMethod.LOAD:
             # Buffer is source of truth: check buffer first
             turns = await buffer.get_turns(session_id)
 
@@ -67,7 +67,7 @@ class ModelMemoryAction:
 
             return { "summary": summary, "messages": self._flatten_turns(turns) }
 
-        if method == ModelMemoryActionMethod.APPEND:
+        if method == AgentMemoryActionMethod.APPEND:
             messages = await context.render_variable(self.config.messages)
 
             if messages is None:
@@ -88,7 +88,7 @@ class ModelMemoryAction:
 
             return None
 
-        if method == ModelMemoryActionMethod.SAVE:
+        if method == AgentMemoryActionMethod.SAVE:
             messages = await context.render_variable(self.config.messages)
 
             if messages is not None and not isinstance(messages, list):
@@ -114,7 +114,7 @@ class ModelMemoryAction:
 
             return None
 
-        if method == ModelMemoryActionMethod.CLEAR:
+        if method == AgentMemoryActionMethod.CLEAR:
             turns = await buffer.get_turns(session_id)
 
             if turns is not None:
@@ -122,15 +122,15 @@ class ModelMemoryAction:
 
             return None
 
-        if method == ModelMemoryActionMethod.DELETE:
+        if method == AgentMemoryActionMethod.DELETE:
             await storage.delete(session_id)
             await buffer.remove(session_id)
 
             return None
 
-        raise ValueError(f"Unsupported model memory action method: {method}")
+        raise ValueError(f"Unsupported agent memory action method: {method}")
 
-    async def _prune_and_summarize(self, context: ComponentActionContext, session_id: str, buffer: ModelMemoryBuffer) -> None:
+    async def _prune_and_summarize(self, context: ComponentActionContext, session_id: str, buffer: AgentMemoryBuffer) -> None:
         turns = await buffer.get_turns(session_id)
 
         # summary-only: summarize everything, clear turns
@@ -160,7 +160,7 @@ class ModelMemoryAction:
         context: ComponentActionContext,
         turns: List[List[Any]],
         previous_summary: str,
-        summary_config: ModelMemorySummaryConfig
+        summary_config: AgentMemorySummaryConfig
     ) -> str:
         instruction = await context.render_variable(summary_config.instruction)
 
@@ -196,7 +196,7 @@ class ModelMemoryAction:
 
         return response
 
-    def _split_turns_by_window(self, turns: List[List[Any]], window_config: ModelMemoryWindowConfig):
+    def _split_turns_by_window(self, turns: List[List[Any]], window_config: AgentMemoryWindowConfig):
         recent_turns = []
         message_count = 0
 
@@ -217,70 +217,70 @@ class ModelMemoryAction:
     def _flatten_turns(self, turns: List[List[Any]]) -> List[Any]:
         return [ message for turn in turns for message in turn ]
 
-@register_component(ComponentType.MODEL_MEMORY)
-class ModelMemoryComponent(ComponentService):
+@register_component(ComponentType.AGENT_MEMORY)
+class AgentMemoryComponent(ComponentService):
     def __init__(
         self,
         id: str,
-        config: ModelMemoryComponentConfig,
+        config: AgentMemoryComponentConfig,
         global_configs: ComponentGlobalConfigs,
         daemon: bool
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self._buffer: ModelMemoryBuffer   = self._create_buffer()
-        self._storage: ModelMemoryStorage = self._create_storage()
+        self._buffer: AgentMemoryBuffer   = self._create_buffer()
+        self._storage: AgentMemoryStorage = self._create_storage()
         self._summary_component: Optional[ComponentService] = None
 
-    def _create_buffer(self) -> ModelMemoryBuffer:
+    def _create_buffer(self) -> AgentMemoryBuffer:
         driver = self.config.buffer.driver
         try:
-            if driver not in ModelMemoryBufferRegistry:
+            if driver not in AgentMemoryBufferRegistry:
                 self._load_buffer_driver_module(driver)
-            return ModelMemoryBufferRegistry[driver](self.config.buffer)
+            return AgentMemoryBufferRegistry[driver](self.config.buffer)
         except KeyError:
-            raise ValueError(f"Unsupported model memory buffer driver: {driver}")
+            raise ValueError(f"Unsupported agent memory buffer driver: {driver}")
 
-    def _create_storage(self) -> ModelMemoryStorage:
+    def _create_storage(self) -> AgentMemoryStorage:
         driver = self.config.storage.driver
         try:
-            if driver not in ModelMemoryStorageRegistry:
+            if driver not in AgentMemoryStorageRegistry:
                 self._load_storage_driver_module(driver)
-            return ModelMemoryStorageRegistry[driver](self.config.storage)
+            return AgentMemoryStorageRegistry[driver](self.config.storage)
         except KeyError:
-            raise ValueError(f"Unsupported model memory storage driver: {driver}")
+            raise ValueError(f"Unsupported agent memory storage driver: {driver}")
 
-    def _load_buffer_driver_module(self, driver: ModelMemoryBufferDriverType) -> None:
-        """Import the module that registers the given model memory buffer driver.
+    def _load_buffer_driver_module(self, driver: AgentMemoryBufferDriverType) -> None:
+        """Import the module that registers the given agent memory buffer driver.
 
-        Convention: a driver "foo-bar" (ModelMemoryBufferDriverType.value) maps to
-        mindor.core.component.services.model_memory.buffer.drivers.foo_bar — either
+        Convention: a driver "foo-bar" (AgentMemoryBufferDriverType.value) maps to
+        mindor.core.component.services.agent_memory.buffer.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_model_memory_buffer decorator,
-        populating ModelMemoryBufferRegistry.
+        Importing the module triggers its @register_agent_memory_buffer decorator,
+        populating AgentMemoryBufferRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
         try:
-            importlib.import_module(f"mindor.core.component.services.model_memory.buffer.drivers.{driver_module}")
+            importlib.import_module(f"mindor.core.component.services.agent_memory.buffer.drivers.{driver_module}")
         except ImportError as e:
-            raise ValueError(f"Unsupported model memory buffer driver: {driver}") from e
+            raise ValueError(f"Unsupported agent memory buffer driver: {driver}") from e
 
-    def _load_storage_driver_module(self, driver: ModelMemoryStorageDriverType) -> None:
-        """Import the module that registers the given model memory storage driver.
+    def _load_storage_driver_module(self, driver: AgentMemoryStorageDriverType) -> None:
+        """Import the module that registers the given agent memory storage driver.
 
-        Convention: a driver "foo-bar" (ModelMemoryStorageDriverType.value) maps to
-        mindor.core.component.services.model_memory.storage.drivers.foo_bar — either
+        Convention: a driver "foo-bar" (AgentMemoryStorageDriverType.value) maps to
+        mindor.core.component.services.agent_memory.storage.drivers.foo_bar — either
         a single-file module (foo_bar.py) or a package (foo_bar/__init__.py).
-        Importing the module triggers its @register_model_memory_storage decorator,
-        populating ModelMemoryStorageRegistry.
+        Importing the module triggers its @register_agent_memory_storage decorator,
+        populating AgentMemoryStorageRegistry.
         """
         driver_module = driver.value.replace("-", "_")
 
         try:
-            importlib.import_module(f"mindor.core.component.services.model_memory.storage.drivers.{driver_module}")
+            importlib.import_module(f"mindor.core.component.services.agent_memory.storage.drivers.{driver_module}")
         except ImportError as e:
-            raise ValueError(f"Unsupported model memory storage driver: {driver}") from e
+            raise ValueError(f"Unsupported agent memory storage driver: {driver}") from e
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
@@ -304,4 +304,4 @@ class ModelMemoryComponent(ComponentService):
         await self._storage.close()
 
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
-        return await ModelMemoryAction(action, self.config.window, self.config.summary, self._summary_component).run(context, self._buffer, self._storage)
+        return await AgentMemoryAction(action, self.config.window, self.config.summary, self._summary_component).run(context, self._buffer, self._storage)

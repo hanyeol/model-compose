@@ -1,6 +1,6 @@
 from typing import Type, Optional, Dict, List, Any, Tuple
 from abc import ABC, abstractmethod
-from mindor.dsl.schema.component import ModelMemoryBufferDriverType
+from mindor.dsl.schema.component import AgentMemoryBufferDriverType
 
 class SessionBuffer:
     """Per-session in-memory data: turns, summary, snapshot."""
@@ -30,12 +30,14 @@ class SessionBuffer:
     def restore_snapshot(self) -> bool:
         if self.snapshot is None:
             return False
+
         self.settled_turns = list(self.snapshot[0])
         self.summary = self.snapshot[1]
         self.pending_turns.clear()
+
         return True
 
-class ModelMemoryBuffer(ABC):
+class AgentMemoryBuffer(ABC):
     """Buffer ABC with raw-data abstract methods and shared business logic.
 
     Each session's in-memory state is held in a SessionBuffer object.
@@ -66,6 +68,7 @@ class ModelMemoryBuffer(ABC):
         """Auto-creates session if needed."""
         session = await self._acquire_session(session_id)
         session.settled_turns = list(turns)
+
         await self._write_turns(session_id, turns)
         await self._on_update_turns(session_id)
 
@@ -77,8 +80,10 @@ class ModelMemoryBuffer(ABC):
     async def get_summary(self, session_id: str) -> Optional[str]:
         """Returns None if session not in buffer."""
         session = self._sessions.get(session_id)
+
         if session is None:
             return None
+
         return session.summary
 
     async def set_summary(self, session_id: str, summary: str) -> None:
@@ -88,24 +93,32 @@ class ModelMemoryBuffer(ABC):
 
     async def merge_buffer(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
+
         if session is None:
             return
+
         session.merge()
+
         await self._write_turns(session_id, session.settled_turns)
         await self._on_update_turns(session_id)
 
     async def take_snapshot(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
+
         if session is None:
             return
+
         session.take_snapshot()
 
     async def restore_snapshot(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
+
         if session is None:
             return
+
         if not session.restore_snapshot():
             return
+
         await self._write_turns(session_id, session.settled_turns)
         await self._on_update_turns(session_id)
 
@@ -133,24 +146,27 @@ class ModelMemoryBuffer(ABC):
         Clears local pending. Drivers can override to broadcast changes
         (e.g. Pub/Sub), calling super() to keep the pending cleanup."""
         session = self._sessions.get(session_id)
+
         if session is not None:
             session.clear_pending()
 
     async def _acquire_session(self, session_id: str) -> SessionBuffer:
         session = self._sessions.get(session_id)
+
         if session is None:
             session = SessionBuffer()
             self._sessions[session_id] = session
             await self._write_turns(session_id, [])
+
         return session
 
     def _get_session(self, session_id: str) -> Optional[SessionBuffer]:
         return self._sessions.get(session_id)
 
-def register_model_memory_buffer(driver: ModelMemoryBufferDriverType):
-    def decorator(cls: Type[ModelMemoryBuffer]) -> Type[ModelMemoryBuffer]:
-        ModelMemoryBufferRegistry[driver] = cls
+def register_agent_memory_buffer(driver: AgentMemoryBufferDriverType):
+    def decorator(cls: Type[AgentMemoryBuffer]) -> Type[AgentMemoryBuffer]:
+        AgentMemoryBufferRegistry[driver] = cls
         return cls
     return decorator
 
-ModelMemoryBufferRegistry: Dict[ModelMemoryBufferDriverType, Type[ModelMemoryBuffer]] = {}
+AgentMemoryBufferRegistry: Dict[AgentMemoryBufferDriverType, Type[AgentMemoryBuffer]] = {}

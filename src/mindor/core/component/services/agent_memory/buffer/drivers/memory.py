@@ -1,10 +1,10 @@
 from typing import Dict, List, Any
-from mindor.dsl.schema.component import MemoryModelMemoryBufferConfig, ModelMemoryBufferDriverType
-from ..base import ModelMemoryBuffer, register_model_memory_buffer
+from mindor.dsl.schema.component import MemoryAgentMemoryBufferConfig, AgentMemoryBufferDriverType
+from ..base import AgentMemoryBuffer, register_agent_memory_buffer
 
-@register_model_memory_buffer(ModelMemoryBufferDriverType.MEMORY)
-class MemoryModelMemoryBuffer(ModelMemoryBuffer):
-    def __init__(self, config: MemoryModelMemoryBufferConfig):
+@register_agent_memory_buffer(AgentMemoryBufferDriverType.MEMORY)
+class MemoryAgentMemoryBuffer(AgentMemoryBuffer):
+    def __init__(self, config: MemoryAgentMemoryBufferConfig):
         super().__init__()
 
         self.config = config

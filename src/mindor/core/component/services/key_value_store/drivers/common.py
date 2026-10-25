@@ -42,7 +42,8 @@ class KeyValueStoreAction(ComponentAction):
             async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
                 batch_inputs = zip(*batch_inputs) # Transpose per-slot batches into per-request tuples.
                 batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
-                results.extend(batch_results)
+                for request_results in batch_results:
+                    results.extend(request_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)

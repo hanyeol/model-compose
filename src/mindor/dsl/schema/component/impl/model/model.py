@@ -48,6 +48,7 @@ ModelComponentConfig = Annotated[
         VoiceActivityDetectionModelComponentConfig,
         SpeakerDiarizationModelComponentConfig,
         MusicGenerationModelComponentConfig,
+        MusicPerformanceModelComponentConfig,
         MotionGenerationModelComponentConfig,
         MusicSourceSeparationModelComponentConfig,
         MusicTranscriptionModelComponentConfig,

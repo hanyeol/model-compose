@@ -204,7 +204,7 @@ class TestImageProcessorStreamInput:
 
     @pytest.mark.anyio
     async def test_stream_output_returns_async_iterator(self):
-        config = _grayscale_config(output="${result[]}")
+        config = _grayscale_config(output="${result}")
         action = ImageProcessorAction(config)
 
         images = [ _make_image() for _ in range(5) ]

@@ -239,7 +239,7 @@ class TestStreamInput:
         def _make_iter():
             return _make_async_iter([ "a", "bb", "ccc", "dddd" ])
 
-        action = _FakeSpeechToTextAction(_make_config("${input.audios}", output="${result[]}"))
+        action = _FakeSpeechToTextAction(_make_config("${input.audios}", output="${result}"))
         ctx    = _make_context(_make_iter)
         loop   = asyncio.get_running_loop()
         result = await action.run(ctx)

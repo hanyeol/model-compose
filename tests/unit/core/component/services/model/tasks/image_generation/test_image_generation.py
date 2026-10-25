@@ -60,13 +60,14 @@ class _FakeImageGenerationAction(ImageGenerationTaskAction):
         super().__init__(config, device=None)
         self.batches_seen: List[List[str]] = []
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         prompt = await context.render_text(self.config.prompt)
 
+        primary_input      = prompt if isinstance(prompt, (StreamIterator, AsyncIterator)) else None
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
+        is_streaming_input = primary_input is not None
 
-        return (prompt,), is_single_input, is_streaming_input
+        return (prompt,), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,

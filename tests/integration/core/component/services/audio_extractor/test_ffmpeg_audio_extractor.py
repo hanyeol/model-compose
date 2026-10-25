@@ -546,7 +546,7 @@ class TestStreamInput:
                 yield sample_video_path
             return _gen()
 
-        config = _make_config(output="${result[]}", format="mp3")
+        config = _make_config(output="${result}", format="mp3")
         ctx = _make_context(_make_iter)
 
         result = await FFmpegAudioExtractorAction(config).run(ctx)

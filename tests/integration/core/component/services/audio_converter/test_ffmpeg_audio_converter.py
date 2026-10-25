@@ -421,7 +421,7 @@ class TestStreamInput:
                 yield sample_wav_path
             return _gen()
 
-        config = _make_config(output="${result[]}", format="wav")
+        config = _make_config(output="${result}", format="wav")
         ctx = _make_context(_make_iter)
 
         result = await FFmpegAudioConverterAction(config).run(ctx)

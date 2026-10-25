@@ -484,7 +484,7 @@ class TestStreamInput:
                 yield sample_mp4_path
             return _gen()
 
-        config = _make_config(output="${result[]}", format="mp4")
+        config = _make_config(output="${result}", format="mp4")
         ctx = _make_context(_make_iter)
 
         result = await FFmpegVideoConverterAction(config).run(ctx)

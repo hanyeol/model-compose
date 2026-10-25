@@ -4,6 +4,7 @@ from .pixal3d.pixal3d import Pixal3DImageTo3DModelComponentConfig
 from .pixal3d.pixal3d_mv import Pixal3DMultiViewImageTo3DModelComponentConfig
 from .anigen import AniGenImageTo3DModelComponentConfig
 from .world_mirror import WorldMirrorImageTo3DModelComponentConfig
+from .hi3d import Hi3DImageTo3DModelComponentConfig
 
 CustomImageTo3DModelComponentConfig = Annotated[
     Union[
@@ -11,6 +12,7 @@ CustomImageTo3DModelComponentConfig = Annotated[
         Pixal3DMultiViewImageTo3DModelComponentConfig,
         AniGenImageTo3DModelComponentConfig,
         WorldMirrorImageTo3DModelComponentConfig,
+        Hi3DImageTo3DModelComponentConfig,
     ],
     Field(discriminator="family")
 ]

@@ -102,13 +102,13 @@ class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
     def _render(self, score_path: str, params: Dict[str, Any]) -> BytesStreamResource:
         import torch
 
-        decode_overrides = {
-            "bool_pedal":            params["bool_pedal"],
-            "for_disklavier":        params["disklavier"],
-            "multi_instruments":     params["multi_instruments"],
-            "tempo_clock":           params["tempo_clock"],
+        decode_options = {
+            "bool_pedal":             params["bool_pedal"],
+            "for_disklavier":         params["disklavier"],
+            "multi_instruments":      params["multi_instruments"],
+            "tempo_clock":            params["tempo_clock"],
             "clock_interval_in_16th": params["clock_interval_in_16th"],
-            "velocity_multiplier":   params["velocity_multiplier"],
+            "velocity_multiplier":    params["velocity_multiplier"],
         }
 
         # InferenceModel reads midi_decode_options and output_path fresh at each
@@ -121,7 +121,7 @@ class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
         output_dir = tempfile.mkdtemp(prefix="virtuoso-net-")
 
         try:
-            self.inference_model.midi_decode_options.update(decode_overrides)
+            self.inference_model.midi_decode_options.update(decode_options)
             self.inference_model.output_path = output_dir
 
             if params["seed"] is not None:

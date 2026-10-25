@@ -20,4 +20,8 @@ class CustomImageTo3DTaskDriver:
             from .world_mirror import WorldMirrorImageTo3DTaskDriver
             return WorldMirrorImageTo3DTaskDriver(id, config, daemon)
 
+        if config.family == ImageTo3DModelFamily.HI3D:
+            from .hi3d import Hi3DImageTo3DTaskDriver
+            return Hi3DImageTo3DTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

@@ -44,7 +44,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         self.ip_adapter_count: int = ip_adapter_count
         self.controlnet_count: int = controlnet_count
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], Any, bool, bool]:
         video           = await context.render_video(self.config.video) if self.config.video is not None else None
         frames          = await context.render_image_array(self.config.frames, single_as_array=True) if self.config.frames is not None else None
         prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
@@ -70,7 +70,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(source, (StreamIterator, AsyncIterator))
 
-        return (source, prompt, negative_prompt, reference_images, attention_masks, conditioning_frames), is_single_input, is_streaming_input
+        return (source, prompt, negative_prompt, reference_images, attention_masks, conditioning_frames), source, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

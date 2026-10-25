@@ -39,7 +39,9 @@ class AudioClipperAction(ComponentAction):
                 async for batch_audios, batch_spans in BatchSourceIterator((audio, spans), batch_size=batch_size or 1):
                     batch_results = await self._clip_batch(batch_audios, batch_spans, merge, context.cancellation_token)
                     for result in batch_results:
-                        yield await self._build_result(result, merge, is_single_span, return_timestamp)
+                        result = await self._build_result(result, merge, is_single_span, return_timestamp)
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(audio, StreamChunkIterator) and audio.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)

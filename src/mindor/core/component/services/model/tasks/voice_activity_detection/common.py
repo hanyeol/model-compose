@@ -124,7 +124,8 @@ class VoiceActivityDetectionTaskAction(ModelTaskComponentAction):
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            context.register_source("result", result)
+                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(audio, StreamChunkIterator) and audio.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)

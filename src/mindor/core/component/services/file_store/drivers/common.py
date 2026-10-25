@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import FileStoreActionConfig, FileStoreActionMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ..base import ComponentActionContext
@@ -16,7 +16,7 @@ class FileStoreAction(ComponentAction):
         self.config: FileStoreActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(self.config.method, context)
@@ -29,8 +29,11 @@ class FileStoreAction(ComponentAction):
                     batch_inputs = zip(*batch_inputs) # Transpose per-slot batches into per-request tuples.
                     batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result[]", result)
+                        context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -49,7 +52,7 @@ class FileStoreAction(ComponentAction):
         self,
         method: FileStoreActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == FileStoreActionMethod.PUT:
             path   = await context.render_variable(self.config.path)
             source = await context.render_variable(self.config.source)
@@ -63,7 +66,7 @@ class FileStoreAction(ComponentAction):
                 # instead of iterating a source stream chunk-by-chunk as separate files.
                 path, source = [ path ], [ source ]
 
-            return (path, source), is_single_input, is_streaming_input
+            return (path, source), path, is_single_input, is_streaming_input
 
         if method in (
             FileStoreActionMethod.GET,
@@ -76,7 +79,7 @@ class FileStoreAction(ComponentAction):
             is_single_input    = not isinstance(path, (list, StreamIterator, AsyncIterator))
             is_streaming_input = isinstance(path, (StreamIterator, AsyncIterator))
 
-            return (path,), is_single_input, is_streaming_input
+            return (path,), path, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported file store action method: {method}")
 

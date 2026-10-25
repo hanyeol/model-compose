@@ -16,14 +16,14 @@ if TYPE_CHECKING:
     import torch
 
 class HunyuanImageHuggingfaceImageGenerationGenerateAction(HuggingfaceImageGenerationTaskAction):
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         prompt          = await context.render_text(self.config.prompt)
         negative_prompt = await context.render_variable(self.config.negative_prompt)
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
 
-        return (prompt, negative_prompt), is_single_input, is_streaming_input
+        return (prompt, negative_prompt), prompt, is_single_input, is_streaming_input
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)

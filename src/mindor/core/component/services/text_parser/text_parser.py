@@ -39,9 +39,8 @@ class TextParserAction(ComponentAction):
                 async for batch_texts in BatchSourceIterator(text, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(batch_texts, params, context.cancellation_token)
                     for result in batch_results:
-                        scope = f"stream:{id(result)}"
-                        context.register_source("result", result, scope=scope)
-                        yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(text, StreamChunkIterator) and text.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)

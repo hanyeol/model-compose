@@ -31,10 +31,10 @@ class ImageEdgeDetectionTaskAction(ModelTaskComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_edges = await self._detect_batch(batch_images, params, context.cancellation_token)
-                    for edge in batch_edges:
-                        context.register_source("result", edge)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else edge
+                    batch_results = await self._detect_batch(batch_images, params, context.cancellation_token)
+                    for result in batch_results:
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(image, StreamChunkIterator) and image.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
@@ -43,8 +43,8 @@ class ImageEdgeDetectionTaskAction(ModelTaskComponentAction):
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_edges = await self._detect_batch(batch_images, params, context.cancellation_token)
-                results.extend(batch_edges)
+                batch_results = await self._detect_batch(batch_images, params, context.cancellation_token)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)

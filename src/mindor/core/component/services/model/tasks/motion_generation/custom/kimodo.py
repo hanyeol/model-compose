@@ -60,13 +60,13 @@ class KimodoMotionGenerationTaskAction(MotionGenerationTaskAction):
 class KimodoMotionGenerationModelGenerateAction(KimodoMotionGenerationTaskAction):
     config: KimodoMotionGenerationModelGenerateActionConfig
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         prompt = await context.render_text(self.config.prompt)
 
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
 
-        return (prompt,), is_single_input, is_streaming_input
+        return (prompt,), prompt, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,

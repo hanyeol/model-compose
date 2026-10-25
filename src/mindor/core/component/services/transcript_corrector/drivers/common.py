@@ -55,7 +55,8 @@ class TranscriptCorrectorAction(ComponentAction):
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            context.register_source("result", result)
+                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(transcript, StreamChunkIterator) and transcript.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)

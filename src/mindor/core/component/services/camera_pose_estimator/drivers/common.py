@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import CameraPoseEstimatorActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.resources import StreamResource, save_stream_to_file
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
@@ -36,12 +36,9 @@ class CameraPoseEstimatorAction(ComponentAction):
         workspace_dir = await self.context.render_variable(self.config.workspace_dir)
         batch_size    = await self.context.render_variable(self.config.batch_size)
 
-        if images is not None:
-            is_single_input    = not isinstance(images, (list, StreamIterator, AsyncIterator))
-            is_streaming_input = isinstance(images, (StreamIterator, AsyncIterator))
-        else:
-            is_single_input    = not isinstance(workspace_dir, (list, StreamIterator, AsyncIterator))
-            is_streaming_input = isinstance(workspace_dir, (StreamIterator, AsyncIterator))
+        primary_input      = images if images is not None else workspace_dir
+        is_single_input    = not isinstance(primary_input, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(primary_input, (StreamIterator, AsyncIterator))
 
         is_single_workspace = not isinstance(workspace_dir, (list, StreamIterator, AsyncIterator))
 
@@ -63,8 +60,11 @@ class CameraPoseEstimatorAction(ComponentAction):
                     batch_results = await self._estimate_batch(batch_inputs, params, self.context.cancellation_token)
                     scene_index += len(batch_images)
                     for result in batch_results:
-                        self.context.register_source("result[]", result)
+                        self.context.register_source("result", result)
                         yield (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

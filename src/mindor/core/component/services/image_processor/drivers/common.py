@@ -37,7 +37,7 @@ class ImageProcessorAction(ComponentAction):
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(self.config.method, batch_images, params)
                     for result in batch_results:
-                        context.register_source("result[]", result)
+                        context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(image, StreamChunkIterator) and image.is_fragmented:

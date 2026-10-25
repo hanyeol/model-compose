@@ -5,7 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import Model3DRendererActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.cancellation import CancellationToken
@@ -25,8 +25,9 @@ class Model3DRendererAction(ComponentAction):
 
         params = await self._resolve_shared_params(context)
 
+        primary_input      = next((value for value in (model_3d, camera, lighting) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not any(isinstance(value, (list, StreamIterator, AsyncIterator)) for value in (model_3d, camera, lighting))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (model_3d, camera, lighting))
+        is_streaming_input = primary_input is not None
         is_direct_output   = not self.config.output or self.config.output == "${result}"
 
         if is_streaming_input:
@@ -34,8 +35,11 @@ class Model3DRendererAction(ComponentAction):
                 async for batch_models, batch_cameras, batch_lightings in BatchSourceIterator((model_3d, camera, lighting), batch_size=batch_size or 1):
                     batch_results = await self._render_batch(batch_models, batch_cameras, batch_lightings, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result[]", result)
+                        context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:

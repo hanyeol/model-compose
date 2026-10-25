@@ -29,7 +29,7 @@ class FluxHuggingfaceImageGenerationTaskAction(HuggingfaceImageGenerationTaskAct
         return params
 
 class FluxHuggingfaceImageGenerationGenerateAction(FluxHuggingfaceImageGenerationTaskAction):
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         prompt = await context.render_text(self.config.prompt)
 
         if self.controlnet_count > 0 and self.config.control_image is not None:
@@ -40,7 +40,7 @@ class FluxHuggingfaceImageGenerationGenerateAction(FluxHuggingfaceImageGeneratio
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
 
-        return (prompt, control_image), is_single_input, is_streaming_input
+        return (prompt, control_image), prompt, is_single_input, is_streaming_input
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)
@@ -84,7 +84,7 @@ class FluxHuggingfaceImageGenerationGenerateAction(FluxHuggingfaceImageGeneratio
         return await self._run_in_executor(_generate)
 
 class FluxHuggingfaceImageGenerationInpaintAction(FluxHuggingfaceImageGenerationTaskAction):
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         prompt     = await context.render_text(self.config.prompt)
         image      = await context.render_image(self.config.image)
         mask_image = await context.render_image(self.config.mask_image)
@@ -97,7 +97,7 @@ class FluxHuggingfaceImageGenerationInpaintAction(FluxHuggingfaceImageGeneration
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
 
-        return (prompt, image, mask_image, control_image), is_single_input, is_streaming_input
+        return (prompt, image, mask_image, control_image), prompt, is_single_input, is_streaming_input
 
     async def _resolve_pipeline_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_pipeline_params(context)

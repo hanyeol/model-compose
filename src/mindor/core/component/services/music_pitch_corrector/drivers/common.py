@@ -14,7 +14,7 @@ from mindor.dsl.schema.action.impl.music_pitch_corrector.impl.common import (
 )
 from mindor.core.foundation.variable.atomic import AtomicDict
 from mindor.core.foundation.variable.array import ArrayValue
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.audio import AudioBufferStreamIterator
 from mindor.core.foundation.streaming.resources import read_stream_to_buffer
@@ -74,7 +74,7 @@ class MusicPitchCorrectorAction(ComponentAction):
         self.planner: MusicPitchCorrectionPlanner = MusicPitchCorrectionPlanner(frame_period)
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(self.config.method, context)
@@ -86,8 +86,11 @@ class MusicPitchCorrectorAction(ComponentAction):
                 async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
                     batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result[]", result)
+                        context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -104,7 +107,7 @@ class MusicPitchCorrectorAction(ComponentAction):
         self,
         method: MusicPitchCorrectorActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         """Resolve the per-method input tuple. Only slots the method actually
         consumes are included; the primary slot (``pitch`` for plan/correct,
         ``curve`` for apply) drives the batch dimension.
@@ -120,7 +123,7 @@ class MusicPitchCorrectorAction(ComponentAction):
             is_single_input    = isinstance(pitch, list) and len(pitch) == 1
             is_streaming_input = isinstance(pitch, (StreamIterator, AsyncIterator))
 
-            return (pitch, audio, key, scale, melody, melody_offset), is_single_input, is_streaming_input
+            return (pitch, audio, key, scale, melody, melody_offset), pitch, is_single_input, is_streaming_input
 
         if method == MusicPitchCorrectorActionMethod.PLAN:
             pitch         = await context.render_array(self.config.pitch, item_is_list=True, single_as_array=True)
@@ -132,7 +135,7 @@ class MusicPitchCorrectorAction(ComponentAction):
             is_single_input    = isinstance(pitch, list) and len(pitch) == 1
             is_streaming_input = isinstance(pitch, (StreamIterator, AsyncIterator))
 
-            return (pitch, key, scale, melody, melody_offset), is_single_input, is_streaming_input
+            return (pitch, key, scale, melody, melody_offset), pitch, is_single_input, is_streaming_input
 
         if method == MusicPitchCorrectorActionMethod.APPLY:
             curve = await context.render_array(self.config.curve, item_is_list=False, single_as_array=True)
@@ -141,7 +144,7 @@ class MusicPitchCorrectorAction(ComponentAction):
             is_single_input    = isinstance(curve, ArrayValue) and curve.is_single
             is_streaming_input = isinstance(curve, (StreamIterator, AsyncIterator))
 
-            return (curve, audio), is_single_input, is_streaming_input
+            return (curve, audio), curve, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported pitch correction method: {method}")
 

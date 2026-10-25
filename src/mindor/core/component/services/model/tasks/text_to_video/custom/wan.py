@@ -32,12 +32,12 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
         self.preset: WanTextToVideoPreset = preset
         self.cpu_offload: bool = cpu_offload
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        (prompt,), is_single_input, is_streaming_input = await super()._prepare_input(context)
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
+        (prompt,), primary_input, is_single_input, is_streaming_input = await super()._prepare_input(context)
 
         negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
 
-        return (prompt, negative_prompt), is_single_input, is_streaming_input
+        return (prompt, negative_prompt), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

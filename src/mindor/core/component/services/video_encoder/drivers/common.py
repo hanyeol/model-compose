@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, AsyncIterable
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoEncoderActionConfig
 from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.image import ImageStreamResource
@@ -22,7 +22,7 @@ class VideoEncoderAction(ComponentAction):
         self.config: VideoEncoderActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        (video, audio), is_single_input, is_streaming_input = await self._prepare_input(context)
+        (video, audio), primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_variable(self.config.streaming)
 
@@ -35,8 +35,11 @@ class VideoEncoderAction(ComponentAction):
                 async for batch_videos, batch_audios in BatchSourceIterator((video, audio), batch_size=batch_size or 1):
                     batch_results = await self._encode_batch(batch_videos, batch_audios, params, streaming, context.cancellation_token)
                     for result in batch_results:
-                        context.register_source("result[]", result)
+                        context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
@@ -50,17 +53,18 @@ class VideoEncoderAction(ComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, Any], bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, Any], Any, bool, bool]:
         video  = await context.render_video(self.config.video) if self.config.video is not None else None
         frames = await context.render_image_array(self.config.frames, as_stream=True) if self.config.frames is not None else None
         audio  = await context.render_audio(self.config.audio) if self.config.audio is not None else None
 
         video = frames if video is None else video
 
+        primary_input      = next((value for value in (video, audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not any(isinstance(value, (list, StreamIterator, AsyncIterator)) for value in (video, audio))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (video, audio))
+        is_streaming_input = primary_input is not None
 
-        return (video, audio), is_single_input, is_streaming_input
+        return (video, audio), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         frame_rate = await context.render_scalar(self.config.frame_rate, float)

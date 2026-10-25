@@ -168,15 +168,16 @@ class AceStepMusicGenerationModelGenerateAction(AceStepMusicGenerationTaskAction
     ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         prompt          = await context.render_text(self.config.prompt)
         lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
         reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
+        primary_input      = next((value for value in (prompt, lyrics, reference_audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (prompt, lyrics, reference_audio))
+        is_streaming_input = primary_input is not None
 
-        return (prompt, lyrics, reference_audio), is_single_input, is_streaming_input
+        return (prompt, lyrics, reference_audio), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -217,16 +218,17 @@ class AceStepMusicGenerationModelCoverAction(AceStepMusicGenerationTaskAction):
     ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         source          = await context.render_audio(self.config.source)
         prompt          = await context.render_text(self.config.prompt)
         lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
         reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
+        primary_input      = next((value for value in (source, prompt, lyrics, reference_audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
+        is_streaming_input = primary_input is not None
 
-        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -274,16 +276,17 @@ class AceStepMusicGenerationModelRewriteAction(AceStepMusicGenerationTaskAction)
     ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         source          = await context.render_audio(self.config.source)
         prompt          = await context.render_text(self.config.prompt)
         lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
         reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
+        primary_input      = next((value for value in (source, prompt, lyrics, reference_audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
+        is_streaming_input = primary_input is not None
 
-        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -343,16 +346,17 @@ class AceStepMusicGenerationModelExtendAction(AceStepMusicGenerationTaskAction):
     ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         source          = await context.render_audio(self.config.source)
         prompt          = await context.render_text(self.config.prompt)
         lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
         reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
+        primary_input      = next((value for value in (source, prompt, lyrics, reference_audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
+        is_streaming_input = primary_input is not None
 
-        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -400,16 +404,17 @@ class AceStepMusicGenerationModelLayerAction(AceStepMusicGenerationTaskAction):
     ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         source          = await context.render_audio(self.config.source)
         prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
         lyrics          = await context.render_text(self.config.lyrics) if self.config.lyrics is not None else None
         reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
+        primary_input      = next((value for value in (source, prompt, lyrics, reference_audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (source, prompt, lyrics, reference_audio))
+        is_streaming_input = primary_input is not None
 
-        return (source, prompt, lyrics, reference_audio), is_single_input, is_streaming_input
+        return (source, prompt, lyrics, reference_audio), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -476,15 +481,16 @@ class AceStepMusicGenerationModelAccompanyAction(AceStepMusicGenerationTaskActio
     ):
         super().__init__(config, handler, llm_handler, thinking_scope)
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         vocal           = await context.render_audio(self.config.vocal)
         prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
         reference_audio = await context.render_file(self.config.reference_audio) if self.config.reference_audio is not None else None
 
+        primary_input      = next((value for value in (vocal, prompt, reference_audio) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(vocal, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (vocal, prompt, reference_audio))
+        is_streaming_input = primary_input is not None
 
-        return (vocal, prompt, reference_audio), is_single_input, is_streaming_input
+        return (vocal, prompt, reference_audio), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

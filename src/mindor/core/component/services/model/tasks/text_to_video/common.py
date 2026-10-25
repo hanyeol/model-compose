@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextToVideoModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -15,7 +15,7 @@ class TextToVideoTaskAction(ModelTaskComponentAction):
         self.config: TextToVideoModelActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
@@ -30,6 +30,9 @@ class TextToVideoTaskAction(ModelTaskComponentAction):
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[VideoStreamResource] = []
@@ -42,8 +45,8 @@ class TextToVideoTaskAction(ModelTaskComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
-        """Render the action's inputs into a batched tuple plus `(is_single, is_streaming)` flags.
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
+        """Render the action's inputs into a batched tuple plus `(primary_input, is_single, is_streaming)`.
 
         Default is "prompt only"; override to append `negative_prompt`, a
         reference `image`, control inputs, etc. The order chosen here is the
@@ -55,7 +58,7 @@ class TextToVideoTaskAction(ModelTaskComponentAction):
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
 
-        return (prompt,), is_single_input, is_streaming_input
+        return (prompt,), prompt, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_frames = await context.render_scalar(self.config.params.num_frames, int)

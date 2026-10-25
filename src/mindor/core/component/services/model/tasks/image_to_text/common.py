@@ -41,7 +41,9 @@ class ImageToTextTaskAction(ModelTaskComponentAction):
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield self._process_sequences(sequences, streaming=False)
+                            result = self._process_sequences(sequences, streaming=False)
+                            context.register_source("result", result)
+                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(image, StreamChunkIterator) and image.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Tuple, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoToVideoModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import load_image_from_stream, ImageStreamResource
@@ -20,7 +21,7 @@ class VideoToVideoTaskAction(ModelTaskComponentAction):
         self.config: VideoToVideoModelActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
@@ -35,6 +36,9 @@ class VideoToVideoTaskAction(ModelTaskComponentAction):
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
             return _stream_output_generator()
         else:
             results: List[VideoStreamResource] = []
@@ -48,7 +52,7 @@ class VideoToVideoTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     @abstractmethod
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], Any, bool, bool]:
         pass
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

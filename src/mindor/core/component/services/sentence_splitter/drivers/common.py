@@ -56,7 +56,8 @@ class SentenceSplitterAction(ComponentAction):
 
                             yield StreamChunkIterator(_stream_chunk_generator(), is_fragmented=True)
                         else:
-                            yield result
+                            context.register_source("result", result)
+                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             return _stream_output_generator()
         else:

@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import KeyValueStoreActionConfig, KeyValueStoreActionMethod
-from mindor.core.foundation.streaming.iterators import StreamIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -17,7 +17,7 @@ class KeyValueStoreAction(ComponentAction):
         self.config: KeyValueStoreActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(self.config.method, context)
@@ -29,19 +29,20 @@ class KeyValueStoreAction(ComponentAction):
                 async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
                     batch_inputs = zip(*batch_inputs) # Transpose per-slot batches into per-request tuples.
                     batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
-                    for results in batch_results:
-                        for result in results:
-                            context.register_source("result", result)
-                            yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+                    for result in batch_results:
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
-            results: List[Dict[str, Any]] = []
+            results: List[List[Dict[str, Any]]] = []
             async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
                 batch_inputs = zip(*batch_inputs) # Transpose per-slot batches into per-request tuples.
                 batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
-                for result in batch_results:
-                    results.extend(result)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -52,7 +53,7 @@ class KeyValueStoreAction(ComponentAction):
         self,
         method: KeyValueStoreActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         if method == KeyValueStoreActionMethod.SET:
             keys = _as_batch_array(await context.render_variable(self.config.key))
 
@@ -64,10 +65,11 @@ class KeyValueStoreAction(ComponentAction):
             else:
                 values = _as_batch_array(await context.render_variable(self.config.value))
 
+            primary_input      = next((value for value in (keys, values) if isinstance(value, (StreamIterator, AsyncIterator))), None)
             is_single_input    = isinstance(keys, ArrayValue) and keys.is_single
-            is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (keys, values))
+            is_streaming_input = primary_input is not None
 
-            return (keys, values), is_single_input, is_streaming_input
+            return (keys, values), primary_input, is_single_input, is_streaming_input
 
         if method in (
             KeyValueStoreActionMethod.GET,
@@ -79,7 +81,7 @@ class KeyValueStoreAction(ComponentAction):
             is_single_input    = isinstance(keys, ArrayValue) and keys.is_single
             is_streaming_input = isinstance(keys, (StreamIterator, AsyncIterator))
 
-            return (keys,), is_single_input, is_streaming_input
+            return (keys,), keys, is_single_input, is_streaming_input
 
         raise ValueError(f"Unsupported key-value store action method: {method}")
 

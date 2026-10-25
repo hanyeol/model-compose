@@ -98,14 +98,15 @@ class Yue2MusicGenerationTaskAction(MusicGenerationTaskAction):
 class Yue2MusicGenerationModelGenerateAction(Yue2MusicGenerationTaskAction):
     config: Yue2MusicGenerationModelGenerateActionConfig
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         style  = await context.render_text(self.config.style)
         lyrics = await context.render_text(self.config.lyrics)
 
+        primary_input      = next((value for value in (style, lyrics) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(style, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (style, lyrics))
+        is_streaming_input = primary_input is not None
 
-        return (style, lyrics), is_single_input, is_streaming_input
+        return (style, lyrics), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -141,15 +142,16 @@ class Yue2MusicGenerationModelGenerateAction(Yue2MusicGenerationTaskAction):
 class Yue2MusicGenerationModelCoverAction(Yue2MusicGenerationTaskAction):
     config: Yue2MusicGenerationModelCoverActionConfig
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         style  = await context.render_text(self.config.style)
         lyrics = await context.render_text(self.config.lyrics)
         abc    = await context.render_text(self.config.abc)
 
+        primary_input      = next((value for value in (style, lyrics, abc) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(style, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (style, lyrics, abc))
+        is_streaming_input = primary_input is not None
 
-        return (style, lyrics, abc), is_single_input, is_streaming_input
+        return (style, lyrics, abc), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,
@@ -185,14 +187,15 @@ class Yue2MusicGenerationModelCoverAction(Yue2MusicGenerationTaskAction):
 class Yue2MusicGenerationModelScoreAction(Yue2MusicGenerationTaskAction):
     config: Yue2MusicGenerationModelScoreActionConfig
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         style  = await context.render_text(self.config.style)
         lyrics = await context.render_text(self.config.lyrics)
 
+        primary_input      = next((value for value in (style, lyrics) if isinstance(value, (StreamIterator, AsyncIterator))), None)
         is_single_input    = not isinstance(style, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = any(isinstance(value, (StreamIterator, AsyncIterator)) for value in (style, lyrics))
+        is_streaming_input = primary_input is not None
 
-        return (style, lyrics), is_single_input, is_streaming_input
+        return (style, lyrics), primary_input, is_single_input, is_streaming_input
 
     async def _generate_batch(
         self,

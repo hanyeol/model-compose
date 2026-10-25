@@ -42,7 +42,7 @@ class WorldMirrorImageTo3DTaskAction(ImageTo3DTaskAction):
         self.pipeline: Any = pipeline
         self.device: torch.device = device
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         images = await context.render_image_array(self.config.image, single_as_array=True)
 
         # A single scene arrives as one ImageArrayValue; a batch/stream of scenes
@@ -51,7 +51,7 @@ class WorldMirrorImageTo3DTaskAction(ImageTo3DTaskAction):
         is_single_input    = isinstance(images, ImageArrayValue)
         is_streaming_input = isinstance(images, (StreamIterator, AsyncIterator))
 
-        return (images,), is_single_input, is_streaming_input
+        return (images,), images, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

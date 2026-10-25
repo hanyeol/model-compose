@@ -67,21 +67,22 @@ class ChromaVectorStoreAction(VectorStoreAction):
         self,
         method: VectorStoreActionMethod,
         context: ComponentActionContext,
-    ) -> Tuple[Any, bool, bool]:
+    ) -> Tuple[Any, Any, bool, bool]:
         # Chroma extends the base per-item tuple with a `documents` slot. Base's
         # `_process` collects each slot and spreads them into the driver call,
         # so the tuple order here must match `_insert`/`_update` signatures.
-        input, is_single_input, is_streaming_input = await super()._prepare_input(method, context)
+        input, primary_input, is_single_input, is_streaming_input = await super()._prepare_input(method, context)
 
         if method in (VectorStoreActionMethod.INSERT, VectorStoreActionMethod.UPDATE):
             documents = await context.render_array(self.config.document, single_as_array=True)
 
-            if not is_streaming_input:
-                is_streaming_input = isinstance(documents, (StreamIterator, AsyncIterator))
+            if not is_streaming_input and isinstance(documents, (StreamIterator, AsyncIterator)):
+                primary_input      = documents
+                is_streaming_input = True
 
-            return (*input, documents), is_single_input, is_streaming_input
+            return (*input, documents), primary_input, is_single_input, is_streaming_input
 
-        return input, is_single_input, is_streaming_input
+        return input, primary_input, is_single_input, is_streaming_input
 
     async def _insert(
         self,

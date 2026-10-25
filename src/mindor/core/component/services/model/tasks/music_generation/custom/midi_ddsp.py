@@ -57,13 +57,13 @@ class MidiDdspMusicGenerationModelGenerateAction(MusicGenerationTaskAction):
         self.synthesis_generator  = synthesis_generator
         self.expression_generator = expression_generator
 
-    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, bool, bool]:
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
         midi = await context.render_file(self.config.midi)
 
         is_single_input    = not isinstance(midi, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(midi, (StreamIterator, AsyncIterator))
 
-        return (midi,), is_single_input, is_streaming_input
+        return (midi,), midi, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

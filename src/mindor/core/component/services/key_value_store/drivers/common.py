@@ -38,7 +38,7 @@ class KeyValueStoreAction(ComponentAction):
 
             return _stream_output_generator()
         else:
-            results: List[List[Dict[str, Any]]] = []
+            results: List[Dict[str, Any]] = []
             async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
                 batch_inputs = zip(*batch_inputs) # Transpose per-slot batches into per-request tuples.
                 batch_results = await self._process_batch(self.config.method, batch_inputs, params, context.cancellation_token)
@@ -113,7 +113,7 @@ class KeyValueStoreAction(ComponentAction):
     ) -> List[List[Dict[str, Any]]]:
         # Each `_process` call maps to one native-batch driver call and returns
         # a `List[Dict]` (one entry per key in that request). Preserve the
-        # grouping so callers can unwrap per-request results correctly.
+        # grouping so one request stays one `${result}`.
         return await asyncio.gather(*[
             self._process(method, input, params, cancellation_token) for input in inputs
         ])

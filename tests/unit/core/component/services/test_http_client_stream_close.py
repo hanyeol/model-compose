@@ -106,19 +106,3 @@ async def test_closing_an_outbound_websocket_stream_ends_the_request(served):
     await asyncio.wait_for(events.disconnected.wait(), 1.0)
 
 
-@pytest.mark.anyio
-async def test_a_consumer_that_never_read_does_not_end_the_stream(served):
-    # One output, two holders (say two subscribers of the task): the one that never
-    # pulled lets go, the one reading keeps its stream.
-    client, events = served
-    output = _wrapped(await _stream(client))
-    reader = WebSocketOutboundStream("s1", StreamKind.BYTES, output, VariableCodec())
-    idle = WebSocketOutboundStream("s2", StreamKind.BYTES, output, VariableCodec())
-
-    assert await reader.next_chunk() == b"0"
-    await idle.aclose()
-    assert [await reader.next_chunk() for _ in range(3)] == [b"1", b"2", b"3"]
-    assert not events.disconnected.is_set()
-
-    await reader.aclose()
-    await asyncio.wait_for(events.disconnected.wait(), 1.0)

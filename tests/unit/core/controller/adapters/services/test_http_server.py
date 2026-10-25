@@ -712,7 +712,7 @@ class TestWebSocketStreamPull:
 
         await asyncio.wait_for(finished.wait(), timeout=1)
         await asyncio.sleep(0.01)
-        assert stream.pump_task is None
+        assert not stream.is_pumping
         assert ws.sent == []
         assert server.streams.get_outbound("c1", "s1") is None
 

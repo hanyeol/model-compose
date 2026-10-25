@@ -1,4 +1,4 @@
-"""Tests for model-memory component schema, buffer drivers, storage, and action lifecycle."""
+"""Tests for agent-memory component schema, buffer drivers, storage, and action lifecycle."""
 
 import asyncio
 import os
@@ -11,28 +11,28 @@ from unittest.mock import AsyncMock, MagicMock
 
 from mindor.dsl.schema.component import (
     ComponentConfig,
-    ModelMemoryComponentConfig,
-    ModelMemoryStorageDriverType,
-    ModelMemoryWindowConfig,
-    MemoryModelMemoryBufferConfig,
-    RedisModelMemoryBufferConfig,
+    AgentMemoryComponentConfig,
+    AgentMemoryStorageDriverType,
+    AgentMemoryWindowConfig,
+    MemoryAgentMemoryBufferConfig,
+    RedisAgentMemoryBufferConfig,
 )
 from mindor.dsl.schema.action import (
-    ModelMemoryActionConfig,
-    ModelMemoryActionMethod,
-    ModelMemoryAppendActionConfig,
-    ModelMemorySaveActionConfig,
-    ModelMemoryLoadActionConfig,
-    ModelMemoryClearActionConfig,
-    ModelMemoryDeleteActionConfig,
+    AgentMemoryActionConfig,
+    AgentMemoryActionMethod,
+    AgentMemoryAppendActionConfig,
+    AgentMemorySaveActionConfig,
+    AgentMemoryLoadActionConfig,
+    AgentMemoryClearActionConfig,
+    AgentMemoryDeleteActionConfig,
 )
-from mindor.core.component.services.model_memory.model_memory import (
-    ModelMemoryAction,
-    ModelMemoryComponent,
+from mindor.core.component.services.agent_memory.agent_memory import (
+    AgentMemoryAction,
+    AgentMemoryComponent,
 )
-from mindor.core.component.services.model_memory.buffer.drivers.memory import MemoryModelMemoryBuffer
-from mindor.core.component.services.model_memory.buffer.drivers.redis import RedisModelMemoryBuffer
-from mindor.core.component.services.model_memory.storage.drivers.sqlite import SqliteModelMemoryStorage
+from mindor.core.component.services.agent_memory.buffer.drivers.memory import MemoryAgentMemoryBuffer
+from mindor.core.component.services.agent_memory.buffer.drivers.redis import RedisAgentMemoryBuffer
+from mindor.core.component.services.agent_memory.storage.drivers.sqlite import SqliteAgentMemoryStorage
 from mindor.core.component.context import ComponentActionContext
 
 
@@ -62,8 +62,8 @@ async def wait_until(predicate, timeout: float = 1.0, interval: float = 0.005):
 # ──────────────────────────────────────────────
 
 
-class TestModelMemorySchema:
-    """Test model-memory component and action schema validation."""
+class TestAgentMemorySchema:
+    """Test agent-memory component and action schema validation."""
 
     component_adapter = TypeAdapter(ComponentConfig)
 
@@ -71,12 +71,12 @@ class TestModelMemorySchema:
         """Test that a minimal config applies correct defaults."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [],
         })
-        assert config.type.value == "model-memory"
+        assert config.type.value == "agent-memory"
         assert config.storage.driver == "sqlite"
-        assert config.storage.path == ".model-memory.db"
+        assert config.storage.path == ".agent-memory.db"
         assert config.buffer.driver == "memory"
         assert config.window is None
         assert config.summary is None
@@ -85,7 +85,7 @@ class TestModelMemorySchema:
         """Test that explicit SQLite storage config is accepted."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "storage": {"driver": "sqlite", "path": "./test.db"},
             "actions": [],
         })
@@ -96,7 +96,7 @@ class TestModelMemorySchema:
         """Test that the default buffer driver is memory."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [],
         })
         assert config.buffer.driver == "memory"
@@ -105,7 +105,7 @@ class TestModelMemorySchema:
         """Test that explicitly setting buffer driver to memory works."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "buffer": {"driver": "memory"},
             "actions": [],
         })
@@ -115,7 +115,7 @@ class TestModelMemorySchema:
         """Test that Redis buffer config with custom host and port is accepted."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "buffer": {"driver": "redis", "host": "redis.local", "port": 6380},
             "actions": [],
         })
@@ -124,14 +124,14 @@ class TestModelMemorySchema:
         assert config.buffer.port == 6380
 
     def test_window_int_inflates_to_config(self):
-        """Test that an integer window value inflates to ModelMemoryWindowConfig."""
+        """Test that an integer window value inflates to AgentMemoryWindowConfig."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "window": 5,
             "actions": [],
         })
-        assert isinstance(config.window, ModelMemoryWindowConfig)
+        assert isinstance(config.window, AgentMemoryWindowConfig)
         assert config.window.max_turn_count == 5
         assert config.window.max_message_count is None
 
@@ -139,7 +139,7 @@ class TestModelMemorySchema:
         """Test that a window object config is accepted with all fields."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "window": {"max_turn_count": 10, "max_message_count": 50},
             "actions": [],
         })
@@ -150,66 +150,66 @@ class TestModelMemorySchema:
         """Test that a load action config is parsed correctly."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [
                 {"id": "load", "method": "load", "session_id": "s1"},
             ],
         })
         action = config.actions[0]
-        assert action.method == ModelMemoryActionMethod.LOAD
+        assert action.method == AgentMemoryActionMethod.LOAD
 
     def test_action_append(self):
         """Test that an append action config is parsed correctly."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [
                 {"id": "append", "method": "append", "session_id": "s1", "messages": []},
             ],
         })
         action = config.actions[0]
-        assert action.method == ModelMemoryActionMethod.APPEND
+        assert action.method == AgentMemoryActionMethod.APPEND
 
     def test_action_save(self):
         """Test that a save action config is parsed correctly."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [
                 {"id": "save", "method": "save", "session_id": "s1"},
             ],
         })
         action = config.actions[0]
-        assert action.method == ModelMemoryActionMethod.SAVE
+        assert action.method == AgentMemoryActionMethod.SAVE
 
     def test_action_clear(self):
         """Test that a clear action config is parsed correctly."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [
                 {"id": "clear", "method": "clear", "session_id": "s1"},
             ],
         })
-        assert config.actions[0].method == ModelMemoryActionMethod.CLEAR
+        assert config.actions[0].method == AgentMemoryActionMethod.CLEAR
 
     def test_action_delete(self):
         """Test that a delete action config is parsed correctly."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [
                 {"id": "delete", "method": "delete", "session_id": "s1"},
             ],
         })
-        assert config.actions[0].method == ModelMemoryActionMethod.DELETE
+        assert config.actions[0].method == AgentMemoryActionMethod.DELETE
 
     def test_invalid_method(self):
         """Test that an invalid action method raises a validation error."""
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "mem",
-                "type": "model-memory",
+                "type": "agent-memory",
                 "actions": [
                     {"id": "bad", "method": "invalid", "session_id": "s1"},
                 ],
@@ -219,7 +219,7 @@ class TestModelMemorySchema:
         """Test that multiple actions of different methods can coexist."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "actions": [
                 {"id": "load", "method": "load", "session_id": "s1"},
                 {"id": "append", "method": "append", "session_id": "s1", "messages": "${input.messages}"},
@@ -229,16 +229,16 @@ class TestModelMemorySchema:
         assert len(config.actions) == 3
         methods = [a.method for a in config.actions]
         assert methods == [
-            ModelMemoryActionMethod.LOAD,
-            ModelMemoryActionMethod.APPEND,
-            ModelMemoryActionMethod.SAVE,
+            AgentMemoryActionMethod.LOAD,
+            AgentMemoryActionMethod.APPEND,
+            AgentMemoryActionMethod.SAVE,
         ]
 
     def test_summary_config(self):
         """Test that summary config with component and action is accepted."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "summary": {
                 "component": "summarizer",
                 "action": "summarize",
@@ -250,16 +250,16 @@ class TestModelMemorySchema:
 
 
 # ──────────────────────────────────────────────
-# ModelMemoryBuffer Unit Tests
+# AgentMemoryBuffer Unit Tests
 # ──────────────────────────────────────────────
 
 
 def make_buffer():
-    """Create a MemoryModelMemoryBuffer with default config."""
-    return MemoryModelMemoryBuffer(MemoryModelMemoryBufferConfig())
+    """Create a MemoryAgentMemoryBuffer with default config."""
+    return MemoryAgentMemoryBuffer(MemoryAgentMemoryBufferConfig())
 
 
-class TestModelMemoryBuffer:
+class TestAgentMemoryBuffer:
     """Test in-memory buffer driver operations."""
 
     @pytest.mark.anyio
@@ -341,17 +341,17 @@ class TestModelMemoryBuffer:
 @pytest.fixture
 async def sqlite_storage():
     """Provide a temporary SQLite storage instance for testing."""
-    from mindor.dsl.schema.component import SqliteModelMemoryStorageConfig
+    from mindor.dsl.schema.component import SqliteAgentMemoryStorageConfig
     with tempfile.TemporaryDirectory() as tmpdir:
-        config = SqliteModelMemoryStorageConfig(path=os.path.join(tmpdir, "test.db"))
-        storage = SqliteModelMemoryStorage(config)
+        config = SqliteAgentMemoryStorageConfig(path=os.path.join(tmpdir, "test.db"))
+        storage = SqliteAgentMemoryStorage(config)
         await storage.configure()
         yield storage
         await storage.close()
 
 
-class TestSqliteModelMemoryStorage:
-    """Test SQLite-backed model memory storage operations."""
+class TestSqliteAgentMemoryStorage:
+    """Test SQLite-backed agent memory storage operations."""
 
     @pytest.mark.anyio
     async def test_load_empty_session(self, sqlite_storage):
@@ -411,7 +411,7 @@ class TestSqliteModelMemoryStorage:
 
 
 # ──────────────────────────────────────────────
-# ModelMemoryAction E2E Tests (with real SQLite)
+# AgentMemoryAction E2E Tests (with real SQLite)
 # ──────────────────────────────────────────────
 
 
@@ -428,10 +428,10 @@ def mock_context():
 
 
 def make_component_config(**overrides):
-    """Create a ModelMemoryComponentConfig with sensible defaults."""
+    """Create a AgentMemoryComponentConfig with sensible defaults."""
     base = {
         "id": "mem",
-        "type": "model-memory",
+        "type": "agent-memory",
         "actions": [],
     }
     base.update(overrides)
@@ -439,9 +439,9 @@ def make_component_config(**overrides):
 
 
 def make_action(action_config, component_config, global_configs=None):
-    """Create a ModelMemoryAction instance.
+    """Create a AgentMemoryAction instance.
 
-    ModelMemoryAction now takes an already-resolved summary component service
+    AgentMemoryAction now takes an already-resolved summary component service
     rather than global_configs. When a `global_configs` fixture is provided and
     the component config declares a summary, we resolve the referenced component
     via `create_component` (which consults the shared `ComponentInstances` cache
@@ -462,18 +462,18 @@ def make_action(action_config, component_config, global_configs=None):
             _, resolved_config = ComponentResolver(global_configs.components).resolve(summary_component_id)
             summary_component = create_component(summary_component_id, resolved_config, global_configs, daemon=False)
 
-    return ModelMemoryAction(action_config, component_config.window, component_config.summary, summary_component)
+    return AgentMemoryAction(action_config, component_config.window, component_config.summary, summary_component)
 
 
-class TestModelMemoryActionE2E:
-    """E2E tests: ModelMemoryAction + real SQLite storage + real buffer."""
+class TestAgentMemoryActionE2E:
+    """E2E tests: AgentMemoryAction + real SQLite storage + real buffer."""
 
     @pytest.mark.anyio
     async def test_load_empty_session(self, sqlite_storage, mock_context):
         """Test that loading an empty session returns no messages."""
         buffer = make_buffer()
         component_config = make_component_config()
-        action_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        action_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
 
         action = make_action(action_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
@@ -488,18 +488,18 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         # Load
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append
         messages = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
-        append_config = ModelMemoryAppendActionConfig(method="append", session_id="s1", messages=messages)
+        append_config = AgentMemoryAppendActionConfig(method="append", session_id="s1", messages=messages)
         action = make_action(append_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
         # Save
-        save_config = ModelMemorySaveActionConfig(method="save", session_id="s1")
+        save_config = AgentMemorySaveActionConfig(method="save", session_id="s1")
         action = make_action(save_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -520,7 +520,7 @@ class TestModelMemoryActionE2E:
 
         buffer = make_buffer()
         component_config = make_component_config()
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -537,7 +537,7 @@ class TestModelMemoryActionE2E:
 
         buffer = make_buffer()
         component_config = make_component_config(window=2)
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -553,12 +553,12 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         # Load
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append
-        append_config = ModelMemoryAppendActionConfig(
+        append_config = AgentMemoryAppendActionConfig(
             method="append", session_id="s1",
             messages=[{"role": "user", "content": "hello"}],
         )
@@ -566,7 +566,7 @@ class TestModelMemoryActionE2E:
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Clear (should rollback to snapshot = empty)
-        clear_config = ModelMemoryClearActionConfig(method="clear", session_id="s1")
+        clear_config = AgentMemoryClearActionConfig(method="clear", session_id="s1")
         action = make_action(clear_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -582,13 +582,13 @@ class TestModelMemoryActionE2E:
         buffer = make_buffer()
         # Load first to populate buffer
         component_config = make_component_config()
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
         assert await buffer.get_turns("s1") is not None
 
         # Delete
-        delete_config = ModelMemoryDeleteActionConfig(method="delete", session_id="s1")
+        delete_config = AgentMemoryDeleteActionConfig(method="delete", session_id="s1")
         action = make_action(delete_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -606,7 +606,7 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         new_messages = [{"role": "user", "content": "new"}]
-        save_config = ModelMemorySaveActionConfig(method="save", session_id="s1", messages=new_messages)
+        save_config = AgentMemorySaveActionConfig(method="save", session_id="s1", messages=new_messages)
         action = make_action(save_config, component_config)
 
         with pytest.raises(LookupError, match="Session not loaded"):
@@ -618,7 +618,7 @@ class TestModelMemoryActionE2E:
         buffer = make_buffer()
         component_config = make_component_config()
 
-        load_config = ModelMemoryLoadActionConfig(method="load")
+        load_config = AgentMemoryLoadActionConfig(method="load")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
@@ -630,7 +630,7 @@ class TestModelMemoryActionE2E:
         buffer = make_buffer()
         component_config = make_component_config()
 
-        append_config = ModelMemoryAppendActionConfig(
+        append_config = AgentMemoryAppendActionConfig(
             method="append", session_id="s1",
             messages=[{"role": "user", "content": "hello"}],
         )
@@ -646,13 +646,13 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config(window=2)
 
         # Load
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append 3 turns
         for i in range(3):
-            append_config = ModelMemoryAppendActionConfig(
+            append_config = AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": f"turn{i}"}],
             )
@@ -672,12 +672,12 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         # Load
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append turn 1
-        append_config = ModelMemoryAppendActionConfig(
+        append_config = AgentMemoryAppendActionConfig(
             method="append", session_id="s1",
             messages=[{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi there"}],
         )
@@ -685,7 +685,7 @@ class TestModelMemoryActionE2E:
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append turn 2
-        append_config = ModelMemoryAppendActionConfig(
+        append_config = AgentMemoryAppendActionConfig(
             method="append", session_id="s1",
             messages=[{"role": "user", "content": "how are you?"}],
         )
@@ -693,13 +693,13 @@ class TestModelMemoryActionE2E:
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Save
-        save_config = ModelMemorySaveActionConfig(method="save", session_id="s1")
+        save_config = AgentMemorySaveActionConfig(method="save", session_id="s1")
         action = make_action(save_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
         # Simulate fresh start: new buffer, reload from storage
         buffer2 = make_buffer()
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer2, sqlite_storage)
 
@@ -714,12 +714,12 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         # Load
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Save with empty messages
-        save_config = ModelMemorySaveActionConfig(method="save", session_id="s1", messages=[])
+        save_config = AgentMemorySaveActionConfig(method="save", session_id="s1", messages=[])
         action = make_action(save_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -730,12 +730,12 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         # Load first
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append with string messages (simulating unresolved template)
-        append_config = ModelMemoryAppendActionConfig(method="append", session_id="s1", messages="not a list")
+        append_config = AgentMemoryAppendActionConfig(method="append", session_id="s1", messages="not a list")
         action = make_action(append_config, component_config)
 
         with pytest.raises(TypeError, match=r"'messages' must be a list"):
@@ -754,7 +754,7 @@ class TestModelMemoryActionE2E:
         )
 
         # Load
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -768,12 +768,12 @@ class TestModelMemoryActionE2E:
         component_config = make_component_config()
 
         # Load from storage
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Append to buffer (not saved to storage)
-        append_config = ModelMemoryAppendActionConfig(
+        append_config = AgentMemoryAppendActionConfig(
             method="append", session_id="s1",
             messages=[{"role": "user", "content": "buffered"}],
         )
@@ -781,7 +781,7 @@ class TestModelMemoryActionE2E:
         await action.run(mock_context, buffer, sqlite_storage)
 
         # Load again: should see the buffered data
-        load_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+        load_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
         action = make_action(load_config, component_config)
         result = await action.run(mock_context, buffer, sqlite_storage)
 
@@ -802,10 +802,10 @@ async def fake_redis_server():
 
 @pytest.fixture
 async def redis_buffer(fake_redis_server):
-    """Provide a RedisModelMemoryBuffer backed by fakeredis."""
+    """Provide a RedisAgentMemoryBuffer backed by fakeredis."""
     import fakeredis.aioredis
-    config = RedisModelMemoryBufferConfig(driver="redis")
-    buf = RedisModelMemoryBuffer(config)
+    config = RedisAgentMemoryBufferConfig(driver="redis")
+    buf = RedisAgentMemoryBuffer(config)
     buf.client = fakeredis.aioredis.FakeRedis(server=fake_redis_server)
     buf._pubsub = buf.client.pubsub()
     await buf._pubsub.subscribe(buf._updates_channel())
@@ -814,7 +814,7 @@ async def redis_buffer(fake_redis_server):
     await buf.close()
 
 
-class TestRedisModelMemoryBuffer:
+class TestRedisAgentMemoryBuffer:
     """Test Redis-backed buffer driver operations using fakeredis."""
 
     @pytest.mark.anyio
@@ -908,11 +908,11 @@ class TestRedisModelMemoryBuffer:
 # ──────────────────────────────────────────────
 
 
-async def make_redis_buffer(server) -> RedisModelMemoryBuffer:
-    """Create a RedisModelMemoryBuffer backed by a shared fakeredis server."""
+async def make_redis_buffer(server) -> RedisAgentMemoryBuffer:
+    """Create a RedisAgentMemoryBuffer backed by a shared fakeredis server."""
     import fakeredis.aioredis
-    config = RedisModelMemoryBufferConfig(driver="redis")
-    buf = RedisModelMemoryBuffer(config)
+    config = RedisAgentMemoryBufferConfig(driver="redis")
+    buf = RedisAgentMemoryBuffer(config)
     buf.client = fakeredis.aioredis.FakeRedis(server=server)
     buf._pubsub = buf.client.pubsub()
     await buf._pubsub.subscribe(buf._updates_channel())
@@ -1046,7 +1046,7 @@ class TestRedisPubSubSync:
 # ──────────────────────────────────────────────
 
 
-class TestModelMemorySchemaNegative:
+class TestAgentMemorySchemaNegative:
     """Test invalid configs produce ValidationError."""
 
     component_adapter = TypeAdapter(ComponentConfig)
@@ -1056,7 +1056,7 @@ class TestModelMemorySchemaNegative:
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "mem",
-                "type": "model-memory",
+                "type": "agent-memory",
                 "buffer": {"driver": "nosuch"},
                 "actions": [],
             })
@@ -1066,7 +1066,7 @@ class TestModelMemorySchemaNegative:
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "mem",
-                "type": "model-memory",
+                "type": "agent-memory",
                 "storage": {"driver": "nosuch"},
                 "actions": [],
             })
@@ -1075,7 +1075,7 @@ class TestModelMemorySchemaNegative:
         """Schema does not constrain window to positive int; document current behavior."""
         config = self.component_adapter.validate_python({
             "id": "mem",
-            "type": "model-memory",
+            "type": "agent-memory",
             "window": -1,
             "actions": [],
         })
@@ -1087,7 +1087,7 @@ class TestModelMemorySchemaNegative:
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "mem",
-                "type": "model-memory",
+                "type": "agent-memory",
                 "window": "five",
                 "actions": [],
             })
@@ -1097,7 +1097,7 @@ class TestModelMemorySchemaNegative:
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "mem",
-                "type": "model-memory",
+                "type": "agent-memory",
                 "actions": [
                     {"id": "append", "method": "append", "session_id": "s1"},
                 ],
@@ -1108,7 +1108,7 @@ class TestModelMemorySchemaNegative:
         with pytest.raises(ValidationError):
             self.component_adapter.validate_python({
                 "id": "mem",
-                "type": "model-memory",
+                "type": "agent-memory",
                 "summary": {"action": "summarize"},  # missing component
                 "actions": [],
             })
@@ -1192,7 +1192,7 @@ class TestSummaryE2E:
 
         # Load
         action = make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         )
@@ -1200,7 +1200,7 @@ class TestSummaryE2E:
 
         # Append triggers prune-and-summarize
         action = make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}],
             ),
@@ -1225,7 +1225,7 @@ class TestSummaryE2E:
 
         # Pre-seed previous summary via load+set
         load = make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         )
@@ -1234,7 +1234,7 @@ class TestSummaryE2E:
 
         # Append → triggers summarization with previous summary in context
         action = make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "next"}],
             ),
@@ -1264,7 +1264,7 @@ class TestSummaryE2E:
 
         # Load
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         ).run(mock_context, buffer, sqlite_storage)
@@ -1272,7 +1272,7 @@ class TestSummaryE2E:
         # Append 3 turns
         for i in range(3):
             await make_action(
-                ModelMemoryAppendActionConfig(
+                AgentMemoryAppendActionConfig(
                     method="append", session_id="s1",
                     messages=[{"role": "user", "content": f"turn{i}"}],
                 ),
@@ -1299,13 +1299,13 @@ class TestSummaryE2E:
         component_config = make_component_config(summary={"component": "summarizer", "action": "summarize"})
 
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         ).run(mock_context, buffer, sqlite_storage)
 
         await make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "hi"}],
             ),
@@ -1325,7 +1325,7 @@ class TestSummaryE2E:
         component_config = make_component_config(summary={"component": "summarizer", "action": "summarize"})
 
         result = await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         ).run(mock_context, buffer, sqlite_storage)
@@ -1335,7 +1335,7 @@ class TestSummaryE2E:
 
 
 # ──────────────────────────────────────────────
-# ModelMemoryComponent Lifecycle Tests
+# AgentMemoryComponent Lifecycle Tests
 # ──────────────────────────────────────────────
 
 
@@ -1344,24 +1344,24 @@ def make_lifecycle_global_configs():
     return ComponentGlobalConfigs(components=[], listeners=[], gateways=[], workflows=[])
 
 
-class TestModelMemoryComponentLifecycle:
-    """Test ModelMemoryComponent service-boundary: registry-driven driver creation, serve/shutdown, run."""
+class TestAgentMemoryComponentLifecycle:
+    """Test AgentMemoryComponent service-boundary: registry-driven driver creation, serve/shutdown, run."""
 
     @pytest.mark.anyio
     async def test_component_creates_default_drivers(self):
         """A minimal config produces SQLite storage + memory buffer instances."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = make_component_config(storage={"driver": "sqlite", "path": os.path.join(tmpdir, "c.db")})
-            comp = ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
-            assert isinstance(comp._buffer, MemoryModelMemoryBuffer)
-            assert isinstance(comp._storage, SqliteModelMemoryStorage)
+            comp = AgentMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
+            assert isinstance(comp._buffer, MemoryAgentMemoryBuffer)
+            assert isinstance(comp._storage, SqliteAgentMemoryStorage)
 
     @pytest.mark.anyio
     async def test_start_and_stop_initialize_and_close(self):
         """_start sets up buffer+storage; _stop closes them cleanly."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = make_component_config(storage={"driver": "sqlite", "path": os.path.join(tmpdir, "c.db")})
-            comp = ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
+            comp = AgentMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
 
             await comp._start()
             # Storage usable after setup
@@ -1376,10 +1376,10 @@ class TestModelMemoryComponentLifecycle:
         """_run executes a load action end-to-end through the component."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = make_component_config(storage={"driver": "sqlite", "path": os.path.join(tmpdir, "c.db")})
-            comp = ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
+            comp = AgentMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
             await comp._start()
             try:
-                action_config = ModelMemoryLoadActionConfig(method="load", session_id="s1")
+                action_config = AgentMemoryLoadActionConfig(method="load", session_id="s1")
                 result = await comp._run(action_config, mock_context)
                 assert result["messages"] == []
                 assert result["summary"] == ""
@@ -1388,30 +1388,30 @@ class TestModelMemoryComponentLifecycle:
 
     def test_unsupported_buffer_driver_raises(self, monkeypatch):
         """An empty buffer registry should raise a clear ValueError."""
-        from mindor.core.component.services.model_memory import model_memory as mm_module
+        from mindor.core.component.services.agent_memory import agent_memory as mm_module
 
-        monkeypatch.setattr(mm_module, "ModelMemoryBufferRegistry", {}, raising=True)
+        monkeypatch.setattr(mm_module, "AgentMemoryBufferRegistry", {}, raising=True)
 
         config = make_component_config()
-        with pytest.raises(ValueError, match="Unsupported model memory buffer driver"):
-            ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
+        with pytest.raises(ValueError, match="Unsupported agent memory buffer driver"):
+            AgentMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
 
     def test_unsupported_storage_driver_raises(self, monkeypatch):
         """An empty storage registry should raise a clear ValueError."""
-        from mindor.core.component.services.model_memory import model_memory as mm_module
+        from mindor.core.component.services.agent_memory import agent_memory as mm_module
 
-        monkeypatch.setattr(mm_module, "ModelMemoryStorageRegistry", {}, raising=True)
+        monkeypatch.setattr(mm_module, "AgentMemoryStorageRegistry", {}, raising=True)
 
         config = make_component_config()
-        with pytest.raises(ValueError, match="Unsupported model memory storage driver"):
-            ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
+        with pytest.raises(ValueError, match="Unsupported agent memory storage driver"):
+            AgentMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
 
     @pytest.mark.anyio
     async def test_get_setup_requirements_aggregates(self):
         """_get_setup_requirements combines buffer + storage requirements into a flat list."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = make_component_config(storage={"driver": "sqlite", "path": os.path.join(tmpdir, "c.db")})
-            comp = ModelMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
+            comp = AgentMemoryComponent("mem", config, make_lifecycle_global_configs(), daemon=False)
             reqs = comp._get_setup_requirements()
             # SQLite storage contributes aiosqlite; memory buffer contributes nothing.
             assert reqs is not None
@@ -1428,11 +1428,11 @@ class TestSessionIdValidation:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("action_config", [
-        ModelMemoryLoadActionConfig(method="load", session_id=""),
-        ModelMemoryAppendActionConfig(method="append", session_id="", messages=[{"role": "user", "content": "x"}]),
-        ModelMemorySaveActionConfig(method="save", session_id=""),
-        ModelMemoryClearActionConfig(method="clear", session_id=""),
-        ModelMemoryDeleteActionConfig(method="delete", session_id=""),
+        AgentMemoryLoadActionConfig(method="load", session_id=""),
+        AgentMemoryAppendActionConfig(method="append", session_id="", messages=[{"role": "user", "content": "x"}]),
+        AgentMemorySaveActionConfig(method="save", session_id=""),
+        AgentMemoryClearActionConfig(method="clear", session_id=""),
+        AgentMemoryDeleteActionConfig(method="delete", session_id=""),
     ])
     async def test_empty_session_id_raises(self, sqlite_storage, mock_context, action_config):
         """An empty session_id should raise ValueError before any work is done."""
@@ -1454,8 +1454,8 @@ class TestWindowSplitAlgorithm:
 
     def _make_action(self):
         # Method/session_id don't matter for _split_turns_by_window; pick anything valid.
-        return ModelMemoryAction(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+        return AgentMemoryAction(
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             window_config=None,
             summary_config=None,
             summary_component=None,
@@ -1463,14 +1463,14 @@ class TestWindowSplitAlgorithm:
 
     def test_empty_turns_returns_two_empty_lists(self):
         action = self._make_action()
-        cfg = ModelMemoryWindowConfig(max_turn_count=3)
+        cfg = AgentMemoryWindowConfig(max_turn_count=3)
         recent, older = action._split_turns_by_window([], cfg)
         assert recent == []
         assert older == []
 
     def test_max_turn_count_keeps_last_n(self):
         action = self._make_action()
-        cfg = ModelMemoryWindowConfig(max_turn_count=2)
+        cfg = AgentMemoryWindowConfig(max_turn_count=2)
         turns = [[{"i": 0}], [{"i": 1}], [{"i": 2}], [{"i": 3}]]
         recent, older = action._split_turns_by_window(turns, cfg)
         assert recent == [[{"i": 2}], [{"i": 3}]]
@@ -1479,7 +1479,7 @@ class TestWindowSplitAlgorithm:
     def test_max_message_count_excludes_turn_that_would_overflow(self):
         """A turn is only kept if it fits entirely within the message budget (other than the min-1-turn rule)."""
         action = self._make_action()
-        cfg = ModelMemoryWindowConfig(max_message_count=3)
+        cfg = AgentMemoryWindowConfig(max_message_count=3)
         # Turn sizes (from old to new): 2, 2, 1. Walking from newest:
         # - take turn[2] (1 msg, total 1)
         # - take turn[1] (2 msgs, total 3) -- fits exactly
@@ -1496,7 +1496,7 @@ class TestWindowSplitAlgorithm:
     def test_both_constraints_take_the_stricter(self):
         """When both constraints are set, whichever cuts off first wins."""
         action = self._make_action()
-        cfg = ModelMemoryWindowConfig(max_turn_count=5, max_message_count=2)
+        cfg = AgentMemoryWindowConfig(max_turn_count=5, max_message_count=2)
         turns = [[{"m": "0"}], [{"m": "1"}], [{"m": "2"}]]
         recent, older = action._split_turns_by_window(turns, cfg)
         # message_count=2 bites first: take last 2 single-message turns.
@@ -1506,7 +1506,7 @@ class TestWindowSplitAlgorithm:
     def test_min_one_turn_preserved_when_latest_overflows(self):
         """If even the newest turn exceeds the budget, it is still kept (no empty recent)."""
         action = self._make_action()
-        cfg = ModelMemoryWindowConfig(max_message_count=2)
+        cfg = AgentMemoryWindowConfig(max_message_count=2)
         latest = [{"m": f"x{i}"} for i in range(5)]
         turns = [[{"m": "old"}], latest]
         recent, older = action._split_turns_by_window(turns, cfg)
@@ -1548,7 +1548,7 @@ class TestSummaryExplicitInputMode:
 
         # Load
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         ).run(context, buffer, sqlite_storage)
@@ -1557,7 +1557,7 @@ class TestSummaryExplicitInputMode:
 
         # Append → triggers _summarize_turns through prune-and-summarize
         await make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "a"}],
             ),
@@ -1597,13 +1597,13 @@ class TestSummaryResponseNormalization:
         component_config = make_component_config(summary={"component": "summarizer", "action": "summarize"})
 
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         ).run(mock_context, buffer, sqlite_storage)
 
         await make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "hi"}],
             ),
@@ -1629,13 +1629,13 @@ class TestSummaryResponseNormalization:
         component_config = make_component_config(summary={"component": "summarizer", "action": "summarize"})
 
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
             global_configs=summary_global_configs,
         ).run(mock_context, buffer, sqlite_storage)
 
         await make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "hi"}],
             ),
@@ -1652,8 +1652,8 @@ class TestSummaryResponseNormalization:
 
 
 class TestResolveComponent:
-    """summary_config.component resolution now happens at ModelMemoryComponent._start
-    via ComponentResolver, not inside ModelMemoryAction. See test_component_resolver.py
+    """summary_config.component resolution now happens at AgentMemoryComponent._start
+    via ComponentResolver, not inside AgentMemoryAction. See test_component_resolver.py
     for the resolver-level behavior."""
 
     def test_resolve_string_id_via_resolver(self):
@@ -1669,7 +1669,7 @@ class TestResolveComponent:
         assert cfg is target
 
     def test_resolve_inline_config_returns_as_is(self):
-        """Inline ComponentConfig is handled inline by ModelMemoryComponent._start
+        """Inline ComponentConfig is handled inline by AgentMemoryComponent._start
         (create_component receives the config directly). ComponentResolver still
         resolves string ids; inline configs bypass the resolver entirely."""
         inline = TypeAdapter(ComponentConfig).validate_python({
@@ -1701,7 +1701,7 @@ class TestBufferStorageConsistency:
 
         # Initial load to populate buffer.
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
@@ -1716,7 +1716,7 @@ class TestBufferStorageConsistency:
         sqlite_storage.load = counting_load
 
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
@@ -1733,13 +1733,13 @@ class TestBufferStorageConsistency:
 
         # Load brings it into the buffer.
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
         # Delete wipes both storage and buffer.
         await make_action(
-            ModelMemoryDeleteActionConfig(method="delete", session_id="s1"),
+            AgentMemoryDeleteActionConfig(method="delete", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
@@ -1747,7 +1747,7 @@ class TestBufferStorageConsistency:
 
         # Subsequent load returns the now-empty storage state (and re-snapshots).
         result = await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
@@ -1756,14 +1756,14 @@ class TestBufferStorageConsistency:
 
         # clear (snapshot restore) should be a no-op back to this empty baseline.
         await make_action(
-            ModelMemoryAppendActionConfig(
+            AgentMemoryAppendActionConfig(
                 method="append", session_id="s1",
                 messages=[{"role": "user", "content": "ephemeral"}],
             ),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
         await make_action(
-            ModelMemoryClearActionConfig(method="clear", session_id="s1"),
+            AgentMemoryClearActionConfig(method="clear", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
@@ -1786,13 +1786,13 @@ class TestConcurrentAppend:
 
         # Load first.
         await make_action(
-            ModelMemoryLoadActionConfig(method="load", session_id="s1"),
+            AgentMemoryLoadActionConfig(method="load", session_id="s1"),
             component_config,
         ).run(mock_context, buffer, sqlite_storage)
 
         async def append(i: int):
             await make_action(
-                ModelMemoryAppendActionConfig(
+                AgentMemoryAppendActionConfig(
                     method="append", session_id="s1",
                     messages=[{"role": "user", "content": f"t{i}"}],
                 ),

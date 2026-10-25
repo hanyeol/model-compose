@@ -7,6 +7,7 @@ from mindor.core.listener import HttpCallbackListener
 from mindor.core.utils.transport.http_client import HttpClient, StreamResourcePayload
 from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.shell import run_command_foreground
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
@@ -110,7 +111,7 @@ class HttpServerAction:
                     # Stopped early (a client closed the stream), the request ends too.
                     await response.close()
 
-            return _stream_chunk_generator()
+            return StreamChunkIterator(_stream_chunk_generator(), resource=response)
 
         context.register_source("response", response)
 
@@ -130,7 +131,7 @@ class HttpServerAction:
                     finally:
                         await result.close()
 
-                return _stream_chunk_generator()
+                return StreamChunkIterator(_stream_chunk_generator(), resource=result)
 
             context.register_source("result", result)
 

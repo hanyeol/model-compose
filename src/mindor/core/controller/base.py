@@ -376,6 +376,7 @@ class ControllerService(AsyncService):
             def _cleanup_callback(_, tid=task_id):
                 self._task_event_callbacks.pop(tid, None)
                 self._event_dispatcher.unregister(("callback", tid))
+
             task.add_done_callback(_cleanup_callback)
 
         if wait_for_completion:
@@ -587,18 +588,24 @@ class ControllerService(AsyncService):
 
         if pending_period > 0:
             self._shutdown_pending = True
+
             logging.info("Shutdown pending: waiting %s for traffic to drain...", self.config.shutdown_pending_period)
+
             await asyncio.sleep(pending_period)
 
         self._shutting_down = True
 
         if self._inflight_tasks:
             logging.info("Waiting for %d in-flight task(s) to complete...", len(self._inflight_tasks))
+
             _, pending = await asyncio.wait(self._inflight_tasks.values(), timeout=timeout)
+
             if pending:
                 logging.warning("Cancelling %d task(s) that did not complete within timeout", len(pending))
+
                 for task in pending:
                     task.cancel()
+
                 await asyncio.gather(*pending, return_exceptions=True)
 
         # Drain pending event notifications while listeners/adapters/components
@@ -1002,6 +1009,7 @@ class ControllerService(AsyncService):
                 )
                 for point in points
             ]
+
             session_id = self.get_task_state(task_id).session_id if self.get_task_state(task_id) else None
             state = TaskState(
                 task_id=task_id,

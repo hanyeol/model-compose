@@ -9,285 +9,29 @@ from mindor.dsl.schema.component.impl.model.tasks.chat_completion.impl.common im
     ReasoningParserConfig,
 )
 
-class ToolCallParser:
-    """Extract tool_call blocks from raw model output using a declarative marker + body-format spec.
+class ToolCallBodyParser(ABC):
+    """Format-specific parser for the text between a tool call's start_tag and end_tag.
 
-    ``parse`` handles the optional batch envelope (``batch_start_tag``/``batch_end_tag``, e.g.,
-    DeepSeek's ``<｜tool_calls_begin｜>...<｜tool_calls_end｜>``) and delegates each envelope's body
-    — or the whole text when no batch tags are configured — to ``_parse``. ``_parse`` scans
-    left-to-right for individual ``start_tag`` occurrences. Text outside a matched call is
-    preserved as a ``text`` block; anything inside becomes ``tool_call`` blocks. Malformed
-    bodies (invalid JSON, wrong keys, unterminated pythonic call) are treated as text so a
-    single bad output cannot swallow the rest of the response.
-
-    Batch semantics: text outside every batch envelope is passed through as text blocks
-    unchanged. Bytes inside an envelope that do not belong to a matched call are dropped
-    (framing tokens between calls are noise from the consumer's perspective). If the envelope
-    is opened but not closed, the whole opening tag onward is returned as text so a truncated
-    output cannot silently discard partial content.
+    Subclasses encapsulate (a) how a complete body maps to one or more tool_call dicts, and
+    (b) when end_tag is omitted, how to probe the text for the end offset of exactly one
+    syntactic value. XML has no self-delimiting syntax and therefore no value-end probe —
+    ``format: xml`` is validated to always carry an explicit end_tag.
     """
     def __init__(self, config: ToolCallParserConfig):
         self.config: ToolCallParserConfig = config
 
-    def parse(self, text: str) -> List[Dict[str, Any]]:
-        batch_start_tag = self.config.batch_start_tag
-        batch_end_tag   = self.config.batch_end_tag
-
-        if batch_start_tag or batch_end_tag:
-            blocks: List[Dict[str, Any]] = []
-            cursor = 0
-
-            while cursor < len(text):
-                start = text.find(batch_start_tag, cursor)
-
-                if start < 0:
-                    tail = text[cursor:]
-
-                    if tail:
-                        blocks.append({ "type": "text", "text": tail })
-
-                    break
-
-                if start > cursor:
-                    blocks.append({ "type": "text", "text": text[cursor:start] })
-
-                batch_body_start = start + len(batch_start_tag)
-                batch_end = text.find(batch_end_tag, batch_body_start)
-
-                if batch_end < 0:
-                    # Unclosed batch: return everything from the opening tag as text so nothing is
-                    # silently swallowed. Streaming callers use ToolCallStreamSplitter and never
-                    # reach this branch.
-                    blocks.append({ "type": "text", "text": text[start:] })
-                    break
-
-                call_blocks = self._parse(text[batch_body_start:batch_end])
-                # Framing between calls in a batch (whitespace, separators) is noise; only real
-                # tool_call blocks propagate outward from within a batch.
-                blocks.extend(block for block in call_blocks if block.get("type") == "tool_call")
-                cursor = batch_end + len(batch_end_tag)
-
-            return blocks
-
-        return self._parse(text)
-
-    def _parse(self, text: str) -> List[Dict[str, Any]]:
-        blocks: List[Dict[str, Any]] = []
-        pending_text, cursor = "", 0
-
-        while cursor < len(text):
-            start = text.find(self.config.start_tag, cursor)
-
-            if start < 0:
-                pending_text += text[cursor:]
-                break
-
-            pending_text += text[cursor:start]
-            body_start = start + len(self.config.start_tag)
-            calls, body_end = self._read_body(text, body_start)
-
-            if not calls:
-                # Malformed body: keep the start_tag as literal text and resume just past it.
-                pending_text += text[start:body_start]
-                cursor = body_start
-                continue
-
-            if pending_text:
-                blocks.append({ "type": "text", "text": pending_text })
-                pending_text = ""
-
-            blocks.extend(calls)
-            cursor = body_end
-
-        if pending_text:
-            blocks.append({ "type": "text", "text": pending_text })
-
-        return blocks
-
-    def _read_body(self, text: str, body_start: int) -> Tuple[List[Dict[str, Any]], int]:
-        if self.config.end_tag:
-            end = text.find(self.config.end_tag, body_start)
-
-            if end < 0:
-                return [], body_start
-
-            calls = self._parse_body(text[body_start:end])
-
-            if not calls:
-                return [], body_start
-
-            return calls, end + len(self.config.end_tag)
-
-        # end_tag omitted: read exactly one syntactic value starting at body_start.
-        body, consumed = self._read_one_value(text, body_start)
-
-        if body is None:
-            return [], body_start
-
-        calls = self._parse_body(body)
-
-        if not calls:
-            return [], body_start
-
-        return calls, body_start + consumed
-
-    def _read_one_value(self, text: str, offset: int) -> Tuple[Optional[str], int]:
-        # Skip whitespace, then delegate to the format-specific length probe.
-        head = offset
-
-        while head < len(text) and text[head].isspace():
-            head += 1
-
-        if head >= len(text):
-            return None, 0
-
-        if self.config.format == ToolCallBodyFormat.JSON:
-            end = self._json_value_end(text, head)
-        else:
-            end = self._pythonic_value_end(text, head)
-
-        if end is None:
-            return None, 0
-
-        return text[head:end], end - offset
-
-    def _parse_body(self, body: str) -> List[Dict[str, Any]]:
-        if self.config.format == ToolCallBodyFormat.PYTHONIC:
-            return self._parse_pythonic_body(body)
-
-        # JSON format. When markers pluck name/arguments from specific locations inside the raw
-        # body, the body as a whole may not be valid JSON (e.g., DeepSeek: "function<sep>name\n
-        # ```json\n{...}\n```"). Otherwise the body itself is a JSON value.
-        if self.config.name_marker or self.config.arguments_marker:
-            return self._parse_marker_body(body)
-
-        return self._parse_json_body(body)
-
-    def _parse_json_body(self, body: str) -> List[Dict[str, Any]]:
-        try:
-            payload = json.loads(body)
-        except (ValueError, TypeError):
-            return []
-
-        items = payload if isinstance(payload, list) else [ payload ]
-
-        if not items or not all(isinstance(item, dict) for item in items):
-            return []
-
-        calls = [ self._build_call_from_json(item) for item in items ]
-
-        if any(call is None for call in calls):
-            return []
-
-        return calls  # type: ignore[return-value]
-
-    def _parse_marker_body(self, body: str) -> List[Dict[str, Any]]:
-        # Marker path: exactly one call per body. Multi-call batching is done by the enclosing
-        # start_tag/end_tag loop in ``_parse`` (each call is its own <start_tag>...<end_tag>
-        # span).
-        name = self._extract_name(body)
-
-        if not name:
-            return []
-
-        arguments = self._extract_arguments(body)
-
-        if arguments is None:
-            return []
-
-        return [ {
-            "type": "tool_call",
-            "id": f"call_{ulid.ulid()}",
-            "name": name,
-            "arguments": arguments,
-        } ]
-
-    def _extract_name(self, body: str) -> Optional[str]:
-        marker = self.config.name_marker
-
-        if marker is not None:
-            start = body.find(marker.prefix)
-
-            if start < 0:
-                return None
-
-            name_start = start + len(marker.prefix)
-            end = body.find(marker.suffix, name_start)
-
-            if end < 0:
-                return None
-
-            name = body[name_start:end].strip()
-
-            return name or None
-        else:
-            # Fall back to JSON body + name_key. Reached when only arguments_marker is set.
-            try:
-                payload = json.loads(body)
-            except (ValueError, TypeError):
-                return None
-
-            if not isinstance(payload, dict):
-                return None
-
-            value = payload.get(self.config.name_key)
-
-            return value if isinstance(value, str) and value else None
-
-    def _extract_arguments(self, body: str) -> Optional[Dict[str, Any]]:
-        marker = self.config.arguments_marker
-
-        if marker is not None:
-            start = body.find(marker.open)
-
-            if start < 0:
-                return None
-
-            args_start = start + len(marker.open)
-            end = body.find(marker.close, args_start)
-
-            if end < 0:
-                return None
-
-            try:
-                arguments = json.loads(body[args_start:end])
-            except (ValueError, TypeError):
-                return None
-
-            return arguments if isinstance(arguments, dict) else None
-        else:
-            # Fall back to JSON body + arguments_key. Reached when only name_marker is set.
-            try:
-                payload = json.loads(body)
-            except (ValueError, TypeError):
-                return None
-
-            if not isinstance(payload, dict):
-                return None
-
-            arguments = payload.get(self.config.arguments_key, {})
-
-            return arguments if isinstance(arguments, dict) else None
-
-    def _build_call_from_json(self, item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        name = item.get(self.config.name_key)
-
-        if not isinstance(name, str) or not name:
-            return None
-
-        arguments = item.get(self.config.arguments_key, {})
-
-        if not isinstance(arguments, dict):
-            return None
-
-        return {
-            "type": "tool_call",
-            "id": f"call_{ulid.ulid()}",
-            "name": name,
-            "arguments": arguments,
-        }
-
-    def _parse_pythonic_body(self, body: str) -> List[Dict[str, Any]]:
+    @abstractmethod
+    def parse(self, body: str) -> List[Dict[str, Any]]:
+        """Parse one tool-call body into zero or more tool_call blocks. Empty list = malformed."""
+
+    def probe_value_end(self, text: str, start: int) -> Optional[int]:
+        """Return the absolute offset just past one syntactic value starting at ``start``,
+        or ``None`` when the text does not yet contain a complete value. Only called when
+        the parser's ``end_tag`` is omitted; XML format never reaches this path."""
+        raise NotImplementedError
+
+class ToolCallPythonicBodyParser(ToolCallBodyParser):
+    def parse(self, body: str) -> List[Dict[str, Any]]:
         try:
             tree = ast.parse(body.strip(), mode="eval").body
         except SyntaxError:
@@ -305,69 +49,7 @@ class ToolCallParser:
 
         return calls  # type: ignore[return-value]
 
-    def _pythonic_call_to_dict(self, node: ast.AST) -> Optional[Dict[str, Any]]:
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-            return None
-
-        if node.args:
-            return None
-
-        arguments: Dict[str, Any] = {}
-
-        for keyword in node.keywords:
-            if keyword.arg is None:
-                return None
-
-            try:
-                arguments[keyword.arg] = ast.literal_eval(keyword.value)
-            except (ValueError, SyntaxError):
-                return None
-
-        return {
-            "type": "tool_call",
-            "id": f"call_{ulid.ulid()}",
-            "name": node.func.id,
-            "arguments": arguments,
-        }
-
-    def _json_value_end(self, text: str, start: int) -> Optional[int]:
-        # Walk a JSON value tracking string state + brace/bracket depth. Sufficient for objects
-        # and arrays, which is what tool-call bodies use.
-        first = text[start]
-
-        if first not in "{[":
-            return None
-
-        stack = [first]
-        in_string = False
-        escape = False
-        cursor = start + 1
-
-        while cursor < len(text) and stack:
-            ch = text[cursor]
-
-            if in_string:
-                if escape:
-                    escape = False
-                elif ch == "\\":
-                    escape = True
-                elif ch == '"':
-                    in_string = False
-            else:
-                if ch == '"':
-                    in_string = True
-                elif ch in "{[":
-                    stack.append(ch)
-                elif ch in "}]":
-                    opener = stack.pop()
-                    if (opener, ch) not in (("{", "}"), ("[", "]")):
-                        return None
-
-            cursor += 1
-
-        return cursor if not stack else None
-
-    def _pythonic_value_end(self, text: str, start: int) -> Optional[int]:
+    def probe_value_end(self, text: str, start: int) -> Optional[int]:
         # Find the shortest prefix that parses as a *tool call shape* — Call, or List/Tuple
         # of Call. First-parses-wins is wrong because ``get_weather(...)`` already parses as
         # a bare Name at length 1; we'd stop before consuming the arguments. Char-by-char
@@ -425,7 +107,7 @@ class ToolCallParser:
             pass
 
         # Probe candidates shortest-to-longest, but a valid *longer* match beats a shorter one
-        # only when the shorter one is not a proper tool-call shape. Since ``_parse_body`` will
+        # only when the shorter one is not a proper tool-call shape. Since ``parse`` will
         # reject non-Call ASTs anyway, we simply return the first candidate whose parse yields
         # a Call/List[Call]/Tuple[Call]. Deduplicate while preserving order.
         seen = set()
@@ -455,6 +137,31 @@ class ToolCallParser:
 
         return None
 
+    def _pythonic_call_to_dict(self, node: ast.AST) -> Optional[Dict[str, Any]]:
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            return None
+
+        if node.args:
+            return None
+
+        arguments: Dict[str, Any] = {}
+
+        for keyword in node.keywords:
+            if keyword.arg is None:
+                return None
+
+            try:
+                arguments[keyword.arg] = ast.literal_eval(keyword.value)
+            except (ValueError, SyntaxError):
+                return None
+
+        return {
+            "type": "tool_call",
+            "id": f"call_{ulid.ulid()}",
+            "name": node.func.id,
+            "arguments": arguments,
+        }
+
     @staticmethod
     def _token_end_to_offset(text: str, base_offset: int, token_end: Tuple[int, int]) -> Optional[int]:
         # ``tokenize`` reports ``token.end`` as (row, col) into the substring passed to
@@ -475,6 +182,392 @@ class ToolCallParser:
         offset = cursor + end_col
 
         return offset if offset <= len(text) else None
+
+class ToolCallXmlBodyParser(ToolCallBodyParser):
+    def parse(self, body: str) -> List[Dict[str, Any]]:
+        # XML format expects an outer <function=NAME>...</function> wrapper (located via
+        # name_marker's prefix/suffix) containing repeated <parameter=KEY>value</parameter>
+        # pairs (located via arguments_marker's repeat shape). Each value is tried as JSON
+        # and falls back to its stripped raw string — matching the Qwen3-Coder chat template,
+        # which emits mapping/sequence values via tojson and everything else via `| string`.
+        name_marker = self.config.name_marker
+        arguments_marker = self.config.arguments_marker
+
+        name_prefix_at = body.find(name_marker.prefix)
+
+        if name_prefix_at < 0:
+            return []
+
+        name_start = name_prefix_at + len(name_marker.prefix)
+        name_suffix_at = body.find(name_marker.suffix, name_start)
+
+        if name_suffix_at < 0:
+            return []
+
+        name = body[name_start:name_suffix_at].strip()
+
+        if not name:
+            return []
+
+        arguments: Dict[str, Any] = {}
+        cursor = name_suffix_at + len(name_marker.suffix)
+
+        while True:
+            key_prefix_at = body.find(arguments_marker.key_prefix, cursor)
+
+            if key_prefix_at < 0:
+                break
+
+            key_start = key_prefix_at + len(arguments_marker.key_prefix)
+            key_suffix_at = body.find(arguments_marker.key_suffix, key_start)
+
+            if key_suffix_at < 0:
+                return []
+
+            key = body[key_start:key_suffix_at].strip()
+
+            if not key:
+                return []
+
+            value_start = key_suffix_at + len(arguments_marker.key_suffix)
+            value_end_at = body.find(arguments_marker.value_end, value_start)
+
+            if value_end_at < 0:
+                return []
+
+            value = body[value_start:value_end_at].strip()
+
+            try:
+                arguments[key] = json.loads(value)
+            except (ValueError, TypeError):
+                arguments[key] = value
+
+            cursor = value_end_at + len(arguments_marker.value_end)
+
+        return [ {
+            "type": "tool_call",
+            "id": f"call_{ulid.ulid()}",
+            "name": name,
+            "arguments": arguments,
+        } ]
+
+class ToolCallJsonBodyParser(ToolCallBodyParser):
+    def parse(self, body: str) -> List[Dict[str, Any]]:
+        # Marker path: markers pluck name/arguments from specific locations inside the raw
+        # body (e.g., DeepSeek: "function<sep>name\n```json\n{...}\n```"), so the body as a
+        # whole need not be valid JSON. Exactly one call per body — multi-call batching is
+        # handled by the enclosing start_tag/end_tag loop in ``ToolCallParser._parse_calls``.
+        if self.config.name_marker or self.config.arguments_marker:
+            name = self._extract_name(body)
+
+            if not name:
+                return []
+
+            arguments = self._extract_arguments(body)
+
+            if arguments is None:
+                return []
+
+            return [ {
+                "type": "tool_call",
+                "id": f"call_{ulid.ulid()}",
+                "name": name,
+                "arguments": arguments,
+            } ]
+
+        # Payload path: the body itself is a JSON object or array of objects.
+        try:
+            payload = json.loads(body)
+        except (ValueError, TypeError):
+            return []
+
+        items = payload if isinstance(payload, list) else [ payload ]
+
+        if not items or not all(isinstance(item, dict) for item in items):
+            return []
+
+        calls = [ self._build_call_from_json(item) for item in items ]
+
+        if any(call is None for call in calls):
+            return []
+
+        return calls  # type: ignore[return-value]
+
+    def probe_value_end(self, text: str, start: int) -> Optional[int]:
+        # Walk a JSON value tracking string state + brace/bracket depth. Sufficient for objects
+        # and arrays, which is what tool-call bodies use.
+        first = text[start]
+
+        if first not in "{[":
+            return None
+
+        stack = [first]
+        in_string = False
+        escape = False
+        cursor = start + 1
+
+        while cursor < len(text) and stack:
+            ch = text[cursor]
+
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+            else:
+                if ch == '"':
+                    in_string = True
+                elif ch in "{[":
+                    stack.append(ch)
+                elif ch in "}]":
+                    opener = stack.pop()
+                    if (opener, ch) not in (("{", "}"), ("[", "]")):
+                        return None
+
+            cursor += 1
+
+        return cursor if not stack else None
+
+    def _extract_name(self, body: str) -> Optional[str]:
+        marker = self.config.name_marker
+
+        if marker is not None:
+            start = body.find(marker.prefix)
+
+            if start < 0:
+                return None
+
+            name_start = start + len(marker.prefix)
+            end = body.find(marker.suffix, name_start)
+
+            if end < 0:
+                return None
+
+            name = body[name_start:end].strip()
+
+            return name or None
+        else:
+            # Fall back to JSON body + name_key. Reached when only arguments_marker is set.
+            try:
+                payload = json.loads(body)
+            except (ValueError, TypeError):
+                return None
+
+            if not isinstance(payload, dict):
+                return None
+
+            value = payload.get(self.config.name_key)
+
+            return value if isinstance(value, str) and value else None
+
+    def _extract_arguments(self, body: str) -> Optional[Dict[str, Any]]:
+        marker = self.config.arguments_marker
+
+        if marker is not None:
+            start = body.find(marker.prefix)
+
+            if start < 0:
+                return None
+
+            args_start = start + len(marker.prefix)
+            end = body.find(marker.suffix, args_start)
+
+            if end < 0:
+                return None
+
+            try:
+                arguments = json.loads(body[args_start:end])
+            except (ValueError, TypeError):
+                return None
+
+            return arguments if isinstance(arguments, dict) else None
+        else:
+            # Fall back to JSON body + arguments_key. Reached when only name_marker is set.
+            try:
+                payload = json.loads(body)
+            except (ValueError, TypeError):
+                return None
+
+            if not isinstance(payload, dict):
+                return None
+
+            arguments = payload.get(self.config.arguments_key, {})
+
+            return arguments if isinstance(arguments, dict) else None
+
+    def _build_call_from_json(self, item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        name = item.get(self.config.name_key)
+
+        if not isinstance(name, str) or not name:
+            return None
+
+        arguments = item.get(self.config.arguments_key, {})
+
+        if not isinstance(arguments, dict):
+            return None
+
+        return {
+            "type": "tool_call",
+            "id": f"call_{ulid.ulid()}",
+            "name": name,
+            "arguments": arguments,
+        }
+
+class ToolCallParser:
+    """Extract tool_call blocks from raw model output using a declarative marker + body-format spec.
+
+    ``parse`` handles the optional batch envelope (``batch_start_tag``/``batch_end_tag``, e.g.,
+    DeepSeek's ``<｜tool_calls_begin｜>...<｜tool_calls_end｜>``) and delegates each envelope's body
+    — or the whole text when no batch tags are configured — to ``_parse_calls``. ``_parse_calls`` scans
+    left-to-right for individual ``start_tag`` occurrences. Text outside a matched call is
+    preserved as a ``text`` block; anything inside becomes ``tool_call`` blocks. Malformed
+    bodies (invalid JSON, wrong keys, unterminated pythonic call) are treated as text so a
+    single bad output cannot swallow the rest of the response.
+
+    Batch semantics: text outside every batch envelope is passed through as text blocks
+    unchanged. Bytes inside an envelope that do not belong to a matched call are dropped
+    (framing tokens between calls are noise from the consumer's perspective). If the envelope
+    is opened but not closed, the whole opening tag onward is returned as text so a truncated
+    output cannot silently discard partial content.
+    """
+    _CALL_BODY_PARSERS: Dict[ToolCallBodyFormat, type] = {
+        ToolCallBodyFormat.PYTHONIC: ToolCallPythonicBodyParser,
+        ToolCallBodyFormat.XML:      ToolCallXmlBodyParser,
+        ToolCallBodyFormat.JSON:     ToolCallJsonBodyParser,
+    }
+
+    def __init__(self, config: ToolCallParserConfig):
+        self.config: ToolCallParserConfig = config
+
+        self._call_body_parser: ToolCallBodyParser = self._CALL_BODY_PARSERS[config.format](config)
+
+    def parse(self, text: str) -> List[Dict[str, Any]]:
+        batch_start_tag = self.config.batch_start_tag
+        batch_end_tag   = self.config.batch_end_tag
+
+        if batch_start_tag or batch_end_tag:
+            blocks: List[Dict[str, Any]] = []
+            cursor = 0
+
+            while cursor < len(text):
+                start = text.find(batch_start_tag, cursor)
+
+                if start < 0:
+                    tail = text[cursor:]
+
+                    if tail:
+                        blocks.append({ "type": "text", "text": tail })
+
+                    break
+
+                if start > cursor:
+                    blocks.append({ "type": "text", "text": text[cursor:start] })
+
+                batch_body_start = start + len(batch_start_tag)
+                batch_end = text.find(batch_end_tag, batch_body_start)
+
+                if batch_end < 0:
+                    # Unclosed batch: return everything from the opening tag as text so nothing is
+                    # silently swallowed. Streaming callers use ToolCallStreamSplitter and never
+                    # reach this branch.
+                    blocks.append({ "type": "text", "text": text[start:] })
+                    break
+
+                call_blocks = self._parse_calls(text[batch_body_start:batch_end])
+
+                # Framing between calls in a batch (whitespace, separators) is noise; only real
+                # tool_call blocks propagate outward from within a batch.
+                blocks.extend(block for block in call_blocks if block.get("type") == "tool_call")
+                cursor = batch_end + len(batch_end_tag)
+
+            return blocks
+
+        return self._parse_calls(text)
+    
+    def parse_call_body(self, text: str, body_start: int) -> Tuple[Optional[List[Dict[str, Any]]], int]:
+        return self._parse_call_body(text, body_start)
+
+    def _parse_calls(self, text: str) -> List[Dict[str, Any]]:
+        blocks: List[Dict[str, Any]] = []
+        pending_text, cursor = "", 0
+
+        while cursor < len(text):
+            start = text.find(self.config.start_tag, cursor)
+
+            if start < 0:
+                pending_text += text[cursor:]
+
+                break
+
+            pending_text += text[cursor:start]
+            body_start = start + len(self.config.start_tag)
+            calls, body_end = self._parse_call_body(text, body_start)
+
+            if not calls:
+                # Incomplete (None) or malformed (empty list): keep the start_tag as literal
+                # text and resume just past it so later start_tags still get a chance to match.
+                pending_text += text[start:body_start]
+                cursor = body_start
+
+                continue
+
+            if pending_text:
+                blocks.append({ "type": "text", "text": pending_text })
+                pending_text = ""
+
+            blocks.extend(calls)
+            cursor = body_end
+
+        if pending_text:
+            blocks.append({ "type": "text", "text": pending_text })
+
+        return blocks
+
+    def _parse_call_body(self, text: str, body_start: int) -> Tuple[Optional[List[Dict[str, Any]]], int]:
+        """Try to parse one tool-call body starting at ``body_start``.
+
+        Returns one of:
+          * ``(calls, body_end)``  — body closed and parsed; ``body_end`` is where scanning
+            should resume (past the end_tag or past the consumed value).
+          * ``([], body_end)``     — body closed but malformed; caller treats the span as
+            literal text, using ``body_end`` to skip past it.
+          * ``(None, body_start)`` — body not yet terminated (streaming); caller waits.
+        """
+        body, body_end = self._read_call_body(text, body_start)
+
+        if body is None:
+            return None, body_start
+
+        return self._call_body_parser.parse(body), body_end
+
+    def _read_call_body(self, text: str, body_start: int) -> Tuple[Optional[str], int]:
+        # Isolate the body string and the offset at which scanning should resume. end_tag
+        # delimits explicitly; otherwise the format-specific value probe locates the body.
+        if self.config.end_tag:
+            end = text.find(self.config.end_tag, body_start)
+
+            if end < 0:
+                return None, body_start
+
+            return text[body_start:end], end + len(self.config.end_tag)
+
+        # end_tag omitted: body is one syntactic value starting after any leading whitespace.
+        head = body_start
+
+        while head < len(text) and text[head].isspace():
+            head += 1
+
+        if head >= len(text):
+            return None, body_start
+
+        end = self._call_body_parser.probe_value_end(text, head)
+
+        if end is None:
+            return None, body_start
+
+        return text[head:end], end
 
 class ToolCallStreamSplitter:
     """Chunk-at-a-time splitter used by ``ChatChoicesBuilder.stream``.
@@ -509,7 +602,7 @@ class ToolCallStreamSplitter:
         self._batch_cursor: int = 0
         self._inside_batch: bool = False
 
-        # Inner state (_feed): single-call tracking. Mirrors ToolCallParser._parse; reset on
+        # Inner state (_feed): single-call tracking. Mirrors ToolCallParser._parse_calls; reset on
         # every envelope entry/exit so the two modes stay independent.
         self._call_buffer: str = ""
         self._call_cursor: int = 0
@@ -617,7 +710,7 @@ class ToolCallStreamSplitter:
         return blocks
 
     def _feed(self, chunk: str) -> List[Dict[str, Any]]:
-        # Single-call scanner. Mirrors ToolCallParser._parse (lines 74-105): scan for start_tag,
+        # Single-call scanner. Mirrors ToolCallParser._parse_calls (lines 74-105): scan for start_tag,
         # buffer the body until it closes, emit tool_call blocks; malformed bodies fall back to
         # start_tag..span_end as literal text so a broken call cannot swallow surrounding output.
         self._call_buffer += chunk
@@ -648,27 +741,16 @@ class ToolCallStreamSplitter:
                 continue
 
             body_start = self._call_start + len(self.config.start_tag)
-            if self.config.end_tag:
-                end_at = self._call_buffer.find(self.config.end_tag, body_start)
+            calls, span_end = self.parser.parse_call_body(self._call_buffer, body_start)
 
-                if end_at < 0:
-                    return blocks
-
-                span_end = end_at + len(self.config.end_tag)
-            else:
-                _, consumed = self.parser._read_one_value(self._call_buffer, body_start)
-
-                if consumed == 0:
-                    return blocks
-
-                span_end = body_start + consumed
-
-            calls, _ = self.parser._read_body(self._call_buffer, body_start)
+            if calls is None:
+                # Body not yet terminated — wait for more bytes.
+                return blocks
 
             if calls:
                 blocks.extend(calls)
             else:
-                # Mirror ToolCallParser._parse's malformed-body policy (line 91): keep the
+                # Mirror ToolCallParser._parse_calls's malformed-body policy (line 91): keep the
                 # entire start_tag..span_end run as literal text. When invoked from inside a
                 # batch envelope ``feed`` filters this text block out, matching the batch
                 # parser's "only tool_call blocks survive" rule (line 67).

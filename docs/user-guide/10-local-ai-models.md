@@ -350,6 +350,69 @@ component:
     {%- endfor %}
 ```
 
+**Tool calling:**
+
+Local chat-completion models can be configured to call tools you expose on the component. Declare a `tools` catalog and a `tool_call_parser` describing where tool calls appear in the model's raw output and how to decode them. The parser scans left-to-right: text outside a matched call stays as a `text` block in `content`, while each matched call becomes a `tool_call` block with a generated `id`.
+
+Three body formats are supported — pick the one that matches your model's chat template:
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: Qwen/Qwen2.5-7B-Instruct
+  tools:
+    - name: get_weather
+      description: Get the current weather for a city.
+      parameters:
+        type: object
+        properties:
+          city: { type: string }
+        required: [ city ]
+  # Hermes / Qwen 2.5 / Qwen 3 mainline: <tool_call>{json}</tool_call>
+  tool_call_parser:
+    start_tag: '<tool_call>'
+    end_tag:   '</tool_call>'
+```
+
+The three supported body formats:
+
+- **`json`** (default) — the body between the markers is a JSON object (or array of objects). Used by Hermes-style templates (Qwen 2.5 / Qwen 3 mainline, Mistral `[TOOL_CALLS]`, Llama 3.1 `<|python_tag|>{...}`). Use `arguments_key` to point at a non-`arguments` field name (e.g., Llama 3.1 uses `parameters`).
+- **`pythonic`** — the body is a Python call expression, e.g., `get_weather(city="Seoul")` or `[a(x=1), b(y=2)]`. Used by Llama 3.2 pythonic templates.
+- **`xml`** — the body is an XML wrapper with repeated `<key>value</key>` argument pairs. Used by Qwen3-Coder's `<function=NAME><parameter=KEY>VALUE</parameter>...</function>` template. Each value is tried as JSON and falls back to its raw string.
+
+For bodies where the name and arguments aren't JSON fields but literal substrings or a fenced block (e.g., DeepSeek V3/R1), configure `name_marker` and/or `arguments_marker` to pluck them out:
+
+```yaml
+# DeepSeek V3 / R1: nested batch envelope, name as body literal, arguments in a fenced JSON block
+tool_call_parser:
+  batch_start_tag: '<｜tool_calls_begin｜>'
+  batch_end_tag:   '<｜tool_calls_end｜>'
+  start_tag:       '<｜tool_call_begin｜>'
+  end_tag:         '<｜tool_call_end｜>'
+  name_marker:
+    prefix: 'function<｜tool_sep｜>'
+    suffix: "\n"
+  arguments_marker:
+    prefix: "```json\n"
+    suffix: "\n```"
+
+# Qwen3-Coder: XML wrapper with per-argument <parameter=KEY>VALUE</parameter> pairs
+tool_call_parser:
+  start_tag: '<tool_call>'
+  end_tag:   '</tool_call>'
+  format:    xml
+  name_marker:
+    prefix: '<function='
+    suffix: '>'
+  arguments_marker:
+    key_prefix: '<parameter='
+    key_suffix: '>'
+    value_end:  '</parameter>'
+```
+
+Malformed bodies (invalid JSON, missing keys, unterminated pythonic call, unterminated XML parameter) are preserved as literal `text` blocks so a single bad output cannot swallow the rest of the response. For a full field reference see [Compose reference → components → model](../reference/compose/components/model.md).
+
 ### 10.3.3 text-to-text
 
 Runs seq2seq (encoder-decoder) transforms such as translation, summarization, and paraphrasing.

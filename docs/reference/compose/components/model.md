@@ -190,7 +190,7 @@ reasoning_parser:
 
 **`tool_call_parser` Fields:**
 
-Declares where tool calls appear in the model's text and how to parse them. The parser scans left-to-right; text outside a matched call is preserved as a `text` block, and everything inside is emitted as `tool_call` blocks in the message's `content`. Malformed bodies (invalid JSON, missing keys, incomplete pythonic call) are treated as text so a single bad output cannot swallow the rest of the response.
+Declares where tool calls appear in the model's text and how to parse them. The parser scans left-to-right; text outside a matched call is preserved as a `text` block, and everything inside is emitted as `tool_call` blocks in the message's `content`. Malformed bodies (invalid JSON, missing keys, incomplete pythonic call, unterminated XML parameter) are treated as text so a single bad output cannot swallow the rest of the response.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -198,16 +198,16 @@ Declares where tool calls appear in the model's text and how to parse them. The 
 | `batch_end_tag` | string | `null` | Outer marker that closes a batch of tool calls. |
 | `start_tag` | string | (required) | Literal marker that opens a single tool call (e.g., `<tool_call>`, `<\|python_tag\|>`, `[TOOL_CALLS]`). |
 | `end_tag` | string | `null` | Literal marker that closes a single tool call. Omit to consume exactly one JSON or pythonic value after `start_tag`. |
-| `format` | string | `json` | Body syntax: `json` or `pythonic`. |
+| `format` | string | `json` | Body syntax: `json`, `pythonic`, or `xml`. |
 | `name_key` | string | `name` | JSON field holding the tool name. Ignored when `name_marker` is set. |
 | `arguments_key` | string | `arguments` | JSON field holding the tool arguments. Ignored when `arguments_marker` is set. |
-| `name_marker` | object | `null` | Locate the tool name as a literal between two markers inside the body (instead of as a JSON field). Fields: `prefix`, `suffix`. |
-| `arguments_marker` | object | `null` | Locate the arguments payload inside a wrapper (e.g., a fenced code block) inside the body. Fields: `open`, `close`. The extracted region is parsed as JSON. |
+| `name_marker` | object | `null` | Locate the tool name as a literal between two markers inside the body (instead of as a JSON field). Fields: `prefix`, `suffix`. Required when `format` is `xml`. |
+| `arguments_marker` | object | `null` | Locate the arguments inside the body. Two shapes: **wrapper** (`prefix`, `suffix`) — one JSON payload between the markers; **repeat** (`key_prefix`, `key_suffix`, `value_end`) — repeating `key`/`value` pairs with each value tried as JSON and falling back to its stripped raw string. Required with the repeat shape when `format` is `xml`. |
 
 Examples:
 
 ```yaml
-# Hermes / Qwen style: <tool_call>{...}</tool_call>
+# Hermes / Qwen 2.5 / Qwen3 mainline: <tool_call>{...}</tool_call>
 tool_call_parser:
   start_tag: '<tool_call>'
   end_tag: '</tool_call>'
@@ -236,8 +236,33 @@ tool_call_parser:
     prefix: 'function<｜tool_sep｜>'
     suffix: "\n"
   arguments_marker:
-    open:  "```json\n"
-    close: "\n```"
+    prefix: "```json\n"
+    suffix: "\n```"
+
+# Qwen3-Coder: XML wrapper with per-argument <parameter=KEY>VALUE</parameter> pairs.
+# The model emits:
+#   <tool_call>
+#   <function=NAME>
+#   <parameter=KEY>
+#   VALUE
+#   </parameter>
+#   ...
+#   </function>
+#   </tool_call>
+# Each VALUE is parsed as JSON when possible (objects, arrays, numbers, booleans) and
+# otherwise kept as its stripped raw string — matching the model's chat template, which
+# serialises mapping/sequence arguments via tojson and everything else as a bare string.
+tool_call_parser:
+  start_tag: '<tool_call>'
+  end_tag:   '</tool_call>'
+  format:    xml
+  name_marker:
+    prefix: '<function='
+    suffix: '>'
+  arguments_marker:
+    key_prefix: '<parameter='
+    key_suffix: '>'
+    value_end:  '</parameter>'
 ```
 
 Each emitted tool call carries a generated `id` (`call_<ulid>`) so downstream `tool` messages can reference it via `tool_call_id`.

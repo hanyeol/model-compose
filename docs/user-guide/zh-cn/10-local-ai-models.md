@@ -349,6 +349,69 @@ component:
     {%- endfor %}
 ```
 
+**工具调用：**
+
+本地 chat-completion 模型可以被配置为调用组件上公开的工具。声明一个 `tools` 目录，以及描述工具调用在模型原始输出中出现位置与解码方式的 `tool_call_parser`。解析器从左到右扫描：未匹配到调用的外部文本在 `content` 中保留为 `text` 块，每个匹配到的调用则成为带有生成 `id` 的 `tool_call` 块。
+
+支持三种 body 格式——选择与模型 chat 模板匹配的一种：
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: Qwen/Qwen2.5-7B-Instruct
+  tools:
+    - name: get_weather
+      description: 获取某个城市的当前天气。
+      parameters:
+        type: object
+        properties:
+          city: { type: string }
+        required: [ city ]
+  # Hermes / Qwen 2.5 / Qwen 3 主线：<tool_call>{json}</tool_call>
+  tool_call_parser:
+    start_tag: '<tool_call>'
+    end_tag:   '</tool_call>'
+```
+
+三种支持的 body 格式：
+
+- **`json`**（默认）—— 标记之间的 body 是一个 JSON 对象（或对象数组）。用于 Hermes 风格模板（Qwen 2.5 / Qwen 3 主线、Mistral `[TOOL_CALLS]`、Llama 3.1 `<|python_tag|>{...}`）。若字段名不是 `arguments`（例如 Llama 3.1 使用 `parameters`），用 `arguments_key` 指定。
+- **`pythonic`** —— body 是 Python 调用表达式，例如 `get_weather(city="Seoul")` 或 `[a(x=1), b(y=2)]`。用于 Llama 3.2 pythonic 模板。
+- **`xml`** —— body 是 XML 包装器，参数为重复的 `<key>value</key>` 对。用于 Qwen3-Coder 的 `<function=NAME><parameter=KEY>VALUE</parameter>...</function>` 模板。每个值先尝试按 JSON 解析，失败则保留原始字符串。
+
+当名称和参数不是 JSON 字段，而是字面子串或围栏块时（例如 DeepSeek V3/R1），通过 `name_marker` 和/或 `arguments_marker` 指定提取位置：
+
+```yaml
+# DeepSeek V3 / R1：嵌套批次信封；名称为 body 字面值，参数在围栏 JSON 块中
+tool_call_parser:
+  batch_start_tag: '<｜tool_calls_begin｜>'
+  batch_end_tag:   '<｜tool_calls_end｜>'
+  start_tag:       '<｜tool_call_begin｜>'
+  end_tag:         '<｜tool_call_end｜>'
+  name_marker:
+    prefix: 'function<｜tool_sep｜>'
+    suffix: "\n"
+  arguments_marker:
+    prefix: "```json\n"
+    suffix: "\n```"
+
+# Qwen3-Coder：XML 包装器，每个参数为 <parameter=KEY>VALUE</parameter>
+tool_call_parser:
+  start_tag: '<tool_call>'
+  end_tag:   '</tool_call>'
+  format:    xml
+  name_marker:
+    prefix: '<function='
+    suffix: '>'
+  arguments_marker:
+    key_prefix: '<parameter='
+    key_suffix: '>'
+    value_end:  '</parameter>'
+```
+
+格式错误的 body（无效 JSON、缺失键、未终止的 pythonic 调用、未终止的 XML 参数）会被保留为字面 `text` 块，以免单个坏输出吞没整段响应。完整字段参考见 [Compose 参考 → components → model](../../reference/compose/components/model.md)。
+
 ### 10.3.3 text-to-text
 
 运行 seq2seq（encoder-decoder）变换，如翻译、摘要和改写。

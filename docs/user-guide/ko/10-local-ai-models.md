@@ -349,6 +349,69 @@ component:
     {%- endfor %}
 ```
 
+**툴 콜링:**
+
+로컬 chat-completion 모델이 컴포넌트에 노출된 툴을 호출하도록 설정할 수 있습니다. `tools` 카탈로그와, 모델의 원문 출력에서 툴 콜이 어디에 어떤 형태로 나타나는지 기술하는 `tool_call_parser`를 선언합니다. 파서는 왼쪽에서 오른쪽으로 스캔하며, 매칭되지 않은 바깥 텍스트는 `content` 내 `text` 블록으로 보존되고, 매칭된 각 툴 콜은 생성된 `id`를 가진 `tool_call` 블록이 됩니다.
+
+세 가지 바디 포맷을 지원하며 모델 채팅 템플릿에 맞는 것을 고르면 됩니다:
+
+```yaml
+component:
+  type: model
+  task: chat-completion
+  model: Qwen/Qwen2.5-7B-Instruct
+  tools:
+    - name: get_weather
+      description: 도시의 현재 날씨를 조회합니다.
+      parameters:
+        type: object
+        properties:
+          city: { type: string }
+        required: [ city ]
+  # Hermes / Qwen 2.5 / Qwen 3 메인라인: <tool_call>{json}</tool_call>
+  tool_call_parser:
+    start_tag: '<tool_call>'
+    end_tag:   '</tool_call>'
+```
+
+지원되는 세 가지 바디 포맷:
+
+- **`json`** (기본값) — 마커 사이의 바디가 JSON 객체(또는 객체 배열)입니다. Hermes 스타일 템플릿(Qwen 2.5 / Qwen 3 메인라인, Mistral `[TOOL_CALLS]`, Llama 3.1 `<|python_tag|>{...}`)에서 사용합니다. `arguments` 가 아닌 필드명(예: Llama 3.1의 `parameters`)을 쓰려면 `arguments_key`로 지정하세요.
+- **`pythonic`** — 바디가 Python 호출식입니다. 예: `get_weather(city="Seoul")` 또는 `[a(x=1), b(y=2)]`. Llama 3.2 pythonic 템플릿에서 사용합니다.
+- **`xml`** — 바디가 XML 래퍼로, 인자가 반복되는 `<key>value</key>` 쌍입니다. Qwen3-Coder의 `<function=NAME><parameter=KEY>VALUE</parameter>...</function>` 템플릿에서 사용합니다. 각 값은 JSON으로 파싱을 시도하고 실패하면 원본 문자열로 유지됩니다.
+
+이름과 인자가 JSON 필드가 아니라 리터럴 부분 문자열이거나 펜스 블록 안에 있는 경우(예: DeepSeek V3/R1)에는 `name_marker` 또는 `arguments_marker`로 추출 위치를 지정합니다:
+
+```yaml
+# DeepSeek V3 / R1: 중첩 배치 엔벨로프, 이름은 바디 리터럴, 인자는 펜스 JSON 블록
+tool_call_parser:
+  batch_start_tag: '<｜tool_calls_begin｜>'
+  batch_end_tag:   '<｜tool_calls_end｜>'
+  start_tag:       '<｜tool_call_begin｜>'
+  end_tag:         '<｜tool_call_end｜>'
+  name_marker:
+    prefix: 'function<｜tool_sep｜>'
+    suffix: "\n"
+  arguments_marker:
+    prefix: "```json\n"
+    suffix: "\n```"
+
+# Qwen3-Coder: XML 래퍼 + 반복되는 <parameter=KEY>VALUE</parameter> 쌍
+tool_call_parser:
+  start_tag: '<tool_call>'
+  end_tag:   '</tool_call>'
+  format:    xml
+  name_marker:
+    prefix: '<function='
+    suffix: '>'
+  arguments_marker:
+    key_prefix: '<parameter='
+    key_suffix: '>'
+    value_end:  '</parameter>'
+```
+
+깨진 바디(JSON 오류, 필드 누락, 미종료 pythonic 호출, 미종료 XML 파라미터)는 그대로 `text` 블록으로 보존됩니다. 하나의 잘못된 출력이 전체 응답을 삼키지 못하도록 하기 위함입니다. 전체 필드 레퍼런스는 [Compose 레퍼런스 → components → model](../../reference/compose/components/model.md)을 참고하세요.
+
 ### 10.3.3 text-to-text
 
 번역, 요약, 재작성 같은 seq2seq(인코더-디코더) 변환을 수행합니다.

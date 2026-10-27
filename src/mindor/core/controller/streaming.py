@@ -58,6 +58,7 @@ class TaskOutputStreamEncodingIterator(TaskOutputStreamIterator):
 class TaskOutputStreamResource(StreamResource):
     def __init__(self, source: StreamResource, on_terminated: StreamTerminatedCallback):
         super().__init__(source.content_type, source.filename, size=source.size)
+
         self.source: StreamResource = source
         self.on_terminated: StreamTerminatedCallback = on_terminated
 

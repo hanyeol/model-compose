@@ -53,6 +53,7 @@ ActionConfig = Union[
     AudioSynchronizerActionConfig,
     AudioPlaybackActionConfig,
     AudioMixerActionConfig,
+    Model3DLoaderActionConfig,
     Model3DConverterActionConfig,
     Model3DRendererActionConfig,
     CameraPoseEstimatorActionConfig,

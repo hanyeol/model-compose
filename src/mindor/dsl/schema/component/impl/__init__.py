@@ -59,6 +59,7 @@ from .music_pitch_corrector import *
 from .music_synthesizer import *
 from .music_score_loader import *
 from .music_score_renderer import *
+from .model_3d_loader import *
 from .model_3d_converter import *
 from .model_3d_renderer import *
 from .camera_pose_estimator import *

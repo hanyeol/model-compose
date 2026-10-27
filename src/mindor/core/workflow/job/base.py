@@ -15,8 +15,9 @@ import asyncio, inspect, ulid
 OnStartCallback = Callable[[Any], Awaitable[None]]
 
 class RoutingTarget:
-    def __init__(self, job_id):
+    def __init__(self, job_id, is_error_route: bool = False):
         self.job_id = job_id
+        self.is_error_route = is_error_route
 
 class Job(ABC):
     def __init__(self, id: str, config: JobConfig, global_configs: ComponentGlobalConfigs):
@@ -69,7 +70,7 @@ class Job(ABC):
                 )
 
                 if self.config.on_error.to:
-                    return RoutingTarget(self.config.on_error.to)
+                    return RoutingTarget(self.config.on_error.to, is_error_route=True)
 
                 if self.config.on_error.output is not None:
                     context.register_source(run_id, "error", { "message": str(e) })

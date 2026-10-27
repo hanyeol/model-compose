@@ -351,11 +351,28 @@ class WorkflowRunner:
                             else:
                                 output = completed_job_output
 
+                        # on_error.to never fired for this job. Retire the
+                        # fallback target so its dependents skip-propagate.
+                        completed_job = self.jobs[completed_job_id]
+
+                        if completed_job.on_error and completed_job.on_error.to:
+                            error_job_id = completed_job.on_error.to
+
+                            if error_job_id in routing_jobs:
+                                del routing_jobs[error_job_id]
+                                skipped_job_ids.add(error_job_id)
+
                     running_job_ids.remove(completed_job_id)
                     del scheduled_job_tasks[completed_job_id]
 
                     if is_job_completed:
-                        completed_job_ids.add(completed_job_id)
+                        # on_error.to routed away: the source produced no usable
+                        # output. Treat it as skipped so OR-joins wait for the
+                        # fallback and `depends_on: [source]` skip-propagates.
+                        if isinstance(completed_job_output, RoutingTarget) and completed_job_output.is_error_route:
+                            skipped_job_ids.add(completed_job_id)
+                        else:
+                            completed_job_ids.add(completed_job_id)
                         del pending_jobs[completed_job_id]
         finally:
             context.interrupt_handler.set_on_job_interrupted(None)
@@ -429,7 +446,13 @@ class WorkflowRunner:
 
         for item in job.config.depends_on:
             if isinstance(item, list):
-                if not any(job_id in completed_job_ids or job_id in skipped_job_ids for job_id in item):
+                # OR-group: wait until every member has resolved and at least
+                # one actually completed. If a member is still pending/running,
+                # fire too early and the completed sibling's output is missing.
+                if not all(job_id in completed_job_ids or job_id in skipped_job_ids for job_id in item):
+                    return False
+
+                if not any(job_id in completed_job_ids for job_id in item):
                     return False
             else:
                 if item not in completed_job_ids and item not in skipped_job_ids:

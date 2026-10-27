@@ -22,9 +22,6 @@ class QwenImageHuggingfaceImageGenerationGenerateAction(HuggingfaceImageGenerati
         negative_prompt = await context.render_variable(self.config.negative_prompt)
         image           = await context.render_image_array(self.config.image, single_as_array=True)
 
-        if image is not None:
-            image = await image.collect()
-
         is_single_input    = not isinstance(prompt, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(prompt, (StreamIterator, AsyncIterator))
 
@@ -64,6 +61,9 @@ class QwenImageHuggingfaceImageGenerationGenerateAction(HuggingfaceImageGenerati
         if all(value is None for value in images):
             images = None
 
+        if images is not None:
+            images = [ await image.collect() for image in images ]
+
         def _generate() -> List[PILImage.Image]:
             pipeline_params: Dict[str, Any] = {
                 **params["pipeline"],
@@ -74,7 +74,7 @@ class QwenImageHuggingfaceImageGenerationGenerateAction(HuggingfaceImageGenerati
                 pipeline_params["negative_prompt"] = list(negative_prompts)
 
             if images is not None:
-                pipeline_params["image"] = list(images)
+                pipeline_params["image"] = images
 
             return self._process_pipeline(pipeline_params, params, cancellation_token)
 

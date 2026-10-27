@@ -326,15 +326,26 @@ def is_extra_requirement_satisfied(requirement: Requirement) -> bool:
     the `Requires-Dist` entries gated by `extra == "..."` markers and verifies
     each of those dependencies is itself satisfied. Returns False if any is
     missing or if the target package's metadata cannot be read.
+
+    An extra the installed distribution does NOT declare in `Provides-Extra`
+    is treated as unsatisfied. Without that guard a typo'd extra silently
+    passes — pip/uv don't error on unknown extras, so a misspelled name would
+    skip the install path on first run and then be read as "already
+    satisfied" on every subsequent run (hanyeol/model-compose#82).
     """
     distribution_name = canonicalize_name(requirement.name)
 
     try:
-        requires_dist = metadata(distribution_name).get_all("Requires-Dist") or []
+        distribution_metadata = metadata(distribution_name)
     except PackageNotFoundError:
         return False
 
+    requires_dist = distribution_metadata.get_all("Requires-Dist") or []
+    provides_extra = { canonicalize_name(extra) for extra in distribution_metadata.get_all("Provides-Extra") or [] }
     requested_extras = { canonicalize_name(extra) for extra in requirement.extras }
+
+    if not requested_extras.issubset(provides_extra):
+        return False
 
     for dependency_spec in requires_dist:
         try:

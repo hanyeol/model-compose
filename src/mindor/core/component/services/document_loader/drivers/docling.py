@@ -310,6 +310,19 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         self._converter: Optional[Any] = None
         self._tokenizer: Optional[PreTrainedTokenizerBase] = None
 
+    # Maps the DSL `ocr_engine` literal to docling-slim's extra name. The
+    # user-facing names in the schema (`tesseract`, `ocrmac`, `rapidocr`) do
+    # NOT match docling-slim's extras verbatim — `tesseract` lives under
+    # `feat-ocr-tesserocr`, `ocrmac` under `feat-ocr-mac`, and `rapidocr`
+    # ships without onnxruntime unless `feat-ocr-rapidocr-onnx` is picked
+    # (and `RapidOcrOptions()` requires onnxruntime at runtime).
+    _OCR_ENGINE_EXTRAS: Dict[str, str] = {
+        "easyocr":   "feat-ocr-easyocr",
+        "tesseract": "feat-ocr-tesserocr",
+        "rapidocr":  "feat-ocr-rapidocr-onnx",
+        "ocrmac":    "feat-ocr-mac",
+    }
+
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         # docling-slim is the actual package shipping the docling Python
         # modules from v2.100.0 onward; the legacy `docling` distribution
@@ -319,6 +332,10 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         #
         # Extras are assembled per component config so only the pipeline
         # pieces this instance actually uses get downloaded:
+        #   convert-core        — always required. Ships rtree (spatial
+        #                         indexing); without it, every conversion
+        #                         fails with "The 'rtree' package is required
+        #                         for spatial indexing."
         #   feat-chunking       — always required (docling-core[chunking]
         #                         provides LineBasedTokenChunker and the
         #                         tree-sitter/transformers deps the chunker
@@ -328,21 +345,33 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         #                         unconditionally, so even when the action
         #                         uses `backend: pypdfium2` docling-parse
         #                         must be installed for the base module to
-        #                         load. This extra bundles pypdfium2 too, so
-        #                         a separate format-pdf-pypdfium2 pin is
-        #                         redundant.
+        #                         load.
+        #   format-pdf-pypdfium2 — added when `backend: pypdfium2`. docling
+        #                         split pypdfium2 out of format-pdf-docling
+        #                         in 2.128.0; without this extra the backend
+        #                         import fails with "No module named
+        #                         'pypdfium2'" at startup.
         #   models-local        — always required. The standard PDF pipeline
         #                         loads docling-ibm-models (layout, reading
         #                         order, TableFormer) at construction time,
         #                         regardless of `recognize_table`.
-        #   feat-ocr-<engine>   — OCR engine when `enable_ocr` is set.
-        extras: List[str] = [ "feat-chunking", "format-pdf-docling", "models-local" ]
+        #   feat-ocr-<engine>   — OCR engine when `enable_ocr` is set. See
+        #                         `_OCR_ENGINE_EXTRAS` for the DSL-to-extra
+        #                         name mapping.
+        extras: List[str] = [ "convert-core", "feat-chunking", "format-pdf-docling", "models-local" ]
+
+        if self.config.backend == "pypdfium2":
+            extras.append("format-pdf-pypdfium2")
 
         if self.config.enable_ocr:
             engine = self.config.ocr_engine or "easyocr"
-            extras.append(f"feat-ocr-{engine}")
+            extras.append(self._OCR_ENGINE_EXTRAS[engine])
 
-        return [ f"docling-slim[{','.join(extras)}]>=2.100.0" ]
+        # Lower bound: 2.128.0 is where format-pdf-pypdfium2 split out, which
+        # the branch above depends on. Upper bound: pinned under the next
+        # major so a 3.x release with breaking extras moves doesn't silently
+        # re-break this driver.
+        return [ f"docling-slim[{','.join(extras)}]>=2.128.0,<3.0.0" ]
 
     async def _start(self) -> None:
         await super()._start()

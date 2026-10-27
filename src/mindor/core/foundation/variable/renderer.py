@@ -37,6 +37,7 @@ class FieldResolver:
 
     def _resolve_value(self, object: Any, segments: List[str], default: Any) -> Any:
         value = object
+
         for index, segment in enumerate(segments):
             if segment == "[*]":
                 if not isinstance(value, list):
@@ -607,6 +608,9 @@ class VariableRenderer:
         if type in [ "image", "audio", "video", "model-3d", "file" ]:
             if isinstance(value, (StreamIterator, AsyncIterator)):
                 return value
+
+            if isinstance(value, (list, tuple)):
+                return [ await self._convert_value_to_type(state, item, type, False, subtype, attrs, format) for item in value ]
 
             if format in [ "base64", "path", "url", "data-uri" ] and isinstance(value, str):
                 value = await self._load_stream_from_format(value, format)

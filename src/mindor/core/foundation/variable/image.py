@@ -82,6 +82,12 @@ class ImageValueRenderer:
                 return [ await self._render_element_array(item, single_as_array=True, as_stream=as_stream) for item in value ]
 
             if single_as_array and value is not None:
+                # Explicit empty batch — pass through without promoting `[]` to a
+                # unit group. "No images" is spelled `None` (handled by callers),
+                # so `[]` here means the user asked for a zero-length batch axis.
+                if isinstance(value, (list, tuple)) and len(value) == 0:
+                    return []
+
                 return [ await self._render_element_array(value, single_as_array=True, as_stream=as_stream) ]
 
             return None
@@ -164,8 +170,6 @@ class ImageValueRenderer:
 
             if isinstance(value, StreamResource):
                 return ImageStreamResource(await load_image_from_stream(value), "png")
-
-            return None
         else:
             if isinstance(value, PILImage.Image):
                 return value
@@ -176,7 +180,16 @@ class ImageValueRenderer:
             if isinstance(value, StreamResource):
                 return await load_image_from_stream(value)
 
+        if value is None:
             return None
+
+        if isinstance(value, str):
+            raise TypeError(
+                f"image reference requires an explicit format hint: use "
+                f"`as image;path`, `as image;url`, `as image;base64`, or `as image;data-uri`."
+            )
+
+        raise TypeError(f"`image` requires an image or raw image bytes, got {value.__class__.__name__}")
 
     def _is_nested_element_array(self, value: Any) -> bool:
         """True when ``value`` is a list of element arrays — a top-level

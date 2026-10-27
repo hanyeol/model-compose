@@ -40,10 +40,7 @@ workflows:
           operator: eq
           value: true
         max_iteration_count: 3
-        output:
-          video: ${output.video as video}
-          html: ${output.html}
-          attempts: ${output.iteration}
+        output: ${output.video as video}
 
   # One authoring attempt: generate → extract → render → encode.
   - id: attempt

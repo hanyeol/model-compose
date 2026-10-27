@@ -26,11 +26,9 @@ class ImageToVideoTaskAction(ModelTaskComponentAction):
         is_single_input  = not isinstance(image, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        source = (image, prompt, negative_prompt)
-
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_images, batch_prompts, batch_negatives in BatchSourceIterator(source, batch_size=batch_size or 1):
+                async for batch_images, batch_prompts, batch_negatives in BatchSourceIterator((image, prompt, negative_prompt), batch_size=batch_size or 1):
                     batch_results = await self._generate_batch(batch_images, batch_prompts, batch_negatives, params, context.cancellation_token)
                     for result in batch_results:
                         context.register_source("result", result)
@@ -42,7 +40,7 @@ class ImageToVideoTaskAction(ModelTaskComponentAction):
             return _stream_output_generator()
         else:
             results: List[VideoStreamResource] = []
-            async for batch_images, batch_prompts, batch_negatives in BatchSourceIterator(source, batch_size=batch_size or 1):
+            async for batch_images, batch_prompts, batch_negatives in BatchSourceIterator((image, prompt, negative_prompt), batch_size=batch_size or 1):
                 batch_results = await self._generate_batch(batch_images, batch_prompts, batch_negatives, params, context.cancellation_token)
                 results.extend(batch_results)
 

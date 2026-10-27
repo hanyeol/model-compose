@@ -97,6 +97,7 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
         if isinstance(tensor, torch.Tensor):
             if tensor.ndim == 4 and tensor.shape[0] in (1, 3):
                 tensor = tensor.permute(1, 2, 3, 0)
+
             array = tensor.numpy()
         else:
             array = np.asarray(tensor)
@@ -104,6 +105,7 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
         if array.dtype != np.uint8:
             if array.min() < 0:
                 array = (array + 1.0) / 2.0
+
             array = np.clip(array, 0.0, 1.0)
             array = (array * 255.0).round().astype(np.uint8)
 

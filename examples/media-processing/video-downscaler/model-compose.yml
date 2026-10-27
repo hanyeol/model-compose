@@ -1,0 +1,80 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  - id: downscale
+    title: Downscale Video Resolution
+    description: |
+      Reduce a video's resolution (e.g. 1080p → 720p) with ffmpeg. The audio
+      track is stream-copied so only the video is re-encoded.
+
+      Pick a target `height` — the width is derived automatically to preserve
+      the input's aspect ratio.
+
+      `quality` is a CRF value: 0 is lossless, 51 is worst, 23 is the x264
+      default, and 18 is near-transparent. Raise it to trade quality for a
+      smaller file at the chosen resolution.
+    default: true
+    job:
+      component: downscaler
+      action: downscale-copy-audio
+      input:
+        video: ${input.video as video}
+        height: ${input.height as select/1080,720,480,360,240 | 720}
+        quality: ${input.quality as integer | 23}
+        codec: ${input.codec as select/libx264,libx265 | libx264}
+      output:
+        video: ${output as video}
+
+  - id: downscale-reencode-audio
+    title: Downscale and Re-encode Audio
+    description: |
+      Same as the default workflow, but re-encodes the audio track to AAC
+      128k. Use this when the source audio codec is not supported by the
+      target container, or when you want a fully re-encoded output.
+    job:
+      component: downscaler
+      action: downscale-reencode-audio
+      input:
+        video: ${input.video as video}
+        height: ${input.height as select/1080,720,480,360,240 | 720}
+        quality: ${input.quality as integer | 23}
+        codec: ${input.codec as select/libx264,libx265 | libx264}
+        audio_bitrate: ${input.audio_bitrate as select/64k,96k,128k,192k | 128k}
+      output:
+        video: ${output as video}
+
+components:
+  - id: downscaler
+    type: video-converter
+    actions:
+      - id: downscale-copy-audio
+        video: ${input.video}
+        encoding:
+          format: mp4
+          video:
+            codec: ${input.codec}
+            quality: ${input.quality}
+            height: ${input.height}
+            pixel_format: yuv420p
+          audio:
+            codec: copy
+
+      - id: downscale-reencode-audio
+        video: ${input.video}
+        encoding:
+          format: mp4
+          video:
+            codec: ${input.codec}
+            quality: ${input.quality}
+            height: ${input.height}
+            pixel_format: yuv420p
+          audio:
+            codec: aac
+            bitrate: ${input.audio_bitrate}

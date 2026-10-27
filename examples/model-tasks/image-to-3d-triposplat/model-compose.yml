@@ -1,0 +1,57 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: TripoSplat Image-to-3DGS
+  description: Convert a single image into a 3D Gaussian splat using TripoSplat.
+  job:
+    input: ${input}
+    output: ${output as model-3d}
+
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: triposplat
+  device: cuda
+  # TripoSplat bundles the flow model, VAE encoder/decoder, DINOv3 ViT-H
+  # conditioning weights, and the BiRefNet background remover inside the
+  # single `VAST-AI/TripoSplat` HF repository. The driver assembles the
+  # required subpaths against the provisioned model directory.
+  model:
+    provider: huggingface
+    repository: VAST-AI/TripoSplat
+  max_concurrent_count: 1
+  # TripoSplat ships inference code as two bare top-level files without
+  # packaging metadata. The driver drops them next to `mindor` as a
+  # `triposplat_pipeline/` package; the virtualenv keeps that side-install
+  # from clashing with the controller's stack.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/triposplat
+  action:
+    image: ${input.image as image}
+    seed: ${input.seed as integer}
+    # Output format: `ply` (default; SparkJS, SuperSplat, Three.js all read)
+    # or `splat` (compact binary for Three.js / web viewers).
+    format: ${input.format as string | ply}
+    params:
+      # Flow-matching sampler steps. Recommend 10-20; more -> better fidelity,
+      # linear runtime cost.
+      steps: ${input.steps as integer | 20}
+      # Classifier-free guidance strength. <= 1.0 disables CFG. Too high can
+      # cause color oversaturation. Recommend 3.0.
+      guidance_scale: ${input.guidance_scale as number | 3.0}
+      # Target Gaussian count. In [32768, 262144], rounded to a multiple of 32.
+      # More -> finer detail, higher storage/render cost.
+      num_gaussians: ${input.num_gaussians as integer | 262144}
+      # Alpha-matte erosion radius after background removal; 1 is a 3x3 min
+      # filter, 0 disables.
+      erode_radius: ${input.erode_radius as integer | 1}

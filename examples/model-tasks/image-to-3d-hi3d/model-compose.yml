@@ -1,0 +1,48 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Hi3D v1.0 Mesh Refinement
+  description: Refine an input mesh into high-resolution geometry conditioned on a reference image using Hi3D v1.0 (Sparc3D).
+  job:
+    input: ${input}
+    output: ${output as model-3d/glb}
+
+component:
+  type: model
+  task: image-to-3d
+  driver: custom
+  family: hi3d
+  device: cuda
+  # Hi3D v1.0 ships inference code as the `sparc3d` package in its HF repo;
+  # the pipeline weights live at the repo root.
+  model:
+    provider: huggingface
+    repository: hi3d-official/Hi3Dv1.0
+  max_concurrent_count: 1
+  # Hi3D pins torch==2.5.0+cu124, flash-attn==2.7.4.post1, and
+  # spconv-cu120==2.3.6. Isolate the model worker so those pins don't collide
+  # with the controller's stack.
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/hi3d
+  action:
+    image: ${input.image as image}
+    # Input mesh produced upstream by another image-to-3d component
+    # (pixal3d, world-mirror, Hunyuan3D-2 mini, etc.). Any trimesh-readable
+    # format works; GLB is the canonical choice.
+    mesh: ${input.mesh as model-3d}
+    seed: ${input.seed as integer}
+    params:
+      # Sparse extraction-grid resolution: 512, 1024, or 1536. Higher ->
+      # sharper geometry, more VRAM. 1024 is the default from the paper.
+      resolution: ${input.resolution as integer | 1024}
+      # Flow-matching refinement steps. Lower -> faster but softer edges.
+      num_inference_steps: ${input.num_inference_steps as integer | 25}

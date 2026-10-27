@@ -61,6 +61,7 @@ model-compose provides various component types for performing different tasks.
 | `audio-clipper` | Clip audio segments | Cut one or more time ranges from an audio file, losslessly via ffmpeg stream copy |
 | `audio-mixer` | Combine audios | Concat audios end-to-end or overlay narration/SFX into a base with per-overlay timing, gain, pan, and fade via ffmpeg |
 | `audio-processor` | Audio DSP chain | Rate/time (resample, speed, pitch-shift), EQ (highpass, lowpass, bell, shelves), dynamics (compressor, gate, limiter), spatial (chorus, delay, reverb), level (gain, normalize RMS/peak/LUFS), edit (trim edges/silence, fade in/out), and voice anonymization via pedalboard + librosa + soxr + pyloudnorm |
+| `model-3d-loader` | Load 3D models | Ingest 3D asset files into the pipeline as a `Model3DStreamResource` — trimesh for exchange formats (glb/gltf/obj/ply/stl/fbx), headless Blender for `.blend` scenes with object selection and modifier evaluation |
 | `model-3d-converter` | Convert 3D models | Transcode 3D assets between formats (glb/gltf/obj/stl/ply/dae/off/3mf) via trimesh |
 | `camera-pose-estimator` | Recover camera poses from photos | Structure-from-Motion reconstruction (SIFT + incremental mapping) via COLMAP/pycolmap; returns per-image poses plus a COLMAP-format workspace ready for 3DGS/NeRF/mesh downstream |
 | `media-inspector` | Inspect media metadata | Probe codecs, duration, resolution, EXIF/GPS via ffprobe or exiftool without decoding |
@@ -124,6 +125,7 @@ model-compose provides various component types for performing different tasks.
 - Media downloading from URL (YouTube, Vimeo, etc.) → `media-downloader`
 - Subtitle loading (fetch from URL via yt-dlp, or parse local file / upload / raw text) → `subtitle-loader`
 - Document loading and chunking (PDF/DOCX/HTML into streaming chunk records for embedding or retrieval) → `document-loader`
+- 3D model loading (glb/gltf/obj/ply/stl/fbx/.blend into a canonical `Model3DStreamResource`; Blender driver for scene object/collection selection and modifier evaluation) → `model-3d-loader`
 - 3D model format conversion (glb/gltf/obj/stl/ply/dae/off/3mf) → `model-3d-converter`
 - Camera pose recovery from photos (Structure-from-Motion via COLMAP; produces COLMAP-format workspace for 3DGS/NeRF/mesh pipelines) → `camera-pose-estimator`
 - Web scraping → `web-scraper`

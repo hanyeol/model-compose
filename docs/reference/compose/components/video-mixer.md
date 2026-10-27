@@ -30,7 +30,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `method` | string | **required** | Mixing operation — `concat` or `overlay` |
-| `encoding` | object | - | Output encoding settings (container/codec/bitrate/resolution/frame_rate). See [Encoding](#encoding). |
+| `encoding` | object | - | Output encoding settings (container/codec/bitrate/width/height/frame_rate). See [Encoding](#encoding). |
 | `batch_size` | integer \| string | `null` | Number of input sets processed per batch when the input is a list/stream. |
 | `streaming` | boolean \| string | `false` | If true, the mixed output is emitted as a byte stream instead of a temporary file. |
 
@@ -136,7 +136,8 @@ encoding:
   video:
     codec: libx264         # video codec
     bitrate: 4M            # target video bitrate
-    resolution: 1920x1080  # output resolution
+    width: 1920            # output width (height derived to preserve aspect ratio when omitted)
+    height: 1080           # output height (width derived to preserve aspect ratio when omitted)
     frame_rate: 30         # output frame rate
   audio:
     codec: aac             # audio codec

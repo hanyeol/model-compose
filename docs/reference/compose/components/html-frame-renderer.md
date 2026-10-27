@@ -101,6 +101,10 @@ If the page needs to await async setup first:
 
 If `render()` does not call `rendered()`, the engine automatically falls back after `render_timeout` to a sequential path that awaits each `render()` before screenshotting. The output is identical; only throughput differs.
 
+### Load errors
+
+The driver collects the page's uncaught exceptions and `console.error` messages while it loads. If any were reported and the page never defined `window.render`, the load fails right away instead of waiting out `ready_timeout`. A `ready_timeout` failure also lists the collected errors. Generated pages can feed this message straight back to the model that wrote them (see `examples/media-processing/llm-motion-graphics-to-video`).
+
 ## Supported Drivers
 
 ### Playwright
@@ -130,6 +134,8 @@ The `html` field accepts several forms, resolved in this order:
 2. Existing directory path — resolved to `<dir>/index.html`.
 3. Existing file path — served via a `file://` URL.
 4. Anything else — written to a temporary file and served via `file://`. Use this for inline HTML.
+
+A source too long to be a valid path (over the OS path or file-name limit) skips steps 2–3 and is treated as inline HTML, so markup of any length works.
 
 Resolved sources are cached per action, so the same `html` value is not re-read across render calls.
 

@@ -15,7 +15,8 @@ component:
       video:
         codec: libx264
         bitrate: 2M
-        resolution: 1280x720
+        width: 1280
+        height: 720
 ```
 
 ## Configuration Options
@@ -61,7 +62,8 @@ component:
       video:
         codec: libvpx-vp9
         bitrate: 3M
-        resolution: 1920x1080
+        width: 1920
+        height: 1080
         frame_rate: 30
       audio:
         codec: libopus
@@ -112,7 +114,8 @@ encoding:
   video:
     codec: libx264
     bitrate: 2M
-    resolution: 1280x720
+    width: 1280
+    height: 720
     frame_rate: 30
   audio:
     codec: aac
@@ -126,7 +129,8 @@ encoding:
 | `format` | string | `mp4` | Output container format (e.g. `mp4`, `webm`, `mkv`, `mov`, `avi`, `ogv`). |
 | `video.codec` | string | (see table below) | Video codec (e.g. `libx264`, `libx265`, `libvpx-vp9`). |
 | `video.bitrate` | string | `null` | Video bitrate (e.g. `2M`, `5000k`). |
-| `video.resolution` | string | `null` | Output resolution (e.g. `1920x1080`, `1280x720`). |
+| `video.width` | integer / string | `null` | Output width in pixels. When omitted while `height` is set, the width is derived to preserve aspect ratio. |
+| `video.height` | integer / string | `null` | Output height in pixels. When omitted while `width` is set, the height is derived to preserve aspect ratio. |
 | `video.frame_rate` | string / integer / number | `null` | Output frame rate. |
 | `audio.codec` | string | (see table below) | Audio codec (e.g. `aac`, `libopus`, `libmp3lame`). |
 | `audio.bitrate` | string | `null` | Audio bitrate (e.g. `128k`, `192k`). |
@@ -223,7 +227,8 @@ component:
         video:
           codec: libx264
           bitrate: 4M
-          resolution: 1920x1080
+          width: 1920
+          height: 1080
       output: ${hd}
 
     - id: webm-720p
@@ -233,7 +238,8 @@ component:
         video:
           codec: libvpx-vp9
           bitrate: 2M
-          resolution: 1280x720
+          width: 1280
+          height: 720
       output: ${sd}
 
     - id: from-frames
@@ -364,7 +370,8 @@ component:
       video:
         codec: ${input.codec | libx264}
         bitrate: ${input.bitrate | 2M}
-        resolution: ${input.resolution}
+        width: ${input.width as integer}
+        height: ${input.height as integer}
         frame_rate: ${input.frame_rate as integer | 30}
       audio:
         codec: ${input.audio_codec | aac}

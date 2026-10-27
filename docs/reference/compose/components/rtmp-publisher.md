@@ -113,7 +113,8 @@ component:
       video:
         codec: libx264
         bitrate: 4500k
-        resolution: 1920x1080
+        width: 1920
+        height: 1080
         frame_rate: 30
       audio:
         codec: aac
@@ -127,7 +128,8 @@ component:
 | `format` | string | `flv` | Container format passed to ffmpeg's `-f`. Should stay `flv` for RTMP. |
 | `video.codec` | string | `libx264` | Video codec |
 | `video.bitrate` | string | `null` | Video bitrate (e.g. `2M`, `4500k`) |
-| `video.resolution` | string | `null` | Output resolution (e.g. `1920x1080`) |
+| `video.width` | integer / string | `null` | Output width in pixels. When omitted while `height` is set, the width is derived to preserve aspect ratio. |
+| `video.height` | integer / string | `null` | Output height in pixels. When omitted while `width` is set, the height is derived to preserve aspect ratio. |
 | `video.frame_rate` | string / integer / number | `null` | Output frame rate |
 | `audio.codec` | string | `aac` | Audio codec |
 | `audio.bitrate` | string | `null` | Audio bitrate (e.g. `128k`) |
@@ -223,7 +225,8 @@ components:
         encoding:
           video:
             bitrate: 4500k
-            resolution: 1920x1080
+            width: 1920
+            height: 1080
 ```
 
 ### Restream to Multiple Platforms

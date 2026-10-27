@@ -19,6 +19,12 @@ import asyncio, os
 
 if TYPE_CHECKING:
     from transformers import PreTrainedTokenizerBase
+    from docling.document_converter import DocumentConverter
+    from docling.datamodel.pipeline_options import OcrOptions
+    from docling_core.transforms.chunker.base import BaseChunker, BaseTokenizer
+    from docling_core.transforms.chunker.code_chunking.base_code_chunking_strategy import BaseCodeChunkingStrategy
+    from docling_core.transforms.chunker.hierarchical_chunker import ChunkingDocSerializer, ChunkingSerializerProvider
+    from docling_core.types.doc.document import DoclingDocument
 
 class DoclingWholeDocumentChunker:
     """Fallback chunker that yields the entire document as a single chunk.
@@ -27,8 +33,14 @@ class DoclingWholeDocumentChunker:
     surfaced verbatim (markdown-exported) so downstream jobs can consume the
     parsed text without any segmentation.
     """
+    def __init__(self, traverse_pictures: bool = False):
+        self._traverse_pictures: bool = traverse_pictures
+
     def chunk(self, dl_doc: Any) -> Iterator[Any]:
-        text = dl_doc.export_to_markdown() if hasattr(dl_doc, "export_to_markdown") else str(dl_doc)
+        if hasattr(dl_doc, "export_to_markdown"):
+            text = dl_doc.export_to_markdown(traverse_pictures=self._traverse_pictures)
+        else:
+            text = str(dl_doc)
 
         yield DoclingWholeDocumentChunk(text=text)
 
@@ -48,11 +60,13 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
         config: DoclingDocumentLoaderActionConfig,
         converter: Any,
         tokenizer: Optional[PreTrainedTokenizerBase],
+        traverse_pictures: bool,
     ):
         super().__init__(config)
 
         self._converter: Any = converter
         self._tokenizer: Optional[PreTrainedTokenizerBase] = tokenizer
+        self._traverse_pictures: bool = traverse_pictures
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -163,7 +177,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
                 except FileNotFoundError:
                     pass
 
-    def _convert_document(self, path_or_url: str) -> Any:
+    def _convert_document(self, path_or_url: str) -> DoclingDocument:
         """Parse a source path or URL into a docling ``DLDocument``.
 
         Runs synchronously and is intended to be invoked from an executor
@@ -171,7 +185,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
         """
         return self._converter.convert(source=path_or_url).document
 
-    def _build_chunker(self, params: Dict[str, Any]) -> Any:
+    def _build_chunker(self, params: Dict[str, Any]) -> Union[BaseChunker, DoclingWholeDocumentChunker]:
         """Instantiate the docling chunker selected by ``params['chunker']``.
 
         A new chunker is returned per action so per-action parameters
@@ -181,7 +195,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
         chunker_name = params["chunker"]
 
         if chunker_name is None:
-            return DoclingWholeDocumentChunker()
+            return DoclingWholeDocumentChunker(traverse_pictures=self._traverse_pictures)
 
         if chunker_name == "hybrid":
             return self._build_hybrid_chunker(params)
@@ -197,7 +211,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
 
         raise ValueError(f"Unsupported docling chunker: {chunker_name}")
 
-    def _build_hybrid_chunker(self, params: Dict[str, Any]) -> Any:
+    def _build_hybrid_chunker(self, params: Dict[str, Any]) -> BaseChunker:
         from docling.chunking import HybridChunker
 
         chunker_params: Dict[str, Any] = {
@@ -211,7 +225,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
 
         return HybridChunker(**chunker_params)
 
-    def _build_hierarchical_chunker(self, params: Dict[str, Any]) -> Any:
+    def _build_hierarchical_chunker(self, params: Dict[str, Any]) -> BaseChunker:
         from docling_core.transforms.chunker.hierarchical_chunker import HierarchicalChunker
 
         chunker_params: Dict[str, Any] = {
@@ -221,9 +235,12 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
         if params["code_chunking_strategy"] is not None:
             chunker_params["code_chunking_strategy"] = self._resolve_code_chunking_strategy(params["code_chunking_strategy"])
 
+        if self._traverse_pictures:
+            chunker_params["serializer_provider"] = self._build_picture_text_serializer_provider()
+
         return HierarchicalChunker(**chunker_params)
 
-    def _build_line_chunker(self, params: Dict[str, Any]) -> Any:
+    def _build_line_chunker(self, params: Dict[str, Any]) -> BaseChunker:
         from docling_core.transforms.chunker.line_chunker import LineBasedTokenChunker
 
         chunker_params: Dict[str, Any] = {}
@@ -236,12 +253,38 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
 
         return LineBasedTokenChunker(**chunker_params)
 
-    def _build_page_chunker(self, params: Dict[str, Any]) -> Any:
+    def _build_page_chunker(self, params: Dict[str, Any]) -> BaseChunker:
         from docling_core.transforms.chunker.page_chunker import PageChunker
 
-        return PageChunker()
+        chunker_params: Dict[str, Any] = {}
 
-    def _resolve_code_chunking_strategy(self, name: str) -> Any:
+        if self._traverse_pictures:
+            chunker_params["serializer_provider"] = self._build_picture_text_serializer_provider()
+
+        return PageChunker(**chunker_params)
+
+    @staticmethod
+    def _build_picture_text_serializer_provider() -> ChunkingSerializerProvider:
+        """Return a serializer provider that walks children of PictureItems.
+
+        docling-core's default markdown serializer skips picture children,
+        which drops OCR text found inside figures (screenshots, charts). The
+        hybrid chunker is intentionally excluded — it builds its own token-
+        aware serializer internally.
+        """
+        from docling_core.transforms.chunker.hierarchical_chunker import (
+            ChunkingDocSerializer,
+            ChunkingSerializerProvider,
+        )
+        from docling_core.transforms.serializer.markdown import MarkdownParams
+
+        class PictureTextSerializerProvider(ChunkingSerializerProvider):
+            def get_serializer(self, doc: Any) -> ChunkingDocSerializer:
+                return ChunkingDocSerializer(doc=doc, params=MarkdownParams(traverse_pictures=True))
+
+        return PictureTextSerializerProvider()
+
+    def _resolve_code_chunking_strategy(self, name: str) -> BaseCodeChunkingStrategy:
         """Instantiate the docling code chunking strategy for ``name``.
 
         Docling accepts a ``BaseCodeChunkingStrategy`` instance rather than a
@@ -254,7 +297,7 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
 
         raise ValueError(f"Unsupported docling code chunking strategy: {name}")
 
-    def _resolve_tokenizer(self, tokenizer: PreTrainedTokenizerBase, params: Dict[str, Any]) -> Any:
+    def _resolve_tokenizer(self, tokenizer: PreTrainedTokenizerBase, params: Dict[str, Any]) -> BaseTokenizer:
         """Wrap ``tokenizer`` with the action's ``max_token_count``.
 
         The underlying tokenizer is loaded once by the service and reused
@@ -371,7 +414,17 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         # the branch above depends on. Upper bound: pinned under the next
         # major so a 3.x release with breaking extras moves doesn't silently
         # re-break this driver.
-        return [ f"docling-slim[{','.join(extras)}]>=2.128.0,<3.0.0" ]
+        #
+        # opencv-python-headless: docling-ibm-models 4.x made OpenCV optional
+        # (none of docling-slim's own extras pull it in), but the TableFormer
+        # predictor still imports `cv2` eagerly on the standard PDF pipeline
+        # — which is loaded regardless of `recognize_table` because
+        # `format-pdf-docling` wires in the full pipeline at import time. The
+        # headless wheel avoids pulling GUI libraries on servers.
+        return [
+            f"docling-slim[{','.join(extras)}]>=2.128.0,<3.0.0",
+            "opencv-python-headless",
+        ]
 
     async def _start(self) -> None:
         await super()._start()
@@ -388,9 +441,9 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         await super()._stop()
 
     async def _run(self, action: DocumentLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await DoclingDocumentLoaderAction(action, self._converter, self._tokenizer).run(context)
+        return await DoclingDocumentLoaderAction(action, self._converter, self._tokenizer, self.config.enable_ocr).run(context)
 
-    def _load_document_converter(self) -> Any:
+    def _load_document_converter(self) -> DocumentConverter:
         from docling.document_converter import DocumentConverter, PdfFormatOption
         from docling.datamodel.base_models import InputFormat
         from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -434,7 +487,7 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         return DocumentConverter(format_options={ InputFormat.PDF: pdf_format_option })
 
     @staticmethod
-    def _build_ocr_options(engine: str) -> Any:
+    def _build_ocr_options(engine: str) -> OcrOptions:
         """Instantiate docling's OCR options for the requested engine.
 
         Docling ships engine-specific option classes (EasyOcrOptions,

@@ -16,7 +16,7 @@ workflows:
       input:
         video: ${input.video as video}
         frame_rate: ${input.frame_rate as select/8,10,12,15,20,24 | 12}
-        resolution: ${input.resolution as select/320x-1,480x-1,640x-1,800x-1,1080x-1 | 480x-1}
+        width: ${input.width as select/320,480,640,800,1080 | 480}
       output:
         gif: ${output as video}
 
@@ -37,7 +37,7 @@ workflows:
           # Feed the trimmed clip straight into the GIF converter.
           video: ${jobs.clip.output as video}
           frame_rate: ${input.frame_rate as select/8,10,12,15,20,24 | 12}
-          resolution: ${input.resolution as select/320x-1,480x-1,640x-1,800x-1,1080x-1 | 480x-1}
+          width: ${input.width as select/320,480,640,800,1080 | 480}
         output:
           gif: ${output as video}
         depends_on: [ clip ]
@@ -65,4 +65,4 @@ components:
         format: gif
         video:
           frame_rate: ${input.frame_rate}
-          resolution: ${input.resolution}
+          width: ${input.width}

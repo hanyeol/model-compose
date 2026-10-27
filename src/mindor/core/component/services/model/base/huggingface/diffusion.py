@@ -110,7 +110,9 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             # (diffusers docs), unlike transformers' Linear4bit which rejects it.
             base_pipeline = base_pipeline_class.from_pretrained(model_path, **params)
 
-            if cpu_offload not in ("model", "sequential") or device.type != "cuda":
+            if isinstance(cpu_offload, list) and device.type == "cuda":
+                self._move_modules_to_device(base_pipeline, device, cpu_offload)
+            elif cpu_offload not in ("model", "sequential") or device.type != "cuda":
                 base_pipeline = base_pipeline.to(device)
 
             if scheduler is not None:
@@ -206,15 +208,29 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             if hasattr(vae, "enable_slicing"):
                 vae.enable_slicing()
 
+    def _move_modules_to_device(
+        self,
+        pipeline: DiffusionPipeline,
+        device: torch.device,
+        submodules_to_offload: List[DiffusionSubmodule],
+    ) -> None:
+        import torch
+
+        offload_names = { submodule.value if hasattr(submodule, "value") else submodule for submodule in submodules_to_offload }
+
+        for name, module in pipeline.components.items():
+            if name not in offload_names and isinstance(module, torch.nn.Module):
+                module.to(device)
+
     def _offload_modules_to_cpu(
         self,
         pipeline: DiffusionPipeline,
         device: torch.device,
-        submodules: List[DiffusionSubmodule],
+        submodules_to_offload: List[DiffusionSubmodule],
     ) -> None:
         from accelerate import cpu_offload as offload_to_cpu
 
-        for submodule in submodules:
+        for submodule in submodules_to_offload:
             name = submodule.value if hasattr(submodule, "value") else submodule
             module = getattr(pipeline, name, None)
 

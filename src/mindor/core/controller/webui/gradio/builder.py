@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.workflow import WorkflowConfig, WorkflowVariableConfig, WorkflowVariableGroupConfig, WorkflowVariableType, WorkflowVariableFormat
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.core.controller.base import TaskStatus, TaskState, TaskEvent, JobEvent, ComponentEvent
+from mindor.core.controller.streaming import TaskOutputStreamResource
 from mindor.core.workflow.schema import WorkflowSchema
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -1097,6 +1098,9 @@ class GradioWebUIBuilder:
         return None
 
     def _resolve_stream_extension(self, stream: StreamResource) -> Optional[str]:
+        if isinstance(stream, TaskOutputStreamResource):
+            return self._resolve_stream_extension(stream.source)
+
         if isinstance(stream, (AudioStreamResource, VideoStreamResource, ImageStreamResource, Model3DStreamResource)):
             if stream.format:
                 return stream.format.lower()

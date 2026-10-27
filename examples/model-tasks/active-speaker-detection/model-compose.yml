@@ -1,0 +1,101 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Active Speaker Detection
+  description: |
+    Sample frames from an uploaded video at a fixed interval, run InsightFace
+    face tracking across the sampled sequence, then score each face track with
+    Light-ASD using the paired audio to decide when each person is actively
+    speaking — yielding a per-track speaking-segment report.
+
+    Pipeline:
+      1. Extract frames from the video with ffmpeg at a fixed interval and
+         materialize them so both the tracker and the speaker detector can
+         consume the same sequence.
+      2. Feed the frames into face-tracking with `return_detections: true` so
+         the output carries per-frame bounding boxes (not just segments) —
+         Light-ASD needs those boxes to re-crop faces for its visual
+         frontend.
+      3. Feed the same frames, the detections, and the source audio into
+         active-speaker-detection. The detector crops each face track from
+         the provided frames, pairs the crops with 16kHz mono MFCC features,
+         and emits per-track `speaking_segments`.
+      4. Emit `{speakers, active_timeline, frame_count, track_count}`.
+  jobs:
+    - id: frames
+      component: frame-extractor
+      input:
+        video: ${input.video as video}
+        frame_interval: ${input.frame_interval | 2}
+
+    - id: track
+      component: face-tracker
+      depends_on: [ frames ]
+      input:
+        frames: ${jobs.frames.output}
+        frame_rate: ${input.sampled_frame_rate | 25.0}
+
+    - id: detect
+      component: active-speaker-detector
+      depends_on: [ frames, track ]
+      input:
+        frames: ${jobs.frames.output}
+        frame_rate: ${input.sampled_frame_rate | 25.0}
+        audio: ${input.video}
+        tracks: ${jobs.track.output.detections}
+      output: ${output}
+  output: ${jobs.detect.output as json}
+
+components:
+  - id: frame-extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_interval: ${input.frame_interval}
+      streaming: false
+      output: ${result[*].image}
+
+  - id: face-tracker
+    type: model
+    task: face-tracking
+    driver: custom
+    family: insightface
+    max_concurrent_count: 1
+    model:
+      provider: local
+      path: ./models/antelopev2
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      time_offset: 0.0
+      return_tracks: false
+      return_detections: true
+
+  - id: active-speaker-detector
+    type: model
+    task: active-speaker-detection
+    driver: custom
+    family: light-asd
+    max_concurrent_count: 1
+    preset: finetuning-talkset
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      audio: ${input.audio}
+      tracks: ${input.tracks}
+      return_speakers: true
+      return_timeline: true
+      return_metadata: true
+      params:
+        smoothing_window: 0.4s
+        threshold: 0.0
+        min_segment_duration: 0.3s
+        merge_gap: 0.2s

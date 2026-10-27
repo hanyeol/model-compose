@@ -23,6 +23,14 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         self._render_timeout: float = 0.0
         self._use_render_signal: bool = True
         self._first_frame: bool = True
+        self._page_errors: List[str] = []
+
+        # Collect uncaught exceptions and console.error output so load
+        # failures report *why* the page never became ready, instead of a
+        # bare wait_for_function timeout. Generated pages (LLM authoring
+        # loops) depend on this message to repair themselves.
+        page.on("pageerror", lambda error: self._page_errors.append(f"pageerror: {error}"))
+        page.on("console", lambda message: self._page_errors.append(f"console.error: {message.text}") if message.type == "error" else None)
 
     async def load_html(
         self,
@@ -55,14 +63,26 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
         await self._inject_bootstrap(props, duration)
         await self._page.goto(html.url)
 
+        # Fail fast when a script crashed before defining the top-level
+        # `window.render` the contract requires: `ready` can never flip, so
+        # waiting out ready_timeout would only delay the same failure.
+        if self._page_errors and not await self._page.evaluate("typeof window.render === 'function'"):
+            raise RuntimeError(self._format_page_errors("Page failed to define window.render(t)", self._page_errors))
+
         # Wait for the page to declare it's ready for capture. The page is
         # responsible for awaiting its own async setup (webfonts, images,
         # textures, three.js scene load, ...) before flipping this flag.
         # The driver does not inspect any of those directly.
-        await self._page.wait_for_function(
-            "window.__renderer && window.__renderer.ready === true",
-            timeout=ready_timeout * 1000,
-        )
+        try:
+            await self._page.wait_for_function(
+                "window.__renderer && window.__renderer.ready === true",
+                timeout=ready_timeout * 1000,
+            )
+        except Exception as e:
+            if self._page_errors:
+                raise RuntimeError(self._format_page_errors(f"Page did not set window.__renderer.ready within {ready_timeout}s", self._page_errors)) from e
+
+            raise
 
     async def render_frame(self, timestamp: float) -> ImageStreamResource:
         if self._use_render_signal:
@@ -163,6 +183,9 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
                 self._render_signals.get_nowait()
             except asyncio.QueueEmpty:
                 break
+
+    def _format_page_errors(self, summary: str, errors: List[str], limit: int = 5) -> str:
+        return f"{summary}; page reported {len(errors)} error(s):\n" + "\n".join(errors[-limit:])
 
 @register_html_frame_renderer_driver(HtmlFrameRendererDriverType.PLAYWRIGHT)
 class PlaywrightHtmlFrameRendererService(HtmlFrameRendererDriver):

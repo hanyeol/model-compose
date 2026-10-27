@@ -67,13 +67,19 @@ class HtmlFrameRendererDriver(ComponentDriver):
           4. Otherwise (inline HTML) → temp file, file://<tmp>
         """
         if not is_http_url(source):
-            html_path = Path(source).expanduser()
+            try:
+                html_path = Path(source).expanduser()
 
-            if html_path.is_dir():
-                html_path = html_path / "index.html"
+                if html_path.is_dir():
+                    html_path = html_path / "index.html"
 
-            if html_path.is_file():
-                return UrlResource(html_path.resolve().as_uri())
+                if html_path.is_file():
+                    return UrlResource(html_path.resolve().as_uri())
+            except (OSError, ValueError):
+                # Inline HTML that can't even be probed as a path: over
+                # PATH_MAX (4096 bytes on Linux) or NAME_MAX (255 bytes per
+                # '/'-separated segment), or containing NUL. Treat as inline.
+                pass
 
             html_path = Path(await save_string_to_temporary_file(source, extension="html"))
 

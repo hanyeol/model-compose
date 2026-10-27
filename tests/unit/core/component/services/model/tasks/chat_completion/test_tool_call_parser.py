@@ -421,7 +421,7 @@ class TestArgumentsMarker:
             start_tag="<c>",
             end_tag="</c>",
             name_marker={ "prefix": "name=", "suffix": ";" },
-            arguments_marker={ "open": "args=", "close": ";" },
+            arguments_marker={ "prefix": "args=", "suffix": ";" },
         ))
 
     def test_both_markers(self, parser):
@@ -461,7 +461,7 @@ class TestDeepSeekV3:
             start_tag="<｜tool_call_begin｜>",
             end_tag="<｜tool_call_end｜>",
             name_marker={ "prefix": "function<｜tool_sep｜>", "suffix": "\n" },
-            arguments_marker={ "open": "```json\n", "close": "\n```" },
+            arguments_marker={ "prefix": "```json\n", "suffix": "\n```" },
         )
 
     def test_single_call(self, config):
@@ -566,3 +566,246 @@ class TestBatchOnlyWithoutMarkers:
             { "type": "tool_call", "name": "a", "arguments": {} },
             { "type": "tool_call", "name": "b", "arguments": {} },
         ]
+
+
+class TestQwen3Coder:
+    """Qwen3-Coder: XML wrapper with per-argument <parameter=KEY>VALUE</parameter> pairs.
+
+    Reference chat_template.jinja renders each assistant tool call as:
+
+        <tool_call>
+        <function=NAME>
+        <parameter=KEY>
+        VALUE
+        </parameter>
+        ...
+        </function>
+        </tool_call>
+
+    Non-string values are serialised via Jinja ``tojson``; everything else is coerced via
+    ``| string``. The parser mirrors that by trying ``json.loads`` on each stripped value and
+    falling back to the raw string on failure.
+    """
+
+    @pytest.fixture
+    def config(self):
+        return ToolCallParserConfig(
+            start_tag="<tool_call>",
+            end_tag="</tool_call>",
+            format="xml",
+            name_marker={ "prefix": "<function=", "suffix": ">" },
+            arguments_marker={
+                "key_prefix": "<parameter=",
+                "key_suffix": ">",
+                "value_end": "</parameter>",
+            },
+        )
+
+    def test_single_call_string_argument(self, config):
+        parser = ToolCallParser(config)
+        raw = (
+            "<tool_call>\n"
+            "<function=get_weather>\n"
+            "<parameter=city>\n"
+            "Seoul\n"
+            "</parameter>\n"
+            "</function>\n"
+            "</tool_call>"
+        )
+        assert _strip_ids(parser.parse(raw)) == [
+            { "type": "tool_call", "name": "get_weather", "arguments": { "city": "Seoul" } },
+        ]
+
+    def test_mixed_scalar_and_json_arguments(self, config):
+        # Qwen3-Coder renders mapping/sequence values via tojson, scalars via | string;
+        # the parser's json.loads-with-raw-fallback must handle both without a schema hint.
+        parser = ToolCallParser(config)
+        raw = (
+            "<tool_call>\n"
+            "<function=run_query>\n"
+            "<parameter=table>\n"
+            "events\n"
+            "</parameter>\n"
+            "<parameter=limit>\n"
+            "25\n"
+            "</parameter>\n"
+            "<parameter=filters>\n"
+            '{"status": "ok", "tags": ["a", "b"]}\n'
+            "</parameter>\n"
+            "<parameter=verbose>\n"
+            "true\n"
+            "</parameter>\n"
+            "</function>\n"
+            "</tool_call>"
+        )
+        assert _strip_ids(parser.parse(raw)) == [ {
+            "type": "tool_call",
+            "name": "run_query",
+            "arguments": {
+                "table":   "events",
+                "limit":   25,
+                "filters": { "status": "ok", "tags": [ "a", "b" ] },
+                "verbose": True,
+            },
+        } ]
+
+    def test_multiline_string_value_preserved(self, config):
+        # The chat template surrounds VALUE with "\n...\n" so only the outer newlines are
+        # stripped; interior newlines in a string argument must survive.
+        parser = ToolCallParser(config)
+        raw = (
+            "<tool_call>\n"
+            "<function=write_note>\n"
+            "<parameter=body>\n"
+            "first line\n"
+            "second line\n"
+            "third line\n"
+            "</parameter>\n"
+            "</function>\n"
+            "</tool_call>"
+        )
+        assert _strip_ids(parser.parse(raw)) == [ {
+            "type": "tool_call",
+            "name": "write_note",
+            "arguments": { "body": "first line\nsecond line\nthird line" },
+        } ]
+
+    def test_no_parameters(self, config):
+        parser = ToolCallParser(config)
+        raw = (
+            "<tool_call>\n"
+            "<function=ping>\n"
+            "</function>\n"
+            "</tool_call>"
+        )
+        assert _strip_ids(parser.parse(raw)) == [
+            { "type": "tool_call", "name": "ping", "arguments": {} },
+        ]
+
+    def test_text_outside_call_is_preserved(self, config):
+        parser = ToolCallParser(config)
+        raw = (
+            "I'll look that up.\n"
+            "<tool_call>\n"
+            "<function=get_weather>\n"
+            "<parameter=city>\n"
+            "Tokyo\n"
+            "</parameter>\n"
+            "</function>\n"
+            "</tool_call>"
+        )
+        blocks = _strip_ids(parser.parse(raw))
+        assert blocks[0] == { "type": "text", "text": "I'll look that up.\n" }
+        assert blocks[1] == { "type": "tool_call", "name": "get_weather", "arguments": { "city": "Tokyo" } }
+
+    def test_parallel_calls_via_repeated_tool_call_tags(self, config):
+        parser = ToolCallParser(config)
+        raw = (
+            "<tool_call>\n<function=get_weather>\n<parameter=city>\nSeoul\n</parameter>\n</function>\n</tool_call>"
+            "\n"
+            "<tool_call>\n<function=get_weather>\n<parameter=city>\nTokyo\n</parameter>\n</function>\n</tool_call>"
+        )
+        blocks = _strip_ids(parser.parse(raw))
+        tool_calls = [ b for b in blocks if b["type"] == "tool_call" ]
+        assert tool_calls == [
+            { "type": "tool_call", "name": "get_weather", "arguments": { "city": "Seoul" } },
+            { "type": "tool_call", "name": "get_weather", "arguments": { "city": "Tokyo" } },
+        ]
+
+    def test_missing_function_tag_falls_back_to_text(self, config):
+        # Malformed body (no <function=...>): per the parser's policy, start_tag survives as
+        # literal text and the rest resumes scanning. The unclosed </tool_call> span is never
+        # emitted as a tool_call.
+        parser = ToolCallParser(config)
+        raw = "<tool_call>\njust some noise\n</tool_call>"
+        blocks = parser.parse(raw)
+        assert not any(b["type"] == "tool_call" for b in blocks)
+
+    def test_unterminated_parameter_falls_back_to_text(self, config):
+        # Missing </parameter> on a key makes the body unparseable; whole span becomes text.
+        parser = ToolCallParser(config)
+        raw = (
+            "<tool_call>\n"
+            "<function=broken>\n"
+            "<parameter=key>\n"
+            "value with no closer\n"
+            "</function>\n"
+            "</tool_call>"
+        )
+        blocks = parser.parse(raw)
+        assert not any(b["type"] == "tool_call" for b in blocks)
+
+
+class TestXmlFormatValidation:
+    """Schema-level invariants for format='xml'."""
+
+    def test_xml_requires_arguments_marker(self):
+        with pytest.raises(ValueError, match="arguments_marker with the repeat shape"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                format="xml",
+                name_marker={ "prefix": "<function=", "suffix": ">" },
+            )
+
+    def test_xml_requires_name_marker(self):
+        with pytest.raises(ValueError, match="name_marker is required"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                format="xml",
+                arguments_marker={ "key_prefix": "<parameter=", "key_suffix": ">", "value_end": "</parameter>" },
+            )
+
+    def test_xml_requires_end_tag(self):
+        with pytest.raises(ValueError, match="end_tag is required"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                format="xml",
+                name_marker={ "prefix": "<function=", "suffix": ">" },
+                arguments_marker={ "key_prefix": "<parameter=", "key_suffix": ">", "value_end": "</parameter>" },
+            )
+
+    def test_xml_rejects_wrapper_shape(self):
+        with pytest.raises(ValueError, match="arguments_marker with the repeat shape"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                format="xml",
+                name_marker={ "prefix": "<function=", "suffix": ">" },
+                arguments_marker={ "prefix": "```json\n", "suffix": "\n```" },
+            )
+
+    def test_json_rejects_repeat_shape(self):
+        with pytest.raises(ValueError, match="repeat shape .* only supported when format is 'xml'"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                arguments_marker={ "key_prefix": "<parameter=", "key_suffix": ">", "value_end": "</parameter>" },
+            )
+
+    def test_arguments_marker_rejects_mixed_shape(self):
+        with pytest.raises(ValueError, match="mixes wrapper fields .* with repeat fields"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                arguments_marker={ "prefix": "```json\n", "suffix": "\n```", "key_prefix": "<parameter=" },
+            )
+
+    def test_arguments_marker_rejects_partial_wrapper(self):
+        with pytest.raises(ValueError, match="wrapper shape requires both 'prefix' and 'suffix'"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                arguments_marker={ "prefix": "```json\n" },
+            )
+
+    def test_arguments_marker_rejects_partial_repeat(self):
+        with pytest.raises(ValueError, match="repeat shape requires 'key_prefix', 'key_suffix', and 'value_end'"):
+            ToolCallParserConfig(
+                start_tag="<tool_call>",
+                end_tag="</tool_call>",
+                format="xml",
+                name_marker={ "prefix": "<function=", "suffix": ">" },
+                arguments_marker={ "key_prefix": "<parameter=", "key_suffix": ">" },
+            )

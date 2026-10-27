@@ -134,7 +134,7 @@ TOOL_CALL_CASES = [
             start_tag="<｜tool_call_begin｜>",
             end_tag="<｜tool_call_end｜>",
             name_marker={"prefix": "function<｜tool_sep｜>", "suffix": "\n"},
-            arguments_marker={"open": "```json\n", "close": "\n```"},
+            arguments_marker={"prefix": "```json\n", "suffix": "\n```"},
         ),
         (
             "Sure.\n"
@@ -188,6 +188,49 @@ TOOL_CALL_CASES = [
         ToolCallParserConfig(start_tag="<tool_call>", end_tag="</tool_call>"),
         'pre <tool_call>this is not json</tool_call> post',
         "malformed_body",
+    ),
+    (
+        ToolCallParserConfig(
+            start_tag="<tool_call>",
+            end_tag="</tool_call>",
+            format="xml",
+            name_marker={"prefix": "<function=", "suffix": ">"},
+            arguments_marker={
+                "key_prefix": "<parameter=",
+                "key_suffix": ">",
+                "value_end": "</parameter>",
+            },
+        ),
+        (
+            "I'll look it up.\n"
+            "<tool_call>\n<function=run_query>\n"
+            "<parameter=table>\nevents\n</parameter>\n"
+            "<parameter=limit>\n25\n</parameter>\n"
+            "<parameter=filters>\n"
+            '{"status": "ok", "tags": ["a", "b"]}'
+            "\n</parameter>\n"
+            "</function>\n</tool_call>"
+        ),
+        "qwen3_coder_xml",
+    ),
+    (
+        ToolCallParserConfig(
+            start_tag="<tool_call>",
+            end_tag="</tool_call>",
+            format="xml",
+            name_marker={"prefix": "<function=", "suffix": ">"},
+            arguments_marker={
+                "key_prefix": "<parameter=",
+                "key_suffix": ">",
+                "value_end": "</parameter>",
+            },
+        ),
+        (
+            "<tool_call>\n<function=get_weather>\n<parameter=city>\nSeoul\n</parameter>\n</function>\n</tool_call>"
+            "\n"
+            "<tool_call>\n<function=get_weather>\n<parameter=city>\nTokyo\n</parameter>\n</function>\n</tool_call>"
+        ),
+        "qwen3_coder_xml_parallel",
     ),
 ]
 

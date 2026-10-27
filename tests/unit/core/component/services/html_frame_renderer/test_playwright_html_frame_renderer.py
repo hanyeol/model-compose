@@ -52,6 +52,16 @@ class _FakePage:
         self.screenshot_calls = 0
         self.last_screenshot_params: Dict[str, Any] = {}
         self.wait_for_function_calls: List[str] = []
+        self.handlers: Dict[str, List[Callable[[Any], Any]]] = {}
+        self.render_defined = True
+        self.ready_error: Optional[Exception] = None
+
+    def on(self, event: str, handler: Callable[[Any], Any]) -> None:
+        self.handlers.setdefault(event, []).append(handler)
+
+    def emit(self, event: str, payload: Any) -> None:
+        for handler in self.handlers.get(event, []):
+            handler(payload)
 
     async def set_viewport_size(self, _size: Dict[str, int]) -> None:
         return None
@@ -68,9 +78,14 @@ class _FakePage:
 
     async def wait_for_function(self, expr: str, timeout: Optional[int] = None) -> None:
         self.wait_for_function_calls.append(expr)
+        if self.ready_error is not None:
+            raise self.ready_error
         return None
 
     async def evaluate(self, expr: str, *args: Any) -> Any:
+        if "typeof window.render" in expr:
+            return self.render_defined
+
         if "window.render(" in expr:
             timestamp = args[0] if args else 0.0
             self.render_calls.append(timestamp)
@@ -485,3 +500,109 @@ class TestTimestampArithmetic:
         assert [p[0] for p in pairs] == list(range(10))
         assert [p[1] for p in pairs] == expected  # exact equality — same formula
         assert page.render_calls == expected
+
+
+class _FakeConsoleMessage:
+    def __init__(self, type: str, text: str) -> None:
+        self.type = type
+        self.text = text
+
+
+class TestPageErrorReporting:
+    """Load failures carry the page's own errors so callers (e.g. an LLM
+    authoring loop) can see *why* the page never became ready."""
+
+    async def _load(self, page: _FakePage, setup: Callable[[_FakePage], None]) -> None:
+        session = PlaywrightHtmlFrameRendererSession(page)
+        setup(page)  # errors raised while the page's scripts run
+        await session.load_html(_html(), None, _params())
+
+    @pytest.mark.anyio
+    async def test_crashed_script_fails_fast_with_page_error(self):
+        page = _FakePage()
+        page.render_defined = False
+
+        with pytest.raises(RuntimeError) as exc_info:
+            await self._load(page, lambda p: p.emit("pageerror", "SyntaxError: Unexpected token '}'"))
+
+        assert "window.render" in str(exc_info.value)
+        assert "SyntaxError: Unexpected token '}'" in str(exc_info.value)
+        assert page.wait_for_function_calls == [], "should not wait out ready_timeout"
+
+    @pytest.mark.anyio
+    async def test_ready_timeout_includes_console_errors(self):
+        page = _FakePage()
+        page.ready_error = TimeoutError("Timeout 1000ms exceeded.")
+
+        def setup(p: _FakePage) -> None:
+            p.emit("console", _FakeConsoleMessage("log", "booting"))
+            p.emit("console", _FakeConsoleMessage("error", "Failed to load font"))
+
+        with pytest.raises(RuntimeError) as exc_info:
+            await self._load(page, setup)
+
+        message = str(exc_info.value)
+        assert "window.__renderer.ready" in message
+        assert "console.error: Failed to load font" in message
+        assert "booting" not in message
+        assert isinstance(exc_info.value.__cause__, TimeoutError)
+
+    @pytest.mark.anyio
+    async def test_ready_timeout_without_errors_propagates_original(self):
+        page = _FakePage()
+        page.ready_error = TimeoutError("Timeout 1000ms exceeded.")
+
+        with pytest.raises(TimeoutError):
+            await self._load(page, lambda p: None)
+
+    @pytest.mark.anyio
+    async def test_benign_error_with_render_defined_still_loads(self):
+        page = _FakePage()
+        await self._load(page, lambda p: p.emit("pageerror", "TypeError: analytics is undefined"))
+        assert page.wait_for_function_calls, "should proceed to wait on ready"
+
+
+class TestInlineHtmlSource:
+    """Inline HTML that can't be probed as a path (Path.is_dir() raises
+    ENAMETOOLONG past PATH_MAX or NAME_MAX) must fall back to inline."""
+
+    @pytest.mark.anyio
+    async def test_long_inline_html_resolves_to_temp_file(self):
+        from mindor.core.component.services.html_frame_renderer.base import HtmlFrameRendererDriver
+
+        source = "<!DOCTYPE html><html><body><script>" + ("const a = 1;" * 800) + "</script></body></html>"
+        assert len(source) > 4096
+
+        resource = await HtmlFrameRendererDriver._build_html_source(None, source)
+        try:
+            assert resource.url.startswith("file://") and resource.url.endswith(".html")
+            from urllib.parse import urlparse, unquote
+            with open(unquote(urlparse(resource.url).path)) as f:
+                assert f.read() == source
+        finally:
+            resource.close()
+
+    @pytest.mark.anyio
+    async def test_non_markup_unprobeable_source_falls_back_to_inline(self):
+        from mindor.core.component.services.html_frame_renderer.base import HtmlFrameRendererDriver
+
+        source = "x" * 5000  # not markup, not a path
+        resource = await HtmlFrameRendererDriver._build_html_source(None, source)
+        try:
+            assert resource.url.startswith("file://")
+        finally:
+            resource.close()
+
+    @pytest.mark.anyio
+    async def test_short_html_with_segment_over_name_max_resolves_to_temp_file(self):
+        from mindor.core.component.services.html_frame_renderer.base import HtmlFrameRendererDriver
+
+        # Well under PATH_MAX, but one '/'-free segment exceeds NAME_MAX (255 bytes).
+        source = "<!DOCTYPE html><html><head><style>" + (".a{margin:0;padding:0}" * 15) + "</style></head></html>"
+        assert len(source) < 4096
+
+        resource = await HtmlFrameRendererDriver._build_html_source(None, source)
+        try:
+            assert resource.url.startswith("file://") and resource.url.endswith(".html")
+        finally:
+            resource.close()

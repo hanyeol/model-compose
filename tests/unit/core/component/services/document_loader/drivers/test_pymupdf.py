@@ -56,14 +56,8 @@ def test_pymupdf_action_extract_text():
             source="test.pdf",
             extraction_mode="text",
         )
-        context = MagicMock()
 
-        async def _mock_render(var, scope=None):
-            return var
-
-        context.render_variable.side_effect = _mock_render
-
-        action = PymupdfDocumentLoaderAction(config=action_config, context=context)
+        action = PymupdfDocumentLoaderAction(config=action_config)
 
         with patch.object(action, "_resolve_source_path", return_value=("test.pdf", False)):
             with patch.object(action, "_open_pdf", return_value=mock_doc):
@@ -97,14 +91,8 @@ def test_pymupdf_action_streaming():
             source="test.pdf",
             streaming=True,
         )
-        context = MagicMock()
 
-        async def _mock_render(var, scope=None):
-            return var
-
-        context.render_variable.side_effect = _mock_render
-
-        action = PymupdfDocumentLoaderAction(config=action_config, context=context)
+        action = PymupdfDocumentLoaderAction(config=action_config)
 
         pages = []
         with patch.object(action, "_resolve_source_path", return_value=("test.pdf", False)):

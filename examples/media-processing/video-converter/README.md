@@ -7,7 +7,7 @@ This example demonstrates a video format converter using the `video-converter` c
 This workflow provides a video conversion service that:
 
 1. **Video Format Conversion**: Converts between various video formats (MP4, WebM, AVI, MKV, MOV, FLV)
-2. **Configurable Encoding**: Supports video codec, audio codec, bitrate, resolution, and FPS options
+2. **Configurable Encoding**: Supports video codec, audio codec, bitrate, output height, and FPS options
 3. **File Input/Output**: Shows how binary file data flows through components and workflows
 4. **Web UI Integration**: Provides a Gradio-based interface with dropdown selectors for all options
 
@@ -42,7 +42,7 @@ This workflow provides a video conversion service that:
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload a video file
-   - Select output format, codec, audio codec, bitrate, resolution, and FPS
+   - Select output format, codec, audio codec, bitrate, height, and FPS
    - Click the "Run Workflow" button
    - Download the converted video file
 
@@ -54,7 +54,7 @@ This workflow provides a video conversion service that:
      -F "codec=libx264" \
      -F "audio_codec=aac" \
      -F "bitrate=2M" \
-     -F "resolution=1920x1080" \
+     -F "height=1080" \
      -F "frame_rate=30"
    ```
 
@@ -104,7 +104,7 @@ graph TD
 | `codec` | select | No | `libx264` | Video codec: libx264, libx265, vp9, av1, copy |
 | `audio_codec` | select | No | `aac` | Audio codec: aac, opus, mp3, flac, copy |
 | `bitrate` | select | No | `2M` | Video bitrate: 512k, 1M, 2M, 5M, 10M |
-| `resolution` | select | No | `1920x1080` | Output resolution: 1920x1080, 1280x720, 854x480, 3840x2160 |
+| `height` | select | No | `1080` | Target output height in pixels: 2160, 1080, 720, 480; width is derived automatically to preserve aspect ratio |
 | `frame_rate` | select | No | `30` | Frame rate: 24, 30, 60 |
 
 #### Output Format
@@ -130,4 +130,4 @@ ffmpeg supports a wide range of video formats, including but not limited to:
 
 1. **ffmpeg Not Found**: Ensure ffmpeg is installed and available in your PATH
 2. **Unsupported Codec**: Some codec/format combinations may not be compatible (e.g. vp9 with avi)
-3. **Output File Too Large**: Try a lower bitrate or resolution
+3. **Output File Too Large**: Try a lower bitrate or a smaller `height`

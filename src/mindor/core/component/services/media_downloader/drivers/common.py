@@ -27,15 +27,14 @@ class MediaDownloaderAction(ComponentAction):
       - Drivers implement `_download_batch` for one batch of URLs and
         return one stream resource per URL.
     """
-    def __init__(self, config: MediaDownloaderActionConfig, context: ComponentActionContext):
+    def __init__(self, config: MediaDownloaderActionConfig):
         self.config: MediaDownloaderActionConfig = config
-        self.context: ComponentActionContext = context
 
-    async def run(self) -> Any:
-        url        = await self.context.render_variable(self.config.url)
-        batch_size = await self.context.render_variable(self.config.batch_size)
+    async def run(self, context: ComponentActionContext) -> Any:
+        url        = await context.render_variable(self.config.url)
+        batch_size = await context.render_variable(self.config.batch_size)
 
-        params = await self._resolve_params()
+        params = await self._resolve_params(context)
 
         is_single_input  = not isinstance(url, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -43,10 +42,10 @@ class MediaDownloaderAction(ComponentAction):
         if isinstance(url, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
-                    batch_results = await self._download_batch(batch_urls, params, self.context.cancellation_token)
+                    batch_results = await self._download_batch(batch_urls, params, context.cancellation_token)
                     for result in batch_results:
-                        self.context.register_source("result", result)
-                        yield (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(url, StreamChunkIterator) and url.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
@@ -55,15 +54,15 @@ class MediaDownloaderAction(ComponentAction):
         else:
             results: List[DownloadResult] = []
             async for batch_urls in BatchSourceIterator(url, batch_size=batch_size or 1):
-                batch_results = await self._download_batch(batch_urls, params, self.context.cancellation_token)
+                batch_results = await self._download_batch(batch_urls, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
-            self.context.register_source("result", result)
+            context.register_source("result", result)
 
-            return (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_params(self) -> Dict[str, Any]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return {}
 
     @abstractmethod

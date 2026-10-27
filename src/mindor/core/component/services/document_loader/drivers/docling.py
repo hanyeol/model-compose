@@ -46,27 +46,26 @@ class DoclingDocumentLoaderAction(DocumentLoaderAction):
     def __init__(
         self,
         config: DoclingDocumentLoaderActionConfig,
-        context: ComponentActionContext,
         converter: Any,
         tokenizer: Optional[PreTrainedTokenizerBase],
     ):
-        super().__init__(config, context)
+        super().__init__(config)
 
         self._converter: Any = converter
         self._tokenizer: Optional[PreTrainedTokenizerBase] = tokenizer
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        chunker                 = await self.context.render_variable(self.config.chunker)
-        max_token_count         = await self.context.render_variable(self.config.max_token_count)
-        merge_peers             = await self.context.render_variable(self.config.merge_peers)
-        repeat_table_header     = await self.context.render_variable(self.config.repeat_table_header)
-        omit_header_on_overflow = await self.context.render_variable(self.config.omit_header_on_overflow)
-        always_emit_headings    = await self.context.render_variable(self.config.always_emit_headings)
-        code_chunking_strategy  = await self.context.render_variable(self.config.code_chunking_strategy)
-        max_line_count          = await self.context.render_variable(self.config.max_line_count)
-        return_enriched_text    = await self.context.render_variable(self.config.return_enriched_text)
+        chunker                 = await context.render_variable(self.config.chunker)
+        max_token_count         = await context.render_variable(self.config.max_token_count)
+        merge_peers             = await context.render_variable(self.config.merge_peers)
+        repeat_table_header     = await context.render_variable(self.config.repeat_table_header)
+        omit_header_on_overflow = await context.render_variable(self.config.omit_header_on_overflow)
+        always_emit_headings    = await context.render_variable(self.config.always_emit_headings)
+        code_chunking_strategy  = await context.render_variable(self.config.code_chunking_strategy)
+        max_line_count          = await context.render_variable(self.config.max_line_count)
+        return_enriched_text    = await context.render_variable(self.config.return_enriched_text)
 
         params.update({
             "chunker":                 chunker,
@@ -360,7 +359,7 @@ class DoclingDocumentLoaderService(DocumentLoaderDriver):
         await super()._stop()
 
     async def _run(self, action: DocumentLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await DoclingDocumentLoaderAction(action, context, self._converter, self._tokenizer).run()
+        return await DoclingDocumentLoaderAction(action, self._converter, self._tokenizer).run(context)
 
     def _load_document_converter(self) -> Any:
         from docling.document_converter import DocumentConverter, PdfFormatOption

@@ -118,19 +118,19 @@ _BLENDER_SEARCH_PATHS: Dict[str, Tuple[str, ...]] = {
 class BlenderModel3DLoaderAction(Model3DLoaderAction):
     config: BlenderModel3DLoaderActionConfig
 
-    def __init__(self, config: BlenderModel3DLoaderActionConfig, context: ComponentActionContext, binary: str, timeout: float):
-        super().__init__(config, context)
+    def __init__(self, config: BlenderModel3DLoaderActionConfig, binary: str, timeout: float):
+        super().__init__(config)
 
         self.binary: str = binary
         self.timeout: float = timeout
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        object_name        = await self.context.render_variable(self.config.object_name)
-        apply_modifiers    = await self.context.render_variable(self.config.apply_modifiers)
-        include_materials  = await self.context.render_variable(self.config.include_materials)
-        include_animations = await self.context.render_variable(self.config.include_animations)
+        object_name        = await context.render_variable(self.config.object_name)
+        apply_modifiers    = await context.render_variable(self.config.apply_modifiers)
+        include_materials  = await context.render_variable(self.config.include_materials)
+        include_animations = await context.render_variable(self.config.include_animations)
 
         params.update({
             "object_name":        object_name or "",
@@ -253,4 +253,4 @@ class BlenderModel3DLoaderService(Model3DLoaderDriver):
         )
 
     async def _run(self, action: Model3DLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await BlenderModel3DLoaderAction(action, context, self.binary, self.timeout).run()
+        return await BlenderModel3DLoaderAction(action, self.binary, self.timeout).run(context)

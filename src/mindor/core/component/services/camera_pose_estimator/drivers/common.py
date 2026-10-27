@@ -27,14 +27,13 @@ class CameraPoseEstimatorAction(ComponentAction):
     rendering and workspace routing directly instead of delegating to a
     `_prepare_input` hook.
     """
-    def __init__(self, config: CameraPoseEstimatorActionConfig, context: ComponentActionContext):
+    def __init__(self, config: CameraPoseEstimatorActionConfig):
         self.config: CameraPoseEstimatorActionConfig = config
-        self.context: ComponentActionContext = context
 
-    async def run(self) -> Any:
-        images        = await self.context.render_image_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
-        workspace_dir = await self.context.render_variable(self.config.workspace_dir)
-        batch_size    = await self.context.render_variable(self.config.batch_size)
+    async def run(self, context: ComponentActionContext) -> Any:
+        images        = await context.render_image_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
+        workspace_dir = await context.render_variable(self.config.workspace_dir)
+        batch_size    = await context.render_variable(self.config.batch_size)
 
         primary_input      = images if images is not None else workspace_dir
         is_single_input    = not isinstance(primary_input, (list, StreamIterator, AsyncIterator))
@@ -42,10 +41,10 @@ class CameraPoseEstimatorAction(ComponentAction):
 
         is_single_workspace = not isinstance(workspace_dir, (list, StreamIterator, AsyncIterator))
 
-        params = await self._resolve_params()
+        params = await self._resolve_params(context)
 
         if is_single_workspace and images is not None:
-            workspace_dir = os.path.join(workspace_dir or os.path.join(".workspace", self.context.component_id), self.context.run_id)
+            workspace_dir = os.path.join(workspace_dir or os.path.join(".workspace", context.component_id), context.run_id)
 
         is_direct_output   = not self.config.output or self.config.output == "${result}"
         needs_scene_suffix = is_single_workspace and not is_single_input
@@ -57,11 +56,11 @@ class CameraPoseEstimatorAction(ComponentAction):
                     if needs_scene_suffix:
                         batch_workspaces = [ f"{workspace}-{scene_index + index}" for index, workspace in enumerate(batch_workspaces) ]
                     batch_inputs = list(zip(batch_images, batch_workspaces))
-                    batch_results = await self._estimate_batch(batch_inputs, params, self.context.cancellation_token)
+                    batch_results = await self._estimate_batch(batch_inputs, params, context.cancellation_token)
                     scene_index += len(batch_images)
                     for result in batch_results:
-                        self.context.register_source("result", result)
-                        yield (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
@@ -74,16 +73,16 @@ class CameraPoseEstimatorAction(ComponentAction):
                 if needs_scene_suffix:
                     batch_workspaces = [ f"{workspace}-{scene_index + index}" for index, workspace in enumerate(batch_workspaces) ]
                 batch_inputs = list(zip(batch_images, batch_workspaces))
-                batch_results = await self._estimate_batch(batch_inputs, params, self.context.cancellation_token)
+                batch_results = await self._estimate_batch(batch_inputs, params, context.cancellation_token)
                 scene_index += len(batch_images)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
-            self.context.register_source("result", result)
+            context.register_source("result", result)
 
-            return (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_params(self) -> Dict[str, Any]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return {}
 
     @abstractmethod

@@ -14,18 +14,18 @@ from .parser import parse_subtitle_file
 import asyncio, os
 
 class YtdlpSubtitleLoaderAction(SubtitleLoaderAction):
-    async def _prepare_input(self) -> Any:
-        return await self.context.render_variable(self.config.url)
+    async def _prepare_input(self, context: ComponentActionContext) -> Any:
+        return await context.render_variable(self.config.url)
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        languages              = await self.context.render_array(self.config.languages, single_as_array=True)
-        format                 = await self.context.render_variable(self.config.format)
-        include_auto_generated = await self.context.render_scalar(self.config.include_auto_generated, bool)
-        cookies                = (await self.context.render_variable(self.config.cookies)) or []
-        extractor_args         = (await self.context.render_variable(self.config.extractor_args)) or {}
-        js_runtimes            = (await self.context.render_variable(self.config.js_runtimes)) or []
+        languages              = await context.render_array(self.config.languages, single_as_array=True)
+        format                 = await context.render_variable(self.config.format)
+        include_auto_generated = await context.render_scalar(self.config.include_auto_generated, bool)
+        cookies                = (await context.render_variable(self.config.cookies)) or []
+        extractor_args         = (await context.render_variable(self.config.extractor_args)) or {}
+        js_runtimes            = (await context.render_variable(self.config.js_runtimes)) or []
 
         if languages:
             languages = await languages.collect()
@@ -239,4 +239,4 @@ class YtdlpSubtitleLoaderService(SubtitleLoaderDriver):
         return [ "yt-dlp", "pysubs2", "webvtt-py" ]
 
     async def _run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await YtdlpSubtitleLoaderAction(action, context).run()
+        return await YtdlpSubtitleLoaderAction(action).run(context)

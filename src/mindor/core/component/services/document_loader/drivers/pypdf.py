@@ -13,12 +13,12 @@ import asyncio, os
 class PypdfDocumentLoaderAction(DocumentLoaderAction):
     config: PypdfDocumentLoaderActionConfig
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        password        = await self.context.render_variable(self.config.password)
-        extraction_mode = await self.context.render_variable(self.config.extraction_mode)
-        page_range      = await self.context.render_variable(self.config.page_range)
+        password        = await context.render_variable(self.config.password)
+        extraction_mode = await context.render_variable(self.config.extraction_mode)
+        page_range      = await context.render_variable(self.config.page_range)
 
         params.update({
             "password":        password,
@@ -165,4 +165,4 @@ class PypdfDocumentLoaderService(DocumentLoaderDriver):
         return [ "pypdf" ]
 
     async def _run(self, action: DocumentLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await PypdfDocumentLoaderAction(action, context).run()
+        return await PypdfDocumentLoaderAction(action).run(context)

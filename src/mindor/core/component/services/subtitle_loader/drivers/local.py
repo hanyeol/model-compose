@@ -14,14 +14,14 @@ from .parser import parse_subtitle_file
 import asyncio, os
 
 class LocalSubtitleLoaderAction(SubtitleLoaderAction):
-    async def _prepare_input(self) -> Any:
-        return await self.context.render_variable(self.config.source)
+    async def _prepare_input(self, context: ComponentActionContext) -> Any:
+        return await context.render_variable(self.config.source)
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        format   = await self.context.render_variable(self.config.format)
-        encoding = await self.context.render_variable(self.config.encoding)
+        format   = await context.render_variable(self.config.format)
+        encoding = await context.render_variable(self.config.encoding)
 
         params.update({
             "format":   format,
@@ -92,4 +92,4 @@ class LocalSubtitleLoaderService(SubtitleLoaderDriver):
         return [ "pysubs2", "webvtt-py" ]
 
     async def _run(self, action: SubtitleLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await LocalSubtitleLoaderAction(action, context).run()
+        return await LocalSubtitleLoaderAction(action).run(context)

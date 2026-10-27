@@ -722,14 +722,14 @@ class MidiScoreLoader:
         return seconds
 
 class LocalMusicScoreLoaderAction(MusicScoreLoaderAction):
-    async def _prepare_input(self) -> Any:
-        return await self.context.render_variable(self.config.source)
+    async def _prepare_input(self, context: ComponentActionContext) -> Any:
+        return await context.render_variable(self.config.source)
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        format = await self.context.render_variable(self.config.format)
-        part   = await self.context.render_scalar(self.config.part, int, None) if self.config.part is not None else None
+        format = await context.render_variable(self.config.format)
+        part   = await context.render_scalar(self.config.part, int, None) if self.config.part is not None else None
 
         if isinstance(format, MusicScoreLoaderFormat):
             format = format.value
@@ -827,4 +827,4 @@ class LocalMusicScoreLoaderService(MusicScoreLoaderDriver):
         return [ "mido" ]
 
     async def _run(self, action: MusicScoreLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await LocalMusicScoreLoaderAction(action, context).run()
+        return await LocalMusicScoreLoaderAction(action).run(context)

@@ -12,16 +12,15 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class Model3DLoaderAction(ComponentAction):
-    def __init__(self, config: Model3DLoaderActionConfig, context: ComponentActionContext):
+    def __init__(self, config: Model3DLoaderActionConfig):
         self.config: Model3DLoaderActionConfig = config
-        self.context: ComponentActionContext = context
 
-    async def run(self) -> Any:
-        source     = await self.context.render_variable(self.config.source)
-        format     = await self.context.render_variable(self.config.format)
-        batch_size = await self.context.render_variable(self.config.batch_size)
+    async def run(self, context: ComponentActionContext) -> Any:
+        source     = await context.render_variable(self.config.source)
+        format     = await context.render_variable(self.config.format)
+        batch_size = await context.render_variable(self.config.batch_size)
 
-        params = await self._resolve_params()
+        params = await self._resolve_params(context)
 
         is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(source, (StreamIterator, AsyncIterator))
@@ -30,10 +29,10 @@ class Model3DLoaderAction(ComponentAction):
         if is_streaming_input:
             async def _stream_output_generator():
                 async for batch_sources in BatchSourceIterator(source, batch_size=batch_size or 1):
-                    batch_results = await self._load_batch(batch_sources, format, params, self.context.cancellation_token)
+                    batch_results = await self._load_batch(batch_sources, format, params, context.cancellation_token)
                     for result in batch_results:
-                        self.context.register_source("result", result)
-                        yield (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(source, StreamChunkIterator) and source.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
@@ -42,15 +41,15 @@ class Model3DLoaderAction(ComponentAction):
         else:
             results: List[Model3DStreamResource] = []
             async for batch_sources in BatchSourceIterator(source, batch_size=batch_size or 1):
-                batch_results = await self._load_batch(batch_sources, format, params, self.context.cancellation_token)
+                batch_results = await self._load_batch(batch_sources, format, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
-            self.context.register_source("result", result)
+            context.register_source("result", result)
 
-            return (await self.context.render_variable(self.config.output)) if not is_direct_output else result
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _resolve_params(self) -> Dict[str, Any]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return {}
 
     @abstractmethod

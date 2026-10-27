@@ -17,12 +17,12 @@ if TYPE_CHECKING:
 class PymupdfDocumentLoaderAction(DocumentLoaderAction):
     config: PymupdfDocumentLoaderActionConfig
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        password        = await self.context.render_variable(self.config.password)
-        extraction_mode = await self.context.render_variable(self.config.extraction_mode)
-        page_range      = await self.context.render_variable(self.config.page_range)
+        password        = await context.render_variable(self.config.password)
+        extraction_mode = await context.render_variable(self.config.extraction_mode)
+        page_range      = await context.render_variable(self.config.page_range)
 
         params.update({
             "password":        password,
@@ -194,4 +194,4 @@ class PymupdfDocumentLoaderService(DocumentLoaderDriver):
         return [ "pymupdf" ]
 
     async def _run(self, action: DocumentLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await PymupdfDocumentLoaderAction(action, context).run()
+        return await PymupdfDocumentLoaderAction(action).run(context)

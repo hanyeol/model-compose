@@ -75,13 +75,13 @@ _FORMAT_PRESETS: Dict[str, Tuple[Dict[str, Any], bool]] = {
 }
 
 class YtdlpMediaDownloaderAction(MediaDownloaderAction):
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        format         = await self.context.render_variable(self.config.format)
-        cookies        = (await self.context.render_variable(self.config.cookies)) or []
-        extractor_args = (await self.context.render_variable(self.config.extractor_args)) or {}
-        js_runtimes    = (await self.context.render_variable(self.config.js_runtimes)) or []
+        format         = await context.render_variable(self.config.format)
+        cookies        = (await context.render_variable(self.config.cookies)) or []
+        extractor_args = (await context.render_variable(self.config.extractor_args)) or {}
+        js_runtimes    = (await context.render_variable(self.config.js_runtimes)) or []
 
         params.update({
             "format":         format,
@@ -403,4 +403,4 @@ class YtdlpMediaDownloaderService(MediaDownloaderDriver):
         return [ "yt-dlp" ]
 
     async def _run(self, action: MediaDownloaderActionConfig, context: ComponentActionContext) -> Any:
-        return await YtdlpMediaDownloaderAction(action, context).run()
+        return await YtdlpMediaDownloaderAction(action).run(context)

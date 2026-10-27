@@ -24,18 +24,18 @@ _PDF_CONTENT_TYPE = "application/pdf"
 class VerovioMusicScoreRendererAction(MusicScoreRendererAction):
     config: VerovioMusicScoreRendererActionConfig
 
-    async def _prepare_input(self) -> Any:
-        return await self.context.render_variable(self.config.source)
+    async def _prepare_input(self, context: ComponentActionContext) -> Any:
+        return await context.render_variable(self.config.source)
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        format      = await self.context.render_variable(self.config.format)
-        page_width  = await self.context.render_scalar(self.config.page_width, float, 2100.0)
-        page_height = await self.context.render_scalar(self.config.page_height, float, 2970.0)
-        scale       = await self.context.render_scalar(self.config.scale, int, 100)
-        margin      = await self._resolve_margin()
-        dpi         = await self.context.render_scalar(self.config.dpi, int, 150)
+        format      = await context.render_variable(self.config.format)
+        page_width  = await context.render_scalar(self.config.page_width, float, 2100.0)
+        page_height = await context.render_scalar(self.config.page_height, float, 2970.0)
+        scale       = await context.render_scalar(self.config.scale, int, 100)
+        margin      = await self._resolve_margin(context)
+        dpi         = await context.render_scalar(self.config.dpi, int, 150)
 
         try:
             format = MusicScoreRendererFormat(format)
@@ -53,8 +53,8 @@ class VerovioMusicScoreRendererAction(MusicScoreRendererAction):
 
         return params
 
-    async def _resolve_margin(self) -> Dict[str, float]:
-        margin = await self.context.render_variable(self.config.margin)
+    async def _resolve_margin(self, context: ComponentActionContext) -> Dict[str, float]:
+        margin = await context.render_variable(self.config.margin)
         sides = ("top", "right", "bottom", "left")
 
         if margin is None or isinstance(margin, (int, float)):
@@ -208,4 +208,4 @@ class VerovioMusicScoreRendererService(MusicScoreRendererDriver):
         return [ "verovio", "svglib", "reportlab", "resvg-py" ]
 
     async def _run(self, action: MusicScoreRendererActionConfig, context: ComponentActionContext) -> Any:
-        return await VerovioMusicScoreRendererAction(action, context).run()
+        return await VerovioMusicScoreRendererAction(action).run(context)

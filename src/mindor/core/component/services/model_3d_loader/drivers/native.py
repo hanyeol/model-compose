@@ -93,4 +93,4 @@ class NativeModel3DLoaderService(Model3DLoaderDriver):
         return [ "trimesh" ]
 
     async def _run(self, action: Model3DLoaderActionConfig, context: ComponentActionContext) -> Any:
-        return await NativeModel3DLoaderAction(action, context).run()
+        return await NativeModel3DLoaderAction(action).run(context)

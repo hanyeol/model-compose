@@ -24,20 +24,19 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
     def __init__(
         self,
         config: ColmapCameraPoseEstimatorActionConfig,
-        context: ComponentActionContext,
         component_config: CameraPoseEstimatorComponentConfig,
     ):
-        super().__init__(config, context)
+        super().__init__(config)
 
         self.component_config: CameraPoseEstimatorComponentConfig = component_config
 
-    async def _resolve_params(self) -> Dict[str, Any]:
-        params = await super()._resolve_params()
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
 
-        return_cameras  = await self.context.render_scalar(self.config.return_cameras, bool)
-        return_poses    = await self.context.render_scalar(self.config.return_poses, bool)
-        return_points   = await self.context.render_scalar(self.config.return_points, bool)
-        return_metadata = await self.context.render_scalar(self.config.return_metadata, bool)
+        return_cameras  = await context.render_scalar(self.config.return_cameras, bool)
+        return_poses    = await context.render_scalar(self.config.return_poses, bool)
+        return_points   = await context.render_scalar(self.config.return_points, bool)
+        return_metadata = await context.render_scalar(self.config.return_metadata, bool)
 
         # COLMAP camera model names are UPPER_SNAKE (e.g. `OPENCV_FISHEYE`);
         # the DSL enum values are lowercase kebab (`opencv-fisheye`).
@@ -415,4 +414,4 @@ class ColmapCameraPoseEstimatorService(CameraPoseEstimatorDriver):
         ]
 
     async def _run(self, action: CameraPoseEstimatorActionConfig, context: ComponentActionContext) -> Any:
-        return await ColmapCameraPoseEstimatorAction(action, context, self.config).run()
+        return await ColmapCameraPoseEstimatorAction(action, self.config).run(context)

@@ -1,0 +1,194 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflows:
+  # Entry point: a local Qwen coder authors an HTML motion-graphics page,
+  # html-frame-renderer captures it, video-encoder writes the MP4. A failed
+  # attempt (no HTML in the reply, script error, ready timeout) is fed back
+  # to the model with the page's own error message — renderer-in-the-loop.
+  - id: main
+    title: Prompt to Motion Graphics
+    description: Generate an HTML motion graphic with a local Qwen model and render it to MP4, retrying on render errors.
+    jobs:
+      - id: author
+        type: loop
+        input:
+          prompt: ${input.prompt @(description What the motion graphic should show)}
+          duration: ${input.duration as integer | 6}
+          frame_rate: ${input.frame_rate as select/24,30,60 | 30}
+        do:
+          component:
+            type: workflow
+            action:
+              workflow: attempt
+          input:
+            prompt: ${input.prompt}
+            duration: ${input.duration}
+            frame_rate: ${input.frame_rate}
+            iteration: ${iteration}
+            # Previous iteration's result; absent on the first pass.
+            previous_html: ${output.html | (none)}
+            previous_error: ${output.error | (none)}
+        until:
+          input: ${output.ok}
+          operator: eq
+          value: true
+        max_iteration_count: 3
+        output:
+          video: ${output.video as video}
+          html: ${output.html}
+          attempts: ${output.iteration}
+
+  # One authoring attempt: generate → extract → render → encode.
+  - id: attempt
+    title: Motion Graphics Attempt
+    jobs:
+      - id: generate
+        component: coder
+        input:
+          prompt: ${input.prompt}
+          duration: ${input.duration}
+          previous_html: ${input.previous_html}
+          previous_error: ${input.previous_error}
+        output: ${output}
+
+      - id: extract
+        component: html-extractor
+        input:
+          text: ${jobs.generate.output}
+        output: ${output}
+        depends_on: [ generate ]
+
+      - id: render
+        component: renderer
+        input:
+          html: ${jobs.extract.output}
+          duration: ${input.duration}
+          frame_rate: ${input.frame_rate}
+        output: ${output}
+        depends_on: [ extract ]
+
+      - id: encode
+        component: encoder
+        input:
+          frames: ${jobs.render.output}
+          frame_rate: ${input.frame_rate}
+        # Frames stream lazily, so page-load and render errors surface here,
+        # carrying the renderer's message (including captured page errors).
+        output:
+          ok: true
+          video: ${output}
+        on_error:
+          output:
+            ok: false
+            error: ${error.message}
+        depends_on: [ render ]
+
+    output:
+      ok: ${jobs.encode.output.ok}
+      video: ${jobs.encode.output.video}
+      error: ${jobs.encode.output.error | (none)}
+      html: ${jobs.extract.output}
+      iteration: ${input.iteration}
+
+components:
+  - id: coder
+    type: model
+    task: chat-completion
+    driver: vllm
+    model: Qwen/Qwen3-Coder-30B-A3B-Instruct
+    max_concurrent_count: 1
+    runtime:
+      type: virtualenv
+      driver: python
+      path: .venv/vllm
+    options:
+      max_model_len: 32768
+      gpu_memory_utilization: 0.9
+    action:
+      messages:
+        - role: system
+          content: |
+            You write a single self-contained HTML file that renders a motion graphic.
+            The file is captured frame by frame by a headless Chromium renderer, so it must follow this contract exactly:
+
+            1. Define a top-level `window.render = (t) => { ... }` where `t` is seconds from 0.
+               It must draw the complete frame for time `t` from scratch. Never rely on wall-clock time,
+               requestAnimationFrame loops, CSS transitions/animations, or state carried over from the previous call.
+               Every visual must be a pure function of `t`.
+            2. At the end of `render(t)`, call `window.__renderer.rendered(t)`.
+            3. Read the total length from `window.__renderer.duration` (seconds). Do not hard-code it.
+            4. After all setup is complete (await `document.fonts.ready` if you use web fonts), set `window.__renderer.ready = true`.
+            5. The viewport is 1280x720. Set `html, body { margin: 0; overflow: hidden; }` and size the stage to exactly 1280x720.
+            6. Use only inline CSS and JavaScript. No external network requests except Google Fonts or a library from cdnjs.cloudflare.com.
+               If you use GSAP, build a paused timeline and call `timeline.seek(t)` inside `render(t)`.
+            7. Use seeded randomness only (e.g. a mulberry32 PRNG with a fixed seed) so the same `t` always produces the same frame.
+
+            Design: strong typography, clear hierarchy, eased motion (ease-in-out cubic or similar), staggered entrances,
+            and a deliberate hold before the end. Keep text inside safe margins of 64px.
+
+            Reply with the HTML document only, starting with <!DOCTYPE html> and ending with </html>.
+        - role: user
+          content: |
+            Duration: ${input.duration} seconds.
+            Motion graphic to create:
+            ${input.prompt}
+
+            Previous attempt ("(none)" on the first try):
+            ${input.previous_html}
+
+            The previous attempt failed to render with this error ("(none)" on the first try).
+            If present, fix the cause and return the corrected full document:
+            ${input.previous_error}
+      max_output_length: 12000
+      params:
+        do_sample: true
+        temperature: 0.4
+        top_p: 0.9
+      output: ${result.choices[0].content[0].text}
+
+  # Pulls the document out of the reply (code fences, chatter). When nothing
+  # matches, the fallback page throws on purpose: the renderer reports the
+  # message back to the loop, so "no HTML" is retried like any render error.
+  - id: html-extractor
+    type: text-parser
+    action:
+      text: ${input.text}
+      format: regex
+      regex_pattern: (?:<!DOCTYPE html>\s*)?<html[\s\S]*</html>
+      regex_flags: i
+      strategy: largest
+      fallback: "<!DOCTYPE html><html><body><script>throw new Error('The reply contained no <html> document. Return only the full HTML file, starting with <!DOCTYPE html>.');</script></body></html>"
+
+  - id: renderer
+    type: html-frame-renderer
+    driver: playwright
+    headless: true
+    action:
+      html: ${input.html}
+      duration: ${input.duration}s
+      frame_rate: ${input.frame_rate}
+      width: 1280
+      height: 720
+      ready_timeout: 20s
+      render_timeout: 5s
+      streaming: true
+      output: ${result[].image}
+
+  - id: encoder
+    type: video-encoder
+    driver: ffmpeg
+    action:
+      frames: ${input.frames}
+      frame_rate: ${input.frame_rate}
+      encoding:
+        format: mp4
+        video:
+          codec: libx264
+          bitrate: 6M

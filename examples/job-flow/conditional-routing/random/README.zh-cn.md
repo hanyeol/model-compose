@@ -38,14 +38,14 @@
    **使用 API：**
    ```bash
    # 均匀路由
-   curl -X POST http://localhost:8080/api/workflows/uniform-routing/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{}'
+     -d '{"workflow_id": "uniform-routing"}'
 
    # 加权路由
-   curl -X POST http://localhost:8080/api/workflows/weighted-routing/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{}'
+     -d '{"workflow_id": "weighted-routing"}'
    ```
 
    **使用 Web UI：**

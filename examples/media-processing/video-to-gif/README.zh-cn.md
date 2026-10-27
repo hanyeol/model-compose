@@ -48,13 +48,13 @@
    **使用 API：**
    ```bash
    # 转换整个视频
-   curl -X POST http://localhost:8080/api/workflows/convert/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "video=@input.mp4" \
      -F "frame_rate=12" \
      -F "resolution=480x-1"
 
    # 先裁剪再转换
-   curl -X POST http://localhost:8080/api/workflows/clip-to-gif/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "video=@input.mp4" \
      -F "start_time=00:00:10" \
      -F "end_time=00:00:15" \

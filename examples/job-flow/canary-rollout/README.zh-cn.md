@@ -38,18 +38,18 @@
    **使用 API** — 在请求 body 中包含 `session_id`，让路由器可以固定会话：
    ```bash
    # 以会话 alice 调用一次；重复调用将每次得到相同的变体。
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "alice", "input": {"message": "hello"}}'
+     -d '{"workflow_id": "chat", "session_id": "alice", "input": {"message": "hello"}}'
 
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "alice", "input": {"message": "still me"}}'
+     -d '{"workflow_id": "chat", "session_id": "alice", "input": {"message": "still me"}}'
 
    # 不同的会话 —— 可能落到任一变体，但一旦确定便会保持。
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "bob", "input": {"message": "hi"}}'
+     -d '{"workflow_id": "chat", "session_id": "bob", "input": {"message": "hi"}}'
    ```
 
    **使用 Web UI：**

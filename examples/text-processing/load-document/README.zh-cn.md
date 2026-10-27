@@ -49,9 +49,10 @@ pypdf 驱动 —— 独立的 `pypdf-loader` 组件驱动一个工作流：
 
    **使用 API —— token 窗口分块（hybrid)：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-hybrid/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-hybrid",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "max_token_count": 384
@@ -61,9 +62,10 @@ pypdf 驱动 —— 独立的 `pypdf-loader` 组件驱动一个工作流：
 
    **使用 API —— 基于标题的分块（hierarchical)：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-hierarchical/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-hierarchical",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "always_emit_headings": true
@@ -73,9 +75,10 @@ pypdf 驱动 —— 独立的 `pypdf-loader` 组件驱动一个工作流：
 
    **使用 API —— 基于行的分块：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-line/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-line",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "max_line_count": 40,
@@ -86,27 +89,30 @@ pypdf 驱动 —— 独立的 `pypdf-loader` 组件驱动一个工作流：
 
    **使用 API —— 页面级分块：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-page/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-page",
        "input": { "source": "/absolute/path/to/paper.pdf" }
      }'
    ```
 
    **使用 API —— 整份文档：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-whole/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-whole",
        "input": { "source": "/absolute/path/to/paper.pdf" }
      }'
    ```
 
    **使用 API —— pypdf 页面提取：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-pypdf/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-pypdf",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "page_range": "1-5"

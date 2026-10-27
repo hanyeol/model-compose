@@ -51,9 +51,10 @@ With CLIP (image-text), embedding both sides and taking cosine reproduces CLIPSc
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/score-video/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "score-video",
        "input": {
          "video": "https://example.com/clip.mp4",
          "text": "a chef chopping vegetables in a kitchen"

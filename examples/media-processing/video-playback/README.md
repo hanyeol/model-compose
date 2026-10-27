@@ -33,9 +33,9 @@ No environment variables are required.
 
    **Using API:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/play-video/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"source": "/absolute/path/to/clip.mp4"}}'
+     -d '{"workflow_id": "play-video", "input": {"source": "/absolute/path/to/clip.mp4"}}'
    ```
 
    **Using CLI:**

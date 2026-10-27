@@ -42,7 +42,7 @@
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/hed/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/input-image.jpg"
    ```
 

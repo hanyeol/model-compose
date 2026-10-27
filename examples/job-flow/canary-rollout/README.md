@@ -38,18 +38,18 @@ Both branches call the same `respond` shell component. The twist is the router: 
    **Using API** — include `session_id` in the request body so the router can pin the session:
    ```bash
    # Call once with session alice; repeat and you'll see the same variant each time.
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "alice", "input": {"message": "hello"}}'
+     -d '{"workflow_id": "chat", "session_id": "alice", "input": {"message": "hello"}}'
 
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "alice", "input": {"message": "still me"}}'
+     -d '{"workflow_id": "chat", "session_id": "alice", "input": {"message": "still me"}}'
 
    # Different session — may land on either variant, but will stay on it.
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "bob", "input": {"message": "hi"}}'
+     -d '{"workflow_id": "chat", "session_id": "bob", "input": {"message": "hi"}}'
    ```
 
    **Using Web UI:**

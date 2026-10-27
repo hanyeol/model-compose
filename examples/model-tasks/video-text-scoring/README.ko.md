@@ -51,9 +51,10 @@ CLIP(이미지-텍스트)의 경우 양쪽을 임베딩해 코사인을 계산�
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/score-video/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "score-video",
        "input": {
          "video": "https://example.com/clip.mp4",
          "text": "a chef chopping vegetables in a kitchen"

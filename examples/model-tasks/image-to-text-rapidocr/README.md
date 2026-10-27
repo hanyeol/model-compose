@@ -58,7 +58,7 @@ switchable without re-downloading large transformer weights:
 
    ```bash
    # API — pin the workflow by id
-   curl -X POST http://localhost:8080/api/workflows/annotate-text/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/page.jpg" \
      -F 'input={"image": "@image", "line_width": 3}'
 

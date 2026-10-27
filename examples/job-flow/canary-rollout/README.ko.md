@@ -38,18 +38,18 @@
    **API 사용** — 라우터가 세션을 고정할 수 있도록 요청 body에 `session_id`를 포함합니다:
    ```bash
    # 세션 alice로 호출. 반복해도 같은 변형이 나옵니다.
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "alice", "input": {"message": "hello"}}'
+     -d '{"workflow_id": "chat", "session_id": "alice", "input": {"message": "hello"}}'
 
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "alice", "input": {"message": "still me"}}'
+     -d '{"workflow_id": "chat", "session_id": "alice", "input": {"message": "still me"}}'
 
    # 다른 세션 — 둘 중 어디로 갈지는 모르지만, 한 번 정해지면 그대로 유지됩니다.
-   curl -X POST http://localhost:8080/api/workflows/chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"session_id": "bob", "input": {"message": "hi"}}'
+     -d '{"workflow_id": "chat", "session_id": "bob", "input": {"message": "hi"}}'
    ```
 
    **Web UI 사용:**

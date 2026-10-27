@@ -59,7 +59,7 @@ Two workflows are exposed, one for each input mode:
 
    **Estimate from an uploaded image set (API):**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/estimate-from-images/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "images=@scene/img_0001.jpg" \
      -F "images=@scene/img_0002.jpg" \
      -F "images=@scene/img_0003.jpg"

@@ -49,9 +49,10 @@ Every workflow enables streaming, so chunks flow out as they are produced.
 
    **Using API — token-windowed chunks (hybrid):**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-hybrid/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-hybrid",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "max_token_count": 384
@@ -61,9 +62,10 @@ Every workflow enables streaming, so chunks flow out as they are produced.
 
    **Using API — heading-based chunks (hierarchical):**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-hierarchical/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-hierarchical",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "always_emit_headings": true
@@ -73,9 +75,10 @@ Every workflow enables streaming, so chunks flow out as they are produced.
 
    **Using API — line-based chunks:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-line/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-line",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "max_line_count": 40,
@@ -86,27 +89,30 @@ Every workflow enables streaming, so chunks flow out as they are produced.
 
    **Using API — page-level chunks:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-page/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-page",
        "input": { "source": "/absolute/path/to/paper.pdf" }
      }'
    ```
 
    **Using API — whole document:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-whole/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-whole",
        "input": { "source": "/absolute/path/to/paper.pdf" }
      }'
    ```
 
    **Using API — pypdf pages:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-pypdf/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-pypdf",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "page_range": "1-5"

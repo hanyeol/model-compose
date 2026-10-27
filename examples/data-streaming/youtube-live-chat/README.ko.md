@@ -54,9 +54,9 @@
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/collect-chat/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"video_id": "jfKfPfyJRdk", "poll_interval": "2s"}}'
+     -d '{"workflow_id": "collect-chat", "input": {"video_id": "jfKfPfyJRdk", "poll_interval": "2s"}}'
    ```
 
 4. **중지:**

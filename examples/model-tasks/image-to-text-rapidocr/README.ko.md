@@ -56,7 +56,7 @@ RapidOCR는 PaddleOCR을 ONNX 런타임으로 포팅한 경량 OCR 엔진입니�
 
    ```bash
    # API — 워크플로우 id로 고정
-   curl -X POST http://localhost:8080/api/workflows/annotate-text/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/page.jpg" \
      -F 'input={"image": "@image", "line_width": 3}'
 

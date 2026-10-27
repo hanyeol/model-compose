@@ -38,14 +38,14 @@
    **API 사용:**
    ```bash
    # 균등 라우팅
-   curl -X POST http://localhost:8080/api/workflows/uniform-routing/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{}'
+     -d '{"workflow_id": "uniform-routing"}'
 
    # 가중치 라우팅
-   curl -X POST http://localhost:8080/api/workflows/weighted-routing/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{}'
+     -d '{"workflow_id": "weighted-routing"}'
    ```
 
    **웹 UI 사용:**

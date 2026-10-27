@@ -50,9 +50,10 @@
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/clip-score/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "clip-score",
        "input": {
          "image": "https://images.unsplash.com/photo-1543852786-1cf6624b9987",
          "text": "a photo of a cat"

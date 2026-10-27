@@ -59,7 +59,7 @@
 
    **업로드한 이미지 세트로 추정 (API):**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/estimate-from-images/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "images=@scene/img_0001.jpg" \
      -F "images=@scene/img_0002.jpg" \
      -F "images=@scene/img_0003.jpg"

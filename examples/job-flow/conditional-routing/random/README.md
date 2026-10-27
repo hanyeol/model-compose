@@ -38,14 +38,14 @@ Each variant runs the same shell component and returns a small object with the c
    **Using API:**
    ```bash
    # Uniform routing
-   curl -X POST http://localhost:8080/api/workflows/uniform-routing/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{}'
+     -d '{"workflow_id": "uniform-routing"}'
 
    # Weighted routing
-   curl -X POST http://localhost:8080/api/workflows/weighted-routing/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{}'
+     -d '{"workflow_id": "weighted-routing"}'
    ```
 
    **Using Web UI:**

@@ -46,9 +46,9 @@
 
    **API 사용:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/publish-audio/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
-     -d '{"input": {"source": "/absolute/path/to/clip.wav"}}'
+     -d '{"workflow_id": "publish-audio", "input": {"source": "/absolute/path/to/clip.wav"}}'
    ```
 
    **CLI 사용:**

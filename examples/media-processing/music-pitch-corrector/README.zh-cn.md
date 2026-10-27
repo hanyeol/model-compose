@@ -50,7 +50,7 @@ cd examples/media-processing/music-pitch-corrector
 
 3. **直接调用 API：**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/correct-pitch/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
         -F vocal=@vocal.wav \
         -F accompaniment=@backing.wav \
         -F strength=0.8

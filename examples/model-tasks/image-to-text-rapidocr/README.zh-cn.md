@@ -54,7 +54,7 @@ RapidOCR 是 PaddleOCR 的 ONNX 运行时轻量移植。它是一个非生成式
 
    ```bash
    # API —— 通过工作流 id 指定
-   curl -X POST http://localhost:8080/api/workflows/annotate-text/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/page.jpg" \
      -F 'input={"image": "@image", "line_width": 3}'
 

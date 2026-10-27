@@ -36,7 +36,7 @@ workflows:
     job:
       component: docling-loader
       input:
-        source: ${input.source as file/path}
+        source: ${input.source as file;path}
         chunker: hybrid
         max_token_count: ${input.max_token_count as integer | 384}
       output: ${output as stream/json}
@@ -51,7 +51,7 @@ workflows:
     job:
       component: docling-loader
       input:
-        source: ${input.source as file/path}
+        source: ${input.source as file;path}
         chunker: hierarchical
         always_emit_headings: ${input.always_emit_headings as boolean | false}
         code_chunking_strategy: ${input.code_chunking_strategy as text}
@@ -67,7 +67,7 @@ workflows:
     job:
       component: docling-loader
       input:
-        source: ${input.source as file/path}
+        source: ${input.source as file;path}
         chunker: line
         max_line_count: ${input.max_line_count as integer | 40}
         max_token_count: ${input.max_token_count as integer | 384}
@@ -82,7 +82,7 @@ workflows:
     job:
       component: docling-loader
       input:
-        source: ${input.source as file/path}
+        source: ${input.source as file;path}
         chunker: page
       output: ${output as stream/json}
 
@@ -96,7 +96,7 @@ workflows:
     job:
       component: docling-loader
       input:
-        source: ${input.source as file/path}
+        source: ${input.source as file;path}
       output: ${output as stream/json}
 
   - id: load-with-pypdf
@@ -108,7 +108,7 @@ workflows:
     job:
       component: pypdf-loader
       input:
-        source: ${input.source as file/path}
+        source: ${input.source as file;path}
         page_range: ${input.page_range}
       output: ${output as stream/json}
 

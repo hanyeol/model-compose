@@ -49,9 +49,10 @@ pypdf 드라이버 — 별도의 `pypdf-loader` 컴포넌트가 하나의 워크
 
    **API 사용 — 토큰 크기 청크 (hybrid):**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-hybrid/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-hybrid",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "max_token_count": 384
@@ -61,9 +62,10 @@ pypdf 드라이버 — 별도의 `pypdf-loader` 컴포넌트가 하나의 워크
 
    **API 사용 — 헤딩 기반 청크 (hierarchical):**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-hierarchical/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-hierarchical",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "always_emit_headings": true
@@ -73,9 +75,10 @@ pypdf 드라이버 — 별도의 `pypdf-loader` 컴포넌트가 하나의 워크
 
    **API 사용 — 라인 기반 청크:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-line/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-line",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "max_line_count": 40,
@@ -86,27 +89,30 @@ pypdf 드라이버 — 별도의 `pypdf-loader` 컴포넌트가 하나의 워크
 
    **API 사용 — 페이지 단위 청크:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-page/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-page",
        "input": { "source": "/absolute/path/to/paper.pdf" }
      }'
    ```
 
    **API 사용 — 전체 문서:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-docling-whole/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-docling-whole",
        "input": { "source": "/absolute/path/to/paper.pdf" }
      }'
    ```
 
    **API 사용 — pypdf 페이지 추출:**
    ```bash
-   curl -X POST http://localhost:8080/api/workflows/load-with-pypdf/runs \
+   curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: application/json" \
      -d '{
+       "workflow_id": "load-with-pypdf",
        "input": {
          "source": "/absolute/path/to/paper.pdf",
          "page_range": "1-5"

@@ -213,8 +213,8 @@ class FFmpegRtmpPublisher:
             elif video and video.bitrate:
                 options["-b:v"] = str(video.bitrate)
 
-            if video and video.resolution:
-                options["-s"] = video.resolution
+            if video and (video.width is not None or video.height is not None):
+                options["-vf"] = self._build_scale_filter(video.width, video.height)
 
             if video and video.frame_rate is not None:
                 options["-r"] = str(video.frame_rate)
@@ -253,6 +253,15 @@ class FFmpegRtmpPublisher:
             return encoding.audio.codec
 
         return _DEFAULT_AUDIO_CODEC
+
+    @staticmethod
+    def _build_scale_filter(width: Optional[int], height: Optional[int]) -> str:
+        # `-2` tells ffmpeg to pick the missing axis so the output stays divisible by 2,
+        # which yuv420p encoders require.
+        w = str(width)  if width  is not None else "-2"
+        h = str(height) if height is not None else "-2"
+
+        return f"scale={w}:{h}"
 
 class FFmpegRtmpPublisherAction(RtmpPublisherAction):
     async def _publish_batch(

@@ -477,6 +477,10 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
             command.extend([ "-pix_fmt", str(source.attrs["pixel_format"]) ])
 
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
+
+        if video_encoder and (video_encoder.width is not None or video_encoder.height is not None):
+            video_filter = f"{video_filter},{self._build_scale_filter(video_encoder.width, video_encoder.height)}"
+
         command.extend([ "-vf", video_filter ])
 
         if audio_filter is not None:
@@ -499,9 +503,6 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         if audio_encoder and audio_encoder.bitrate:
             command.extend([ "-b:a", str(audio_encoder.bitrate) ])
-
-        if video_encoder and video_encoder.resolution:
-            command.extend([ "-s", video_encoder.resolution ])
 
         if video_encoder and video_encoder.frame_rate is not None:
             command.extend([ "-r", str(video_encoder.frame_rate) ])
@@ -766,6 +767,15 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
                 return f"0x{r:02X}{g:02X}{b:02X}"
 
         return "black@0"
+
+    @staticmethod
+    def _build_scale_filter(width: Optional[int], height: Optional[int]) -> str:
+        # `-2` tells ffmpeg to pick the missing axis so the output stays divisible by 2,
+        # which yuv420p encoders require.
+        w = str(width)  if width  is not None else "-2"
+        h = str(height) if height is not None else "-2"
+
+        return f"scale={w}:{h}"
 
 @register_video_processor_driver(VideoProcessorDriverType.FFMPEG)
 class FFmpegVideoProcessorService(VideoProcessorDriver):

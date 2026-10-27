@@ -6,7 +6,8 @@ class VideoEncoderParams:
     codec: Optional[str] = None
     bitrate: Optional[int] = None
     quality: Optional[int] = None
-    resolution: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
     frame_rate: Optional[float] = None
     pixel_format: Optional[str] = None
 

@@ -176,7 +176,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
                 audio_input = f"pipe:{channel.read_fd}"
 
         # Peek the first frame for the source height — needed to pick the BT.709/601 matrix
-        # before the ffmpeg process starts. `encoding.resolution` wins when set.
+        # before the ffmpeg process starts. `encoding.video.height` wins when set.
         frames_iterator = frames.__aiter__()
         first_frame = await self._peek_next_frame(frames_iterator)
         source_height = await self._resolve_source_height(encoding, first_frame)
@@ -451,15 +451,14 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
     ) -> Optional[int]:
         """Pick the height that drives BT.709/601 selection.
 
-        `encoding.video.resolution` wins when set — a 640×360 source encoded to
+        `encoding.video.height` wins when set — a 640×360 source encoded to
         1280×720 outputs HD and needs 709 tagging even though the first frame
-        is SD. Falls back to the first frame's pixel height when resolution is
-        left unspecified.
+        is SD. Falls back to the first frame's pixel height when the height is
+        left unspecified (including when only `width` is set and height will be
+        derived from aspect ratio).
         """
-        if encoding.video and encoding.video.resolution:
-            _, _, height = encoding.video.resolution.partition("x")
-            if height.isdigit():
-                return int(height)
+        if encoding.video and isinstance(encoding.video.height, int):
+            return encoding.video.height
 
         if first_frame is not None:
             return (await first_frame.as_image()).size[1]
@@ -526,14 +525,14 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         elif video and video.bitrate:
             options["-b:v"] = str(video.bitrate)
 
-        if video and video.resolution:
-            options["-s"] = video.resolution
-
         if video and video.frame_rate is not None:
             options["-r"] = str(video.frame_rate)
 
         pixel_format = self._resolve_pixel_format(encoding, video_codec, force_yuv=source_height is not None)
         filters: List[str] = []
+
+        if video and (video.width is not None or video.height is not None):
+            filters.append(self._build_scale_filter(video.width, video.height))
 
         if pixel_format is not None:
             options["-pix_fmt"] = pixel_format
@@ -691,6 +690,15 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
 
         return audio_codec
+
+    @staticmethod
+    def _build_scale_filter(width: Optional[int], height: Optional[int]) -> str:
+        # `-2` tells ffmpeg to pick the missing axis so the output stays divisible by 2,
+        # which yuv420p encoders require.
+        w = str(width)  if width  is not None else "-2"
+        h = str(height) if height is not None else "-2"
+
+        return f"scale={w}:{h}"
 
 @register_video_encoder_driver(VideoEncoderDriverType.FFMPEG)
 class FFmpegVideoEncoderService(VideoEncoderDriver):

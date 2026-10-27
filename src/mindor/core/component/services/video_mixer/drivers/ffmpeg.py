@@ -174,6 +174,14 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             overlay_matrices,
         )
 
+        if params["encoding"].video is not None and (params["encoding"].video.width is not None or params["encoding"].video.height is not None):
+            # Chain the output scale inside the filter_complex rather than passing
+            # `-s` globally: ffmpeg's behavior with both `-filter_complex` and `-s`
+            # is undefined, and this preserves the labeled-stream mapping.
+            scale_filter = self._build_scale_filter(params["encoding"].video.width, params["encoding"].video.height)
+            filter_complex = f"{filter_complex};{video_label}{scale_filter}[vscaled]"
+            video_label = "[vscaled]"
+
         command.extend([ "-filter_complex", filter_complex ])
         command.extend([ "-map", video_label ])
 
@@ -209,11 +217,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         streaming: bool,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
-        encoding   = params["encoding"]
-        crossfade  = params["crossfade"]
-        transition = params["transition"]
-
-        format = self._resolve_container_format(encoding)
+        format = self._resolve_container_format(params["encoding"])
 
         if streaming and not is_streamable_video_format(format):
             logging.warning("Format '%s' is not streamable; falling back to file output.", format)
@@ -241,7 +245,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         # fetched in one ffprobe call per input to keep this O(N) instead of
         # O(4N).
         has_audios = [ await self._has_audio_stream(path) for path in input_paths ]
-        crossfading = crossfade is not None and crossfade > 0
+        crossfading = params["crossfade"] is not None and params["crossfade"] > 0
         video_fields = ("duration", "width", "height", "frame_rate") if crossfading else ("duration",)
         video_probes = [ await probe_video(path, video_fields) for path in input_paths ]
 
@@ -269,9 +273,17 @@ class FFmpegVideoMixerAction(VideoMixerAction):
             durations,
             resolutions,
             frame_rates,
-            crossfade,
-            transition,
+            params["crossfade"],
+            params["transition"],
         )
+
+        if params["encoding"].video is not None and (params["encoding"].video.width is not None or params["encoding"].video.height is not None):
+            # Chain the output scale inside the filter_complex rather than passing
+            # `-s` globally: ffmpeg's behavior with both `-filter_complex` and `-s`
+            # is undefined, and this preserves the labeled-stream mapping.
+            scale_filter = self._build_scale_filter(params["encoding"].video.width, params["encoding"].video.height)
+            filter_complex = f"{filter_complex};{video_label}{scale_filter}[vscaled]"
+            video_label = "[vscaled]"
 
         command.extend([ "-filter_complex", filter_complex ])
         command.extend([ "-map", video_label ])
@@ -279,7 +291,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         if audio_label is not None:
             command.extend([ "-map", audio_label ])
 
-        encoding_options = self._resolve_encoding_options(encoding, has_audio=audio_label is not None)
+        encoding_options = self._resolve_encoding_options(params["encoding"], has_audio=audio_label is not None)
 
         for option, value in encoding_options.items():
             command.extend([ option, value ])
@@ -807,9 +819,6 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         elif video and video.bitrate:
             options["-b:v"] = str(video.bitrate)
 
-        if video and video.resolution:
-            options["-s"] = video.resolution
-
         if video and video.frame_rate is not None:
             options["-r"] = str(video.frame_rate)
 
@@ -881,6 +890,15 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         (codec,) = await probe_audio(path, [ "codec" ])
 
         return codec is not None
+
+    @staticmethod
+    def _build_scale_filter(width: Optional[int], height: Optional[int]) -> str:
+        # `-2` tells ffmpeg to pick the missing axis so the output stays divisible by 2,
+        # which yuv420p encoders require.
+        w = str(width)  if width  is not None else "-2"
+        h = str(height) if height is not None else "-2"
+
+        return f"scale={w}:{h}"
 
 @register_video_mixer_driver(VideoMixerDriverType.FFMPEG)
 class FFmpegVideoMixerService(VideoMixerDriver):

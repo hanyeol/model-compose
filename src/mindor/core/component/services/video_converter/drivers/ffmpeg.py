@@ -76,10 +76,13 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         else:
             if audio_codec:
                 command.extend([ "-c:a", audio_codec ])
+
             if audio and audio.bitrate:
                 command.extend([ "-b:a", str(audio.bitrate) ])
-            if video and video.resolution:
-                command.extend([ "-s", video.resolution ])
+
+            if video and (video.width is not None or video.height is not None):
+                command.extend([ "-vf", self._build_scale_filter(video.width, video.height) ])
+
             if video and video.frame_rate is not None:
                 command.extend([ "-r", str(video.frame_rate) ])
 
@@ -234,26 +237,6 @@ class FFmpegVideoConverterAction(VideoConverterAction):
         return VideoStreamResource(AsyncIterableStreamResource(_stream()), format=format)
 
     @staticmethod
-    def _build_gif_filter(video: Optional[Any]) -> str:
-        # palettegen/paletteuse produces a much higher-quality GIF than the default
-        # 256-color web palette. fps and scale go in the filter graph so they compose
-        # with the palette pass, instead of being applied by ffmpeg's global -r/-s.
-        steps: List[str] = []
-
-        if video and video.frame_rate is not None:
-            steps.append(f"fps={video.frame_rate}")
-
-        if video and video.resolution:
-            width, _, height = video.resolution.partition("x")
-
-            if width and height:
-                steps.append(f"scale={width}:{height}:flags=lanczos")
-
-        prefix = ",".join(steps) + "," if steps else ""
-
-        return f"[0:v]{prefix}split[a][b];[a]palettegen[p];[b][p]paletteuse"
-
-    @staticmethod
     def _resolve_container_format(encoding: VideoAudioEncodingParams) -> str:
         if encoding.format:
             return encoding.format.lower()
@@ -266,6 +249,7 @@ class FFmpegVideoConverterAction(VideoConverterAction):
             return encoding.video.codec
 
         video_codec, _ = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+
         return video_codec
 
     @staticmethod
@@ -274,7 +258,38 @@ class FFmpegVideoConverterAction(VideoConverterAction):
             return encoding.audio.codec
 
         _, audio_codec = get_video_codecs_for_format(encoding.format or _DEFAULT_FORMAT)
+
         return audio_codec
+
+    @staticmethod
+    def _build_gif_filter(video: Optional[Any]) -> str:
+        # palettegen/paletteuse produces a much higher-quality GIF than the default
+        # 256-color web palette. fps and scale go in the filter graph so they compose
+        # with the palette pass, instead of being applied by ffmpeg's global -r/-s.
+        steps: List[str] = []
+
+        if video and video.frame_rate is not None:
+            steps.append(f"fps={video.frame_rate}")
+
+        if video and (video.width is not None or video.height is not None):
+            # `-2` tells ffmpeg to pick the missing axis so the output stays divisible by 2.
+            w = str(video.width)  if video.width  is not None else "-2"
+            h = str(video.height) if video.height is not None else "-2"
+
+            steps.append(f"scale={w}:{h}:flags=lanczos")
+
+        prefix = ",".join(steps) + "," if steps else ""
+
+        return f"[0:v]{prefix}split[a][b];[a]palettegen[p];[b][p]paletteuse"
+
+    @staticmethod
+    def _build_scale_filter(width: Optional[int], height: Optional[int]) -> str:
+        # `-2` tells ffmpeg to pick the missing axis so the output stays divisible by 2,
+        # which yuv420p encoders require.
+        w = str(width)  if width  is not None else "-2"
+        h = str(height) if height is not None else "-2"
+
+        return f"scale={w}:{h}"
 
 @register_video_converter_driver(VideoConverterDriverType.FFMPEG)
 class FFmpegVideoConverterService(VideoConverterDriver):

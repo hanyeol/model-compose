@@ -112,7 +112,8 @@ class VideoAudioEncodingResolver:
         codec        = await context.render_scalar(video.codec, str)
         bitrate      = await context.render_scalar(video.bitrate, "decimal")
         quality      = await context.render_scalar(video.quality, int)
-        resolution   = await context.render_scalar(video.resolution, str)
+        width        = await context.render_scalar(video.width, int)
+        height       = await context.render_scalar(video.height, int)
         frame_rate   = await context.render_scalar(video.frame_rate, float)
         pixel_format = await context.render_scalar(video.pixel_format, str)
 
@@ -120,7 +121,8 @@ class VideoAudioEncodingResolver:
             codec=codec,
             bitrate=bitrate,
             quality=quality,
-            resolution=resolution,
+            width=width,
+            height=height,
             frame_rate=frame_rate,
             pixel_format=pixel_format,
         )

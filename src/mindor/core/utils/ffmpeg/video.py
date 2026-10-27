@@ -7,11 +7,6 @@ from mindor.core.utils.image import convert as convert_image
 from mindor.core.utils.shell import stream_subprocess
 from .executable import resolve_ffmpeg_executable
 
-def _iter_rgb24_bytes(frames: Iterable[PILImage.Image], width: int, height: int) -> Iterable[bytes]:
-    """Yield each frame as raw rgb24 bytes at the target resolution."""
-    for frame in frames:
-        yield convert_image(frame, width, height).tobytes()
-
 async def encode_video_from_frames(
     frames: Iterable[PILImage.Image],
     width: int,
@@ -48,8 +43,8 @@ async def encode_video_from_frames(
     ]
 
     async def _feed() -> AsyncIterator[bytes]:
+        iterator = (convert_image(frame, width, height).tobytes() for frame in frames)
         loop = asyncio.get_running_loop()
-        iterator = iter(_iter_rgb24_bytes(frames, width, height))
 
         # PIL work and rgb24 conversion runs in a thread so the event loop can
         # keep pumping stdout chunks to the consumer.
@@ -57,8 +52,10 @@ async def encode_video_from_frames(
 
         while True:
             chunk = await loop.run_in_executor(None, next, iterator, end_of_stream)
+
             if chunk is end_of_stream:
                 break
+
             yield chunk
 
     error: list = []
@@ -66,15 +63,19 @@ async def encode_video_from_frames(
     async def _stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
         while True:
             chunk = await reader.read(65536)
+
             if not chunk:
                 break
+
             yield chunk
 
     async def _stderr(reader: asyncio.StreamReader) -> None:
         while True:
             line = await reader.readline()
+
             if not line:
                 break
+
             error.append(line)
 
     async with stream_subprocess(

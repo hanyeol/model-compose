@@ -1,0 +1,35 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Load a 3D Model from Blender
+  description: Open a `.blend` (or `.fbx` / `.obj` / `.glb` / `.ply` / `.stl`) in a headless Blender session and export a specific object as GLB. Chain downstream with `image-to-3d-hi3d` for refinement, or feed any mesh-consuming AI pipeline.
+  job:
+    input: ${input}
+    output: ${output as model-3d}
+
+component:
+  type: model-3d-loader
+  driver: blender
+  # Auto-discovered from PATH or standard install locations when omitted.
+  # binary: /Applications/Blender.app/Contents/MacOS/Blender
+  timeout: 180.0
+  action:
+    source: ${input.file as file}
+    # Specific object or collection to export; whole scene when omitted.
+    object_name: ${input.object_name as string}
+    # Output format: glb (default) is a self-contained binary with embedded
+    # textures — the easiest for downstream consumers. gltf/obj/ply/fbx/stl
+    # also supported; each maps to Blender's own export operator.
+    format: ${input.format as select/glb,gltf,obj,ply,fbx,stl | glb}
+    apply_modifiers: ${input.apply_modifiers as boolean | true}
+    include_materials: ${input.include_materials as boolean | true}
+    # Armature + animation data (GLB/FBX only). Downstream AI models usually
+    # want static meshes, so default off.
+    include_animations: ${input.include_animations as boolean | false}

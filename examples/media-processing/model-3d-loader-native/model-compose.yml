@@ -1,0 +1,23 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Load a 3D Model
+  description: Load a 3D model file (GLB, OBJ, PLY, STL, GLTF) into the pipeline as a `Model3DStreamResource`. Uses trimesh for parsing and re-export.
+  job:
+    input: ${input}
+    output: ${output as model-3d}
+
+component:
+  type: model-3d-loader
+  # driver defaults to `native` (trimesh).
+  action:
+    source: ${input.file as file}
+    # Output format emitted into the pipeline (glb/gltf/obj/ply/fbx/stl).
+    format: ${input.format as select/glb,gltf,obj,ply,fbx,stl | glb}

@@ -29,7 +29,7 @@ _HSEMOTION_AFFECTNET8_LABELS: List[str] = [
     "Surprise",
 ]
 
-_INPUT_SIZE: Tuple[int, int] = (224, 224)
+_INPUT_IMAGE_SIZE: Tuple[int, int] = (224, 224)
 _IMAGENET_MEAN: Tuple[float, float, float] = (0.485, 0.456, 0.406)
 _IMAGENET_STD: Tuple[float, float, float]  = (0.229, 0.224, 0.225)
 
@@ -88,7 +88,7 @@ class HSEmotionFaceEmotionClassificationTaskAction(FaceEmotionClassificationTask
     def _preprocess_image(image: PILImage.Image) -> np.ndarray:
         import numpy as np
 
-        image = image.convert("RGB").resize(_INPUT_SIZE, PILImage.BILINEAR)
+        image = image.convert("RGB").resize(_INPUT_IMAGE_SIZE, PILImage.BILINEAR)
         array = np.asarray(image, dtype=np.float32) / 255.0
         array = (array - np.array(_IMAGENET_MEAN, dtype=np.float32)) / np.array(_IMAGENET_STD, dtype=np.float32)
 

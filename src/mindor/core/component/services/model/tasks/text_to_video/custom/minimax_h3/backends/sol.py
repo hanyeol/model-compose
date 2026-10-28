@@ -62,16 +62,16 @@ class SolAttnMinimaxH3Processor:
         if self._total_steps <= 0:
             return False
 
-        remaining = max(0, self._total_steps - self._current_step)
+        remaining_steps = max(0, self._total_steps - self._current_step)
 
         if self.dense_steps > 0:
-            dense_from_count = remaining <= self.dense_steps
+            dense_from_count = remaining_steps <= self.dense_steps
         else:
             dense_from_count = False
 
         if self.step_off > 0.0:
             fraction = min(max(self.step_off, 0.0), 1.0)
-            dense_from_fraction = remaining <= int(math.ceil(self._total_steps * fraction))
+            dense_from_fraction = remaining_steps <= int(math.ceil(self._total_steps * fraction))
         else:
             dense_from_fraction = False
 

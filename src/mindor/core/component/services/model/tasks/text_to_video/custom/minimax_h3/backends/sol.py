@@ -41,21 +41,28 @@ class SolAttnMinimaxH3Processor:
         self.thresh_type: str = str(thresh_type)
         self.dense_steps: int = int(dense_steps) if dense_steps is not None else 0
         self.step_off: float = float(step_off) if step_off is not None else 0.0
-        # Updated from the pipeline's `callback_on_step_end` so the processor
-        # can honor the trailing-dense window on the last denoising steps.
-        self.current_step: int = 0
-        self.total_steps: int = 0
+
+        self._current_step: int = 0
+        self._total_steps: int = 0
+
         # Threshold below which a packed sequence is treated as the short
         # token-refiner stream and routed to dense attention. MiniMax-H3's
         # text-refiner stream is capped around a few hundred tokens; the real
         # packed video sequence is in the millions.
         self._min_sparse_seq_len: int = 4096
 
+    def begin_steps(self, total_steps: int) -> None:
+        self._current_step = 0
+        self._total_steps = total_steps
+
+    def advance_step(self) -> None:
+        self._current_step += 1
+
     def _is_trailing_dense(self) -> bool:
-        if self.total_steps <= 0:
+        if self._total_steps <= 0:
             return False
 
-        remaining = max(0, self.total_steps - self.current_step)
+        remaining = max(0, self._total_steps - self._current_step)
 
         if self.dense_steps > 0:
             dense_from_count = remaining <= self.dense_steps
@@ -64,7 +71,7 @@ class SolAttnMinimaxH3Processor:
 
         if self.step_off > 0.0:
             fraction = min(max(self.step_off, 0.0), 1.0)
-            dense_from_fraction = remaining <= int(math.ceil(self.total_steps * fraction))
+            dense_from_fraction = remaining <= int(math.ceil(self._total_steps * fraction))
         else:
             dense_from_fraction = False
 
@@ -296,8 +303,7 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
             results: List[VideoStreamResource] = []
 
             def _on_step_end(pipeline: Any, step: int, timestep: Any, callback_kwargs: Dict[str, Any]):
-                processor.current_step = step + 1
-                processor.total_steps = getattr(pipeline, "num_timesteps", params["inference_steps"]) or params["inference_steps"]
+                processor.advance_step()
 
                 return callback_kwargs
 
@@ -307,8 +313,7 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
                 else:
                     generator = None
 
-                processor.current_step = 0
-                processor.total_steps = params["inference_steps"]
+                processor.begin_steps(params["inference_steps"])
 
                 output = self.pipeline(
                     prompt=prompt,

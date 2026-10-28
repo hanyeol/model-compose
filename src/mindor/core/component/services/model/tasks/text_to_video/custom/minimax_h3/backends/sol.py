@@ -52,8 +52,8 @@ class SolAttnMinimaxH3Processor:
         self._min_sparse_seq_len: int = 4096
 
     def begin_steps(self, total_steps: int) -> None:
-        self._current_step = 0
         self._total_steps = total_steps
+        self._current_step = 0
 
     def advance_step(self) -> None:
         self._current_step += 1

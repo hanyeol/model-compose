@@ -10,7 +10,7 @@ class RunPodRuntimeConfig(CommonRuntimeConfig):
     # Pod spec
     gpu_type: str = Field(..., description="RunPod GPU catalog identifier (e.g., 'NVIDIA H100 PCIe').")
     gpu_count: int = Field(default=1, description="Number of GPUs to attach to the pod.")
-    cloud_type: Literal["SECURE", "COMMUNITY", "ALL"] = Field(default="SECURE", description="RunPod cloud tier used to allocate the pod.")
+    cloud_type: Literal[ "SECURE", "COMMUNITY", "ALL" ] = Field(default="SECURE", description="RunPod cloud tier used to allocate the pod.")
     data_center_id: Optional[str] = Field(default=None, description="RunPod data center ID; ignored when a network volume forces placement.")
 
     # Image

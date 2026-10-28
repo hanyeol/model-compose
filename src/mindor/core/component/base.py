@@ -103,10 +103,9 @@ class ComponentService(AsyncService):
         return requirements
 
     async def setup(self) -> None:
-        # Only in-process runtimes install dependencies on the host. Isolated runtimes
-        # (process / virtualenv / docker / apple-container) install their dependencies
-        # inside their own environment (worker venv / container build), so we skip
-        # the host-side install to avoid leaking them into the parent interpreter.
+        # Only in-process runtimes install dependencies on the host. Isolated
+        # runtimes install into their own environment, so we skip the host-side
+        # install to avoid leaking them into the parent interpreter.
         if self.config.runtime.type in (RuntimeType.NATIVE, RuntimeType.EMBEDDED):
             await super().setup()
 
@@ -257,6 +256,10 @@ class ComponentService(AsyncService):
         if runtime_type == RuntimeType.APPLE_CONTAINER:
             from .runtime.apple_container import ComponentAppleContainerRuntimeManager
             return ComponentAppleContainerRuntimeManager(self.id, self.config, self.global_configs)
+
+        if runtime_type == RuntimeType.RUNPOD:
+            from .runtime.runpod import ComponentRunPodRuntimeManager
+            return ComponentRunPodRuntimeManager(self.id, self.config, self.global_configs)
 
         return None
 

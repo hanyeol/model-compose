@@ -7,3 +7,4 @@ class RuntimeType(str, Enum):
     VIRTUALENV      = "virtualenv"
     DOCKER          = "docker"
     APPLE_CONTAINER = "apple-container"
+    RUNPOD          = "runpod"

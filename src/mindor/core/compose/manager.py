@@ -21,6 +21,9 @@ class ComposeManager:
             daemon
         )
 
+    async def setup_services(self, verbose: bool):
+        await self.controller.setup_services(verbose)
+
     async def launch_services(self, detach: bool, verbose: bool):
         await self.controller.launch_services(detach, verbose)
 

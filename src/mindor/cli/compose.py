@@ -111,6 +111,45 @@ def down_command(
 
     asyncio.run(_async_command())
 
+@click.command(name="setup")
+@click.option(
+    "--env-file", "env_files", multiple=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=False,
+    help="Path to a .env file containing environment variables."
+)
+@click.option(
+    "--env", "-e", "env_data", multiple=True,
+    help="Environment variable in the form KEY=VALUE. Repeatable."
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output.")
+@click.pass_context
+def setup_command(
+    ctx: click.Context,
+    env_files: List[Path],
+    env_data: List[str],
+    verbose: bool
+) -> None:
+    from mindor.core.compose import setup_services
+
+    async def _async_command():
+        try:
+            config_files = ctx.obj.get("config_files", [])
+            config = _load_compose_config(config_files, env_files, env_data)
+            await setup_services(config, verbose)
+        except Exception as e:
+            if verbose:
+                import traceback
+
+                click.echo(f"❌ Error: {e}\n\nTraceback:", err=True)
+                traceback.print_exc()
+            else:
+                click.echo(f"❌ {e}", err=True)
+
+            raise SystemExit(1)
+
+    asyncio.run(_async_command())
+
 @click.command(name="start")
 @click.option(
     "--env-file", "env_files", multiple=True,
@@ -380,6 +419,7 @@ def validate_command(
 
 compose_command.add_command(up_command)
 compose_command.add_command(down_command)
+compose_command.add_command(setup_command)
 compose_command.add_command(start_command)
 compose_command.add_command(stop_command)
 compose_command.add_command(run_command)

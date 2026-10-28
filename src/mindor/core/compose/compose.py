@@ -7,6 +7,10 @@ from mindor.dsl.schema.compose import ComposeConfig
 if TYPE_CHECKING:
     from .manager import TaskState
 
+async def setup_services(config: ComposeConfig, verbose: bool):
+    from .manager import ComposeManager
+    await ComposeManager(config, daemon=True).setup_services(verbose)
+
 async def launch_services(config: ComposeConfig, detach: bool, verbose: bool):
     from .manager import ComposeManager
     await ComposeManager(config, daemon=True).launch_services(detach, verbose)

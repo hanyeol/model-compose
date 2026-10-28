@@ -262,6 +262,19 @@ class ControllerService(AsyncService):
             await self._stop_loggers()
             return
 
+    async def setup_services(self, verbose: bool) -> None:
+        if self.config.runtime.type != RuntimeType.NATIVE:
+            return
+
+        await self._start_loggers(verbose)
+        try:
+            await self._setup_systems()
+            await self._setup_listeners()
+            await self._setup_gateways()
+            await self._setup_components()
+        finally:
+            await self._stop_loggers()
+
     async def start_services(self, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             await self._start_loggers(verbose)

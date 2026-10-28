@@ -1,7 +1,7 @@
 """Tests for the FFmpeg video-converter driver.
 
 Covers two layers:
-  - Conversion behavior (format / codec / resolution / fps / errors / output template)
+  - Conversion behavior (format / codec / width / height / fps / errors / output template)
   - I/O matrix (single / list / AsyncIterator input, ${result[]} stream output, batch_size)
 """
 
@@ -125,14 +125,15 @@ def make_context():
 
 
 def _wrap_encoding(kwargs: dict) -> dict:
-    """Translate legacy flat kwargs (format/codec/resolution/frame_rate) into the current
+    """Translate legacy flat kwargs (format/codec/width/height/frame_rate) into the current
     `encoding=VideoAudioEncodingConfig(...)` shape used by VideoConverterActionConfig."""
     fmt = kwargs.pop("format", None)
     codec = kwargs.pop("codec", None)
-    resolution = kwargs.pop("resolution", None)
+    width = kwargs.pop("width", None)
+    height = kwargs.pop("height", None)
     frame_rate = kwargs.pop("frame_rate", None)
 
-    if fmt is None and codec is None and resolution is None and frame_rate is None:
+    if fmt is None and codec is None and width is None and height is None and frame_rate is None:
         return kwargs
 
     video_kwargs = {}
@@ -151,8 +152,10 @@ def _wrap_encoding(kwargs: dict) -> dict:
             video_kwargs["codec"] = codec.video
         if codec.audio is not None:
             audio_kwargs["codec"] = codec.audio
-    if resolution is not None:
-        video_kwargs["resolution"] = resolution
+    if width is not None:
+        video_kwargs["width"] = width
+    if height is not None:
+        video_kwargs["height"] = height
     if frame_rate is not None:
         video_kwargs["frame_rate"] = frame_rate
 
@@ -293,7 +296,7 @@ class TestFFmpegVideoConverter:
 
     @pytest.mark.anyio
     async def test_resolution_override(self, sample_mp4_path):
-        config = make_config(sample_mp4_path, format="mp4", resolution="160x120")
+        config = make_config(sample_mp4_path, format="mp4", width=160, height=120)
         action = FFmpegVideoConverterAction(config)
         ctx = make_context()
 

@@ -3,7 +3,7 @@
 Covers:
   - Frames → video encoding (single sequence, batches, streaming input)
   - Existing video passthrough (with optional audio mux)
-  - Encoding options (codec / bitrate / resolution / format)
+  - Encoding options (codec / bitrate / width / height / format)
   - Streaming output (opt-in, fallback for non-streamable formats)
   - Error propagation
   - Live-stream inputs: pipe:0 (single stream), pipe:<fd> inheritance (two
@@ -562,7 +562,7 @@ class TestEncodeFromVideo:
 
 @ffmpeg_required
 class TestEncodingOptions:
-    """Custom codec / resolution / format overrides."""
+    """Custom codec / width / height / format overrides."""
 
     @pytest.mark.anyio
     async def test_webm_format(self):
@@ -592,7 +592,7 @@ class TestEncodingOptions:
             frame_rate=6,
             encoding=VideoAudioEncodingConfig(
                 format="mp4",
-                video=VideoEncoderConfig(resolution="128x96"),
+                video=VideoEncoderConfig(width=128, height=96),
             ),
         )
         ctx = _make_context(frames_value=[frames])

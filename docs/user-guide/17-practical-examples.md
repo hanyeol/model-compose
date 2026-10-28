@@ -260,19 +260,19 @@ components:
 
 ```bash
 # 1. Insert text
-curl -X POST http://localhost:8080/api/workflows/insert-sentence-embedding/runs \
+curl -X POST http://localhost:8080/api/workflows/runs \
   -H "Content-Type: application/json" \
-  -d '{"input": {"text": "model-compose is a declarative AI orchestrator"}}'
+  -d '{"workflow_id": "insert-sentence-embedding", "input": {"text": "model-compose is a declarative AI orchestrator"}}'
 
 # 2. Search similar text
-curl -X POST http://localhost:8080/api/workflows/search-sentence-embeddings/runs \
+curl -X POST http://localhost:8080/api/workflows/runs \
   -H "Content-Type: application/json" \
-  -d '{"input": {"text": "AI workflow tool"}}'
+  -d '{"workflow_id": "search-sentence-embeddings", "input": {"text": "AI workflow tool"}}'
 
 # 3. Delete
-curl -X POST http://localhost:8080/api/workflows/delete-sentence-embedding/runs \
+curl -X POST http://localhost:8080/api/workflows/runs \
   -H "Content-Type: application/json" \
-  -d '{"input": {"vector_id": "id123"}}'
+  -d '{"workflow_id": "delete-sentence-embedding", "input": {"vector_id": "id123"}}'
 ```
 
 ### 17.2.2 RAG System with Milvus

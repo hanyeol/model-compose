@@ -803,9 +803,11 @@ component:
 ```
 
 **Supported architectures:**
-- `flux`: FLUX model
 - `sdxl`: Stable Diffusion XL
-- `hunyuan`: HunyuanDiT
+- `flux`: FLUX model
+- `hunyuan-image`: HunyuanImage
+- `qwen-image`: Qwen-Image (2.1 unified text-to-image)
+- `qwen-image-edit`: Qwen-Image-Edit (instruction-based editing, 1-3 reference images)
 
 **VAE tiling:** the `huggingface` driver decodes the whole latent at once by default. If you run out of VRAM at high resolutions, set `vae_tiling: true` on the component to decode in tiles; this saves VRAM on smaller GPUs but can leave faint vertical or horizontal seams at tile boundaries.
 
@@ -847,7 +849,7 @@ component:
       control_guidance_end:   [ 1.0, 0.8 ]
 ```
 
-The `method: inpaint` variant works the same way — the base image goes through `image` / `mask_image`, and ControlNet conditions through `control_image`. ControlNet is currently rejected for `hunyuan-image` and `qwen-image` architectures (diffusers lacks matching ControlNet pipelines there).
+The `method: inpaint` variant works the same way — the base image goes through `image` / `mask_image`, and ControlNet conditions through `control_image`. ControlNet is currently rejected for `hunyuan-image`, `qwen-image`, and `qwen-image-edit` architectures (diffusers lacks matching ControlNet pipelines there).
 
 ### 10.3.14 image-upscaling
 

@@ -2134,7 +2134,7 @@ Segments are sorted by `score` in descending order and truncated to `max_segment
 
 ### Image Generation
 
-Generate an image from a text prompt. `driver: huggingface` selects one of four architectures (`sdxl`, `flux`, `hunyuan-image`, `qwen-image`) backed by HuggingFace diffusers.
+Generate or edit an image. `driver: huggingface` selects one of five architectures (`sdxl`, `flux`, `hunyuan-image`, `qwen-image`, `qwen-image-edit`) backed by HuggingFace diffusers.
 
 **Component Settings (shared across huggingface architectures):**
 
@@ -2142,12 +2142,12 @@ Generate an image from a text prompt. `driver: huggingface` selects one of four 
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `image-generation` |
 | `driver` | string | **required** | Must be `huggingface` |
-| `architecture` | string | **required** | `sdxl`, `flux`, `hunyuan-image`, or `qwen-image` |
+| `architecture` | string | **required** | `sdxl`, `flux`, `hunyuan-image`, `qwen-image`, or `qwen-image-edit` |
 | `model` | model | **required** | Base diffusion checkpoint (HuggingFace repo or local path) |
 | `vae` | model | `null` | VAE override. String shorthand (`vae: <repo>`) expands to `{ model: <repo> }` |
 | `cpu_offload` | string/array | `null` | CPU offload strategy: `model`/`sequential` for the whole pipeline, or a list of submodule names for selective offload |
 | `vae_tiling` | bool | `false` | Decode the VAE in tiles to reduce VRAM at the cost of possible seam artifacts |
-| `controlnet` | model/list | `null` | **sdxl / flux only.** ControlNet model(s) conditioning the pipeline. String shorthand (`controlnet: <repo>`) and single-dict forms expand to a one-entry list; use a list to stack multiple ControlNets. Each entry supports `model`, `precision`, `low_cpu_mem_usage`. SDXL loads `diffusers.ControlNetModel`; Flux loads `diffusers.FluxControlNetModel`. Configuring this on `hunyuan-image` / `qwen-image` raises an error at load time |
+| `controlnet` | model/list | `null` | **sdxl / flux only.** ControlNet model(s) conditioning the pipeline. String shorthand (`controlnet: <repo>`) and single-dict forms expand to a one-entry list; use a list to stack multiple ControlNets. Each entry supports `model`, `precision`, `low_cpu_mem_usage`. SDXL loads `diffusers.ControlNetModel`; Flux loads `diffusers.FluxControlNetModel`. Configuring this on `hunyuan-image`, `qwen-image`, or `qwen-image-edit` raises an error at load time |
 
 **Action Fields (shared):**
 
@@ -2170,7 +2170,7 @@ Generate an image from a text prompt. `driver: huggingface` selects one of four 
 | `params.control_guidance_start` | float/list | `0.0` | Fraction of total steps after which each ControlNet starts applying |
 | `params.control_guidance_end` | float/list | `1.0` | Fraction of total steps after which each ControlNet stops applying |
 
-Each architecture extends `params` with its own knobs (`guidance_scale` for sdxl/flux, `max_sequence_length` for flux, `true_cfg_scale` for qwen-image, `distilled_guidance_scale` for hunyuan-image) and `negative_prompt` for architectures that support it. SDXL also exposes `image` on its `generate` variant for image-to-image flows.
+Each architecture extends `params` with its own knobs (`guidance_scale` for sdxl/flux, `max_sequence_length` for flux and qwen-image-edit, `true_cfg_scale` for qwen-image/qwen-image-edit, `distilled_guidance_scale` for hunyuan-image) and `negative_prompt` for architectures that support it. SDXL also exposes `image` on its `generate` variant for image-to-image flows; qwen-image-edit **requires** `image` (one reference, or a list of up to three) because its sole method is instruction-based editing.
 
 **ControlNet example (SDXL + multi-ControlNet):**
 

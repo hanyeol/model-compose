@@ -11,7 +11,7 @@ component:
   backend: pypdfium2
   tokenizer: sentence-transformers/all-MiniLM-L6-v2
   action:
-    source: ${input.source as file/path}
+    source: ${input.source as file;path}
     chunker: hybrid
     max_token_count: 384
     streaming: true
@@ -49,7 +49,7 @@ Common to all drivers:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `source` | string \| string[] | **required** | Document source, or list of sources — a file path, upload stream, URL, or raw bytes. Use the DSL type hint (`${input.source as file/path}`, `${input.source as file/url}`) so the driver receives the right stream resource. |
+| `source` | string \| string[] | **required** | Document source, or list of sources — a file path, upload stream, URL, or raw bytes. Use the DSL type hint (`${input.source as file;path}`, `${input.source as file;url}`) so the driver receives the right stream resource. |
 | `batch_size` | integer \| string | `1` | Number of sources processed concurrently per batch when the input is a list or stream. |
 | `streaming` | boolean \| string | `false` | When `true`, chunks are emitted incrementally through a stream iterator; when `false`, the full chunk list is returned as one response. |
 
@@ -147,7 +147,7 @@ components:
     backend: pypdfium2
     tokenizer: sentence-transformers/all-MiniLM-L6-v2
     action:
-      source: ${input.source as file/path}
+      source: ${input.source as file;path}
       chunker: hybrid
       max_token_count: 384
       streaming: true
@@ -161,7 +161,7 @@ components:
     type: document-loader
     driver: pypdf
     action:
-      source: ${input.source as file/path}
+      source: ${input.source as file;path}
       page_range: "1-5"
       streaming: true
 ```
@@ -175,7 +175,7 @@ components:
     driver: docling
     tokenizer: BAAI/bge-small-en
     action:
-      source: ${input.source as file/path}
+      source: ${input.source as file;path}
       chunker: hybrid
       max_token_count: 512
       return_enriched_text: true
@@ -192,7 +192,7 @@ components:
     enable_ocr: true
     ocr_engine: easyocr
     action:
-      source: ${input.source as file/path}
+      source: ${input.source as file;path}
       chunker: hybrid
 ```
 
@@ -206,7 +206,7 @@ components:
     type: document-loader
     driver: docling
     action:
-      source: ${input.source as file/path}
+      source: ${input.source as file;path}
       streaming: true
       # `chunker` omitted → entire document as one markdown chunk
 ```
@@ -226,7 +226,7 @@ For truly lazy, page-by-page streaming, use the `pypdf` driver instead; it opens
 ## Best Practices
 
 1. **Match the tokenizer to the downstream model.** The docling driver's `tokenizer` field decides how `max_token_count` is counted. If your embedding or LLM step uses a different tokenizer, chunks may under- or over-shoot the real token limit.
-2. **Use `file/path` and `file/url` hints on inputs.** The DSL type hint (`${input.source as file/path}` / `${input.source as file/url}`) tells the renderer whether the source is a filesystem path, a URL, or a stream. Without it, ambiguous strings are treated as raw text.
+2. **Use `file;path` and `file;url` hints on inputs.** The DSL type hint (`${input.source as file;path}` / `${input.source as file;url}`) tells the renderer whether the source is a filesystem path, a URL, or a stream. Without it, ambiguous strings are treated as raw text.
 3. **Enable `streaming: true` for large documents.** Otherwise the whole chunk list is materialized in memory before the response begins.
 4. **Reach for `pypdf` when you don't need docling's structural recovery.** It has no model warm-up and streams page text as it reads.
 5. **Combine `pypdfium2` + `enable_ocr: false` for the fastest text-only path with docling.** The driver logs a warning if the two are mixed; the OCR request is silently ignored by the backend.

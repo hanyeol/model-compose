@@ -1,53 +1,52 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Any
-from collections.abc import AsyncIterator
+from typing import Optional, Tuple, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageToVideoModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
-from PIL import Image as PILImage
 
 class ImageToVideoTaskAction(ModelTaskComponentAction):
     def __init__(self, config: ImageToVideoModelActionConfig):
         self.config: ImageToVideoModelActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        image           = await context.render_image(self.config.image)
-        prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
-        negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
-        batch_size      = await context.render_variable(self.config.batch_size)
+        input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)
+        batch_size = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
 
-        is_single_input  = not isinstance(image, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        if isinstance(image, (StreamIterator, AsyncIterator)):
+        if is_streaming_input:
             async def _stream_output_generator():
-                async for batch_images, batch_prompts, batch_negatives in BatchSourceIterator((image, prompt, negative_prompt), batch_size=batch_size or 1):
-                    batch_results = await self._generate_batch(batch_images, batch_prompts, batch_negatives, params, context.cancellation_token)
+                async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                    batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                     for result in batch_results:
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-            if isinstance(image, StreamChunkIterator) and image.is_fragmented:
+            if isinstance(primary_input, StreamChunkIterator) and primary_input.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
 
             return _stream_output_generator()
         else:
             results: List[VideoStreamResource] = []
-            async for batch_images, batch_prompts, batch_negatives in BatchSourceIterator((image, prompt, negative_prompt), batch_size=batch_size or 1):
-                batch_results = await self._generate_batch(batch_images, batch_prompts, batch_negatives, params, context.cancellation_token)
+            async for batch_inputs in BatchSourceIterator(input, batch_size=batch_size or 1):
+                batch_results = await self._generate_batch(batch_inputs, params, context.cancellation_token)
                 results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    @abstractmethod
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
+        pass
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_frames = await context.render_variable(self.config.params.num_frames)
@@ -67,9 +66,7 @@ class ImageToVideoTaskAction(ModelTaskComponentAction):
     @abstractmethod
     async def _generate_batch(
         self,
-        images: List[PILImage.Image],
-        prompts: Optional[List[Optional[str]]],
-        negative_prompts: Optional[List[Optional[str]]],
+        inputs: Any,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:

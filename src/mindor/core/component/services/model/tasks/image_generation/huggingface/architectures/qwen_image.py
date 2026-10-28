@@ -91,9 +91,7 @@ class QwenImageHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBa
         return [ "transformers>=5.17" ]
 
     def _get_diffusers_requirements(self) -> List[str]:
-        # QwenImage21Pipeline is only on diffusers main (0.41.0.dev0); pin forces
-        # reinstall over any older release and stays valid once 0.41 ships.
-        return [ "diffusers>=0.41.0.dev0@git+https://github.com/huggingface/diffusers.git" ]
+        return [ "diffusers>=0.41.0" ]
 
     def _get_pipeline_class(self, method: Optional[ImageGenerationActionMethod]) -> Type[DiffusionPipeline]:
         if method is None or method == ImageGenerationActionMethod.GENERATE:

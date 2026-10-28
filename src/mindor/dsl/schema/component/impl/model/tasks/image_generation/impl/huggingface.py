@@ -6,16 +6,18 @@ from mindor.dsl.schema.action import (
     FluxHuggingfaceImageGenerationModelActionConfig,
     HunyuanImageHuggingfaceImageGenerationModelActionConfig,
     QwenImageHuggingfaceImageGenerationModelActionConfig,
+    QwenImageEditHuggingfaceImageGenerationModelActionConfig,
 )
 from .common import CommonImageGenerationModelComponentConfig
 from ...base.diffusion import DiffusionCpuOffload, DiffusionSchedulerConfig
 from ...common import ModelDriverType
 
 class HuggingfaceImageGenerationModelArchitecture(str, Enum):
-    SDXL          = "sdxl"
-    FLUX          = "flux"
-    HUNYUAN_IMAGE = "hunyuan-image"
-    QWEN_IMAGE    = "qwen-image"
+    SDXL             = "sdxl"
+    FLUX             = "flux"
+    HUNYUAN_IMAGE    = "hunyuan-image"
+    QWEN_IMAGE       = "qwen-image"
+    QWEN_IMAGE_EDIT  = "qwen-image-edit"
 
 class CommonHuggingfaceImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.HUGGINGFACE]
@@ -39,12 +41,17 @@ class QwenImageHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceI
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE]
     actions: List[QwenImageHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
 
+class QwenImageEditHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
+    architecture: Literal[HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE_EDIT]
+    actions: List[QwenImageEditHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image editing component exposes to workflows.")
+
 HuggingfaceImageGenerationModelComponentConfig = Annotated[
     Union[
         SdxlHuggingfaceImageGenerationModelComponentConfig,
         FluxHuggingfaceImageGenerationModelComponentConfig,
         HunyuanImageHuggingfaceImageGenerationModelComponentConfig,
         QwenImageHuggingfaceImageGenerationModelComponentConfig,
+        QwenImageEditHuggingfaceImageGenerationModelComponentConfig,
     ],
     Field(discriminator="architecture")
 ]

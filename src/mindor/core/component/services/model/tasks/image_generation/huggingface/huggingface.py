@@ -26,4 +26,8 @@ class HuggingfaceImageGenerationTaskDriver:
             from .architectures.qwen_image import QwenImageHuggingfaceImageGenerationTaskDriver
             return QwenImageHuggingfaceImageGenerationTaskDriver(id, config, daemon)
 
+        if config.architecture == HuggingfaceImageGenerationModelArchitecture.QWEN_IMAGE_EDIT:
+            from .architectures.qwen_image_edit import QwenImageEditHuggingfaceImageGenerationTaskDriver
+            return QwenImageEditHuggingfaceImageGenerationTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown architecture: {config.architecture}")

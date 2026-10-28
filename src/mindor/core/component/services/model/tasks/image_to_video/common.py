@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from typing import Optional, Tuple, Dict, List, Any
+from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import ImageToVideoModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -44,9 +45,14 @@ class ImageToVideoTaskAction(ModelTaskComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    @abstractmethod
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
-        pass
+        image  = await context.render_image(self.config.image)
+        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+
+        is_single_input    = not isinstance(image, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(image, (StreamIterator, AsyncIterator))
+
+        return (image, prompt), image, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_frames = await context.render_variable(self.config.params.num_frames)

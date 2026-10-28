@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Union, Optional, List
 from pydantic import Field
 from ..common import CommonImageToVideoParamsConfig, CommonImageToVideoModelActionConfig
 
@@ -8,4 +8,5 @@ class WanImageToVideoParamsConfig(CommonImageToVideoParamsConfig):
     shift: Union[float, str] = Field(default=5.0, description="Flow-matching timestep shift applied to the scheduler.")
 
 class WanImageToVideoModelActionConfig(CommonImageToVideoModelActionConfig):
+    negative_prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
     params: WanImageToVideoParamsConfig = Field(default_factory=WanImageToVideoParamsConfig, description="Wan image-to-video generation parameters.")

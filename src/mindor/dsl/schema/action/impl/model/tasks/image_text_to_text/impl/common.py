@@ -15,8 +15,8 @@ class ImageTextToTextParamsConfig(BaseModel):
     no_repeat_ngram_size: Optional[Union[int, str]] = Field(default=None, description="Blocks any n-gram of this size from being generated more than once.")
 
 class ImageTextToTextModelActionConfig(CommonModelActionConfig):
-    prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text prompt; a list is treated as a batch of prompts. Omit for image-only models (e.g. OCR).")
     image: Union[str, List[str], List[List[str]]] = Field(..., description="Image or images fed into the vision-language model; a list per prompt for multi-image prompts.")
+    prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text prompt; a list is treated as a batch of prompts. Omit for image-only models (e.g. OCR).")
     system_prompt: Optional[str] = Field(default=None, description="System instruction prepended before the user prompt.")
     max_input_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens accepted per input prompt.")
     max_output_length: Optional[Union[int, str]] = Field(default=None, description="Maximum number of tokens generated; unset uses the model's configured limit.")

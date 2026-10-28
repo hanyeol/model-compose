@@ -2,12 +2,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Optional, Dict, List, Any
-from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, WanImageToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanImageToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements, flash_attn_torch_spec
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -33,14 +31,11 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
         self.cpu_offload: bool = cpu_offload
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
-        image           = await context.render_image(self.config.image)
-        prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        (image, prompt), primary_input, is_single_input, is_streaming_input = await super()._prepare_input(context)
+
         negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
 
-        is_single_input    = not isinstance(image, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = isinstance(image, (StreamIterator, AsyncIterator))
-
-        return (image, prompt, negative_prompt), image, is_single_input, is_streaming_input
+        return (image, prompt, negative_prompt), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)

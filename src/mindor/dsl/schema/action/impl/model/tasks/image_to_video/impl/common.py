@@ -7,8 +7,7 @@ class CommonImageToVideoParamsConfig(BaseModel):
 
 class CommonImageToVideoModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images used as the first frame.")
-    prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text prompt guiding motion and content of the generated video.")
-    negative_prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
+    prompt: Optional[Union[str, List[str]]] = Field(default=None, description="Text prompt guiding motion and content of the generated video.")
     width: Optional[Union[int, str]] = Field(default=None, description="Output video width; defaults to the input image width when unset.")
     height: Optional[Union[int, str]] = Field(default=None, description="Output video height; defaults to the input image height when unset.")
     frame_rate: Union[int, float, str] = Field(default=24, description="Output video frame rate; floats and NTSC rationals like 23.976 are accepted.")

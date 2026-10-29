@@ -113,11 +113,16 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         def _transcribe() -> Union[List[str], List[List[Dict[str, Any]]], List[Any]]:
             import torch
 
+            # Whisper's encoder is fixed-length (3000 mel frames = 30s).
+            # `padding=True` only pads to the longest item in the batch,
+            # so short clips end up as e.g. 557 frames and the encoder
+            # rejects them. `padding="max_length"` pads to the processor's
+            # own `nb_max_frames`, which matches the encoder's expectation.
             batch_feature = self.processor(
                 waveforms,
                 sampling_rate=16000,
                 return_tensors="pt",
-                padding=True,
+                padding="max_length",
                 chunk_length=params["chunk_length"]
             )
             batch_feature = batch_feature.to(self.device)

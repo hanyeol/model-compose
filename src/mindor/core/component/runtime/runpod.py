@@ -20,7 +20,7 @@ import argparse, asyncio, os, secrets, sys
 # Pod bootstrap pins — hardcoded on purpose. Keeping these out of the DSL
 # avoids surfacing an "escape hatch" field users would then feel obliged to
 # customise; bumps happen here in the module.
-_POD_BASE_IMAGE: str     = "pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime"
+_POD_BASE_IMAGE: str     = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
 _POD_GIT_REMOTE: str     = "https://github.com/hanyeol/model-compose.git"
 _POD_GIT_REVISION: str   = "main"
 _POD_WORKER_MODULE: str  = "mindor.core.component.runtime.runpod"
@@ -93,15 +93,12 @@ class ComponentRunPodRuntimeProxy(ComponentRuntimeProxy):
 class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
     """Manager for a component backed by a RunPod GPU pod.
 
-    Differs from the container managers in three ways:
+    Differs from the container managers in two ways:
 
-    1. **Lazy start.** `start()` does not provision a pod; the first `run()`
-       call does. This lets `model-compose up` return immediately and keeps
-       the pod stopped (and billing paused) between runs.
-    2. **Idle stop.** After a run completes, a timer tracks inactivity and
+    1. **Idle stop.** After a run completes, a timer tracks inactivity and
        stops the pod once ``idle_timeout`` elapses. The next run transparently
-       resumes it.
-    3. **Pod reuse via `resume_pod`.** Once provisioned, the pod_id is cached
+       resumes it, so GPU billing pauses between request bursts.
+    2. **Pod reuse via `resume_pod`.** Once provisioned, the pod_id is cached
        so subsequent starts are resume (seconds) rather than fresh create
        (minutes), and the network volume keeps the model weights warm.
     """
@@ -132,21 +129,27 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
     # ------------------------------------------------------------------
 
     async def start(self) -> None:
-        """Register the component without provisioning a pod.
+        """Provision the pod and attach the WS proxy, matching other runtimes
+        that have everything ready after `up`.
 
         First reclaims any pods left behind by a previous process (crash,
         clean exit without ``terminate_on_down``, or restart). We cannot
         safely adopt them: the WS auth token is a fresh per-session secret,
         so a resume would fail the handshake and we would terminate anyway.
         Terminate up-front for a predictable clean slate — the network
-        volume keeps the model weights so the next `run()`'s fresh pod
-        reloads instantly rather than redownloading.
+        volume keeps the model weights so the fresh pod reloads instantly
+        rather than redownloading.
+
+        After the first request, the pod can still cycle through idle-stop
+        and resume transparently via `_ensure_pod_running`.
         """
         await self._reclaim_orphan_pods()
+        await self._ensure_pod_running()
 
         logging.info(
-            "runpod: component '%s' registered; pod will start on first request",
+            "runpod: component '%s' ready (pod %s)",
             self.worker_id,
+            self._pod_handle.pod_id if self._pod_handle else "?",
         )
 
     async def stop(self) -> None:
@@ -487,12 +490,34 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
 
         The network volume is mounted at ``/workspace`` by default; pip cache
         lives there so re-launches after a stop skip the download.
+
+        No embedded ``"``: RunPod's GraphQL layer serializes ``dockerArgs``
+        with ``f'dockerArgs: "{...}"'`` and does not escape inner double
+        quotes, so any ``"`` in this string prematurely terminates the
+        GraphQL string and surfaces as `Syntax Error: Unexpected character`.
+        Single quotes wrap the command and the git URL is passed to pip
+        unquoted (safe since there are no shell metacharacters inside it).
         """
+        # The pytorch base image already carries python/pip/torch; apt-install
+        # only the extras it misses (`git` for pip-from-git, `ffmpeg` so
+        # torchcodec can dlopen libav* at inference time). On resumes the apt
+        # step is a no-op.
+        #
+        # `PIP_BREAK_SYSTEM_PACKAGES=1` opts out of PEP 668 — safe inside a
+        # single-purpose pod running as root, where there is no system Python
+        # install to protect.
         return (
             "bash -lc '"
+            "(command -v git >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1) || "
+            "(apt-get update && apt-get install -y --no-install-recommends git ffmpeg) && "
             f"mkdir -p {_POD_PIP_CACHE_DIR} && "
-            f"PIP_CACHE_DIR={_POD_PIP_CACHE_DIR} "
-            f"pip install --upgrade \"git+{_POD_GIT_REMOTE}@{_POD_GIT_REVISION}\" && "
+            f"export PIP_CACHE_DIR={_POD_PIP_CACHE_DIR} && "
+            # Opt out of PEP 668 for both pip (bootstrap) and uv (runtime
+            # dependency installer); safe inside a single-purpose pod running
+            # as root, where there is no system Python install to protect.
+            "export PIP_BREAK_SYSTEM_PACKAGES=1 && "
+            "export UV_BREAK_SYSTEM_PACKAGES=1 && "
+            f"pip install --upgrade git+{_POD_GIT_REMOTE}@{_POD_GIT_REVISION} && "
             f"exec python -m {_POD_WORKER_MODULE} --port {worker_port}"
             "'"
         )

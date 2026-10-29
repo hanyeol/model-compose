@@ -204,6 +204,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
         time_precision = self._get_time_precision()
 
         results: List[List[Dict[str, Any]]] = []
+
         for index in range(predicted_ids.shape[0]):
             _, optional = self.processor.tokenizer._decode_asr(
                 [ { "tokens": predicted_ids[index:index + 1] } ],
@@ -211,6 +212,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                 return_language=False,
                 time_precision=time_precision,
             )
+
             results.append([
                 {
                     "text":       chunk["text"],

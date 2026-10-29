@@ -51,6 +51,13 @@ _TORCHVISION_FOR_TORCH: Dict[str, str] = {
 # torchcodec compatibility per https://github.com/pytorch/torchcodec — pinned to
 # the highest release that officially supports each torch version.
 _TORCHCODEC_FOR_TORCH: Dict[str, str] = {
+    # Per the torchcodec compatibility matrix, 0.14+ supports any torch
+    # `>=2.11`, so later torch releases pin to the latest torchcodec with
+    # a matching wheel channel; only torch==2.11.0 needs the old 0.11 pin.
+    "2.13.0": "0.17",
+    "2.12.1": "0.17",
+    "2.12.0": "0.17",
+    "2.11.1": "0.17",
     "2.11.0": "0.11",
     "2.10.0": "0.10",
     "2.9.1":  "0.9",

@@ -280,7 +280,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 class HuggingfaceSpeechToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch", "torchaudio"),
+            *torch_requirements("torch", "torchaudio", "torchcodec"),
             "transformers>=4.52.0",
             "accelerate",
             "soxr",

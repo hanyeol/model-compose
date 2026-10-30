@@ -42,7 +42,7 @@ class DiffusionIpAdapterConfig(ModelSubmoduleConfig):
     image_encoder: Optional[ModelSubmoduleConfig] = Field(default=None, description="Overrides the IP-Adapter's bundled CLIP image encoder; set this when the adapter variant requires a different encoder than the default ViT-H.")
 
 class DiffusionSchedulerConfig(BaseModel):
-    type: DiffusionSchedulerType = Field(..., description="Scheduler alias (ComfyUI/A1111 style) resolved to a diffusers class and preset kwargs.")
+    type: Optional[DiffusionSchedulerType] = Field(default=None, description="Scheduler alias (ComfyUI/A1111 style) resolved to a diffusers class and preset kwargs; omit to reconfigure the pipeline's existing scheduler class with `options` only.")
     options: Dict[str, Any] = Field(default_factory=dict, description="Extra kwargs forwarded to `SchedulerClass.from_config` (e.g. `beta_schedule`, `timestep_spacing`, `prediction_type`).")
 
     @model_validator(mode="before")

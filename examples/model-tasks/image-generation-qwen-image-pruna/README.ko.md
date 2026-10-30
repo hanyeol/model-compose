@@ -1,6 +1,6 @@
 # 이미지 생성 모델 태스크 예제 (Qwen-Image 2.1 + Pruna LoRA)
 
-이 예제는 알리바바의 Qwen-Image-2.1을 [PrunaAI의 distilled LoRA](https://huggingface.co/PrunaAI/Pruna-Qwen-Image-2.1)로 가속하여, 베이스 파이프라인이 40스텝을 쓰는 데 반해 5스텝 또는 8스텝만으로 텍스트-투-이미지 생성을 수행하는 방법을 보여줍니다.
+이 예제는 알리바바의 Qwen-Image-2.1을 [PrunaAI의 distilled LoRA](https://huggingface.co/PrunaAI/P-Q-Image-2.1)로 가속하여, 베이스 파이프라인이 40스텝을 쓰는 데 반해 5스텝, 6스텝, 또는 8스텝만으로 텍스트-투-이미지 생성을 수행하는 방법을 보여줍니다.
 
 ## 개요
 
@@ -22,22 +22,48 @@
 
 ### 어댑터에 관하여
 
-`PrunaAI/Pruna-Qwen-Image-2.1`은 동일한 리포지토리에 두 가지 `.safetensors` 변형을 제공합니다:
+`PrunaAI/P-Q-Image-2.1`은 동일한 리포지토리에 네 가지 `.safetensors` 변형을 제공합니다:
 
-| 변형                                            | 디노이징 스텝 | 참고                                          |
-|-------------------------------------------------|---------------|-----------------------------------------------|
-| `p_qwen_image_2.1_8step_v0.1.safetensors`       | 8             | 이 예제의 기본값. 품질과 속도의 균형이 좋습니다. |
-| `p_qwen_image_2.1_5step_v0.1.safetensors`       | 5             | 최대 속도; 품질 저하가 더 눈에 띕니다.           |
+| 변형                                                  | 디노이징 스텝 | 참고                                                                 |
+|-------------------------------------------------------|---------------|----------------------------------------------------------------------|
+| `p_q_image_2.1_8_steps_v0.1.safetensors`              | 8             | 이 예제의 기본값. v0.1 중 품질/속도 균형이 가장 좋습니다.             |
+| `p_q_image_2.1_5_steps_v0.1.safetensors`              | 5             | v0.1 중 최대 속도; 품질 저하가 더 눈에 띕니다.                        |
+| `p_q_image_2.1_6_steps_v0.2.safetensors`              | 6             | 발전된 v0.2 distillation. 편집 시 입력 보존이 중요한 경우 권장.       |
+| `p_q_image_2.1_6_steps_upsampled_v0.2.safetensors`    | 6             | 프롬프트 업샘플링이 포함된 v0.2 — 별도 enhancer 호출이 필요 없음.     |
 
-변형을 전환하려면 세 필드를 함께 편집합니다:
+변형을 전환하려면 네 필드를 함께 편집합니다:
 
 - `peft_adapter[0].model.filename`
 - `action.params.inference_steps`
 - `action.params.sigmas` (LoRA는 변형마다 특정 sigma 스케줄로 학습됨)
+- `scheduler.options` (v0.1과 v0.2는 서로 다른 스케줄러 동작을 요구함 — 아래 참고)
 
-5스텝 변형의 경우 `sigmas: [1.0, 0.94, 0.857142857, 0.666666667, 0.4]`와 `inference_steps: 5`를 사용하세요.
+**v0.1 (5스텝 / 8스텝)**은 sigmas를 추가 shift 없이 그대로 사용합니다:
 
-Pruna 모델 카드에서는 v0.1의 품질이 40스텝 기준 베이스 모델에는 아직 미치지 못한다고 명시합니다 — drop-in 대체가 아니라 속도/품질 트레이드오프로 다뤄야 합니다.
+```yaml
+scheduler:
+  options:
+    use_dynamic_shifting: false
+    shift: 1.0
+    shift_terminal: null
+```
+
+Sigmas:
+- 8스텝: `[1.0, 0.933333333, 0.857142857, 0.769230769, 0.666666667, 0.545454545, 0.4, 0.222222222]`
+- 5스텝: `[1.0, 0.94, 0.857142857, 0.666666667, 0.4]`
+
+**v0.2 (6스텝 / 6스텝 upsampled)**는 해상도 기반 shift는 유지하고 terminal stretch만 비활성화합니다:
+
+```yaml
+scheduler:
+  options:
+    use_dynamic_shifting: true
+    shift_terminal: null
+```
+
+Sigmas (두 v0.2 변형 공통): `[1.0, 0.925, 0.85, 0.625, 0.375, 0.125]`
+
+`scheduler.options`를 맞춰 주지 않으면 파이프라인의 기본 `FlowMatchEulerDiscreteScheduler` (`use_dynamic_shifting: true`, `shift_terminal: 0.02`)가 커스텀 sigmas를 다시 shift·stretch하여 LoRA가 학습되지 않은 스케줄이 됩니다.
 
 ### 환경 구성
 
@@ -107,13 +133,13 @@ Pruna 모델 카드에서는 v0.1의 품질이 40스텝 기준 베이스 모델�
 
 | 필드                     | 설명                                                                                       | 기본값  |
 |--------------------------|--------------------------------------------------------------------------------------------|---------|
-| `params.inference_steps` | LoRA 변형과 일치시켜야 합니다: 8스텝 파일이면 `8`, 5스텝 파일이면 `5`.                     | `8`     |
+| `params.inference_steps` | LoRA 변형과 일치시켜야 합니다: `8`, `5`, 또는 `6` (해당 파일에 맞춰).                       | `8`     |
 | `params.true_cfg_scale`  | Pruna의 distillation은 `1.0`을 목표로 학습됨. 올리면 가속 효과가 사라집니다.               | `1.0`   |
 
 ## 참고 사항
 
-- **작업 중인 어댑터**: Pruna 모델 카드는 v0.1을 명시적으로 work in progress로 표시하며, 40스텝 베이스 파이프라인의 품질에는 아직 미치지 못합니다. 최고 화질보다 지연시간이 더 중요할 때 이 예제를 사용하세요.
+- **v0.2 vs v0.1**: v0.2의 6스텝 어댑터는 Pruna의 발전된 distillation으로 베이스 모델의 drop-in 대체재로 권장되며, v0.1 (5/8스텝)은 호환성 유지를 위해 남아 있습니다. 두 세대는 서로 다른 sigma 스케줄과 스케줄러 설정을 사용하므로 섞어 쓰지 마세요.
 - **`true_cfg_scale`는 고정값**: distilled 어댑터는 classifier-free guidance 없이 학습되었습니다. `true_cfg_scale`을 `1.0`보다 올리면 추가 forward pass 비용만 늘고 품질 이득이 없으며, `negative_prompt`는 베이스 예제와의 대칭을 위해 받지만 이 스케일에서는 효과가 없습니다.
 - **VRAM 계획**: LoRA를 부착해도 VRAM 사용량은 베이스 파이프라인과 크게 다르지 않습니다. 속도를 낮춰 피크 메모리를 줄이는 방법은 베이스 예제의 VRAM 참고 사항을 확인하세요.
-- **스텝 수 전환**: `filename`만 편집하는 것으로는 충분하지 않습니다 — 세 필드(`filename`, `inference_steps`, `sigmas`)를 함께 바꿔야 합니다. 파이프라인은 8스텝 LoRA를 5스텝으로 돌려도 실행은 되지만, 결과물은 눈에 띄게 under-denoise됩니다.
+- **변형 전환**: `filename`만 편집하는 것으로는 충분하지 않습니다 — `filename`, `inference_steps`, `sigmas`, `scheduler.options`를 서로 일관되게 유지해야 합니다. 파이프라인은 8스텝 LoRA를 5스텝으로 돌려도 실행은 되지만, 결과물은 눈에 띄게 under-denoise됩니다.
 - **라이선스**: `Qwen/Qwen-Image-2.1`과 Pruna LoRA 모두 각자의 HuggingFace 라이선스를 따릅니다. 프로덕션 사용 전에 각 리포지토리의 조건을 검토하세요.

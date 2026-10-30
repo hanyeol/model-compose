@@ -26,17 +26,27 @@ component:
     provider: huggingface
     repository: Qwen/Qwen-Image-2.1
     token: ${env.HF_TOKEN}
-  # PrunaAI's distilled LoRA shipped in two variants (5-step and 8-step). The
-  # 8-step variant is the safer default; switch `filename` to
-  # `p_qwen_image_2.1_5step_v0.1.safetensors` for maximum speed.
+  # PrunaAI's distilled LoRA ships four variants in the same repository (5-step
+  # v0.1, 6-step v0.2, 6-step upsampled v0.2, 8-step v0.1). The 8-step v0.1 is
+  # the safer default; switch `filename` to one of the others listed in the
+  # README to trade quality for speed.
   peft_adapter:
     - type: lora
       name: pruna
       model:
         provider: huggingface
-        repository: PrunaAI/Pruna-Qwen-Image-2.1
-        filename: p_qwen_image_2.1_8step_v0.1.safetensors
+        repository: PrunaAI/P-Q-Image-2.1
+        filename: p_q_image_2.1_8_steps_v0.1.safetensors
       weight: 1.0
+  # Pruna's distilled sigmas must be used verbatim, but Qwen-Image-2.1's
+  # scheduler config has `use_dynamic_shifting: true` and `shift_terminal: 0.02`,
+  # which would silently re-shift and stretch the sigmas below. Reconfigure the
+  # pipeline's existing FlowMatch scheduler to use the custom sigmas as-is.
+  scheduler:
+    options:
+      use_dynamic_shifting: false
+      shift: 1.0
+      shift_terminal: null
   cpu_offload: model
   max_concurrent_count: 1
   # QwenImage21Pipeline is only on `diffusers` main as of 2026-09; isolate the
@@ -53,14 +63,17 @@ component:
     height: ${input.height as integer | 1024}
     seed: ${input.seed as integer}
     params:
-      # Match the LoRA variant: 8 for `..._8step_...`, 5 for `..._5step_...`.
-      # The Pruna model card notes v0.1 quality still trails the base model —
-      # raise inference_steps only if you also switch to the base pipeline.
+      # Match the LoRA variant: 8 for `..._8_steps_v0.1`, 5 for `..._5_steps_v0.1`,
+      # 6 for either v0.2 file. Raise inference_steps only if you also switch
+      # back to the base pipeline — the distilled adapters are trained for a
+      # fixed step count.
       inference_steps: ${input.inference_steps as integer | 8}
       # Custom sigma schedule required by the distilled LoRA. Length must
-      # match `inference_steps`. Defaults to the 8-step schedule; switch to
-      # `[1.0, 0.94, 0.857142857, 0.666666667, 0.4]` (and `inference_steps: 5`)
-      # when using the 5-step file.
+      # match `inference_steps`. Defaults to the 8-step v0.1 schedule. Other
+      # variants (see README): 5-step v0.1 uses
+      # `[1.0, 0.94, 0.857142857, 0.666666667, 0.4]`; both v0.2 6-step files
+      # use `[1.0, 0.925, 0.85, 0.625, 0.375, 0.125]` and also need
+      # `scheduler.options.use_dynamic_shifting: true`.
       sigmas: ${input.sigmas as list | [ 1.0, 0.933333333, 0.857142857, 0.769230769, 0.666666667, 0.545454545, 0.4, 0.222222222 ]}
       # Pruna's distillation targets `true_cfg_scale=1.0`; leave it there. A
       # negative_prompt is still accepted but has no effect at this scale.

@@ -294,6 +294,28 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             components_to_quantize=components,
         )
 
+    def _apply_scheduler(self, pipeline: DiffusionPipeline, scheduler: DiffusionSchedulerConfig) -> None:
+        import diffusers
+
+        if scheduler.type is not None:
+            class_name, preset = _SCHEDULER_ALIASES[scheduler.type]
+            scheduler_class = getattr(diffusers, class_name, None)
+
+            if scheduler_class is None:
+                raise ValueError(
+                    f"Scheduler alias '{scheduler.type.value}' maps to '{class_name}', "
+                    f"which is not available in the installed diffusers version."
+                )
+
+            logging.info(f"Component '{self.id}': switching scheduler to {class_name} ({scheduler.type.value})")
+        else:
+            scheduler_class = type(pipeline.scheduler)
+            preset = {}
+
+            logging.info(f"Component '{self.id}': reconfiguring scheduler {scheduler_class.__name__} with options {list(scheduler.options)}")
+
+        pipeline.scheduler = scheduler_class.from_config(pipeline.scheduler.config, **preset, **scheduler.options)
+
     def _get_quantizable_components(self) -> List[str]:
         return []
 
@@ -321,18 +343,3 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
     def _get_scheduler(self) -> Optional[DiffusionSchedulerConfig]:
         return getattr(self.config, "scheduler", None)
-
-    def _apply_scheduler(self, pipeline: DiffusionPipeline, scheduler: DiffusionSchedulerConfig) -> None:
-        import diffusers
-
-        class_name, preset = _SCHEDULER_ALIASES[scheduler.type]
-        scheduler_class = getattr(diffusers, class_name, None)
-
-        if scheduler_class is None:
-            raise ValueError(
-                f"Scheduler alias '{scheduler.type.value}' maps to '{class_name}', "
-                f"which is not available in the installed diffusers version."
-            )
-
-        logging.info(f"Component '{self.id}': switching scheduler to {class_name} ({scheduler.type.value})")
-        pipeline.scheduler = scheduler_class.from_config(pipeline.scheduler.config, **preset, **scheduler.options)

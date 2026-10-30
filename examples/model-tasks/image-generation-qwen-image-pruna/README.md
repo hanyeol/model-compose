@@ -1,6 +1,6 @@
 # Image-Generation Model Task Example (Qwen-Image 2.1 + Pruna LoRA)
 
-This example demonstrates how to accelerate Alibaba's Qwen-Image-2.1 with [PrunaAI's distilled LoRA](https://huggingface.co/PrunaAI/Pruna-Qwen-Image-2.1), running text-to-image generation in as few as 5 or 8 denoising steps instead of the base pipeline's 40.
+This example demonstrates how to accelerate Alibaba's Qwen-Image-2.1 with [PrunaAI's distilled LoRA](https://huggingface.co/PrunaAI/P-Q-Image-2.1), running text-to-image generation in as few as 5, 6, or 8 denoising steps instead of the base pipeline's 40.
 
 ## Overview
 
@@ -22,22 +22,48 @@ This workflow attaches a PEFT LoRA adapter to the base Qwen-Image-2.1 pipeline a
 
 ### About the Adapter
 
-`PrunaAI/Pruna-Qwen-Image-2.1` ships two `.safetensors` variants in the same repository:
+`PrunaAI/P-Q-Image-2.1` ships four `.safetensors` variants in the same repository:
 
-| Variant                                         | Denoising Steps | Notes                                       |
-|-------------------------------------------------|-----------------|---------------------------------------------|
-| `p_qwen_image_2.1_8step_v0.1.safetensors`       | 8               | Default in this example. Best quality/speed. |
-| `p_qwen_image_2.1_5step_v0.1.safetensors`       | 5               | Maximum speed; more visible quality drop.    |
+| Variant                                               | Denoising Steps | Notes                                                                              |
+|-------------------------------------------------------|-----------------|------------------------------------------------------------------------------------|
+| `p_q_image_2.1_8_steps_v0.1.safetensors`              | 8               | Default in this example. Best quality/speed among v0.1.                            |
+| `p_q_image_2.1_5_steps_v0.1.safetensors`              | 5               | Maximum speed for v0.1; more visible quality drop.                                 |
+| `p_q_image_2.1_6_steps_v0.2.safetensors`              | 6               | Advanced v0.2 distillation. Best for editing where preserving the input matters.   |
+| `p_q_image_2.1_6_steps_upsampled_v0.2.safetensors`    | 6               | v0.2 with prompt upsampling baked in — short prompts, no separate enhancer call.   |
 
-Switch variants by editing three fields together:
+Switch variants by editing four fields together:
 
 - `peft_adapter[0].model.filename`
 - `action.params.inference_steps`
 - `action.params.sigmas` (the LoRA is trained against a specific sigma schedule per variant)
+- `scheduler.options` (v0.1 and v0.2 require different scheduler behavior — see below)
 
-For the 5-step variant, use `sigmas: [1.0, 0.94, 0.857142857, 0.666666667, 0.4]` and `inference_steps: 5`.
+**v0.1 (5-step / 8-step)** uses its sigmas verbatim with no extra shifting:
 
-The Pruna model card notes that v0.1 quality does not yet match the base model at 40 steps — treat this as a speed/quality trade-off rather than a drop-in replacement.
+```yaml
+scheduler:
+  options:
+    use_dynamic_shifting: false
+    shift: 1.0
+    shift_terminal: null
+```
+
+Sigmas:
+- 8-step: `[1.0, 0.933333333, 0.857142857, 0.769230769, 0.666666667, 0.545454545, 0.4, 0.222222222]`
+- 5-step: `[1.0, 0.94, 0.857142857, 0.666666667, 0.4]`
+
+**v0.2 (6-step / 6-step upsampled)** keeps the resolution-dependent shift and only disables the terminal stretch:
+
+```yaml
+scheduler:
+  options:
+    use_dynamic_shifting: true
+    shift_terminal: null
+```
+
+Sigmas (both v0.2 variants): `[1.0, 0.925, 0.85, 0.625, 0.375, 0.125]`
+
+Without the matching `scheduler.options`, the pipeline's default `FlowMatchEulerDiscreteScheduler` would re-shift and stretch the custom sigmas (its config has `use_dynamic_shifting: true` and `shift_terminal: 0.02`), producing a schedule the LoRA was not trained for.
 
 ### Environment Configuration
 
@@ -107,13 +133,13 @@ Same as the base [image-generation-qwen-image](../image-generation-qwen-image) e
 
 | Field                    | Description                                                                             | Default |
 |--------------------------|-----------------------------------------------------------------------------------------|---------|
-| `params.inference_steps` | Match the LoRA variant: `8` for the 8-step file, `5` for the 5-step file.               | `8`     |
+| `params.inference_steps` | Match the LoRA variant: `8`, `5`, or `6` for the respective files.                      | `8`     |
 | `params.true_cfg_scale`  | Pruna's distillation targets `1.0`. Raising it defeats the acceleration.                | `1.0`   |
 
 ## Notes
 
-- **Work-in-progress adapter**: Pruna's model card explicitly labels v0.1 a work in progress — quality does not yet match the base pipeline at 40 steps. Use this example when latency matters more than peak fidelity.
+- **v0.2 vs v0.1**: v0.2's 6-step adapter is Pruna's advanced distillation and is recommended as a drop-in replacement for the base model; v0.1 (5/8-step) remains available for backwards compatibility. The two generations use different sigma schedules and different scheduler settings — do not mix them.
 - **`true_cfg_scale` is pinned**: The distilled adapter was trained without classifier-free guidance. Raising `true_cfg_scale` above `1.0` will cost you the extra forward pass without a corresponding quality gain; `negative_prompt` is accepted for symmetry with the base example but has no effect at this scale.
 - **VRAM planning**: Attaching a LoRA does not materially change VRAM footprint versus the base pipeline. See the VRAM notes in the base example if you need to trade speed for lower peak memory.
-- **Switching step count**: Editing `filename` alone is not enough — the two fields (`filename`, `inference_steps`) must be changed together. The pipeline will happily run an 8-step LoRA at 5 steps, but the output will be visibly under-denoised.
+- **Switching variants**: Editing `filename` alone is not enough — `filename`, `inference_steps`, `sigmas`, and `scheduler.options` must be kept consistent. The pipeline will happily run an 8-step LoRA at 5 steps, but the output will be visibly under-denoised.
 - **License**: Both `Qwen/Qwen-Image-2.1` and the Pruna LoRA are subject to their respective HuggingFace licenses. Review the terms on each repository before production use.

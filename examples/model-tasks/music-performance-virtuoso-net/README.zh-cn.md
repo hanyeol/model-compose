@@ -44,20 +44,20 @@
    curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: multipart/form-data" \
      -F 'input.score=@./score.musicxml' \
-     -F 'input.composer=chopin' \
+     -F 'input.composer=Chopin' \
      -F 'input.bool_pedal=true'
    ```
 
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 上传 MusicXML 文件作为 `score`
-   - 选择 `composer`（默认 `chopin`）
+   - 选择 `composer`（默认 `Chopin`）
    - 根据需要切换 `bool_pedal` 或 `disklavier`
    - 点击 "Run Workflow" 按钮
 
    **使用 CLI：**
    ```bash
-   model-compose run --input '{"score": "./score.musicxml", "composer": "chopin", "bool_pedal": true}'
+   model-compose run --input '{"score": "./score.musicxml", "composer": "Chopin", "bool_pedal": true}'
    ```
 
    响应是包含表现性演奏的 MIDI 文件 (`audio/midi`)。
@@ -102,11 +102,11 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | `score` | file | 是 | - | 要渲染的 MusicXML 乐谱 |
-| `composer` | text | 否 | `chopin` | 作曲家风格条件化（见下方列表） |
+| `composer` | text | 否 | `Chopin` | 作曲家风格条件化（见下方列表） |
 | `bool_pedal` | boolean | 否 | `false` | 对于将任何非零值视为延音开启的播放器，将 CC64 阈值化为开/关 |
 | `disklavier` | boolean | 否 | `false` | 发出针对 Yamaha Disklavier 播放调整的 MIDI |
 
-支持的作曲家：`bach`、`balakirev`、`beethoven`、`brahms`、`chopin`、`debussy`、`glinka`、`haydn`、`liszt`、`mozart`、`prokofiev`、`rachmaninoff`、`ravel`、`schubert`、`schumann`、`scriabin`。上游模型推荐训练数据覆盖最强的作曲家：`bach`、`beethoven`、`chopin`、`haydn`、`liszt`、`mozart`、`ravel` 和 `schubert`。
+支持的作曲家：`Bach`、`Balakirev`、`Beethoven`、`Brahms`、`Chopin`、`Debussy`、`Glinka`、`Haydn`、`Liszt`、`Mozart`、`Prokofiev`、`Rachmaninoff`、`Ravel`、`Schubert`、`Schumann`、`Scriabin`。上游模型推荐训练数据覆盖最强的作曲家：`Bach`、`Beethoven`、`Chopin`、`Haydn`、`Liszt`、`Mozart`、`Ravel` 和 `Schubert`。
 
 #### 输出格式
 

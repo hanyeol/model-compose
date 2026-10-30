@@ -44,20 +44,20 @@ This workflow turns a flat MusicXML score into a human-like MIDI performance tha
    curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: multipart/form-data" \
      -F 'input.score=@./score.musicxml' \
-     -F 'input.composer=chopin' \
+     -F 'input.composer=Chopin' \
      -F 'input.bool_pedal=true'
    ```
 
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload a MusicXML file as `score`
-   - Pick a `composer` (defaults to `chopin`)
+   - Pick a `composer` (defaults to `Chopin`)
    - Toggle `bool_pedal` or `disklavier` as needed
    - Click the "Run Workflow" button
 
    **Using CLI:**
    ```bash
-   model-compose run --input '{"score": "./score.musicxml", "composer": "chopin", "bool_pedal": true}'
+   model-compose run --input '{"score": "./score.musicxml", "composer": "Chopin", "bool_pedal": true}'
    ```
 
    The response is a MIDI file (`audio/midi`) containing the expressive performance.
@@ -102,11 +102,11 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `score` | file | Yes | - | MusicXML score to render |
-| `composer` | text | No | `chopin` | Composer style conditioning (see list below) |
+| `composer` | text | No | `Chopin` | Composer style conditioning (see list below) |
 | `bool_pedal` | boolean | No | `false` | Threshold CC64 to on/off for players that treat any non-zero value as sustain-on |
 | `disklavier` | boolean | No | `false` | Emit MIDI tuned for Yamaha Disklavier playback |
 
-Supported composers: `bach`, `balakirev`, `beethoven`, `brahms`, `chopin`, `debussy`, `glinka`, `haydn`, `liszt`, `mozart`, `prokofiev`, `rachmaninoff`, `ravel`, `schubert`, `schumann`, `scriabin`. The upstream model recommends `bach`, `beethoven`, `chopin`, `haydn`, `liszt`, `mozart`, `ravel`, and `schubert` as the composers with the strongest training coverage.
+Supported composers: `Bach`, `Balakirev`, `Beethoven`, `Brahms`, `Chopin`, `Debussy`, `Glinka`, `Haydn`, `Liszt`, `Mozart`, `Prokofiev`, `Rachmaninoff`, `Ravel`, `Schubert`, `Schumann`, `Scriabin`. The upstream model recommends `Bach`, `Beethoven`, `Chopin`, `Haydn`, `Liszt`, `Mozart`, `Ravel`, and `Schubert` as the composers with the strongest training coverage.
 
 #### Output Format
 

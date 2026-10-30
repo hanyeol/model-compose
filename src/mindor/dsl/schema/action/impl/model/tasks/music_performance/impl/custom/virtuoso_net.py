@@ -8,22 +8,22 @@ from ..common import (
 )
 
 class VirtuosoNetComposer(str, Enum):
-    BACH         = "bach"
-    BALAKIREV    = "balakirev"
-    BEETHOVEN    = "beethoven"
-    BRAHMS       = "brahms"
-    CHOPIN       = "chopin"
-    DEBUSSY      = "debussy"
-    GLINKA       = "glinka"
-    HAYDN        = "haydn"
-    LISZT        = "liszt"
-    MOZART       = "mozart"
-    PROKOFIEV    = "prokofiev"
-    RACHMANINOFF = "rachmaninoff"
-    RAVEL        = "ravel"
-    SCHUBERT     = "schubert"
-    SCHUMANN     = "schumann"
-    SCRIABIN     = "scriabin"
+    BACH         = "Bach"
+    BALAKIREV    = "Balakirev"
+    BEETHOVEN    = "Beethoven"
+    BRAHMS       = "Brahms"
+    CHOPIN       = "Chopin"
+    DEBUSSY      = "Debussy"
+    GLINKA       = "Glinka"
+    HAYDN        = "Haydn"
+    LISZT        = "Liszt"
+    MOZART       = "Mozart"
+    PROKOFIEV    = "Prokofiev"
+    RACHMANINOFF = "Rachmaninoff"
+    RAVEL        = "Ravel"
+    SCHUBERT     = "Schubert"
+    SCHUMANN     = "Schumann"
+    SCRIABIN     = "Scriabin"
 
 class VirtuosoNetMusicPerformanceParamsConfig(CommonMusicPerformanceParamsConfig):
     qpm_primo: Optional[Union[float, str]] = Field(default=None, description="Initial tempo in QPM; defaults to the score's own tempo when unset.")

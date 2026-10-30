@@ -28,7 +28,7 @@ component:
   max_concurrent_count: 1
   action:
     score: ${input.score as file}
-    composer: ${input.composer as text | chopin}
+    composer: ${input.composer as select/Bach,Balakirev,Beethoven,Brahms,Chopin,Debussy,Glinka,Haydn,Liszt,Mozart,Prokofiev,Rachmaninoff,Ravel,Schubert,Schumann,Scriabin | Chopin}
     params:
       bool_pedal: ${input.bool_pedal as boolean | false}
       disklavier: ${input.disklavier as boolean | false}

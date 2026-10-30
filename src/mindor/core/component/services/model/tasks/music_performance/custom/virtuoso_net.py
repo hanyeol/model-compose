@@ -10,6 +10,7 @@ from mindor.dsl.schema.action import (
     VirtuosoNetComposer,
     VirtuosoNetMusicPerformanceModelRenderActionConfig,
 )
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -165,7 +166,6 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch"),
-            "virtuosonet",
             "omegaconf",
             "pyyaml",
             "numpy",
@@ -174,6 +174,20 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
             "music21",
             "mido",
         ]
+
+    async def _setup(self) -> None:
+        if not is_package_installed("virtuoso"):
+            # jdasam/virtuosoNet ships the `virtuoso/` package at the repo root
+            # without `setup.py`/`pyproject.toml`, so pip-install isn't an
+            # option — drop the directory next to `mindor` as a top-level
+            # `virtuoso` package. Internal imports are already relative
+            # (`from .inference import ...`), so no path rewriting is needed.
+            await install_package_from_github(
+                module_name="virtuoso",
+                repo_url="https://github.com/jdasam/virtuosoNet.git",
+                revision="f20e5b0",
+                subdirs=[ "virtuoso" ],
+            )
 
     async def _load_model(self) -> None:
         self.inference_model = await self._load_inference_model()

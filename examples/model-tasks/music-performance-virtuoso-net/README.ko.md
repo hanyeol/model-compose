@@ -44,20 +44,20 @@
    curl -X POST http://localhost:8080/api/workflows/runs \
      -H "Content-Type: multipart/form-data" \
      -F 'input.score=@./score.musicxml' \
-     -F 'input.composer=chopin' \
+     -F 'input.composer=Chopin' \
      -F 'input.bool_pedal=true'
    ```
 
    **웹 UI 사용:**
    - 웹 UI 열기: http://localhost:8081
    - `score`에 MusicXML 파일 업로드
-   - `composer` 선택 (기본값 `chopin`)
+   - `composer` 선택 (기본값 `Chopin`)
    - 필요 시 `bool_pedal` 또는 `disklavier` 토글
    - "Run Workflow" 버튼 클릭
 
    **CLI 사용:**
    ```bash
-   model-compose run --input '{"score": "./score.musicxml", "composer": "chopin", "bool_pedal": true}'
+   model-compose run --input '{"score": "./score.musicxml", "composer": "Chopin", "bool_pedal": true}'
    ```
 
    응답은 표현적인 연주가 담긴 MIDI 파일(`audio/midi`)입니다.
@@ -102,11 +102,11 @@ graph TD
 | 파라미터 | 유형 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `score` | file | 예 | - | 렌더링할 MusicXML 악보 |
-| `composer` | text | 아니오 | `chopin` | 작곡가 스타일 조건부 생성 (아래 목록 참조) |
+| `composer` | text | 아니오 | `Chopin` | 작곡가 스타일 조건부 생성 (아래 목록 참조) |
 | `bool_pedal` | boolean | 아니오 | `false` | 0이 아닌 값을 모두 서스테인-온으로 처리하는 플레이어를 위해 CC64를 on/off로 임계값 처리 |
 | `disklavier` | boolean | 아니오 | `false` | Yamaha Disklavier 재생에 맞춘 MIDI 출력 |
 
-지원 작곡가: `bach`, `balakirev`, `beethoven`, `brahms`, `chopin`, `debussy`, `glinka`, `haydn`, `liszt`, `mozart`, `prokofiev`, `rachmaninoff`, `ravel`, `schubert`, `schumann`, `scriabin`. 상위 모델은 학습 데이터 커버리지가 가장 강한 작곡가로 `bach`, `beethoven`, `chopin`, `haydn`, `liszt`, `mozart`, `ravel`, `schubert`를 권장합니다.
+지원 작곡가: `Bach`, `Balakirev`, `Beethoven`, `Brahms`, `Chopin`, `Debussy`, `Glinka`, `Haydn`, `Liszt`, `Mozart`, `Prokofiev`, `Rachmaninoff`, `Ravel`, `Schubert`, `Schumann`, `Scriabin`. 상위 모델은 학습 데이터 커버리지가 가장 강한 작곡가로 `Bach`, `Beethoven`, `Chopin`, `Haydn`, `Liszt`, `Mozart`, `Ravel`, `Schubert`를 권장합니다.
 
 #### 출력 형식
 

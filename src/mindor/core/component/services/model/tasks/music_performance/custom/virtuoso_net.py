@@ -183,7 +183,7 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
             "pretty_midi",
             "music21",
             "mido",
-            "pandas",
+            "pandas<3",
             "matplotlib",
             "plotly",
             "six",

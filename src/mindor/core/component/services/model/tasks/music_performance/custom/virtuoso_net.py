@@ -112,17 +112,22 @@ class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
             "velocity_multiplier":    params["velocity_multiplier"],
         }
 
-        # InferenceModel reads midi_decode_options and output_path fresh at each
-        # infer_xml() call, so pushing per-request overrides here works without
-        # rebuilding the model. Restore the previous values after the call so
-        # concurrent requests aren't affected.
-        saved_options = dict(self.inference_model.midi_decode_options)
+        # InferenceModel doesn't retain the midi_decode_options dict — it
+        # forwards those into ModelToMidiDecoder.__init__, which stores each
+        # key via setattr. Per-request overrides have to go onto the decoder's
+        # attributes directly, with save/restore so concurrent requests aren't
+        # affected. output_path is read fresh from the InferenceModel on every
+        # infer_xml() call.
+        decoder = self.inference_model.midi_decoder
+        saved_decoder_options = { key: getattr(decoder, key) for key in decode_options }
         saved_output_path = self.inference_model.output_path
 
         output_dir = tempfile.mkdtemp(prefix="virtuoso-net-")
 
         try:
-            self.inference_model.midi_decode_options.update(decode_options)
+            for key, value in decode_options.items():
+                setattr(decoder, key, value)
+
             self.inference_model.output_path = output_dir
 
             if params["seed"] is not None:
@@ -147,8 +152,9 @@ class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
             with open(midi_path, "rb") as f:
                 midi_bytes = f.read()
         finally:
-            self.inference_model.midi_decode_options.clear()
-            self.inference_model.midi_decode_options.update(saved_options)
+            for key, value in saved_decoder_options.items():
+                setattr(decoder, key, value)
+
             self.inference_model.output_path = saved_output_path
 
             shutil.rmtree(output_dir, ignore_errors=True)
@@ -165,14 +171,25 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch"),
+            # torch<2.6: InferenceModel's torch.load() has no weights_only kwarg,
+            # and checkpoint_best.pt holds NumPy scalars that trip 2.6+'s default.
+            *torch_requirements("torch<2.6"),
             "omegaconf",
             "pyyaml",
-            "numpy",
+            # numpy<2: VirtuosoNet imports numpy.lib.npyio.save and
+            # numpy.lib.arraysetops.isin, both removed in NumPy 2.
+            "numpy<2",
             "scikit-learn",
             "pretty_midi",
             "music21",
             "mido",
+            "pandas",
+            "matplotlib",
+            "plotly",
+            "six",
+            "tqdm",
+            "wandb",
+            "huggingface_hub",
         ]
 
     async def _setup(self) -> None:

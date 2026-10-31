@@ -17,18 +17,14 @@ from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicPerformanceTaskAction
+from pathlib import Path
 import os, glob, shutil, tempfile
 
 if TYPE_CHECKING:
     from virtuoso.inference import InferenceModel
     import torch
 
-# dasaem/virtuosonet publishes a single canonical pair. We only need the
-# weights + yml; .gitattributes and README are skipped to keep the snapshot
-# small when the user points `model` at the repo id.
 _VIRTUOSO_NET_CHECKPOINT_FILENAME = "checkpoint_best.pt"
-_VIRTUOSO_NET_CONFIG_FILENAME = "han_measnote_gru.yml"
-_VIRTUOSO_NET_ALLOW_PATTERNS = [ _VIRTUOSO_NET_CHECKPOINT_FILENAME, _VIRTUOSO_NET_CONFIG_FILENAME ]
 
 class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
     config: VirtuosoNetMusicPerformanceModelRenderActionConfig
@@ -128,7 +124,9 @@ class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
             for key, value in decode_options.items():
                 setattr(decoder, key, value)
 
-            self.inference_model.output_path = output_dir
+            # InferenceModel.__init__ wraps output_path in Path(); match that
+            # here so infer_xml() can call .mkdir() and `/` on the attribute.
+            self.inference_model.output_path = Path(output_dir)
 
             if params["seed"] is not None:
                 torch.manual_seed(params["seed"])

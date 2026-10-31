@@ -18,7 +18,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import MusicPerformanceTaskAction
 from pathlib import Path
-import os, glob, shutil, tempfile
+import os, tempfile
 
 if TYPE_CHECKING:
     from virtuoso.inference import InferenceModel
@@ -98,66 +98,48 @@ class VirtuosoNetMusicPerformanceModelRenderAction(MusicPerformanceTaskAction):
 
     def _render(self, score_path: str, params: Dict[str, Any]) -> BytesStreamResource:
         import torch
+        from virtuoso.inference import save_model_output_as_midi
 
-        decode_options = {
-            "bool_pedal":             params["bool_pedal"],
-            "for_disklavier":         params["disklavier"],
-            "multi_instruments":      params["multi_instruments"],
-            "tempo_clock":            params["tempo_clock"],
-            "clock_interval_in_16th": params["clock_interval_in_16th"],
-            "velocity_multiplier":    params["velocity_multiplier"],
-        }
-
-        # InferenceModel doesn't retain the midi_decode_options dict — it
-        # forwards those into ModelToMidiDecoder.__init__, which stores each
-        # key via setattr. Per-request overrides have to go onto the decoder's
-        # attributes directly, with save/restore so concurrent requests aren't
-        # affected. output_path is read fresh from the InferenceModel on every
-        # infer_xml() call.
-        decoder = self.inference_model.midi_decoder
-        saved_decoder_options = { key: getattr(decoder, key) for key in decode_options }
-        saved_output_path = self.inference_model.output_path
-
-        output_dir = tempfile.mkdtemp(prefix="virtuoso-net-")
-
-        try:
-            for key, value in decode_options.items():
-                setattr(decoder, key, value)
-
-            # InferenceModel.__init__ wraps output_path in Path(); match that
-            # here so infer_xml() can call .mkdir() and `/` on the attribute.
-            self.inference_model.output_path = Path(output_dir)
+        # Follow the module-level CLI path (`python -m virtuoso --session_mode=inference`),
+        # not InferenceModel.infer_xml(). The bound-method `model_prediction_to_feature`
+        # applies an inverse sigmoid to pedal features that NaNs out on the
+        # public `dasaem/virtuosonet` checkpoint — its pedal predictions are
+        # already on the MIDI scale, so `127/(x+0.04)-1` goes negative and
+        # np.log explodes. The module-level `model_prediction_to_feature` used
+        # by `save_model_output_as_midi` is a plain column→key map, matching
+        # what the upstream CLI ships.
+        with tempfile.TemporaryDirectory(prefix="virtuoso-net-") as output_dir:
+            save_path = Path(output_dir) / f"{Path(score_path).stem}.mid"
 
             if params["seed"] is not None:
                 torch.manual_seed(params["seed"])
 
-            self.inference_model.infer_xml(
+            score, model_input, edges, note_locations = self.inference_model.get_input_from_xml(
                 xml_path=score_path,
-                composer_name=params["composer"],
+                composer=params["composer"],
                 qpm_primo=params["qpm_primo"],
             )
 
-            midi_paths = glob.glob(os.path.join(output_dir, "*.mid"))
+            model = self.inference_model.model
 
-            if not midi_paths:
-                raise RuntimeError(f"VirtuosoNet produced no MIDI output for score '{score_path}'.")
+            with torch.no_grad():
+                outputs, _, _, _ = model(model_input, None, edges, note_locations, initial_z="zero")
 
-            # infer_xml writes exactly one MIDI per call; take the first match
-            # defensively in case upstream ever adds auxiliary files.
-            midi_path = midi_paths[0]
-            midi_filename = os.path.basename(midi_path)
+            save_model_output_as_midi(
+                outputs, save_path, score,
+                model.stats["output_keys"], model.stats["stats"], note_locations,
+                velocity_multiplier=params["velocity_multiplier"],
+                multi_instruments=params["multi_instruments"],
+                tempo_clock=params["tempo_clock"],
+                bool_pedal=params["bool_pedal"],
+                disklavier=params["disklavier"],
+                clock_interval_in_16th=params["clock_interval_in_16th"],
+            )
 
-            with open(midi_path, "rb") as f:
+            with open(save_path, "rb") as f:
                 midi_bytes = f.read()
-        finally:
-            for key, value in saved_decoder_options.items():
-                setattr(decoder, key, value)
 
-            self.inference_model.output_path = saved_output_path
-
-            shutil.rmtree(output_dir, ignore_errors=True)
-
-        return BytesStreamResource(midi_bytes, content_type="audio/midi", filename=midi_filename)
+        return BytesStreamResource(midi_bytes, content_type="audio/midi", filename=save_path.name)
 
 class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
@@ -218,18 +200,15 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
         device = self._resolve_device(self.config.device)
 
         def _load() -> InferenceModel:
+            # output_path and midi_decode_options are required by the upstream
+            # ctor but go unused: _render follows the module-level CLI path and
+            # drives save_model_output_as_midi directly rather than the
+            # per-instance midi_decoder / output_path.
             return InferenceModel(
                 checkpoint_path=checkpoint_path,
                 device=str(device),
                 output_path=tempfile.gettempdir(),
-                midi_decode_options={
-                    "bool_pedal":            False,
-                    "for_disklavier":        False,
-                    "multi_instruments":     False,
-                    "tempo_clock":           False,
-                    "clock_interval_in_16th": 4,
-                    "velocity_multiplier":   1.0,
-                },
+                midi_decode_options={},
             )
 
         return await self._run_in_executor(_load)

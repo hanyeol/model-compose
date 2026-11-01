@@ -45,6 +45,8 @@ class LocalProcessRuntime(CommonRuntime):
         self.entrypoint = entrypoint
         self.args = args
 
+        self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
+
         self._subprocess: Optional[Process] = None
 
     async def start(self) -> None:
@@ -63,11 +65,10 @@ class LocalProcessRuntime(CommonRuntime):
         if self._subprocess is None:
             return
 
-        stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
         try:
             await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._subprocess.join(timeout=stop_timeout),
+                lambda: self._subprocess.join(timeout=self._stop_timeout),
             )
         except Exception:
             pass
@@ -75,6 +76,7 @@ class LocalProcessRuntime(CommonRuntime):
         if self._subprocess.is_alive():
             self._subprocess.terminate()
             self._subprocess.join(timeout=5)
+
             if self._subprocess.is_alive():
                 self._subprocess.kill()
 

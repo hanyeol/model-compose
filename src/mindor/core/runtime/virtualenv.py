@@ -53,6 +53,8 @@ class VirtualEnvRuntime(CommonRuntime):
         self.worker_id = worker_id
         self.worker_module = worker_module
 
+        self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
+
         self._venv_path: Path = self._resolve_venv_path()
         self._subprocess: Optional[subprocess.Popen] = None
 
@@ -200,10 +202,8 @@ class VirtualEnvRuntime(CommonRuntime):
 
     async def stop(self) -> None:
         if self._subprocess:
-            stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
-
             try:
-                await asyncio.get_event_loop().run_in_executor(None, lambda: self._subprocess.wait(timeout=stop_timeout))
+                await asyncio.get_event_loop().run_in_executor(None, lambda: self._subprocess.wait(timeout=self._stop_timeout))
             except subprocess.TimeoutExpired:
                 self._subprocess.terminate()
 

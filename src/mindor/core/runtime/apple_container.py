@@ -23,6 +23,8 @@ class AppleContainerRuntime(CommonRuntime):
     ):
         super().__init__(config, verbose)
 
+        self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
+
         self._runner: AppleContainerRunner = AppleContainerRunner(config, options=options, verbose=verbose)
 
     @property
@@ -36,9 +38,7 @@ class AppleContainerRuntime(CommonRuntime):
         await self._runner.start(detach=detach)
 
     async def stop(self) -> None:
-        stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
-
-        await self._runner.stop(timeout=stop_timeout)
+        await self._runner.stop(timeout=self._stop_timeout)
 
     async def remove(self, force: bool = False) -> None:
         await self._runner.remove(force=force)

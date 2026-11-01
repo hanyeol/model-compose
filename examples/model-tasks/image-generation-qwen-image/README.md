@@ -70,10 +70,11 @@ This workflow provides local text-to-image generation that:
      -d '{"input": {"prompt": "A vast desert canyon at sunset, ultra-detailed", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
 
-   # Image-conditioned generation — pass one or more input images for instruction-based editing
+   # Image-conditioned generation — pass an input image for instruction-based editing
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/input.png" \
-     -F 'input={"prompt": "Same subject in a snowy forest at dusk, cinematic light", "image": "@ref"}' \
+     -F "output_only=true" \
+     -F "input[prompt]=Same subject in a snowy forest at dusk, cinematic light" \
+     -F "input[image]=@/path/to/input.png" \
      -o output.png
    ```
 

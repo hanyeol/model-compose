@@ -70,10 +70,11 @@
      -d '{"input": {"prompt": "日落时分辽阔的沙漠峡谷，超精细细节", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
 
-   # 图像条件生成 — 传入一张或多张输入图像作为指令编辑的对象
+   # 图像条件生成 — 传入一张输入图像作为指令编辑的对象
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/input.png" \
-     -F 'input={"prompt": "同一主体置于黄昏雪林中，电影感光线", "image": "@ref"}' \
+     -F "output_only=true" \
+     -F "input[prompt]=同一主体置于黄昏雪林中，电影感光线" \
+     -F "input[image]=@/path/to/input.png" \
      -o output.png
    ```
 

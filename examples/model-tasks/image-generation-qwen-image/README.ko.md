@@ -70,10 +70,11 @@
      -d '{"input": {"prompt": "석양의 광활한 사막 협곡, 초정밀 디테일", "negative_prompt": "blurry, low quality, watermark", "true_cfg_scale": 4.0, "width": 2752, "height": 1536}}' \
      -o output.png
 
-   # 이미지 조건 생성 — 편집 지시(instruction) 대상이 될 입력 이미지를 한 장 또는 여러 장 전달
+   # 이미지 조건 생성 — 편집 지시(instruction) 대상이 될 입력 이미지를 전달
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/input.png" \
-     -F 'input={"prompt": "같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명", "image": "@ref"}' \
+     -F "output_only=true" \
+     -F "input[prompt]=같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명" \
+     -F "input[image]=@/path/to/input.png" \
      -o output.png
    ```
 

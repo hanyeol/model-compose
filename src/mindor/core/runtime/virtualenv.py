@@ -170,7 +170,7 @@ class LocalVirtualEnvRuntime(CommonRuntime):
         """Pip install mindor's own runtime requirements plus any
         ``extra_requirements`` provided by the caller. Missing files are
         skipped silently."""
-        requirements = [ mindor_package.get_requirements_path(), *extra_requirements ]
+        requirements = [ self._mindor_requirements_path(), *extra_requirements ]
 
         def _install_requirements() -> None:
             # Prefer uv when available: `--link-mode=hardlink` shares wheel
@@ -298,6 +298,9 @@ class LocalVirtualEnvRuntime(CommonRuntime):
             return self._venv_path / "Scripts"
 
         return self._venv_path / "bin"
+
+    def _mindor_requirements_path(self) -> Path:
+        return mindor_package.get_requirements_path()
 
     def _spawn_posix(self, request_fd: int, response_fd: int, env: Dict[str, str]) -> subprocess.Popen:
         env["MINDOR_VENV_REQUEST_FD"]  = str(request_fd)

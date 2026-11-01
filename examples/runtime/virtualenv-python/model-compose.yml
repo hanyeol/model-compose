@@ -11,8 +11,8 @@ workflow:
   title: VirtualEnv Runtime (system Python)
   description: |
     Runs the model worker in a dedicated Python virtualenv, created from the
-    system Python. Any packages listed in this directory's requirements.txt
-    are installed into that venv, isolated from the controller's site-packages.
+    system Python. The component declares the packages it needs via its
+    driver's setup requirements, isolated from the controller's site-packages.
   job:
     input: ${input}
     output:

@@ -1,6 +1,6 @@
 # VirtualEnv Runtime（Python `venv`）
 
-在由 `python -m venv` 创建的**独立 Python 虚拟环境**中运行模型 worker。该目录下的 `requirements.txt` 只会将 `transformers` + `torch` 安装到该 venv 中——控制器的 site-packages 完全不会被触及。
+在由 `python -m venv` 创建的**独立 Python 虚拟环境**中运行模型 worker。模型组件通过其驱动的 setup requirements 声明所需的包（例如 `transformers`、`torch`），这些包只会被安装到该 venv 中——控制器的 site-packages 完全不会被触及。
 
 ```yaml
 component:
@@ -19,11 +19,11 @@ model-compose run --input '{"text": "You are a wonderful person"}'
 
 首次 `up`：
 - 在此文件旁创建 `.venv/classifier/`，
-- 将 `requirements.txt` pip-install 到该 venv，
-- 将 mindor 注入到 venv 的 site-packages 中，
+- 将 model-compose 运行时注入到 venv 的 site-packages 中，
+- 将组件驱动的 setup requirements pip-install 到该 venv，
 - 在 `.venv/classifier/bin/python` 上启动 worker。
 
-后续 `up` 会复用该 venv，除非 mindor 版本或 `requirements.txt` 发生变化。
+后续 `up` 会复用该 venv，除非 model-compose 运行时版本发生变化。
 
 ## 你能得到什么
 

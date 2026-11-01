@@ -1,6 +1,6 @@
 # VirtualEnv Runtime (Python `venv`)
 
-`python -m venv`로 생성된 **전용 Python 가상 환경** 안에서 모델 워커를 실행합니다. 이 디렉토리의 `requirements.txt`는 `transformers` + `torch`를 해당 venv에만 설치하며, 컨트롤러의 site-packages는 절대로 건드리지 않습니다.
+`python -m venv`로 생성된 **전용 Python 가상 환경** 안에서 모델 워커를 실행합니다. 모델 컴포넌트는 드라이버의 setup requirements를 통해 필요한 패키지(예: `transformers`, `torch`)를 선언하며, 이들은 해당 venv에만 설치되고 컨트롤러의 site-packages는 절대로 건드리지 않습니다.
 
 ```yaml
 component:
@@ -19,11 +19,11 @@ model-compose run --input '{"text": "You are a wonderful person"}'
 
 첫 `up`은:
 - 이 파일 옆에 `.venv/classifier/`를 생성하고,
-- `requirements.txt`를 해당 venv에 pip-install 하며,
-- mindor를 venv의 site-packages에 주입하고,
+- model-compose 런타임을 venv의 site-packages에 주입하고,
+- 컴포넌트 드라이버의 setup requirements를 해당 venv에 pip-install 하며,
 - `.venv/classifier/bin/python`에서 워커를 실행(spawn)합니다.
 
-이후 `up`은 mindor 버전이나 `requirements.txt`가 변경되지 않는 한 venv를 재사용합니다.
+이후 `up`은 model-compose 런타임 버전이 변경되지 않는 한 venv를 재사용합니다.
 
 ## 얻는 것
 

@@ -1,8 +1,9 @@
 # VirtualEnv Runtime (Python `venv`)
 
 Runs the model worker in a **dedicated Python virtualenv** created by `python -m venv`.
-The `requirements.txt` in this directory installs `transformers` + `torch` into
-that venv only — the controller's site-packages are never touched.
+The model component declares the packages it needs (e.g. `transformers`, `torch`)
+through its driver's setup requirements, and they are installed into that venv
+only — the controller's site-packages are never touched.
 
 ```yaml
 component:
@@ -21,12 +22,11 @@ model-compose run --input '{"text": "You are a wonderful person"}'
 
 First `up`:
 - creates `.venv/classifier/` next to this file,
-- pip-installs `requirements.txt` into that venv,
-- injects mindor into the venv's site-packages,
+- injects the model-compose runtime into the venv's site-packages,
+- pip-installs the component driver's setup requirements into that venv,
 - spawns the worker on `.venv/classifier/bin/python`.
 
-Subsequent `up`s reuse the venv unless mindor's version or `requirements.txt`
-changes.
+Subsequent `up`s reuse the venv unless the model-compose runtime version changes.
 
 ## What you get
 

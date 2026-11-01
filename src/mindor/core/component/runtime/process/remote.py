@@ -90,7 +90,7 @@ class ComponentRemoteProcessRuntimeProxy(ComponentRuntimeProxy):
         return await self.channel.recv()
 
 def main() -> None:
-    """Remote entrypoint when launched as `python -m mindor.core.component.runtime.process`.
+    """Remote entrypoint when launched as `python -m mindor.core.component.runtime.process.remote`.
 
     Only the remote path uses this: it brings up a worker that reads IPC
     frames from stdin and writes replies to stdout (both carved off by
@@ -100,3 +100,6 @@ def main() -> None:
     channel = IpcStdioChannel(stdio_worker_factory(ComponentRemoteProcessRuntimeWorker))
     channel.setup()
     channel.run()
+
+if __name__ == "__main__":
+    main()

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, List, Optional
 from contextlib import asynccontextmanager
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
+from mindor.core.runtime.transport.ssh import SshRuntimeTransport, SshBasedRemoteTransportConfig
 from mindor.core.utils.archive import archive_to_directory, skip_python_artifacts
+from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from mindor.core.utils.locks import FileLock
 from .common import CommonRuntime
 from pathlib import Path
-import asyncio, os, shutil, subprocess, venv
+import asyncio, os, shlex, shutil, subprocess, venv
 
 # Host env vars excluded from the worker subprocess to preserve venv isolation.
 # LD_LIBRARY_PATH/LD_PRELOAD/CUDA_* let the host's system CUDA shadow the venv's
@@ -29,11 +31,11 @@ _EXCLUDED_HOST_ENV_VARS = frozenset({
     "PYTHONHOME",
 })
 
-class VirtualEnvRuntime(CommonRuntime):
+class LocalVirtualEnvRuntime(CommonRuntime):
     """Lifecycle wrapper around a venv-isolated Python worker subprocess.
 
     Owns a single venv on disk and exposes high-level provisioning verbs
-    (`create_venv`, `install_source`, `install_requirements`) and process
+    (`create_venv`, `install_mindor_source`, `install_requirements`) and process
     lifecycle (`start`/`stop`) for its parent manager to orchestrate.
     Encapsulates every venv-internal detail — site-packages discovery,
     `.pth` layout, pip vs uv, platform-specific binaries — so the manager
@@ -62,7 +64,7 @@ class VirtualEnvRuntime(CommonRuntime):
     async def bootstrap_lock(self):
         """Serialize provisioning across concurrent bootstraps of the same
         venv path. All three provisioning verbs (`create_venv`,
-        `install_source`, `install_requirements`) must be called inside this
+        `install_mindor_source`, `install_requirements`) must be called inside this
         context so a parallel runner cannot observe a half-built venv."""
         self._venv_path.mkdir(parents=True, exist_ok=True)
 
@@ -112,9 +114,9 @@ class VirtualEnvRuntime(CommonRuntime):
 
         await asyncio.get_event_loop().run_in_executor(None, _create_venv)
 
-    async def install_source(self, mindor_root_path: Path) -> None:
+    async def install_mindor_source(self, mindor_root_path: Path) -> None:
         """Mirror the host ``mindor`` package into the venv's site-packages."""
-        def _install_source() -> None:
+        def _install_mindor_source() -> None:
             site_packages = self._venv_site_packages()
             site_packages.mkdir(parents=True, exist_ok=True)
 
@@ -153,7 +155,7 @@ class VirtualEnvRuntime(CommonRuntime):
 
                 venv_version_path.write_text(host_mindor_version)
 
-        await asyncio.get_event_loop().run_in_executor(None, _install_source)
+        await asyncio.get_event_loop().run_in_executor(None, _install_mindor_source)
 
     async def install_requirements(self, requirements: Iterable[Path]) -> None:
         """Pip install each ``-r <path>`` listed; missing paths are skipped."""
@@ -343,3 +345,202 @@ class VirtualEnvRuntime(CommonRuntime):
             close_fds=False,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
+
+class RemoteVirtualEnvRuntime(CommonRuntime):
+    """Lifecycle wrapper around a venv-isolated Python worker on a remote host.
+
+    Mirrors ``LocalVirtualEnvRuntime`` for the ``config.remote`` case: owns
+    one SSH transport and provisions a venv on the remote filesystem by
+    piping shell commands over `exec_command`. The remote host must already
+    have an installed copy of ``mindor`` that `import mindor` can find
+    through the user's interactive shell — this runtime wires the venv to
+    that installation via a ``mindor.pth`` file rather than shipping the
+    source over SSH.
+
+    Typical flow:
+        runtime = RemoteVirtualEnvRuntime(remote_config, worker_id, worker_module, config)
+        await runtime.connect()
+        await runtime.create_venv()
+        await runtime.install_mindor_source()
+        await runtime.install_requirements()
+        channel = await runtime.start(env=...)
+        ...
+        await runtime.stop()
+    """
+    config: VirtualEnvRuntimeConfig
+
+    def __init__(
+        self,
+        remote_config: SshBasedRemoteTransportConfig,
+        worker_id: str,
+        worker_module: str,
+        config: VirtualEnvRuntimeConfig,
+        verbose: bool = False,
+    ):
+        super().__init__(config, verbose)
+
+        self.worker_id = worker_id
+        self.worker_module = worker_module
+
+        self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
+
+        self._transport: SshRuntimeTransport = SshRuntimeTransport(remote_config)
+        self._channel: Optional[SshExecChannel] = None
+        self._remote_executable: Optional[str] = None
+        self._remote_venv_path: Optional[str] = None
+
+    async def connect(self) -> None:
+        await self._transport.connect()
+
+        self._remote_executable = await self._transport.resolve_executable(
+            working_dir=self._transport.working_dir,
+        )
+        self._remote_venv_path = self._resolve_remote_venv_path()
+
+    async def create_venv(self) -> None:
+        """Run ``<executable> -m venv <path>`` on the remote host (idempotent).
+
+        The ``path`` driver is the only supported mode for remote venvs; the
+        pyenv driver would need pyenv on the remote, which this runtime does
+        not provision.
+        """
+        if self.config.driver != VirtualEnvDriver.PYTHON:
+            raise NotImplementedError(
+                f"remote virtualenv only supports driver 'python', got {self.config.driver!r}"
+            )
+
+        command = (
+            f"test -x {shlex.quote(self._remote_venv_path + '/bin/python')} || "
+            f"{shlex.quote(self._remote_executable)} -m venv {shlex.quote(self._remote_venv_path)}"
+        )
+
+        logging.info("virtualenv: creating remote venv at %s:%s...", self._transport.host, self._remote_venv_path)
+
+        await self._run_remote_command(command)
+
+    async def install_mindor_source(self) -> None:
+        """Write a ``mindor.pth`` file into the remote venv's site-packages
+        pointing at the directory that owns the remote mindor installation.
+
+        This is the editable-install path on the remote: whatever ``import
+        mindor`` resolves to on the remote user's shell is what the venv
+        picks up, so there is no byte transfer from host to remote.
+        """
+        source_dir = await self._transport.resolve_mindor_source(
+            self._remote_executable,
+            working_dir=self._transport.working_dir,
+        )
+        site_packages = await self._transport.resolve_site_packages(
+            self._remote_venv_path + "/bin/python",
+            working_dir=self._transport.working_dir,
+        )
+        pth_path = site_packages + "/mindor.pth"
+
+        # heredoc avoids any quoting pitfalls with paths that contain spaces.
+        command = (
+            f"cat > {shlex.quote(pth_path)} <<'MINDOR_PTH_EOF'\n"
+            f"{source_dir}\n"
+            f"MINDOR_PTH_EOF"
+        )
+
+        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, source_dir)
+
+        await self._run_remote_command(command)
+
+    async def install_requirements(self, requirements: Iterable[str]) -> None:
+        """Pip install each remote requirements file. Each path is expected
+        to be an *absolute path on the remote host*; missing files are
+        skipped silently so the manager can pass a list of possible-but-not-
+        guaranteed paths (e.g. the project's ``requirements.txt``)."""
+        venv_python = self._remote_venv_path + "/bin/python"
+        venv_pip = self._remote_venv_path + "/bin/pip"
+        commands: List[str] = [
+            # Prefer uv on the remote too: --link-mode=hardlink reuses wheels
+            # across venvs on the same filesystem, matching the local path.
+            "if command -v uv >/dev/null 2>&1; then "
+            f"INSTALL={shlex.quote('uv pip install --python ' + venv_python + ' --link-mode=hardlink')}; "
+            "else "
+            f"INSTALL={shlex.quote(venv_pip + ' install --disable-pip-version-check')}; "
+            "fi"
+        ]
+
+        for path in requirements:
+            commands.append(
+                f"if [ -f {shlex.quote(path)} ]; then "
+                f"$INSTALL -r {shlex.quote(path)}; "
+                f"fi"
+            )
+
+        if len(commands) == 1:
+            return
+
+        logging.info("virtualenv: installing remote requirements on %s...", self._transport.host)
+
+        await self._run_remote_command(" && ".join(commands))
+
+    async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
+        """Launch the worker via the venv's python over an SSH exec channel."""
+        venv_python = self._remote_venv_path + "/bin/python"
+        commands: List[str] = []
+
+        if self._transport.working_dir:
+            commands.append(f"cd {shlex.quote(self._transport.working_dir)}")
+
+        env = { **(self.config.env or {}), **(env or {}) }
+        env_prefix = "".join(f"{name}={shlex.quote(str(value))} " for name, value in env.items())
+        commands.append(
+            f"{env_prefix}exec {shlex.quote(venv_python)} -m {shlex.quote(self.worker_module)}"
+        )
+
+        logging.info("virtualenv: launching remote worker on %s...", self._transport.host)
+
+        self._channel = await self._transport.open_exec_channel(" && ".join(commands))
+
+        return self._channel
+
+    async def stop(self) -> None:
+        if self._channel is not None:
+            try:
+                self._channel.close()
+            except Exception:
+                pass
+
+            self._channel = None
+
+        await self._transport.close()
+
+    @property
+    def channel(self) -> Optional[SshExecChannel]:
+        return self._channel
+
+    def _resolve_remote_venv_path(self) -> str:
+        """Resolve the remote-side venv directory, mirroring the local
+        default (``{cwd}/.runtime/components/{worker_id}/venv``) but anchored
+        at the SSH transport's ``working_dir``."""
+        if self.config.path:
+            return self.config.path
+
+        working_dir = self._transport.working_dir
+
+        if working_dir:
+            return f"{working_dir.rstrip('/')}/.runtime/components/{self.worker_id}/venv"
+
+        return f".runtime/components/{self.worker_id}/venv"
+
+    async def _run_remote_command(self, command: str) -> None:
+        """Run ``command`` on the remote host via a one-shot exec channel
+        and wait for exit. Raises ``RuntimeError`` on non-zero exit."""
+        if self._transport.working_dir:
+            command = f"cd {shlex.quote(self._transport.working_dir)} && {command}"
+
+        channel = await self._transport.open_exec_channel(command)
+
+        try:
+            # Drain the channel to EOF so we see the full exit status.
+            while True:
+                data = await channel.recv()
+
+                if data is None:
+                    break
+        finally:
+            channel.close()

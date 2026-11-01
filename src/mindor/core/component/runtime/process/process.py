@@ -11,7 +11,7 @@ from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from .local import ComponentLocalProcessRuntimeProxy, Queue, run_local_worker
 from .remote import ComponentRemoteProcessRuntimeProxy
 
-_REMOTE_WORKER_MODULE = "mindor.core.component.runtime.process"
+_REMOTE_WORKER_MODULE = "mindor.core.component.runtime.process.remote"
 
 class ComponentProcessRuntimeManager(ComponentRuntimeManager):
     """Manager: spawns a process worker and bridges IPC to it.
@@ -19,7 +19,7 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
     Dispatches between two transports based on ``config.remote``:
     - ``None`` → ``LocalProcessRuntime`` (multiprocessing spawn + Queue pair).
     - set     → ``RemoteProcessRuntime`` over an SSH exec channel, running
-                 ``python -m mindor.core.component.runtime.process`` on the
+                 ``python -m mindor.core.component.runtime.process.remote`` on the
                  remote host.
     """
     def __init__(

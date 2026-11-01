@@ -13,7 +13,7 @@ import asyncio, multiprocessing, os, shlex
 # Use `spawn` explicitly. Linux defaults to `fork`, which duplicates the entire
 # parent state (open fds, threads, partially-initialized CUDA / asyncio loops,
 # multiprocessing exit hooks). That has caused runaway child re-spawns and
-# blocks the controller shutdown path. `spawn` starts a fresh interpreter and
+# blocks the controller shutdown path. `spawn` starts a fresh executable and
 # only receives what we pass through pickled args.
 _SPAWN_CONTEXT = multiprocessing.get_context("spawn")
 
@@ -124,17 +124,17 @@ class RemoteProcessRuntime(CommonRuntime):
 
         await self._transport.connect()
 
-        # Resolve the remote python interpreter through an interactive shell
+        # Resolve the remote python executable through an interactive shell
         # so pyenv / venv activation / user profile scripts have a chance to
         # run. The returned path is the real binary (not a shim), so the
         # non-interactive exec channel below can invoke it directly.
-        python = await self._transport.resolve_python_executable(
+        executable = await self._transport.resolve_executable(
             working_dir=self._transport.working_dir,
         )
 
-        logging.debug("process: using remote python at %s", python)
+        logging.debug("process: using remote python at %s", executable)
 
-        command = self._build_remote_command(python, env)
+        command = self._build_remote_command(executable, env)
 
         logging.info("process: launching remote worker on %s...", self._transport.host)
 
@@ -157,22 +157,20 @@ class RemoteProcessRuntime(CommonRuntime):
     def channel(self) -> Optional[SshExecChannel]:
         return self._channel
 
-    def _build_remote_command(self, python: str, env: Optional[Dict[str, str]]) -> str:
+    def _build_remote_command(self, executable: str, env: Optional[Dict[str, str]]) -> str:
         # OpenSSH servers often reject SetEnv for anything not whitelisted in
         # sshd_config, so prefix VAR=value inline. `cd` honors working_dir when
         # set by the transport. `exec` replaces the shell so signals reach the
         # Python worker directly.
-        parts: List[str] = []
+        commands: List[str] = []
 
         if self._transport.working_dir:
-            parts.append(f"cd {shlex.quote(self._transport.working_dir)} &&")
+            commands.append(f"cd {shlex.quote(self._transport.working_dir)}")
 
         env = { **(self.config.env or {}), **(env or {}) }
+        env_prefix = "".join(f"{name}={shlex.quote(str(value))} " for name, value in env.items())
+        commands.append(
+            f"{env_prefix}exec {shlex.quote(executable)} -m {shlex.quote(self.worker_module)}"
+        )
 
-        for name, value in env.items():
-            parts.append(f"{name}={shlex.quote(str(value))}")
-
-        parts.append(f"exec {shlex.quote(python)} -m")
-        parts.append(shlex.quote(self.worker_module))
-
-        return " ".join(parts)
+        return " && ".join(commands)

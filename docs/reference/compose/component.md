@@ -10,7 +10,7 @@ Components are reusable service definitions that perform specific tasks within w
 component:
   type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | agent-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | music-pitch-corrector | music-score-loader | music-score-renderer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-loader | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
-  runtime: native | embedded | process | virtualenv | docker | apple-container  # default: native
+  runtime: native | embedded | process | virtualenv | docker | apple-container | runpod  # default: native
   max_concurrent_count: 0
   default: false
   # ... type-specific configuration
@@ -109,7 +109,7 @@ All components inherit these common properties from `CommonComponentConfig`:
 |-------|------|---------|-------------|
 | `id` | string | `__component__` | Unique identifier for the component |
 | `type` | string | **required** | Component type (see table above) |
-| `runtime` | string | `native` | Runtime environment: `native`, `embedded`, `process`, `virtualenv`, `docker`, or `apple-container` |
+| `runtime` | string | `native` | Runtime environment: `native`, `embedded`, `process`, `virtualenv`, `docker`, `apple-container`, or `runpod` |
 | `max_concurrent_count` | integer | `0` | Maximum concurrent actions this component can handle (`0` = unlimited) |
 | `default` | boolean | `false` | Whether to use this component when none is explicitly specified |
 
@@ -323,6 +323,96 @@ component:
 - Components with specific dependency requirements
 - Multi-tenant scenarios requiring security
 
+### RunPod Runtime
+
+Runs the component on a remote [RunPod](https://www.runpod.io/) GPU pod and
+tunnels IPC through the pod's HTTPS proxy. The pod is provisioned at
+`model-compose up` and stopped after `idle_timeout` so GPU billing is paused
+between request bursts; the next request transparently resumes it. See
+[User Guide 16.6](../../user-guide/16-deployment.md#166-runpod-runtime) for the
+full configuration reference.
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  model: MiniMaxAI/MiniMax-H3
+  runtime:
+    type: runpod
+    api_key: ${env.RUNPOD_API_KEY}
+    gpu_type: NVIDIA H100 PCIe
+    gpu_count: 4
+    network_volume_id: vol_abc123
+    idle_timeout: 15m
+```
+
+**Characteristics:**
+- Burst access to multi-GPU hardware without a local machine
+- Model weights persist on a network volume across pod stop/resume
+- `up` provisions the pod (~30-120s); subsequent idle/resume cycles are
+  seconds, not minutes
+- Billing stops automatically after `idle_timeout`
+
+**Use Cases:**
+- Large models (70B+, video generation) that exceed local VRAM
+- Occasional heavy inference that doesn't justify a dedicated GPU host
+- Development against production-class GPUs (H100, H200)
+
+### Remote Execution (SSH)
+
+`process` and `virtualenv` runtimes accept a `remote` block that moves the
+worker onto an SSH-reachable host. The controller still runs on your local
+machine; the worker process (and, for `virtualenv`, the venv on disk) lives
+on the remote side, with IPC flowing through an SSH exec channel.
+
+```yaml
+component:
+  type: shell
+  runtime:
+    type: virtualenv            # or `process`
+    remote:
+      type: ssh                 # or `tailscale`
+      host: gpu-box.example.com
+      user: hanyeol
+      key: ~/.ssh/id_ed25519
+      working_dir: /home/hanyeol/Projects/model-compose
+```
+
+**Characteristics:**
+- The controller connects via `paramiko`; `strict_host_key` and
+  `known_hosts` behave like OpenSSH.
+- `working_dir` is both the remote `cwd` for the worker and (for
+  `virtualenv`) the anchor for the venv path
+  (`{working_dir}/.runtime/components/<id>/venv`).
+- `process + remote` assumes the remote host already has a Python with
+  `import mindor` on its interactive shell (`sys.executable` is resolved
+  for you — pyenv / conda / activated venv all work).
+- `virtualenv + remote` goes further: it creates the venv on the remote
+  filesystem, writes a `mindor.pth` pointing at the remote-installed
+  `mindor`, and installs mindor's runtime requirements via `uv` (falls
+  back to `pip` when unavailable). No bytes are shipped from host to
+  remote.
+
+**Transport types:**
+- `type: ssh` — plain SSH. Requires `key` or `password`; SSH agent
+  fallback is not supported yet.
+- `type: tailscale` — reserved; falls through to SSH when the local
+  `tailscaled` resolves the host. An embedded `tsnet` node is not
+  implemented.
+
+**Use Cases:**
+- Burst to a shared GPU workstation without baking a Docker image
+- Keep the controller close to users while the heavy worker lives on a
+  colo / lab machine
+- Share a long-lived venv across many model-compose projects on the
+  remote host
+
+See the [`remote-process/`](../../../examples/runtime/remote-process) and
+[`remote-virtualenv/`](../../../examples/runtime/remote-virtualenv)
+examples for end-to-end wiring.
+
 ### Choosing a Runtime
 
 | Runtime | Startup Speed | Isolation | Overhead | Best For |
@@ -331,6 +421,11 @@ component:
 | **process** | Medium | Process | Medium | Heavy models, GPU isolation, crash isolation |
 | **virtualenv** | Medium (slow first run) | Process + dependencies | Medium | Per-component Python versions or conflicting packages |
 | **docker** | Slow | High | High | Production, security-critical workloads |
+| **runpod** | Slow (first), Fast (resume) | Full (remote host) | High | Remote GPU bursts, models too large for the local host |
+
+Both `process` and `virtualenv` can also run on a remote SSH host via
+their `remote` block — see [Remote Execution (SSH)](#remote-execution-ssh)
+above.
 
 ## Concurrency Control
 

@@ -1129,7 +1129,351 @@ Traces with the same `session_id` are grouped together in Langfuse UI.
 
 ---
 
-## 16.6 Deployment Best Practices
+## 16.6 RunPod Runtime
+
+Runs a component on a remote [RunPod](https://www.runpod.io/) GPU pod. The
+component's inputs/outputs still flow through model-compose on your local
+host; only the heavy compute (model weights, inference, GPU memory) lives
+in the pod. Billing is paused automatically between requests via
+`idle_timeout`.
+
+### 16.6.1 How It Works
+
+When a component with `runtime.type: runpod` is started by `model-compose up`,
+model-compose:
+
+1. Reclaims any orphan pod named `mindor-<component_id>` from a previous
+   session (crash or restart) by terminating it. The network volume
+   survives, so model weights are preserved.
+2. Calls RunPod's API (via `runpod-python` SDK) to create a new pod
+   with the configured GPU, image, and mounted network volume.
+3. The pod boots the CUDA base image, apt-installs the Python toolchain
+   and `ffmpeg`, `pip install`s the current `model-compose` from GitHub
+   into a cached venv on the network volume, and starts a WebSocket IPC
+   server on the configured port.
+4. Model-compose connects to `wss://<pod_id>-<port>.proxy.runpod.net` via
+   RunPod's HTTPS proxy, authenticated with a per-session bearer token.
+5. The component is now ready; requests flow through the IPC proxy to the
+   pod's embedded worker.
+
+After the last in-flight request completes and `idle_timeout` elapses,
+model-compose issues `stop_pod` so GPU billing pauses. The next request
+resumes the same pod (seconds, not minutes) with its network volume still
+attached — model weights do not re-download.
+
+### 16.6.2 Basic Configuration
+
+**Minimum viable RunPod component:**
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  model: MiniMaxAI/MiniMax-H3
+  runtime:
+    type: runpod
+    api_key: ${env.RUNPOD_API_KEY}
+    gpu_type: NVIDIA H100 PCIe        # exact catalog name from RunPod
+    gpu_count: 4
+    network_volume_id: vol_abc123     # pre-created in RunPod dashboard
+```
+
+Required fields:
+
+- `api_key` — RunPod API key; usually sourced from env.
+- `gpu_type` — exact string from RunPod's GPU catalog
+  (e.g. `NVIDIA H100 PCIe`, `NVIDIA A100 80GB PCIe`,
+  `NVIDIA GeForce RTX 4090`). Slugs will not resolve.
+
+Optional but recommended:
+
+- `network_volume_id` — persistent storage for model weights. Without it,
+  each fresh pod re-downloads the model into ephemeral disk.
+
+### 16.6.3 Full Configuration
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  model: MiniMaxAI/MiniMax-H3
+  runtime:
+    type: runpod
+    api_key: ${env.RUNPOD_API_KEY}
+
+    # Pod spec
+    gpu_type: NVIDIA H100 PCIe
+    gpu_count: 4
+    cloud_type: SECURE                # SECURE | COMMUNITY | ALL
+    data_center_id: US-OR-1           # ignored if network_volume_id forces placement
+
+    # Image (defaults to pytorch/pytorch:*-cuda*-cudnn*-runtime)
+    image: pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
+
+    # Storage
+    network_volume_id: vol_abc123
+    volume_mount_path: /workspace     # default; also where pip cache lives
+    container_disk_gb: 20
+
+    # Networking
+    worker_port: 8000                 # exposed via the RunPod HTTPS proxy
+
+    # Extra env injected into the pod container
+    environment:
+      HF_TOKEN: ${env.HF_TOKEN}
+
+    # Lifecycle
+    idle_timeout: 15m                 # stop_pod this long after last request
+    start_timeout: 10m                # time budget for pod to reach RUNNING + WS up
+    stop_timeout: 2m                  # grace period for stop_pod
+```
+
+### 16.6.4 Field Reference
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `api_key` | string | — | **Required.** RunPod API key. |
+| `gpu_type` | string | — | **Required.** Exact RunPod GPU catalog name. |
+| `gpu_count` | int | `1` | Number of GPUs attached to the pod. |
+| `cloud_type` | enum | `SECURE` | `SECURE` (stable, ~70% premium) \| `COMMUNITY` (cheaper, less reliable) \| `ALL`. |
+| `data_center_id` | string | `null` | Preferred DC; overridden if a network volume forces placement. |
+| `image` | string | `pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime` | Pod container image. |
+| `network_volume_id` | string | `null` | ID of a RunPod network volume to mount. Highly recommended. |
+| `volume_mount_path` | string | `/workspace` | Mount path for the network volume. |
+| `container_disk_gb` | int | `20` | Ephemeral root disk size. |
+| `worker_port` | int | `8000` | Pod port exposed as `wss://<pod_id>-<port>.proxy.runpod.net`. |
+| `environment` | map | `null` | Extra env vars for the pod container. |
+| `idle_timeout` | duration | `15m` | Pod stop delay after the last request. `0s` disables auto-stop. |
+| `start_timeout` | duration | `10m` | Max time for pod boot + WS attach before failure. |
+| `stop_timeout` | duration | `2m` | Graceful stop deadline. |
+
+### 16.6.5 Lifecycle and Billing Safeguards
+
+RunPod pods follow the standard `setup / start / stop / teardown`
+lifecycle, aligned with `docker-compose up / create / start / stop / down`:
+
+- **`setup` (at `model-compose up`).** Reclaims orphan pods from previous
+  sessions, creates the pod, then immediately stops it. The pod ends up
+  `STOPPED` with its bootstrap already baked in — the slow create
+  (minutes) is paid once up front, not on every `start`.
+- **`start`.** Resumes the `STOPPED` pod to `RUNNING` (seconds) and
+  attaches the WS proxy. The network volume stays mounted so model
+  weights are already warm.
+- **`stop`.** Detaches the proxy and `stop_pod`s. The pod stays
+  provisioned on the account so the next `start` is another cheap resume.
+- **`teardown` (at `model-compose down`).** `terminate_pod` — the pod is
+  gone after this returns.
+
+Because pods are billed by the second, additional guardrails prevent
+runaway cost:
+
+- **Idle stop with retry.** When `idle_timeout` elapses, `stop_pod` is
+  called with bounded exponential backoff (3 attempts). After the final
+  failed attempt, an `ERROR` log line names the pod id so the operator
+  can clean up from the RunPod dashboard. The next `run` lazily resumes
+  through the same `start` path.
+- **Attach-failure cleanup.** If the pod reaches `RUNNING` but the WS
+  handshake fails (bootstrap crashed, network glitch), the pod is
+  immediately `terminate`d — not stopped — because a resumed broken
+  container would hit the same error.
+- **Setup-failure cleanup.** If `setup` creates a pod but cannot stop
+  it, the pod is `terminate`d so a failed `up` cannot leak billing.
+- **Orphan reclaim at setup.** Before provisioning a fresh pod, model-compose
+  lists pods on the account and terminates any whose name matches
+  `mindor-<component_id>`. This covers crash recovery and process restarts
+  where a previous session's pod outlived the parent.
+- **Shared-secret auth.** The WS endpoint on `*.proxy.runpod.net` is
+  public the moment the pod is `RUNNING`. Every session uses a fresh
+  random bearer token injected into the pod's env; connections without
+  the correct `Authorization: Bearer <token>` header are rejected at
+  the WS upgrade.
+
+### 16.6.6 Network Volumes
+
+Network volumes carry two benefits over the pod's ephemeral disk:
+
+1. **Model persistence.** Weights downloaded by HuggingFace cache survive
+   `stop_pod` and `terminate_pod`, so re-launch is seconds instead of
+   minutes.
+2. **pip cache.** The bootstrap script caches wheels at
+   `/workspace/.pip-cache`, so re-installing model-compose on a resumed
+   pod skips the slow dependency build.
+
+Create a volume in the RunPod dashboard, note the ID, and reference it:
+
+```yaml
+runtime:
+  type: runpod
+  # ...
+  network_volume_id: vol_abc123
+  volume_mount_path: /workspace    # where it mounts in the pod
+```
+
+The network volume lives in one data center; any pod using it is pinned
+to that DC regardless of `data_center_id`.
+
+### 16.6.7 When RunPod Doesn't Fit
+
+The RunPod runtime assumes long-lived, GPU-heavy components that justify
+the ~30–120s cold-start cost. Prefer other runtimes when:
+
+- The component is CPU-only — use `native`, `process`, or `docker`.
+- You need sub-second latency on cold requests — keep the component on a
+  local GPU with `embedded` or `process`.
+- You want to run many short-lived components in parallel — the per-pod
+  provisioning overhead dominates. Batch requests into one component
+  instead.
+
+---
+
+## 16.7 Remote Runtimes (SSH)
+
+Both the `process` and `virtualenv` runtimes accept a `remote` block that
+moves the worker onto an SSH-reachable host. The controller stays on your
+local machine; the worker — and, for `virtualenv`, its venv on disk —
+lives on the remote host, with IPC flowing through an SSH exec channel.
+
+This is lighter than RunPod (no pod provisioning, no HTTPS proxy) and
+heavier than `embedded` (SSH connect + remote Python cold start). Use it
+to burst onto a shared workstation or lab machine that you already keep
+reachable over SSH.
+
+### 16.7.1 How It Works
+
+When `model-compose up` brings up a component with `runtime.remote` set,
+model-compose:
+
+1. Opens an SSH connection via `paramiko` to `remote.host` as
+   `remote.user`, authenticating with the configured `key` or `password`.
+2. Opens an **interactive** shell on the remote (via `invoke_shell`) and
+   evaluates `sys.executable` under it so pyenv / conda / activated venv
+   setup in `.bashrc` is honored. The absolute path of the interpreter
+   is captured for later non-interactive exec calls.
+3. (`virtualenv` only.) Runs `python -m venv` on the remote at
+   `{working_dir}/.runtime/components/<id>/venv` if the directory does
+   not already exist, writes a `mindor.pth` into its site-packages
+   pointing at the remote-installed `mindor` package, and runs `uv pip
+   install` (or venv `pip`) for mindor's own runtime requirements.
+4. Opens an SSH exec channel that runs `python -m
+   mindor.core.component.runtime.<kind>.remote` under the resolved
+   interpreter. The exec channel's stdin/stdout carry the IPC stream
+   (framed messages); stderr carries log output.
+5. Sends the component config over IPC as a START message. The remote
+   worker brings up the component in-process and reports ready.
+
+Subsequent requests flow through the same SSH exec channel. On
+`model-compose down` the channel is closed and the remote worker exits
+with it; any provisioned venv on disk survives for the next `up`.
+
+### 16.7.2 Process Runtime (Remote)
+
+```yaml
+component:
+  type: shell
+  runtime:
+    type: process
+    remote:
+      type: ssh
+      host: ${env.REMOTE_HOST}
+      user: ${env.REMOTE_USER}
+      key: ${env.REMOTE_SSH_KEY}
+      working_dir: ${env.REMOTE_WORKING_DIR}
+  action:
+    command: [ "uname", "-a" ]
+```
+
+Prerequisites on the remote host:
+
+- SSH access via key authentication.
+- A Python interpreter visible under the user's interactive shell that
+  can `import mindor` (install this project on the remote side; the
+  runtime resolves it via `sys.executable`).
+
+No daemons, no containers, no volume mounts. See the
+[`remote-process/`](../../examples/runtime/remote-process) example for a
+runnable end-to-end wiring.
+
+### 16.7.3 VirtualEnv Runtime (Remote)
+
+```yaml
+component:
+  type: shell
+  runtime:
+    type: virtualenv
+    remote:
+      type: ssh
+      host: ${env.REMOTE_HOST}
+      user: ${env.REMOTE_USER}
+      key: ${env.REMOTE_SSH_KEY}
+      working_dir: ${env.REMOTE_WORKING_DIR}
+  action:
+    command: [ "sh", "-c", "python -c 'import sys; print(sys.executable)'" ]
+```
+
+In addition to the Process prerequisites:
+
+- `python -m venv` must work on the remote user's resolved interpreter
+  (standard library — no extra install).
+- Optional: `uv` on `$PATH` makes requirement installation faster and
+  shares wheel bytes across venvs on the same filesystem. The runtime
+  falls back to the venv's `pip` when `uv` is not found.
+
+The venv provisioning is lazy — the first `up` creates it and installs
+mindor's own runtime requirements; subsequent runs reuse the same venv
+in seconds. The venv's `mindor.pth` points at the remote-installed
+mindor source, so there is no byte transfer from host to remote during
+setup. See [`remote-virtualenv/`](../../examples/runtime/remote-virtualenv)
+for the full example.
+
+### 16.7.4 Transport Configuration
+
+The `remote` block is a tagged union; `type` selects the transport:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `type` | yes | `ssh` or `tailscale` (see below) |
+| `host` | yes | Remote host name or IP |
+| `user` | optional | Login user; falls back to SSH client defaults |
+| `port` | optional | SSH port (default `22`) |
+| `key` | — | Path to the private key; take precedence over `password` |
+| `key_passphrase` | optional | Passphrase if the key is encrypted |
+| `password` | — | Password-based auth; use only when key auth is impractical |
+| `strict_host_key` | optional | Verify host key against `known_hosts` (default `true`) |
+| `known_hosts` | optional | Path to `known_hosts`; defaults to `~/.ssh/known_hosts` |
+| `connect_timeout` | optional | SSH handshake timeout, seconds (default `10`) |
+| `keepalive_interval` | optional | SSH keepalive, seconds (default `30`; `0` disables) |
+| `working_dir` | optional | Remote `cwd` before launching the worker |
+
+**Transport types:**
+
+- `type: ssh` — plain SSH. Exactly one of `key` or `password` is
+  required; SSH agent / default-key fallback is not supported yet.
+- `type: tailscale` — reserved. Current implementation falls through to
+  a plain SSH connection when the local `tailscaled` resolves the host.
+  An embedded `tsnet` node (joining the tailnet from inside the
+  controller) is not implemented yet.
+
+### 16.7.5 When Remote Runtimes Don't Fit
+
+Prefer other runtimes when:
+
+- The remote host is a cloud GPU you provision per request — use
+  `runpod`, which handles the pod lifecycle.
+- The workload needs a specific container image — use `docker` /
+  `apple-container`.
+- You cannot install `mindor` on the remote host — remote runtimes rely
+  on `import mindor` succeeding under the remote user's shell.
+- The round-trip latency across SSH is unacceptable for the component's
+  response-time budget — SSH connect + remote Python cold start adds
+  seconds to the first request.
+
+---
+
+## 16.8 Deployment Best Practices
 
 ### Environment-specific Deployment Strategies
 

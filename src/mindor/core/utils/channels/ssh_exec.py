@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional
-import asyncio, struct
+import asyncio, socket, struct
 
 if TYPE_CHECKING:
     import paramiko
@@ -66,11 +66,6 @@ class SshExecChannel:
         self._closed = True
 
         try:
-            self._channel.shutdown_write()
-        except Exception:
-            pass
-
-        try:
             self._channel.close()
         except Exception:
             pass
@@ -78,8 +73,22 @@ class SshExecChannel:
     async def _read_exactly(self, length: int) -> Optional[bytes]:
         buffer = bytearray()
 
+        # Poll the channel in short slices so an outer `asyncio` cancel (e.g.
+        # Ctrl+C → task cancellation) can land between slices. A naked
+        # `asyncio.to_thread(channel.recv, ...)` would park a worker thread
+        # inside paramiko's blocking read that no cancellation can unblock,
+        # which keeps the `ThreadPoolExecutor.shutdown` loop at process exit
+        # alive forever.
+        self._channel.settimeout(0.5)
+
         while len(buffer) < length:
-            chunk = await asyncio.to_thread(self._channel.recv, length - len(buffer))
+            if self._closed:
+                return None
+
+            try:
+                chunk = await asyncio.to_thread(self._channel.recv, length - len(buffer))
+            except socket.timeout:
+                continue
 
             if not chunk:
                 return None

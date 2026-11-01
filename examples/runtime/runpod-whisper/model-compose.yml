@@ -1,0 +1,61 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: RunPod Runtime (Whisper transcription)
+  description: |
+    Runs a Whisper speech-to-text model on a remote RunPod GPU pod. The pod
+    is created on the first request and stopped after `idle_timeout`;
+    subsequent requests resume the same pod in seconds.
+
+    Use this example to validate the RunPod runtime end-to-end before
+    moving to heavier models — Whisper is ~1.6 GB and runs comfortably
+    on a single RTX 4090.
+  job:
+    input: ${input}
+    output:
+      transcription: ${output as json}
+
+component:
+  id: whisper
+  type: model
+  task: speech-to-text
+  driver: huggingface
+  architecture: whisper
+  model: openai/whisper-large-v3-turbo
+  device: cuda
+  max_concurrent_count: 1
+  runtime:
+    type: runpod
+    # Required: your RunPod API key. Set RUNPOD_API_KEY in your .env or shell.
+    api_key: ${env.RUNPOD_API_KEY}
+
+    # Required: exact GPU catalog name. See
+    # https://docs.runpod.io/references/gpu-types for the full list.
+    gpu_type: NVIDIA GeForce RTX 4090
+    gpu_count: 1
+
+    # ALL searches both Community (cheaper) and Secure cloud for inventory.
+    # Change to COMMUNITY or SECURE to pin a specific tier.
+    cloud_type: ALL
+
+    # Pre-create a network volume in the RunPod dashboard and paste its ID.
+    # A 20 GB volume ($1.4/mo) is plenty for whisper-large-v3-turbo
+    # (~1.6 GB weights + pip cache). Model weights persist across stop/resume.
+    network_volume_id: ${env.RUNPOD_VOLUME_ID}
+
+    # Stop the pod 5 minutes after the last request. Billing resumes
+    # when the next request arrives (resume takes seconds, not minutes).
+    idle_timeout: 5m
+  action:
+    audio: ${input.audio as audio}
+    language: ${input.language}
+    task: ${input.task as select/transcribe,translate | transcribe}
+    return_timestamps: true
+    max_output_length: 444

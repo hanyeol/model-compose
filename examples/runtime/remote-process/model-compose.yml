@@ -1,0 +1,40 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Shell on a remote host over SSH
+  description: |
+    Runs the shell component inside a worker process on the remote host
+    reached over SSH. The worker is `python -m mindor.core.component.runtime.process`
+    launched by the controller; the shell command runs in the worker's
+    local shell on the remote machine, so `uname -a` reports the remote
+    host — not the controller.
+
+    Prerequisites on the remote host:
+    - A Python interpreter that can import `mindor` (install this project
+      on the remote side first, or point `working_dir` at a venv that
+      has it).
+    - SSH access via key authentication (set REMOTE_HOST / REMOTE_USER /
+      REMOTE_SSH_KEY in your `.env`).
+  job:
+    output:
+      uname: ${output.stdout as text}
+
+component:
+  type: shell
+  runtime:
+    type: process
+    remote:
+      type: ssh
+      host: ${env.REMOTE_HOST}
+      user: ${env.REMOTE_USER}
+      key: ${env.REMOTE_SSH_KEY}
+      working_dir: ${env.REMOTE_WORKING_DIR}
+  action:
+    command: [ "sh", "-c", "echo \"hello from $(hostname): $(uname -a)\"" ]

@@ -1,0 +1,43 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: Shell inside a remote venv over SSH
+  description: |
+    Runs the shell component inside a venv-isolated worker on the remote
+    host reached over SSH. The venv is created on the remote filesystem
+    at ``<REMOTE_WORKING_DIR>/.runtime/components/__component__/venv`` and
+    a ``mindor.pth`` file is placed in its site-packages pointing at the
+    remote host's installed copy of ``mindor`` — nothing is uploaded from
+    the controller.
+
+    Prerequisites on the remote host:
+    - A Python interpreter visible under the user's interactive shell that
+      can ``import mindor`` (install this project on the remote side
+      first). The runtime resolves it via `sys.executable`.
+    - SSH access via key authentication (set REMOTE_HOST / REMOTE_USER /
+      REMOTE_SSH_KEY in your `.env`).
+    - ``python -m venv`` available (standard library module).
+  job:
+    input: ${input}
+    output:
+      uname: ${output.stdout as text}
+
+component:
+  type: shell
+  runtime:
+    type: virtualenv
+    remote:
+      type: ssh
+      host: ${env.REMOTE_HOST}
+      user: ${env.REMOTE_USER}
+      key: ${env.REMOTE_SSH_KEY}
+      working_dir: ${env.REMOTE_WORKING_DIR}
+  action:
+    command: [ "sh", "-c", "echo \"hello from $(hostname): $(uname -a) via $(python -c 'import sys; print(sys.executable)')\"" ]

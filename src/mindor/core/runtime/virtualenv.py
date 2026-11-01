@@ -13,7 +13,7 @@ from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from mindor.core.utils.locks import FileLock
 from .common import CommonRuntime
 from pathlib import Path
-import asyncio, os, shlex, shutil, subprocess, venv
+import asyncio, os, posixpath, shlex, shutil, subprocess, venv
 
 # Host env vars excluded from the worker subprocess to preserve venv isolation.
 # LD_LIBRARY_PATH/LD_PRELOAD/CUDA_* let the host's system CUDA shadow the venv's
@@ -404,7 +404,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
             working_dir=self._transport.working_dir,
         )
         self._venv_path = self._resolve_venv_path()
-        self._mindor_source_path = await self._transport.resolve_mindor_source(
+        self._mindor_source_path = await self._transport.resolve_mindor_source_path(
             self._executable,
             working_dir=self._transport.working_dir,
         )
@@ -439,20 +439,23 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         mindor`` resolves to on the remote user's shell is what the venv
         picks up, so there is no byte transfer from host to remote.
         """
-        site_packages = await self._transport.resolve_site_packages(
+        site_packages = await self._transport.resolve_site_packages_path(
             self._venv_path + "/bin/python",
             working_dir=self._transport.working_dir,
         )
         pth_path = site_packages + "/mindor.pth"
+        # ``.pth`` entries go on sys.path, so write the parent of the mindor
+        # package (``.../src``) rather than the package directory itself.
+        pth_entry = posixpath.dirname(self._mindor_source_path)
 
         # heredoc avoids any quoting pitfalls with paths that contain spaces.
         command = (
             f"cat > {shlex.quote(pth_path)} <<'MINDOR_PTH_EOF'\n"
-            f"{self._mindor_source_path}\n"
+            f"{pth_entry}\n"
             f"MINDOR_PTH_EOF"
         )
 
-        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, self._mindor_source_path)
+        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, pth_entry)
 
         await self._run_remote_command(command)
 

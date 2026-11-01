@@ -126,7 +126,7 @@ class SshRuntimeTransport:
             timeout=timeout
         )
 
-    async def resolve_site_packages(
+    async def resolve_site_packages_path(
         self,
         executable: str,
         working_dir: Optional[str] = None,
@@ -146,25 +146,23 @@ class SshRuntimeTransport:
             timeout=timeout,
         )
 
-    async def resolve_mindor_source(
+    async def resolve_mindor_source_path(
         self,
         executable: str,
         working_dir: Optional[str] = None,
         timeout: float = 10.0,
     ) -> str:
-        """Return the directory to add to ``sys.path`` so ``import mindor``
-        resolves to the remote host's installed copy.
+        """Return the ``mindor`` package directory on the remote
+        (``.../src/mindor``).
 
         Pass the ``executable`` returned by `resolve_executable`
         so the two probes agree on the same binary (and the shell init
-        runs once rather than twice). For a conventional
-        ``src/mindor/__init__.py`` layout this returns the parent of the
-        ``mindor`` package directory, which is exactly what goes into a
-        ``mindor.pth`` file.
+        runs once rather than twice). Take the ``.parent`` of the result
+        to get what goes into a ``mindor.pth`` file.
         """
         return await self._evaluate_expression(
             executable,
-            "__import__('pathlib').Path(__import__('mindor').__file__).parent.parent",
+            "__import__('pathlib').Path(__import__('mindor').__file__).parent",
             working_dir=working_dir,
             timeout=timeout,
         )

@@ -23,6 +23,7 @@ from mindor.core.errors import ShutdownError
 from mindor.core.logger import logging
 from ..base import ControllerAdapterService, register_controller_adapter
 from .websocket_server import WebSocketServer
+from fastapi import Request
 from pathlib import Path
 
 if TYPE_CHECKING:

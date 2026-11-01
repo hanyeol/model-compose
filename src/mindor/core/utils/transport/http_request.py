@@ -15,7 +15,7 @@ _TOKEN_PATTERN = r"([\w!#$%&'*+\-.^_`|~]+)"
 _QUOTED_PATTERN = r'"([^"]*)"'
 _OPTION_REGEX = re.compile(fr";\s*{_TOKEN_PATTERN}=(?:{_TOKEN_PATTERN}|{_QUOTED_PATTERN})", re.ASCII)
 _FIREFOX_ESCAPE_FIX_REGEX = re.compile(r'\\"(?!; |\s*$)')
-_NESTED_KEY_REGEX = re.compile(r"\w+\[\]|\w+|\[\w+\]")
+_NESTED_KEY_REGEX = re.compile(r"\w+\[\]|\w+|\[\w+\]\[\]|\[\w+\]")
 
 class NestedFormParser:
     def parse(self, form: FormData) -> dict:
@@ -39,12 +39,20 @@ class NestedFormParser:
         return data
 
     def _parse_key_path(self, key: str) -> List[str]:
-        parts: List[str] = _NESTED_KEY_REGEX.findall(key)
+        keys: List[str] = []
 
-        if parts:
-            return [ part.strip("[]") if part.startswith("[") and part.endswith("]") else part for part in parts ]
+        for part in _NESTED_KEY_REGEX.findall(key):
+            if not part.startswith("["):
+                keys.append(part)
+                continue
+            
+            if part.endswith("][]"):
+                keys.append(part[1:-3] + "[]")
+                continue
+            
+            keys.append(part[1:-1])
 
-        return parts
+        return keys
 
 def build_request_body(body: Any, content_type: Optional[str]) -> Any:
     if content_type == "application/json":

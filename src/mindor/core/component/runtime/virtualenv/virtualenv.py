@@ -5,12 +5,10 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import ComponentRuntimeManager, ComponentRuntimeProxy
-from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.virtualenv import LocalVirtualEnvRuntime, RemoteVirtualEnvRuntime
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
-from pathlib import Path
 from .local import ComponentLocalVirtualEnvRuntimeProxy
 from .remote import ComponentRemoteVirtualEnvRuntimeProxy
 import os
@@ -100,14 +98,10 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
             config=self._runtime_config,
         )
 
-        mindor_root_path = mindor_package.get_root_path()
-        runtime_requirements_path = mindor_package.get_requirements_path()
-        user_requirements_path = (Path.cwd() / "requirements.txt").resolve()
-
         async with self._runtime.bootstrap_lock():
             await self._runtime.create_venv()
-            await self._runtime.install_mindor_source(mindor_root_path)
-            await self._runtime.install_requirements([ runtime_requirements_path, user_requirements_path ])
+            await self._runtime.install_mindor_source()
+            await self._runtime.install_requirements()
 
     async def _setup_remote(self) -> None:
         self._runtime = RemoteVirtualEnvRuntime(
@@ -120,9 +114,7 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         await self._runtime.connect()
         await self._runtime.create_venv()
         await self._runtime.install_mindor_source()
-        # Requirements paths are relative to the remote working_dir; missing
-        # files are skipped silently by the runtime.
-        await self._runtime.install_requirements([ "requirements.txt" ])
+        await self._runtime.install_requirements()
 
     async def _launch_local(self) -> SubprocessPipeChannel:
         # Create the pipe pair before spawning so we can hand the child its fds.

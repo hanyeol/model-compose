@@ -58,7 +58,16 @@ class LocalVirtualEnvRuntime(CommonRuntime):
         self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
 
         self._venv_path: Path = self._resolve_venv_path()
+        self._mindor_source_path: Path = mindor_package.get_root_path()
         self._subprocess: Optional[subprocess.Popen] = None
+
+    @property
+    def is_alive(self) -> bool:
+        return self._subprocess is not None and self._subprocess.poll() is None
+
+    @property
+    def subprocess(self) -> Optional[subprocess.Popen]:
+        return self._subprocess
 
     @asynccontextmanager
     async def bootstrap_lock(self):
@@ -114,7 +123,7 @@ class LocalVirtualEnvRuntime(CommonRuntime):
 
         await asyncio.get_event_loop().run_in_executor(None, _create_venv)
 
-    async def install_mindor_source(self, mindor_root_path: Path) -> None:
+    async def install_mindor_source(self) -> None:
         """Mirror the host ``mindor`` package into the venv's site-packages."""
         def _install_mindor_source() -> None:
             site_packages = self._venv_site_packages()
@@ -127,7 +136,7 @@ class LocalVirtualEnvRuntime(CommonRuntime):
                 if venv_mindor_path.exists():
                     shutil.rmtree(venv_mindor_path)
 
-                venv_pth_path.write_text(f"{mindor_root_path.parent}\n")
+                venv_pth_path.write_text(f"{self._mindor_source_path.parent}\n")
 
                 return
 
@@ -147,7 +156,7 @@ class LocalVirtualEnvRuntime(CommonRuntime):
                 # is atomic) and auto-cleans the temp dir on exit, even if the
                 # replace raises.
                 with archive_to_directory(
-                    dirs={"mindor": mindor_root_path},
+                    dirs={"mindor": self._mindor_source_path},
                     filter=skip_python_artifacts,
                     root=site_packages,
                 ) as staging_root:
@@ -157,9 +166,11 @@ class LocalVirtualEnvRuntime(CommonRuntime):
 
         await asyncio.get_event_loop().run_in_executor(None, _install_mindor_source)
 
-    async def install_requirements(self, requirements: Iterable[Path]) -> None:
-        """Pip install each ``-r <path>`` listed; missing paths are skipped."""
-        requirements = list(requirements)
+    async def install_requirements(self, extra_requirements: Iterable[Path] = ()) -> None:
+        """Pip install mindor's own runtime requirements plus any
+        ``extra_requirements`` provided by the caller. Missing files are
+        skipped silently."""
+        requirements = [ mindor_package.get_requirements_path(), *extra_requirements ]
 
         def _install_requirements() -> None:
             # Prefer uv when available: `--link-mode=hardlink` shares wheel
@@ -215,14 +226,6 @@ class LocalVirtualEnvRuntime(CommonRuntime):
                     self._subprocess.kill()
 
             self._subprocess = None
-
-    @property
-    def is_alive(self) -> bool:
-        return self._subprocess is not None and self._subprocess.poll() is None
-
-    @property
-    def subprocess(self) -> Optional[subprocess.Popen]:
-        return self._subprocess
 
     def _resolve_pyenv_python(self, version: str) -> Path:
         try:
@@ -386,16 +389,25 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
         self._transport: SshRuntimeTransport = SshRuntimeTransport(remote_config)
         self._channel: Optional[SshExecChannel] = None
-        self._remote_executable: Optional[str] = None
-        self._remote_venv_path: Optional[str] = None
+        self._executable: Optional[str] = None
+        self._venv_path: Optional[str] = None
+        self._mindor_source_path: Optional[str] = None
+
+    @property
+    def channel(self) -> Optional[SshExecChannel]:
+        return self._channel
 
     async def connect(self) -> None:
         await self._transport.connect()
 
-        self._remote_executable = await self._transport.resolve_executable(
+        self._executable = await self._transport.resolve_executable(
             working_dir=self._transport.working_dir,
         )
-        self._remote_venv_path = self._resolve_remote_venv_path()
+        self._venv_path = self._resolve_venv_path()
+        self._mindor_source_path = await self._transport.resolve_mindor_source(
+            self._executable,
+            working_dir=self._transport.working_dir,
+        )
 
     async def create_venv(self) -> None:
         """Run ``<executable> -m venv <path>`` on the remote host (idempotent).
@@ -410,28 +422,25 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
             )
 
         command = (
-            f"test -x {shlex.quote(self._remote_venv_path + '/bin/python')} || "
-            f"{shlex.quote(self._remote_executable)} -m venv {shlex.quote(self._remote_venv_path)}"
+            f"test -x {shlex.quote(self._venv_path + '/bin/python')} || "
+            f"{shlex.quote(self._executable)} -m venv {shlex.quote(self._venv_path)}"
         )
 
-        logging.info("virtualenv: creating remote venv at %s:%s...", self._transport.host, self._remote_venv_path)
+        logging.info("virtualenv: creating remote venv at %s:%s...", self._transport.host, self._venv_path)
 
         await self._run_remote_command(command)
 
     async def install_mindor_source(self) -> None:
         """Write a ``mindor.pth`` file into the remote venv's site-packages
-        pointing at the directory that owns the remote mindor installation.
+        pointing at the ``mindor`` package directory resolved during
+        `connect()`.
 
         This is the editable-install path on the remote: whatever ``import
         mindor`` resolves to on the remote user's shell is what the venv
         picks up, so there is no byte transfer from host to remote.
         """
-        source_dir = await self._transport.resolve_mindor_source(
-            self._remote_executable,
-            working_dir=self._transport.working_dir,
-        )
         site_packages = await self._transport.resolve_site_packages(
-            self._remote_venv_path + "/bin/python",
+            self._venv_path + "/bin/python",
             working_dir=self._transport.working_dir,
         )
         pth_path = site_packages + "/mindor.pth"
@@ -439,21 +448,23 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         # heredoc avoids any quoting pitfalls with paths that contain spaces.
         command = (
             f"cat > {shlex.quote(pth_path)} <<'MINDOR_PTH_EOF'\n"
-            f"{source_dir}\n"
+            f"{self._mindor_source_path}\n"
             f"MINDOR_PTH_EOF"
         )
 
-        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, source_dir)
+        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, self._mindor_source_path)
 
         await self._run_remote_command(command)
 
-    async def install_requirements(self, requirements: Iterable[str]) -> None:
-        """Pip install each remote requirements file. Each path is expected
-        to be an *absolute path on the remote host*; missing files are
-        skipped silently so the manager can pass a list of possible-but-not-
-        guaranteed paths (e.g. the project's ``requirements.txt``)."""
-        venv_python = self._remote_venv_path + "/bin/python"
-        venv_pip = self._remote_venv_path + "/bin/pip"
+    async def install_requirements(self, extra_requirements: Iterable[str] = ()) -> None:
+        """Pip install mindor's own runtime requirements (shipped alongside
+        the remote source tree) plus any ``extra_requirements`` provided by
+        the caller. Each extra path is an absolute path on the remote or a
+        path relative to the SSH working_dir; missing files are skipped."""
+        venv_python = self._venv_path + "/bin/python"
+        venv_pip = self._venv_path + "/bin/pip"
+        requirements = [ self._mindor_requirements_path(), *extra_requirements ]
+
         commands: List[str] = [
             # Prefer uv on the remote too: --link-mode=hardlink reuses wheels
             # across venvs on the same filesystem, matching the local path.
@@ -471,16 +482,13 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
                 f"fi"
             )
 
-        if len(commands) == 1:
-            return
-
         logging.info("virtualenv: installing remote requirements on %s...", self._transport.host)
 
         await self._run_remote_command(" && ".join(commands))
 
     async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
         """Launch the worker via the venv's python over an SSH exec channel."""
-        venv_python = self._remote_venv_path + "/bin/python"
+        venv_python = self._venv_path + "/bin/python"
         commands: List[str] = []
 
         if self._transport.working_dir:
@@ -509,11 +517,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
         await self._transport.close()
 
-    @property
-    def channel(self) -> Optional[SshExecChannel]:
-        return self._channel
-
-    def _resolve_remote_venv_path(self) -> str:
+    def _resolve_venv_path(self) -> str:
         """Resolve the remote-side venv directory, mirroring the local
         default (``{cwd}/.runtime/components/{worker_id}/venv``) but anchored
         at the SSH transport's ``working_dir``."""
@@ -526,6 +530,9 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
             return f"{working_dir.rstrip('/')}/.runtime/components/{self.worker_id}/venv"
 
         return f".runtime/components/{self.worker_id}/venv"
+
+    def _mindor_requirements_path(self) -> str:
+        return self._mindor_source_path + "/core/runtime/bootstrap/requirements.txt"
 
     async def _run_remote_command(self, command: str) -> None:
         """Run ``command`` on the remote host via a one-shot exec channel

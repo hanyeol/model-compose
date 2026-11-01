@@ -102,10 +102,11 @@ Without the matching `scheduler.options`, the pipeline's default `FlowMatchEuler
      -d '{"input": {"prompt": "A snow leopard resting on a moss-covered rock, cinematic light", "seed": 42}}' \
      -o output.png
 
-   # Image-conditioned generation — pass one or more input images for instruction-based editing
+   # Image-conditioned generation — pass an input image for instruction-based editing
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/input.png" \
-     -F 'input={"prompt": "Same subject in a snowy forest at dusk, cinematic light", "image": "@ref"}' \
+     -F "output_only=true" \
+     -F "input[prompt]=Same subject in a snowy forest at dusk, cinematic light" \
+     -F "input[image]=@/path/to/input.png" \
      -o output.png
    ```
 

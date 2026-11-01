@@ -102,10 +102,11 @@ Sigmas (두 v0.2 변형 공통): `[1.0, 0.925, 0.85, 0.625, 0.375, 0.125]`
      -d '{"input": {"prompt": "이끼로 덮인 바위 위에서 쉬고 있는 눈표범, 시네마틱 조명", "seed": 42}}' \
      -o output.png
 
-   # 이미지 조건 생성 — 편집 지시 대상이 될 입력 이미지를 한 장 또는 여러 장 전달
+   # 이미지 조건 생성 — 편집 지시 대상이 될 입력 이미지를 전달
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/input.png" \
-     -F 'input={"prompt": "같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명", "image": "@ref"}' \
+     -F "output_only=true" \
+     -F "input[prompt]=같은 피사체를 눈 덮인 숲 황혼에 배치, 시네마틱 조명" \
+     -F "input[image]=@/path/to/input.png" \
      -o output.png
    ```
 

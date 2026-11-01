@@ -102,10 +102,11 @@ Sigmas（两个 v0.2 变体通用）: `[1.0, 0.925, 0.85, 0.625, 0.375, 0.125]`
      -d '{"input": {"prompt": "一只雪豹在长满青苔的岩石上休憩，电影感光线", "seed": 42}}' \
      -o output.png
 
-   # 图像条件生成 — 传入一张或多张输入图像作为指令编辑的对象
+   # 图像条件生成 — 传入一张输入图像作为指令编辑的对象
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F "ref=@/path/to/input.png" \
-     -F 'input={"prompt": "同一主体置于黄昏雪林中，电影感光线", "image": "@ref"}' \
+     -F "output_only=true" \
+     -F "input[prompt]=同一主体置于黄昏雪林中，电影感光线" \
+     -F "input[image]=@/path/to/input.png" \
      -o output.png
    ```
 

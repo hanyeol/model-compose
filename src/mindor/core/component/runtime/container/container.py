@@ -18,11 +18,13 @@ class ComponentContainerSpec:
     def standard_image_tag() -> str:
         return f"mindor/component:{__version__}"
 
-    def derived_image_tag(self, worker_id: str) -> str:
-        return f"mindor/component-{self.project_name(worker_id)}:{__version__}"
+    @staticmethod
+    def derived_image_tag(worker_id: str) -> str:
+        return f"mindor/component-{ComponentContainerSpec.project_name(worker_id)}:{__version__}"
 
-    def custom_image_tag(self, worker_id: str) -> str:
-        return f"mindor/component-{self.project_name(worker_id)}:latest"
+    @staticmethod
+    def custom_image_tag(worker_id: str) -> str:
+        return f"mindor/component-{ComponentContainerSpec.project_name(worker_id)}:latest"
 
     @staticmethod
     def default_container_name(worker_id: str) -> str:

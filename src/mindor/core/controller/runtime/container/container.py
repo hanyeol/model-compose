@@ -18,14 +18,17 @@ class ControllerContainerSpec:
     def standard_image_tag() -> str:
         return f"mindor/controller:{__version__}"
 
-    def derived_image_tag(self, controller_name: Optional[str]) -> str:
-        return f"mindor/controller-{self.project_name(controller_name)}:{__version__}"
+    @staticmethod
+    def derived_image_tag(controller_name: Optional[str]) -> str:
+        return f"mindor/controller-{ControllerContainerSpec.project_name(controller_name)}:{__version__}"
 
-    def custom_image_tag(self, controller_name: Optional[str]) -> str:
-        return f"mindor/controller-{self.project_name(controller_name)}:latest"
+    @staticmethod
+    def custom_image_tag(controller_name: Optional[str]) -> str:
+        return f"mindor/controller-{ControllerContainerSpec.project_name(controller_name)}:latest"
 
-    def default_container_name(self, controller_name: Optional[str]) -> str:
-        return f"mindor-controller-{self.project_name(controller_name)}"
+    @staticmethod
+    def default_container_name(controller_name: Optional[str]) -> str:
+        return f"mindor-controller-{ControllerContainerSpec.project_name(controller_name)}"
 
     @staticmethod
     def standard_image_command() -> List[str]:

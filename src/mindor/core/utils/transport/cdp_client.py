@@ -19,9 +19,10 @@ class CdpClient:
       - Events are dispatched via a background reader task.
       - close() cancels the reader and closes the WebSocket.
     """
-    def __init__(self, ws_url: str, timeout: float = 30.0):
-        self.ws_url: str = ws_url
+    def __init__(self, websocket_url: str, timeout: float = 30.0):
+        self.websocket_url: str = websocket_url
         self.timeout: float = timeout
+
         self._websocket: Optional[WebSocketConnection] = None
         self._id_counter = itertools.count(1)
         self._pending: Dict[int, asyncio.Future] = {}
@@ -36,23 +37,27 @@ class CdpClient:
 
         while time.monotonic() < deadline:
             try:
-                self._websocket, _ = await WebSocketClient(self.ws_url).connect()
+                self._websocket, _ = await WebSocketClient(self.websocket_url).connect()
                 self._reader_task = asyncio.create_task(self._reader_loop())
+
                 return
             except (OSError, ConnectionError) as e:
                 last_error = e
                 await asyncio.sleep(1)
 
-        raise ConnectionError(f"Could not connect to {self.ws_url} within {self.timeout}s: {last_error}")
+        raise ConnectionError(f"Could not connect to {self.websocket_url} within {self.timeout}s: {last_error}")
 
     async def close(self) -> None:
         if self._reader_task:
             self._reader_task.cancel()
+
             try:
                 await self._reader_task
             except asyncio.CancelledError:
                 pass
+
             self._reader_task = None
+
         if self._websocket:
             await self._websocket.close()
             self._websocket = None
@@ -77,6 +82,7 @@ class CdpClient:
 
     def remove_event_listener(self, method: str, callback: Callable) -> None:
         listeners = self._event_listeners.get(method, [])
+
         if callback in listeners:
             listeners.remove(callback)
 
@@ -84,8 +90,10 @@ class CdpClient:
         try:
             while True:
                 message = await self._websocket.receive_message()
+
                 if "id" in message:
                     future = self._pending.pop(message["id"], None)
+
                     if future and not future.done():
                         if "error" in message:
                             future.set_exception(
@@ -94,8 +102,8 @@ class CdpClient:
                         else:
                             future.set_result(message.get("result", {}))
                 elif "method" in message:
-                    for cb in self._event_listeners.get(message["method"], []):
-                        asyncio.create_task(cb(message.get("params", {})))
+                    for callback in self._event_listeners.get(message["method"], []):
+                        asyncio.create_task(callback(message.get("params", {})))
         except asyncio.CancelledError:
             pass
         except Exception:
@@ -107,10 +115,11 @@ class CdpClient:
             self._pending.clear()
 
     @classmethod
-    async def from_url(cls, ws_url: str, timeout: float = 30.0) -> CdpClient:
+    async def from_url(cls, websocket_url: str, timeout: float = 30.0) -> CdpClient:
         """Create a connected CdpClient from an explicit WebSocket URL."""
-        instance = cls(ws_url, timeout=timeout)
+        instance = cls(websocket_url, timeout=timeout)
         await instance.connect()
+    
         return instance
 
     @classmethod
@@ -131,6 +140,7 @@ class CdpClient:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(f"{url}/json") as response:
                         targets = await response.json(content_type=None)
+
                 break
             except (aiohttp.ClientError, OSError) as e:
                 last_error = e
@@ -177,9 +187,9 @@ class CdpClient:
                 target = await response.json(content_type=None)
 
         target_id = target["id"]
-        ws_url = target["webSocketDebuggerUrl"]
+        websocket_url = target["webSocketDebuggerUrl"]
 
-        instance = cls(ws_url, timeout=timeout)
+        instance = cls(websocket_url, timeout=timeout)
         await instance.connect()
 
         return instance, target_id

@@ -42,7 +42,7 @@ class RunPodRuntime(CommonRuntime):
         return self._pod_id
 
     @property
-    def proxy_ws_url(self) -> str:
+    def proxy_websocket_url(self) -> str:
         return f"wss://{self._pod_id}-{self.config.worker_port}.proxy.runpod.net"
 
     @property

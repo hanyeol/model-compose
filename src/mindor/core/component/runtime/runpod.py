@@ -253,7 +253,7 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         want a cheap "is worker already up?" probe pass a small ``timeout``."""
         budget = timeout if timeout is not None else self._start_timeout
         transport = IpcWebsocketTransport(
-            url=self._runtime.proxy_ws_url,
+            url=self._runtime.proxy_websocket_url,
             auth_token=self._auth_token,
             connect_timeout=min(60.0, budget),
         )

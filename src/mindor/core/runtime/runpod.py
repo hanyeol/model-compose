@@ -10,7 +10,7 @@ from .common import CommonRuntime
 class RunPodRuntime(CommonRuntime):
     """Lifecycle wrapper around a single RunPod GPU pod.
 
-    Mirrors the shape of ``VirtualEnvRuntime`` / ``ProcessRuntime`` /
+    Mirrors the shape of ``VirtualEnvRuntime`` / ``LocalProcessRuntime`` /
     ``DockerContainer``: the instance owns one pod and exposes
     ``create`` / ``start`` / ``stop`` / ``remove`` for its lifecycle.
     Knows nothing about IPC — callers that talk to a worker inside the pod

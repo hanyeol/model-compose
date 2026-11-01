@@ -1,9 +1,13 @@
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import Any, Callable, Dict, List, Optional
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.runtime.transport.ssh import SshRuntimeTransport, SshBasedRemoteTransportConfig
+from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from .common import CommonRuntime
 from multiprocessing import Process
-import asyncio, multiprocessing, os
+import asyncio, multiprocessing, os, shlex
 
 # Use `spawn` explicitly. Linux defaults to `fork`, which duplicates the entire
 # parent state (open fds, threads, partially-initialized CUDA / asyncio loops,
@@ -12,16 +16,16 @@ import asyncio, multiprocessing, os
 # only receives what we pass through pickled args.
 _SPAWN_CONTEXT = multiprocessing.get_context("spawn")
 
-class ProcessRuntime(CommonRuntime):
+class LocalProcessRuntime(CommonRuntime):
     """Generic lifecycle wrapper around a `multiprocessing.Process`.
 
     Pure lifecycle — knows nothing about IPC protocols, codecs, or channels.
-    Callers provide `target` and `args` (commonly used to pass `Queue` handles
-    captured at construction time on the parent side) and decide how to
-    communicate with the child.
+    Callers provide an `entrypoint` callable and `args` (commonly used to
+    pass `Queue` handles captured at construction time on the parent side)
+    and decide how to communicate with the child.
 
     Typical flow:
-        runtime = ProcessRuntime(target=_child_main, args=(queue_in, queue_out), config=config)
+        runtime = LocalProcessRuntime(entrypoint=_child_main, args=(queue_in, queue_out), config=config)
         await runtime.start()
         ...
         await runtime.stop()
@@ -30,14 +34,14 @@ class ProcessRuntime(CommonRuntime):
 
     def __init__(
         self,
-        target: Callable[..., Any],
+        entrypoint: Callable[..., Any],
         args: tuple,
         config: ProcessRuntimeConfig,
         verbose: bool = False,
     ):
         super().__init__(config, verbose)
 
-        self.target = target
+        self.entrypoint = entrypoint
         self.args = args
 
         self._subprocess: Optional[Process] = None
@@ -48,7 +52,7 @@ class ProcessRuntime(CommonRuntime):
                 os.environ[key] = value
 
         self._subprocess = _SPAWN_CONTEXT.Process(
-            target=self.target,
+            target=self.entrypoint,
             args=self.args,
             daemon=False,
         )
@@ -80,3 +84,85 @@ class ProcessRuntime(CommonRuntime):
     @property
     def subprocess(self) -> Optional[Process]:
         return self._subprocess
+
+class RemoteProcessRuntime(CommonRuntime):
+    """Lifecycle wrapper around a worker process running on a remote host.
+
+    Mirrors ``LocalProcessRuntime`` for the ``config.remote`` case: owns a
+    single SSH transport and one exec channel that carries the IPC stream.
+    The worker binary / Python environment on the remote side is assumed to
+    already be provisioned by the user — this runtime only launches a command
+    and wires stdin/stdout to the channel.
+
+    Typical flow:
+        runtime = RemoteProcessRuntime(remote_config, worker_module, config=config)
+        channel = await runtime.start(env=...)
+        ...
+        await runtime.stop()
+    """
+    config: ProcessRuntimeConfig
+
+    def __init__(
+        self,
+        remote_config: SshBasedRemoteTransportConfig,
+        worker_module: str,
+        config: ProcessRuntimeConfig,
+        verbose: bool = False,
+    ):
+        super().__init__(config, verbose)
+
+        self.worker_module = worker_module
+
+        self._transport: SshRuntimeTransport = SshRuntimeTransport(remote_config)
+        self._channel: Optional[SshExecChannel] = None
+
+    async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
+        await self._transport.connect()
+
+        # Resolve the remote python interpreter through an interactive shell
+        # so pyenv / venv activation / user profile scripts have a chance to
+        # run. The returned path is the real binary (not a shim), so the
+        # non-interactive exec channel below can invoke it directly.
+        python = await self._transport.resolve_python_executable(
+            working_dir=self._transport.working_dir,
+        )
+
+        command = self._build_remote_command(python, env)
+        self._channel = await self._transport.open_exec_channel(command)
+
+        return self._channel
+
+    async def stop(self) -> None:
+        if self._channel is not None:
+            try:
+                self._channel.close()
+            except Exception:
+                pass
+
+            self._channel = None
+
+        await self._transport.close()
+
+    @property
+    def channel(self) -> Optional[SshExecChannel]:
+        return self._channel
+
+    def _build_remote_command(self, python: str, env: Optional[Dict[str, str]]) -> str:
+        # OpenSSH servers often reject SetEnv for anything not whitelisted in
+        # sshd_config, so prefix VAR=value inline. `cd` honors working_dir when
+        # set by the transport. `exec` replaces the shell so signals reach the
+        # Python worker directly.
+        parts: List[str] = []
+
+        if self._transport.working_dir:
+            parts.append(f"cd {shlex.quote(self._transport.working_dir)} &&")
+
+        env = { **(self.config.env or {}), **(env or {}) }
+
+        for name, value in env.items():
+            parts.append(f"{name}={shlex.quote(str(value))}")
+
+        parts.append(f"exec {shlex.quote(python)} -m")
+        parts.append(shlex.quote(self.worker_module))
+
+        return " ".join(parts)

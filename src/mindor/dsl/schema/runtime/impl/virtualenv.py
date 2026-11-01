@@ -1,6 +1,7 @@
 from typing import Union, Literal, Optional, Dict
 from enum import Enum
 from pydantic import Field, model_validator
+from mindor.dsl.schema.runtime.remote import RemoteTransportConfig
 from .common import RuntimeType, CommonRuntimeConfig
 
 class VirtualEnvDriver(str, Enum):
@@ -10,6 +11,7 @@ class VirtualEnvDriver(str, Enum):
 class VirtualEnvRuntimeConfig(CommonRuntimeConfig):
     """VirtualEnv runtime configuration for running components inside an isolated Python venv"""
     type: Literal[RuntimeType.VIRTUALENV]
+    remote: Optional[RemoteTransportConfig] = Field(default=None, description="Remote host configuration; when set, the venv lives on that host and is driven over the chosen transport.")
     driver: VirtualEnvDriver = Field(default=VirtualEnvDriver.PYTHON, description="Backend implementation used to create the virtualenv.")
     path: Optional[str] = Field(default=None, description="Filesystem path to the virtualenv directory, relative to the working directory.")
     python: Optional[str] = Field(default=None, description="Python version installed into the virtualenv (pyenv driver only, e.g., '3.12.0').")

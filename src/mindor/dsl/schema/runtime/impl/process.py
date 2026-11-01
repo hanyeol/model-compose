@@ -1,10 +1,12 @@
 from typing import Union, Literal, Optional, Dict
 from pydantic import Field
+from mindor.dsl.schema.runtime.remote import RemoteTransportConfig
 from .common import RuntimeType, CommonRuntimeConfig
 
 class ProcessRuntimeConfig(CommonRuntimeConfig):
     """Process runtime configuration for running components in separate processes"""
     type: Literal[RuntimeType.PROCESS]
+    remote: Optional[RemoteTransportConfig] = Field(default=None, description="Remote host configuration; when set, the worker runs on that host over the chosen transport.")
     working_dir: Optional[str] = Field(None, description="Working directory in which the worker process is launched.")
     env: Dict[str, str] = Field(default_factory=dict, description="Environment variables passed to the worker process.")
     max_memory: Optional[str] = Field(None, description="Maximum memory the worker process may use (e.g., '512m', '2g').")

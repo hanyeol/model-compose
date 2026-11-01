@@ -43,6 +43,7 @@ class SubprocessPipeChannel:
             return None
 
         prefix = self._read_exactly(_FRAME_PREFIX_SIZE)
+
         if prefix is None:
             return None
 

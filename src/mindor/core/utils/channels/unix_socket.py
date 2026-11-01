@@ -21,13 +21,6 @@ class UnixSocketChannel:
         self._writer = sock.makefile("wb", buffering=0)
         self._closed = False
 
-    @classmethod
-    def connect(cls, path: str) -> "UnixSocketChannel":
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(path)
-
-        return cls(sock)
-
     def send(self, message: bytes) -> None:
         if self._closed:
             raise RuntimeError("UnixSocketChannel is closed")

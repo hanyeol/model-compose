@@ -17,10 +17,10 @@ class RequirementManager(ABC):
         return specs
 
     async def setup(self) -> None:
-        dependencies = self._get_setup_requirements()
+        requirements = self._get_setup_requirements()
 
-        if dependencies:
-            await self._install_packages(dependencies)
+        if requirements:
+            await self._install_packages(requirements)
 
         await self._setup()
 

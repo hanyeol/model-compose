@@ -5,7 +5,7 @@ from typing import Type, Dict, Any
 from abc import abstractmethod
 from mindor.dsl.schema.component import WebBrowserComponentConfig, WebBrowserDriverType
 from mindor.dsl.schema.action import ActionConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
 from ...context import ComponentActionContext

@@ -1,10 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.resources import StreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 from ..streaming.text import TextStreamResource, load_text_from_stream, load_text_from_iterator
 from ..streaming.json import encode_value_to_json
-TextValue = str
+
+if TYPE_CHECKING:
+    TextValue = str
 
 class TextArrayValue:
     """A materialized or streaming array of texts.
@@ -176,11 +181,11 @@ class TextValueRenderer:
         list whose first item is itself an element array or a fragmented
         stream.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element_array(self, value: Any) -> bool:
         """True when ``value`` is a batch of text refs — a list/tuple of

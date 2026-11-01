@@ -5,7 +5,7 @@ from mindor.dsl.schema.controller.webui import ControllerWebUIConfig, Controller
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.core.workflow.schema import WorkflowSchema, create_workflow_schemas
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from .driver import WebUIDriver
 
 WebUIInstance: Optional[ControllerWebUI] = None
@@ -28,10 +28,12 @@ class ControllerWebUI(AsyncService):
         self.driver: Optional[WebUIDriver] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        if self.config.driver == ControllerWebUIDriverType.GRADIO:
-            return [ "gradio>=6.26.0" ]
+        requirements: List[Union[str, Tuple[str, List[str]]]] = [ "fastapi", "uvicorn" ]
 
-        return None
+        if self.config.driver == ControllerWebUIDriverType.GRADIO:
+            requirements.append("gradio>=6.26.0")
+
+        return requirements
 
     async def _setup(self) -> None:
         self._configure_driver()

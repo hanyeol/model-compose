@@ -7,10 +7,8 @@ from pydantic import BaseModel
 from ..streaming.resources import StreamResource
 from ..streaming.iterators import StreamIterator, StreamEncodingIterator, StreamEncodingFormat
 from ..streaming.image import ImageStreamResource
-from ..streaming.file import UploadFileStreamResource
+from ..streaming.file import UploadFileStreamResource, is_upload_file
 from .atomic import AtomicDict, AtomicList
-from PIL import Image as PILImage
-from starlette.datastructures import UploadFile
 import base64, importlib, sys, ulid
 
 class StreamKind(str, Enum):
@@ -65,6 +63,8 @@ class VariableCodec:
         return self._decode_value(value, on_stream_decode)
 
     def _encode_value(self, value: Any, on_stream_encode: Optional[StreamEncodeCallback]) -> Any:
+        from PIL import Image as PILImage
+
         # JSON-native scalars
         if value is None or isinstance(value, (bool, int, float, str)):
             return value
@@ -88,7 +88,7 @@ class VariableCodec:
 
         # UploadFile auto-lift to UploadFileStreamResource so raw HTTP/gradio
         # uploads can flow through IPC unchanged (the worker sees a StreamResource).
-        if isinstance(value, UploadFile):
+        if is_upload_file(value):
             return self._build_stream_variable(UploadFileStreamResource(value), on_stream_encode)
 
         # Streams (StreamResource, StreamIterator subclasses, generic AsyncIterator)

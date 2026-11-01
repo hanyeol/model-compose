@@ -17,13 +17,12 @@ from .websocket_stream import (
     WebSocketStreamReader,
     WebSocketStreamRegistry,
 )
-from fastapi import APIRouter, WebSocket
-from PIL import Image as PILImage
 from datetime import datetime, timezone
 import json, ulid, asyncio, inspect, functools
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
+    from fastapi import APIRouter, WebSocket
 
 class WebSocketMessage(BaseModel):
     type: str
@@ -709,6 +708,8 @@ class WebSocketServer:
 
     @staticmethod
     def _contains_stream(value: Any) -> bool:
+        from PIL import Image as PILImage
+
         if isinstance(value, (StreamResource, StreamIterator, AsyncIterator, PILImage.Image)):
             return True
 

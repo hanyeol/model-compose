@@ -9,14 +9,14 @@ import asyncio
 # Factory that builds the worker after the START handshake on a WS channel.
 # Receives the START message and the server-side WebSocket connection; returns
 # anything with an async `run()`.
-IpcWsWorkerFactory = Callable[[IpcMessage, Any], IpcRuntimeWorker]
+IpcWebsocketWorkerFactory = Callable[[IpcMessage, Any], IpcRuntimeWorker]
 
 # Cloudflare's HTTP proxy drops idle connections at ~100s. Send WS pings well
 # below that window so the server-side proxy stays alive during model loads
 # and other long gaps between IPC traffic.
 _DEFAULT_PING_INTERVAL = 30.0
 
-class IpcWsServerChannel:
+class IpcWebsocketChannel:
     """Hosts a WebSocket server that drives an `IpcRuntimeWorker` over a single
     long-lived connection.
 
@@ -31,13 +31,13 @@ class IpcWsServerChannel:
     """
     def __init__(
         self,
-        worker_factory: IpcWsWorkerFactory,
+        worker_factory: IpcWebsocketWorkerFactory,
         auth_token: str,
         host: str = "0.0.0.0",
         port: int = 8000,
         ping_interval: float = _DEFAULT_PING_INTERVAL,
     ) -> None:
-        self.worker_factory: IpcWsWorkerFactory = worker_factory
+        self.worker_factory: IpcWebsocketWorkerFactory = worker_factory
         self.host: str = host
         self.port: int = port
         self.auth_token: str = auth_token
@@ -115,18 +115,18 @@ class IpcWsServerChannel:
             return None
 
         if isinstance(frame, str):
-            logging.warning("ipc-ws: discarding text frame; expected START binary frame")
+            logging.warning("ipc-websocket: discarding text frame; expected START binary frame")
             return None
 
         message = IpcMessage.deserialize(frame)
 
         if message.type != IpcMessageType.START:
-            logging.warning("ipc-ws: expected START as first frame, got %r", message.type)
+            logging.warning("ipc-websocket: expected START as first frame, got %r", message.type)
             return None
 
         return message
 
-class IpcWsClientTransport:
+class IpcWebsocketTransport:
     """Thin async wrapper over a `websockets` client connection.
 
     Mixed into an `IpcRuntimeProxy` subclass as the transport layer: each WS
@@ -161,7 +161,7 @@ class IpcWsClientTransport:
 
     async def send(self, message: bytes) -> None:
         if self._websocket is None:
-            raise ConnectionError("ipc-ws: send on closed transport")
+            raise ConnectionError("ipc-websocket: send on closed transport")
 
         await self._websocket.send(message)
 

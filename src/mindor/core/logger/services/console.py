@@ -1,7 +1,6 @@
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Iterator, Any
 from mindor.dsl.schema.logger import ConsoleLoggerConfig
 from ..base import LoggerService, LoggerType, LoggingLevel, register_logger
-from uvicorn.logging import ColourizedFormatter
 import logging, sys
 
 _LEVEL_MAP = {
@@ -18,10 +17,18 @@ class ConsoleLogger(LoggerService):
         super().__init__(id, config, daemon)
 
         self.logger: logging.Logger = logging.getLogger(id)
-        self.formatter: logging.Formatter = ColourizedFormatter("%(levelprefix)s %(message)s")
+        self.formatter: logging.Formatter = self._create_formatter()
         self.handler: logging.StreamHandler = None
 
         self._configure_logger()
+
+    def _create_formatter(self) -> logging.Formatter:
+        try:
+            from uvicorn.logging import ColourizedFormatter
+        except ImportError:
+            from ..formatters import ColourizedFormatter
+
+        return ColourizedFormatter("%(levelprefix)s %(message)s")
 
     def _configure_logger(self) -> None:
         self.logger.setLevel(_LEVEL_MAP[self.config.level])

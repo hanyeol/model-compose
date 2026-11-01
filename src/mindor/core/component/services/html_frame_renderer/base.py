@@ -6,7 +6,7 @@ from abc import abstractmethod
 from pathlib import Path
 from mindor.dsl.schema.component import HtmlFrameRendererComponentConfig, HtmlFrameRendererDriverType
 from mindor.dsl.schema.action import HtmlFrameRendererActionConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from mindor.core.utils.files import save_string_to_temporary_file
 from mindor.core.utils.url import UrlResource, is_http_url

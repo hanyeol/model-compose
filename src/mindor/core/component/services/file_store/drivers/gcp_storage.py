@@ -17,10 +17,11 @@ from mindor.core.foundation.providers.gcp_storage import upload, multipart_uploa
 from ..base import FileStoreDriver, FileStoreDriverType, register_file_store_driver
 from ..base import ComponentActionContext
 from .common import FileStoreAction
-import aiohttp, os, urllib.parse
+import os, urllib.parse
 
 if TYPE_CHECKING:
     from gcloud.aio.storage import Storage
+    import aiohttp
 
 _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024  # 8MB — for put and save_to downloads
 _DEFAULT_STREAMING_CHUNK_SIZE = 8 * 1024  # 8KB — for streaming output, matching other StreamResources
@@ -285,7 +286,7 @@ class GcpStorageFileStoreService(FileStoreDriver):
         self.session: Optional[aiohttp.ClientSession] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "gcloud-aio-storage" ]
+        return [ "aiohttp", "gcloud-aio-storage" ]
 
     async def _start(self) -> None:
         self.client, self.session = self._create_client()
@@ -311,6 +312,7 @@ class GcpStorageFileStoreService(FileStoreDriver):
         return await GcpStorageFileStoreAction(action, self.client, self.location, self.base_path).run(context)
 
     def _create_client(self) -> Tuple[Storage, aiohttp.ClientSession]:
+        import aiohttp
         from gcloud.aio.storage import Storage
 
         session = aiohttp.ClientSession()

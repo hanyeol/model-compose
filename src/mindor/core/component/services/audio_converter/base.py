@@ -2,7 +2,7 @@ from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.component import AudioConverterComponentConfig, AudioConverterDriverType
 from mindor.dsl.schema.action import AudioConverterActionConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 

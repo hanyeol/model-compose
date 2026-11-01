@@ -2,7 +2,7 @@ from typing import Type, Optional, Dict, List, Any
 from abc import abstractmethod
 from mindor.dsl.schema.system import SystemConfig
 from mindor.dsl.schema.system.impl.types import SystemType
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.logger import logging
 
 class SystemService(AsyncService):
@@ -14,10 +14,12 @@ class SystemService(AsyncService):
 
     async def start(self, background: bool = False) -> None:
         await super().start(background)
+
         await self.wait_until_ready()
 
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         logging.info(f"Installing required module: {package_spec}")
+
         await super()._install_package(package_spec, repository)
 
 def register_system(type: SystemType):

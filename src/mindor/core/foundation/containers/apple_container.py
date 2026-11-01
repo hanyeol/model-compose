@@ -155,6 +155,7 @@ class AppleContainerImageBuilder:
         try:
             process = await self._client.run([ "image", "ls" ], raise_on_error=False)
             stdout, _ = await process.communicate()
+
             return tag in stdout.decode()
         except Exception:
             return False
@@ -174,22 +175,30 @@ class AppleContainerImageBuilder:
                 [ "image", "inspect" ], args=[ tag ], raise_on_error=False,
             )
             stdout, _ = await process.communicate()
+
             if process.returncode != 0:
                 return None
+
             payload = json.loads(stdout.decode() or "null")
         except Exception:
             return None
 
         entries = payload if isinstance(payload, list) else [payload] if payload else []
+
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
+
             config = entry.get("config")
+
             if isinstance(config, dict):
                 labels = config.get("Labels") or config.get("labels")
+
                 if isinstance(labels, dict) and label in labels:
                     return labels[label]
+
             annotations = entry.get("annotations")
+
             if isinstance(annotations, dict) and label in annotations:
                 return annotations[label]
 
@@ -242,8 +251,10 @@ class AppleContainerRunner:
         immediately; `detach=False` attaches stdout/stderr/stdin and waits
         for the container to exit."""
         args: List[str] = []
+
         if not detach:
             args.extend([ "-a", "-i" ])
+
         args.append(self.container_name)
 
         await self._client.run("start", args=args, capture_output=detach)
@@ -263,6 +274,7 @@ class AppleContainerRunner:
 
         if tty:
             args.append("-t")
+
         if stdin_open:
             args.append("-i")
 
@@ -275,9 +287,12 @@ class AppleContainerRunner:
                     await self._client.run([ "volume", "create" ], args=[ mount.source ])
                 except RuntimeError:
                     pass
+
             mount_spec = f"type={mount.type},source={mount.source},target={mount.target}"
+
             if mount.read_only:
                 mount_spec += ",readonly"
+
             args.extend([ "--mount", mount_spec ])
 
         for network in self.config.networks or []:
@@ -288,13 +303,16 @@ class AppleContainerRunner:
 
         if self.config.env_file:
             env_files = [ self.config.env_file ] if isinstance(self.config.env_file, str) else self.config.env_file
+
             for env_file in env_files:
                 args.extend([ "--env-file", env_file ])
 
         entrypoint = self.options.entrypoint or self.config.entrypoint
+
         if entrypoint is not None:
             if isinstance(entrypoint, list):
                 entrypoint = " ".join(entrypoint)
+
             args.extend([ "--entrypoint", entrypoint ])
 
         if self.config.working_dir is not None:
@@ -324,13 +342,16 @@ class AppleContainerRunner:
 
     async def stop(self, timeout: Optional[float] = None) -> None:
         args: List[str] = []
+
         if timeout is not None:
             args.extend([ "-t", str(int(timeout)) ])
+
         args.append(self.container_name)
+
         try:
             await self._client.run("stop", args=args)
         except RuntimeError as e:
-            logging.warning("Failed to stop container '%s': %s", self.container_name, e)
+            logging.warning("apple-container: stop failed for container '%s': %s", self.container_name, e)
 
     async def remove(self, force: bool = False) -> None:
         args: List[str] = []
@@ -339,6 +360,7 @@ class AppleContainerRunner:
             args.append("-f")
 
         args.append(self.container_name)
+
         try:
             await self._client.run("rm", args=args)
         except RuntimeError:
@@ -348,6 +370,7 @@ class AppleContainerRunner:
         try:
             process = await self._client.run("ls", raise_on_error=False)
             stdout, _ = await process.communicate()
+
             return self.container_name in stdout.decode()
         except Exception:
             return False
@@ -356,6 +379,7 @@ class AppleContainerRunner:
         try:
             process = await self._client.run("ls", raise_on_error=False)
             stdout, _ = await process.communicate()
+
             return self.container_name in stdout.decode()
         except Exception:
             return False
@@ -363,10 +387,9 @@ class AppleContainerRunner:
     async def _run_foreground_container(self) -> None:
         self._register_shutdown_signals()
         await self._shutdown_event.wait()
-        logging.info(
-            "Stopping container '%s' gracefully...",
-            self.container_name,
-        )
+
+        logging.info("apple-container: stopping container '%s' gracefully...", self.container_name)
+
         await self.stop()
 
     def _register_shutdown_signals(self) -> None:

@@ -17,50 +17,6 @@ import asyncio, re
 # so the new package becomes importable without touching `sys.path`.
 _MINDOR_INSTALL_ROOT: Path = Path(mindor.__file__).resolve().parent.parent
 
-async def install_package(package_spec: str, pip_options: Optional[List[str]] = None) -> None:
-    """Install `package_spec` into the running interpreter via uv or pip.
-
-    `package_spec` follows pip syntax — a versioned requirement
-    (`"torch>=2.0.0"`), a direct URL (`"git+https://github.com/..."`), a local
-    path, or any other spec pip accepts. `pip_options` appends extra flags
-    such as `["--index-url", "https://download.pytorch.org/whl/cu128"]`.
-
-    pip's default `install` refuses to touch a same-named distribution, so
-    `--upgrade` is always passed on the pip path to force resolution against
-    the requested spec. uv already honors the spec on every install and
-    treats `--upgrade` as "re-resolve the entire dependency tree against
-    the latest versions" — which would drag unrelated pins (torch/CUDA
-    channels) forward — so we deliberately omit `--upgrade` on the uv path.
-
-    Prefers uv when available (faster resolves, and `--link-mode=hardlink`
-    shares wheel bytes across venvs on the same filesystem — a large deal
-    for torch/CUDA installs). Falls back to `python -m pip install` when
-    uv isn't on PATH. Either way, the install targets `sys.executable`, so
-    the package is importable in the same process.
-    """
-    uv_path = shutil.which("uv")
-
-    if uv_path:
-        command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", package_spec ] + (pip_options or [])
-    else:
-        command = [ sys.executable, "-m", "pip", "install", "--upgrade", package_spec ] + (pip_options or [])
-
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        raise PackageInstallError(
-            process.returncode,
-            command,
-            output=stdout,
-            stderr=stderr
-        )
-
 class PackageInstallError(subprocess.CalledProcessError):
     """`CalledProcessError` whose message carries the tail of the installer's output.
 
@@ -84,6 +40,69 @@ class PackageInstallError(subprocess.CalledProcessError):
                 return f"{message}\n{tail}"
 
         return message
+
+async def install_package(
+    package_spec: str,
+    repository: Optional[str] = None,
+    pip_options: Optional[List[str]] = None,
+) -> None:
+    """Install `package_spec` into the running interpreter via uv or pip.
+
+    `package_spec` follows pip syntax — a versioned requirement
+    (`"torch>=2.0.0"`), a direct URL (`"git+https://github.com/..."`), a local
+    path, or any other spec pip accepts.
+
+    `repository` names where to fetch from, when the caller wants to override
+    the default PyPI resolution. Three shapes are recognized:
+
+    - `"git+<url>"` — install the git URL directly; ``package_spec`` is ignored.
+    - A direct archive URL (ends with ``.whl`` / ``.tar.gz`` / ``.zip``) —
+      install the archive directly; ``package_spec`` is ignored.
+    - Any other value — treated as a wheel index URL, passed through as
+      ``--index-url <repository>`` while ``package_spec`` resolves normally.
+
+    `pip_options` appends extra flags not covered by `repository`
+    (e.g. ``["--no-deps"]``, ``["--no-build-isolation"]``). Combines with
+    the index-url form when both are set.
+
+    pip's default `install` refuses to touch a same-named distribution, so
+    `--upgrade` is always passed on the pip path to force resolution against
+    the requested spec. uv already honors the spec on every install and
+    treats `--upgrade` as "re-resolve the entire dependency tree against
+    the latest versions" — which would drag unrelated pins (torch/CUDA
+    channels) forward — so we deliberately omit `--upgrade` on the uv path.
+
+    Prefers uv when available (faster resolves, and `--link-mode=hardlink`
+    shares wheel bytes across venvs on the same filesystem — a large deal
+    for torch/CUDA installs). Falls back to `python -m pip install` when
+    uv isn't on PATH. Either way, the install targets `sys.executable`, so
+    the package is importable in the same process.
+    """
+    install_spec, extra_options = _resolve_install_spec(package_spec, repository)
+    pip_options = extra_options + (pip_options or [])
+
+    uv_path = shutil.which("uv")
+
+    if uv_path:
+        command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", install_spec ] + pip_options
+    else:
+        command = [ sys.executable, "-m", "pip", "install", "--upgrade", install_spec ] + pip_options
+
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        raise PackageInstallError(
+            process.returncode,
+            command,
+            output=stdout,
+            stderr=stderr
+        )
 
 async def install_package_from_github(
     module_name: str,
@@ -174,7 +193,7 @@ async def install_package_from_github(
         if not package_root.exists():
             raise FileNotFoundError(f"Package source '{source_path}' not found in downloaded repo at {clone_dir}")
 
-        await install_package(str(package_root), pip_options)
+        await install_package(str(package_root), pip_options=pip_options)
 
     if subdirs is not None:
         for package in subdirs:
@@ -412,3 +431,20 @@ def _installed_wheel_matches_channel(installed_version: str, repository: Optiona
         return True
 
     return installed_channel == requested_channel
+
+def _resolve_install_spec(package_spec: str, repository: Optional[str]) -> Tuple[str, List[str]]:
+    """Translate (spec, repository) into (final_spec, extra_pip_options).
+
+    Direct-URL repositories (git / archive) replace the spec entirely; index
+    URLs leave the spec intact and surface as a ``--index-url`` option.
+    """
+    if repository is None:
+        return package_spec, []
+
+    if repository.startswith("git+"):
+        return repository, []
+
+    if repository.endswith((".whl", ".tar.gz", ".zip")):
+        return repository, []
+
+    return package_spec, [ "--index-url", repository ]

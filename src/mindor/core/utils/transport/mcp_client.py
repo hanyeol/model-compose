@@ -1,9 +1,13 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Union, Optional, Dict, List, Tuple, Any
 from collections.abc import AsyncIterator
-from mcp.client.streamable_http import streamablehttp_client
-from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource
-from mcp.types import Resource, TextResourceContents, BlobResourceContents, GetPromptResult, Prompt
-from mcp import ClientSession, Tool
+
+if TYPE_CHECKING:
+    from mcp.types import ContentBlock, TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource
+    from mcp.types import Resource, TextResourceContents, BlobResourceContents, GetPromptResult, Prompt
+    from mcp import ClientSession, Tool
 
 class McpClient:
     def __init__(self, url: str, headers: Optional[Dict[str, str]] = None):
@@ -111,6 +115,9 @@ class McpClient:
         await self._cleanup()
 
     async def _ensure_initialized(self):
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamablehttp_client
+
         if not self.session:
             self.client = streamablehttp_client(self.url, headers=self.headers)
             read_stream, write_stream, _ = await self.client.__aenter__()

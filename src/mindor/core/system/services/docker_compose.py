@@ -53,10 +53,10 @@ class DockerComposeSystem(SystemService):
         command = [ "docker", "compose" ]
 
         if self.config.project_name:
-            command += ["-p", self.config.project_name]
+            command += [ "-p", self.config.project_name ]
 
-        for f in self.config.files:
-            command += [ "-f", f ]
+        for file in self.config.files:
+            command += [ "-f", file ]
 
         if self.config.env_file:
             command += [ "--env-file", self.config.env_file ]
@@ -75,9 +75,10 @@ class DockerComposeSystem(SystemService):
 
         if self.config.wait:
             command.append("--wait")
+
             if self.config.wait_timeout:
-                timeout_seconds = int(parse_time(self.config.wait_timeout))
-                command += [ "--wait-timeout", str(timeout_seconds) ]
+                timeout = int(parse_time(self.config.wait_timeout))
+                command += [ "--wait-timeout", str(timeout) ]
 
         return command
 

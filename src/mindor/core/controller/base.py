@@ -14,7 +14,7 @@ from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
 from mindor.dsl.schema.tracer import TracerConfig
 from mindor.dsl.schema.logger import LoggerConfig, LoggerType, ConsoleLoggerConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.controller.adapters import create_controller_adapter
 from mindor.core.component import ComponentService, ComponentGlobalConfigs, create_component
 from mindor.core.listener import ListenerService, create_listener
@@ -208,17 +208,26 @@ class ControllerService(AsyncService):
     async def launch_services(self, detach: bool, verbose: bool) -> None:
         if self.config.runtime.type == RuntimeType.NATIVE:
             if detach:
+                await self._setup_loggers(verbose)
                 await self._start_loggers(verbose)
                 await ControllerNativeRuntimeManager().launch_detached()
                 await self._stop_loggers()
                 return
 
+            await self._setup_loggers(verbose)
             await self._start_loggers(verbose)
             await self._setup_systems()
             await self._setup_listeners()
             await self._setup_gateways()
             await self._setup_components()
+            await self._setup_adapters()
+            await self._setup_tracers()
+
+            if self.config.webui:
+                await self._setup_webui()
+
             await self.start()
+
             try:
                 await self.wait_until_stopped()
             except (asyncio.CancelledError, KeyboardInterrupt):
@@ -228,12 +237,14 @@ class ControllerService(AsyncService):
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
+            await self._setup_loggers()
             await self._start_loggers()
             await ControllerDockerRuntimeManager(self.config, verbose).launch(self._get_runtime_specs(), detach)
             await self._stop_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
+            await self._setup_loggers()
             await self._start_loggers()
             await ControllerAppleContainerRuntimeManager(self.config, verbose).launch(self._get_runtime_specs(), detach)
             await self._stop_loggers()
@@ -243,35 +254,51 @@ class ControllerService(AsyncService):
         if self.config.runtime.type == RuntimeType.NATIVE:
             await self._start_loggers(verbose)
             await ControllerNativeRuntimeManager().stop()
+
+            if self.config.webui:
+                await self._teardown_webui()
+
+            await self._teardown_tracers()
+            await self._teardown_adapters()
             await self._teardown_components()
             await self._teardown_gateways()
             await self._teardown_listeners()
             await self._teardown_systems()
             await self._stop_loggers()
+            await self._teardown_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
             await ControllerDockerRuntimeManager(self.config, verbose).terminate()
             await self._stop_loggers()
+            await self._teardown_loggers()
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
             await ControllerAppleContainerRuntimeManager(self.config, verbose).terminate()
             await self._stop_loggers()
+            await self._teardown_loggers()
             return
 
     async def setup_services(self, verbose: bool) -> None:
         if self.config.runtime.type != RuntimeType.NATIVE:
             return
 
+        await self._setup_loggers(verbose)
         await self._start_loggers(verbose)
+
         try:
             await self._setup_systems()
             await self._setup_listeners()
             await self._setup_gateways()
             await self._setup_components()
+            await self._setup_adapters()
+            await self._setup_tracers()
+
+            if self.config.webui:
+                await self._setup_webui()
         finally:
             await self._stop_loggers()
 
@@ -279,6 +306,7 @@ class ControllerService(AsyncService):
         if self.config.runtime.type == RuntimeType.NATIVE:
             await self._start_loggers(verbose)
             await self.start()
+
             try:
                 await self.wait_until_stopped()
             except (asyncio.CancelledError, KeyboardInterrupt):
@@ -577,7 +605,6 @@ class ControllerService(AsyncService):
         if self._queue:
             await self._queue.start()
 
-        await self._setup_tracers()
         await self._start_tracers()
 
         if self.daemon:
@@ -588,7 +615,6 @@ class ControllerService(AsyncService):
             await self._start_adapters()
 
             if self.config.webui:
-                await self._setup_webui()
                 await self._start_webui()
 
             asyncio.create_task(self._watch_stop_request())
@@ -631,8 +657,6 @@ class ControllerService(AsyncService):
         if self._queue:
             await self._queue.stop()
 
-        await self._stop_tracers()
-
         if self.daemon:
             await self._stop_adapters()
             await self._stop_components()
@@ -642,6 +666,8 @@ class ControllerService(AsyncService):
 
             if self.config.webui:
                 await self._stop_webui()
+
+        await self._stop_tracers()
 
         await super()._stop()
 
@@ -668,6 +694,7 @@ class ControllerService(AsyncService):
 
             await asyncio.sleep(interval)
 
+    # systems
     async def _setup_systems(self) -> None:
         await asyncio.gather(*[ system.setup() for system in self._create_systems() ])
 
@@ -680,6 +707,7 @@ class ControllerService(AsyncService):
     async def _stop_systems(self) -> None:
         await asyncio.gather(*[ system.stop() for system in self._create_systems() ])
 
+    # listeners
     async def _setup_listeners(self) -> None:
         await asyncio.gather(*[ listener.setup() for listener in self._create_listeners() ])
 
@@ -692,6 +720,7 @@ class ControllerService(AsyncService):
     async def _stop_listeners(self) -> None:
         await asyncio.gather(*[ listener.stop() for listener in self._create_listeners() ])
 
+    # gateways
     async def _setup_gateways(self) -> None:
         await asyncio.gather(*[ gateway.setup() for gateway in self._create_gateways() ])
 
@@ -704,6 +733,7 @@ class ControllerService(AsyncService):
     async def _stop_gateways(self) -> None:
         await asyncio.gather(*[ gateway.stop() for gateway in self._create_gateways() ])
 
+    # components
     async def _setup_components(self) -> None:
         await asyncio.gather(*[ component.setup() for component in self._create_components() ])
 
@@ -716,20 +746,12 @@ class ControllerService(AsyncService):
     async def _stop_components(self) -> None:
         await asyncio.gather(*[ component.stop() for component in self._create_components() ])
 
-    async def _start_loggers(self, verbose: bool = False) -> None:
-        await asyncio.gather(*[ logger.start() for logger in self._create_loggers(verbose) ])
+    # adapters
+    async def _setup_adapters(self) -> None:
+        await asyncio.gather(*[ adapter.setup() for adapter in self._create_adapters() ])
 
-    async def _stop_loggers(self) -> None:
-        await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
-
-    async def _setup_tracers(self) -> None:
-        await asyncio.gather(*[ tracer.setup() for tracer in self._create_tracers() ])
-
-    async def _start_tracers(self) -> None:
-        await asyncio.gather(*[ tracer.start() for tracer in self._create_tracers() ])
-
-    async def _stop_tracers(self) -> None:
-        await asyncio.gather(*[ tracer.stop() for tracer in self._create_tracers() ])
+    async def _teardown_adapters(self) -> None:
+        await asyncio.gather(*[ adapter.teardown() for adapter in self._create_adapters() ])
 
     async def _start_adapters(self) -> None:
         await asyncio.gather(*[ adapter.start() for adapter in self._create_adapters() ])
@@ -737,8 +759,12 @@ class ControllerService(AsyncService):
     async def _stop_adapters(self) -> None:
         await asyncio.gather(*[ adapter.stop() for adapter in self._create_adapters() ])
 
+    # webui
     async def _setup_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().setup() ])
+
+    async def _teardown_webui(self) -> None:
+        await asyncio.gather(*[ self._create_webui().teardown() ])
 
     async def _start_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().start() ])
@@ -746,6 +772,33 @@ class ControllerService(AsyncService):
     async def _stop_webui(self) -> None:
         await asyncio.gather(*[ self._create_webui().stop() ])
 
+    # loggers
+    async def _setup_loggers(self, verbose: bool = False) -> None:
+        await asyncio.gather(*[ logger.setup() for logger in self._create_loggers(verbose) ])
+
+    async def _teardown_loggers(self) -> None:
+        await asyncio.gather(*[ logger.teardown() for logger in self._create_loggers() ])
+
+    async def _start_loggers(self, verbose: bool = False) -> None:
+        await asyncio.gather(*[ logger.start() for logger in self._create_loggers(verbose) ])
+
+    async def _stop_loggers(self) -> None:
+        await asyncio.gather(*[ logger.stop() for logger in self._create_loggers() ])
+
+    # tracers
+    async def _setup_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.setup() for tracer in self._create_tracers() ])
+
+    async def _teardown_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.teardown() for tracer in self._create_tracers() ])
+
+    async def _start_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.start() for tracer in self._create_tracers() ])
+
+    async def _stop_tracers(self) -> None:
+        await asyncio.gather(*[ tracer.stop() for tracer in self._create_tracers() ])
+
+    # factories
     def _create_adapters(self) -> List[ControllerAdapterService]:
         return [ create_controller_adapter(config, self, self.daemon) for config in self.config.adapters ]
 

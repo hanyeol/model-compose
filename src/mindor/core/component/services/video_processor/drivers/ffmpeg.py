@@ -528,7 +528,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
     async def _process_to_file(
         self,
-        command: list,
+        command: List[str],
         source: MediaSource,
         input_path: Optional[str],
         format: str,
@@ -584,7 +584,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
     async def _process_to_stream(
         self,
-        command: list,
+        command: List[str],
         source: MediaSource,
         input_path: Optional[str],
         format: str,
@@ -593,7 +593,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
     ) -> VideoStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as a VideoStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]
-        error: list = []
+        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

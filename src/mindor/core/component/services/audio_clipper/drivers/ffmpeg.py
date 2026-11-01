@@ -255,14 +255,14 @@ class FFmpegAudioClipperAction(AudioClipperAction):
 
     async def _run_to_stream(
         self,
-        command: list,
+        command: List[str],
         format: str,
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AudioStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as an AudioStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]
-        error: list = []
+        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

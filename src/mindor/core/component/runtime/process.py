@@ -29,7 +29,7 @@ class ComponentProcessRuntimeWorker(ComponentRuntimeWorker):
 
     async def _start(self) -> None:
         await super()._start()
-        logging.info(f"Component {self.worker_id} started in subprocess")
+        logging.info("process: component '%s' started in subprocess", self.worker_id)
 
     async def _send_message(self, message: bytes) -> None:
         await self._loop.run_in_executor(None, self.response_queue.put, message)

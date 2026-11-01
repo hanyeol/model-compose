@@ -2,7 +2,7 @@ from typing import Type, Optional, Dict, Any
 from abc import abstractmethod
 from mindor.dsl.schema.tracer import TracerConfig
 from mindor.dsl.schema.tracer.impl.types import TracerDriver
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 
 class TracerService(AsyncService):
     def __init__(self, id: str, config: TracerConfig, daemon: bool):

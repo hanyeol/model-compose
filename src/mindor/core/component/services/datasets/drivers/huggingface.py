@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple, Optional, Dict, Any
+from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import HuggingfaceDatasetsComponentConfig
 from mindor.dsl.schema.action import DatasetsActionConfig, DatasetsActionMethod
 from mindor.core.foundation.cancellation import CancellationToken
@@ -117,7 +117,7 @@ class HuggingfaceDatasetsService(DatasetsDriver):
     def __init__(self, id: str, config: HuggingfaceDatasetsComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [ "datasets" ]
 
     async def _run(self, action: DatasetsActionConfig, context: ComponentActionContext) -> Any:

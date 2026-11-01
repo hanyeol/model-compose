@@ -1,8 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Optional, Union, Dict, Any, Tuple
 from collections.abc import AsyncIterator
-from websockets.asyncio.client import ClientConnection
 from urllib.parse import urlencode
-import websockets, asyncio, json
+import asyncio, json
+
+if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
+    import websockets
 
 class WebSocketConnection:
     def __init__(self, websocket: ClientConnection, receive_timeout: Optional[float] = None):
@@ -43,9 +49,12 @@ class WebSocketConnection:
                 self.websocket.recv(),
                 timeout=self.receive_timeout
             )
+
         return await self.websocket.recv()
 
     async def receive_frames(self) -> AsyncIterator[Union[str, bytes]]:
+        import websockets
+
         try:
             while True:
                 yield await self.receive_frame()
@@ -87,9 +96,12 @@ class WebSocketClient:
                 headers=headers,
                 receive_timeout=receive_timeout
             )
+
             return connection, True
+
         if not self._connection or not self._connection.is_connected():
             self._connection = await self._connect()
+
         return self._connection, False
 
     async def close(self) -> None:
@@ -104,11 +116,16 @@ class WebSocketClient:
         headers: Optional[Dict[str, str]] = None,
         receive_timeout: Optional[float] = None
     ) -> WebSocketConnection:
+        import websockets
+
         url = self.base_url
+
         if path:
             url += path if path.startswith("/") else f"/{path}"
+
         if params:
             filtered = { key: value for key, value in params.items() if value is not None }
+
             if filtered:
                 url += "?" + urlencode(filtered)
 

@@ -47,7 +47,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         self._max_stream_length: Optional[int] = None
 
     def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
-        return ["redis>=5.0.0"]
+        return [ "redis>=5.0.0" ]
 
     async def _serve(self) -> None:
         import redis.asyncio as aioredis
@@ -66,7 +66,8 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         self._max_stream_length = self.config.max_stream_length
 
         workflows = self.config.workflows or list(self.controller.workflow_schemas.keys())
-        queue_keys = [f"{self.config.name}:{workflow_id}" for workflow_id in workflows]
+        queue_keys = [ f"{self.config.name}:{workflow_id}" for workflow_id in workflows ]
+
         logging.info(
             "Queue subscriber started: %s (queues: %s, workers: %d)",
             self._build_redis_url(),
@@ -141,6 +142,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
                 error=f"unsupported queue protocol: {protocol!r} (expected {_PROTOCOL_VERSION!r})",
             )
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
+
             return
 
         input_codec = QueueCodec(
@@ -168,6 +170,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         except (BlobNotFoundError, BlobCorruptedError, BlobUnauthorizedError, UnsupportedProtocolError) as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
+
             return
 
         async def _on_interrupt(interrupts):
@@ -215,12 +218,14 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
 
         if state.status == TaskStatus.FAILED:
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
+
             return
 
         if state.status not in (TaskStatus.COMPLETED, TaskStatus.STREAMING):
             # Cancelled / other non-terminal — publish as failed.
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=f"task ended with status {state.status.value}")
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
+
             return
 
         try:
@@ -228,6 +233,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         except Exception as e:
             state = TaskState(task_id=task_id, status=TaskStatus.FAILED, error=str(e))
             await self._publish_terminal_result(workflow_id, task_id, run_id, state, {})
+
             return
 
         if not streams_meta:
@@ -242,6 +248,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
                 "streams": {},
             }
             await self._store_and_publish(result_key, payload)
+
             return
 
         # Streaming output — publish the marker payload first, then drive producers.
@@ -289,6 +296,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         try:
             async for chunk in source:
                 await stream.push_chunk(chunk)
+
             await stream.push_end()
         except asyncio.CancelledError:
             raise
@@ -313,8 +321,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         codec = VariableCodec()
 
         def factory(meta: RedisStreamMeta):
-            stream = RedisInboundStream(client=self._client, meta=meta, codec=codec)
-            return stream.build_resource()
+            return RedisInboundStream(client=self._client, meta=meta, codec=codec).build_resource()
 
         return factory
 
@@ -359,33 +366,42 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
             "worker_id": self._worker_id,
             "streams": streams,
         }
+
         if state.status == TaskStatus.FAILED:
             payload["error"] = state.error
+
         await self._store_and_publish(result_key, payload)
 
     async def _store_and_publish(self, result_key: str, payload: Dict[str, Any]) -> None:
-        serialized = json.dumps(payload, ensure_ascii=False, default=str)
+        payload = json.dumps(payload, ensure_ascii=False, default=str)
+
         if self._result_ttl > 0:
-            await self._client.setex(result_key, self._result_ttl, serialized)
+            await self._client.setex(result_key, self._result_ttl, payload)
         else:
-            await self._client.set(result_key, serialized)
-        await self._client.publish(result_key, serialized)
+            await self._client.set(result_key, payload)
+
+        await self._client.publish(result_key, payload)
 
     async def _cancel_listener_loop(self) -> None:
         cancel_key = f"{self.config.name}:cancel"
         pubsub = self._client.pubsub()
+
         try:
             await pubsub.subscribe(cancel_key)
             async for message in pubsub.listen():
                 if message["type"] != "message":
                     continue
+
                 try:
                     data = json.loads(message["data"])
                 except (json.JSONDecodeError, TypeError):
                     continue
+
                 task_id = data.get("task_id")
+
                 if not task_id or task_id not in self._active_task_ids:
                     continue
+
                 try:
                     await self.controller.cancel_workflow(task_id, wait_for_completion=False)
                 except Exception as e:
@@ -403,6 +419,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
         async for message in pubsub.listen():
             if message["type"] == "message":
                 data = json.loads(message["data"])
+
                 return data.get("answer")
 
     async def _consume_cancel_tombstone(self, task_id: str) -> bool:
@@ -426,6 +443,7 @@ class RedisCommonQueueSubscriberControllerAdapterService(CommonQueueSubscriberCo
     def _build_redis_url(self) -> str:
         if not self.config.url:
             scheme = "rediss" if self.config.secure else "redis"
+
             return f"{scheme}://{self.config.host}:{self.config.port}"
 
         return self.config.url

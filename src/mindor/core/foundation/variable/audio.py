@@ -1,12 +1,15 @@
-from typing import List, Literal, Optional, TypeAlias, Union, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import List, Literal, Optional, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.audio import create_audio_source, AudioBufferStreamer, AudioBufferStreamIterator, PcmStreamResource
 from ...utils.audio import AudioBuffer
 from ..streaming.media import MediaSource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 
-# A single audio, either materialized or streaming.
-AudioBufferValue: TypeAlias = Union[AudioBuffer, AudioBufferStreamIterator]
+if TYPE_CHECKING:
+    AudioBufferValue = Union[AudioBuffer, AudioBufferStreamIterator]
 
 class AudioArrayValue:
     """A materialized or streaming array of audio sources.
@@ -173,11 +176,11 @@ class AudioValueRenderer:
         list whose first item is itself an element array or a fragmented
         stream.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element_array(self, value: Any) -> bool:
         """True when ``value`` is a batch of audio refs — a list/tuple of
@@ -302,11 +305,11 @@ class AudioBufferValueRenderer:
         list whose first item is itself an element array or a fragmented
         stream.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element_array(self, value: Any) -> bool:
         """True when ``value`` is a batch of audio buffer refs — a list/tuple

@@ -86,7 +86,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
     async def _convert_to_file(
         self,
-        command: list,
+        command: List[str],
         source: MediaSource,
         input_path: Optional[str],
         format: str,
@@ -145,7 +145,7 @@ class FFmpegAudioConverterAction(AudioConverterAction):
 
     async def _convert_to_stream(
         self,
-        command: list,
+        command: List[str],
         source: MediaSource,
         input_path: Optional[str],
         format: str,

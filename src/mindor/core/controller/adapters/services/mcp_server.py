@@ -17,14 +17,14 @@ from mindor.core.foundation.streaming.url import UrlStreamResource, DataUriStrea
 from mindor.core.foundation.streaming.model_3d import resolve_model_3d_content_type
 from mindor.core.utils.transport.stdout_relay import StdoutRelay
 from ..base import ControllerAdapterService, register_controller_adapter
-from mcp.server.fastmcp.server import FastMCP
-from mcp.server.stdio import stdio_server
-from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, ContentBlock, TextContent, ImageContent, AudioContent, EmbeddedResource, BlobResourceContents
-import asyncio, uvicorn, json
+import asyncio, json
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
+    from mcp.server.fastmcp.server import FastMCP
+    from mcp.server.transport_security import TransportSecuritySettings
+    from mcp.types import CallToolResult, ContentBlock
+    import uvicorn
 
 _ANNOTATION_TYPE_MAP: Dict[WorkflowVariableType, type] = {
     WorkflowVariableType.STRING:   str,
@@ -57,6 +57,17 @@ class McpServerControllerAdapterService(ControllerAdapterService):
 
         self.http_server: Optional[uvicorn.Server] = None
         self.stdio_task: Optional[asyncio.Task] = None
+        self.app: Optional[FastMCP] = None
+
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [
+            *(super()._get_setup_requirements() or []),
+            "mcp>=1.10.1,<2.0",
+            "uvicorn"
+        ]
+
+    async def _setup(self) -> None:
+        from mcp.server.fastmcp.server import FastMCP
 
         app_params = {}
 
@@ -68,11 +79,13 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         if transport_security is not None:
             app_params["transport_security"] = transport_security
 
-        self.app: FastMCP = FastMCP(self.controller.config.name, **app_params)
+        self.app = FastMCP(self.controller.config.name, **app_params)
 
         self._configure_workflow_tools()
 
     def _build_transport_security(self) -> Optional[TransportSecuritySettings]:
+        from mcp.server.transport_security import TransportSecuritySettings
+
         if self.config.disable_dns_rebinding_protection:
             return TransportSecuritySettings(enable_dns_rebinding_protection=False)
 
@@ -194,6 +207,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         return await self._build_state_response(state)
 
     async def _resume_workflow_as_tool(self, task_id: str, answer: Optional[Dict[str, Any]] = None) -> CallToolResult:
+        from mcp.types import CallToolResult, TextContent
+
         try:
             state = await self.controller.resume_workflow(
                 task_id,
@@ -207,6 +222,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         return await self._build_state_response(state)
 
     async def _build_state_response(self, state: TaskState) -> CallToolResult:
+        from mcp.types import CallToolResult, TextContent
+
         if state.status == TaskStatus.INTERRUPTED:
             return CallToolResult(content=[ TextContent(type="text", text=json.dumps({
                 "status": "interrupted",
@@ -244,6 +261,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         return CallToolResult(content=[ TextContent(type="text", text=str(state.output)) ])
 
     async def _build_output_value(self, state: TaskState, workflow: WorkflowSchema) -> CallToolResult:
+        from mcp.types import CallToolResult, ContentBlock, TextContent
+
         results: Dict[str, Any] = {}
         content: List[ContentBlock] = []
 
@@ -266,6 +285,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         return CallToolResult(content=content, structuredContent=results or None)
 
     async def _convert_output_value(self, task_id: str, value: Any, variable: WorkflowVariableConfig) -> ContentBlock:
+        from mcp.types import TextContent, ImageContent, AudioContent, EmbeddedResource, BlobResourceContents
+
         if self._is_media_variable(variable):
             # Everything else must land as a base64 string (MCP media blocks demand it).
             data = await self._encode_media_value_to_base64(value, variable.format)
@@ -375,6 +396,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             await self._serve_http()
 
     async def _serve_http(self) -> None:
+        import uvicorn
+
         self.http_server = uvicorn.Server(uvicorn.Config(
             self.app.streamable_http_app(),
             host=self.config.host,
@@ -388,6 +411,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             self.http_server = None
 
     async def _serve_stdio(self) -> None:
+        from mcp.server.stdio import stdio_server
+
         with StdoutRelay() as stdout_stream:
             async with stdio_server(stdout=stdout_stream) as (read_stream, write_stream):
                 self.stdio_task = asyncio.create_task(self.app._mcp_server.run(

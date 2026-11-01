@@ -20,20 +20,15 @@ from mindor.core.utils.transport.http_request import parse_request_body, parse_o
 from mindor.core.utils.transport.http_stream import HttpEventStreamer
 from mindor.core.controller.errors import TaskNotFoundError, TaskAlreadyFinishedError, TaskCancelInProgressError
 from mindor.core.errors import ShutdownError
+from mindor.core.logger import logging
 from ..base import ControllerAdapterService, register_controller_adapter
 from .websocket_server import WebSocketServer
-from fastapi import FastAPI, APIRouter, Request, Body, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.background import BackgroundTask
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from PIL import Image as PILImage
 from pathlib import Path
-import uvicorn, logging
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
+    from fastapi import FastAPI, APIRouter, Response
+    import uvicorn
 
 class WorkflowRunBody(BaseModel):
     workflow_id: Optional[str] = None
@@ -263,23 +258,6 @@ class WorkflowSchemaResult(BaseModel):
             return WorkflowVariableGroupResult.from_instance(variable)
         return WorkflowVariableResult.from_instance(variable)
 
-class IndexStaticFiles(StaticFiles):
-    def __init__(self, *, directory: Path, index: str) -> None:
-        super().__init__(directory=directory, check_dir=False)
-
-        self.index = index
-
-    async def get_response(self, path, scope):
-        if path in ("", "."):
-            path = self.index
-
-        try:
-            return await super().get_response(path, scope)
-        except StarletteHTTPException as exception:
-            if exception.status_code != 404:
-                raise
-            return await super().get_response(self.index, scope)
-
 @register_controller_adapter(ControllerAdapterType.HTTP_SERVER)
 class HttpServerControllerAdapterService(ControllerAdapterService):
     def __init__(
@@ -291,11 +269,24 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         super().__init__(config, controller, daemon)
 
         self.server: Optional[uvicorn.Server] = None
-        self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
-        self.router: APIRouter = APIRouter()
+        self.app: Optional[FastAPI] = None
+        self.router: Optional[APIRouter] = None
         self.websocket_server: Optional[WebSocketServer] = None
 
         self._task_callbacks: Dict[str, Tuple[str, Dict[str, str]]] = {}
+
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [
+            *(super()._get_setup_requirements() or []),
+            "fastapi",
+            "uvicorn"
+        ]
+
+    async def _setup(self) -> None:
+        from fastapi import FastAPI, APIRouter
+
+        self.app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+        self.router = APIRouter()
 
         self._configure_server()
         self._configure_routes()
@@ -309,6 +300,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self._configure_static_mounts()
 
     def _configure_server(self) -> None:
+        from fastapi.middleware.cors import CORSMiddleware
+
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=[self.config.origins],
@@ -318,6 +311,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         )
 
     def _configure_routes(self) -> None:
+        from fastapi import Request, Body, HTTPException
+        from fastapi.responses import JSONResponse
+
         @self.router.get("/workflows")
         async def get_workflow_list(
             include_schema: bool = False
@@ -351,6 +347,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 raise HTTPException(status_code=400, detail=f"Invalid request body: {e}")
 
             workflow_id = self._resolve_workflow_id(body.workflow_id or "__default__")
+
             if not workflow_id or not self.controller.is_workflow_available(workflow_id):
                 raise HTTPException(status_code=404, detail=f"Workflow '{body.workflow_id or '__default__'}' not found.")
 
@@ -371,8 +368,10 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             if body.subscribe_task:
                 if not self.websocket_server:
                     raise HTTPException(status_code=400, detail="WebSocket is disabled")
+
                 if not session_id:
                     raise HTTPException(status_code=400, detail="session_id query parameter required when subscribe_task=true")
+
                 if not self.websocket_server.manager.has_connection(session_id):
                     raise HTTPException(status_code=400, detail="No active WebSocket connection for session")
 
@@ -432,6 +431,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         ):
             try:
                 state = await self.controller.cancel_workflow(task_id, wait_for_completion=wait_for_completion)
+
                 return JSONResponse(content=TaskStateResult.to_dict(state))
             except TaskNotFoundError as e:
                 raise HTTPException(status_code=404, detail=str(e))
@@ -449,6 +449,25 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             return JSONResponse(content={ "status": "ok" })
 
     def _configure_static_mounts(self) -> None:
+        from fastapi.staticfiles import StaticFiles
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        class IndexStaticFiles(StaticFiles):
+            def __init__(self, *, directory: Path, index: str) -> None:
+                super().__init__(directory=directory, check_dir=False)
+                self.index = index
+
+            async def get_response(self, path, scope):
+                if path in ("", "."):
+                    path = self.index
+
+                try:
+                    return await super().get_response(path, scope)
+                except StarletteHTTPException as exception:
+                    if exception.status_code != 404:
+                        raise
+                    return await super().get_response(self.index, scope)
+
         base_path = (self.config.base_path or "").rstrip("/")
 
         for mount in self.config.static:
@@ -466,6 +485,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
             if mount.index:
                 if not (base_dir / mount.index).is_file():
                     raise ValueError(f"Static mount index file not found: {base_dir / mount.index}")
+
                 static_files = IndexStaticFiles(directory=base_dir, index=mount.index)
             else:
                 static_files = StaticFiles(directory=base_dir)
@@ -480,6 +500,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         await super()._start()
 
     async def _serve(self) -> None:
+        import uvicorn
+
         self.server = uvicorn.Server(uvicorn.Config(
             self.app,
             host=self.config.host,
@@ -544,6 +566,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return workflow_id
 
     def _render_task_response(self, state: TaskState, output_only: bool, allow_streaming: bool = False) -> Response:
+        from fastapi import HTTPException
+
         if allow_streaming and not output_only and isinstance(state.output, (StreamResource, StreamIterator)):
             raise HTTPException(
                 status_code=400,
@@ -559,9 +583,15 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return self._render_task_state(state)
 
     def _render_task_state(self, state: TaskState) -> Response:
+        from fastapi.responses import JSONResponse
+
         return JSONResponse(content=TaskStateResult.to_dict(state))
 
     def _render_task_output(self, state: TaskState, allow_streaming: bool = False) -> Response:
+        from fastapi import HTTPException
+        from fastapi.responses import JSONResponse
+        from PIL import Image as PILImage
+
         if state.status in (TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.INTERRUPTED, TaskStatus.CANCELLING):
             return JSONResponse(status_code=202, content=TaskStateResult.to_dict(state))
 
@@ -588,6 +618,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return JSONResponse(content=state.output)
 
     def _render_stream_output(self, output: Any) -> Response:
+        from fastapi.responses import StreamingResponse
+
         if isinstance(output, TaskOutputStreamEncodingIterator):
             return self._render_event_stream(output)
 
@@ -597,6 +629,8 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return StreamingResponse(output, media_type="application/octet-stream")
 
     def _render_event_stream(self, iterator: StreamIterator) -> Response:
+        from fastapi.responses import StreamingResponse
+
         return StreamingResponse(
             HttpEventStreamer(iterator).stream(),
             media_type="text/event-stream",
@@ -606,6 +640,9 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         )
 
     def _render_stream_resource(self, resource: StreamResource) -> Response:
+        from fastapi.responses import StreamingResponse
+        from starlette.background import BackgroundTask
+
         return StreamingResponse(
             resource,
             media_type=resource.content_type,
@@ -623,14 +660,20 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         return headers
 
     def _render_workflow_list(self, workflows: Dict[str, WorkflowSchema]) -> Response:
+        from fastapi.responses import JSONResponse
+
         return JSONResponse(content=[
             WorkflowSimpleResult.to_dict(workflow) for workflow in workflows.values()
         ])
 
     def _render_workflow_schemas(self, workflows: Dict[str, WorkflowSchema]) -> Response:
+        from fastapi.responses import JSONResponse
+
         return JSONResponse(content=[
             WorkflowSchemaResult.to_dict(workflow) for workflow in workflows.values()
         ])
 
     def _render_workflow_schema(self, workflow: WorkflowSchema) -> Response:
+        from fastapi.responses import JSONResponse
+
         return JSONResponse(content=WorkflowSchemaResult.to_dict(workflow))

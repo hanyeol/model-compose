@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Iterable, Union, Optional, Dict, Any, List
 from collections.abc import AsyncIterator
@@ -7,10 +8,11 @@ from mindor.core.utils.files import get_file_extension
 from mindor.core.utils.pyav import is_available as is_pyav_available
 from .resources import StreamResource, TeeStreamResource, AsyncIterableStreamResource
 from .bytes import BytesStreamResource
-from .file import UploadFileStreamResource
+from .file import UploadFileStreamResource, is_upload_file
 from .media import MediaSource
-from starlette.datastructures import UploadFile
-from PIL import Image as PILImage
+
+if TYPE_CHECKING:
+    from PIL import Image as PILImage
 
 _VIDEO_CONTENT_TYPE_MAP: Dict[str, str] = {
     "mp4":  "video/mp4",
@@ -141,7 +143,7 @@ def create_video_source(value: Any) -> MediaSource:
         else:
             return MediaSource(value)
 
-    if isinstance(value, UploadFile):
+    if is_upload_file(value):
         if value.filename:
             return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
         else:

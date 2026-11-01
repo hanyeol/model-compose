@@ -149,11 +149,11 @@ class VectorValueRenderer:
         ``item_is_list=False`` nested check used by other renderers, but
         shifted one axis deeper because a vector is itself a 1-D list.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element_array(self, value: Any) -> bool:
         """True when ``value`` is a batch of vectors — a list/tuple whose
@@ -163,11 +163,11 @@ class VectorValueRenderer:
         if isinstance(value, VectorArrayValue):
             return True
 
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and isinstance(value[0], (list, tuple, VectorValue))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if isinstance(value[0], (list, tuple, VectorValue)):
+                return True
+
+        return False
 
     def _is_fragmented_stream(self, value: Any) -> bool:
         """True when ``value`` is a fragmented ``StreamChunkIterator`` — one

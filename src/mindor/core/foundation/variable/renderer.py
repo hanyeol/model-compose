@@ -8,7 +8,7 @@ from mindor.core.utils.transport.http_client import create_stream_with_url
 from mindor.core.utils.url import parse_data_uri
 from mindor.core.foundation.condition import evaluate_condition, evaluate_where
 from ..streaming.resources import StreamResource
-from ..streaming.file import UploadFileStreamResource, FileStreamResource
+from ..streaming.file import UploadFileStreamResource, FileStreamResource, is_upload_file
 from ..streaming.base64 import Base64StreamResource, encode_value_to_base64, decode_base64_value
 from ..streaming.json import decode_json_value, encode_value_to_json
 from ..streaming.bytes import BytesStreamResource
@@ -18,8 +18,6 @@ from ..streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamR
 from ..streaming.video import VideoStreamResource
 from ..streaming.model_3d import Model3DStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
-from starlette.datastructures import UploadFile
-from PIL import Image as PILImage
 from urllib.parse import unquote_to_bytes
 import re, aiofiles, os, asyncio
 
@@ -163,7 +161,7 @@ class VariableRenderer:
 
         return values
 
-    async def _render_list(self, state: RenderState, entries: list) -> list:
+    async def _render_list(self, state: RenderState, entries: List[Any]) -> List[Any]:
         values = []
 
         for item in entries:
@@ -531,6 +529,8 @@ class VariableRenderer:
         attrs: Optional[Dict[str, Any]],
         format: Optional[str],
     ) -> Any:
+        from PIL import Image as PILImage
+
         skip_decode = state.skip_decode
 
         if is_list:
@@ -615,7 +615,7 @@ class VariableRenderer:
             if format in [ "base64", "path", "url", "data-uri" ] and isinstance(value, str):
                 value = await self._load_stream_from_format(value, format)
 
-            if isinstance(value, UploadFile):
+            if is_upload_file(value):
                 value = UploadFileStreamResource(value)
 
             filename = getattr(value, "filename", None) if isinstance(value, StreamResource) else None

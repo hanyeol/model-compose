@@ -6,7 +6,7 @@ from abc import abstractmethod
 from mindor.dsl.schema.component import ModelTokenizerComponentConfig, ModelTokenizerTaskType, ModelTokenizerDriverType
 from mindor.dsl.schema.component.impl.model.tasks.common import ModelConfig
 from mindor.dsl.schema.action import ModelTokenizerActionConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
 from ....context import ComponentActionContext

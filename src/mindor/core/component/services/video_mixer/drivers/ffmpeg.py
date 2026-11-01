@@ -376,7 +376,7 @@ class FFmpegVideoMixerAction(VideoMixerAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         command = command + [ "-f", format, "pipe:1" ]
-        error: list = []
+        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

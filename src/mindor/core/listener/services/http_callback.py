@@ -1,13 +1,19 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Callable, Any
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from typing import Union, Optional, Dict, List, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.listener import HttpCallbackListenerConfig, HttpCallbackConfig
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from ..base import ListenerService, ListenerType, register_listener
-from fastapi import FastAPI, APIRouter, Body, HTTPException, Request
-from fastapi.responses import Response, JSONResponse
 from threading import Lock
-import asyncio, uvicorn
+import asyncio
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI, APIRouter, Request
+    from fastapi.responses import Response
+    import uvicorn
 
 class HttpCallbackContext:
     def __init__(
@@ -56,10 +62,23 @@ class HttpCallbackListener(ListenerService):
 
     def __init__(self, id: str, config: HttpCallbackListenerConfig, daemon: bool):
         super().__init__(id, config, daemon)
-        
+
         self.server: Optional[uvicorn.Server] = None
-        self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
-        self.router: APIRouter = APIRouter()
+        self.app: Optional[FastAPI] = None
+        self.router: Optional[APIRouter] = None
+
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [
+            *(super()._get_setup_requirements() or []),
+            "fastapi",
+            "uvicorn"
+        ]
+
+    async def _setup(self) -> None:
+        from fastapi import FastAPI, APIRouter
+
+        self.app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+        self.router = APIRouter()
 
         self._configure_routes()
         self.app.include_router(self.router, prefix=self.config.base_path or "")
@@ -74,6 +93,8 @@ class HttpCallbackListener(ListenerService):
             )
 
     def _make_callback_handler(self, callback: HttpCallbackConfig) -> Callable:
+        from fastapi.responses import Response
+
         async def _handler(request: Request) -> Response:
             content_type, _ = parse_options_header(request.headers, "Content-Type")
             body, query = await parse_request_body(request, content_type), request.query_params
@@ -111,10 +132,12 @@ class HttpCallbackListener(ListenerService):
         return True
 
     async def _serve(self) -> None:
+        import uvicorn
+
         self.server = uvicorn.Server(uvicorn.Config(
-            self.app, 
-            host=self.config.host, 
-            port=self.config.port, 
+            self.app,
+            host=self.config.host,
+            port=self.config.port,
             log_level="info"
         ))
         try:

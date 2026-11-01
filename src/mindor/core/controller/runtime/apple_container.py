@@ -2,10 +2,10 @@ from typing import List
 from pathlib import Path
 from mindor.dsl.schema.containers.apple_container import AppleContainerPortConfig
 from mindor.dsl.schema.controller import ControllerConfig
-from mindor.core.runtime.common import ContainerImageKind
+from mindor.core.runtime.container import ContainerImageKind
 from mindor.core.foundation.containers.apple_container import AppleContainerOptions
 from mindor.core.runtime.apple_container import AppleContainerRuntimeBackend
-from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
+from .container import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     """Apple Container backend for a controller runtime."""

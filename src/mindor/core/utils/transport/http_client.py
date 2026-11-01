@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, Tuple, Any
 from .http_request import build_request_body, parse_options_header
@@ -6,10 +7,13 @@ from mindor.core.foundation.streaming.http import HttpStreamResource, HttpEventS
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.file import FileStreamResource
 from mindor.core.utils.url import encode_url
-from requests.structures import CaseInsensitiveDict
+from .http_headers import CaseInsensitiveDict
 from urllib.parse import urlparse, unquote
 from urllib.request import url2pathname
-import aiohttp, asyncio, json, platform
+import asyncio, json, platform
+
+if TYPE_CHECKING:
+    import aiohttp
 
 _DEFAULT_USER_AGENTS = {
     "Darwin":  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
@@ -19,19 +23,29 @@ _DEFAULT_USER_AGENTS = {
     "Linux":   "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
 }
 
-class StreamResourcePayload(aiohttp.AsyncIterablePayload):
-    def __init__(self, stream: StreamResource, **kwargs: Any) -> None:
-        super().__init__(stream, **self._build_payload_kwargs(stream, kwargs))
+_StreamResourcePayloadImpl = None
 
-        if stream.size is not None:
-            self._size = stream.size
+def StreamResourcePayload(stream: StreamResource, **kwargs: Any) -> aiohttp.AsyncIterablePayload:
+    global _StreamResourcePayloadImpl
 
-    @classmethod
-    def _build_payload_kwargs(cls, stream: StreamResource, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        kwargs.setdefault("content_type", stream.content_type or "application/octet-stream")
-        if stream.filename and "filename" not in kwargs:
-            kwargs["filename"] = stream.filename
-        return kwargs
+    if _StreamResourcePayloadImpl is None:
+        import aiohttp
+
+        class _StreamResourcePayload(aiohttp.AsyncIterablePayload):
+            def __init__(self, stream: StreamResource, **kwargs: Any) -> None:
+                kwargs.setdefault("content_type", stream.content_type or "application/octet-stream")
+
+                if stream.filename and "filename" not in kwargs:
+                    kwargs["filename"] = stream.filename
+
+                super().__init__(stream, **kwargs)
+
+                if stream.size is not None:
+                    self._size = stream.size
+
+        _StreamResourcePayloadImpl = _StreamResourcePayload
+
+    return _StreamResourcePayloadImpl(stream, **kwargs)
 
 class HttpClient:
     _shared_instance: Optional[HttpClient] = None
@@ -129,6 +143,8 @@ class HttpClient:
         return session
 
     def _create_session(self, base_url: Optional[str]) -> aiohttp.ClientSession:
+        import aiohttp
+
         return aiohttp.ClientSession(base_url.rstrip("/") + "/" if base_url else None)
 
     async def _request_with_session(
@@ -141,8 +157,10 @@ class HttpClient:
         headers: Optional[Dict[str, str]],
         timeout: Optional[float] = None
     ) -> aiohttp.ClientResponse:
+        import aiohttp
+
         data, content_type = self._build_request_body(body, headers)
- 
+
         if content_type == "multipart/form-data":
             headers = CaseInsensitiveDict(headers)
             headers.pop("Content-Type", None)

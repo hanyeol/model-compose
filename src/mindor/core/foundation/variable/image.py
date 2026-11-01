@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.resources import StreamResource, read_stream_to_bytes
@@ -5,10 +8,12 @@ from ..streaming.image import load_image_from_stream, ImageStreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.files import get_file_extension, guess_file_extension
 from mindor.core.utils.image import probe_format
-from PIL import Image as PILImage
 import asyncio
 
-ImageValue = Union[PILImage.Image, ImageStreamResource]
+if TYPE_CHECKING:
+    from PIL import Image as PILImage
+
+    ImageValue = Union[PILImage.Image, ImageStreamResource]
 
 class ImageArrayValue:
     """A materialized or streaming array of images.
@@ -161,6 +166,8 @@ class ImageValueRenderer:
         """Normalize a raw value to the requested element type. `as_stream`
         picks the target: `PIL.Image` (default) or `ImageStreamResource`.
         """
+        from PIL import Image as PILImage
+
         if as_stream:
             if isinstance(value, ImageStreamResource):
                 return value
@@ -196,11 +203,11 @@ class ImageValueRenderer:
         list whose first item is itself an element array or a fragmented
         stream.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element_array(self, value: Any) -> bool:
         """True when ``value`` is a batch of image refs — a list/tuple of

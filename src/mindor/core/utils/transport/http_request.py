@@ -1,9 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Dict, List, Tuple, Optional, Any
-from requests.structures import CaseInsensitiveDict
-from starlette.datastructures import FormData, UploadFile
+from .http_headers import CaseInsensitiveDict
 from urllib.parse import urlencode
-from fastapi import Request
-import aiohttp, re, json, os
+import re, json, os
+
+if TYPE_CHECKING:
+    from fastapi import Request
+    from starlette.datastructures import FormData, UploadFile
+    import aiohttp
 
 _TOKEN_PATTERN = r"([\w!#$%&'*+\-.^_`|~]+)"
 _QUOTED_PATTERN = r'"([^"]*)"'
@@ -43,7 +49,7 @@ class NestedFormParser:
 def build_request_body(body: Any, content_type: Optional[str]) -> Any:
     if content_type == "application/json":
         return json.dumps(body)
-    
+
     if content_type == "multipart/form-data":
         return build_request_form(body)
 
@@ -56,6 +62,9 @@ def build_request_body(body: Any, content_type: Optional[str]) -> Any:
     return body
 
 def build_request_form(body: Any) -> aiohttp.FormData:
+    import aiohttp
+    from starlette.datastructures import UploadFile
+
     form = aiohttp.FormData()
 
     for key, value in body.items() if isinstance(body, dict) else {}:
@@ -108,9 +117,11 @@ def parse_options_header(headers: Dict[str, str], header_name: str) -> Tuple[str
     return value.strip().lower(), options
 
 def create_upload_file(path: str, type: Optional[str], subtype: Optional[str]) -> UploadFile:
+    from starlette.datastructures import UploadFile
+
     file, filename = open(path, "rb"), os.path.basename(path)
     content_type = guess_file_content_type(filename, type, subtype)
-    headers = { 
+    headers = {
         "Content-Type": content_type,
         "Content-Disposition": f'form-data; filename="{filename}"'
     }

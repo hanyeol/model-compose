@@ -104,11 +104,11 @@ class ArrayValueRenderer:
         list whose first item is itself an element array or a fragmented
         stream.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element(self, value: Any) -> bool:
         """True when ``value`` is a list/tuple or an already-materialized

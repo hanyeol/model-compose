@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import RunPodRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
@@ -10,30 +10,32 @@ from mindor.core.component.runtime.common import (
     ComponentRuntimeWorker,
 )
 from mindor.core.foundation.runtime.ipc_message import IpcMessage
-from mindor.core.foundation.runtime.ipc_ws_channel import IpcWsClientTransport, IpcWsServerChannel
+from mindor.core.foundation.runtime.ipc_websocket_channel import IpcWebsocketTransport, IpcWebsocketChannel
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.runtime.runpod import RunPodHandle, RunPodLaunchError, RunPodRuntime
+from mindor.core.runtime.runpod import RunPodRuntime
+from mindor.core.utils.transport.runpod_client import RunPodError
 from mindor.core.component.runtime.base.ipc_message import IpcStartPayload
+from mindor.core.foundation.project import get_component_state_path
+from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.logger import logging
-import argparse, asyncio, os, secrets, sys
+import argparse, asyncio, base64, json, os, secrets, sys
 
-# Pod bootstrap pins — hardcoded on purpose. Keeping these out of the DSL
-# avoids surfacing an "escape hatch" field users would then feel obliged to
-# customise; bumps happen here in the module.
-_POD_BASE_IMAGE: str     = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
-_POD_GIT_REMOTE: str     = "https://github.com/hanyeol/model-compose.git"
-_POD_GIT_REVISION: str   = "main"
-_POD_WORKER_MODULE: str  = "mindor.core.component.runtime.runpod"
-_POD_PIP_CACHE_DIR: str  = "/workspace/.pip-cache"
+# Pod bootstrap pins — intentionally hardcoded (not DSL fields) to avoid
+# surfacing an "escape hatch" users would feel obliged to customise.
+_POD_BASE_IMAGE: str             = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
+_POD_WORKER_MODULE: str          = "mindor.core.component.runtime.runpod"
+
+# Container-disk workspace used when the pod has no network volume
+# mounted — ephemeral, so every launch pays extract + install.
+_POD_DEFAULT_WORKSPACE_DIR: str  = "/root/.mindor"
+
+# Short attach probe before paying the upload+install path. Long enough to
+# cover one RunPod proxy round-trip plus a retry; short enough that a
+# bootstrap-stage pod rolls over to the full bootstrap path quickly.
+_ATTACH_PROBE_TIMEOUT: float     = 10.0
 
 class ComponentRunPodRuntimeWorker(ComponentRuntimeWorker):
-    """Component-side worker that runs inside the RunPod pod.
-
-    Bridges IPC over a single long-lived WebSocket connection accepted by
-    `IpcWsServerChannel`. Each WS binary frame carries exactly one serialized
-    `IpcMessage`, so the transport maps 1:1 onto the base worker's
-    `_send_message` / `_recv_message` contract.
-    """
+    """Component-side worker running inside a RunPod pod over a WebSocket."""
     def __init__(
         self,
         component_id: str,
@@ -64,9 +66,6 @@ class ComponentRunPodRuntimeWorker(ComponentRuntimeWorker):
         return frame
 
     def _close_transport(self) -> None:
-        # Close is async on `websockets`; schedule the close coroutine on the
-        # worker's loop. We've already left the dispatch loop by this point,
-        # so there is no risk of racing a concurrent recv/send.
         if self._loop is None or self._websocket is None:
             return
 
@@ -76,13 +75,8 @@ class ComponentRunPodRuntimeWorker(ComponentRuntimeWorker):
             pass
 
 class ComponentRunPodRuntimeProxy(ComponentRuntimeProxy):
-    """Parent-side IPC proxy that drives the pod worker over a WebSocket.
-
-    The `channel` carried on the base class is an `IpcWsClientTransport`;
-    each `_send_message` / `_recv_message` is a single WS binary frame
-    carrying one serialized `IpcMessage`.
-    """
-    channel: IpcWsClientTransport
+    """WebSocket-based IPC proxy for RunPod-spawned workers."""
+    channel: IpcWebsocketTransport
 
     async def _send_message(self, message: bytes) -> None:
         await self.channel.send(message)
@@ -91,17 +85,7 @@ class ComponentRunPodRuntimeProxy(ComponentRuntimeProxy):
         return await self.channel.recv()
 
 class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
-    """Manager for a component backed by a RunPod GPU pod.
-
-    Differs from the container managers in two ways:
-
-    1. **Idle stop.** After a run completes, a timer tracks inactivity and
-       stops the pod once ``idle_timeout`` elapses. The next run transparently
-       resumes it, so GPU billing pauses between request bursts.
-    2. **Pod reuse via `resume_pod`.** Once provisioned, the pod_id is cached
-       so subsequent starts are resume (seconds) rather than fresh create
-       (minutes), and the network volume keeps the model weights warm.
-    """
+    """Manager for a component backed by a RunPod GPU pod."""
     def __init__(
         self,
         component_id: str,
@@ -110,417 +94,349 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
     ):
         super().__init__(component_id, component_config, global_configs)
 
-        runtime_config: RunPodRuntimeConfig = component_config.runtime
-        self._runtime_config: RunPodRuntimeConfig = runtime_config
+        self._runtime_config: RunPodRuntimeConfig = component_config.runtime
+        self._start_timeout = parse_time(self._runtime_config.start_timeout) if self._runtime_config.start_timeout is not None else None
+        self._stop_timeout  = parse_time(self._runtime_config.stop_timeout) if self._runtime_config.stop_timeout is not None else None
 
-        self._runpod: RunPodRuntime = RunPodRuntime(runtime_config)
-        self._auth_token: str = secrets.token_urlsafe(32)
+        self._auth_token: Optional[str] = None
+        self._runtime: Optional[RunPodRuntime] = None
 
-        self._pod_handle: Optional[RunPodHandle] = None
-        self._launch_lock: asyncio.Lock = asyncio.Lock()
-        self._active_requests: int = 0
-        self._idle_timer_task: Optional[asyncio.Task] = None
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "runpod", "websockets", "aiohttp" ]
 
-        self._stop_timeout: Optional[float] = parse_time(runtime_config.stop_timeout) if runtime_config.stop_timeout else None
-        self._idle_timeout: float = parse_time(runtime_config.idle_timeout)
-
-    # ------------------------------------------------------------------
-    # Lifecycle overrides (bypass ComponentRuntimeManager._launch/_shutdown)
-    # ------------------------------------------------------------------
-
-    async def start(self) -> None:
-        """Provision the pod and attach the WS proxy, matching other runtimes
-        that have everything ready after `up`.
-
-        First reclaims any pods left behind by a previous process (crash,
-        clean exit without ``terminate_on_down``, or restart). We cannot
-        safely adopt them: the WS auth token is a fresh per-session secret,
-        so a resume would fail the handshake and we would terminate anyway.
-        Terminate up-front for a predictable clean slate — the network
-        volume keeps the model weights so the fresh pod reloads instantly
-        rather than redownloading.
-
-        After the first request, the pod can still cycle through idle-stop
-        and resume transparently via `_ensure_pod_running`.
-        """
-        await self._reclaim_orphan_pods()
-        await self._ensure_pod_running()
-
-        logging.info(
-            "runpod: component '%s' ready (pod %s)",
-            self.worker_id,
-            self._pod_handle.pod_id if self._pod_handle else "?",
+    async def _setup(self) -> None:
+        self._runtime = RunPodRuntime(
+            worker_id=self.worker_id,
+            config=self._runtime_config,
         )
 
-    async def stop(self) -> None:
-        """Tear down the proxy and either stop or terminate the pod."""
-        self._cancel_idle_timer()
+        # Claim an existing pod only when a prior session recorded both its
+        # pod_id and auth_token — that pair is the host's proof of ownership
+        # over the pod. Without it, a same-named pod on the account belongs
+        # to someone else (e.g. a parallel compose project) and must not be
+        # touched; fall through to a fresh create instead.
+        state = self._load_pod_state()
 
-        if self._proxy is not None:
-            try:
-                await self._proxy.stop()
-            except Exception as e:
-                logging.warning("runpod: proxy stop failed: %s", e)
-            self._proxy = None
-            self._channel = None
+        if state is not None:
+            pod_id, self._auth_token = state
 
-        if self._pod_handle is not None:
-            await self._shutdown_pod()
+            if await self._runtime.claim(pod_id):
+                logging.info(
+                    "runpod: component '%s' claimed pod %s",
+                    self.worker_id,
+                    self._runtime.pod_id,
+                )
 
-    async def run(
-        self,
-        action_id: str,
-        run_id: str,
-        input_data: Dict[str, Any],
-        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
-    ) -> Any:
-        await self._ensure_pod_running()
-
-        self._active_requests += 1
-        self._cancel_idle_timer()
-        try:
-            return await self._proxy.run(action_id, run_id, input_data, on_event=on_event)
-        finally:
-            self._active_requests -= 1
-            if self._active_requests == 0:
-                self._schedule_idle_timer()
-
-    # ------------------------------------------------------------------
-    # Pod properties
-    # ------------------------------------------------------------------
-
-    @property
-    def _pod_name(self) -> str:
-        """RunPod `name` field used both to label newly created pods and to
-        reclaim orphans left behind by a crashed/restarted parent."""
-        return f"mindor-{self.worker_id}"
-
-    # ------------------------------------------------------------------
-    # Pod provisioning
-    # ------------------------------------------------------------------
-
-    async def _ensure_pod_running(self) -> None:
-        """Guarantee a RUNNING pod + a live WS proxy before returning.
-
-        If the pod is created / resumed but the WS attach then fails (bootstrap
-        crashed, auth mismatch, Cloudflare proxy misroute), the pod would keep
-        burning GPU time until the parent process notices. Terminate on that
-        path so the caller sees a clean error with no runaway cost.
-        """
-        if self._proxy is not None and self._pod_handle is not None:
-            return
-
-        async with self._launch_lock:
-            if self._proxy is not None and self._pod_handle is not None:
                 return
 
-            if self._pod_handle is None:
-                await self._launch_pod()
-            else:
-                await self._resume_pod()
-
-            try:
-                await self._attach_proxy()
-            except BaseException:
-                await self._abort_pod_on_attach_failure()
-                raise
-
-    async def _abort_pod_on_attach_failure(self) -> None:
-        """Terminate the pod when WS attach fails after it reached RUNNING.
-
-        `terminate` (not `stop`) because the bootstrap command likely crashed
-        or hung — a stop/resume would hit the same broken container. The
-        network volume survives either way, so model weights are preserved.
-        """
-        pod_id = self._pod_handle.pod_id
-
-        logging.warning("runpod: WS attach failed for pod %s; terminating to stop billing", pod_id)
-
-        try:
-            await self._runpod.terminate_pod(pod_id)
-        finally:
-            # Clear the handle unconditionally — a terminate_pod failure
-            # (API down, quota, already deleted) must not cause the next
-            # `_ensure_pod_running` call to try to resume a dead pod_id.
-            self._pod_handle = None
-
-    async def _launch_pod(self) -> None:
-        config = self._runtime_config
-        image = config.image or _POD_BASE_IMAGE
-
-        env = {
-            "WORKER_AUTH_TOKEN": self._auth_token,
-            "WORKER_PORT": str(config.worker_port),
-            # Point HF cache at the network volume so re-pulls are free.
-            "HF_HOME": f"{config.volume_mount_path}/.cache/huggingface",
-        }
-
-        if config.environment:
-            env.update({k: str(v) for k, v in config.environment.items()})
-
-        docker_args = self._build_pod_bootstrap(config.worker_port)
-
-        try:
-            handle = await self._runpod.create_pod(
-                name=self._pod_name,
-                image=image,
-                env=env,
-                docker_args=docker_args,
+            logging.warning(
+                "runpod: recorded pod %s for component '%s' is gone; creating a fresh one",
+                pod_id,
+                self.worker_id,
             )
-        except RunPodLaunchError:
+
+        await self._provision_runtime()
+
+    async def _teardown(self) -> None:
+        if self._runtime is None:
+            return
+
+        try:
+            await self._runtime.remove()
+            self._discard_pod_state()
+        finally:
+            self._runtime = None
+
+    async def _launch(self) -> IpcWebsocketTransport:
+        try:
+            await self._runtime.start()
+        except RunPodError as e:
+            # Resume can fail permanently when the pod's host machine ran out
+            # of free GPUs while stopped (reallocated to another user), or on
+            # any other RunPod-side terminal state. Terminate the zombie pod
+            # and create a fresh one — our source/deps/model caches live on
+            # the network volume, so the new pod reuses them via claim-less
+            # bootstrap and warm restart.
+            logging.warning(
+                "runpod: component '%s' failed to resume pod %s: %s",
+                self.worker_id,
+                self._runtime.pod_id,
+                e,
+            )
+
+            logging.warning(
+                "runpod: terminating pod %s and provisioning a fresh one for component '%s'",
+                self._runtime.pod_id,
+                self.worker_id,
+            )
+
+            await self._runtime.remove()
+            self._discard_pod_state()
+
+            await self._provision_runtime()
+
+        # Pod may already carry a live worker (claimed from a prior session
+        # whose bootstrap finished and whose WS server is still listening on
+        # worker_port). Probe cheaply before paying the full upload+install
+        # path — on hit, the WS server owns the port, so an upload POST would
+        # come back as HTTP 502 from the RunPod proxy anyway.
+        try:
+            transport = await self._attach_channel(timeout=_ATTACH_PROBE_TIMEOUT)
+
+            logging.info(
+                "runpod: component '%s' attached to pod %s without re-bootstrap (worker already serving)",
+                self.worker_id,
+                self._runtime.pod_id,
+            )
+
+            return transport
+        except TimeoutError:
+            pass
+
+        try:
+            status = await self._upload_mindor_source(
+                url=f"{self._runtime.proxy_http_url}/",
+                auth_token=self._auth_token,
+                timeout=self._start_timeout,
+            )
+
+            if status == 304:
+                logging.info(
+                    "runpod: component '%s' skipped install; pod %s already has the current `mindor` package",
+                    self.worker_id,
+                    self._runtime.pod_id,
+                )
+            else:
+                logging.info(
+                    "runpod: component '%s' installed `mindor` package on pod %s",
+                    self.worker_id,
+                    self._runtime.pod_id,
+                )
+
+            return await self._attach_channel()
+        except BaseException:
+            # The pod may be RUNNING and burning GPU time; best-effort stop
+            # cuts billing while leaving the pod around for the next
+            # start() to retry. Attach failures are often transient too
+            # (slow bootstrap exceeding start_timeout), so don't terminate.
+            try:
+                await self._runtime.stop()
+            except Exception:
+                pass
             raise
 
-        logging.info("runpod: pod %s is RUNNING (cost=%s/hr)", handle.pod_id, handle.cost_per_hr)
+    async def _shutdown(self, channel: IpcWebsocketTransport) -> None:
+        try:
+            await channel.close()
+        except Exception as e:
+            logging.warning("runpod: component '%s' channel close failed: %s", self.worker_id, e)
 
-        self._pod_handle = handle
+        await self._runtime.stop()
 
-    async def _resume_pod(self) -> None:
-        handle = await self._runpod.resume_pod(self._pod_handle.pod_id)
-
-        logging.info("runpod: pod %s resumed", handle.pod_id)
-
-        self._pod_handle = handle
-
-    async def _attach_proxy(self) -> None:
-        """Open a WS connection to the pod worker, then start the IPC proxy.
-
-        A pod reaches RUNNING well before its bootstrap command (git-install
-        + ``python -m mindor.core.component.runtime.runpod``) has bound the WS port, so the
-        first few connects usually fail. Retry with a short backoff until
-        ``start_timeout`` runs out.
-        """
-        transport = IpcWsClientTransport(
-            url=self._pod_handle.proxy_ws_url,
-            auth_token=self._auth_token,
-            connect_timeout=min(60.0, parse_time(self._runtime_config.start_timeout)),
-        )
-
-        deadline = asyncio.get_event_loop().time() + parse_time(self._runtime_config.start_timeout)
-        attempt = 0
-
-        while True:
-            attempt += 1
-            try:
-                await transport.connect()
-                break
-            except Exception as e:
-                if asyncio.get_event_loop().time() > deadline:
-                    raise RunPodLaunchError(
-                        f"pod {self._pod_handle.pod_id} worker did not accept WS connection "
-                        f"within start_timeout ({self._runtime_config.start_timeout}): {e}"
-                    ) from e
-
-                # Exponential-ish backoff capped at 10s; the first attempt
-                # usually fails immediately (connection refused) so a 2s floor
-                # keeps the loop from hammering the proxy.
-                await asyncio.sleep(min(10.0, 2.0 * attempt))
-
+    def _create_proxy(self, channel: IpcWebsocketTransport) -> ComponentRunPodRuntimeProxy:
         proxy = ComponentRunPodRuntimeProxy(
             self.worker_id,
             self.component_config,
             self.global_configs,
-            transport,
+            channel,
         )
-        proxy._stop_timeout = self._stop_timeout
 
-        try:
-            await proxy.start()
-        except Exception:
-            await transport.close()
-            raise
+        proxy._start_timeout = self._start_timeout
+        proxy._stop_timeout  = self._stop_timeout
 
-        self._channel = transport
-        self._proxy = proxy
-        logging.info("runpod: WS proxy attached to pod %s", self._pod_handle.pod_id)
+        return proxy
 
-    async def _stop_pod(
-        self,
-        pod_id: str,
-        max_attempts: int = 3,
-        initial_delay: float = 2.0,
-    ) -> None:
-        """`stop_pod` with bounded exponential backoff.
+    async def _attach_channel(self, timeout: Optional[float] = None) -> IpcWebsocketTransport:
+        """A pod reaches RUNNING well before its bootstrap command binds the
+        websocket port, so the first few connects usually fail. Retry until
+        ``timeout`` runs out (defaults to ``start_timeout``). Callers that
+        want a cheap "is worker already up?" probe pass a small ``timeout``."""
+        budget = timeout if timeout is not None else self._start_timeout
+        transport = IpcWebsocketTransport(
+            url=self._runtime.proxy_ws_url,
+            auth_token=self._auth_token,
+            connect_timeout=min(60.0, budget),
+        )
 
-        Billing keeps running until the pod is actually stopped, so a
-        transient SDK/API hiccup on the first attempt must not leave the pod
-        running forever. Raises the final failure so the caller can decide
-        whether to log and move on, surface it to the operator, or escalate.
-        """
-        delay = initial_delay
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + budget
+        attempt = 0
 
-        for attempt in range(1, max_attempts + 1):
+        while True:
+            attempt += 1
+
             try:
-                await self._runpod.stop_pod(pod_id)
-
+                await transport.connect()
                 break
-            except RunPodLaunchError as e:
-                if attempt == max_attempts:
-                    raise
+            except Exception as e:
+                if loop.time() > deadline:
+                    raise TimeoutError(
+                        f"pod {self._runtime.pod_id} worker did not accept websocket connection "
+                        f"within {budget}s: {e}"
+                    ) from e
 
-                logging.warning(
-                    "runpod: stop_pod(%s) attempt %d/%d failed: %s — retrying in %ss",
-                    pod_id,
-                    attempt,
-                    max_attempts,
-                    e,
-                    delay,
-                )
-
-                await asyncio.sleep(delay)
-                delay *= 2
-
-    async def _shutdown_pod(self) -> None:
-        pod_id = self._pod_handle.pod_id
-
-        if self._runtime_config.terminate_on_down:
-            await self._runpod.terminate_pod(pod_id)
-
-            logging.info("runpod: pod %s terminated", pod_id)
-
-            self._pod_handle = None
-        else:
-            try:
-                await self._stop_pod(pod_id)
-            except RunPodLaunchError as e:
-                # `model-compose down` is explicit; surface the failure so the
-                # operator stops the pod from the dashboard before it burns a
-                # shift's worth of GPU time.
-                logging.error("runpod: shutdown stop_pod(%s) failed: %s", pod_id, e)
-                raise
-
-            logging.info("runpod: pod %s stopped (volume preserved)", pod_id)
-
-    # ------------------------------------------------------------------
-    # Idle timer
-    # ------------------------------------------------------------------
-
-    def _schedule_idle_timer(self) -> None:
-        if self._idle_timeout <= 0:
-            return
-
-        self._idle_timer_task = asyncio.create_task(
-            self._idle_timer_callback(),
-            name=f"runpod-idle-timer:{self.worker_id}",
-        )
-
-    def _cancel_idle_timer(self) -> None:
-        task = self._idle_timer_task
-        self._idle_timer_task = None
-
-        if task is not None and not task.done():
-            task.cancel()
-
-    async def _idle_timer_callback(self) -> None:
-        try:
-            await asyncio.sleep(self._idle_timeout)
-        except asyncio.CancelledError:
-            return
-
-        if self._active_requests > 0:
-            return
+                await asyncio.sleep(min(10.0, 2.0 * attempt))
 
         logging.info(
-            "runpod: component '%s' idle for %ss, stopping pod",
+            "runpod: component '%s' websocket transport connected to pod %s",
             self.worker_id,
-            self._idle_timeout,
+            self._runtime.pod_id,
         )
 
-        if self._proxy is not None:
-            try:
-                await asyncio.wait_for(self._proxy.stop(), timeout=self._stop_timeout)
-            except asyncio.TimeoutError:
-                logging.warning("runpod: proxy stop timed out, forcing pod stop anyway")
-            except Exception as e:
-                logging.warning("runpod: proxy stop raised: %s", e)
+        return transport
 
-            self._proxy = None
-            self._channel = None
+    async def _provision_runtime(self) -> None:
+        """Create a brand-new pod, mint a fresh auth token, and persist the
+        pair so the next session can claim it. Used both on first-time setup
+        and as the recovery path when a resume fails irrecoverably."""
+        self._auth_token = secrets.token_urlsafe(32)
 
-        if self._pod_handle is not None:
-            pod_id = self._pod_handle.pod_id
-            try:
-                await self._stop_pod(pod_id)
-            except RunPodLaunchError as e:
-                # Idle path is background; no operator is waiting on the
-                # result. Log loud so the pod_id ends up in the ops log for
-                # manual cleanup from the RunPod dashboard.
-                logging.error(
-                    "runpod: idle stop_pod(%s) failed after retries — manual intervention required: %s",
-                    pod_id,
-                    e,
-                )
-
-    async def _reclaim_orphan_pods(self) -> None:
-        """Terminate any pods on the account whose name matches this
-        component. Called from `start()` so a crash + restart cannot leave
-        GPU time billing in the background.
-        """
-        pods = await self._runpod.get_pods()
-        orphans = [ pod for pod in pods if pod.get("name") == self._pod_name ]
-
-        if not orphans:
-            return
-
-        logging.warning(
-            "runpod: component '%s' has %d orphan pod(s) from a previous session — terminating",
-            self.worker_id,
-            len(orphans),
+        await self._runtime.create(
+            image=self._runtime_config.image or _POD_BASE_IMAGE,
+            env=self._build_pod_environment(),
+            docker_args=self._build_pod_bootstrap(self._runtime_config.worker_port),
         )
 
-        for pod in orphans:
-            pod_id = pod.get("id")
+        # Keep the pod RUNNING: `_launch` runs immediately after and would
+        # just pay a resume round-trip (~30s) to flip STOPPED back to RUNNING.
+        # Billing exposure is bounded by `_shutdown`'s stop on normal exit.
+        self._save_pod_state(self._runtime.pod_id, self._auth_token)
 
-            if not pod_id:
-                continue
+        logging.info(
+            "runpod: component '%s' provisioned (pod %s)",
+            self.worker_id,
+            self._runtime.pod_id,
+        )
 
-            try:
-                await self._runpod.terminate_pod(pod_id)
-                logging.info("runpod: orphan pod %s terminated", pod_id)
-            except Exception as e:
-                # SDK's terminate_pod already swallows; this is best-effort
-                # on top. A still-living orphan after this will keep billing,
-                # so log loudly for the operator.
-                logging.error("runpod: failed to terminate orphan pod %s: %s", pod_id, e)
+    def _build_pod_bootstrap(self, worker_port: int) -> str:
+        """Shell command run as the pod's docker CMD — writes the one-shot
+        upload server to disk, runs it on the worker port to receive the
+        host-shipped mindor package (or respond 304 when the cached version
+        already matches), installs the bootstrap requirements, then execs
+        the websocket worker on the same port. Re-extraction and
+        re-install are skipped when the cached version matches, so warm
+        restarts are near-instant.
 
-    @staticmethod
-    def _build_pod_bootstrap(worker_port: int) -> str:
-        """Shell command run as the pod's docker CMD. Installs model-compose
-        from git (pip skips when the install is already satisfied in the pip
-        cache) then execs the WS worker.
-
-        The network volume is mounted at ``/workspace`` by default; pip cache
-        lives there so re-launches after a stop skip the download.
-
-        No embedded ``"``: RunPod's GraphQL layer serializes ``dockerArgs``
-        with ``f'dockerArgs: "{...}"'`` and does not escape inner double
-        quotes, so any ``"`` in this string prematurely terminates the
-        GraphQL string and surfaces as `Syntax Error: Unexpected character`.
-        Single quotes wrap the command and the git URL is passed to pip
-        unquoted (safe since there are no shell metacharacters inside it).
+        No embedded ``"``: RunPod's GraphQL layer wraps ``dockerArgs`` in
+        double quotes without escaping, so any ``"`` here would terminate
+        the GraphQL string.
         """
-        # The pytorch base image already carries python/pip/torch; apt-install
-        # only the extras it misses (`git` for pip-from-git, `ffmpeg` so
-        # torchcodec can dlopen libav* at inference time). On resumes the apt
-        # step is a no-op.
-        #
-        # `PIP_BREAK_SYSTEM_PACKAGES=1` opts out of PEP 668 — safe inside a
-        # single-purpose pod running as root, where there is no system Python
-        # install to protect.
+        # Encode the upload-server script in base64 so it travels through the
+        # outer shell quoting and RunPod's GraphQL layer intact — the latter
+        # wraps `dockerArgs` in double quotes without escaping, so any `"` or
+        # `\n` embedded in the script would terminate the GraphQL string.
+        upload_server_script = self._get_mindor_upload_server_script()
+        upload_server_script = base64.b64encode(upload_server_script.encode("utf-8")).decode("ascii")
+
+        workspace_root = self._get_pod_workspace_root()
+        pip_cache_dir  = f"{workspace_root}/.pip-cache"
+        mindor_src_dir = f"{workspace_root}/.mindor-src"
+        site_pkgs_dir  = f"{workspace_root}/.site-packages"
+
         return (
             "bash -lc '"
-            "(command -v git >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1) || "
-            "(apt-get update && apt-get install -y --no-install-recommends git ffmpeg) && "
-            f"mkdir -p {_POD_PIP_CACHE_DIR} && "
-            f"export PIP_CACHE_DIR={_POD_PIP_CACHE_DIR} && "
-            # Opt out of PEP 668 for both pip (bootstrap) and uv (runtime
-            # dependency installer); safe inside a single-purpose pod running
-            # as root, where there is no system Python install to protect.
-            "export PIP_BREAK_SYSTEM_PACKAGES=1 && "
-            "export UV_BREAK_SYSTEM_PACKAGES=1 && "
-            f"pip install --upgrade git+{_POD_GIT_REMOTE}@{_POD_GIT_REVISION} && "
+
+            # Ensure ffmpeg is on PATH (model components routinely need it).
+            "(command -v ffmpeg >/dev/null 2>&1) || "
+            "(apt-get update && apt-get install -y --no-install-recommends ffmpeg) && "
+
+            # Prepare pip cache, mindor package cache, and site-packages dir
+            # under workspace_root. When a network volume is attached, these all
+            # survive container recreations; without one they're ephemeral
+            # and every launch pays extract + install.
+            f"mkdir -p {pip_cache_dir} {mindor_src_dir} {site_pkgs_dir} && "
+            f"export PIP_CACHE_DIR={pip_cache_dir} && "
+
+            # Materialize the one-shot upload server (base64-encoded above)
+            # and run it on the worker port. Exits 0 after extracting the
+            # host-shipped source, 10 on a cache hit, non-zero on failure.
+            f"echo {upload_server_script} | base64 -d > /tmp/upload_server.py && "
+            f"python3 /tmp/upload_server.py --port {worker_port} --upload-path {mindor_src_dir}; "
+
+            # Branch on the server's exit code: new source → reinstall pip
+            # deps and only then stamp .version (so a mid-install crash does
+            # not look like a cache hit on the next launch); cache hit →
+            # skip reinstall; any other code → abort the whole bootstrap.
+            f"server_rc=$?; "
+            f"if [ $server_rc -eq 0 ]; then "
+            f"pip install --upgrade --target={site_pkgs_dir} "
+            f"websockets -r {mindor_src_dir}/mindor/core/runtime/bootstrap/requirements.txt && "
+            f"echo $MINDOR_SRC_VERSION > {mindor_src_dir}/.version; "
+            f"elif [ $server_rc -ne 10 ]; then exit $server_rc; "
+            f"fi && "
+
+            # Hand control to the websocket worker on the same port. Source
+            # and deps are both reachable via PYTHONPATH off workspace_root —
+            # survives container recreations when the volume is mounted,
+            # hot-swaps on launch.
+            f"export PYTHONPATH={mindor_src_dir}:{site_pkgs_dir}:$PYTHONPATH && "
             f"exec python -m {_POD_WORKER_MODULE} --port {worker_port}"
             "'"
         )
+
+    def _build_pod_environment(self) -> Dict[str, str]:
+        env = dict(self._runtime_config.environment or {})
+
+        env["MINDOR_WORKER_AUTH_TOKEN"] = self._auth_token
+        env["MINDOR_WORKER_PORT"] = str(self._runtime_config.worker_port)
+
+        # Host-side mindor version — the pod's upload server replies 304 to
+        # the host when its on-disk cache already matches this value, so the
+        # host can skip extract + reinstall on warm restarts.
+        env["MINDOR_SRC_VERSION"] = mindor_package.get_version()
+
+        # Point HF cache under the same workspace root as mindor source and
+        # site-packages — persistent when a network volume is attached, so
+        # re-pulls are free; ephemeral otherwise.
+        env["HF_HOME"] = f"{self._get_pod_workspace_root()}/.cache/huggingface"
+
+        # Driver-triggered installs at runtime (e.g. torchaudio) target the
+        # pod's system interpreter, which is PEP 668 externally-managed on
+        # recent base images. Grant pip/uv permission to write to it.
+        env["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
+        env["UV_BREAK_SYSTEM_PACKAGES"]  = "1"
+
+        return env
+
+    def _get_pod_workspace_root(self) -> str:
+        """Mindor source + pip cache + site-packages root. Network volume
+        mount when attached (persistent), container disk otherwise."""
+        if self._runtime_config.network_volume_id:
+            return self._runtime_config.volume_mount_path
+
+        return _POD_DEFAULT_WORKSPACE_DIR
+
+    def _load_pod_state(self):
+        """Return ``(pod_id, auth_token)`` persisted from a prior session, or
+        ``None`` when no prior state exists / the file is unreadable."""
+        state_file = self._get_pod_state_path()
+
+        if not state_file.exists():
+            return None
+
+        try:
+            state = json.loads(state_file.read_text())
+            return state["pod_id"], state["auth_token"]
+        except (OSError, ValueError, KeyError):
+            return None
+
+    def _save_pod_state(self, pod_id: str, auth_token: str) -> None:
+        """Persist ``(pod_id, auth_token)`` so the next session can claim
+        this pod instead of paying the create cost again. 0600 file perms."""
+        state_file = self._get_pod_state_path()
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        state_file.write_text(json.dumps({"pod_id": pod_id, "auth_token": auth_token}))
+        state_file.chmod(0o600)
+
+    def _discard_pod_state(self) -> None:
+        """Remove the persisted ``(pod_id, auth_token)`` after the pod is gone."""
+        state_file = self._get_pod_state_path()
+        state_file.unlink(missing_ok=True)
+
+    def _get_pod_state_path(self):
+        """Where this component's pod state (pod_id + auth_token) lives on
+        the host, scoped by compose project namespace."""
+        return get_component_state_path(self.worker_id) / "runpod.json"
 
 def _worker_factory(message: IpcMessage, websocket: Any) -> ComponentRunPodRuntimeWorker:
     payload = IpcStartPayload.model_validate(message.payload or {})
@@ -533,27 +449,21 @@ def _worker_factory(message: IpcMessage, websocket: Any) -> ComponentRunPodRunti
     )
 
 def main() -> None:
-    """Entrypoint when launched as `python -m mindor.core.component.runtime.runpod`.
-
-    Starts an `IpcWsServerChannel` that waits for the parent manager's WS
-    connection, performs the START handshake, and drives a
-    `ComponentRunPodRuntimeWorker` over that channel.
-    """
+    """Entrypoint when launched as `python -m mindor.core.component.runtime.runpod`."""
     parser = argparse.ArgumentParser(prog="mindor-runpod-worker")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("WORKER_PORT", "8000")))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("MINDOR_WORKER_PORT", "8000")))
     parser.add_argument("--host", type=str, default="0.0.0.0")
     args = parser.parse_args()
 
-    auth_token = os.environ.get("WORKER_AUTH_TOKEN")
+    auth_token = os.environ.get("MINDOR_WORKER_AUTH_TOKEN")
 
     if not auth_token:
-        # Hard-fail: without the shared secret the WS endpoint is open to the
-        # internet via the RunPod proxy URL. Refuse to serve rather than
-        # expose an unauthenticated inference backend.
-        print("runpod: WORKER_AUTH_TOKEN env is required", file=sys.stderr)
+        # Without the shared secret the websocket endpoint is open to the
+        # internet via the RunPod proxy URL. Refuse to serve.
+        print("runpod: MINDOR_WORKER_AUTH_TOKEN env is required", file=sys.stderr)
         sys.exit(2)
 
-    channel = IpcWsServerChannel(
+    channel = IpcWebsocketChannel(
         _worker_factory,
         auth_token=auth_token,
         host=args.host,

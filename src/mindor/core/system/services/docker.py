@@ -1,10 +1,8 @@
+from typing import List, Optional, Tuple, Union
 from mindor.dsl.schema.system.impl.docker import DockerSystemConfig
 from mindor.dsl.schema.system.impl.types import SystemType
 from mindor.core.system.base import SystemService, register_system
-from mindor.core.foundation.containers.docker import (
-    DockerContainerRunner,
-    DockerImageBuilder,
-)
+from mindor.core.foundation.containers.docker import DockerContainerRunner, DockerImageBuilder
 from mindor.core.logger import logging
 import shutil
 
@@ -25,19 +23,28 @@ class DockerSystem(SystemService):
 
         self._configure_system_config()
 
-        self._builder: DockerImageBuilder = DockerImageBuilder(verbose=True)
-        self._container: DockerContainerRunner = DockerContainerRunner(
-            config=self.config,
-            verbose=True,
-        )
+        self._builder: Optional[DockerImageBuilder] = None
+        self._container: Optional[DockerContainerRunner] = None
 
     def _configure_system_config(self) -> None:
         if not self.config.container_name:
             self.config.container_name = f"mindor-system-{self.id}"
 
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [
+            *(super()._get_setup_requirements() or []),
+            "docker"
+        ]
+
     async def _setup(self) -> None:
         if not shutil.which("docker"):
             raise FileNotFoundError("'docker' command not found. Please install Docker to use docker systems.")
+
+        self._builder = DockerImageBuilder(verbose=True)
+        self._container = DockerContainerRunner(
+            config=self.config,
+            verbose=True,
+        )
 
         if self.config.build:
             build = self.config.build
@@ -59,12 +66,14 @@ class DockerSystem(SystemService):
     async def _serve(self) -> None:
         await self._container.create()
         await self._container.start(detach=True)
+
         logging.info(f"Docker container started: {self.config.container_name or self.config.image}")
 
     async def _shutdown(self) -> None:
         try:
             await self._container.stop()
             await self._container.remove()
+
             logging.info(f"Docker container stopped: {self.config.container_name or self.config.image}")
         except Exception as e:
             logging.warning(f"Docker container cleanup failed: {e}")

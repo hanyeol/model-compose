@@ -396,14 +396,14 @@ class FFmpegVideoClipperAction(VideoClipperAction):
 
     async def _run_to_stream(
         self,
-        command: list,
+        command: List[str],
         format: str,
         cleanup: Callable[[], None],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> VideoStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as a VideoStreamResource."""
         command = command + [ "-f", get_muxer_for_extension(format), "pipe:1" ]
-        error: list = []
+        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

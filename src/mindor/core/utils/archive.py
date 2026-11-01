@@ -14,15 +14,19 @@ def archive_to_stream(
     files: Optional[Dict[str, Union[Path, bytes, bytearray]]] = None,
     dirs: Optional[Dict[str, Path]] = None,
     filter: Optional[TarFilter] = None,
+    gzipped: bool = False,
     spool_max_size: int = _DEFAULT_SPOOL_MAX,
 ) -> tempfile.SpooledTemporaryFile:
-    """Build an uncompressed tar archive into a spooled temp file.
+    """Build a tar archive into a spooled temp file.
 
     The returned object is a `tempfile.SpooledTemporaryFile` (file-like)
     positioned at offset 0 and ready to be passed to `docker.api.build(
     fileobj=...)` or `container.put_archive(...)`. Archives smaller than
     `spool_max_size` stay entirely in memory; larger ones spill to disk
     transparently — callers do not have to know which.
+
+    `gzipped=True` writes a gzipped tar (`tarfile` streams through gzip
+    natively — no second compression pass in memory).
 
     Callers are responsible for closing the returned file (use `with`).
 
@@ -35,8 +39,10 @@ def archive_to_stream(
       `Path`-valued file entries and to directory entries.
     """
     tar_file = tempfile.SpooledTemporaryFile(max_size=spool_max_size, mode="w+b")
+    mode = "w|gz" if gzipped else "w"
+
     try:
-        with tarfile.open(fileobj=tar_file, mode="w") as tar:
+        with tarfile.open(fileobj=tar_file, mode=mode) as tar:
             for arcname, source in (files or {}).items():
                 if isinstance(source, (bytes, bytearray)):
                     info = tarfile.TarInfo(name=arcname)

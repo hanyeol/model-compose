@@ -368,7 +368,7 @@ class FFmpegVideoEncoderAction(VideoEncoderAction):
     ) -> VideoStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as a VideoStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]
-        error: list = []
+        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

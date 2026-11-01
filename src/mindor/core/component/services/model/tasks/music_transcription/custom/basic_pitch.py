@@ -223,7 +223,7 @@ class BasicPitchMusicTranscriptionTaskDriver(ModelTaskDriver):
         # The driver only loads the ONNX checkpoint via onnxruntime, so install
         # with `--no-deps` and declare the actual runtime deps above.
         if not is_package_installed("basic_pitch"):
-            await install_package("basic-pitch==0.4.0", [ "--no-deps" ])
+            await install_package("basic-pitch==0.4.0", pip_options=[ "--no-deps" ])
 
     async def _load_model(self) -> None:
         from basic_pitch import build_icassp_2022_model_path, FilenameSuffix

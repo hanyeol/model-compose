@@ -1,8 +1,12 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Any, Callable
 from .websocket_client import WebSocketClient, WebSocketConnection
-import aiohttp, asyncio, itertools
+import asyncio, itertools
+
+if TYPE_CHECKING:
+    import aiohttp
 
 class CdpClient:
     """
@@ -117,7 +121,7 @@ class CdpClient:
         timeout: float = 30.0,
     ) -> CdpClient:
         """Discover the debugger URL by querying /json on the HTTP DevTools port."""
-        import time
+        import aiohttp, time
 
         deadline = time.monotonic() + timeout
         last_error: Optional[Exception] = None
@@ -162,6 +166,8 @@ class CdpClient:
 
         Returns (connected CdpClient, target_id).
         """
+        import aiohttp
+
         endpoint = f"{url}/json/new"
         if navigate_url:
             endpoint += f"?{navigate_url}"
@@ -181,6 +187,8 @@ class CdpClient:
     @classmethod
     async def close_tab(cls, url: str, target_id: str) -> None:
         """Close a browser tab via the DevTools HTTP API."""
+        import aiohttp
+
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{url}/json/close/{target_id}") as response:
                 await response.read()

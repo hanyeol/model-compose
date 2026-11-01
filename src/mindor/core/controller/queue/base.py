@@ -5,7 +5,7 @@ from typing import Type, Optional, Dict, List, Any, Callable, Awaitable
 from abc import abstractmethod
 from mindor.dsl.schema.controller import ControllerQueueDriverType
 from mindor.dsl.schema.controller.queue.impl.common import CommonControllerQueueConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.workflow.interrupt import InterruptHandler, InterruptPoint
 import asyncio
 

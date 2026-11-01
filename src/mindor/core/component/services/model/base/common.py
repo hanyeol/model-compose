@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType, ModelConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig
 from mindor.dsl.schema.runtime import RuntimeType
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
 from ....action.base import ComponentAction

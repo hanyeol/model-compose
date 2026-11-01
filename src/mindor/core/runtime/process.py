@@ -1,6 +1,7 @@
 from typing import Any, Callable, Optional
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.foundation.variable.time import parse_time
+from .common import CommonRuntime
 from multiprocessing import Process
 import asyncio, multiprocessing, os
 
@@ -11,7 +12,7 @@ import asyncio, multiprocessing, os
 # only receives what we pass through pickled args.
 _SPAWN_CONTEXT = multiprocessing.get_context("spawn")
 
-class ProcessRuntime:
+class ProcessRuntime(CommonRuntime):
     """Generic lifecycle wrapper around a `multiprocessing.Process`.
 
     Pure lifecycle — knows nothing about IPC protocols, codecs, or channels.
@@ -25,6 +26,8 @@ class ProcessRuntime:
         ...
         await runtime.stop()
     """
+    config: ProcessRuntimeConfig
+
     def __init__(
         self,
         target: Callable[..., Any],
@@ -32,10 +35,10 @@ class ProcessRuntime:
         config: ProcessRuntimeConfig,
         verbose: bool = False,
     ):
+        super().__init__(config, verbose)
+
         self.target = target
         self.args = args
-        self.config = config
-        self.verbose = verbose
 
         self._subprocess: Optional[Process] = None
 

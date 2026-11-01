@@ -24,9 +24,9 @@ from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.gateway import find_gateway_by_port
-from PIL import Image as PILImage
 
 if TYPE_CHECKING:
+    from PIL import Image as PILImage
     from mindor.core.workflow.context import WorkflowContext
     from mindor.core.workflow.notifiers import ComponentEventNotifier
 

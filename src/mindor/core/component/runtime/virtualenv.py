@@ -8,8 +8,10 @@ from mindor.core.component.runtime.common import ComponentRuntimeManager, Compon
 from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
 from mindor.core.component.runtime.base.ipc_message import IpcStartPayload
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.runtime.virtualenv import VirtualEnvRuntime
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
+from pathlib import Path
 import asyncio, os, sys
 
 class ComponentVirtualEnvRuntimeWorker(ComponentRuntimeWorker):
@@ -36,7 +38,6 @@ class ComponentVirtualEnvRuntimeWorker(ComponentRuntimeWorker):
 
     def _close_transport(self) -> None:
         self.channel.close()
-
 
 class ComponentVirtualEnvRuntimeProxy(ComponentRuntimeProxy):
     """SubprocessPipeChannel-based IPC proxy for venv-spawned workers."""
@@ -66,26 +67,39 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
 
         self._runtime: Optional[VirtualEnvRuntime] = None
 
-    async def _launch(self) -> SubprocessPipeChannel:
+    async def _setup(self) -> None:
+        # The venv itself + `mindor` + user requirements are the slow,
+        # cacheable half of this runtime. Materialize them at setup() so a
+        # later start() only has to spawn the subprocess.
         self._runtime = VirtualEnvRuntime(
             worker_id=self.worker_id,
             worker_module="mindor.core.component.runtime.virtualenv",
             config=self._runtime_config,
         )
-        await self._runtime.bootstrap()
 
+        mindor_root_path = mindor_package.get_root_path()
+        runtime_requirements_path = mindor_package.get_requirements_path()
+        user_requirements_path = (Path.cwd() / "requirements.txt").resolve()
+
+        async with self._runtime.bootstrap_lock():
+            await self._runtime.create_venv()
+            await self._runtime.install_source(mindor_root_path)
+            await self._runtime.install_requirements([ runtime_requirements_path, user_requirements_path ])
+
+    async def _teardown(self) -> None:
+        # The venv on disk is a reusable asset — leave it for the next setup.
+        # Only drop our in-memory handle so a fresh setup() rebuilds the view.
+        self._runtime = None
+
+    async def _launch(self) -> SubprocessPipeChannel:
         # Create the pipe pair before spawning so we can hand the child its fds.
+        # The Runtime hides whether inheritance happens via POSIX pass_fds or
+        # Windows STARTUPINFO.handle_list — we just pass the two fds.
         request_r,  request_w  = os.pipe()
         response_r, response_w = os.pipe()
 
         try:
-            await self._runtime.start(
-                pass_fds=(request_r, response_w),
-                env={
-                    "MINDOR_VENV_REQUEST_FD":  str(request_r),
-                    "MINDOR_VENV_RESPONSE_FD": str(response_w),
-                },
-            )
+            await self._runtime.start(request_fd=request_r, response_fd=response_w)
         finally:
             # The child duplicates its fds; the parent should hold only its own ends.
             os.close(request_r)
@@ -102,7 +116,6 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
 
         if self._runtime is not None:
             await self._runtime.stop()
-            self._runtime = None
 
     def _create_proxy(self, channel: SubprocessPipeChannel) -> ComponentVirtualEnvRuntimeProxy:
         proxy = ComponentVirtualEnvRuntimeProxy(
@@ -128,8 +141,18 @@ def main() -> None:
         pass
 
     try:
-        request_fd = int(os.environ["MINDOR_VENV_REQUEST_FD"])
-        response_fd = int(os.environ["MINDOR_VENV_RESPONSE_FD"])
+        if os.name == "nt":
+            # Windows path: parent passed OS handles via STARTUPINFO.handle_list and
+            # stored the handle values in MINDOR_VENV_*_HANDLE. Convert back to fds.
+            import msvcrt
+
+            request_handle  = int(os.environ["MINDOR_VENV_REQUEST_HANDLE"])
+            response_handle = int(os.environ["MINDOR_VENV_RESPONSE_HANDLE"])
+            request_fd  = msvcrt.open_osfhandle(request_handle, os.O_RDONLY)
+            response_fd = msvcrt.open_osfhandle(response_handle, os.O_WRONLY)
+        else:
+            request_fd  = int(os.environ["MINDOR_VENV_REQUEST_FD"])
+            response_fd = int(os.environ["MINDOR_VENV_RESPONSE_FD"])
     except KeyError as e:
         raise RuntimeError(
             f"Missing IPC file descriptor environment variable: {e}. "
@@ -142,9 +165,12 @@ def main() -> None:
     )
 
     init_data = channel.recv()
+
     if init_data is None:
         raise RuntimeError("Expected first IPC message of type 'start', got EOF")
+
     init = IpcMessage.deserialize(init_data)
+
     if init.type != IpcMessageType.START:
         raise RuntimeError(
             f"Expected first IPC message of type 'start', got: {init.type!r}"

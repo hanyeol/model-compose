@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Iterable
+from typing import AsyncIterator, Iterable, List
 from PIL import Image as PILImage
 import asyncio
 from mindor.core.utils.image import convert as convert_image
@@ -58,7 +58,7 @@ async def encode_video_from_frames(
 
             yield chunk
 
-    error: list = []
+    error: List[bytes] = []
 
     async def _stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
         while True:

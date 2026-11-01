@@ -2,7 +2,7 @@ from typing import Type, Literal, Optional, Dict, List, Set, Annotated, Callable
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import VideoSceneDetectorComponentConfig, VideoSceneDetectorDriverType
 from mindor.dsl.schema.action import VideoSceneDetectorActionConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 

@@ -31,4 +31,3 @@ class RunPodRuntimeConfig(CommonRuntimeConfig):
     start_timeout: Union[str, int, float] = Field(default="10m", description="Maximum time to wait for the pod to reach RUNNING and the worker to report ready.")
     stop_timeout: Union[str, int, float] = Field(default="2m", description="Maximum time to wait for the pod to stop gracefully.")
     idle_timeout: Union[str, int, float] = Field(default="15m", description="Idle duration after which the pod is stopped to pause GPU billing; next request resumes it.")
-    terminate_on_down: bool = Field(default=False, description="Whether to terminate (fully delete) the pod on controller shutdown instead of only stopping it.")

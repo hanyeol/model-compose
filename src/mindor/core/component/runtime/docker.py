@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, BinaryIO, Dict, List, Optional
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple, Union
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
-    ComponentContainerRuntimeManager,
-    ComponentContainerSpec,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
+)
+from mindor.core.component.runtime.container import (
+    ComponentContainerRuntimeManager,
+    ComponentContainerSpec,
 )
 from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
 from mindor.core.component.runtime.base.ipc_stdio_channel import stdio_worker_factory
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.runtime.common import ContainerImageKind
+from mindor.core.runtime.container import ContainerImageKind
 from mindor.core.foundation.containers.docker import DockerContainerOptions
 from mindor.core.runtime.docker import DockerRuntime, DockerRuntimeBackend
 from mindor.core.utils.channels.docker_attach import DockerAttachChannel
@@ -179,6 +181,9 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
 
         self._runtime: Optional[DockerRuntime] = None
 
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "docker" ]
+
     def _create_backend(
         self,
         component_id: str,
@@ -190,17 +195,6 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
             runtime_config=runtime_config,
             verbose=verbose,
         )
-
-    async def _attach_channel(self) -> DockerAttachChannel:
-        loop = asyncio.get_event_loop()
-
-        channel = await loop.run_in_executor(None, self._open_attach_channel)
-        await self._runtime.start(detach=True)
-
-        return channel
-
-    def _detach_channel(self, channel: DockerAttachChannel) -> None:
-        channel.close()
 
     def _create_proxy(self, channel: DockerAttachChannel) -> ComponentDockerRuntimeProxy:
         proxy = ComponentDockerRuntimeProxy(
@@ -214,6 +208,17 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
         proxy._stop_timeout  = self._stop_timeout
 
         return proxy
+
+    async def _attach_channel(self) -> DockerAttachChannel:
+        loop = asyncio.get_event_loop()
+
+        channel = await loop.run_in_executor(None, self._open_attach_channel)
+        await self._runtime.start(detach=True)
+
+        return channel
+
+    def _detach_channel(self, channel: DockerAttachChannel) -> None:
+        channel.close()
 
     def _open_attach_channel(self) -> DockerAttachChannel:
         """Open a bidirectional attach channel to the container's

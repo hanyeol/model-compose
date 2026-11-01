@@ -1,10 +1,13 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Optional, List, Union
 from collections.abc import AsyncIterator
 from .resources import StreamResource
-from PIL import Image as PILImage
 import asyncio, io
+
+if TYPE_CHECKING:
+    from PIL import Image as PILImage
 
 _CONTENT_TYPE_MAP = {
     "png": "image/png",
@@ -46,6 +49,8 @@ class ImageStreamResource(StreamResource):
 
     async def as_image(self) -> PILImage.Image:
         if isinstance(self.image, bytes):
+            from PIL import Image as PILImage
+
             def _decode(data: bytes) -> PILImage.Image:
                 image = PILImage.open(io.BytesIO(data))
                 image.load()
@@ -99,6 +104,8 @@ class ImageStreamResource(StreamResource):
         return _PIL_FORMAT_MAP.get(format, "PNG")
 
 async def load_image_from_stream(stream: StreamResource) -> PILImage.Image:
+    from PIL import Image as PILImage
+
     data = bytearray()
 
     async with stream:
@@ -108,6 +115,8 @@ async def load_image_from_stream(stream: StreamResource) -> PILImage.Image:
     return await asyncio.to_thread(PILImage.open, io.BytesIO(data))
 
 async def load_image_from_bytes(data: bytes) -> PILImage.Image:
+    from PIL import Image as PILImage
+
     def _open():
         image = PILImage.open(io.BytesIO(data))
         image.load()

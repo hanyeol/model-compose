@@ -141,7 +141,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
 
     async def _extract_to_stream(
         self,
-        command: list,
+        command: List[str],
         source: MediaSource,
         input_path: Optional[str],
         format: str,
@@ -150,7 +150,7 @@ class FFmpegAudioExtractorAction(AudioExtractorAction):
     ) -> AudioStreamResource:
         """Run ffmpeg writing to stdout and wrap the byte stream as an AudioStreamResource."""
         command = command + [ "-f", format, "pipe:1" ]
-        error: list = []
+        error: List[bytes] = []
 
         async def _handle_stdout(reader: asyncio.StreamReader) -> AsyncIterator[bytes]:
             while True:

@@ -99,6 +99,7 @@ class WorkflowVariableResolver:
             # the composite's own scope, not the enclosing workflow's `${input}`.
             excluded_fields = value.get_scope_isolated_fields()
             walkable_fields = [ name for name in value.__class__.model_fields if name not in excluded_fields ]
+
             return sum([ self._enumerate_input_variables(getattr(value, name), wanted_key) for name in walkable_fields ], [])
 
         if isinstance(value, BaseModel):
@@ -118,6 +119,7 @@ class WorkflowVariableResolver:
         if isinstance(value, str):
             for match in self.patterns["variable"].finditer(value):
                 variables.append(self._build_output_variable(name, match))
+
             return variables
 
         if isinstance(value, BaseModel):
@@ -191,15 +193,18 @@ class WorkflowVariableResolver:
         for item in variables:
             if isinstance(item, WorkflowVariableGroup):
                 items: List[WorkflowVariableConfig] = []
+
                 for config in self._to_variable_config_list(item.variables):
                     if isinstance(config, WorkflowVariableGroupConfig):
                         items.extend(config.variables)
                     else:
                         items.append(config)
+
                 configs.append(WorkflowVariableGroupConfig(name=item.name, variables=items, repeat_count=item.repeat_count))
             elif item not in seen:
                 if item.name is not None or len(configs) == 0:
                     configs.append(self._to_variable_config(item))
+
                 seen.add(item)
 
         return configs
@@ -260,9 +265,10 @@ class WorkflowVariableResolver:
 
         for pair in value.split(","):
             pair = pair.strip()
+
             if "=" in pair:
-                k, _, v = pair.partition("=")
-                attrs[k.strip()] = v.strip()
+                key, _, value = pair.partition("=")
+                attrs[key.strip()] = value.strip()
 
         return attrs
 

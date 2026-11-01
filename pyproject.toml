@@ -14,15 +14,7 @@ dependencies = [
     "pydantic",
     "python-dotenv",
     "packaging",
-    "docker",
-    "aiohttp",
     "aiofiles",
-    "brotlicffi",
-    "requests",
-    "fastapi",
-    "websockets",
-    "uvicorn",
-    "mcp>=1.10.1,<2.0",
     "ulid",
     "Pillow>=9.1.0",
     "async_timeout>=4.0; python_version < '3.11'"
@@ -47,6 +39,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "mindor.core.runtime.bootstrap" = ["requirements.txt"]
+"mindor.core.runtime.bootstrap.scripts.*" = ["*.py", "requirements.txt"]
 "mindor.core.component.runtime.container.assets" = ["Dockerfile.*", "*.stub.txt", "*.stub.sh"]
 "mindor.core.controller.runtime.container.assets" = ["Dockerfile.*", "*.stub.txt", "*.stub.sh", "bootstrap.sh"]
 

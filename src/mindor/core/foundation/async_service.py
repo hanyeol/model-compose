@@ -1,10 +1,9 @@
-from typing import Optional, List, Callable, Tuple, Union, Any
-from abc import ABC
-from .package.installer import install_package, parse_requirement, is_requirement_satisfied
+from typing import Optional, Callable, Any
+from .requirement_manager import RequirementManager
 from threading import Thread
 import asyncio, functools, time
 
-class AsyncService(ABC):
+class AsyncService(RequirementManager):
     def __init__(self, daemon: bool):
         self.daemon: bool = daemon
         self.started: bool = False
@@ -12,25 +11,6 @@ class AsyncService(ABC):
         self.daemon_thread: Optional[Thread] = None
         self.daemon_loop: Optional[asyncio.AbstractEventLoop] = None
         self.daemon_task: Optional[asyncio.Task] = None
-
-    def get_declared_requirements(self) -> List[str]:
-        specs: List[str] = []
-
-        for item in self._get_setup_requirements() or []:
-            specs.append(item[0] if isinstance(item, tuple) else item)
-
-        return specs
-
-    async def setup(self) -> None:
-        dependencies = self._get_setup_requirements()
-
-        if dependencies:
-            await self._install_packages(dependencies)
-
-        await self._setup()
-
-    async def teardown(self) -> None:
-        await self._teardown()
 
     async def start(self, background: bool = False) -> None:
         if background:
@@ -72,15 +52,6 @@ class AsyncService(ABC):
         if self.daemon_task:
             await self.daemon_task
 
-    async def _setup(self) -> None:
-        pass
-
-    async def _teardown(self) -> None:
-        pass
-
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return None
-
     async def _start(self) -> None:
         self.started = True
 
@@ -104,25 +75,6 @@ class AsyncService(ABC):
 
     async def _shutdown(self) -> None:
         pass
-
-    async def _install_packages(self, packages: List[Union[str, Tuple[str, List[str]]]]) -> None:
-        for package in packages:
-            package_spec, canonical_names = package if isinstance(package, tuple) else (package, None)
-            package_spec, repository = (package_spec.split("@") + [ None ])[:2]
-            requirement = parse_requirement(package_spec)
-
-            if not requirement or not is_requirement_satisfied(requirement, repository, canonical_names):
-                await self._install_package(package_spec, repository)
-
-    async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
-        if repository and repository.startswith("git+"):
-            await install_package(repository)
-        elif repository and repository.endswith((".whl", ".tar.gz", ".zip")):
-            await install_package(repository)
-        elif repository:
-            await install_package(package_spec, [ "--index-url", repository ])
-        else:
-            await install_package(package_spec)
 
     async def _run_in_executor(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return await asyncio.get_running_loop().run_in_executor(None, functools.partial(fn, *args, **kwargs))

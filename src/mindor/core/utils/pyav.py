@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Iterable
+from typing import TYPE_CHECKING, AsyncIterator, Iterable
 from .image import convert as convert_image
-from PIL import Image as PILImage
 import importlib.util
 import asyncio, io
+
+if TYPE_CHECKING:
+    from PIL import Image as PILImage
 
 async def encode_video_from_frames(
     frames: Iterable[PILImage.Image],

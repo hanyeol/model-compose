@@ -8,7 +8,7 @@ from mindor.dsl.schema.listener import ListenerConfig
 from mindor.dsl.schema.gateway import GatewayConfig
 from mindor.dsl.schema.workflow import WorkflowConfig
 from mindor.dsl.schema.runtime import RuntimeType
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamEncodingIterator
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.utils.active_counter import ActiveCounter
@@ -103,14 +103,30 @@ class ComponentService(AsyncService):
         return requirements
 
     async def setup(self) -> None:
-        # Only in-process runtimes install dependencies on the host. Isolated
-        # runtimes install into their own environment, so we skip the host-side
-        # install to avoid leaking them into the parent interpreter.
-        if self.config.runtime.type in (RuntimeType.NATIVE, RuntimeType.EMBEDDED):
-            await super().setup()
+        self._runtime_manager = self._create_runtime_manager(self.config.runtime.type)
+
+        if self._runtime_manager is not None:
+            # Isolated runtime: provision its environment (image + container
+            # create, or venv + requirements) up front, so start() is fast.
+            # Host-side dependency install is skipped — those packages belong
+            # inside the isolated environment, not the parent interpreter.
+            await self._runtime_manager.setup()
+            return
+
+        # Native/embedded runtime: install dependencies on the host.
+        await super().setup()
+
+    async def teardown(self) -> None:
+        if self._runtime_manager is not None:
+            try:
+                await self._runtime_manager.teardown()
+            finally:
+                self._runtime_manager = None
+            return
+
+        await super().teardown()
 
     async def start(self, background: bool = False) -> None:
-        self._runtime_manager = self._create_runtime_manager(self.config.runtime.type)
         if self._runtime_manager is not None:
             await self._runtime_manager.start()
             self.started = True
@@ -125,7 +141,6 @@ class ComponentService(AsyncService):
     async def stop(self) -> None:
         if self._runtime_manager is not None:
             await self._runtime_manager.stop()
-            self._runtime_manager = None
             self.started = False
 
             logging.info(f"Component '{self.id}' {self.config.runtime.type.value} runtime stopped")

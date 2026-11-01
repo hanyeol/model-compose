@@ -1,119 +1,31 @@
-from typing import List, Optional, Tuple
 from abc import abstractmethod
 from mindor.dsl.schema.controller import ControllerConfig
-from mindor.dsl.schema.controller.adapter.impl.types import ControllerAdapterType
-from mindor.core.runtime.common import ContainerImageKind, ContainerRuntimeBackend
-from mindor.core.logger import logging
-from mindor.version import __version__
+from mindor.core.runtime.manager import RuntimeManager
 from .base.specs import ControllerRuntimeSpecs
-from .base.workspace import generate_workspace_bundle
-from pathlib import Path
-import re
 
-class ControllerContainerSpec:
-    """Controller-image conventions shared by Docker/Apple backends."""
+class ControllerRuntimeManager(RuntimeManager):
+    """Controller-side lifecycle manager base.
 
-    @staticmethod
-    def standard_image_tag() -> str:
-        return f"mindor/controller:{__version__}"
-
-    @staticmethod
-    def derived_image_tag(controller_name: Optional[str]) -> str:
-        return f"mindor/controller-{ControllerContainerSpec.project_name(controller_name)}:{__version__}"
-
-    @staticmethod
-    def custom_image_tag(controller_name: Optional[str]) -> str:
-        return f"mindor/controller-{ControllerContainerSpec.project_name(controller_name)}:latest"
-
-    @staticmethod
-    def default_container_name(controller_name: Optional[str]) -> str:
-        return f"mindor-controller-{ControllerContainerSpec.project_name(controller_name)}"
-
-    @staticmethod
-    def standard_image_command() -> List[str]:
-        return [ "python", "-m", "mindor.cli.compose", "up" ]
-
-    @staticmethod
-    def image_assets_dir() -> Path:
-        return Path(__file__).resolve().parent / "container" / "assets"
-
-    @staticmethod
-    def project_name(controller_name: Optional[str]) -> str:
-        # Follows docker-compose: compose `name:` wins, else sanitized cwd basename.
-        # Sanitization rule: lowercased, only [a-z0-9_-], must start with [a-z0-9].
-        name = (controller_name or Path.cwd().resolve().name).lower()
-        sanitized = re.sub(r"[^a-z0-9_-]", "", name).strip("_-")
-        return sanitized or "default"
-
-    @staticmethod
-    def resolve_service_ports(config: ControllerConfig) -> List[Tuple[Optional[str], int]]:
-        """Ports this controller publishes to the host, each paired with the
-        host IP to bind. `None` host_ip means "all interfaces". Preserves the
-        user's `host` config so container publish keeps the same exposure
-        semantics as local execution (default `127.0.0.1` → loopback only)."""
-        ports: List[Tuple[Optional[str], int]] = []
-
-        for adapter in config.adapters:
-            if adapter.type in (ControllerAdapterType.QUEUE_SUBSCRIBER, ):
-                continue
-            if hasattr(adapter, "port"):
-                ports.append((getattr(adapter, "host", None), adapter.port))
-
-        webui_port = getattr(config.webui, "port", None)
-        if webui_port:
-            ports.append((getattr(config.webui, "host", None), webui_port))
-
-        return ports
-
-class ControllerContainerRuntimeManager:
-    """Controller lifecycle. Composes a backend ContainerRuntimeBackend."""
+    Owns a controller runtime's launch/terminate/start/stop sequence. Concrete
+    subclasses implement each lifecycle hook; the Backend-based container
+    managers live in `ControllerContainerRuntimeManager`.
+    """
     def __init__(self, config: ControllerConfig, verbose: bool = False):
         self.config: ControllerConfig = config
-
-        self._backend: ContainerRuntimeBackend = self._create_backend(config, verbose)
-
-    async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
-        logging.info("Preparing controller container...")
-
-        # STANDARD/DERIVED images expect `bootstrap.sh` to copy /mnt/bootstrap → /workspace
-        # at container start. CUSTOM images are caller-baked and need neither.
-        if self._backend.image_kind != ContainerImageKind.CUSTOM:
-            bundle_path = Path.cwd() / ".build" / "workspace" / ControllerContainerSpec.project_name(self.config.name)
-            generate_workspace_bundle(specs, bundle_path)
-            self._attach_workspace_volume(bundle_path)
-
-        runtime = await self._backend.provision_runtime()
-
-        logging.info("Starting controller container (%s mode)...", "detached" if detach else "foreground")
-        await runtime.start(detach)
-
-    async def terminate(self) -> None:
-        await self._backend.teardown_runtime()
-
-    async def start(self) -> None:
-        """Start an existing (already-prepared) controller container in detached mode."""
-        await self._backend.start_runtime()
-
-    async def stop(self) -> None:
-        """Stop a running controller container without removing it."""
-        await self._backend.stop_runtime()
+        self.verbose: bool = verbose
 
     @abstractmethod
-    def _create_backend(
-        self,
-        config: ControllerConfig,
-        verbose: bool,
-    ) -> ContainerRuntimeBackend:
-        """Backend factory — supplied by the concrete Docker / Apple facade subclass."""
+    async def launch(self, specs: ControllerRuntimeSpecs, detach: bool) -> None:
+        """Provision the runtime from scratch and start it."""
 
-    def _attach_workspace_volume(self, bundle_path: Path) -> None:
-        """Idempotently add the `<bundle>:/mnt/bootstrap:ro` mount to runtime
-        volumes. Safe to call multiple times — repeat managers built from
-        the same config see the same mount and re-adding is a no-op."""
-        mount_spec = f"{bundle_path}:/mnt/bootstrap:ro"
+    @abstractmethod
+    async def terminate(self) -> None:
+        """Tear down the runtime that `launch()` provisioned."""
 
-        if self.config.runtime.volumes is None:
-            self.config.runtime.volumes = []
+    @abstractmethod
+    async def start(self) -> None:
+        """Start an already-provisioned runtime (idempotent)."""
 
-        if mount_spec not in self.config.runtime.volumes:
-            self.config.runtime.volumes.append(mount_spec)
+    @abstractmethod
+    async def stop(self) -> None:
+        """Stop a running runtime without removing it (idempotent)."""

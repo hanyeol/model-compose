@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from .resources import StreamResource, TeeStreamResource, AsyncIterableStreamResource, read_stream_to_bytes
 from .bytes import BytesStreamResource
-from .file import FileStreamResource, UploadFileStreamResource
+from .file import FileStreamResource, UploadFileStreamResource, is_upload_file
 from .media import MediaSource
 from .iterators import StreamChunkIterator
 from ...utils.ffmpeg.executable import resolve_ffmpeg_executable, is_ffmpeg_available
@@ -23,7 +23,6 @@ from ...utils.audio import (
     parse_flac_header,
 )
 from ...logger import logging
-from starlette.datastructures import UploadFile
 import asyncio, struct
 
 if TYPE_CHECKING:
@@ -280,7 +279,7 @@ class AudioBufferStreamIterator(StreamChunkIterator):
     async def collect(self) -> AudioBuffer:
         import numpy as np
 
-        frames: list = []
+        frames: List[np.ndarray] = []
         async for chunk in self:
             frames.append(chunk.waveform)
 
@@ -369,7 +368,7 @@ class AudioDecodingStreamer:
         sample_rate = self._sample_rate or int(source.attrs.get("sample_rate") or 0) or None
         channels = self._channels or int(source.attrs.get("channels") or 0) or None
 
-        command: list = [ resolve_ffmpeg_executable(), "-hide_banner", "-loglevel", "error" ]
+        command: List[str] = [ resolve_ffmpeg_executable(), "-hide_banner", "-loglevel", "error" ]
         input_path: Optional[str] = None
 
         if isinstance(source.stream, FileStreamResource):
@@ -422,7 +421,7 @@ class AudioDecodingStreamer:
                 yield chunk
 
         async def _handle_stderr(reader: asyncio.StreamReader) -> bytes:
-            lines: list = []
+            lines: List[bytes] = []
 
             while True:
                 line = await reader.readline()
@@ -661,7 +660,7 @@ class AudioBufferStreamer:
     async def collect(self) -> AudioBuffer:
         import numpy as np
 
-        frames: list = []
+        frames: List[np.ndarray] = []
         sample_rate: Optional[int] = None
 
         async for chunk in self._iterate(self._frame_size, self._hop_size, self._pad_final):
@@ -848,7 +847,7 @@ class AudioBufferStreamer:
             pad_final=pad_final,
         )
 
-    def _process_chunk(self, context: AudioBufferStreamer.StreamContext, chunk: bytes) -> list:
+    def _process_chunk(self, context: AudioBufferStreamer.StreamContext, chunk: bytes) -> List[np.ndarray]:
         samples = self._decode_to_samples(context, chunk)
 
         if context.resampler is not None:
@@ -858,7 +857,7 @@ class AudioBufferStreamer:
 
         return list(self._drain_frames(context, final=False))
 
-    def _process_final(self, context: AudioBufferStreamer.StreamContext) -> list:
+    def _process_final(self, context: AudioBufferStreamer.StreamContext) -> List[np.ndarray]:
         if context.resampler is not None:
             tail = self._resample(context, self._empty_frame_buffer(context.channels, context.keep_channels), last=True)
             self._push_samples(context, tail)
@@ -942,7 +941,7 @@ def create_audio_source(value: Any) -> MediaSource:
         else:
             return MediaSource(value)
 
-    if isinstance(value, UploadFile):
+    if is_upload_file(value):
         if value.filename:
             return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
         else:

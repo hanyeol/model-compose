@@ -5,9 +5,10 @@ from mindor.dsl.schema.containers.docker import DockerBuildConfig
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.core.foundation.containers.docker import DockerContainerRunner, DockerImageBuilder, DockerContainerOptions
 from mindor.core.foundation.variable.time import parse_time
-from .common import ContainerRuntimeBackend
+from .common import CommonRuntime
+from .container import ContainerRuntimeBackend
 
-class DockerRuntime(DockerContainerRunner):
+class DockerRuntime(CommonRuntime):
     config: DockerRuntimeConfig
 
     def __init__(
@@ -16,11 +17,33 @@ class DockerRuntime(DockerContainerRunner):
         options: Optional[DockerContainerOptions] = None,
         verbose: bool = False,
     ):
-        super().__init__(config, options=options, verbose=verbose)
+        super().__init__(config, verbose)
+
+        self._runner: DockerContainerRunner = DockerContainerRunner(config, options=options, verbose=verbose)
+
+    @property
+    def container_name(self) -> Optional[str]:
+        return self._runner.container_name
+
+    async def create(self, tty: bool = True, stdin_open: bool = True) -> None:
+        await self._runner.create(tty=tty, stdin_open=stdin_open)
+
+    async def start(self, detach: bool) -> None:
+        await self._runner.start(detach=detach)
 
     async def stop(self) -> None:
         stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
-        await super().stop(timeout=stop_timeout)
+
+        await self._runner.stop(timeout=stop_timeout)
+
+    async def remove(self, force: bool = False) -> None:
+        await self._runner.remove(force=force)
+
+    async def exists(self) -> bool:
+        return await self._runner.exists()
+
+    async def is_running(self) -> bool:
+        return await self._runner.is_running()
 
 class DockerRuntimeBackend(ContainerRuntimeBackend):
     """Docker-backed `ContainerRuntimeBackend`."""

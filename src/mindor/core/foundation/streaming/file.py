@@ -1,10 +1,13 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Optional, List
 from collections.abc import AsyncIterator
 from .resources import StreamResource
-from starlette.datastructures import UploadFile
 import aiofiles, os
+
+if TYPE_CHECKING:
+    from starlette.datastructures import UploadFile
 
 class FileStreamResource(StreamResource):
     def __init__(
@@ -77,3 +80,11 @@ class UploadFileStreamResource(StreamResource):
                 break
 
             yield chunk
+
+def is_upload_file(value) -> bool:
+    try:
+        from starlette.datastructures import UploadFile
+    except ImportError:
+        return False
+
+    return isinstance(value, UploadFile)

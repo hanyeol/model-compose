@@ -1,6 +1,6 @@
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
+from typing import Type, Optional, Dict
 from mindor.dsl.schema.listener import ListenerConfig, ListenerType
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.utils.work_queue import WorkQueue
 from mindor.core.logger import logging
 
@@ -29,6 +29,7 @@ class ListenerService(AsyncService):
 
     async def _install_package(self, package_spec: str, repository: Optional[str]) -> None:
         logging.info(f"Installing required module: {package_spec}")
+
         await super()._install_package(package_spec, repository)
 
 def register_listener(type: ListenerType):

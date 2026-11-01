@@ -1,9 +1,12 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Optional
 from collections.abc import AsyncIterator
 from .resources import StreamResource
-import aiohttp
+
+if TYPE_CHECKING:
+    import aiohttp
 
 class HttpStreamResource(StreamResource):
     def __init__(

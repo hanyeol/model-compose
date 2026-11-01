@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Optional, List, Union, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from ..streaming.resources import StreamResource, save_stream_to_temporary_file
@@ -7,7 +10,8 @@ from ..streaming.text import TextStreamResource
 from ..streaming.iterators import StreamIterator, StreamChunkIterator
 import os
 
-FileValue = str
+if TYPE_CHECKING:
+    FileValue = str
 
 class FileArrayValue:
     """A materialized or streaming array of files.
@@ -168,11 +172,11 @@ class FileValueRenderer:
         list whose first item is itself an element array or a fragmented
         stream.
         """
-        return (
-            isinstance(value, (list, tuple))
-            and bool(value)
-            and (self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]))
-        )
+        if isinstance(value, (list, tuple)) and len(value) > 0:
+            if self._is_element_array(value[0]) or self._is_fragmented_stream(value[0]):
+                return True
+
+        return False
 
     def _is_element_array(self, value: Any) -> bool:
         """True when ``value`` is a batch of file refs — a list/tuple of

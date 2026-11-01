@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Union, Optional, Dict, List, Any, Tuple
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WebScraperComponentConfig
@@ -11,7 +14,10 @@ from mindor.core.logger import logging
 from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
-import aiohttp, asyncio
+import asyncio
+
+if TYPE_CHECKING:
+    import aiohttp
 
 class WebScraperAction(ComponentAction):
     def __init__(
@@ -274,6 +280,8 @@ class WebScraperAction(ComponentAction):
         cancellation_token: Optional[CancellationToken] = None
     ) -> str:
         """Fetch HTML content using aiohttp."""
+        import aiohttp
+
         async with aiohttp.ClientSession(cookies=cookies) as session:
             async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
                 response.raise_for_status()
@@ -401,7 +409,7 @@ class WebScraperComponent(ComponentService):
         self._rate_limiter: Optional[RateLimiter] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "playwright", "beautifulsoup4", "lxml" ]
+        return [ "aiohttp", "playwright", "beautifulsoup4", "lxml" ]
 
     async def _setup(self) -> None:
         install_browser("chromium")

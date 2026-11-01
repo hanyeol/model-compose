@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Optional, Tuple, Union
 from pathlib import Path
 from mindor.dsl.schema.containers.docker import DockerPortConfig
 from mindor.dsl.schema.controller import ControllerConfig
-from mindor.core.runtime.common import ContainerImageKind
+from mindor.core.runtime.container import ContainerImageKind
 from mindor.core.foundation.containers.docker import DockerContainerOptions
 from mindor.core.runtime.docker import DockerRuntimeBackend
-from .common import ControllerContainerRuntimeManager, ControllerContainerSpec
+from .container import ControllerContainerRuntimeManager, ControllerContainerSpec
 
 class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     """Docker backend for a controller runtime."""
@@ -56,6 +56,9 @@ class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
 
 class ControllerDockerRuntimeManager(ControllerContainerRuntimeManager):
     """Facade — composes the Docker backend with the controller lifecycle."""
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "docker" ]
+
     def _create_backend(
         self,
         config: ControllerConfig,

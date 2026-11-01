@@ -5,9 +5,8 @@ from collections.abc import AsyncIterator
 from mindor.core.utils.files import get_file_extension
 from .resources import StreamResource, TeeStreamResource
 from .bytes import BytesStreamResource
-from .file import UploadFileStreamResource
+from .file import UploadFileStreamResource, is_upload_file
 from .media import MediaSource
-from starlette.datastructures import UploadFile
 
 # glTF variants and USDZ are the only 3D formats with IANA-registered `model/*`
 # MIME types (Khronos + Apple registrations); PLY, splat, and FBX fall back to
@@ -78,7 +77,7 @@ def create_model_3d_source(value: Any) -> MediaSource:
         else:
             return MediaSource(value)
 
-    if isinstance(value, UploadFile):
+    if is_upload_file(value):
         if value.filename:
             return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
         else:

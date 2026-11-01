@@ -5,15 +5,17 @@ from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import AppleContainerRuntimeConfig
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.common import (
-    ComponentContainerRuntimeManager,
-    ComponentContainerSpec,
     ComponentRuntimeProxy,
     ComponentRuntimeWorker,
+)
+from mindor.core.component.runtime.container import (
+    ComponentContainerRuntimeManager,
+    ComponentContainerSpec,
 )
 from mindor.core.foundation.runtime.ipc_stdio_channel import IpcStdioChannel
 from mindor.core.component.runtime.base.ipc_stdio_channel import stdio_worker_factory
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.runtime.common import ContainerImageKind
+from mindor.core.runtime.container import ContainerImageKind
 from mindor.core.foundation.containers.apple_container import AppleContainerOptions
 from mindor.core.runtime.apple_container import (
     AppleContainerRuntime,
@@ -192,6 +194,19 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
             verbose=verbose,
         )
 
+    def _create_proxy(self, channel: AppleContainerAttachChannel) -> ComponentAppleContainerRuntimeProxy:
+        proxy = ComponentAppleContainerRuntimeProxy(
+            self.worker_id,
+            self.component_config,
+            self.global_configs,
+            channel,
+        )
+
+        proxy._start_timeout = self._start_timeout
+        proxy._stop_timeout  = self._stop_timeout
+
+        return proxy
+
     async def _attach_channel(self) -> AppleContainerAttachChannel:
         """Spawn `container start -a -i <name>` and wrap its stdin/stdout as
         the IPC channel. The subprocess is what actually starts the container
@@ -208,19 +223,6 @@ class ComponentAppleContainerRuntimeManager(ComponentContainerRuntimeManager):
 
     def _detach_channel(self, channel: AppleContainerAttachChannel) -> None:
         channel.close()
-
-    def _create_proxy(self, channel: AppleContainerAttachChannel) -> ComponentAppleContainerRuntimeProxy:
-        proxy = ComponentAppleContainerRuntimeProxy(
-            self.worker_id,
-            self.component_config,
-            self.global_configs,
-            channel,
-        )
-
-        proxy._start_timeout = self._start_timeout
-        proxy._stop_timeout  = self._stop_timeout
-
-        return proxy
 
 def main() -> None:
     """Entrypoint when launched as `python -m mindor.core.component.runtime.apple_container`."""

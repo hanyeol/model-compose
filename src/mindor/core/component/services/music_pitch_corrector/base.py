@@ -2,7 +2,7 @@ from typing import Type, Optional, Dict, List, Any, Union, Tuple
 from abc import abstractmethod
 from mindor.dsl.schema.component import MusicPitchCorrectorComponentConfig, MusicPitchCorrectorDriverType
 from mindor.dsl.schema.action import MusicPitchCorrectorActionConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 

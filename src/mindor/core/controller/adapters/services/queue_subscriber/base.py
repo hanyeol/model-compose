@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Dict, Optional, Any
 from mindor.dsl.schema.controller import QueueSubscriberDriverType
 from mindor.dsl.schema.controller.adapter.impl.queue_subscriber.impl.common import CommonQueueSubscriberControllerAdapterConfig
-from mindor.core.foundation import AsyncService
+from mindor.core.foundation.async_service import AsyncService
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService

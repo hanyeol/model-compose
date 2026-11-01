@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Tuple, Any
 from dataclasses import dataclass
@@ -8,12 +9,13 @@ from mindor.dsl.schema.containers.docker import (
     DockerVolumeConfig,
 )
 from mindor.core.logger import logging
-from docker.models.containers import Container
-from docker.types import Mount, DeviceRequest
-from docker.errors import DockerException, NotFound
 from pathlib import Path
 import sys, asyncio, signal, time
-import docker
+
+if TYPE_CHECKING:
+    from docker.models.containers import Container
+    from docker.types import Mount, DeviceRequest
+    import docker
 
 class DockerPortsResolver:
     def __init__(self, ports: Optional[List[Union[str, int, DockerPortConfig]]]):
@@ -59,6 +61,8 @@ class DockerMountsResolver:
         return [ self._get_volume_mount(volume) for volume in self.volumes or [] ]
 
     def _get_volume_mount(self, volume: Union[str, DockerVolumeConfig]) -> Mount:
+        from docker.types import Mount
+
         if isinstance(volume, str):
             source, target, mode, *_ = volume.split(":") + [ None ]
             read_only = mode == "ro"
@@ -102,6 +106,8 @@ class DockerDeviceRequestsResolver:
         self.gpus: Optional[Union[str, int]] = gpus
 
     def resolve(self) -> Optional[List[DeviceRequest]]:
+        from docker.types import DeviceRequest
+
         if self.gpus is None:
             return None
         count = -1 if self.gpus == "all" else int(self.gpus)
@@ -111,6 +117,8 @@ class DockerImageBuilder:
     """Builds, pulls, inspects, and removes Docker images. Stateless: each
     method takes a tag (and other inputs) explicitly."""
     def __init__(self, verbose: bool = False):
+        import docker
+
         self.verbose: bool = verbose
 
         self._client = docker.from_env()
@@ -131,6 +139,8 @@ class DockerImageBuilder:
         """Build a docker image from a disk-based build context at `path`.
         Knows nothing about mindor's image tiers — callers materialize the
         context themselves (e.g. via `archive_to_directory`) and pass the path."""
+        from docker.errors import DockerException
+
         try:
             response = self._client.api.build(
                 path=path,
@@ -149,12 +159,16 @@ class DockerImageBuilder:
             raise RuntimeError(f"Failed to build image: {e}") from e
 
     async def pull(self, tag: str) -> None:
+        from docker.errors import DockerException
+
         try:
             self._client.images.pull(tag)
         except DockerException as e:
             raise RuntimeError(f"Failed to pull image: {e}") from e
 
     async def remove(self, tag: str, force: bool = False) -> None:
+        from docker.errors import DockerException, NotFound
+
         try:
             self._client.images.remove(image=tag, force=force)
         except NotFound:
@@ -163,6 +177,8 @@ class DockerImageBuilder:
             raise RuntimeError(f"Failed to remove image: {e}") from e
 
     async def exists(self, tag: str) -> bool:
+        from docker.errors import DockerException, NotFound
+
         try:
             return self._client.images.get(tag) is not None
         except NotFound:
@@ -171,8 +187,11 @@ class DockerImageBuilder:
             raise RuntimeError(f"Failed to check image: {e}") from e
 
     async def get_label(self, tag: str, label: str) -> Optional[str]:
+        from docker.errors import DockerException, NotFound
+
         try:
             image = self._client.images.get(tag)
+
             return (image.labels or {}).get(label)
         except NotFound:
             return None
@@ -180,9 +199,17 @@ class DockerImageBuilder:
             raise RuntimeError(f"Failed to read image label: {e}") from e
 
     def _stream_build_output(self, response) -> None:
+        # Docker emits UTF-8 build logs; Windows consoles default to cp1252 and
+        # raise UnicodeEncodeError on chars outside that codepage. Prefer the
+        # binary buffer to bypass the console encoding entirely.
+        stdout_buffer = getattr(sys.stdout, "buffer", None)
+
         for chunk in response:
             if "stream" in chunk:
-                sys.stdout.write(chunk["stream"])
+                if stdout_buffer is not None:
+                    stdout_buffer.write(chunk["stream"].encode("utf-8", errors="replace"))
+                else:
+                    sys.stdout.write(chunk["stream"])
                 sys.stdout.flush()
             elif "errorDetail" in chunk:
                 raise RuntimeError(chunk["errorDetail"]["message"])
@@ -219,6 +246,8 @@ class DockerContainerRunner:
         options: Optional[DockerContainerOptions] = None,
         verbose: bool = False,
     ):
+        import docker
+
         self.config: DockerContainerConfig = config
         self.options: DockerContainerOptions = options or DockerContainerOptions()
         self.verbose: bool = verbose
@@ -235,6 +264,8 @@ class DockerContainerRunner:
         return self.options.image or self.config.image
 
     async def create(self, tty: bool = True, stdin_open: bool = True) -> None:
+        from docker.errors import DockerException, NotFound
+
         try:
             try:
                 self._client.containers.get(self.container_name)
@@ -267,6 +298,8 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to create container: {e}") from e
 
     async def start(self, detach: bool) -> None:
+        from docker.errors import DockerException
+
         try:
             container = self._client.containers.get(self.container_name)
             container.start()
@@ -277,8 +310,11 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to start container: {e}") from e
 
     async def stop(self, timeout: Optional[float] = None) -> None:
+        from docker.errors import DockerException, NotFound
+
         try:
             container = self._client.containers.get(self.container_name)
+
             if timeout is not None:
                 container.stop(timeout=int(timeout))
             else:
@@ -289,6 +325,8 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to stop container: {e}") from e
 
     async def remove(self, force: bool = False) -> None:
+        from docker.errors import DockerException, NotFound
+
         try:
             container = self._client.containers.get(self.container_name)
             container.remove(force=force)
@@ -298,8 +336,11 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to remove container: {e}") from e
 
     async def is_running(self) -> bool:
+        from docker.errors import DockerException, NotFound
+
         try:
             container = self._client.containers.get(self.container_name)
+
             return container.status == "running"
         except NotFound:
             return False
@@ -307,8 +348,11 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to check container: {e}") from e
 
     async def exists(self) -> bool:
+        from docker.errors import DockerException, NotFound
+
         try:
             container = self._client.containers.get(self.container_name)
+
             return container is not None
         except NotFound:
             return False
@@ -316,6 +360,8 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to check container: {e}") from e
 
     def get_container(self) -> Container:
+        from docker.errors import DockerException, NotFound
+
         try:
             return self._client.containers.get(self.container_name)
         except NotFound:
@@ -324,6 +370,8 @@ class DockerContainerRunner:
             raise RuntimeError(f"Failed to get container: {e}") from e
 
     async def _run_foreground_container(self, container: Container) -> None:
+        from docker.errors import DockerException
+
         self._register_shutdown_signals()
 
         stream_logs_task       = asyncio.create_task(self._stream_container_logs(container))
@@ -337,7 +385,8 @@ class DockerContainerRunner:
             )
 
             if shutdown_signal_waiter.done():
-                logging.info("Stopping container '%s' gracefully...", container.name)
+                logging.info("docker: stopping container '%s' gracefully...", container.name)
+
                 try:
                     container.stop(timeout=10)
                 except DockerException:
@@ -345,12 +394,14 @@ class DockerContainerRunner:
 
             for task in pending:
                 task.cancel()
+
                 try:
                     await task
                 except asyncio.CancelledError:
                     pass
         finally:
             stream_logs_task.cancel()
+
             try:
                 await stream_logs_task
             except asyncio.CancelledError:
@@ -360,13 +411,17 @@ class DockerContainerRunner:
         try:
             while not self._shutdown_event.is_set():
                 container.reload()
+
                 if container.status != "running":
                     exit_code = container.attrs.get("State", {}).get("ExitCode", 0)
-                    logging.info("Container '%s' exited with exit code: %d", container.name, exit_code)
+
+                    logging.info("docker: container '%s' exited with exit code %d", container.name, exit_code)
+
                     break
+
                 await asyncio.sleep(0.5)
         except Exception as e:
-            logging.error("Error while waiting for container '%s' to exit: %s", container.name, e)
+            logging.error("docker: wait-for-exit failed for container '%s': %s", container.name, e)
 
     async def _stream_container_logs(self, container: Container) -> None:
         try:
@@ -374,10 +429,10 @@ class DockerContainerRunner:
                 for line in container.logs(stream=True, follow=True, since=int(time.time())):
                     sys.stdout.buffer.write(line)
                     sys.stdout.flush()
-            loop: asyncio.AbstractEventLoop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _stream_logs_sync, container)
+
+            await asyncio.get_running_loop().run_in_executor(None, _stream_logs_sync, container)
         except Exception as e:
-            logging.error("Error while streaming logs from container '%s': %s", container.name, e)
+            logging.error("docker: log streaming failed for container '%s': %s", container.name, e)
 
     def _register_shutdown_signals(self) -> None:
         signal.signal(signal.SIGINT,  self._handle_shutdown_signal)

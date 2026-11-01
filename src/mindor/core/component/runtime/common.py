@@ -1,47 +1,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Optional
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
 from mindor.dsl.schema.logger import ConsoleLoggerConfig, LoggerType
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import ComponentInstances, create_component
+from mindor.core.runtime.manager import RuntimeManager
 from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
 from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
-from mindor.core.runtime.common import ContainerRuntimeBackend, ContainerRuntimeConfig
 from mindor.core.logger import logging, create_logger, LoggerInstances
-from mindor.version import __version__
-import asyncio, re
-
-class ComponentContainerSpec:
-    """Component-image conventions shared by component backends."""
-
-    @staticmethod
-    def standard_image_tag() -> str:
-        return f"mindor/component:{__version__}"
-
-    @staticmethod
-    def derived_image_tag(worker_id: str) -> str:
-        return f"mindor/component-{ComponentContainerSpec.project_name(worker_id)}:{__version__}"
-
-    @staticmethod
-    def custom_image_tag(worker_id: str) -> str:
-        return f"mindor/component-{ComponentContainerSpec.project_name(worker_id)}:latest"
-
-    @staticmethod
-    def default_container_name(worker_id: str) -> str:
-        return f"mindor-component-{worker_id}"
-
-    @staticmethod
-    def image_assets_dir() -> Path:
-        return Path(__file__).resolve().parent / "container" / "assets"
-
-    @staticmethod
-    def project_name(worker_id: str) -> str:
-        sanitized = re.sub(r"[^a-z0-9_-]", "", worker_id.lower()).strip("_-")
-        return sanitized or "default"
+import asyncio
 
 class ComponentRuntimeWorker(IpcRuntimeWorker):
     """Component-side IPC worker base.
@@ -206,13 +176,22 @@ class ComponentRuntimeProxy(IpcRuntimeProxy):
             "global_configs": self.global_configs.model_dump(mode="json"),
         })
 
-class ComponentRuntimeManager:
+class ComponentRuntimeManager(RuntimeManager):
     """Component-side lifecycle manager base.
 
-    Spawns the child runtime (container / subprocess / venv), prepares the IPC
-    channel, wraps it in a `ComponentRuntimeProxy`, and orchestrates the
-    start/stop sequence. Owns the runtime and the channel; delegates all IPC
-    to the proxy.
+    Follows the docker-compose up/create/start/stop/down model:
+
+    - ``setup()``   — image pull/build, venv bootstrap, container create.
+                      Everything a subsequent ``start()`` needs to be instant.
+                      Idempotent and expensive; survives across start/stop.
+    - ``start()``   — bring the pre-provisioned runtime up: start the container
+                      (or spawn the subprocess), open the IPC channel, wrap it
+                      in a ``ComponentRuntimeProxy``.
+    - ``stop()``    — shut down the IPC session and stop the container, but
+                      keep the provisioned artifacts so a later ``start()`` is
+                      cheap.
+    - ``teardown()`` — remove the container (and derived image if any), undoing
+                       what ``setup()`` provisioned.
     """
     def __init__(
         self,
@@ -231,9 +210,15 @@ class ComponentRuntimeManager:
         try:
             self._channel = await self._launch()
             self._proxy = self._create_proxy(self._channel)
+
             await self._proxy.start()
         except Exception:
-            await self._teardown()
+            if self._channel is not None:
+                try:
+                    await self._shutdown(self._channel)
+                except Exception:
+                    pass
+                self._channel = None
             raise
 
     async def stop(self) -> None:
@@ -242,9 +227,15 @@ class ComponentRuntimeManager:
                 await self._proxy.stop()
             except Exception:
                 pass
+
             self._proxy = None
 
-        await self._teardown()
+        if self._channel is not None:
+            try:
+                await self._shutdown(self._channel)
+            except Exception:
+                pass
+            self._channel = None
 
     async def run(
         self,
@@ -253,78 +244,31 @@ class ComponentRuntimeManager:
         input_data: Dict[str, Any],
         on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
     ) -> Any:
-        return await self._proxy.run(action_id, run_id, input_data, on_event=on_event)
+        return await self._run(action_id, run_id, input_data, on_event)
 
-    async def _teardown(self) -> None:
-        """Shut down the runtime and channel. Called on both failed start and
-        normal stop. Idempotent."""
-        if self._channel is not None:
-            try:
-                await self._shutdown(self._channel)
-            except Exception:
-                pass
-            self._channel = None
+    async def _run(
+        self,
+        action_id: str,
+        run_id: str,
+        input_data: Dict[str, Any],
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+    ) -> Any:
+        """Dispatch one request through the IPC proxy. Subclasses override to
+        wrap the call with per-request lifecycle logic (idle timer, active
+        counter, lazy session bring-up)."""
+        return await self._proxy.run(action_id, run_id, input_data, on_event=on_event)
 
     @abstractmethod
     async def _launch(self) -> Any:
-        """Prepare the runtime, start it, and open the IPC channel. Returns the
-        channel. Called once at `start()`."""
+        """Bring the pre-provisioned runtime up and open the IPC channel.
+        Returns the channel. Called at ``start()``."""
 
     @abstractmethod
     async def _shutdown(self, channel: Any) -> None:
-        """Close the channel and tear down the runtime. Counterpart to
-        `_launch`. May be called after a partial launch."""
+        """Close the channel and stop the running runtime. Counterpart to
+        ``_launch``. Must not remove provisioned artifacts — that is
+        ``teardown()``'s job. May be called after a partial launch."""
 
     @abstractmethod
     def _create_proxy(self, channel: Any) -> ComponentRuntimeProxy:
         """Wrap `channel` in the backend-specific proxy subclass."""
-
-class ComponentContainerRuntimeManager(ComponentRuntimeManager):
-    """Manager for container-backed component runtimes (Docker / Apple)."""
-    def __init__(
-        self,
-        component_id: str,
-        component_config: ComponentConfig,
-        global_configs: ComponentGlobalConfigs,
-        verbose: bool = False,
-    ):
-        super().__init__(component_id, component_config, global_configs)
-
-        self._backend: ContainerRuntimeBackend = self._create_backend(component_id, component_config.runtime, verbose)
-        self._runtime: Optional[Any] = None
-
-    async def _launch(self) -> Any:
-        # Provision the image and container, then attach the IPC channel.
-        self._runtime = await self._backend.provision_runtime()
-        return await self._attach_channel()
-
-    async def _shutdown(self, channel: Any) -> None:
-        try:
-            self._detach_channel(channel)
-        except Exception:
-            pass
-
-        if self._runtime is not None:
-            try:
-                await self._runtime.stop()
-                await self._runtime.remove(force=True)
-            except Exception as e:
-                logging.warning("Error stopping container for '%s': %s", self.worker_id, e)
-            self._runtime = None
-
-    @abstractmethod
-    def _create_backend(
-        self,
-        component_id: str,
-        runtime_config: ContainerRuntimeConfig,
-        verbose: bool,
-    ) -> ContainerRuntimeBackend:
-        """Backend factory — supplied by the concrete Docker / Apple facade subclass."""
-
-    @abstractmethod
-    async def _attach_channel(self) -> Any:
-        """Attach the IPC channel and ensure the container is running."""
-
-    @abstractmethod
-    def _detach_channel(self, channel: Any) -> None:
-        """Close the backend-specific IPC channel."""

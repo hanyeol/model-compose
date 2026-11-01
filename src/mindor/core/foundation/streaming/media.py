@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 from mindor.core.utils.files import get_file_extension
 from .resources import StreamResource
 from .bytes import BytesStreamResource
-from .file import UploadFileStreamResource
-from starlette.datastructures import UploadFile
+from .file import UploadFileStreamResource, is_upload_file
 
 @dataclass
 class MediaSource:
@@ -40,7 +39,7 @@ def create_media_source(value: Any) -> MediaSource:
         else:
             return MediaSource(value)
 
-    if isinstance(value, UploadFile):
+    if is_upload_file(value):
         if value.filename:
             return MediaSource(UploadFileStreamResource(value), format=get_file_extension(value.filename))
         else:

@@ -1,0 +1,3 @@
+# upload_server depends only on the Python stdlib — no third-party packages
+# needed. This file exists as the install declaration slot so transports can
+# ``pip install -r <this>`` unconditionally before launching main.py.

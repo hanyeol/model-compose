@@ -53,6 +53,7 @@ class IpcStdioChannel:
             raise RuntimeError("IpcStdioChannel.setup() must be called before run()")
 
         message = self._recv_message()
+
         if message.type != IpcMessageType.START:
             raise RuntimeError(
                 f"Expected first IPC message of type 'start', got: {message.type!r}"

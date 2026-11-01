@@ -9,9 +9,10 @@ from mindor.core.foundation.containers.apple_container import (
     AppleContainerImageBuilder,
 )
 from mindor.core.foundation.variable.time import parse_time
-from .common import ContainerRuntimeBackend
+from .common import CommonRuntime
+from .container import ContainerRuntimeBackend
 
-class AppleContainerRuntime(AppleContainerRunner):
+class AppleContainerRuntime(CommonRuntime):
     config: AppleContainerRuntimeConfig
 
     def __init__(
@@ -20,11 +21,33 @@ class AppleContainerRuntime(AppleContainerRunner):
         options: Optional[AppleContainerOptions] = None,
         verbose: bool = False,
     ):
-        super().__init__(config, options=options, verbose=verbose)
+        super().__init__(config, verbose)
+
+        self._runner: AppleContainerRunner = AppleContainerRunner(config, options=options, verbose=verbose)
+
+    @property
+    def container_name(self) -> Optional[str]:
+        return self._runner.container_name
+
+    async def create(self, tty: bool = True, stdin_open: bool = True) -> None:
+        await self._runner.create(tty=tty, stdin_open=stdin_open)
+
+    async def start(self, detach: bool) -> None:
+        await self._runner.start(detach=detach)
 
     async def stop(self) -> None:
         stop_timeout = parse_time(self.config.stop_timeout) if self.config.stop_timeout is not None else None
-        await super().stop(timeout=stop_timeout)
+
+        await self._runner.stop(timeout=stop_timeout)
+
+    async def remove(self, force: bool = False) -> None:
+        await self._runner.remove(force=force)
+
+    async def exists(self) -> bool:
+        return await self._runner.exists()
+
+    async def is_running(self) -> bool:
+        return await self._runner.is_running()
 
 class AppleContainerRuntimeBackend(ContainerRuntimeBackend):
     """Apple Container-backed `ContainerRuntimeBackend`."""

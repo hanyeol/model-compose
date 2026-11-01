@@ -5,6 +5,7 @@ from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.transport.ssh import SshRuntimeTransport, SshBasedRemoteTransportConfig
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
+from mindor.core.logger import logging
 from .common import CommonRuntime
 from multiprocessing import Process
 import asyncio, multiprocessing, os, shlex
@@ -117,6 +118,8 @@ class RemoteProcessRuntime(CommonRuntime):
         self._channel: Optional[SshExecChannel] = None
 
     async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
+        logging.info("process: ssh connecting to %s...", self._transport.host)
+
         await self._transport.connect()
 
         # Resolve the remote python interpreter through an interactive shell
@@ -127,7 +130,12 @@ class RemoteProcessRuntime(CommonRuntime):
             working_dir=self._transport.working_dir,
         )
 
+        logging.debug("process: using remote python at %s", python)
+
         command = self._build_remote_command(python, env)
+
+        logging.info("process: launching remote worker on %s...", self._transport.host)
+
         self._channel = await self._transport.open_exec_channel(command)
 
         return self._channel

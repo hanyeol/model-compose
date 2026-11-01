@@ -109,6 +109,7 @@ async def _run_scenario(port: int) -> None:
         compose.loggers,
         daemon=True,
     )
+    await _setup_controller(controller)
     await controller.start()
     try:
         await _wait_for_port("127.0.0.1", port)
@@ -132,6 +133,27 @@ async def _run_scenario(port: int) -> None:
             assert "Hello, world!" in text
     finally:
         await controller.stop()
+        await _teardown_controller(controller)
+
+
+async def _setup_controller(controller) -> None:
+    """Mirror `launch_services` native-runtime setup phase so adapter / component
+    resources (e.g. the FastAPI app) exist before `start()` runs."""
+    await controller._setup_systems()
+    await controller._setup_listeners()
+    await controller._setup_gateways()
+    await controller._setup_components()
+    await controller._setup_adapters()
+    await controller._setup_tracers()
+
+
+async def _teardown_controller(controller) -> None:
+    await controller._teardown_tracers()
+    await controller._teardown_adapters()
+    await controller._teardown_components()
+    await controller._teardown_gateways()
+    await controller._teardown_listeners()
+    await controller._teardown_systems()
 
 
 class TestMcpServerAdapter:

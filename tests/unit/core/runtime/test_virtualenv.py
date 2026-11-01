@@ -60,30 +60,30 @@ class TestVirtualEnvRuntimePathResolution:
 
 
 class TestVirtualEnvRuntimeEnvironment:
-    def test_build_environment_includes_pythonunbuffered(self, tmp_path: Path, monkeypatch):
+    def test_build_venv_environment_includes_pythonunbuffered(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         runtime = VirtualEnvRuntime(worker_id="comp", worker_module="x", config=_config())
-        env = runtime._build_environment(None)
+        env = runtime._build_venv_environment(None)
         assert env["PYTHONUNBUFFERED"] == "1"
 
-    def test_build_environment_applies_config_env(self, tmp_path: Path, monkeypatch):
+    def test_build_venv_environment_applies_config_env(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         runtime = VirtualEnvRuntime(
             worker_id="comp",
             worker_module="x",
             config=_config(env={"FOO": "bar"}),
         )
-        env = runtime._build_environment(None)
+        env = runtime._build_venv_environment(None)
         assert env["FOO"] == "bar"
 
-    def test_build_environment_overrides_win_over_config(self, tmp_path: Path, monkeypatch):
+    def test_build_venv_environment_overrides_win_over_config(self, tmp_path: Path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         runtime = VirtualEnvRuntime(
             worker_id="comp",
             worker_module="x",
             config=_config(env={"FOO": "from-config"}),
         )
-        env = runtime._build_environment({"FOO": "from-overrides", "NEW": "value"})
+        env = runtime._build_venv_environment({"FOO": "from-overrides", "NEW": "value"})
         assert env["FOO"] == "from-overrides"
         assert env["NEW"] == "value"
 

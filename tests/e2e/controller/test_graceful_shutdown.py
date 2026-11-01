@@ -151,6 +151,7 @@ async def _make_controller(port: int, pending_period: str = "0s", sleep_seconds:
         compose.loggers,
         daemon=True,
     )
+    await _setup_controller(controller)
     await controller.start()
     await _wait_for_port("127.0.0.1", port)
     return controller
@@ -161,6 +162,27 @@ async def _fully_stop(controller) -> None:
     so the underlying TCP port is fully released before the next test binds."""
     await controller.stop()
     await controller.wait_until_stopped()
+    await _teardown_controller(controller)
+
+
+async def _setup_controller(controller) -> None:
+    """Mirror `launch_services` native-runtime setup phase so adapter / component
+    resources (e.g. the FastAPI app) exist before `start()` runs."""
+    await controller._setup_systems()
+    await controller._setup_listeners()
+    await controller._setup_gateways()
+    await controller._setup_components()
+    await controller._setup_adapters()
+    await controller._setup_tracers()
+
+
+async def _teardown_controller(controller) -> None:
+    await controller._teardown_tracers()
+    await controller._teardown_adapters()
+    await controller._teardown_components()
+    await controller._teardown_gateways()
+    await controller._teardown_listeners()
+    await controller._teardown_systems()
 
 
 class TestGracefulShutdown:

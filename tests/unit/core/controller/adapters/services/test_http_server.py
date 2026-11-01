@@ -318,12 +318,16 @@ class TestAdapterHandlerRegistration:
 
     @pytest.fixture
     def adapter(self):
+        import asyncio
+
         config = HttpServerControllerAdapterConfig(
             type=ControllerAdapterType.HTTP_SERVER,
             websocket=WebSocketConfig(),
         )
         controller = MagicMock()
-        return HttpServerControllerAdapterService(config, controller, daemon=False)
+        service = HttpServerControllerAdapterService(config, controller, daemon=False)
+        asyncio.run(service._setup())
+        return service
 
     @pytest.mark.parametrize("message_type,payload_model", [
         ("run_workflow", WorkflowRunPayload),
@@ -358,12 +362,16 @@ class TestWebSocketServerStreamInput:
 
     @pytest.fixture
     def adapter(self):
+        import asyncio
+
         config = HttpServerControllerAdapterConfig(
             type=ControllerAdapterType.HTTP_SERVER,
             websocket=WebSocketConfig(),
         )
         controller = MagicMock()
-        return HttpServerControllerAdapterService(config, controller, daemon=False)
+        service = HttpServerControllerAdapterService(config, controller, daemon=False)
+        asyncio.run(service._setup())
+        return service
 
     def test_contains_stream_detects_nested(self, adapter):
         from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -459,11 +467,15 @@ class TestStreamingTaskDelivery:
 
     @pytest.fixture
     def adapter(self):
+        import asyncio
+
         config = HttpServerControllerAdapterConfig(
             type=ControllerAdapterType.HTTP_SERVER,
             websocket=WebSocketConfig(),
         )
-        return HttpServerControllerAdapterService(config, MagicMock(), daemon=False)
+        service = HttpServerControllerAdapterService(config, MagicMock(), daemon=False)
+        asyncio.run(service._setup())
+        return service
 
     @staticmethod
     async def _tokens():
@@ -580,11 +592,15 @@ class TestWebSocketStreamPull:
 
     @pytest.fixture
     def adapter(self):
+        import asyncio
+
         config = HttpServerControllerAdapterConfig(
             type=ControllerAdapterType.HTTP_SERVER,
             websocket=WebSocketConfig(),
         )
-        return HttpServerControllerAdapterService(config, MagicMock(), daemon=False)
+        service = HttpServerControllerAdapterService(config, MagicMock(), daemon=False)
+        asyncio.run(service._setup())
+        return service
 
     @staticmethod
     async def _serve(adapter, source):

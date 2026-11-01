@@ -1992,10 +1992,10 @@ class TestImageValueRenderer:
         assert all(r is img for r in result)
 
     @pytest.mark.anyio
-    async def test_unsupported_returns_none(self):
+    async def test_unsupported_raises_type_error(self):
         from mindor.core.foundation.variable.image import ImageValueRenderer
-        result = await ImageValueRenderer().render(42)
-        assert result is None
+        with pytest.raises(TypeError, match="image"):
+            await ImageValueRenderer().render(42)
 
 
 # ============================

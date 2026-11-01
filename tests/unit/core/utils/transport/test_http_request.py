@@ -7,6 +7,7 @@ they need a Starlette ``Request`` instance which belongs in integration tests.
 import json
 from urllib.parse import parse_qs
 
+import pytest
 from starlette.datastructures import FormData
 
 from mindor.core.utils.transport.http_request import (
@@ -39,6 +40,49 @@ class TestNestedFormParser:
             FormData([("name", "Alice"), ("addr[city]", "Seoul")])
         )
         assert result == {"name": "Alice", "addr": {"city": "Seoul"}}
+
+    def test_bracketed_leaf_with_array_suffix_collects_into_list(self):
+        # Regression for issue #88: `input[image][]` must be a list, not a duplicate scalar.
+        result = NestedFormParser().parse(
+            FormData([("input[image][]", "a.png"), ("input[image][]", "b.png")])
+        )
+        assert result == {"input": {"image": ["a.png", "b.png"]}}
+
+    def test_bracketed_leaf_with_array_suffix_single_item(self):
+        result = NestedFormParser().parse(FormData([("input[image][]", "solo.png")]))
+        assert result == {"input": {"image": ["solo.png"]}}
+
+    def test_deeply_nested_array_suffix(self):
+        result = NestedFormParser().parse(
+            FormData([("a[b][c][]", "x"), ("a[b][c][]", "y")])
+        )
+        assert result == {"a": {"b": {"c": ["x", "y"]}}}
+
+    def test_legacy_inner_array_form_still_parses_as_list(self):
+        # `input[image[]]` was the only form that produced a list before the fix;
+        # keep it working so existing callers do not regress.
+        result = NestedFormParser().parse(
+            FormData([("input[image[]]", "x"), ("input[image[]]", "y")])
+        )
+        assert result == {"input": {"image": ["x", "y"]}}
+
+    def test_scalar_and_list_fields_coexist(self):
+        result = NestedFormParser().parse(
+            FormData([
+                ("input[prompt]", "hi"),
+                ("input[image][]", "a.png"),
+                ("input[image][]", "b.png"),
+            ])
+        )
+        assert result == {"input": {"prompt": "hi", "image": ["a.png", "b.png"]}}
+
+    def test_duplicate_scalar_raises_with_list_suffix_hint(self):
+        with pytest.raises(ValueError) as excinfo:
+            NestedFormParser().parse(
+                FormData([("input[image]", "a.png"), ("input[image]", "b.png")])
+            )
+        # The hint must point at a form that the parser actually recognises as a list.
+        assert "input[image][]" in str(excinfo.value)
 
 
 class TestBuildRequestBody:

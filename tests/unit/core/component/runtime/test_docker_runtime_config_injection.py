@@ -20,7 +20,7 @@ from __future__ import annotations
 import pytest
 
 from mindor.core.component.runtime.docker import ComponentDockerRuntimeBackend
-from mindor.core.runtime.common import ContainerImageKind
+from mindor.core.runtime.container import ContainerImageKind
 from mindor.dsl.schema.runtime import DockerRuntimeConfig
 from mindor.dsl.schema.runtime.impl.common import RuntimeType
 

@@ -398,12 +398,12 @@ class TestCdpClientDiscover:
         mock_ws.connect = AsyncMock(return_value=(mock_ws, True))
 
         with (
-            patch("mindor.core.utils.transport.cdp_client.aiohttp.ClientSession", return_value=mock_session),
+            patch("aiohttp.ClientSession", return_value=mock_session),
             patch("mindor.core.utils.transport.cdp_client.WebSocketClient", return_value=mock_ws) as MockWS,
         ):
             client = await CdpClient.discover("http://localhost:9222", target_index=0, timeout=5.0)
 
-            assert client.ws_url == "ws://localhost:9222/devtools/page/abc"
+            assert client.websocket_url == "ws://localhost:9222/devtools/page/abc"
             assert client.timeout == 5.0
             MockWS.assert_called_once_with("ws://localhost:9222/devtools/page/abc")
             mock_ws.connect.assert_awaited_once()
@@ -434,12 +434,12 @@ class TestCdpClientDiscover:
         mock_ws.connect = AsyncMock(return_value=(mock_ws, True))
 
         with (
-            patch("mindor.core.utils.transport.cdp_client.aiohttp.ClientSession", return_value=mock_session),
+            patch("aiohttp.ClientSession", return_value=mock_session),
             patch("mindor.core.utils.transport.cdp_client.WebSocketClient", return_value=mock_ws),
         ):
             client = await CdpClient.discover("http://localhost:9222", target_index=1)
 
-            assert client.ws_url == "ws://localhost:9222/devtools/page/second"
+            assert client.websocket_url == "ws://localhost:9222/devtools/page/second"
 
             await client.close()
 
@@ -460,7 +460,7 @@ class TestCdpClientDiscover:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("mindor.core.utils.transport.cdp_client.aiohttp.ClientSession", return_value=mock_session):
+        with patch("aiohttp.ClientSession", return_value=mock_session):
             with pytest.raises(ConnectionError, match="No 'page' target found"):
                 await CdpClient.discover("http://localhost:9222")
 
@@ -481,7 +481,7 @@ class TestCdpClientDiscover:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("mindor.core.utils.transport.cdp_client.aiohttp.ClientSession", return_value=mock_session):
+        with patch("aiohttp.ClientSession", return_value=mock_session):
             with pytest.raises(IndexError, match="out of range"):
                 await CdpClient.discover("http://localhost:9222", target_index=5)
 
@@ -509,8 +509,8 @@ class TestCdpClientIntegrationConnection:
         """Test factory method discovers correct WebSocket URL."""
         client = await CdpClient.discover(f"http://localhost:{chrome['port']}", timeout=5.0)
 
-        assert "ws://" in client.ws_url
-        assert "devtools" in client.ws_url
+        assert "ws://" in client.websocket_url
+        assert "devtools" in client.websocket_url
 
         await client.close()
 

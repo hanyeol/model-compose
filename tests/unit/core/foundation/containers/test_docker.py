@@ -279,7 +279,7 @@ class TestDockerContainerRunner:
     @pytest.fixture
     def mock_docker_client(self):
         """Create a mock Docker client"""
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -582,7 +582,7 @@ class TestGetContainer:
 
     @pytest.fixture
     def mock_docker_client(self):
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -634,7 +634,7 @@ class TestRemoveContainerIdempotency:
 
     @pytest.fixture
     def mock_docker_client(self):
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -685,7 +685,7 @@ class TestStartContainerForeground:
 
     @pytest.fixture
     def mock_docker_client(self):
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -737,7 +737,7 @@ class TestCreateContainerOptions:
 
     @pytest.fixture
     def mock_docker_client(self):
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -793,7 +793,7 @@ class TestContainerMethodErrorWrapping:
 
     @pytest.fixture
     def mock_docker_client(self):
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client
@@ -836,7 +836,7 @@ class TestContainerMethodErrorWrapping:
 class TestRuntimeInitToleratesNone:
     @pytest.fixture
     def mock_docker_client(self):
-        with patch('mindor.core.foundation.containers.docker.docker.from_env') as mock:
+        with patch('docker.from_env') as mock:
             client = MagicMock()
             mock.return_value = client
             yield client

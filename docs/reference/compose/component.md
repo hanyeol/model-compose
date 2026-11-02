@@ -373,7 +373,7 @@ component:
   runtime:
     type: virtualenv            # or `process`
     remote:
-      type: ssh                 # or `tailscale`
+      type: ssh
       host: gpu-box.example.com
       user: hanyeol
       key: ~/.ssh/id_ed25519
@@ -398,9 +398,6 @@ component:
 **Transport types:**
 - `type: ssh` — plain SSH. Requires `key` or `password`; SSH agent
   fallback is not supported yet.
-- `type: tailscale` — reserved; falls through to SSH when the local
-  `tailscaled` resolves the host. An embedded `tsnet` node is not
-  implemented.
 
 **Use Cases:**
 - Burst to a shared GPU workstation without baking a Docker image

@@ -1392,6 +1392,12 @@ Prerequisites on the remote host:
 - A Python interpreter visible under the user's interactive shell that
   can `import mindor` (install this project on the remote side; the
   runtime resolves it via `sys.executable`).
+- A supported login shell — **bash / zsh** (POSIX) or **PowerShell** on
+  Windows. The remote shell is probed in `start()` via
+  `platform.system()`, and the command dialect is chosen automatically.
+  On Windows targets the remote OpenSSH service's default shell must
+  be set to `powershell.exe` or `pwsh.exe`; `cmd.exe` is not
+  supported (see 16.7.3 for the registry setting).
 
 No daemons, no containers, no volume mounts. See the
 [`remote-process/`](../../examples/runtime/remote-process) example for a
@@ -1429,13 +1435,31 @@ mindor source, so there is no byte transfer from host to remote during
 setup. See [`remote-virtualenv/`](../../examples/runtime/remote-virtualenv)
 for the full example.
 
+**Supported remote shells:**
+
+- **POSIX (bash / zsh)** — default on Linux and macOS targets.
+- **PowerShell on Windows** — the remote OpenSSH service's default shell
+  must be set to `powershell.exe` or `pwsh.exe`. The out-of-the-box
+  Windows default is `cmd.exe`, which this runtime does not target.
+  Change it with:
+  ```powershell
+  New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
+    -Value "C:\Program Files\PowerShell\7\pwsh.exe" -PropertyType String -Force
+  ```
+  The runtime probes `platform.system()` on the remote python during
+  `establish()` and picks the right command dialect automatically.
+- **pyenv driver** — uses `pyenv` on POSIX and `pyenv-win` on Windows;
+  both expose the same `pyenv versions --bare` / `pyenv root` CLI, so
+  the Windows binary layout (`{root}\versions\{v}\python.exe`) is
+  handled by the runtime.
+
 ### 16.7.4 Transport Configuration
 
 The `remote` block is a tagged union; `type` selects the transport:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `type` | yes | `ssh` or `tailscale` (see below) |
+| `type` | yes | `ssh` (currently the only supported transport) |
 | `host` | yes | Remote host name or IP |
 | `user` | optional | Login user; falls back to SSH client defaults |
 | `port` | optional | SSH port (default `22`) |
@@ -1452,10 +1476,6 @@ The `remote` block is a tagged union; `type` selects the transport:
 
 - `type: ssh` — plain SSH. Exactly one of `key` or `password` is
   required; SSH agent / default-key fallback is not supported yet.
-- `type: tailscale` — reserved. Current implementation falls through to
-  a plain SSH connection when the local `tailscaled` resolves the host.
-  An embedded `tsnet` node (joining the tailnet from inside the
-  controller) is not implemented yet.
 
 ### 16.7.5 When Remote Runtimes Don't Fit
 

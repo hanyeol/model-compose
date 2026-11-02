@@ -22,7 +22,7 @@ class ActiveSpeakerDetectionTaskAction(ModelTaskComponentAction):
         time_offset = await context.render_time(self.config.time_offset, 0.0)
         frame_rate  = await context.render_scalar(self.config.frame_rate, float)
         audio       = await context.render_audio(self.config.audio)
-        tracks      = await context.render_variable(self.config.tracks)
+        tracks      = await context.render_array(self.config.tracks, item_is_list=True, single_as_array=True)
         batch_size  = await context.render_variable(self.config.batch_size)
         streaming   = await context.render_scalar(self.config.streaming, bool)
 
@@ -114,7 +114,7 @@ class ActiveSpeakerDetectionTaskAction(ModelTaskComponentAction):
         timestamps: Optional[List[ArrayValue]],
         offsets: List[float],
         audios: List[MediaSource],
-        tracks: List[Any],
+        tracks: List[ArrayValue],
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
@@ -124,11 +124,11 @@ class ActiveSpeakerDetectionTaskAction(ModelTaskComponentAction):
         triples. Each item in `frames` is one video's ordered frames as an
         ImageArrayValue; the matching entries in `audios` and `tracks` pair
         with it by position. `tracks` holds the per-frame `detections` emitted
-        by a face-tracking component — a list of `{number, timestamp, faces:
-        [...]}` dicts, where each face carries a `track_id` and
-        `bounding_box`. The matching offset in `offsets` is that video's
-        timestamp for its first frame; `timestamps` optionally overrides the
-        extrapolation with true per-frame pts. Returns one item per input
-        video: a result dict when `streaming` is false, or an async iterator
-        yielding per-segment events when it is true."""
+        by a face-tracking component as an ArrayValue — iterating yields
+        `{number, timestamp, faces: [...]}` dicts, where each face carries a
+        `track_id` and `bounding_box`. The matching offset in `offsets` is
+        that video's timestamp for its first frame; `timestamps` optionally
+        overrides the extrapolation with true per-frame pts. Returns one item
+        per input video: a result dict when `streaming` is false, or an async
+        iterator yielding per-segment events when it is true."""
         pass

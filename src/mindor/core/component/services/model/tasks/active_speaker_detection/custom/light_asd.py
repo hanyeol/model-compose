@@ -113,7 +113,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         timestamps: Optional[List[ArrayValue]],
         offsets: List[float],
         audios: List[MediaSource],
-        tracks: List[Any],
+        tracks: List[ArrayValue],
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
@@ -141,12 +141,14 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         timestamps: Optional[ArrayValue],
         offset: float,
         audio: MediaSource,
-        tracks: Any,
+        tracks: ArrayValue,
         frame_rate: float,
         streaming: bool,
         params: Dict[str, Any],
     ) -> Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]:
         frames = await frames.collect()
+        tracks = await tracks.collect()
+
         frame_count = len(frames)
         frame_period = 1.0 / float(frame_rate) if frame_rate else 1.0 / 25.0
 

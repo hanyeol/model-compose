@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Any
+from typing import Optional, Union, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 from ...common import CommonModelActionConfig
 
@@ -14,7 +14,7 @@ class CommonActiveSpeakerDetectionModelActionConfig(CommonModelActionConfig):
     frame_rate: Optional[Union[float, str]] = Field(default=None, description="Frames per second; required when `timestamps` is unset to derive per-frame timestamps.")
     time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch; scalar values broadcast, lists pair per batch.")
     audio: Union[str, List[str]] = Field(..., description="Audio paired with `frames`; a single input or a list matching the per-batch structure.")
-    tracks: Union[Any, List[Any], str] = Field(..., description="Face-tracking detections paired with `frames`; the per-frame `detections` list produced by a face-tracking component with `return_detections: true`.")
+    tracks: Union[Dict[str, Any], List[Dict[str, Any]], List[List[Dict[str, Any]]], str] = Field(..., description="Face-tracking detections paired with `frames`; the per-frame `detections` list produced by a face-tracking component with `return_detections: true`.")
     return_speakers: Union[bool, str] = Field(default=True, description="Whether the per-track speaking segment list is included in the result.")
     return_frame_scores: Union[bool, str] = Field(default=False, description="Whether per-frame speaking scores are included on each track.")
     return_timeline: Union[bool, str] = Field(default=False, description="Whether an across-tracks active-speaker timeline is included.")

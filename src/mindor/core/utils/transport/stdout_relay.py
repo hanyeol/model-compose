@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from io import TextIOWrapper
-import anyio, os, sys
+import os, sys
+
+if TYPE_CHECKING:
+    import anyio
 
 class StdoutRelay:
     """Reserve process stdout (fd 1) for a caller and relay stray writes to stderr.
@@ -18,7 +21,9 @@ class StdoutRelay:
         self._original_stdout_fd: Optional[int] = None
         self._saved_sys_stdout = None
 
-    def __enter__(self) -> anyio.AsyncFile:
+    def __enter__(self) -> "anyio.AsyncFile":
+        import anyio
+
         self._original_stdout_fd = os.dup(1)
         os.dup2(2, 1)
 

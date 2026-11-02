@@ -382,10 +382,12 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         # re-pulls are free; ephemeral otherwise.
         env["HF_HOME"] = f"{self._get_pod_workspace_root()}/.cache/huggingface"
 
-        # Rust-backed concurrent downloader — RunPod network bandwidth is high
-        # enough that the throughput win is substantial, and large checkpoints
-        # (tens of GB) make it worth paying the extra dependency by default.
-        env["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        # Xet high-performance transfer path — RunPod network bandwidth is
+        # high enough that the throughput win is substantial, and large
+        # checkpoints (tens of GB) make this the default worth paying for.
+        # Replaces the older HF_HUB_ENABLE_HF_TRANSFER, which huggingface_hub
+        # deprecated once hf_transfer stopped being used.
+        env["HF_XET_HIGH_PERFORMANCE"] = "1"
 
         # Driver-triggered installs at runtime (e.g. torchaudio) target the
         # pod's system interpreter, which is PEP 668 externally-managed on

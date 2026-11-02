@@ -177,9 +177,16 @@ class LocalVirtualEnvRuntime(CommonRuntime):
             uv_path = shutil.which("uv")
 
             if uv_path:
-                command = [ uv_path, "pip", "install", "--python", str(self._venv_python()), "--link-mode=hardlink" ]
+                command = [
+                    uv_path, "pip", "install",
+                    "--python", str(self._venv_python()),
+                    "--link-mode=hardlink",
+                ]
             else:
-                command = [ str(self._venv_pip()), "install", "--disable-pip-version-check" ]
+                command = [
+                    str(self._venv_pip()), "install",
+                    "--disable-pip-version-check",
+                ]
 
             for requirements_path in requirements:
                 if not requirements_path.exists():

@@ -90,9 +90,20 @@ async def install_package(
     uv_path = shutil.which("uv")
 
     if uv_path:
-        command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", "--break-system-packages", install_spec ] + pip_options
+        command = [
+            uv_path, "pip", "install",
+            "--python", sys.executable,
+            "--link-mode=hardlink",
+            "--break-system-packages",
+            install_spec,
+        ] + pip_options
     else:
-        command = [ sys.executable, "-m", "pip", "install", "--upgrade", "--break-system-packages", install_spec ] + pip_options
+        command = [
+            sys.executable, "-m", "pip", "install",
+            "--upgrade",
+            "--break-system-packages",
+            install_spec,
+        ] + pip_options
 
     process = await asyncio.create_subprocess_exec(
         *command,

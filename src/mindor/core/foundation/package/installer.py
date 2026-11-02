@@ -77,6 +77,12 @@ async def install_package(
     for torch/CUDA installs). Falls back to `python -m pip install` when
     uv isn't on PATH. Either way, the install targets `sys.executable`, so
     the package is importable in the same process.
+
+    `--break-system-packages` is always passed because model-compose runs in
+    containerized runtimes (RunPod, Docker) whose base images sit on a
+    PEP 668 "externally managed" system Python; both uv and pip would
+    otherwise refuse to install anything. The flag is a no-op in venvs and
+    on non-marked interpreters, so it is safe to pass unconditionally.
     """
     install_spec, extra_options = _resolve_install_spec(package_spec, repository)
     pip_options = extra_options + (pip_options or [])
@@ -84,9 +90,9 @@ async def install_package(
     uv_path = shutil.which("uv")
 
     if uv_path:
-        command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", install_spec ] + pip_options
+        command = [ uv_path, "pip", "install", "--python", sys.executable, "--link-mode=hardlink", "--break-system-packages", install_spec ] + pip_options
     else:
-        command = [ sys.executable, "-m", "pip", "install", "--upgrade", install_spec ] + pip_options
+        command = [ sys.executable, "-m", "pip", "install", "--upgrade", "--break-system-packages", install_spec ] + pip_options
 
     process = await asyncio.create_subprocess_exec(
         *command,

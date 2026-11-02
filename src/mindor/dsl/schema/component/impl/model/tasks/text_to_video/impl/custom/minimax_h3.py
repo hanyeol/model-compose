@@ -2,6 +2,7 @@ from typing import Literal, List, Optional, Dict, Any
 from enum import Enum
 from pydantic import Field, model_validator
 from mindor.dsl.schema.action import TextToVideoModelActionConfig
+from mindor.dsl.utils.path import is_local_path
 from ..common import CommonTextToVideoModelComponentConfig
 from .common import TextToVideoModelFamily
 from ....common import ModelDriverType, ModelProvider, ModelSubmoduleConfig
@@ -22,6 +23,12 @@ class MinimaxH3TextToVideoModelComponentConfig(CommonTextToVideoModelComponentCo
 
     @model_validator(mode="before")
     def inflate_model(cls, values: Dict[str, Any]):
-        if values.get("model") is None:
-            values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": _DEFAULT_MODEL_REPOSITORY }
+        model = values.get("model")
+        if model is None:
+            model = _DEFAULT_MODEL_REPOSITORY
+        if isinstance(model, str):
+            if is_local_path(model):
+                values["model"] = { "provider": ModelProvider.LOCAL, "path": model }
+            else:
+                values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
         return values

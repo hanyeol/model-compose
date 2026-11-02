@@ -93,7 +93,7 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
 
         try:
             height, width = int(frames_np.shape[1]), int(frames_np.shape[2])
-            video_stream = container.add_stream("libx264", rate=fps)
+            video_stream = container.add_stream("libx264", rate=int(fps))
             video_stream.width = width
             video_stream.height = height
             video_stream.pix_fmt = "yuv420p"

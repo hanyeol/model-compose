@@ -91,7 +91,7 @@ class VariableRenderer:
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
                 r"""\$\{                                                                                                # ${
-                    (?:\s*([a-zA-Z_][^.\[\s}]*(?:\[\])?))(?:\[(-?\d*:-?\d*|-?\d+)\])?                                   # key: input, result[], result[0], result[-1], result[1:], result[:5], result[1:5], etc.
+                    (?:\s*([a-zA-Z_][^.\[\s}]*(?:\[\])?))(?:\[(-?\d*:-?\d*|-?\d+|\*)\])?                                # key: input, result[], result[0], result[-1], result[1:], result[:5], result[1:5], result[*], etc.
                     (?:\.([^\s|}]+))?                                                                                   # path: key, key.path[0], etc.
                     (?:\s*as\s*([^\s/;\[}]+)(\[\])?(?:/([^\s;\[}]+)(?:\[((?:\$\{[^}]*\}|[^\]])*)\])?)?(?:;([^\s}]+))?)? # type[]/subtype[attrs];format (attrs may contain nested ${...})
                     (?:\s*\|\s*((?:\$\{[^}]+\}|\\[$@{}]|(?!\s*(?:@\(|\$\{)).)+))?                                       # default value after `|`
@@ -182,7 +182,12 @@ class VariableRenderer:
 
         for m in reversed(matches):
             key, index, path, type, is_list, subtype, attrs, format, default = m.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
-            index = self._parse_index(index) if index else None
+
+            if index == "*":
+                path = f"[*]{'.' + path if path else ''}"
+                index = None
+            else:
+                index = self._parse_index(index) if index else None
             is_list = bool(is_list)
 
             if attrs:

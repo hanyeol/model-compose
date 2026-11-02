@@ -78,11 +78,11 @@ async def install_package(
     uv isn't on PATH. Either way, the install targets `sys.executable`, so
     the package is importable in the same process.
 
-    `--break-system-packages` is always passed because model-compose runs in
-    containerized runtimes (RunPod, Docker) whose base images sit on a
-    PEP 668 "externally managed" system Python; both uv and pip would
-    otherwise refuse to install anything. The flag is a no-op in venvs and
-    on non-marked interpreters, so it is safe to pass unconditionally.
+    `--break-system-packages` is always passed because containerized
+    runtimes (RunPod, Docker) often sit on a PEP 668 "externally managed"
+    system Python; both uv and pip would otherwise refuse to install
+    anything. The flag is a no-op in venvs and on non-marked interpreters,
+    so it is safe to pass unconditionally.
     """
     install_spec, extra_options = _resolve_install_spec(package_spec, repository)
     pip_options = extra_options + (pip_options or [])

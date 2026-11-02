@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Dict, Iterable, Optional
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
@@ -8,9 +9,11 @@ from mindor.core.logger import logging
 from mindor.dsl.schema.runtime.remote import SshRemoteTransportConfig
 from mindor.core.runtime.transport.ssh import SshRuntimeTransport
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
-from mindor.core.runtime.shell import CommonShell, WindowsShell
+from mindor.core.runtime.shell import CommonShell
 from ..common import CommonRuntime
-import ntpath, posixpath
+import asyncio
+
+_LOCK_READY_SENTINEL = "MINDOR_LOCK_READY"
 
 class RemoteVirtualEnvRuntime(CommonRuntime):
     """Lifecycle wrapper around a venv-isolated Python worker on a remote host.
@@ -30,9 +33,10 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
     Typical flow:
         runtime = RemoteVirtualEnvRuntime(remote_config, worker_id, worker_module, config)
         await runtime.establish()
-        await runtime.create_venv()
-        await runtime.install_mindor_source()
-        await runtime.install_requirements()
+        async with runtime.bootstrap_lock():
+            await runtime.create_venv()
+            await runtime.install_mindor_source()
+            await runtime.install_requirements()
         channel = await runtime.start(env=...)
         ...
         await runtime.stop()
@@ -82,6 +86,125 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
             "__import__('pathlib').Path(__import__('mindor').__file__).parent",
             working_dir=self._transport.working_dir,
         )
+
+    @asynccontextmanager
+    async def bootstrap_lock(self, timeout: float = 300.0):
+        """Serialize provisioning across concurrent bootstraps of the same
+        remote venv. Mirrors ``LocalVirtualEnvRuntime.bootstrap_lock``:
+        all three provisioning verbs (`create_venv`,
+        `install_mindor_source`, `install_requirements`) must run inside
+        this context so a parallel runner cannot observe a half-built venv.
+
+        A short Python one-liner acts as the lock holder on the remote —
+        it takes an exclusive advisory lock on ``{venv}/.mindor.lock``
+        (``fcntl.flock`` on POSIX, ``msvcrt.locking`` on Windows), prints
+        a ready sentinel, and blocks on stdin. Releasing the lock is just
+        closing the SSH channel; the process dies, the fd is closed, and
+        the kernel drops the lock. Works whether the venv already exists
+        or not — the holder opens the lock file with ``O_CREAT``."""
+        lock_path = self._shell.join_path(self._venv_path, ".mindor.lock")
+        script = self._build_lock_holder_script(lock_path)
+        command = self._shell.oneliner_script_command(self._executable, script)
+
+        logging.debug("virtualenv: acquiring remote bootstrap lock at %s", lock_path)
+
+        channel = await self._transport.open_exec_channel(command)
+
+        try:
+            await asyncio.wait_for(self._await_lock_ready(channel), timeout=timeout)
+        except Exception:
+            channel.close()
+            raise
+
+        try:
+            yield
+        finally:
+            channel.close()
+
+    async def create_venv(self) -> None:
+        """Run ``<python> -m venv <path>`` on the remote host (idempotent)."""
+        command = self._shell.create_venv_command(self._executable, self._venv_path)
+
+        logging.info("virtualenv: creating remote venv at %s:%s...", self._transport.host, self._venv_path)
+
+        await self._run_remote_command(command)
+
+    async def install_mindor_source(self) -> None:
+        """Write a ``mindor.pth`` file into the remote venv's site-packages
+        pointing at the ``mindor`` package directory resolved during
+        `establish()`.
+
+        This is the editable-install path on the remote: whatever ``import
+        mindor`` resolves to on the remote user's shell is what the venv
+        picks up, so there is no byte transfer from host to remote.
+        """
+        venv_python = self._shell.venv_python_path(self._venv_path)
+
+        site_packages = await self._transport.evaluate_python_expression(
+            venv_python,
+            "__import__('sysconfig').get_paths()['purelib']",
+            working_dir=self._transport.working_dir,
+        )
+
+        # ``.pth`` entries go on sys.path, so write the parent of the mindor
+        # package (``.../src``) rather than the package directory itself.
+        # Both parent lookups use pathlib on the remote so the slash dialect
+        # follows the remote filesystem, not the host's.
+        # repr() emits a Python literal with backslashes escaped — safe to
+        # embed in the remote python expression even on Windows paths.
+        mindor_source_root = await self._transport.evaluate_python_expression(
+            self._executable,
+            f"__import__('pathlib').Path({self._mindor_source_path!r}).parent",
+            working_dir=self._transport.working_dir,
+        )
+
+        pth_path = self._shell.join_path(site_packages, "mindor.pth")
+
+        command = self._shell.write_pth_command(pth_path, mindor_source_root)
+
+        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, mindor_source_root)
+
+        await self._run_remote_command(command)
+
+    async def install_requirements(self, extra_requirements: Iterable[str] = ()) -> None:
+        """Pip install mindor's own runtime requirements (shipped alongside
+        the remote source tree) plus any ``extra_requirements`` provided by
+        the caller. Each extra path is an absolute path on the remote or a
+        path relative to the SSH working_dir; missing files are skipped."""
+        requirements = [ await self._mindor_requirements_path(), *extra_requirements ]
+
+        command = self._shell.install_requirements_command(self._venv_path, requirements)
+
+        logging.info("virtualenv: installing remote requirements on %s...", self._transport.host)
+
+        await self._run_remote_command(command)
+
+    async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
+        """Launch the worker via the venv's python over an SSH exec channel."""
+        env = { **(self.config.env or {}), **(env or {}) }
+        command = self._shell.launch_module_command(
+            self._shell.venv_python_path(self._venv_path),
+            self.worker_module,
+            env,
+            self._transport.working_dir,
+        )
+
+        logging.info("virtualenv: launching remote worker on %s...", self._transport.host)
+
+        self._channel = await self._transport.open_exec_channel(command)
+
+        return self._channel
+
+    async def stop(self) -> None:
+        if self._channel is not None:
+            try:
+                self._channel.close()
+            except Exception:
+                pass
+
+            self._channel = None
+
+        await self._transport.close()
 
     async def _resolve_executable(self) -> str:
         """Return the absolute path to the python used to create the venv.
@@ -143,89 +266,6 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
         return self._shell.pyenv_python_path(pyenv_root, version)
 
-    async def create_venv(self) -> None:
-        """Run ``<python> -m venv <path>`` on the remote host (idempotent)."""
-        command = self._shell.create_venv_command(self._executable, self._venv_path)
-
-        logging.info("virtualenv: creating remote venv at %s:%s...", self._transport.host, self._venv_path)
-
-        await self._run_remote_command(command)
-
-    async def install_mindor_source(self) -> None:
-        """Write a ``mindor.pth`` file into the remote venv's site-packages
-        pointing at the ``mindor`` package directory resolved during
-        `establish()`.
-
-        This is the editable-install path on the remote: whatever ``import
-        mindor`` resolves to on the remote user's shell is what the venv
-        picks up, so there is no byte transfer from host to remote.
-        """
-        venv_python = self._shell.venv_python_path(self._venv_path)
-
-        site_packages = await self._transport.evaluate_python_expression(
-            venv_python,
-            "__import__('sysconfig').get_paths()['purelib']",
-            working_dir=self._transport.working_dir,
-        )
-
-        # ``.pth`` entries go on sys.path, so write the parent of the mindor
-        # package (``.../src``) rather than the package directory itself.
-        # Both parent lookups use pathlib on the remote so the slash dialect
-        # follows the remote filesystem, not the host's.
-        mindor_source_root = await self._transport.evaluate_python_expression(
-            self._executable,
-            f"__import__('pathlib').Path({self._pathlib_literal(self._mindor_source_path)}).parent",
-            working_dir=self._transport.working_dir,
-        )
-
-        pth_path = self._join_remote_path(site_packages, "mindor.pth")
-
-        command = self._shell.write_pth_command(pth_path, mindor_source_root)
-
-        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, mindor_source_root)
-
-        await self._run_remote_command(command)
-
-    async def install_requirements(self, extra_requirements: Iterable[str] = ()) -> None:
-        """Pip install mindor's own runtime requirements (shipped alongside
-        the remote source tree) plus any ``extra_requirements`` provided by
-        the caller. Each extra path is an absolute path on the remote or a
-        path relative to the SSH working_dir; missing files are skipped."""
-        requirements = [ await self._mindor_requirements_path(), *extra_requirements ]
-
-        command = self._shell.install_requirements_command(self._venv_path, requirements)
-
-        logging.info("virtualenv: installing remote requirements on %s...", self._transport.host)
-
-        await self._run_remote_command(command)
-
-    async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
-        """Launch the worker via the venv's python over an SSH exec channel."""
-        env = { **(self.config.env or {}), **(env or {}) }
-        command = self._shell.launch_module_command(
-            self._shell.venv_python_path(self._venv_path),
-            self.worker_module,
-            env,
-            self._transport.working_dir,
-        )
-
-        logging.info("virtualenv: launching remote worker on %s...", self._transport.host)
-
-        self._channel = await self._transport.open_exec_channel(command)
-
-        return self._channel
-
-    async def stop(self) -> None:
-        if self._channel is not None:
-            try:
-                self._channel.close()
-            except Exception:
-                pass
-
-            self._channel = None
-
-        await self._transport.close()
-
     def _resolve_venv_path(self) -> str:
         """Resolve the remote-side venv directory, mirroring the local
         default (``{cwd}/.runtime/components/{worker_id}/venv``) but anchored
@@ -238,7 +278,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
         working_dir = self._transport.working_dir or "."
 
-        return self._join_remote_path(working_dir, ".runtime", "components", self.worker_id, "venv")
+        return self._shell.join_path(working_dir, ".runtime", "components", self.worker_id, "venv")
 
     async def _mindor_requirements_path(self) -> str:
         """``{mindor_source}/core/runtime/bootstrap/requirements.txt`` with
@@ -246,28 +286,10 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         avoid host-side slash guessing."""
         return await self._transport.evaluate_python_expression(
             self._executable,
-            f"__import__('pathlib').Path({self._pathlib_literal(self._mindor_source_path)}) "
+            f"__import__('pathlib').Path({self._mindor_source_path!r}) "
             "/ 'core' / 'runtime' / 'bootstrap' / 'requirements.txt'",
             working_dir=self._transport.working_dir,
         )
-
-    def _join_remote_path(self, *parts: str) -> str:
-        """Join path segments using the remote filesystem's separator —
-        ``ntpath.join`` for Windows targets, ``posixpath.join`` otherwise.
-        Shell-side helpers already encode the right separator for well-
-        known layouts (venv/pyenv); this handles the one-off joins we
-        build at runtime (worker_id, site_packages + ``mindor.pth``)."""
-        if isinstance(self._shell, WindowsShell):
-            return ntpath.join(*parts)
-
-        return posixpath.join(*parts)
-
-    @staticmethod
-    def _pathlib_literal(path: str) -> str:
-        """Serialize a path string as a Python string literal safe for
-        embedding in an ``evaluate_python_expression`` expression (handles
-        backslashes on Windows paths)."""
-        return repr(path)
 
     async def _run_remote_command(self, command: str) -> None:
         """Run ``command`` on the remote host via a one-shot exec channel
@@ -291,3 +313,49 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
                     break
         finally:
             channel.close()
+
+    @staticmethod
+    def _build_lock_holder_script(lock_path: str) -> str:
+        """Script body executed on the remote: acquires an exclusive
+        advisory lock on ``lock_path`` using the right OS primitive,
+        prints the ready sentinel, then blocks on stdin so the host can
+        release the lock by closing the exec channel. Inlining
+        ``lock_path`` with ``repr()`` sidesteps shell quoting entirely —
+        the whole script is base64-wrapped by
+        ``oneliner_script_command``."""
+        return (
+            "import os, sys\n"
+            f"lock_path = {lock_path!r}\n"
+            "os.makedirs(os.path.dirname(lock_path), exist_ok=True)\n"
+            "fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)\n"
+            "if sys.platform == 'win32':\n"
+            "    import msvcrt\n"
+            "    msvcrt.locking(fd, msvcrt.LK_LOCK, 1)\n"
+            "else:\n"
+            "    import fcntl\n"
+            "    fcntl.flock(fd, fcntl.LOCK_EX)\n"
+            f"sys.stdout.write('{_LOCK_READY_SENTINEL}\\n')\n"
+            "sys.stdout.flush()\n"
+            "sys.stdin.read()\n"
+        )
+
+    @staticmethod
+    async def _await_lock_ready(channel: SshExecChannel) -> None:
+        """Read the exec channel's stdout until the ready sentinel appears.
+
+        The holder script prints ``MINDOR_LOCK_READY`` after acquiring the
+        lock, so any byte stream containing that token means the lock is
+        ours."""
+        buffer = bytearray()
+
+        while True:
+            chunk = await channel.recv()
+
+            if chunk is None:
+                raise RuntimeError("remote lock holder exited before signalling readiness")
+
+            buffer.extend(chunk)
+
+            if _LOCK_READY_SENTINEL.encode() in buffer:
+                return
+

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, Optional
 from .common import CommonShell
-import ntpath
+import base64, ntpath
 
 class WindowsShell(CommonShell):
     """PowerShell dialect for Windows hosts. Assumes the remote OpenSSH
@@ -35,6 +35,16 @@ class WindowsShell(CommonShell):
         commands.append(f"& {self._quote(python)} -m {self._quote(module)}")
 
         return "; ".join(commands)
+
+    def oneliner_script_command(self, python: str, script: str) -> str:
+        script = base64.b64encode(script.encode()).decode()
+
+        # PowerShell: double-quoted strings interpolate, so we build the
+        # inner python ``-c`` body with single quotes around the b64 blob.
+        return (
+            f"& {self._quote(python)} -c "
+            f'"exec(__import__(\'base64\').b64decode(\'{script}\').decode())"'
+        )
 
     def create_venv_command(self, python: str, venv_path: str) -> str:
         venv_python = self.venv_python_path(venv_path)
@@ -83,6 +93,9 @@ class WindowsShell(CommonShell):
 
     def venv_python_path(self, venv_path: str) -> str:
         return ntpath.join(venv_path, "Scripts", "python.exe")
+
+    def join_path(self, *parts: str) -> str:
+        return ntpath.join(*parts)
 
     @staticmethod
     def _quote(value: str) -> str:

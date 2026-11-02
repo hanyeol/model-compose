@@ -112,9 +112,11 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         )
 
         await self._runtime.establish()
-        await self._runtime.create_venv()
-        await self._runtime.install_mindor_source()
-        await self._runtime.install_requirements()
+
+        async with self._runtime.bootstrap_lock():
+            await self._runtime.create_venv()
+            await self._runtime.install_mindor_source()
+            await self._runtime.install_requirements()
 
     async def _launch_local(self) -> SubprocessPipeChannel:
         # Create the pipe pair before spawning so we can hand the child its fds.

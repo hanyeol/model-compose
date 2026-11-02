@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, Optional
 from .common import CommonShell
-import posixpath, shlex
+import base64, posixpath, shlex
 
 class PosixShell(CommonShell):
     """bash / sh / zsh. Used when the remote login shell is POSIX."""
@@ -32,6 +32,14 @@ class PosixShell(CommonShell):
         )
 
         return " && ".join(commands)
+
+    def oneliner_script_command(self, python: str, script: str) -> str:
+        script = base64.b64encode(script.encode()).decode()
+
+        return (
+            f"{shlex.quote(python)} -c "
+            f"\"exec(__import__('base64').b64decode('{script}').decode())\""
+        )
 
     def create_venv_command(self, python: str, venv_path: str) -> str:
         venv_python = self.venv_python_path(venv_path)
@@ -79,3 +87,6 @@ class PosixShell(CommonShell):
 
     def venv_python_path(self, venv_path: str) -> str:
         return posixpath.join(venv_path, "bin", "python")
+
+    def join_path(self, *parts: str) -> str:
+        return posixpath.join(*parts)

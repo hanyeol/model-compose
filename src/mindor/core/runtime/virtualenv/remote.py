@@ -5,7 +5,8 @@ from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
-from mindor.core.runtime.transport.ssh import SshRuntimeTransport, SshBasedRemoteTransportConfig
+from mindor.dsl.schema.runtime.remote import SshRemoteTransportConfig
+from mindor.core.runtime.transport.ssh import SshRuntimeTransport
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from ..common import CommonRuntime
 import posixpath, shlex
@@ -35,7 +36,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
     def __init__(
         self,
-        remote_config: SshBasedRemoteTransportConfig,
+        remote_config: SshRemoteTransportConfig,
         worker_id: str,
         worker_module: str,
         config: VirtualEnvRuntimeConfig,

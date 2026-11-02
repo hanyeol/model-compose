@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.logger import logging
-from mindor.core.runtime.transport.ssh import SshRuntimeTransport, SshBasedRemoteTransportConfig
+from mindor.dsl.schema.runtime.remote import SshRemoteTransportConfig
+from mindor.core.runtime.transport.ssh import SshRuntimeTransport
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from ..common import CommonRuntime
 import shlex
@@ -27,7 +28,7 @@ class RemoteProcessRuntime(CommonRuntime):
 
     def __init__(
         self,
-        remote_config: SshBasedRemoteTransportConfig,
+        remote_config: SshRemoteTransportConfig,
         worker_module: str,
         config: ProcessRuntimeConfig,
         verbose: bool = False,

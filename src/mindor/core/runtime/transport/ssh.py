@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, Union
-from mindor.dsl.schema.runtime.remote import (
-    SshRemoteTransportConfig,
-    TailscaleRemoteTransportConfig,
-    RemoteTransportType,
-)
+from mindor.dsl.schema.runtime.remote import SshRemoteTransportConfig
 from mindor.core.utils.transport.ssh_client import (
     SshClient,
     SshConnectionParams,
@@ -15,16 +11,8 @@ from mindor.core.utils.transport.ssh_client import (
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
 import asyncio, re, socket, uuid
 
-SshBasedRemoteTransportConfig = Union[SshRemoteTransportConfig, TailscaleRemoteTransportConfig]
-
 class SshRuntimeTransport:
     """Owns one SSH connection used by a remote-capable runtime manager.
-
-    Accepts either an ``ssh`` or ``tailscale`` ``RemoteTransportConfig`` and
-    hides the differences behind a single wire: tailscale currently relies on
-    the local ``tailscaled`` to resolve the target host and on the tailnet
-    ACLs for authentication, so both transports collapse to a plain SSH
-    connection on this side (an embedded tsnet node is not yet supported).
 
     Lifecycle:
         transport = SshRuntimeTransport(config.remote)
@@ -33,8 +21,8 @@ class SshRuntimeTransport:
         ...
         await transport.close()
     """
-    def __init__(self, config: SshBasedRemoteTransportConfig):
-        self.config: SshBasedRemoteTransportConfig = config
+    def __init__(self, config: SshRemoteTransportConfig):
+        self.config: SshRemoteTransportConfig = config
 
         self._client: Optional[SshClient] = SshClient(self._build_connection_params(config))
 
@@ -235,39 +223,29 @@ class SshRuntimeTransport:
 
         return await asyncio.to_thread(_run)
 
-    def _build_connection_params(self, config: SshBasedRemoteTransportConfig) -> SshConnectionParams:
-        if config.type == RemoteTransportType.TAILSCALE:
-            return self._build_tailscale_connection_params(config)
+    def _build_connection_params(self, config: SshRemoteTransportConfig) -> SshConnectionParams:
+        return SshConnectionParams(
+            host=config.host,
+            port=config.port,
+            auth=self._build_auth_params(config),
+            keepalive_interval=int(config.keepalive_interval),
+        )
 
-        return self._build_ssh_connection_params(config)
-
-    def _build_ssh_connection_params(self, config: SshRemoteTransportConfig) -> SshConnectionParams:
+    def _build_auth_params(self, config: SshRemoteTransportConfig) -> Union[SshKeyfileAuthParams, SshPasswordAuthParams]:
         if config.key:
-            auth = SshKeyfileAuthParams(
+            return SshKeyfileAuthParams(
                 username=config.user or "",
                 keyfile=config.key,
                 passphrase=config.key_passphrase,
             )
-        elif config.password is not None:
-            auth = SshPasswordAuthParams(
+
+        if config.password is not None:
+            return SshPasswordAuthParams(
                 username=config.user or "",
                 password=config.password,
             )
-        else:
-            raise ValueError(
-                "SSH remote transport requires either `key` or `password`; "
-                "SSH agent / default-key fallback is not supported yet."
-            )
 
-        return SshConnectionParams(
-            host=config.host,
-            port=config.port,
-            auth=auth,
-            keepalive_interval=int(config.keepalive_interval),
-        )
-
-    def _build_tailscale_connection_params(self, config: TailscaleRemoteTransportConfig) -> SshConnectionParams:
-        raise NotImplementedError(
-            "tailscale remote transport is not supported yet; use `type: ssh` "
-            "and reach the tailnet host over its MagicDNS name or Tailscale IP."
+        raise ValueError(
+            "SSH remote transport requires either `key` or `password`; "
+            "SSH agent / default-key fallback is not supported yet."
         )

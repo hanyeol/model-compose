@@ -5,7 +5,6 @@ from .impl import *
 RemoteTransportConfig = Annotated[
     Union[
         SshRemoteTransportConfig,
-        TailscaleRemoteTransportConfig,
     ],
     Field(discriminator="type")
 ]

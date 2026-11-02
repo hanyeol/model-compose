@@ -111,7 +111,7 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
             config=self._runtime_config,
         )
 
-        await self._runtime.connect()
+        await self._runtime.establish()
         await self._runtime.create_venv()
         await self._runtime.install_mindor_source()
         await self._runtime.install_requirements()

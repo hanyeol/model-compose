@@ -85,77 +85,28 @@ class SshRuntimeTransport:
 
         return await asyncio.to_thread(_open)
 
-    async def resolve_executable(
+    async def run_command(
         self,
-        executable: str = "python",
+        command: str,
         working_dir: Optional[str] = None,
         timeout: float = 10.0,
     ) -> str:
-        """Return the absolute path of the Python executable visible to the
-        remote user's **interactive** login shell.
+        """Run ``command`` under the user's interactive shell and return its
+        stdout, with the surrounding shell/pty noise stripped.
 
-        The remote host may rely on shell init (``.bashrc``, pyenv init,
-        conda hook, Windows ``$PROFILE``) to put a ``python`` on PATH, so
-        a plain ``exec_command`` — which runs non-interactively and skips
-        those files — would see a stripped environment. This method
-        instead opens an interactive shell via ``invoke_shell`` so the
-        user's init runs, then asks ``python`` to print its own
-        ``sys.executable`` wrapped in sentinels, parses the result, and
-        hangs up.
-
-        The returned path is the absolute location of the real
-        executable binary (not a shim), so later ``exec_command`` calls
-        can invoke it directly without re-running shell init.
+        The command's own stdout is wrapped between a pair of sentinels that
+        we match in the pty transcript; multi-line output is preserved. The
+        interactive shell is used so pyenv init, conda hooks, ``.bashrc``
+        / ``$PROFILE`` etc. are applied — a plain non-interactive
+        ``exec_command`` would skip them.
         """
-        return await self._evaluate_expression(
-            executable,
-            "__import__('sys').executable",
-            working_dir=working_dir,
-            timeout=timeout
-        )
+        sentinel = "MINDOR_" + uuid.uuid4().hex
+        command = f'printf %s {sentinel}; {command}; printf %s {sentinel}'
+        pattern = re.compile(re.escape(sentinel) + r'([\s\S]*?)' + re.escape(sentinel))
 
-    async def resolve_site_packages_path(
-        self,
-        executable: str,
-        working_dir: Optional[str] = None,
-        timeout: float = 10.0,
-    ) -> str:
-        """Return the remote python's ``purelib`` site-packages directory.
+        return await self._capture_matched_output(command, pattern, working_dir, timeout, command)
 
-        Pass the ``executable`` returned by `resolve_executable` (or
-        the python inside a venv when provisioning that venv). Useful for
-        placing ``.pth`` files or dropping a mirrored package without
-        asking pip.
-        """
-        return await self._evaluate_expression(
-            executable,
-            "__import__('sysconfig').get_paths()['purelib']",
-            working_dir=working_dir,
-            timeout=timeout,
-        )
-
-    async def resolve_mindor_source_path(
-        self,
-        executable: str,
-        working_dir: Optional[str] = None,
-        timeout: float = 10.0,
-    ) -> str:
-        """Return the ``mindor`` package directory on the remote
-        (``.../src/mindor``).
-
-        Pass the ``executable`` returned by `resolve_executable`
-        so the two probes agree on the same binary (and the shell init
-        runs once rather than twice). Take the ``.parent`` of the result
-        to get what goes into a ``mindor.pth`` file.
-        """
-        return await self._evaluate_expression(
-            executable,
-            "__import__('pathlib').Path(__import__('mindor').__file__).parent",
-            working_dir=working_dir,
-            timeout=timeout,
-        )
-
-    async def _evaluate_expression(
+    async def evaluate_python_expression(
         self,
         executable: str,
         expression: str,
@@ -163,12 +114,14 @@ class SshRuntimeTransport:
         timeout: float = 10.0,
     ) -> str:
         """Evaluate ``expression`` in a remote python running under the
-        user's interactive shell, and return ``str(expression)``."""
+        user's interactive shell, and return ``str(expression)``.
+
+        Base64-encodes the script so neither the host shell nor the user's
+        remote shell can mangle quoting or metacharacters inside the
+        expression. The remote one-liner just decodes and exec()s it.
+        """
         import base64
 
-        # Base64 the script so neither the host shell nor the user's remote
-        # shell can mangle quoting or metacharacters inside ``expression``.
-        # The remote one-liner just decodes and exec()s it.
         sentinel = "MINDOR_" + uuid.uuid4().hex
         script = f'print("{sentinel}" + str({expression}) + "{sentinel}")'
         encoded_script = base64.b64encode(script.encode()).decode()
@@ -178,6 +131,16 @@ class SshRuntimeTransport:
         # the command-line echo, which has ``"`` around the sentinel literal.
         pattern = re.compile(re.escape(sentinel) + r'([^"\r\n]+?)' + re.escape(sentinel))
 
+        return await self._capture_matched_output(command, pattern, working_dir, timeout, expression)
+
+    async def _capture_matched_output(
+        self,
+        command: str,
+        pattern: "re.Pattern[str]",
+        working_dir: Optional[str],
+        timeout: float,
+        label: str,
+    ) -> str:
         def _run() -> str:
             channel = self.client.transport.open_session()
 
@@ -214,7 +177,7 @@ class SshRuntimeTransport:
                 except socket.timeout:
                     pass
 
-                raise RuntimeError(f"could not evaluate remote python expression within {timeout}s: {expression}")
+                raise RuntimeError(f"could not capture remote command output within {timeout}s: {label}")
             finally:
                 try:
                     channel.close()

@@ -49,7 +49,9 @@ class RemoteProcessRuntime(CommonRuntime):
         # so pyenv / venv activation / user profile scripts have a chance to
         # run. The returned path is the real binary (not a shim), so the
         # non-interactive exec channel below can invoke it directly.
-        executable = await self._transport.resolve_executable(
+        executable = await self._transport.evaluate_python_expression(
+            "python",
+            "__import__('sys').executable",
             working_dir=self._transport.working_dir,
         )
 

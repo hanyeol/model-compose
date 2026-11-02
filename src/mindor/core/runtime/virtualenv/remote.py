@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Dict, Iterable, List, Optional
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
@@ -24,7 +25,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
     Typical flow:
         runtime = RemoteVirtualEnvRuntime(remote_config, worker_id, worker_module, config)
-        await runtime.connect()
+        await runtime.establish()
         await runtime.create_venv()
         await runtime.install_mindor_source()
         await runtime.install_requirements()
@@ -59,30 +60,35 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
     def channel(self) -> Optional[SshExecChannel]:
         return self._channel
 
-    async def connect(self) -> None:
+    async def establish(self) -> None:
+        """Open the SSH connection and resolve the pieces downstream verbs
+        need: the python executable, the venv path, and the remote
+        ``mindor`` source location."""
         await self._transport.connect()
 
-        self._executable = await self._transport.resolve_executable(
-            working_dir=self._transport.working_dir,
-        )
+        self._executable = await self._resolve_executable()
         self._venv_path = self._resolve_venv_path()
-        self._mindor_source_path = await self._transport.resolve_mindor_source_path(
+        self._mindor_source_path = await self._transport.evaluate_python_expression(
             self._executable,
+            "__import__('pathlib').Path(__import__('mindor').__file__).parent",
             working_dir=self._transport.working_dir,
         )
+
+    async def _resolve_executable(self) -> str:
+        """Return the absolute path to the python used to create the venv.
+
+        Dispatches to a driver-specific resolver; the resolvers mirror
+        ``LocalVirtualEnvRuntime``'s per-driver branches."""
+        if self.config.driver == VirtualEnvDriver.PYTHON:
+            return await self._resolve_native_python()
+
+        if self.config.driver == VirtualEnvDriver.PYENV:
+            return await self._resolve_pyenv_python(self.config.python)
+
+        raise ValueError(f"Unknown virtualenv driver: {self.config.driver}")
 
     async def create_venv(self) -> None:
-        """Run ``<executable> -m venv <path>`` on the remote host (idempotent).
-
-        The ``path`` driver is the only supported mode for remote venvs; the
-        pyenv driver would need pyenv on the remote, which this runtime does
-        not provision.
-        """
-        if self.config.driver != VirtualEnvDriver.PYTHON:
-            raise NotImplementedError(
-                f"remote virtualenv only supports driver 'python', got {self.config.driver!r}"
-            )
-
+        """Run ``<python> -m venv <path>`` on the remote host (idempotent)."""
         command = (
             f"test -x {shlex.quote(self._venv_path + '/bin/python')} || "
             f"{shlex.quote(self._executable)} -m venv {shlex.quote(self._venv_path)}"
@@ -91,6 +97,52 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         logging.info("virtualenv: creating remote venv at %s:%s...", self._transport.host, self._venv_path)
 
         await self._run_remote_command(command)
+
+    async def _resolve_native_python(self) -> str:
+        """Resolve whatever ``python`` the remote user's interactive shell
+        exposes (pyenv shim, conda, system — whichever is first on PATH).
+
+        Asks the remote python to print its own ``sys.executable`` so we
+        get the absolute binary path, not the shim.
+        """
+        return await self._transport.evaluate_python_expression(
+            "python",
+            "__import__('sys').executable",
+            working_dir=self._transport.working_dir,
+        )
+
+    async def _resolve_pyenv_python(self, version: str) -> str:
+        """Mirror of ``LocalVirtualEnvRuntime._resolve_pyenv_python`` on the
+        remote: queries the remote's pyenv for installed versions and root,
+        then returns the absolute path to the pyenv-managed python binary.
+
+        pyenv shims rely on the user's shell init, so these probes run under
+        the remote interactive shell via ``run_command``.
+        """
+        working_dir = self._transport.working_dir
+
+        try:
+            installed_output = await self._transport.run_command(
+                "pyenv versions --bare",
+                working_dir=working_dir,
+            )
+        except RuntimeError as e:
+            raise RuntimeError("pyenv command not found on remote. Install pyenv or switch to driver: python.") from e
+
+        installed_versions = [ v.strip() for v in installed_output.splitlines() if v.strip() ]
+
+        if version not in installed_versions:
+            raise RuntimeError(
+                f"Python version '{version}' is not installed in pyenv on remote. "
+                f"Run `pyenv install {version}` on {self._transport.host} first."
+            )
+
+        pyenv_root = (await self._transport.run_command(
+            "pyenv root",
+            working_dir=working_dir,
+        )).strip()
+
+        return posixpath.join(pyenv_root, "versions", version, "bin", "python")
 
     async def install_mindor_source(self) -> None:
         """Write a ``mindor.pth`` file into the remote venv's site-packages
@@ -101,23 +153,23 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         mindor`` resolves to on the remote user's shell is what the venv
         picks up, so there is no byte transfer from host to remote.
         """
-        site_packages = await self._transport.resolve_site_packages_path(
+        site_packages = await self._transport.evaluate_python_expression(
             self._venv_path + "/bin/python",
+            "__import__('sysconfig').get_paths()['purelib']",
             working_dir=self._transport.working_dir,
         )
+
         pth_path = site_packages + "/mindor.pth"
-        # ``.pth`` entries go on sys.path, so write the parent of the mindor
-        # package (``.../src``) rather than the package directory itself.
-        pth_entry = posixpath.dirname(self._mindor_source_path)
+        mindor_source_root = posixpath.dirname(self._mindor_source_path)
 
         # heredoc avoids any quoting pitfalls with paths that contain spaces.
         command = (
             f"cat > {shlex.quote(pth_path)} <<'MINDOR_PTH_EOF'\n"
-            f"{pth_entry}\n"
+            f"{mindor_source_root}\n"
             f"MINDOR_PTH_EOF"
         )
 
-        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, pth_entry)
+        logging.info("virtualenv: installing mindor source via %s -> %s", pth_path, mindor_source_root)
 
         await self._run_remote_command(command)
 

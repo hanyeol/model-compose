@@ -54,16 +54,23 @@ class QwenImageEditHuggingfaceImageGenerationGenerateAction(HuggingfaceImageGene
         images = [ await image.collect() for image in images ]
 
         def _generate() -> List[PILImage.Image]:
-            pipeline_params: Dict[str, Any] = {
-                **params["pipeline"],
-                "prompt": list(prompts),
-                "image": images,
-            }
+            # QwenImageEditPlusPipeline treats `image` as one flat condition set shared across
+            # the whole batch, so per-prompt condition images require one call per prompt.
+            results: List[PILImage.Image] = []
 
-            if negative_prompts is not None:
-                pipeline_params["negative_prompt"] = list(negative_prompts)
+            for index, prompt in enumerate(prompts):
+                pipeline_params: Dict[str, Any] = {
+                    **params["pipeline"],
+                    "prompt": [ prompt ],
+                    "image": images[index],
+                }
 
-            return self._process_pipeline(pipeline_params, params, cancellation_token)
+                if negative_prompts is not None:
+                    pipeline_params["negative_prompt"] = [ negative_prompts[index] ]
+
+                results.extend(self._process_pipeline(pipeline_params, params, cancellation_token))
+
+            return results
 
         return await self._run_in_executor(_generate)
 

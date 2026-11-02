@@ -375,7 +375,39 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         )
 
     def _build_pod_environment(self) -> Dict[str, str]:
-        env = dict(self._runtime_config.environment or {})
+        env: Dict[str, str] = {}
+
+        # Point HF cache under the same workspace root as mindor source and
+        # site-packages — persistent when a network volume is attached, so
+        # re-pulls are free; ephemeral otherwise.
+        env["HF_HOME"] = f"{self._get_pod_workspace_root()}/.cache/huggingface"
+
+        # Rust-backed concurrent downloader — RunPod network bandwidth is high
+        # enough that the throughput win is substantial, and large checkpoints
+        # (tens of GB) make it worth paying the extra dependency by default.
+        env["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+
+        # Driver-triggered installs at runtime (e.g. torchaudio) target the
+        # pod's system interpreter, which is PEP 668 externally-managed on
+        # recent base images. Grant pip/uv permission to write to it.
+        env["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
+        env["UV_BREAK_SYSTEM_PACKAGES"]  = "1"
+
+        if self._runtime_config.network_volume_id:
+            # MooseFS backs RunPod network volumes; its hardlink support is
+            # unreliable across clients — uv's default hardlink install
+            # produces stale file handles mid-write on larger wheels (seen
+            # on CUDA shards).
+            env["UV_LINK_MODE"] = "copy"
+
+            # The container disk is ~50 GB. Xet reconstruction stages its
+            # intermediates in TMPDIR and peaks at 1.5-2x the final weight
+            # size, so a 180 GB model fills /tmp and fails with "Disk quota
+            # exceeded". Point TMPDIR at the volume so staging has room.
+            env["TMPDIR"] = f"{self._get_pod_workspace_root()}/tmp"
+
+        if self._runtime_config.environment:
+            env.update(self._runtime_config.environment)
 
         env["MINDOR_WORKER_AUTH_TOKEN"] = self._auth_token
         env["MINDOR_WORKER_PORT"] = str(self._runtime_config.worker_port)
@@ -384,25 +416,6 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         # the host when its on-disk cache already matches this value, so the
         # host can skip extract + reinstall on warm restarts.
         env["MINDOR_SRC_VERSION"] = mindor_package.get_version()
-
-        # Point HF cache under the same workspace root as mindor source and
-        # site-packages — persistent when a network volume is attached, so
-        # re-pulls are free; ephemeral otherwise.
-        env["HF_HOME"] = f"{self._get_pod_workspace_root()}/.cache/huggingface"
-
-        # Driver-triggered installs at runtime (e.g. torchaudio) target the
-        # pod's system interpreter, which is PEP 668 externally-managed on
-        # recent base images. Grant pip/uv permission to write to it.
-        env["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
-        env["UV_BREAK_SYSTEM_PACKAGES"]  = "1"
-
-        # Network volumes on RunPod are MooseFS, which does not support
-        # hardlinks reliably across clients — uv's default hardlink install
-        # mode produces stale file handles mid-write on larger wheels (seen
-        # on CUDA shards). Force full-copy installs when the venv/site-packages
-        # live on the volume; the extra I/O is well worth the stability.
-        if self._runtime_config.network_volume_id:
-            env["UV_LINK_MODE"] = "copy"
 
         return env
 

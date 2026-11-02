@@ -171,16 +171,17 @@ class LocalVirtualEnvRuntime(CommonRuntime):
         requirements = [ self._mindor_requirements_path(), *extra_requirements ]
 
         def _install_requirements() -> None:
-            # Prefer uv when available: `--link-mode=hardlink` shares wheel
-            # bytes across venvs on the same filesystem (torch/CUDA installs
-            # cost ~one copy total), and falls back to copy on cross-fs targets.
+            # Prefer uv when available: by default it hardlinks wheels from
+            # the cache so repeated installs across venvs on the same disk
+            # cost ~one copy total (torch/CUDA wins). On filesystems that
+            # don't support hardlinks (RunPod MooseFS volumes), callers
+            # override with `UV_LINK_MODE=copy` in the environment.
             uv_path = shutil.which("uv")
 
             if uv_path:
                 command = [
                     uv_path, "pip", "install",
                     "--python", str(self._venv_python()),
-                    "--link-mode=hardlink",
                 ]
             else:
                 command = [
@@ -264,7 +265,8 @@ class LocalVirtualEnvRuntime(CommonRuntime):
     def _build_venv_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
         env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }
 
-        env.update(self.config.env or {})
+        if self.config.env:
+            env.update(self.config.env)
 
         env["PATH"] = str(self._venv_bin()) + os.pathsep + env.get("PATH", "")
         env["VIRTUAL_ENV"] = str(self._venv_path)

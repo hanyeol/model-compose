@@ -72,11 +72,13 @@ async def install_package(
     the latest versions" — which would drag unrelated pins (torch/CUDA
     channels) forward — so we deliberately omit `--upgrade` on the uv path.
 
-    Prefers uv when available (faster resolves, and `--link-mode=hardlink`
-    shares wheel bytes across venvs on the same filesystem — a large deal
-    for torch/CUDA installs). Falls back to `python -m pip install` when
+    Prefers uv when available (faster resolves, and uv's default hardlink
+    install shares wheel bytes across venvs on the same filesystem — a large
+    deal for torch/CUDA installs). Falls back to `python -m pip install` when
     uv isn't on PATH. Either way, the install targets `sys.executable`, so
-    the package is importable in the same process.
+    the package is importable in the same process. Callers running on
+    filesystems that don't support hardlinks (RunPod MooseFS volumes)
+    override uv's default with `UV_LINK_MODE=copy` in the environment.
 
     `--break-system-packages` is always passed because containerized
     runtimes (RunPod, Docker) often sit on a PEP 668 "externally managed"
@@ -93,7 +95,6 @@ async def install_package(
         command = [
             uv_path, "pip", "install",
             "--python", sys.executable,
-            "--link-mode=hardlink",
             "--break-system-packages",
             install_spec,
         ] + pip_options

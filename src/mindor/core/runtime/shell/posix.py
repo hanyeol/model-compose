@@ -67,7 +67,7 @@ class PosixShell(CommonShell):
 
         commands = [
             "if command -v uv >/dev/null 2>&1; then "
-            f"INSTALL={shlex.quote('uv pip install --python ' + venv_python + ' --link-mode=hardlink')}; "
+            f"INSTALL={shlex.quote('uv pip install --python ' + venv_python)}; "
             "else "
             f"INSTALL={shlex.quote(venv_pip + ' install --disable-pip-version-check')}; "
             "fi"

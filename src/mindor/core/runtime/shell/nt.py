@@ -77,7 +77,7 @@ class WindowsShell(CommonShell):
 
         for requirement in requirements:
             requirement = self._quote(requirement)
-            uv_cmd = f"& uv pip install --python {self._quote(venv_python)} --link-mode=hardlink -r {requirement}"
+            uv_cmd = f"& uv pip install --python {self._quote(venv_python)} -r {requirement}"
             pip_cmd = f"& {self._quote(venv_pip)} install --disable-pip-version-check -r {requirement}"
             commands.append(
                 f"if (Test-Path -LiteralPath {requirement}) {{ "

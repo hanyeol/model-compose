@@ -212,13 +212,16 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         # up with the pretrained weights.
         waveform_int16 = (np.clip(waveform, -1.0, 1.0) * 32767.0).astype(np.int16)
 
+        # python_speech_features returns float64; cast once here so downstream
+        # `torch.from_numpy` produces a float32 tensor that matches the model
+        # weights (float32).
         return python_speech_features.mfcc(
             waveform_int16,
             samplerate=_AUDIO_SR,
             numcep=13,
             winlen=0.025,
             winstep=0.010,
-        )
+        ).astype(np.float32)
 
     def _score_track_chunk(
         self,

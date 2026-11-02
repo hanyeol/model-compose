@@ -248,7 +248,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         self.pipeline = None
 
     async def _load_pipeline(self) -> Any:
-        from diffusers import ModularPipeline
+        from diffusers import ComponentsManager, ModularPipeline
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
@@ -263,7 +263,17 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             # MiniMax-H3 is distributed as Modular Diffusers blocks; pin the
             # text-only workflow (`t2va`) so only the text transformer partition
             # is fetched and the pipeline's declared signature is text-to-video.
-            pipeline = ModularPipeline.from_pretrained(model_path, workflow="t2va")
+            #
+            # ComponentsManager drives placement when cpu_offload is on. It must
+            # be created before `from_pretrained` and passed in so loaded
+            # components auto-register under its control; after that the manager
+            # (not `pipeline.to`) decides when each module is on GPU vs CPU.
+            manager = ComponentsManager() if self.cpu_offload else None
+            pipeline = ModularPipeline.from_pretrained(
+                model_path,
+                workflow="t2va",
+                components_manager=manager,
+            )
 
             # Attach the externally-loaded text_encoder BEFORE load_components;
             # load_components skips components that are already registered.
@@ -272,19 +282,16 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
             pipeline.load_components(dtype=torch.bfloat16)
 
-            # ModularPipeline doesn't ship `enable_model_cpu_offload`; the
-            # upstream recipe for offload is a ComponentsManager with an auto
-            # strategy. Until that is wired up, honor the user's device choice
-            # with a plain `.to()` and log when offload is requested but
-            # unavailable so OOM errors are easier to diagnose.
-            if self.cpu_offload:
-                logging.warning(
-                    "cpu_offload is not yet wired up for MiniMax-H3 (ModularPipeline uses "
-                    "ComponentsManager-driven offload); ignoring and moving the pipeline to the "
-                    "requested device."
+            if manager is not None:
+                # Default `memory_reserve_margin` is 3 GB, which is too tight for
+                # the 33B Omni-Transformer and causes OOM on the first forward.
+                # 12 GB matches the upstream MiniMax-H3 pipeline docs.
+                manager.enable_auto_cpu_offload(
+                    device=self.device,
+                    memory_reserve_margin="12GB",
                 )
-
-            pipeline = pipeline.to(self.device)
+            else:
+                pipeline = pipeline.to(self.device)
 
             return pipeline
 

@@ -9,6 +9,7 @@ from mindor.core.utils.transport.ssh_client import (
     SshPasswordAuthParams,
 )
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
+from mindor.core.runtime.shell import CommonShell, PosixShell, WindowsShell
 import asyncio, re, socket, uuid
 
 class SshRuntimeTransport:
@@ -52,6 +53,25 @@ class SshRuntimeTransport:
             await self._client.close()
         finally:
             self._client = None
+
+    async def resolve_remote_shell(self) -> CommonShell:
+        """Probe the remote login shell by asking python what OS it is on.
+
+        Running ``python -c "import platform; print(platform.system())"``
+        bypasses the host shell dialect entirely — the probe wire is the
+        same bash/powershell-compatible ``echo``-wrapped sentinel pattern
+        the transport uses everywhere else.
+        """
+        system = (await self.evaluate_python_expression(
+            "python",
+            "__import__('platform').system()",
+            working_dir=self.working_dir,
+        )).strip()
+
+        if system == "Windows":
+            return WindowsShell()
+
+        return PosixShell()
 
     async def open_exec_channel(
         self,
@@ -99,12 +119,16 @@ class SshRuntimeTransport:
         interactive shell is used so pyenv init, conda hooks, ``.bashrc``
         / ``$PROFILE`` etc. are applied — a plain non-interactive
         ``exec_command`` would skip them.
+
+        ``echo`` is used for sentinel printing because it works verbatim in
+        both bash and PowerShell (PowerShell aliases ``echo`` to
+        ``Write-Output``). Trailing newlines are tolerated by the pattern.
         """
         sentinel = "MINDOR_" + uuid.uuid4().hex
-        command = f'printf %s {sentinel}; {command}; printf %s {sentinel}'
+        wrapped = f'echo {sentinel}; {command}; echo {sentinel}'
         pattern = re.compile(re.escape(sentinel) + r'([\s\S]*?)' + re.escape(sentinel))
 
-        return await self._capture_matched_output(command, pattern, working_dir, timeout, command)
+        return await self._capture_matched_output(wrapped, pattern, working_dir, timeout, command)
 
     async def evaluate_python_expression(
         self,

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.core.logger import logging
 from mindor.dsl.schema.runtime.remote import SshRemoteTransportConfig
 from mindor.core.runtime.transport.ssh import SshRuntimeTransport
+from mindor.core.runtime.shell import CommonShell
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from ..common import CommonRuntime
-import shlex
 
 class RemoteProcessRuntime(CommonRuntime):
     """Lifecycle wrapper around a worker process running on a remote host.
@@ -17,6 +17,10 @@ class RemoteProcessRuntime(CommonRuntime):
     The worker binary / Python environment on the remote side is assumed to
     already be provisioned by the user — this runtime only launches a command
     and wires stdin/stdout to the channel.
+
+    Supports both POSIX (bash/zsh) and PowerShell login shells on the
+    remote; the right command dialect is chosen in `start()` by asking the
+    remote python for ``platform.system()``.
 
     Typical flow:
         runtime = RemoteProcessRuntime(remote_config, worker_module, config=config)
@@ -39,11 +43,16 @@ class RemoteProcessRuntime(CommonRuntime):
 
         self._transport: SshRuntimeTransport = SshRuntimeTransport(remote_config)
         self._channel: Optional[SshExecChannel] = None
+        self._shell: Optional[CommonShell] = None
 
     async def start(self, env: Optional[Dict[str, str]] = None) -> SshExecChannel:
         logging.info("process: ssh connecting to %s...", self._transport.host)
 
         await self._transport.connect()
+
+        self._shell = await self._transport.resolve_remote_shell()
+
+        logging.debug("process: using remote shell dialect %s", self._shell.dialect)
 
         # Resolve the remote python executable through an interactive shell
         # so pyenv / venv activation / user profile scripts have a chance to
@@ -57,7 +66,13 @@ class RemoteProcessRuntime(CommonRuntime):
 
         logging.debug("process: using remote python at %s", executable)
 
-        command = self._build_remote_command(executable, env)
+        env = { **(self.config.env or {}), **(env or {}) }
+        command = self._shell.launch_module_command(
+            executable,
+            self.worker_module,
+            env,
+            self._transport.working_dir,
+        )
 
         logging.info("process: launching remote worker on %s...", self._transport.host)
 
@@ -79,21 +94,3 @@ class RemoteProcessRuntime(CommonRuntime):
     @property
     def channel(self) -> Optional[SshExecChannel]:
         return self._channel
-
-    def _build_remote_command(self, executable: str, env: Optional[Dict[str, str]]) -> str:
-        # OpenSSH servers often reject SetEnv for anything not whitelisted in
-        # sshd_config, so prefix VAR=value inline. `cd` honors working_dir when
-        # set by the transport. `exec` replaces the shell so signals reach the
-        # Python worker directly.
-        commands: List[str] = []
-
-        if self._transport.working_dir:
-            commands.append(f"cd {shlex.quote(self._transport.working_dir)}")
-
-        env = { **(self.config.env or {}), **(env or {}) }
-        env_prefix = "".join(f"{name}={shlex.quote(str(value))} " for name, value in env.items())
-        commands.append(
-            f"{env_prefix}exec {shlex.quote(executable)} -m {shlex.quote(self.worker_module)}"
-        )
-
-        return " && ".join(commands)

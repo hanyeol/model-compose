@@ -17,10 +17,10 @@ from mindor.core.logger import logging
 from ..common import ActiveSpeakerDetectionTaskAction
 from ....base import ComponentActionContext, ModelTaskDriver
 from PIL import Image as PILImage
-import numpy as np
 import sys
 
 if TYPE_CHECKING:
+    import numpy as np
     import torch
 
 # Visual frontend expects 112x112 grayscale faces at 25fps. Columbia_test.py
@@ -201,6 +201,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         Shape: `(T, 13)`. python_speech_features uses 25ms windows at 10ms hop
         by default — exactly what Light-ASD trained on.
         """
+        import numpy as np
         import python_speech_features
 
         buffer = await AudioBufferStreamer(audio, channel="mono", sample_rate=_AUDIO_SR).collect()
@@ -238,6 +239,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         Light-ASD actually scored (may be shorter than the chunk span when
         the audio tail is missing); `start_frame` indexes into `timestamps`.
         """
+        import numpy as np
         import torch
 
         start_frame = chunk[0][0]
@@ -457,6 +459,8 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         + `cv2.resize` output; the frontend normalizes to `(x/255 - 0.4161) / 0.1688`
         internally.
         """
+        import numpy as np
+
         x1, y1, x2, y2 = bounding_box
         # Expand to a square around the bbox center to avoid distortion when
         # resizing to 224x224. Face aspect ratios drift from frame to frame in
@@ -493,6 +497,8 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         than at every noisy peak. Set `window <= 1` to disable (passes `scores`
         through untouched).
         """
+        import numpy as np
+
         if window <= 1 or scores.size == 0:
             return scores
 
@@ -591,6 +597,7 @@ class LightAsdActiveSpeakerDetectionTaskDriver(ModelTaskDriver):
         return [
             *torch_requirements("torch", "torchaudio"),
             "numpy",
+            "scipy",
             "python_speech_features",
         ]
 

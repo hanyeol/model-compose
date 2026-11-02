@@ -23,12 +23,11 @@ from mindor.core.errors import ShutdownError
 from mindor.core.logger import logging
 from ..base import ControllerAdapterService, register_controller_adapter
 from .websocket_server import WebSocketServer
-from fastapi import Request
 from pathlib import Path
 
 if TYPE_CHECKING:
     from mindor.core.controller.base import ControllerService
-    from fastapi import FastAPI, APIRouter, Response
+    from fastapi import FastAPI, APIRouter, Request, Response
     import uvicorn
 
 class WorkflowRunBody(BaseModel):
@@ -284,7 +283,12 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         ]
 
     async def _setup(self) -> None:
-        from fastapi import FastAPI, APIRouter
+        from fastapi import FastAPI, APIRouter, Request
+
+        # `from __future__ import annotations` makes `request: Request` a string;
+        # FastAPI resolves it against this module's globals, so publish Request there
+        # once fastapi has been lazy-installed. Keeps the top-level import out of module load.
+        globals()["Request"] = Request
 
         self.app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
         self.router = APIRouter()
@@ -312,7 +316,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         )
 
     def _configure_routes(self) -> None:
-        from fastapi import Request, Body, HTTPException
+        from fastapi import Body, HTTPException
         from fastapi.responses import JSONResponse
 
         @self.router.get("/workflows")

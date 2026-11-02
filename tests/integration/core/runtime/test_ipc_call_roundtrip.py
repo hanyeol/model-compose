@@ -22,7 +22,7 @@ from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource, StreamResource
 from mindor.core.foundation.variable.codec import VariableCodec
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.runtime.process import ProcessRuntime
+from mindor.core.runtime.process import LocalProcessRuntime
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.dsl.schema.runtime.impl.types import RuntimeType
 
@@ -62,8 +62,8 @@ class QueueIpcManager(IpcRuntimeProxy):
 
         self._request_queue: Queue = Queue()
         self._response_queue: Queue = Queue()
-        self._runtime = ProcessRuntime(
-            target=_run_worker,
+        self._runtime = LocalProcessRuntime(
+            entrypoint=_run_worker,
             args=(worker_factory, worker_id, self._request_queue, self._response_queue),
             config=config,
         )

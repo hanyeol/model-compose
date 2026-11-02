@@ -40,7 +40,9 @@ def _make_pair() -> Tuple[UnixSocketListener, UnixSocketChannel, UnixSocketChann
     thread = threading.Thread(target=_accept)
     thread.start()
     try:
-        client = UnixSocketChannel.connect(path)
+        client_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client_sock.connect(path)
+        client = UnixSocketChannel(client_sock)
         thread.join(timeout=5.0)
     except Exception:
         listener.close()

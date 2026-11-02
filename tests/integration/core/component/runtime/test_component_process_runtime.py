@@ -7,7 +7,7 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
-from mindor.core.component.runtime.process import ComponentProcessRuntimeWorker
+from mindor.core.component.runtime.process import ComponentLocalProcessRuntimeWorker
 from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
 from mindor.dsl.schema.action import LocalShellActionConfig
 from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
@@ -31,11 +31,11 @@ def global_configs():
     )
 
 
-class TestComponentProcessRuntimeWorker:
-    """Test ComponentProcessRuntimeWorker class."""
+class TestComponentLocalProcessRuntimeWorker:
+    """Test ComponentLocalProcessRuntimeWorker class."""
 
     def test_worker_initialization(self, global_configs):
-        """Test ComponentProcessRuntimeWorker initialization."""
+        """Test ComponentLocalProcessRuntimeWorker initialization."""
         config = LocalShellComponentConfig(
             id="test-shell",
             type="shell",
@@ -47,7 +47,7 @@ class TestComponentProcessRuntimeWorker:
         request_queue = Queue()
         response_queue = Queue()
 
-        worker = ComponentProcessRuntimeWorker(
+        worker = ComponentLocalProcessRuntimeWorker(
             "test-shell",
             config,
             global_configs,
@@ -355,14 +355,10 @@ class TestComponentProcessRuntimeScenarios:
         assert hasattr(manager, "_start_timeout")
         assert hasattr(manager, "_stop_timeout")
         assert hasattr(manager, "_runtime")
-        assert hasattr(manager, "_request_queue")
-        assert hasattr(manager, "_response_queue")
         assert hasattr(manager, "_proxy")
         assert hasattr(manager, "_channel")
 
         assert manager._runtime is None
-        assert manager._request_queue is None
-        assert manager._response_queue is None
         assert manager._proxy is None
         assert manager._channel is None
 

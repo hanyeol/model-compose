@@ -4,7 +4,7 @@ Scope:
 - `VirtualEnvRuntimeConfig` (DSL schema) accepts expected fields with sane defaults.
 - `ComponentVirtualEnvRuntimeManager` holds the DSL config, pre-parses the
   timeouts, and exposes pre-start state.
-- `ComponentVirtualEnvRuntimeWorker` initializes correctly.
+- `ComponentLocalVirtualEnvRuntimeWorker` initializes correctly.
 
 End-to-end venv creation + worker spawn lives in
 `tests/integration/core/component/runtime/test_component_virtualenv_runtime.py`.
@@ -19,7 +19,7 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.virtualenv import (
     ComponentVirtualEnvRuntimeManager,
-    ComponentVirtualEnvRuntimeWorker,
+    ComponentLocalVirtualEnvRuntimeWorker,
 )
 from mindor.dsl.schema.action import LocalShellActionConfig
 from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
@@ -139,10 +139,10 @@ class TestComponentVirtualEnvRuntimeManager:
         assert manager._stop_timeout is None
 
 # ---------------------------------------------------------------------------
-# ComponentVirtualEnvRuntimeWorker
+# ComponentLocalVirtualEnvRuntimeWorker
 # ---------------------------------------------------------------------------
 
-class TestComponentVirtualEnvRuntimeWorker:
+class TestComponentLocalVirtualEnvRuntimeWorker:
     def test_initialization(self, global_configs):
         config = LocalShellComponentConfig(
             id="w",
@@ -155,7 +155,7 @@ class TestComponentVirtualEnvRuntimeWorker:
         # The worker's channel is a SubprocessPipeChannel in production, but here
         # we just verify the constructor wires arguments through.
         sentinel_channel = object()
-        worker = ComponentVirtualEnvRuntimeWorker(
+        worker = ComponentLocalVirtualEnvRuntimeWorker(
             "w", config, global_configs, sentinel_channel,  # type: ignore[arg-type]
         )
 

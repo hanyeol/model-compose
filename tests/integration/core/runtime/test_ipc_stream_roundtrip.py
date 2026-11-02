@@ -8,7 +8,7 @@ Covers the end-to-end flow defined in docs/specs/component-ipc.md:
   receives an async-iterable proxy and consumes chunks.
 
 These tests use the IPC base (`IpcRuntimeProxy` + `IpcRuntimeWorker`)
-composed with `ProcessRuntime` lifecycle and `multiprocessing.Queue` transport.
+composed with `LocalProcessRuntime` lifecycle and `multiprocessing.Queue` transport.
 """
 
 import asyncio
@@ -22,7 +22,7 @@ from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.variable.time import parse_time
-from mindor.core.runtime.process import ProcessRuntime
+from mindor.core.runtime.process import LocalProcessRuntime
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.dsl.schema.runtime.impl.types import RuntimeType
 
@@ -58,7 +58,7 @@ class QueueIpcWorker(IpcRuntimeWorker):
 
 class QueueIpcManager(IpcRuntimeProxy):
     """Test scaffold: an IpcRuntimeProxy that owns two Queues and a
-    `ProcessRuntime` lifecycle.
+    `LocalProcessRuntime` lifecycle.
     """
 
     def __init__(self, worker_id: str, worker_factory, config: ProcessRuntimeConfig):
@@ -68,8 +68,8 @@ class QueueIpcManager(IpcRuntimeProxy):
 
         self._request_queue: Queue = Queue()
         self._response_queue: Queue = Queue()
-        self._runtime = ProcessRuntime(
-            target=_run_worker,
+        self._runtime = LocalProcessRuntime(
+            entrypoint=_run_worker,
             args=(worker_factory, worker_id, self._request_queue, self._response_queue),
             config=config,
         )

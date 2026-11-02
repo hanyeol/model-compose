@@ -1,6 +1,6 @@
 """Unit tests for `core/runtime/process.py` (lifecycle only).
 
-Scope: `ProcessRuntime` spawns/stops a `multiprocessing.Process` and reads
+Scope: `LocalProcessRuntime` spawns/stops a `multiprocessing.Process` and reads
 env/timeouts directly off `ProcessRuntimeConfig`. The class knows nothing about
 IPC protocols — callers wire any transport (e.g., Queues) and pass the entry
 point via `target`/`args`.
@@ -16,7 +16,7 @@ from multiprocessing.process import BaseProcess
 
 import pytest
 
-from mindor.core.runtime.process import ProcessRuntime
+from mindor.core.runtime.process import LocalProcessRuntime
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig
 from mindor.dsl.schema.runtime.impl.types import RuntimeType
 
@@ -51,19 +51,19 @@ def _read_env_var(out_q: Queue, name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# ProcessRuntime lifecycle
+# LocalProcessRuntime lifecycle
 # ---------------------------------------------------------------------------
 
-class TestProcessRuntimeLifecycle:
+class TestLocalProcessRuntimeLifecycle:
     @pytest.mark.anyio
     async def test_initial_state(self):
-        runtime = ProcessRuntime(target=_exit_immediately, args=(), config=_config())
+        runtime = LocalProcessRuntime(entrypoint=_exit_immediately, args=(), config=_config())
         assert runtime.subprocess is None
         assert runtime.is_alive is False
 
     @pytest.mark.anyio
     async def test_start_spawns_subprocess(self):
-        runtime = ProcessRuntime(target=_exit_immediately, args=(), config=_config())
+        runtime = LocalProcessRuntime(entrypoint=_exit_immediately, args=(), config=_config())
         await runtime.start()
         try:
             assert isinstance(runtime.subprocess, BaseProcess)
@@ -77,7 +77,7 @@ class TestProcessRuntimeLifecycle:
     @pytest.mark.anyio
     async def test_args_are_passed_to_target(self):
         out_q: Queue = Queue()
-        runtime = ProcessRuntime(target=_echo_via_queue, args=(out_q, "hello"), config=_config())
+        runtime = LocalProcessRuntime(entrypoint=_echo_via_queue, args=(out_q, "hello"), config=_config())
         await runtime.start()
         try:
             assert out_q.get(timeout=5.0) == "hello"
@@ -86,8 +86,8 @@ class TestProcessRuntimeLifecycle:
 
     @pytest.mark.anyio
     async def test_stop_terminates_running_child(self):
-        runtime = ProcessRuntime(
-            target=_sleep_forever,
+        runtime = LocalProcessRuntime(
+            entrypoint=_sleep_forever,
             args=(),
             config=_config(stop_timeout="200ms"),
         )
@@ -100,10 +100,10 @@ class TestProcessRuntimeLifecycle:
 
     @pytest.mark.anyio
     async def test_env_overrides_propagate_to_child(self):
-        # ProcessRuntime updates the parent's `os.environ`; the child inherits.
+        # LocalProcessRuntime updates the parent's `os.environ`; the child inherits.
         out_q: Queue = Queue()
-        runtime = ProcessRuntime(
-            target=_read_env_var,
+        runtime = LocalProcessRuntime(
+            entrypoint=_read_env_var,
             args=(out_q, "MINDOR_TEST_VAR"),
             config=_config(env={"MINDOR_TEST_VAR": "from-config"}),
         )
@@ -116,6 +116,6 @@ class TestProcessRuntimeLifecycle:
 
     @pytest.mark.anyio
     async def test_stop_is_safe_before_start(self):
-        runtime = ProcessRuntime(target=_exit_immediately, args=(), config=_config())
+        runtime = LocalProcessRuntime(entrypoint=_exit_immediately, args=(), config=_config())
         # Must not raise when the subprocess was never spawned.
         await runtime.stop()

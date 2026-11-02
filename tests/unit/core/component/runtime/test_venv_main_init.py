@@ -27,7 +27,7 @@ from typing import Tuple
 import pytest
 
 from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
-from mindor.core.component.runtime.virtualenv import main as venv_main
+from mindor.core.component.runtime.virtualenv.local import main as venv_main
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
 
 

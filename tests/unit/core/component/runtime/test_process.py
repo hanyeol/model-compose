@@ -4,7 +4,7 @@ Scope:
 - `ProcessRuntimeConfig` (DSL schema) accepts expected fields with sane defaults.
 - `ComponentProcessRuntimeManager` holds the DSL config, pre-parses the
   timeouts, and exposes its pre-start state.
-- `ComponentProcessRuntimeWorker` initializes correctly.
+- `ComponentLocalProcessRuntimeWorker` initializes correctly.
 
 End-to-end lifecycle / round-trip behavior (RUN, RESULT, STREAM_*) lives in the
 integration test suite (`tests/integration/core/component/runtime/...`,
@@ -20,7 +20,7 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.runtime.process import (
     ComponentProcessRuntimeManager,
-    ComponentProcessRuntimeWorker,
+    ComponentLocalProcessRuntimeWorker,
 )
 from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
@@ -115,12 +115,10 @@ class TestComponentProcessRuntimeManager:
         config = self._make_config()
         manager = ComponentProcessRuntimeManager("test-shell", config, global_configs)
 
-        # Composition: no proxy / runtime / queues until start()
+        # Composition: no proxy / runtime handle until start()
         assert manager._proxy is None
         assert manager._channel is None
         assert manager._runtime is None
-        assert manager._request_queue is None
-        assert manager._response_queue is None
 
     def test_default_timeouts(self, global_configs):
         config = self._make_config()
@@ -130,10 +128,10 @@ class TestComponentProcessRuntimeManager:
 
 
 # ---------------------------------------------------------------------------
-# ComponentProcessRuntimeWorker
+# ComponentLocalProcessRuntimeWorker
 # ---------------------------------------------------------------------------
 
-class TestComponentProcessRuntimeWorker:
+class TestComponentLocalProcessRuntimeWorker:
     def test_initialization(self, global_configs):
         config = LocalShellComponentConfig(
             id="w",
@@ -145,7 +143,7 @@ class TestComponentProcessRuntimeWorker:
         request_queue = Queue()
         response_queue = Queue()
 
-        worker = ComponentProcessRuntimeWorker(
+        worker = ComponentLocalProcessRuntimeWorker(
             "w", config, global_configs, request_queue, response_queue,
         )
 

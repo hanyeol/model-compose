@@ -113,7 +113,10 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
                 container.mux(packet)
 
             if audio_stream is not None:
-                af = av.AudioFrame.from_ndarray(audio_np, format="flt", layout=audio_stream.layout)
+                # Planar `fltp` matches a (channels, samples) ndarray directly;
+                # the packed `flt` variant demands a (1, channels * samples)
+                # interleaved buffer and raises on stereo input otherwise.
+                af = av.AudioFrame.from_ndarray(audio_np, format="fltp", layout=audio_stream.layout)
                 af.sample_rate = audio_rate
 
                 for packet in audio_stream.encode(af):

@@ -396,6 +396,14 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         env["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
         env["UV_BREAK_SYSTEM_PACKAGES"]  = "1"
 
+        # Network volumes on RunPod are MooseFS, which does not support
+        # hardlinks reliably across clients — uv's default hardlink install
+        # mode produces stale file handles mid-write on larger wheels (seen
+        # on CUDA shards). Force full-copy installs when the venv/site-packages
+        # live on the volume; the extra I/O is well worth the stability.
+        if self._runtime_config.network_volume_id:
+            env["UV_LINK_MODE"] = "copy"
+
         return env
 
     def _get_pod_workspace_root(self) -> str:

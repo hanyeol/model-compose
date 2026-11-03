@@ -107,6 +107,18 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         self.model: Any = model
         self.device: torch.device = device
 
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        params = await super()._resolve_params(context)
+
+        face_crop_scale = await context.render_scalar(self.config.params.face_crop_scale, float)
+
+        if face_crop_scale < 0.0:
+            raise ValueError(f"'face_crop_scale' must be >= 0.0, got {face_crop_scale}")
+
+        params.update({ "face_crop_scale": face_crop_scale })
+
+        return params
+
     async def _detect_batch(
         self,
         frames: List[ImageArrayValue],
@@ -171,7 +183,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
 
             for track_id in sorted(tracks.keys()):
                 for chunk in self._split_track_by_gaps(tracks[track_id]):
-                    scores, start_frame = self._score_track_chunk(frames, timestamps, chunk, audio_mfcc)
+                    scores, start_frame = self._score_track_chunk(frames, timestamps, chunk, audio_mfcc, params["face_crop_scale"])
 
                     if scores.size == 0:
                         continue
@@ -232,6 +244,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         timestamps: List[float],
         chunk: List[Tuple[int, Tuple[int, int, int, int]]],
         audio_mfcc: np.ndarray,
+        face_crop_scale: float,
     ) -> Tuple[np.ndarray, int]:
         """Run Light-ASD on one contiguous chunk of a face track.
 
@@ -248,7 +261,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         span_length = len(chunk)
 
         visual_feature = np.stack([
-            self._crop_face(frames[frame_number], bounding_box)
+            self._crop_face(frames[frame_number], bounding_box, face_crop_scale)
             for frame_number, bounding_box in chunk
         ], axis=0).astype(np.float32)
 
@@ -452,21 +465,19 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         return chunks
 
     @staticmethod
-    def _crop_face(frame: PILImage.Image, bounding_box: Tuple[int, int, int, int]) -> np.ndarray:
+    def _crop_face(frame: PILImage.Image, bounding_box: Tuple[int, int, int, int], scale: float) -> np.ndarray:
         """Crop a 112x112 grayscale face from `frame` for Light-ASD's visual frontend.
 
-        Matches upstream Columbia_test.py's two-step: expand the bbox to a square,
+        Matches upstream Columbia_test.py's two-step: expand the bbox by `scale`
+        (left/right/top by `s * scale`, bottom by `2s * scale` where `s = max(w, h) / 2`),
         resize to 224, then take the central 112x112 (mouth-centered). Returns a
         `(112, 112)` uint8-value float32 array matching upstream's `cv2.cvtColor`
         + `cv2.resize` output; the frontend normalizes to `(x/255 - 0.4161) / 0.1688`
-        internally.
+        internally. Out-of-frame pixels are padded with 110 to mirror upstream.
         """
         import numpy as np
 
         x1, y1, x2, y2 = bounding_box
-        # Expand to a square around the bbox center to avoid distortion when
-        # resizing to 224x224. Face aspect ratios drift from frame to frame in
-        # face-tracking output; a square crop keeps the model's view stable.
         center_x = (x1 + x2) // 2
         center_y = (y1 + y2) // 2
         half_size = max(x2 - x1, y2 - y1) // 2
@@ -476,12 +487,27 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
             # model gets a non-speaking signal and the segment never fires.
             return np.zeros((_FACE_CROP, _FACE_CROP), dtype=np.float32)
 
-        crop_x1 = max(0, center_x - half_size)
-        crop_y1 = max(0, center_y - half_size)
-        crop_x2 = min(frame.width, center_x + half_size)
-        crop_y2 = min(frame.height, center_y + half_size)
+        # Columbia_test.py expansion: symmetric left/right/top by `s * scale`,
+        # asymmetric bottom by `2s * scale` to pull chin and mouth into frame.
+        margin = int(round(half_size * scale))
+        crop_x1 = center_x - half_size - margin
+        crop_y1 = center_y - half_size
+        crop_x2 = center_x + half_size + margin
+        crop_y2 = center_y + half_size + 2 * margin
 
-        face = frame.crop((crop_x1, crop_y1, crop_x2, crop_y2)).convert("L").resize((_FACE_RESIZE, _FACE_RESIZE), PILImage.BILINEAR)
+        # Preserve out-of-frame regions as upstream does (constant 110 fill) so
+        # the resized 224x224 stays geometrically aligned even near frame edges.
+        canvas = PILImage.new("L", (crop_x2 - crop_x1, crop_y2 - crop_y1), 110)
+        src_x1 = max(0, crop_x1)
+        src_y1 = max(0, crop_y1)
+        src_x2 = min(frame.width, crop_x2)
+        src_y2 = min(frame.height, crop_y2)
+
+        if src_x2 > src_x1 and src_y2 > src_y1:
+            region = frame.crop((src_x1, src_y1, src_x2, src_y2)).convert("L")
+            canvas.paste(region, (src_x1 - crop_x1, src_y1 - crop_y1))
+
+        face = canvas.resize((_FACE_RESIZE, _FACE_RESIZE), PILImage.BILINEAR)
 
         # Take the central _FACE_CROP x _FACE_CROP (mouth-centered). Upstream
         # expresses this as `face[112-56:112+56, 112-56:112+56]` on a 224 frame.

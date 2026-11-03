@@ -10,7 +10,7 @@ class MuseTalkParsingMode(str, Enum):
 
 class MuseTalkLipSyncParamsConfig(CommonLipSyncParamsConfig):
     bbox_shift: Union[int, str] = Field(default=0, description="Vertical shift (in pixels) applied to the detected face bounding box; ignored on the v15 preset.")
-    extra_margin: Union[int, str] = Field(default=10, description="Extra chin margin added to the face region before blending; v15 only.")
+    face_crop_scale: Union[float, str] = Field(default=0.08, description="Columbia-style face crop scale; each side extends by this ratio of max(w,h)/2, bottom extends by twice as much to include the mouth; v15 only")
     parsing_mode: Union[MuseTalkParsingMode, str] = Field(default=MuseTalkParsingMode.JAW, description="Face parsing region used for blending; v15 only.")
     left_cheek_width: Union[int, str] = Field(default=90, description="Left cheek width in pixels used by the parsing mask; v15 only.")
     right_cheek_width: Union[int, str] = Field(default=90, description="Right cheek width in pixels used by the parsing mask; v15 only.")

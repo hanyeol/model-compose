@@ -65,7 +65,7 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
         params = await super()._resolve_params(context)
 
         bbox_shift                 = await context.render_scalar(self.config.params.bbox_shift, int)
-        extra_margin               = await context.render_scalar(self.config.params.extra_margin, int)
+        face_crop_scale            = await context.render_scalar(self.config.params.face_crop_scale, float)
         parsing_mode               = await context.render_variable(self.config.params.parsing_mode)
         left_cheek_width           = await context.render_scalar(self.config.params.left_cheek_width, int)
         right_cheek_width          = await context.render_scalar(self.config.params.right_cheek_width, int)
@@ -79,9 +79,12 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
         except ValueError:
             raise ValueError(f"Invalid parsing_mode: {parsing_mode}")
 
+        if face_crop_scale < 0.0:
+            raise ValueError(f"'face_crop_scale' must be >= 0.0, got {face_crop_scale}")
+
         params.update({
             "bbox_shift":                 bbox_shift,
-            "extra_margin":               extra_margin,
+            "face_crop_scale":            face_crop_scale,
             "parsing_mode":               parsing_mode,
             "left_cheek_width":           left_cheek_width,
             "right_cheek_width":          right_cheek_width,
@@ -132,8 +135,8 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
         import copy
         import torch
 
-        # v1.5 ignores the DSL-provided `bbox_shift` and always applies
-        # `extra_margin` to the detected chin instead.
+        # v1.5 ignores the DSL-provided `bbox_shift` and uses the Columbia-style
+        # `face_crop_scale` to extend the detected chin instead.
         if self.preset == MuseTalkPreset.V15:
             bbox_shift = 0
         else:
@@ -151,73 +154,69 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
 
         # Extract whisper features up front; `get_whisper_chunk` slices them
         # into per-frame windows aligned with `fps`.
-        audio_processor = self.pipeline["audio_processor"]
-        whisper = self.pipeline["whisper"]
-        whisper_input_features, librosa_length = audio_processor.get_audio_feature(audio_path)
-        whisper_chunks = audio_processor.get_whisper_chunk(
+        whisper_input_features, librosa_length = self.pipeline["audio_processor"].get_audio_feature(audio_path)
+        whisper_chunks = self.pipeline["audio_processor"].get_whisper_chunk(
             whisper_input_features,
             self.device,
             weight_dtype,
-            whisper,
+            self.pipeline["whisper"],
             librosa_length,
             fps=fps,
             audio_padding_length_left=params["audio_padding_length_left"],
             audio_padding_length_right=params["audio_padding_length_right"],
         )
 
-        vae = self.pipeline["vae"]
-        unet = self.pipeline["unet"]
-        pe = self.pipeline["pe"]
-        face_parsing = self.pipeline["face_parsing"]
-
         input_latent_list: List[Any] = []
 
-        for bbox, frame in zip(coord_list, frame_list):
-            if bbox == coord_placeholder:
+        for bounding_box, frame in zip(coord_list, frame_list):
+            if bounding_box == coord_placeholder:
                 continue
 
-            x1, y1, x2, y2 = bbox
+            x1, y1, x2, y2 = bounding_box
 
             if self.preset == MuseTalkPreset.V15:
-                y2 = min(y2 + params["extra_margin"], frame.shape[0])
+                # Columbia-style bottom extension (`2s * scale` where
+                # `s = max(w, h) / 2`) to pull chin into the crop.
+                margin = int(round(max(x2 - x1, y2 - y1) / 2 * params["face_crop_scale"]))
+                y2 = min(y2 + 2 * margin, frame.shape[0])
 
             crop_frame = frame[y1:y2, x1:x2]
             crop_frame = cv2.resize(crop_frame, (256, 256), interpolation=cv2.INTER_LANCZOS4)
-            input_latent_list.append(vae.get_latents_for_unet(crop_frame))
+            input_latent_list.append(self.pipeline["vae"].get_latents_for_unet(crop_frame))
 
         if not input_latent_list:
             raise RuntimeError("Face not detected in any frame; provide a video with a visible face.")
 
         # Ping-pong the source frames so audio outlasting the video loops
         # smoothly (video → reversed video → video → ...) rather than snapping.
-        frame_list_cycle = frame_list + frame_list[::-1]
-        coord_list_cycle = coord_list + coord_list[::-1]
-        input_latent_list_cycle = input_latent_list + input_latent_list[::-1]
+        frame_list = frame_list + frame_list[::-1]
+        coord_list = coord_list + coord_list[::-1]
+        input_latent_list = input_latent_list + input_latent_list[::-1]
 
         batch_size = params["generator_batch_size"]
         gen = datagen(
             whisper_chunks=whisper_chunks,
-            vae_encode_latents=input_latent_list_cycle,
+            vae_encode_latents=input_latent_list,
             batch_size=batch_size,
             delay_frame=0,
             device=self.device,
         )
 
-        res_frame_list: List[Any] = []
+        generated_frame_list: List[Any] = []
         total = int(np.ceil(len(whisper_chunks) / batch_size))
 
         with torch.no_grad():
             for whisper_batch, latent_batch in tqdm(gen, total=total, desc="MuseTalk generator"):
-                audio_feature_batch = pe(whisper_batch)
-                latent_batch = latent_batch.to(dtype=unet.model.dtype)
-                pred_latents = unet.model(
+                audio_feature_batch = self.pipeline["positional_encoding"](whisper_batch)
+                latent_batch = latent_batch.to(dtype=self.pipeline["unet"].model.dtype)
+                pred_latents = self.pipeline["unet"].model(
                     latent_batch,
                     timesteps,
                     encoder_hidden_states=audio_feature_batch,
                 ).sample
 
-                for res_frame in vae.decode_latents(pred_latents):
-                    res_frame_list.append(res_frame)
+                for generated_frame in self.pipeline["vae"].decode_latents(pred_latents):
+                    generated_frame_list.append(generated_frame)
 
         # Blend each generated mouth back into its source frame and stream the
         # composite frames straight into a silent mp4 (no PNG dumps on disk).
@@ -227,29 +226,30 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
         writer: Optional[Any] = None
 
         try:
-            for index, res_frame in enumerate(res_frame_list):
-                bbox = coord_list_cycle[index % len(coord_list_cycle)]
-                ori_frame = copy.deepcopy(frame_list_cycle[index % len(frame_list_cycle)])
-                x1, y1, x2, y2 = bbox
+            for index, generated_frame in enumerate(generated_frame_list):
+                bounding_box = coord_list[index % len(coord_list)]
+                original_frame = copy.deepcopy(frame_list[index % len(frame_list)])
+                x1, y1, x2, y2 = bounding_box
 
                 if self.preset == MuseTalkPreset.V15:
-                    y2 = min(y2 + params["extra_margin"], ori_frame.shape[0])
+                    margin = int(round(max(x2 - x1, y2 - y1) / 2 * params["face_crop_scale"]))
+                    y2 = min(y2 + 2 * margin, original_frame.shape[0])
 
                 try:
-                    res_frame = cv2.resize(res_frame.astype(np.uint8), (x2 - x1, y2 - y1))
+                    generated_frame = cv2.resize(generated_frame.astype(np.uint8), (x2 - x1, y2 - y1))
                 except Exception:
                     continue
 
                 if self.preset == MuseTalkPreset.V15:
-                    combine_frame = get_image(ori_frame, res_frame, [x1, y1, x2, y2], mode=params["parsing_mode"].value, fp=face_parsing)
+                    generated_frame = get_image(original_frame, generated_frame, [x1, y1, x2, y2], mode=params["parsing_mode"].value, fp=self.pipeline["face_parsing"])
                 else:
-                    combine_frame = get_image(ori_frame, res_frame, [x1, y1, x2, y2], fp=face_parsing)
+                    generated_frame = get_image(original_frame, generated_frame, [x1, y1, x2, y2], fp=self.pipeline["face_parsing"])
 
                 if writer is None:
-                    height, width = combine_frame.shape[:2]
+                    height, width = generated_frame.shape[:2]
                     writer = cv2.VideoWriter(silent_video_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
 
-                writer.write(combine_frame)
+                writer.write(generated_frame)
 
             if writer is not None:
                 writer.release()
@@ -385,7 +385,7 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
             unet_weight_path = str(snapshot_target / ("unet.pth" if self.config.preset == MuseTalkPreset.V15 else "pytorch_model.bin"))
             whisper_path = str(models_dir / "whisper")
 
-            vae, unet, pe = load_all_model(
+            vae, unet, positional_encoding = load_all_model(
                 unet_model_path=unet_weight_path,
                 vae_type="sd-vae",
                 unet_config=unet_config_path,
@@ -406,12 +406,12 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
                 )
 
             return {
-                "vae":             vae,
-                "unet":            unet,
-                "pe":              pe,
-                "whisper":         whisper,
-                "audio_processor": audio_processor,
-                "face_parsing":    face_parsing,
+                "vae":                 vae,
+                "unet":                unet,
+                "positional_encoding": positional_encoding,
+                "whisper":             whisper,
+                "audio_processor":     audio_processor,
+                "face_parsing":        face_parsing,
             }
 
         pipeline = await self._run_in_executor(_load)

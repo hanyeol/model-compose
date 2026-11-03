@@ -55,17 +55,20 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         resize_factor             = await context.render_scalar(self.config.params.resize_factor, int)
         frame_crop_box            = await context.render_scalar(self.config.params.frame_crop_box, "box")
         face_bounding_box         = await context.render_scalar(self.config.params.face_bounding_box, "box")
-        face_bounding_box_padding = await context.render_scalar(self.config.params.face_bounding_box_padding, "box")
+        face_crop_scale           = await context.render_scalar(self.config.params.face_crop_scale, float)
         face_detection_batch_size = await context.render_scalar(self.config.params.face_detection_batch_size, int)
         generator_batch_size      = await context.render_scalar(self.config.params.generator_batch_size, int)
         face_smoothing            = await context.render_scalar(self.config.params.face_smoothing, bool)
         static                    = await context.render_scalar(self.config.params.static, bool)
 
+        if face_crop_scale < 0.0:
+            raise ValueError(f"'face_crop_scale' must be >= 0.0, got {face_crop_scale}")
+
         params.update({
             "resize_factor":             resize_factor,
             "frame_crop_box":            frame_crop_box,
             "face_bounding_box":         face_bounding_box,
-            "face_bounding_box_padding": face_bounding_box_padding,
+            "face_crop_scale":           face_crop_scale,
             "face_detection_batch_size": face_detection_batch_size,
             "generator_batch_size":      generator_batch_size,
             "face_smoothing":            face_smoothing,
@@ -256,8 +259,9 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
                         raise
                     batch_size //= 2
 
-            # `Box` slots may be `None`; padding treats a missing side as zero.
-            padx1, pady1, padx2, pady2 = (element or 0 for element in params["face_bounding_box_padding"])
+            # Columbia-style expansion: left/right/top by `s * scale`, bottom
+            # by `2s * scale` (`s = max(w, h) / 2`), pulling chin and mouth
+            # into the crop fed to the Wav2Lip generator.
             results: List[Tuple[int, int, int, int]] = []
 
             for prediction, frame in zip(predictions, frames):
@@ -265,11 +269,13 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
                     raise ValueError("Face not detected in one of the frames; provide a fixed 'face_bounding_box' or a video with visible faces.")
 
                 x1, y1, x2, y2 = prediction
+                margin = int(round(max(x2 - x1, y2 - y1) / 2 * params["face_crop_scale"]))
+
                 results.append((
-                    max(0, x1 - padx1),
-                    max(0, y1 - pady1),
-                    min(frame.shape[1], x2 + padx2),
-                    min(frame.shape[0], y2 + pady2),
+                    max(0, x1 - margin),
+                    max(0, y1),
+                    min(frame.shape[1], x2 + margin),
+                    min(frame.shape[0], y2 + 2 * margin),
                 ))
 
             if params["face_smoothing"]:

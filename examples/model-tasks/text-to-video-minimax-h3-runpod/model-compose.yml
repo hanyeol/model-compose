@@ -72,10 +72,10 @@ component:
     prompt: ${input.prompt}
     negative_prompt: ${input.negative_prompt}
     width: ${input.width as integer | 1280}
-    height: ${input.height as integer | 720}
+    height: ${input.height as integer | 640}
     frame_rate: ${input.frame_rate as integer | 24}
     seed: ${input.seed as integer}
     params:
-      num_frames: ${input.num_frames as integer | 96}
+      num_frames: ${input.num_frames as integer | 124}
       inference_steps: ${input.inference_steps as integer | 50}
       guidance_scale: ${input.guidance_scale as number | 5.0}

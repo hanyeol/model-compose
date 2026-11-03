@@ -276,6 +276,10 @@ class ComponentService(AsyncService):
             from .runtime.runpod import ComponentRunPodRuntimeManager
             return ComponentRunPodRuntimeManager(self.id, self.config, self.global_configs)
 
+        if runtime_type == RuntimeType.VASTAI:
+            from .runtime.vastai import ComponentVastaiRuntimeManager
+            return ComponentVastaiRuntimeManager(self.id, self.config, self.global_configs)
+
         return None
 
     def _build_runtime_event_forwarder(

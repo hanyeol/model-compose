@@ -18,7 +18,7 @@ from mindor.core.component.runtime.base.ipc_message import IpcStartPayload
 from mindor.core.foundation.project import get_component_state_path
 from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.logger import logging
-import argparse, asyncio, base64, json, os, secrets, sys
+import argparse, asyncio, json, os, secrets, sys
 
 # Pod bootstrap pins — intentionally hardcoded (not DSL fields) to avoid
 # surfacing an "escape hatch" users would feel obliged to customise.
@@ -325,8 +325,7 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         # outer shell quoting and RunPod's GraphQL layer intact — the latter
         # wraps `dockerArgs` in double quotes without escaping, so any `"` or
         # `\n` embedded in the script would terminate the GraphQL string.
-        upload_server_script = self._get_mindor_upload_server_script()
-        upload_server_script = base64.b64encode(upload_server_script.encode("utf-8")).decode("ascii")
+        upload_server_script = self._get_mindor_upload_server_script(encode_base64=True)
 
         workspace_root = self._get_pod_workspace_root()
         pip_cache_dir  = f"{workspace_root}/.pip-cache"

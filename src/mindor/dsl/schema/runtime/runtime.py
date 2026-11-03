@@ -12,6 +12,7 @@ RuntimeConfig = Annotated[
         DockerRuntimeConfig,
         AppleContainerRuntimeConfig,
         RunPodRuntimeConfig,
+        VastaiRuntimeConfig,
     ],
     Field(discriminator="type")
 ]

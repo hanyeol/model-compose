@@ -58,15 +58,25 @@ class RuntimeManager(RequirementManager):
 
                     await asyncio.sleep(min(10.0, 2.0 * attempt))
 
-    def _get_mindor_upload_server_script(self) -> str:
+    def _get_mindor_upload_server_script(self, encode_base64: bool = False) -> str:
         """Return the pod/remote-side single-shot HTTP upload receiver
         script (``runtime/bootstrap/scripts/upload_server/main.py``)
         verbatim. Transports materialize this on the target before running
         ``python3 <script> --port <p> --dest <d>`` — any shell quoting /
-        escape is the transport's responsibility."""
+        escape is the transport's responsibility.
+
+        Pass ``encode_base64=True`` to get the script as a base64 string,
+        safe to drop into a shell command that would otherwise be broken by
+        the embedded ``"`` / newlines in the Python source."""
         from importlib.resources import files
+        import base64
 
         package = files("mindor.core.runtime.bootstrap.scripts.upload_server")
         script_path = package / "main.py"
 
-        return script_path.read_text()
+        script = script_path.read_text()
+
+        if encode_base64:
+            return base64.b64encode(script.encode("utf-8")).decode("ascii")
+
+        return script

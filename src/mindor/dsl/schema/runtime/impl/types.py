@@ -8,3 +8,4 @@ class RuntimeType(str, Enum):
     DOCKER          = "docker"
     APPLE_CONTAINER = "apple-container"
     RUNPOD          = "runpod"
+    VASTAI          = "vastai"

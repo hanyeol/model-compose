@@ -307,6 +307,7 @@ class Wav2LipLipSyncTaskAction(LipSyncTaskAction):
         try:
             while True:
                 ok, frame = capture.read()
+
                 if not ok:
                     break
 

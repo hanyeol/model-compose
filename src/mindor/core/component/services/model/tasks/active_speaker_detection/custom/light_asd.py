@@ -31,7 +31,7 @@ _FACE_CROP: int = 112
 
 # Audio frontend expects 100Hz MFCC frames at 16kHz mono — python_speech_features
 # default (winstep=0.010). 25fps video * 4 = 100Hz audio frames per video frame.
-_AUDIO_SR: int = 16000
+_AUDIO_SAMPLE_RATE: int = 16000
 _AUDIO_FRAMES_PER_VIDEO_FRAME: int = 4
 
 class LightAsdModel:
@@ -170,7 +170,13 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
             timestamps = [ float(timestamp) for timestamp in timestamps ]
 
         tracks = self._group_detections_by_track(tracks, frame_count)
-        audio_mfcc = await self._load_audio_mfcc(audio)
+
+        # Decode only the audio span these frames actually cover; without this
+        # a call that scores a 6-second clip from a 1-hour source would still
+        # pay for decoding + MFCC on the full hour.
+        audio_start_time = timestamps[0]
+        audio_duration = (timestamps[-1] + frame_period) - audio_start_time
+        audio_mfcc = await self._load_audio_mfcc(audio, audio_start_time, audio_duration)
 
         def _score_tracks() -> List[Dict[str, Any]]:
             # One output entry per track_id, with segments / frame_scores
@@ -209,30 +215,37 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
 
         return self._build_result(results, frame_count, params)
 
-    async def _load_audio_mfcc(self, audio: MediaSource) -> np.ndarray:
-        """Load `audio` as 16kHz mono waveform and return 100Hz MFCC frames.
+    async def _load_audio_mfcc(self, audio: MediaSource, start_time: float, duration: float) -> np.ndarray:
+        """Load the `start_time`..`start_time+duration` span of `audio` as a
+        16kHz mono waveform and return 100Hz MFCC frames.
 
-        Shape: `(T, 13)`. python_speech_features uses 25ms windows at 10ms hop
-        by default — exactly what Light-ASD trained on.
+        Shape: `(T, 13)` indexed against the loaded span (so index 0 corresponds
+        to `start_time`, not the start of `audio`). python_speech_features uses
+        25ms windows at 10ms hop by default — exactly what Light-ASD trained on.
         """
         import numpy as np
         import python_speech_features
 
-        buffer = await AudioBufferStreamer(audio, channel="mono", sample_rate=_AUDIO_SR).collect()
-        waveform = buffer.waveform
+        buffer = await AudioBufferStreamer(
+            audio,
+            channel="mono",
+            sample_rate=_AUDIO_SAMPLE_RATE,
+            start_time=start_time,
+            duration=duration
+        ).collect()
 
         # python_speech_features expects int16 for its default `preemph` filter
         # to produce the same scale upstream used; our resampled waveform is
         # float32 in [-1, 1]. Scale to int16 range so the MFCC statistics line
         # up with the pretrained weights.
-        waveform_int16 = (np.clip(waveform, -1.0, 1.0) * 32767.0).astype(np.int16)
+        waveform = (np.clip(buffer.waveform, -1.0, 1.0) * 32767.0).astype(np.int16)
 
         # python_speech_features returns float64; cast once here so downstream
         # `torch.from_numpy` produces a float32 tensor that matches the model
         # weights (float32).
         return python_speech_features.mfcc(
-            waveform_int16,
-            samplerate=_AUDIO_SR,
+            waveform,
+            samplerate=_AUDIO_SAMPLE_RATE,
             numcep=13,
             winlen=0.025,
             winstep=0.010,
@@ -266,11 +279,13 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         ], axis=0).astype(np.float32)
 
         # Align audio to the track's time window: convert the first frame
-        # timestamp to an MFCC frame index (100Hz) and slice. Clip to the
-        # available audio length rather than erroring so a track that extends
-        # past the end of the audio still scores — the trailing frames just
-        # get whatever audio is actually there.
-        audio_start = int(round(timestamps[start_frame] * 100.0))
+        # timestamp to an MFCC frame index (100Hz) and slice. `audio_mfcc` is
+        # indexed relative to `timestamps[0]` because `_load_audio_mfcc`
+        # already trimmed to the frames' span, so subtract that origin before
+        # scaling. Clip to the available audio length rather than erroring so
+        # a track that extends past the end of the audio still scores — the
+        # trailing frames just get whatever audio is actually there.
+        audio_start = int(round((timestamps[start_frame] - timestamps[0]) * 100.0))
         audio_end = audio_start + span_length * _AUDIO_FRAMES_PER_VIDEO_FRAME
         audio_start = max(0, min(audio_start, audio_mfcc.shape[0]))
         audio_end = max(audio_start, min(audio_end, audio_mfcc.shape[0]))

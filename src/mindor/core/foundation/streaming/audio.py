@@ -324,10 +324,14 @@ class AudioDecodingStreamer:
         source: MediaSource,
         sample_rate: Optional[int] = None,
         channels: Optional[int] = None,
+        start_time: Optional[float] = None,
+        duration: Optional[float] = None,
     ):
         self._source = source
         self._sample_rate = sample_rate
         self._channels = channels
+        self._start_time = start_time
+        self._duration = duration
 
     def __aiter__(self) -> AsyncIterator[bytes]:
         iterator, _ = self._decode_to_stream(self._source)
@@ -373,7 +377,7 @@ class AudioDecodingStreamer:
 
         if isinstance(source.stream, FileStreamResource):
             input_path = source.stream.path
-        
+
         if source.format and input_path is None:
             command.extend([ "-f", source.format ])
 
@@ -388,7 +392,16 @@ class AudioDecodingStreamer:
                 else:
                     raise ValueError(f"Raw PCM source {source.format!r} requires 'channels' in attrs")
 
+        # `-ss` before `-i` is seekable only on file inputs; pipe inputs ignore
+        # input-side seeks, so skip the flag there and let the output `-t`
+        # bound the decoded range alone.
+        if self._start_time is not None and input_path is not None:
+            command.extend([ "-ss", f"{self._start_time:.6f}" ])
+
         command.extend([ "-i", input_path if input_path is not None else "pipe:0" ])
+
+        if self._duration is not None:
+            command.extend([ "-t", f"{self._duration:.6f}" ])
 
         # Use WAV container instead of raw s16le so ffmpeg emits a 44-byte RIFF
         # header carrying the actual sr/channels. Lets us populate ``attrs``
@@ -523,6 +536,14 @@ class AudioDecodingStreamer:
                     else:
                         raise ValueError(f"torchaudio fallback: cannot upmix from {source_channels} to {target_channels} channels")
 
+                # Slice the decoded waveform to the requested time range so the
+                # torchaudio fallback honours `start_time`/`duration` the same
+                # way the ffmpeg and passthrough paths do.
+                if self._start_time is not None or self._duration is not None:
+                    start_sample = int((self._start_time or 0.0) * target_sample_rate)
+                    end_sample = waveform.shape[1] if self._duration is None else start_sample + int(self._duration * target_sample_rate)
+                    waveform = waveform[:, start_sample:end_sample]
+
                 pcm_bytes, _ = encode_waveform_to_pcm(waveform, format="s16le")
 
                 return pcm_bytes, target_sample_rate, target_channels
@@ -569,6 +590,39 @@ class AudioDecodingStreamer:
 
         if self._channels is not None and self._channels != source_channels:
             return None
+
+        if self._start_time is not None or self._duration is not None:
+            bytes_per_sample = source_channels * (stream.attrs.get("bit_depth", 16) // 8)
+            bytes_per_second = source_sample_rate * bytes_per_sample
+
+            start_bytes = int(self._start_time * bytes_per_second) if self._start_time is not None else 0
+            start_bytes = start_bytes - (start_bytes % bytes_per_sample)
+
+            duration_bytes = int(self._duration * bytes_per_second) if self._duration is not None else None
+            duration_bytes = duration_bytes - (duration_bytes % bytes_per_sample) if duration_bytes is not None else None
+
+            async def _stream(skip_bytes=start_bytes, remaining_bytes=duration_bytes) -> AsyncIterator[bytes]:
+                async for chunk in stream:
+                    if remaining_bytes is not None and remaining_bytes <= 0:
+                        break
+
+                    if skip_bytes:
+                        if len(chunk) <= skip_bytes:
+                            skip_bytes -= len(chunk)
+                            continue
+
+                        chunk = chunk[skip_bytes:]
+                        skip_bytes = 0
+
+                    if remaining_bytes is not None:
+                        if len(chunk) > remaining_bytes:
+                            chunk = chunk[:remaining_bytes]
+
+                        remaining_bytes -= len(chunk)
+
+                    yield chunk
+
+            return _stream(), stream.attrs
 
         async def _stream() -> AsyncIterator[bytes]:
             async for chunk in stream:
@@ -624,6 +678,8 @@ class AudioBufferStreamer:
         sample_rate: Optional[int] = None,
         hop_size: Optional[int] = None,
         pad_final: bool = True,
+        start_time: Optional[float] = None,
+        duration: Optional[float] = None,
     ):
         if frame_size is not None:
             if hop_size is None:
@@ -638,6 +694,8 @@ class AudioBufferStreamer:
         self._frame_size  = frame_size   # None means "yield the whole waveform as one frame"
         self._hop_size    = hop_size
         self._pad_final   = pad_final
+        self._start_time  = start_time   # None means "start at the source's beginning"
+        self._duration    = duration     # None means "decode until end of source"
 
     async def stream(self, chunk_size: int, overlap_size: int = 0) -> AsyncIterator[Tuple[AudioBuffer, bool]]:
         if chunk_size <= 0:
@@ -707,7 +765,7 @@ class AudioBufferStreamer:
         # Push resample / mono downmix into ffmpeg; `channel=int` still needs
         # the original channels since ffmpeg -ac can only downmix.
         sample_rate, channels = self._sample_rate, 1 if self._channel == "mono" else None
-        source = AudioDecodingStreamer(source, sample_rate, channels).as_pcm_stream()
+        source = AudioDecodingStreamer(source, sample_rate, channels, self._start_time, self._duration).as_pcm_stream()
 
         # ``AudioDecodingStreamer`` populates ``source.attrs`` from the WAV
         # header (or the torchaudio decode result) as its first chunks stream

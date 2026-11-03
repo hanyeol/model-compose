@@ -38,12 +38,12 @@ component:
 
     # Required: exact GPU catalog name. See
     # https://docs.runpod.io/references/gpu-types for the full list.
-    gpu_type: NVIDIA GeForce RTX 4090
-    gpu_count: 1
+    gpu_type: ${env.RUNPOD_GPU_TYPE | NVIDIA GeForce RTX 4090}
+    gpu_count: ${env.RUNPOD_GPU_COUNT as integer | 1}
 
     # ALL searches both Community (cheaper) and Secure cloud for inventory.
     # Change to COMMUNITY or SECURE to pin a specific tier.
-    cloud_type: ALL
+    cloud_type: ${env.RUNPOD_CLOUD_TYPE | ALL}
 
     # Pre-create a network volume in the RunPod dashboard and paste its ID.
     # A 20 GB volume ($1.4/mo) is plenty for whisper-large-v3-turbo

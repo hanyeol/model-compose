@@ -72,7 +72,7 @@ workflows:
           frames: ${jobs.extract-frames.output}
           frame_rate: ${input.frame_rate as number | 30}
           min_confidence: ${input.min_confidence as number | 0.35}
-          bounding_box_padding: ${input.bounding_box_padding as number | 0.1}
+          crop_margin_ratio: ${input.crop_margin_ratio as number | 0.1}
           merge_gap: ${input.merge_gap as number | 0.5}
         depends_on: [ extract-frames ]
 
@@ -198,7 +198,7 @@ components:
         - FEMALE_GENITALIA_EXPOSED
         - MALE_GENITALIA_EXPOSED
         - ANUS_EXPOSED
-      bounding_box_padding: ${input.bounding_box_padding}
+      crop_margin_ratio: ${input.crop_margin_ratio}
       params:
         min_confidence: ${input.min_confidence}
         iou_threshold: 0.5

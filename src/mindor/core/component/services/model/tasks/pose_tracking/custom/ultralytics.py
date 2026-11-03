@@ -742,17 +742,17 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         Valid only while the originating `_track_frame` call runs; never store
         the returned callable on track state, or the frame buffer outlives it.
         """
-        return partial(self._extract_pose_region, image, bounding_box_padding=params["bounding_box_padding"] or 0.0)
+        return partial(self._extract_pose_region, image, crop_margin_ratio=params["crop_margin_ratio"] or 0.0)
 
     @classmethod
     def _extract_pose_region(
         cls,
         image: PILImage.Image,
         bounding_box: Tuple[int, int, int, int],
-        bounding_box_padding: float = 0.0,
+        crop_margin_ratio: float = 0.0,
     ) -> Tuple[Optional[PILImage.Image], Tuple[int, int]]:
         """Crop the region of `image` around `bounding_box` grown by
-        `bounding_box_padding` on each side, returning `(sub_crop, (ox, oy))`.
+        `crop_margin_ratio` on each side, returning `(sub_crop, (ox, oy))`.
         Callers invoke this after smoothing is applied so the sub-crop is sized
         to exactly match `_crop_pose_image(padding=...)`; margin and crop share
         the same `int(w * padding)` / `int(h * padding)` truncation, so pixels
@@ -764,7 +764,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         the frame."""
         width, height = image.size
         x1, y1, x2, y2 = bounding_box
-        margin = max(0.0, bounding_box_padding)
+        margin = max(0.0, crop_margin_ratio)
 
         mx1 = max(0, x1 - int((x2 - x1) * margin))
         my1 = max(0, y1 - int((y2 - y1) * margin))
@@ -859,7 +859,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                     if params["return_skeleton_image"]:
                         segment["skeleton_image"] = self._render_skeleton(best_pose, params)
                     if params["return_track_image"]:
-                        segment["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
+                        segment["image"] = self._crop_pose_image(best_pose, params["crop_margin_ratio"])
 
                     segments.append(segment)
 
@@ -934,7 +934,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             chunk["skeleton_image"] = self._render_skeleton(best_pose, params)
 
         if params["return_track_image"]:
-            chunk["image"] = self._crop_pose_image(best_pose, params["bounding_box_padding"])
+            chunk["image"] = self._crop_pose_image(best_pose, params["crop_margin_ratio"])
 
         return chunk
 
@@ -987,7 +987,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
             # cropping at the interpolated bbox would show the person from the
             # wrong frame; skip the crop for those and rely on the real anchors.
             if not tracked_pose.get("interpolated"):
-                pose["image"] = self._crop_pose_image(tracked_pose, params["bounding_box_padding"])
+                pose["image"] = self._crop_pose_image(tracked_pose, params["crop_margin_ratio"])
             else:
                 pose["image"] = None
 

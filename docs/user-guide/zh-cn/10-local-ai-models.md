@@ -1448,7 +1448,7 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]      # 可选：类别过滤
-    bounding_box_padding: 0.05   # 为下游裁剪或 SAM 提示扩展每个框 5%
+    crop_margin_ratio: 0.05   # 为返回的裁剪图像添加 5% 边距（bounding_box 坐标不变）
     params:
       min_confidence: 0.4
 ```

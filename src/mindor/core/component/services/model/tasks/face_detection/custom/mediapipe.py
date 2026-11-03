@@ -56,7 +56,7 @@ class BlazeFaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         for detection in prediction.detections:
             face: Dict[str, Any] = {
-                "bounding_box": self._serialize_bounding_box(detection.bounding_box, width, height, params["bounding_box_padding"]),
+                "bounding_box": self._serialize_bounding_box(detection.bounding_box, width, height, params["crop_margin_ratio"]),
                 "score":        float(detection.categories[0].score) if detection.categories else 0.0,
             }
 

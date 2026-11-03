@@ -91,7 +91,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 
    **Web UI 사용:**
    - Web UI 열기: http://localhost:8081
-   - 이미지 업로드, 필요시 `min_confidence` / `line_width` / `bounding_box_padding` 조정
+   - 이미지 업로드, 필요시 `min_confidence` / `line_width` / `crop_margin_ratio` 조정
    - "Run Workflow" 클릭
    - 응답에 `annotated_image` (색상 라벨 박스가 그려진 입력)와 `objects` (원본 검출 레코드) 포함.
 
@@ -117,7 +117,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 | `image` | image (파일) | 예 | - | NSFW 영역을 검출하고 어노테이션할 입력 이미지 |
 | `target_luma` | number | 아니오 | `130` | 목표 평균 luma (0–255, BT.601). 검출기 입력을 이 평균 luma에 맞도록 스케일. `0`으로 두면 정규화를 건너뛰고 원본 픽셀에서 검출. 일반적인 대역: 사진 콘텐츠에는 `100`–`160`; `40` 아래는 그림자를 뭉갬, `215` 위는 하이라이트를 날림 |
 | `min_confidence` | number | 아니오 | `0.35` | 최소 검출 신뢰도 (0.0 – 1.0). 모델 검사 중 경계 검출까지 보고 싶으면 낮추세요 (예: `0.2`) |
-| `bounding_box_padding` | number | 아니오 | `0.0` | 그리기 전에 각 검출 박스를 사방으로 확장하는 비율. 여기서는 `0.0`으로 유지(`nsfw-mosaic`과 달리) — 그려진 박스가 검출기 원본 출력과 정확히 일치하므로 시각적 디버깅에 유용 |
+| `crop_margin_ratio` | number | 아니오 | `0.0` | 그리기 전에 각 검출 박스를 사방으로 확장하는 비율. 여기서는 `0.0`으로 유지(`nsfw-mosaic`과 달리) — 그려진 박스가 검출기 원본 출력과 정확히 일치하므로 시각적 디버깅에 유용 |
 | `line_width` | number | 아니오 | `3` | 사각형 테두리 두께 (픽셀) |
 | `text_stroke_width` | number | 아니오 | `2` | 텍스트 스트로크 두께 (픽셀) — 라벨 주위의 검은 아웃라인으로 어떤 배경에서도 가독성 유지 |
 
@@ -173,7 +173,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 ### NSFW Detector (`nsfw-detector`)
 - **Type**: `model` — `object-detection` task
 - **Driver**: `custom` (Ultralytics YOLO family)
-- **기능**: 사용자가 제공한 NSFW YOLO 가중치를 입력 이미지에 실행하고 표준 object-detection 응답 형태를 반환. `max_concurrent_count: 1`로 GPU 측 작업을 직렬화. `bounding_box_padding`을 노출하여 호출자가 검출을 다시 돌리지 않고도 그려진 박스를 시각적 명료도를 위해 넓힐 수 있음.
+- **기능**: 사용자가 제공한 NSFW YOLO 가중치를 입력 이미지에 실행하고 표준 object-detection 응답 형태를 반환. `max_concurrent_count: 1`로 GPU 측 작업을 직렬화. `crop_margin_ratio`을 노출하여 호출자가 검출을 다시 돌리지 않고도 그려진 박스를 시각적 명료도를 위해 넓힐 수 있음.
 
 ### Box Drawer (`box-drawer`)
 - **Type**: `image-drawing` (`rectangle` 메서드)

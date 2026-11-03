@@ -56,7 +56,7 @@ Unlike cloud-based vision APIs, running YOLO locally provides:
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload an image file
-   - Optionally adjust `labels`, `min_confidence`, `max_object_count`, `iou_threshold`, `agnostic_nms`, and `bounding_box_padding`
+   - Optionally adjust `labels`, `min_confidence`, `max_object_count`, `iou_threshold`, `agnostic_nms`, and `crop_margin_ratio`
    - Click the "Run Workflow" button
 
 ## Result Format
@@ -110,7 +110,7 @@ Segmentation checkpoints (`yolo11*-seg.pt`, etc.) are also supported — only th
 | `image` | image | (required) | Input image |
 | `labels` | list[str] | `null` | Restrict detections to these class labels. Unknown labels fail fast |
 | `max_object_count` | int | `300` | Maximum detections per image |
-| `bounding_box_padding` | float | `0.0` | Expand each bounding box by this ratio of its width/height on every side (e.g. `0.1` = 10%). Clamped to image bounds. Useful when feeding boxes to crop or SAM box prompts |
+| `crop_margin_ratio` | float | `0.0` | Expand each bounding box by this ratio of its width/height on every side (e.g. `0.1` = 10%). Clamped to image bounds. Useful when feeding boxes to crop or SAM box prompts |
 | `params.min_confidence` | float | `0.25` | Minimum detection confidence |
 | `params.iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression |
 | `params.agnostic_nms` | bool | `false` | Perform class-agnostic NMS across all labels |

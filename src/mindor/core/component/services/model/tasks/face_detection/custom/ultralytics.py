@@ -83,7 +83,7 @@ class YoloFaceDetectionTaskAction(FaceDetectionTaskAction):
 
             for (x1, y1, x2, y2), score in zip(xyxy, scores):
                 faces.append({
-                    "bounding_box": self._serialize_bounding_box(x1, y1, x2, y2, width, height, params["bounding_box_padding"]),
+                    "bounding_box": self._serialize_bounding_box(x1, y1, x2, y2, width, height, params["crop_margin_ratio"]),
                     "score":        float(score),
                 })
 

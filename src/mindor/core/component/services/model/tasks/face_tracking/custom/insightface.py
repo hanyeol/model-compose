@@ -373,7 +373,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         similarity_threshold     = params["similarity_threshold"] or 0.0
         min_face_size            = params["min_face_size"] or 0
         max_face_count_per_frame = params["max_face_count_per_frame"] or 0
-        bounding_box_padding     = params["bounding_box_padding"] or 0.0
+        crop_margin_ratio     = params["crop_margin_ratio"] or 0.0
         bounding_box_smoothing   = params["bounding_box_smoothing"]
         max_track_distance       = params["max_track_distance"] or 0.0
         merge_gap                = params["merge_gap"] or 0.0
@@ -467,7 +467,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 face,
                 merge_gap,
                 frame_period,
-                bounding_box_padding,
+                crop_margin_ratio,
                 bounding_box_smoothing,
                 extract_image_source,
                 stash_image_source=bool(params["return_detection_image"]),
@@ -502,7 +502,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         face: Dict[str, Any],
         merge_gap: float,
         frame_period: float,
-        bounding_box_padding: float,
+        crop_margin_ratio: float,
         bounding_box_smoothing: Optional[float],
         extract_image_source: Optional[ExtractImageSourceCallable] = None,
         stash_image_source: bool = False,
@@ -585,7 +585,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             current["frame_count"] += 1
 
             if score > current["best_face"]["score"]:
-                current["best_face"] = self._build_face_with_image(face_with_image, bounding_box_padding)
+                current["best_face"] = self._build_face_with_image(face_with_image, crop_margin_ratio)
 
             tracked_segment = None
         else:
@@ -598,7 +598,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 "start":       timestamp,
                 "end":         timestamp,
                 "frame_count": 1,
-                "best_face":   self._build_face_with_image(face_with_image, bounding_box_padding),
+                "best_face":   self._build_face_with_image(face_with_image, crop_margin_ratio),
             }
 
             track["emitted"] = False
@@ -824,12 +824,12 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         Valid only while the originating `_track_frame` call runs; never store
         the returned callable on track state, or the frame buffer outlives it.
         """
-        return partial(self._extract_face_region, image_cv, bounding_box_padding=params["bounding_box_padding"] or 0.0)
+        return partial(self._extract_face_region, image_cv, crop_margin_ratio=params["crop_margin_ratio"] or 0.0)
 
     def _build_detected_faces(self, detections: List[Face], return_gender_age: bool) -> List[Dict[str, Any]]:
         # image_source stashing happens later in `_add_face_to_track`, once the
         # final (post-smoothing) bbox is known, so the stashed sub-crop can be
-        # sized exactly to `bounding_box_padding` instead of guessing a margin
+        # sized exactly to `crop_margin_ratio` instead of guessing a margin
         # that compensates for both padding and smoothing drift. We deliberately
         # never stash the full frame — a long track keeps every referenced face
         # alive via `tracked_frames`, `last_face_by_cluster`, and interpolation
@@ -866,7 +866,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         return faces
 
-    def _build_face_with_image(self, face: Dict[str, Any], bounding_box_padding: float) -> Dict[str, Any]:
+    def _build_face_with_image(self, face: Dict[str, Any], crop_margin_ratio: float) -> Dict[str, Any]:
         """Copy `face` and swap its `image_source` (BGR sub-crop around the
         detection) for a cropped PIL `image`. Called only when a face is picked
         as a segment's best, so the PIL conversion cost is paid once per
@@ -880,7 +880,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             face_with_image["image"] = self._crop_face_image(
                 image_source,
                 face["bounding_box"],
-                bounding_box_padding,
+                crop_margin_ratio,
                 origin=face.get("image_source_origin", (0, 0)),
             )
 
@@ -1102,7 +1102,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 face["image"] = self._crop_face_image(
                     image_source,
                     tracked_face["bounding_box"],
-                    params["bounding_box_padding"],
+                    params["crop_margin_ratio"],
                     origin=tracked_face.get("image_source_origin", (0, 0)),
                 )
             else:
@@ -1184,10 +1184,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         cls,
         image_cv: np.ndarray,
         bounding_box: Tuple[int, int, int, int],
-        bounding_box_padding: float = 0.0,
+        crop_margin_ratio: float = 0.0,
     ) -> Tuple[Optional[np.ndarray], Tuple[int, int]]:
         """Copy the region of `image_cv` around `bounding_box` grown by
-        `bounding_box_padding` on each side, returning `(sub_crop, (ox, oy))`.
+        `crop_margin_ratio` on each side, returning `(sub_crop, (ox, oy))`.
         Callers invoke this after smoothing is applied so the sub-crop is sized
         to exactly match `_crop_face_image(padding=...)`; margin and crop share
         the same `int(w * padding)` / `int(h * padding)` truncation, so pixels
@@ -1199,7 +1199,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         the frame."""
         height, width = image_cv.shape[:2]
         x1, y1, x2, y2 = bounding_box
-        margin = max(0.0, bounding_box_padding)
+        margin = max(0.0, crop_margin_ratio)
 
         mx1 = max(0, x1 - int((x2 - x1) * margin))
         my1 = max(0, y1 - int((y2 - y1) * margin))

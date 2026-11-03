@@ -91,7 +91,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
-   - 上传图像，可选覆盖 `min_confidence` / `line_width` / `bounding_box_padding`
+   - 上传图像，可选覆盖 `min_confidence` / `line_width` / `crop_margin_ratio`
    - 点击 "Run Workflow"
    - 响应中包含 `annotated_image`（带彩色标签框的输入）和 `objects`（原始检测记录）。
 
@@ -117,7 +117,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 | `image` | image (文件) | 是 | - | 要检测和标注 NSFW 区域的输入图像 |
 | `target_luma` | number | 否 | `130` | 目标平均 luma（0–255，BT.601）。检测器输入会被缩放到平均 luma 匹配该值。设为 `0` 跳过归一化，直接在原始像素上检测。典型带宽：照片内容 `100`–`160`；低于 `40` 会压碎阴影，高于 `215` 会烧掉高光 |
 | `min_confidence` | number | 否 | `0.35` | 最低检测置信度（0.0 – 1.0）。降低（例如 `0.2`）以在模型检查时暴露边缘检测 |
-| `bounding_box_padding` | number | 否 | `0.0` | 绘制前每个检测框向外扩展的比例。这里保持 `0.0`（与 `nsfw-mosaic` 不同），使绘制的框与检测器原始输出完全一致——便于可视化调试 |
+| `crop_margin_ratio` | number | 否 | `0.0` | 绘制前每个检测框向外扩展的比例。这里保持 `0.0`（与 `nsfw-mosaic` 不同），使绘制的框与检测器原始输出完全一致——便于可视化调试 |
 | `line_width` | number | 否 | `3` | 矩形轮廓粗细（像素） |
 | `text_stroke_width` | number | 否 | `2` | 文本描边宽度（像素）——标签周围的黑色描边，使其在任何背景上都可读 |
 
@@ -173,7 +173,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 ### NSFW Detector (`nsfw-detector`)
 - **Type**：`model` —— `object-detection` 任务
 - **Driver**：`custom`（Ultralytics YOLO family）
-- **功能**：在输入图像上运行用户提供的 NSFW YOLO 权重，返回标准 object-detection 响应形态。`max_concurrent_count: 1` 串行化 GPU 侧工作。暴露了 `bounding_box_padding`，让调用方无需重跑检测即可为视觉清晰度加宽绘制的框。
+- **功能**：在输入图像上运行用户提供的 NSFW YOLO 权重，返回标准 object-detection 响应形态。`max_concurrent_count: 1` 串行化 GPU 侧工作。暴露了 `crop_margin_ratio`，让调用方无需重跑检测即可为视觉清晰度加宽绘制的框。
 
 ### Box Drawer (`box-drawer`)
 - **Type**：`image-drawing`（`rectangle` 方法）

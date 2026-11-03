@@ -81,7 +81,7 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         for detection in detections:
             face: Dict[str, Any] = {
-                "bounding_box": self._serialize_bounding_box(detection.bbox, width, height, params["bounding_box_padding"]),
+                "bounding_box": self._serialize_bounding_box(detection.bbox, width, height, params["crop_margin_ratio"]),
                 "score":        float(getattr(detection, "det_score", 0.0)),
             }
 

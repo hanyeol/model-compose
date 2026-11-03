@@ -86,7 +86,7 @@ class ObjectTrackingTaskAction(ModelTaskComponentAction):
         min_frame_count            = await context.render_scalar(self.config.params.min_frame_count, int)
         max_object_count_per_frame = await context.render_scalar(self.config.params.max_object_count_per_frame, int)
         merge_gap                  = await context.render_scalar(self.config.params.merge_gap, float)
-        bounding_box_padding       = await context.render_scalar(self.config.params.bounding_box_padding, float)
+        crop_margin_ratio       = await context.render_scalar(self.config.params.crop_margin_ratio, float)
         bounding_box_smoothing     = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
         return_tracks              = await context.render_scalar(self.config.return_tracks, bool)
         return_track_image         = await context.render_scalar(self.config.return_track_image, bool)
@@ -101,8 +101,8 @@ class ObjectTrackingTaskAction(ModelTaskComponentAction):
         if not 0.0 <= iou_threshold <= 1.0:
             raise ValueError(f"'iou_threshold' must be between 0.0 and 1.0, got {iou_threshold}")
 
-        if bounding_box_padding < 0.0:
-            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
         if bounding_box_smoothing is not None and not 0.0 <= bounding_box_smoothing <= 1.0:
             raise ValueError(f"'bounding_box_smoothing' must be between 0.0 and 1.0, got {bounding_box_smoothing}")
@@ -122,7 +122,7 @@ class ObjectTrackingTaskAction(ModelTaskComponentAction):
             "min_frame_count":            min_frame_count,
             "max_object_count_per_frame": max_object_count_per_frame,
             "merge_gap":                  merge_gap,
-            "bounding_box_padding":       bounding_box_padding,
+            "crop_margin_ratio":       crop_margin_ratio,
             "bounding_box_smoothing":     bounding_box_smoothing,
             "return_tracks":              return_tracks,
             "return_track_image":         return_track_image,

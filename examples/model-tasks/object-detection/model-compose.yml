@@ -31,7 +31,7 @@ component:
     image: ${input.image as image}
     labels: ${input.labels as list}
     max_object_count: ${input.max_object_count | 300}
-    bounding_box_padding: ${input.bounding_box_padding | 0.0}
+    crop_margin_ratio: ${input.crop_margin_ratio | 0.0}
     params:
       min_confidence: ${input.min_confidence | 0.25}
       iou_threshold: ${input.iou_threshold | 0.7}

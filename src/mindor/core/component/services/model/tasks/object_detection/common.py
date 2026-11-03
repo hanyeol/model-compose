@@ -49,7 +49,7 @@ class ObjectDetectionTaskAction(ModelTaskComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         labels               = await context.render_variable(self.config.labels)
         max_object_count     = await context.render_scalar(self.config.max_object_count, int)
-        bounding_box_padding = await context.render_scalar(self.config.bounding_box_padding, float)
+        crop_margin_ratio = await context.render_scalar(self.config.crop_margin_ratio, float)
         min_confidence       = await context.render_scalar(self.config.params.min_confidence, float)
         iou_threshold        = await context.render_scalar(self.config.params.iou_threshold, float)
         agnostic_nms         = await context.render_scalar(self.config.params.agnostic_nms, bool)
@@ -63,8 +63,8 @@ class ObjectDetectionTaskAction(ModelTaskComponentAction):
         if max_object_count < 1:
             raise ValueError(f"'max_object_count' must be >= 1, got {max_object_count}")
 
-        if bounding_box_padding < 0.0:
-            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
         if labels is not None and not isinstance(labels, list):
             labels = [ labels ]
@@ -75,7 +75,7 @@ class ObjectDetectionTaskAction(ModelTaskComponentAction):
             "max_object_count":     max_object_count,
             "iou_threshold":        iou_threshold,
             "agnostic_nms":         agnostic_nms,
-            "bounding_box_padding": bounding_box_padding,
+            "crop_margin_ratio": crop_margin_ratio,
         }
 
     @abstractmethod

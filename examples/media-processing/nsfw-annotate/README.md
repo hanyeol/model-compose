@@ -91,7 +91,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
-   - Upload the image and optionally override `min_confidence` / `line_width` / `bounding_box_padding`
+   - Upload the image and optionally override `min_confidence` / `line_width` / `crop_margin_ratio`
    - Click "Run Workflow"
    - The response contains `annotated_image` (the input with colored labelled boxes) and `objects` (the raw detection records).
 
@@ -117,7 +117,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 | `image` | image (file) | Yes | - | Input image to detect and annotate NSFW regions in |
 | `target_luma` | number | No | `130` | Target mean luma (0–255, BT.601). The detector's input is scaled so its mean luma matches this. Set to `0` to skip normalisation and detect on the raw pixels. Typical band: `100`–`160` for photographic content; below `40` crushes shadows, above `215` blows out highlights |
 | `min_confidence` | number | No | `0.35` | Minimum detection confidence (0.0 – 1.0). Lower it (e.g. `0.2`) to surface borderline detections during model inspection |
-| `bounding_box_padding` | number | No | `0.0` | Ratio each detected box is expanded outward before drawing. Kept at `0.0` here (unlike `nsfw-mosaic`) so the drawn box matches the detector's raw output exactly — useful for visual debugging |
+| `crop_margin_ratio` | number | No | `0.0` | Ratio each detected box is expanded outward before drawing. Kept at `0.0` here (unlike `nsfw-mosaic`) so the drawn box matches the detector's raw output exactly — useful for visual debugging |
 | `line_width` | number | No | `3` | Rectangle outline thickness in pixels |
 | `text_stroke_width` | number | No | `2` | Text stroke width in pixels (black outline around the label so it stays readable against any background) |
 
@@ -173,7 +173,7 @@ ln -s ../../nsfw-mosaic/models/nsfw_detector.pt models/nsfw_detector.pt
 ### NSFW Detector (`nsfw-detector`)
 - **Type**: `model` — `object-detection` task
 - **Driver**: `custom` (Ultralytics YOLO family)
-- **Function**: Runs the user-supplied NSFW YOLO weights on the input image and returns the standard object-detection response shape. `max_concurrent_count: 1` serialises GPU-side work. `bounding_box_padding` is exposed so a caller can widen the drawn boxes for visual clarity without re-running detection.
+- **Function**: Runs the user-supplied NSFW YOLO weights on the input image and returns the standard object-detection response shape. `max_concurrent_count: 1` serialises GPU-side work. `crop_margin_ratio` is exposed so a caller can widen the drawn boxes for visual clarity without re-running detection.
 
 ### Box Drawer (`box-drawer`)
 - **Type**: `image-drawing` (`rectangle` method)

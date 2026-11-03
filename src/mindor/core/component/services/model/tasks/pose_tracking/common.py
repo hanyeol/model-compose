@@ -83,7 +83,7 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
         min_pose_size             = await context.render_scalar(self.config.params.min_pose_size, int)
         min_frame_count           = await context.render_scalar(self.config.params.min_frame_count, int)
         max_pose_count_per_frame  = await context.render_scalar(self.config.params.max_pose_count_per_frame, int)
-        bounding_box_padding      = await context.render_scalar(self.config.params.bounding_box_padding, float)
+        crop_margin_ratio      = await context.render_scalar(self.config.params.crop_margin_ratio, float)
         bounding_box_smoothing    = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
         merge_gap                 = await context.render_scalar(self.config.params.merge_gap, float)
         skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
@@ -107,8 +107,8 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
         if not 0.0 <= min_presence_confidence <= 1.0:
             raise ValueError(f"'min_presence_confidence' must be between 0.0 and 1.0, got {min_presence_confidence}")
 
-        if bounding_box_padding < 0.0:
-            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
         if bounding_box_smoothing is not None and not 0.0 <= bounding_box_smoothing <= 1.0:
             raise ValueError(f"'bounding_box_smoothing' must be between 0.0 and 1.0, got {bounding_box_smoothing}")
@@ -122,7 +122,7 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
             "min_pose_size":             min_pose_size,
             "min_frame_count":           min_frame_count,
             "max_pose_count_per_frame":  max_pose_count_per_frame,
-            "bounding_box_padding":      bounding_box_padding,
+            "crop_margin_ratio":      crop_margin_ratio,
             "bounding_box_smoothing":    bounding_box_smoothing,
             "merge_gap":                 merge_gap,
             "skeleton_format":           skeleton_format,

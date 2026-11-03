@@ -1514,7 +1514,7 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]      # Optional class filter
-    bounding_box_padding: 0.05   # Grow each box by 5% for downstream crops or SAM prompts
+    crop_margin_ratio: 0.05   # Add 5% margin around each returned crop image
     params:
       min_confidence: 0.4
 ```

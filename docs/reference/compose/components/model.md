@@ -1203,7 +1203,7 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `return_landmarks` | bool | `false` | Include facial keypoints in the result (6 for BlazeFace, up to 106 for InsightFace `antelopev2`). |
-| `bounding_box_padding` | float | `0.0` | Grow each returned bounding box by this fraction of its width/height on every side, then clip to the image (e.g. `0.2` = +20%). Useful when downstream consumers crop the box and need extra context (hair, chin). |
+| `crop_margin_ratio` | float | `0.0` | Margin added around each returned face crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
 | `batch_size` | int | `1` | Number of images to process per batch |
 | `params.min_confidence` | float | `0.5` | Minimum detection confidence threshold (0.0 - 1.0). Passed to the InsightFace detector as `det_thresh`. |
 
@@ -1302,7 +1302,7 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `return_detection_image` | bool | `false` | Include a face crop on every per-frame detection entry (one per detected face per frame, not one per segment). Requires `return_detections: true`. Keeps a padded sub-crop per detected face until the run ends, so memory scales with `frames × faces per frame` — enable only when a downstream step classifies each frame independently. |
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
-| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned face image. Grows the box by this fraction of its width/height on each side (e.g. `0.2` = +20% on each side). Only affects face crops; embeddings and clustering still use the un-padded box. |
+| `crop_margin_ratio` | float | `0.0` | Margin added around each returned face crop image, as a ratio of the box's own width/height; does not affect the reported bounding box, embeddings, or clustering. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream instead of a single result dict. See [Streaming chunks](#streaming-chunks-face-tracking) below. |
 | `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
@@ -1736,7 +1736,7 @@ Track people (as poses) across a sequence of video frames. Per-frame pose detect
 | `return_detection_image` | bool | `false` | Include a body crop on every per-frame detection entry (one per detected pose per frame, not one per segment). Requires `return_detections: true`. Keeps a padded sub-crop per detected pose until the run ends, so memory scales with `frames × poses per frame`. |
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
-| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned body image. Grows the box by this fraction of its width/height on each side. |
+| `crop_margin_ratio` | float | `0.0` | Margin added around each returned pose crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream. See [Streaming chunks](#streaming-chunks-pose-tracking) below. |
 | `params.min_confidence` | float | `0.5` | Minimum detection confidence a pose must reach. |
@@ -1857,7 +1857,7 @@ Detect objects in an image and return per-object bounding boxes with class label
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `labels` | list[str] | `null` | Restrict detections to these class labels. Unknown labels raise an error listing available labels. If omitted, all classes are returned |
 | `max_object_count` | int | `300` | Maximum detections per image (>= 1) |
-| `bounding_box_padding` | float | `0.0` | Expand each output bounding box outward by this ratio of its width/height on every side (e.g. `0.1` = 10%). Clamped to image bounds. Useful when feeding boxes downstream to crop or SAM box prompts |
+| `crop_margin_ratio` | float | `0.0` | Margin added around each returned object crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
 | `batch_size` | int | `1` | Number of images to process per batch |
 | `params.min_confidence` | float | `0.25` | Minimum detection confidence threshold (0.0 - 1.0) |
 | `params.iou_threshold` | float | `0.7` | IoU threshold for non-maximum suppression (0.0 - 1.0) |
@@ -1874,7 +1874,7 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]
-    bounding_box_padding: 0.05
+    crop_margin_ratio: 0.05
     params:
       min_confidence: 0.4
     output:
@@ -1898,7 +1898,7 @@ component:
 }
 ```
 
-`bounding_box` uses top-left origin as `{x, y, width, height}` in pixel coordinates. When `bounding_box_padding > 0`, boxes are expanded before clamping to image bounds. List and async-stream inputs behave the same way as face detection.
+`bounding_box` uses top-left origin as `{x, y, width, height}` in pixel coordinates and reflects the detector's output as-is. `crop_margin_ratio` only widens the returned crop image around that box. List and async-stream inputs behave the same way as face detection.
 
 ### Object Tracking
 
@@ -1927,7 +1927,7 @@ Track objects across a sequence of video frames. Per-frame detections are groupe
 | `return_detection_image` | bool | `false` | Include an object crop on every per-frame detection entry (one per detected object per frame, not one per segment). Requires `return_detections: true`. Keeps a padded sub-crop per detected object until the run ends, so memory scales with `frames × objects per frame`. |
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
-| `bounding_box_padding` | float | `0.0` | Padding ratio applied when cropping the returned object image. Grows the box by this fraction of its width/height on each side. |
+| `crop_margin_ratio` | float | `0.0` | Margin added around each returned object crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream. See [Streaming chunks](#streaming-chunks-object-tracking) below. |
 | `params.min_confidence` | float | `0.25` | Minimum detection confidence an object must reach. |
@@ -2003,7 +2003,7 @@ component:
 - `tracks[i].track_id` is the tracker's persistent id — stable across a segment; the same id can span multiple segments if the object leaves and re-enters the frame.
 - `tracks[i].label` / `label_id` are taken from the highest-scoring frame in the track.
 - `tracks[i].score` is the highest detection confidence across all frames in the track.
-- `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box (with `bounding_box_padding` applied).
+- `tracks[i].segments[j].image` is present only when `return_track_image` is enabled — the highest-scoring frame in that segment, cropped at the detected bounding box (with `crop_margin_ratio` applied).
 - `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with an `objects[]` list tagged by `track_id`.
 - `detections[i].objects[j].image` is present only when `return_detection_image` is enabled — the object crop at the detected bounding box in the frame's native resolution.
 - `detections[i].objects[j].interpolated: true` appears when the object was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_detection_image`.
@@ -2082,7 +2082,7 @@ jobs:
     component: yolo-detector
     action:
       image: ${input.image as image}
-      bounding_box_padding: 0.1
+      crop_margin_ratio: 0.1
   - id: segment
     component: sam-segmenter
     action:

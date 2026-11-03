@@ -41,7 +41,7 @@ workflow:
         similarity_threshold: ${input.similarity_threshold | 0.4}
         min_frame_count: ${input.min_frame_count | 2}
         merge_gap: ${input.merge_gap | 0.5}
-        bounding_box_padding: ${input.bounding_box_padding | 0.2}
+        crop_margin_ratio: ${input.crop_margin_ratio | 0.2}
         return_track_image: ${input.return_track_image as boolean | true}
         return_detection_image: ${input.return_detection_image as boolean | false}
         return_embedding: ${input.return_embedding as boolean | false}
@@ -77,7 +77,7 @@ components:
       return_embedding: ${input.return_embedding}
       return_gender_age: ${input.return_gender_age}
       return_detections: true
-      bounding_box_padding: ${input.bounding_box_padding}
+      crop_margin_ratio: ${input.crop_margin_ratio}
       params:
         similarity_threshold: ${input.similarity_threshold}
         min_face_size: 40

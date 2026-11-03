@@ -7,7 +7,7 @@ class CommonFaceDetectionParamsConfig(BaseModel):
 
 class CommonFaceDetectionModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to detect faces in.")
-    bounding_box_padding: Union[float, str] = Field(default=0.0, description="Ratio by which each detected bounding box is expanded outward.")
+    crop_margin_ratio: Union[float, str] = Field(default=0.0, description="Margin added around each returned crop image, as a ratio of the box's own width/height")
     return_landmarks: Union[bool, str] = Field(default=False, description="Whether facial landmarks are included in the result when the driver supports them.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input images processed per batch.")
     params: CommonFaceDetectionParamsConfig = Field(default_factory=CommonFaceDetectionParamsConfig, description="Detection thresholds and options applied to the face detector.")

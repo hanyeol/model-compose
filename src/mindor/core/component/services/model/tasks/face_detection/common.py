@@ -49,18 +49,18 @@ class FaceDetectionTaskAction(ModelTaskComponentAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         min_confidence       = await context.render_scalar(self.config.params.min_confidence, float)
         return_landmarks     = await context.render_scalar(self.config.return_landmarks, bool)
-        bounding_box_padding = await context.render_scalar(self.config.bounding_box_padding, float)
+        crop_margin_ratio = await context.render_scalar(self.config.crop_margin_ratio, float)
 
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
 
-        if bounding_box_padding < 0.0:
-            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
         return {
             "min_confidence":       min_confidence,
             "return_landmarks":     return_landmarks,
-            "bounding_box_padding": bounding_box_padding,
+            "crop_margin_ratio": crop_margin_ratio,
         }
 
     @abstractmethod

@@ -1448,7 +1448,7 @@ component:
   action:
     image: ${input.image as image}
     labels: [ person, dog ]      # 선택: 클래스 필터
-    bounding_box_padding: 0.05   # 후속 크롭이나 SAM 프롬프트를 위해 박스를 5% 확장
+    crop_margin_ratio: 0.05   # 반환되는 크롭 이미지에 5% 여백 추가 (bounding_box 좌표는 그대로)
     params:
       min_confidence: 0.4
 ```

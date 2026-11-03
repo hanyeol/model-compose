@@ -9,7 +9,7 @@ class CommonPoseTrackingParamsConfig(BaseModel):
     min_pose_size: Union[int, str] = Field(default=0, description="Minimum pose bounding box size in pixels; 0 disables the filter.")
     min_frame_count: Union[int, str] = Field(default=1, description="Tracks appearing in fewer than this many frames are discarded.")
     max_pose_count_per_frame: Union[int, str] = Field(default=0, description="Maximum number of poses kept per frame; 0 means unbounded.")
-    bounding_box_padding: Union[float, str] = Field(default=0.0, description="Ratio by which each pose bounding box is expanded before cropping.")
+    crop_margin_ratio: Union[float, str] = Field(default=0.0, description="Margin added around each returned crop image, as a ratio of the box's own width/height")
     bounding_box_smoothing: Optional[Union[float, str]] = Field(default=None, description="EMA weight blended with the previous frame's bounding box; None or 0.0 disables smoothing.")
     merge_gap: Union[float, str] = Field(default=0.5, description="Extra seconds a person may be undetected before their segment is split; consecutive frames always merge.")
 

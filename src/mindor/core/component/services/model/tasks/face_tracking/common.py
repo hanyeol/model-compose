@@ -87,7 +87,7 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
         min_frame_count          = await context.render_scalar(self.config.params.min_frame_count, int)
         max_face_count_per_frame = await context.render_scalar(self.config.params.max_face_count_per_frame, int)
         max_track_distance       = await context.render_scalar(self.config.params.max_track_distance, float)
-        bounding_box_padding     = await context.render_scalar(self.config.params.bounding_box_padding, float)
+        crop_margin_ratio     = await context.render_scalar(self.config.params.crop_margin_ratio, float)
         bounding_box_smoothing   = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
         merge_gap                = await context.render_scalar(self.config.params.merge_gap, float)
         return_tracks            = await context.render_scalar(self.config.return_tracks, bool)
@@ -104,8 +104,8 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
         if max_track_distance < 0.0:
             raise ValueError(f"'max_track_distance' must be >= 0.0, got {max_track_distance}")
 
-        if bounding_box_padding < 0.0:
-            raise ValueError(f"'bounding_box_padding' must be >= 0.0, got {bounding_box_padding}")
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
         if bounding_box_smoothing is not None and not 0.0 <= bounding_box_smoothing <= 1.0:
             raise ValueError(f"'bounding_box_smoothing' must be between 0.0 and 1.0, got {bounding_box_smoothing}")
@@ -127,7 +127,7 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
             "return_detection_image":   return_detection_image,
             "return_frame_image":       return_frame_image,
             "return_metadata":          return_metadata,
-            "bounding_box_padding":     bounding_box_padding,
+            "crop_margin_ratio":     crop_margin_ratio,
             "bounding_box_smoothing":   bounding_box_smoothing,
         }
 

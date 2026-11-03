@@ -1,0 +1,80 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: MiniMax-H3 Text-to-Video (RunPod)
+  description: |
+    Same workflow as text-to-video-minimax-h3, but the MiniMax-H3
+    Omni-Transformer runs on a remote RunPod GPU pod instead of the local
+    machine. The pod is created on the first request and stopped after
+    `idle_timeout`; subsequent requests resume the same pod in seconds and
+    reuse the ~70 GB checkpoint cached on the network volume.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  device: cuda
+  # H100 SXM (80 GB) fits the full Omni-Transformer without CPU offload, so
+  # `cpu_offload` is left off here. On a 24 GB consumer GPU, set
+  # `cpu_offload: true` and lower `gpu_type` below.
+  max_concurrent_count: 1
+  # MiniMax-H3 weights are gated. The token below is resolved on the host
+  # from `.env` and shipped to the pod inside the component config, so the
+  # pod's provisioner can authenticate against Hugging Face when it
+  # downloads the shards onto the network volume. Host env vars are NOT
+  # auto-forwarded into the pod, so a bare `HF_TOKEN` on the host would not
+  # reach the pod.
+  model:
+    provider: huggingface
+    repository: MiniMaxAI/MiniMax-H3
+    token: ${env.HF_TOKEN}
+  runtime:
+    type: runpod
+    # Required: your RunPod API key. Set RUNPOD_API_KEY in your .env or shell.
+    api_key: ${env.RUNPOD_API_KEY}
+
+    # Required: exact GPU catalog name. See
+    # https://docs.runpod.io/references/gpu-types for the full list.
+    gpu_type: NVIDIA H200
+    gpu_count: 1
+
+    # H100 SXM inventory lives on Secure cloud. Switch to ALL to also search
+    # Community, or COMMUNITY only when you have confirmed availability there.
+    cloud_type: SECURE
+
+    # Pre-create a network volume in the RunPod dashboard, in a data center
+    # with H100 availability. A 100 GB volume is the practical minimum: the
+    # checkpoint is ~70 GB (base transformer, Qwen3-VL text encoder, VAE,
+    # audio VAE) plus the pip cache. Weights persist across stop/resume, so
+    # the ~70 GB download only happens once.
+    network_volume_id: ${env.RUNPOD_VOLUME_ID}
+
+    # The checkpoint is large; the pod needs time to pull shards from Hugging
+    # Face on the very first start. Later resumes are seconds.
+    start_timeout: 45m
+
+    # Stop the pod 10 minutes after the last request. GPU billing pauses on
+    # stop; the next request resumes the same pod in seconds.
+    idle_timeout: 10m
+  action:
+    prompt: ${input.prompt}
+    negative_prompt: ${input.negative_prompt}
+    width: ${input.width as integer | 1280}
+    height: ${input.height as integer | 720}
+    frame_rate: ${input.frame_rate as integer | 24}
+    seed: ${input.seed as integer}
+    params:
+      num_frames: ${input.num_frames as integer | 96}
+      inference_steps: ${input.inference_steps as integer | 50}
+      guidance_scale: ${input.guidance_scale as number | 5.0}

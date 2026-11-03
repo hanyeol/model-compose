@@ -42,6 +42,7 @@ component:
     token: ${env.HF_TOKEN}
   runtime:
     type: runpod
+  
     # Required: your RunPod API key. Set RUNPOD_API_KEY in your .env or shell.
     api_key: ${env.RUNPOD_API_KEY}
 
@@ -49,9 +50,6 @@ component:
     # https://docs.runpod.io/references/gpu-types for the full list.
     gpu_type: NVIDIA H100 80GB HBM3
     gpu_count: 1
-
-    # H100 SXM inventory lives on Secure cloud. Switch to ALL to also search
-    # Community, or COMMUNITY only when you have confirmed availability there.
     cloud_type: SECURE
 
     # Pre-create a network volume in the RunPod dashboard, in a data center

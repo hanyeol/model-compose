@@ -34,6 +34,11 @@ _FACE_CROP: int = 112
 _AUDIO_SAMPLE_RATE: int = 16000
 _AUDIO_FRAMES_PER_VIDEO_FRAME: int = 4
 
+# Columbia_test.py scores each track at these window durations (seconds) and
+# averages the per-frame logits across runs; the multi-window ensemble smooths
+# out boundary effects and lifts AUC vs. a single-pass score.
+_SCORING_WINDOW_DURATIONS: Tuple[int, ...] = (1, 2, 3, 4, 5, 6)
+
 class LightAsdModel:
     """CPU-safe stand-in for upstream `ASD`.
 
@@ -162,7 +167,8 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         tracks = await tracks.collect()
 
         frame_count = len(frames)
-        frame_period = 1.0 / float(frame_rate) if frame_rate else 1.0 / 25.0
+        frame_rate = float(frame_rate) if frame_rate else 25.0
+        frame_period = 1.0 / frame_rate
 
         if timestamps is None:
             timestamps = [ offset + index * frame_period for index in range(frame_count) ]
@@ -189,7 +195,14 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
 
             for track_id in sorted(tracks.keys()):
                 for chunk in self._split_track_by_gaps(tracks[track_id]):
-                    scores, start_frame = self._score_track_chunk(frames, timestamps, chunk, audio_mfcc, params["face_crop_scale"])
+                    scores, start_frame = self._score_track_chunk(
+                        frames,
+                        timestamps,
+                        chunk,
+                        audio_mfcc,
+                        frame_rate,
+                        params["face_crop_scale"]
+                    )
 
                     if scores.size == 0:
                         continue
@@ -257,12 +270,15 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         timestamps: List[float],
         chunk: List[Tuple[int, Tuple[int, int, int, int]]],
         audio_mfcc: np.ndarray,
+        frame_rate: float,
         face_crop_scale: float,
     ) -> Tuple[np.ndarray, int]:
         """Run Light-ASD on one contiguous chunk of a face track.
 
-        Crops each frame to 112x112 grayscale, slices the matching audio
-        window, and runs Light-ASD forward. Returns `(scores, start_frame)`:
+        Crops each frame to 112x112 grayscale, scores the chunk once per entry
+        in `_SCORING_WINDOW_DURATIONS` (each duration partitions the chunk
+        into `ceil(length / duration)` sub-windows), and averages the
+        per-frame logits across runs. Returns `(scores, start_frame)`:
         `scores` is a float32 array of length equal to the number of frames
         Light-ASD actually scored (may be shorter than the chunk span when
         the audio tail is missing); `start_frame` indexes into `timestamps`.
@@ -303,15 +319,33 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         visual_feature = visual_feature[:audio_available_video_frames]
         audio_slice = audio_slice[:audio_available_video_frames * _AUDIO_FRAMES_PER_VIDEO_FRAME]
 
-        with torch.no_grad():
-            audio_tensor = torch.from_numpy(audio_slice).unsqueeze(0).to(self.device)
-            visual_tensor = torch.from_numpy(visual_feature).unsqueeze(0).to(self.device)
-            audio_embed = self.model.model.forward_audio_frontend(audio_tensor)
-            visual_embed = self.model.model.forward_visual_frontend(visual_tensor)
-            fused = self.model.model.forward_audio_visual_backend(audio_embed, visual_embed)
-            scores = self.model.lossAV.forward(fused, labels=None)  # numpy array of logits
+        # Partition the chunk into `duration`-second windows and score each
+        # window independently per Columbia_test.py; the final per-frame score
+        # is the mean across all duration passes. `batch_size` is the number
+        # of sub-windows the chunk breaks into at this duration, matching
+        # upstream's `math.ceil(length / duration)`.
+        per_duration_scores: List[np.ndarray] = []
 
-        return np.asarray(scores, dtype=np.float32), start_frame
+        with torch.no_grad():
+            for duration in _SCORING_WINDOW_DURATIONS:
+                visual_window_size = max(1, int(round(duration * frame_rate)))
+                audio_window_size = visual_window_size * _AUDIO_FRAMES_PER_VIDEO_FRAME
+                batch_size = (audio_available_video_frames + visual_window_size - 1) // visual_window_size
+                scores_for_duration: List[np.ndarray] = []
+
+                for index in range(batch_size):
+                    visual_batch = visual_feature[index * visual_window_size:(index + 1) * visual_window_size]
+                    audio_batch = audio_slice[index * audio_window_size:(index + 1) * audio_window_size]
+                    audio_tensor = torch.from_numpy(audio_batch).unsqueeze(0).to(self.device)
+                    visual_tensor = torch.from_numpy(visual_batch).unsqueeze(0).to(self.device)
+                    audio_embed = self.model.model.forward_audio_frontend(audio_tensor)
+                    visual_embed = self.model.model.forward_visual_frontend(visual_tensor)
+                    fused = self.model.model.forward_audio_visual_backend(audio_embed, visual_embed)
+                    scores_for_duration.append(np.asarray(self.model.lossAV.forward(fused, labels=None), dtype=np.float32))
+
+                per_duration_scores.append(np.concatenate(scores_for_duration))
+
+        return np.mean(np.stack(per_duration_scores, axis=0), axis=0).astype(np.float32), start_frame
 
     def _segments_from_scores(
         self,

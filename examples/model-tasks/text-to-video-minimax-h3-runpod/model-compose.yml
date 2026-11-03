@@ -28,6 +28,7 @@ component:
   # H100 SXM (80 GB) fits the full Omni-Transformer without CPU offload, so
   # `cpu_offload` is left off here. On a 24 GB consumer GPU, set
   # `cpu_offload: true` and lower `gpu_type` below.
+  cpu_offload: true
   max_concurrent_count: 1
   # MiniMax-H3 weights are gated. The token below is resolved on the host
   # from `.env` and shipped to the pod inside the component config, so the
@@ -46,7 +47,7 @@ component:
 
     # Required: exact GPU catalog name. See
     # https://docs.runpod.io/references/gpu-types for the full list.
-    gpu_type: NVIDIA H200
+    gpu_type: NVIDIA H100 80GB HBM3
     gpu_count: 1
 
     # H100 SXM inventory lives on Secure cloud. Switch to ALL to also search

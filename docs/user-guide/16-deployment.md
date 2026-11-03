@@ -1330,7 +1330,244 @@ the ~30–120s cold-start cost. Prefer other runtimes when:
 
 ---
 
-## 16.7 Remote Runtimes (SSH)
+## 16.7 Vast.ai Runtime
+
+Runs a component on a remote [Vast.ai](https://vast.ai/) GPU instance.
+Same wire shape as RunPod — the controller lives on your local host and
+only the heavy compute runs remotely — but on Vast's peer/datacenter
+marketplace, which is typically ~30–50% cheaper for the same GPU and
+reaches down to consumer cards (4090/5090) that RunPod does not list.
+Billing is paused automatically between requests via `idle_timeout`.
+
+### 16.7.1 How It Works
+
+When a component with `runtime.type: vastai` is started by
+`model-compose up`, model-compose:
+
+1. Reclaims any orphan instance labeled `mindor-<component_id>` from a
+   previous session (crash or restart) by destroying it. The network
+   volume survives, so model weights are preserved.
+2. Searches the Vast.ai marketplace via the official `vastai` SDK for
+   the cheapest offer matching the configured GPU, host tier, and
+   price ceiling. When `network_volume_id` is set, the search is pinned
+   to the volume's host — Vast volumes are machine-local.
+3. Rents the chosen offer with the configured image and links the
+   network volume (when provided) at `volume_mount_path`.
+4. The instance boots the CUDA base image, apt-installs `ffmpeg`,
+   `pip install`s the current `model-compose` from GitHub into a cached
+   venv on the volume, and starts a WebSocket IPC server on the
+   configured port, which Vast exposes via a host port mapping.
+5. Model-compose connects to `ws://<public_ip>:<mapped_port>`
+   authenticated with a per-session bearer token. The component is now
+   ready; requests flow through the IPC proxy to the embedded worker.
+
+After the last in-flight request completes and `idle_timeout` elapses,
+model-compose issues `stop_instance` so GPU billing pauses. The next
+request resumes the same instance (seconds, not minutes) with its
+network volume still linked — model weights do not re-download.
+
+### 16.7.2 Basic Configuration
+
+**Minimum viable Vast.ai component:**
+
+```yaml
+component:
+  type: model
+  task: speech-to-text
+  driver: huggingface
+  architecture: whisper
+  model: openai/whisper-large-v3-turbo
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+    gpu_type: RTX 4090              # Vast.ai GPU name; spaces allowed
+    network_volume_id: 58912451     # pre-created via `vastai create volume`
+```
+
+Required fields:
+
+- `api_key` — Vast.ai API key; usually sourced from env.
+- `gpu_type` — Vast GPU catalog name (e.g. `RTX 4090`, `H100 SXM`,
+  `H100 PCIE`, `A100 80GB`). Spaces are allowed; the client encodes
+  them for the marketplace query grammar.
+
+Optional but recommended:
+
+- `network_volume_id` — persistent storage for model weights. Without
+  it, each fresh instance re-downloads the model into ephemeral disk.
+  Vast network volumes are **machine-local** (unlike RunPod's
+  datacenter-wide volumes), so setting this field also pins the
+  marketplace search to that host.
+
+### 16.7.3 Full Configuration
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  model: MiniMaxAI/MiniMax-H3
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+
+    # Instance spec
+    gpu_type: H100 SXM
+    gpu_count: 1
+    cloud_type: VERIFIED              # DATACENTER | VERIFIED | UNVERIFIED | ALL
+    max_price: 3.00                   # $/hr ceiling; offers above are skipped
+
+    # Image (defaults to pytorch/pytorch:*-cuda*-cudnn*-runtime)
+    image: pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
+
+    # Storage
+    network_volume_id: 58912451
+    volume_mount_path: /workspace     # default; also where pip cache lives
+    container_disk_gb: 20
+
+    # Networking
+    worker_port: 8000                 # exposed via Vast's host port mapping
+
+    # Extra env injected into the instance container
+    environment:
+      HF_TOKEN: ${env.HF_TOKEN}
+
+    # Lifecycle
+    idle_timeout: 15m                 # stop_instance this long after last request
+    start_timeout: 30m                # time budget for instance to reach running + WS up
+    stop_timeout: 2m                  # grace period for stop_instance
+```
+
+### 16.7.4 Field Reference
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `api_key` | string | — | **Required.** Vast.ai API key. |
+| `gpu_type` | string | — | **Required.** Vast GPU catalog name. |
+| `gpu_count` | int | `1` | Number of GPUs attached to the instance. |
+| `cloud_type` | enum | `VERIFIED` | `DATACENTER` (strictly commercial DC) \| `VERIFIED` (Vast-vetted hosts, DC or non-DC) \| `UNVERIFIED` (peer-hosted only) \| `ALL`. |
+| `max_price` | float | `null` | Hourly price ceiling in USD; offers above this are filtered out. |
+| `image` | string | `pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime` | Instance container image. |
+| `network_volume_id` | int | `null` | Vast.ai network volume ID to link. Integer only — Vast prints volumes as `V.<int>`; pass just the integer part. |
+| `volume_mount_path` | string | `/workspace` | Mount path for the network volume inside the container. |
+| `container_disk_gb` | int | `20` | Ephemeral root disk size. |
+| `worker_port` | int | `8000` | Container port Vast will host-port-map to the public IP. |
+| `environment` | map | `null` | Extra env vars for the instance container. |
+| `idle_timeout` | duration | `15m` | Instance stop delay after the last request. `0s` disables auto-stop. |
+| `start_timeout` | duration | `30m` | Max time for instance boot + image pull + WS attach before failure. |
+| `stop_timeout` | duration | `2m` | Graceful stop deadline. |
+
+### 16.7.5 Lifecycle and Billing Safeguards
+
+Vast.ai instances follow the standard `setup / start / stop / teardown`
+lifecycle, aligned with `docker-compose up / create / start / stop / down`:
+
+- **`setup` (at `model-compose up`).** Reclaims orphan instances from
+  previous sessions, creates a fresh instance, waits for it to reach
+  `running`, and persists `(instance_id, auth_token)` so the next
+  session can claim it without paying the create cost again.
+- **`start`.** Resumes the `stopped` instance to `running` (seconds)
+  and attaches the WS transport. The network volume stays linked so
+  model weights are already warm.
+- **`stop`.** Detaches the transport and `stop_instance`s. The
+  instance stays provisioned on the account so the next `start` is
+  another cheap resume.
+- **`teardown` (at `model-compose down`).** `destroy_instance` — the
+  instance is gone after this returns. The network volume is **not
+  deleted**; manage it yourself from the dashboard or
+  `vastai delete volume <id>`.
+
+Vast instances are billed by the second, so additional guardrails
+prevent runaway cost:
+
+- **Attach probe before upload.** On every `start`, model-compose
+  probes the WS port with a short timeout first — if a previous
+  session's worker is still serving, it skips the full upload + pip
+  install path and attaches directly.
+- **Attach-failure stop.** If the WS handshake fails after bootstrap
+  (slow image pull exceeded `start_timeout`, bootstrap crashed), the
+  instance is `stop`ped — not destroyed — because transient failures
+  are common and a resumed instance can usually recover. Destruction
+  is reserved for `teardown`.
+- **Resume-failure recovery.** If `start_instance` fails permanently
+  (e.g. the host reclaimed the GPU while the instance was stopped),
+  the dead instance is destroyed and a fresh one is provisioned.
+  Weights on the network volume are reused.
+- **Shared-secret auth.** The host port Vast exposes is reachable from
+  the public internet the moment the instance is `running`. Every
+  session uses a fresh random bearer token injected into the
+  instance's env; connections without the correct
+  `Authorization: Bearer <token>` header are rejected at the WS
+  upgrade.
+
+### 16.7.6 Network Volumes
+
+Vast network volumes carry two benefits over the instance's ephemeral
+disk:
+
+1. **Model persistence.** Weights downloaded by HuggingFace cache
+   survive `stop_instance` and `destroy_instance`, so re-launch is
+   seconds instead of minutes.
+2. **pip cache.** The bootstrap script caches wheels at
+   `/workspace/.pip-cache`, so re-installing model-compose on a resumed
+   instance skips the slow dependency build.
+
+Vast volumes are **not creatable from the dashboard today** — the Vast
+Storage page lists existing volumes but has no "Create Network Volume"
+form. Use the CLI:
+
+```bash
+# 1) Search for volume offers on hosts you want to pin to
+vastai search volumes "verified=true disk_space>=20" -o storage_cost
+
+# 2) Create a 20 GB volume on the chosen host (offer ID from step 1)
+vastai create volume <OFFER_ID> -s 20 -n mindor_whisper_vol
+
+# 3) Confirm the volume's integer ID (Vast prints it as V.<int>)
+vastai show volumes
+
+# 4) Reference the integer part in your compose config
+```
+
+```yaml
+runtime:
+  type: vastai
+  # ...
+  network_volume_id: 58912451
+  volume_mount_path: /workspace
+```
+
+Note:
+
+- **Volume names must be alphanumeric or underscores** (max 64 chars).
+  Hyphens are rejected.
+- Vast volumes are **machine-local** — any instance that links the
+  volume is pinned to that machine. The runtime automatically adds a
+  `machine_id=<host>` filter to the offer search when
+  `network_volume_id` is set.
+- The volume survives instance stop/resume/destroy. Delete it
+  explicitly with `vastai delete volume <id>` when done.
+
+### 16.7.7 When Vast.ai Doesn't Fit
+
+Vast.ai trades price for operational surface area. Prefer RunPod or a
+local runtime when:
+
+- You need a built-in HTTPS proxy per instance — Vast exposes
+  containers over raw host ports (currently `ws://`, auth-token
+  secured). RunPod's `*.proxy.runpod.net` is `wss://` out of the box.
+- You cannot create a Vast network volume (the dashboard flow is not
+  shipped yet) and your model weights are large enough that
+  destroy-and-redownload is prohibitive — RunPod's volumes are
+  dashboard-managed and datacenter-wide.
+- You need strict SLA guarantees — Vast's reliability is
+  host-dependent; the `VERIFIED` tier narrows it to Vast-vetted hosts
+  but still varies by machine.
+
+---
+
+## 16.8 Remote Runtimes (SSH)
 
 Both the `process` and `virtualenv` runtimes accept a `remote` block that
 moves the worker onto an SSH-reachable host. The controller stays on your
@@ -1342,7 +1579,7 @@ heavier than `embedded` (SSH connect + remote Python cold start). Use it
 to burst onto a shared workstation or lab machine that you already keep
 reachable over SSH.
 
-### 16.7.1 How It Works
+### 16.8.1 How It Works
 
 When `model-compose up` brings up a component with `runtime.remote` set,
 model-compose:
@@ -1369,7 +1606,7 @@ Subsequent requests flow through the same SSH exec channel. On
 `model-compose down` the channel is closed and the remote worker exits
 with it; any provisioned venv on disk survives for the next `up`.
 
-### 16.7.2 Process Runtime (Remote)
+### 16.8.2 Process Runtime (Remote)
 
 ```yaml
 component:
@@ -1397,13 +1634,13 @@ Prerequisites on the remote host:
   `platform.system()`, and the command dialect is chosen automatically.
   On Windows targets the remote OpenSSH service's default shell must
   be set to `powershell.exe` or `pwsh.exe`; `cmd.exe` is not
-  supported (see 16.7.3 for the registry setting).
+  supported (see 16.8.3 for the registry setting).
 
 No daemons, no containers, no volume mounts. See the
 [`remote-process/`](../../examples/runtime/remote-process) example for a
 runnable end-to-end wiring.
 
-### 16.7.3 VirtualEnv Runtime (Remote)
+### 16.8.3 VirtualEnv Runtime (Remote)
 
 ```yaml
 component:
@@ -1453,7 +1690,7 @@ for the full example.
   the Windows binary layout (`{root}\versions\{v}\python.exe`) is
   handled by the runtime.
 
-### 16.7.4 Transport Configuration
+### 16.8.4 Transport Configuration
 
 The `remote` block is a tagged union; `type` selects the transport:
 
@@ -1477,7 +1714,7 @@ The `remote` block is a tagged union; `type` selects the transport:
 - `type: ssh` — plain SSH. Exactly one of `key` or `password` is
   required; SSH agent / default-key fallback is not supported yet.
 
-### 16.7.5 When Remote Runtimes Don't Fit
+### 16.8.5 When Remote Runtimes Don't Fit
 
 Prefer other runtimes when:
 
@@ -1493,7 +1730,7 @@ Prefer other runtimes when:
 
 ---
 
-## 16.8 Deployment Best Practices
+## 16.9 Deployment Best Practices
 
 ### Environment-specific Deployment Strategies
 

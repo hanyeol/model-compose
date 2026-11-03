@@ -10,7 +10,7 @@ Components are reusable service definitions that perform specific tasks within w
 component:
   type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | agent-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | music-pitch-corrector | music-score-loader | music-score-renderer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-loader | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
-  runtime: native | embedded | process | virtualenv | docker | apple-container | runpod  # default: native
+  runtime: native | embedded | process | virtualenv | docker | apple-container | runpod | vastai  # default: native
   max_concurrent_count: 0
   default: false
   # ... type-specific configuration
@@ -109,7 +109,7 @@ All components inherit these common properties from `CommonComponentConfig`:
 |-------|------|---------|-------------|
 | `id` | string | `__component__` | Unique identifier for the component |
 | `type` | string | **required** | Component type (see table above) |
-| `runtime` | string | `native` | Runtime environment: `native`, `embedded`, `process`, `virtualenv`, `docker`, `apple-container`, or `runpod` |
+| `runtime` | string | `native` | Runtime environment: `native`, `embedded`, `process`, `virtualenv`, `docker`, `apple-container`, `runpod`, or `vastai` |
 | `max_concurrent_count` | integer | `0` | Maximum concurrent actions this component can handle (`0` = unlimited) |
 | `default` | boolean | `false` | Whether to use this component when none is explicitly specified |
 
@@ -360,6 +360,48 @@ component:
 - Occasional heavy inference that doesn't justify a dedicated GPU host
 - Development against production-class GPUs (H100, H200)
 
+### Vast.ai Runtime
+
+Runs the component on a remote [Vast.ai](https://vast.ai/) GPU instance and
+tunnels IPC through the instance's Vast-mapped host port. Same lifecycle
+shape as `runpod`, but on Vast's peer/datacenter marketplace — typically
+cheaper for the same GPU and reaches down to consumer cards (4090/5090)
+that RunPod does not list. See
+[User Guide 16.7](../../user-guide/16-deployment.md#167-vastai-runtime) for
+the full configuration reference.
+
+```yaml
+component:
+  type: model
+  task: speech-to-text
+  driver: huggingface
+  architecture: whisper
+  model: openai/whisper-large-v3-turbo
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+    gpu_type: RTX 4090
+    cloud_type: VERIFIED
+    network_volume_id: 58912451
+    idle_timeout: 15m
+```
+
+**Characteristics:**
+- Peer/datacenter marketplace with ~30–50% price advantage vs. RunPod
+  on the same GPU, plus consumer-GPU inventory
+- Model weights persist on a machine-local network volume across
+  instance stop/resume; the runtime pins the offer search to the
+  volume's host automatically
+- `up` provisions the instance (~30–120s, plus any image pull on cold
+  hosts); subsequent idle/resume cycles are seconds, not minutes
+- Billing stops automatically after `idle_timeout`
+
+**Use Cases:**
+- Cost-sensitive deployments where RunPod's premium is hard to justify
+- Workloads that fit on consumer cards (4090, 5090) not available on
+  RunPod
+- Burst to H100 / H200 inventory without a RunPod commitment
+
 ### Remote Execution (SSH)
 
 `process` and `virtualenv` runtimes accept a `remote` block that moves the
@@ -419,6 +461,7 @@ examples for end-to-end wiring.
 | **virtualenv** | Medium (slow first run) | Process + dependencies | Medium | Per-component Python versions or conflicting packages |
 | **docker** | Slow | High | High | Production, security-critical workloads |
 | **runpod** | Slow (first), Fast (resume) | Full (remote host) | High | Remote GPU bursts, models too large for the local host |
+| **vastai** | Slow (first), Fast (resume) | Full (remote host) | High | Cost-sensitive remote GPU bursts, consumer-GPU workloads |
 
 Both `process` and `virtualenv` can also run on a remote SSH host via
 their `remote` block — see [Remote Execution (SSH)](#remote-execution-ssh)

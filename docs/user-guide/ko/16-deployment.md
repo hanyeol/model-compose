@@ -1131,7 +1131,234 @@ model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
 
 ---
 
-## 16.6 배포 모범 사례
+## 16.6 Vast.ai 런타임
+
+원격 [Vast.ai](https://vast.ai/) GPU 인스턴스에서 컴포넌트를 실행합니다.
+컨트롤러는 로컬 호스트에 그대로 두고, 무거운 연산(모델 가중치, 추론, GPU
+메모리)만 인스턴스에서 돌아갑니다. 요청 사이의 과금은 `idle_timeout`을
+통해 자동으로 일시정지됩니다. Vast.ai 마켓플레이스는 동일한 GPU 기준으로
+RunPod보다 통상 ~30–50% 저렴하고, RunPod이 취급하지 않는 소비자 등급
+카드(4090/5090)까지 커버합니다.
+
+### 16.6.1 동작 방식
+
+`runtime.type: vastai` 컴포넌트가 `model-compose up`에서 기동되면
+model-compose는 다음을 수행합니다:
+
+1. 이전 세션의 `mindor-<component_id>` 라벨 고아 인스턴스가 있다면
+   삭제해 회수합니다. 네트워크 볼륨은 유지되므로 모델 가중치는 보존됩니다.
+2. 공식 `vastai` SDK로 Vast.ai 마켓플레이스에서 설정된 GPU, 호스트 티어,
+   가격 상한에 맞는 가장 저렴한 오퍼를 찾습니다. `network_volume_id`가
+   설정되어 있으면 그 볼륨이 있는 호스트의 오퍼로만 검색이 좁혀집니다 —
+   Vast 볼륨은 머신에 종속되기 때문입니다.
+3. 선택된 오퍼를 설정된 이미지로 임대하고, 네트워크 볼륨이 있으면
+   `volume_mount_path`에 링크합니다.
+4. 인스턴스가 CUDA 베이스 이미지로 부팅되어 `ffmpeg`를 apt로 설치하고,
+   GitHub에서 현재 `model-compose`를 볼륨의 pip 캐시로 설치한 뒤, 설정된
+   포트에 WebSocket IPC 서버를 띄웁니다. Vast가 호스트 포트 매핑으로
+   이를 외부에 노출합니다.
+5. model-compose가 세션별 bearer 토큰으로 `ws://<public_ip>:<mapped_port>`에
+   연결합니다. 이제 컴포넌트가 사용 가능한 상태이며, 요청은 IPC 프록시를
+   통해 임베디드 워커로 흐릅니다.
+
+마지막 요청이 끝나고 `idle_timeout`이 경과하면 model-compose가
+`stop_instance`를 호출해 GPU 과금이 멈춥니다. 다음 요청은 같은 인스턴스를
+수 초 내에 재개하며, 네트워크 볼륨이 그대로 링크되어 있어 모델 가중치를
+다시 다운로드하지 않습니다.
+
+### 16.6.2 기본 설정
+
+**최소 구성의 Vast.ai 컴포넌트:**
+
+```yaml
+component:
+  type: model
+  task: speech-to-text
+  driver: huggingface
+  architecture: whisper
+  model: openai/whisper-large-v3-turbo
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+    gpu_type: RTX 4090              # Vast.ai GPU 이름; 공백 허용
+    network_volume_id: 58912451     # `vastai create volume`으로 사전 생성
+```
+
+필수 필드:
+
+- `api_key` — Vast.ai API 키. 일반적으로 환경 변수에서 가져옵니다.
+- `gpu_type` — Vast GPU 카탈로그 이름 (예: `RTX 4090`, `H100 SXM`,
+  `H100 PCIE`, `A100 80GB`). 공백은 허용되며 클라이언트가 마켓플레이스
+  쿼리 문법에 맞게 인코딩합니다.
+
+선택 필드이지만 권장:
+
+- `network_volume_id` — 모델 가중치의 영구 저장소. 설정하지 않으면 매번
+  새 인스턴스마다 모델을 임시 디스크로 재다운로드합니다. Vast 네트워크
+  볼륨은 **머신에 종속**되므로(RunPod의 데이터센터 전역 볼륨과 달리) 이
+  필드를 설정하면 마켓플레이스 검색도 해당 호스트로 자동 제한됩니다.
+
+### 16.6.3 전체 설정
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  model: MiniMaxAI/MiniMax-H3
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+
+    # 인스턴스 스펙
+    gpu_type: H100 SXM
+    gpu_count: 1
+    cloud_type: VERIFIED              # DATACENTER | VERIFIED | UNVERIFIED | ALL
+    max_price: 3.00                   # 시간당 $ 상한; 초과 오퍼는 건너뜀
+
+    # 이미지 (기본: pytorch/pytorch:*-cuda*-cudnn*-runtime)
+    image: pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
+
+    # 스토리지
+    network_volume_id: 58912451
+    volume_mount_path: /workspace     # 기본값; pip 캐시도 여기 위치
+    container_disk_gb: 20
+
+    # 네트워킹
+    worker_port: 8000                 # Vast의 호스트 포트 매핑으로 노출
+
+    # 인스턴스 컨테이너에 주입할 추가 환경 변수
+    environment:
+      HF_TOKEN: ${env.HF_TOKEN}
+
+    # 수명 주기
+    idle_timeout: 15m                 # 마지막 요청 후 stop_instance 지연
+    start_timeout: 30m                # 인스턴스 부팅 + WS 접속 최대 시간
+    stop_timeout: 2m                  # stop_instance 유예 시간
+```
+
+### 16.6.4 필드 레퍼런스
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `api_key` | 문자열 | — | **필수.** Vast.ai API 키. |
+| `gpu_type` | 문자열 | — | **필수.** Vast GPU 카탈로그 이름. |
+| `gpu_count` | 정수 | `1` | 인스턴스에 연결할 GPU 수. |
+| `cloud_type` | enum | `VERIFIED` | `DATACENTER` (상업용 DC 전용) \| `VERIFIED` (Vast 검증 호스트, DC + non-DC) \| `UNVERIFIED` (피어 호스트 전용) \| `ALL`. |
+| `max_price` | 실수 | `null` | 시간당 가격 상한(USD); 초과 오퍼는 필터링. |
+| `image` | 문자열 | `pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime` | 인스턴스 컨테이너 이미지. |
+| `network_volume_id` | 정수 | `null` | 링크할 Vast.ai 네트워크 볼륨 ID. 정수만 — Vast는 볼륨을 `V.<정수>` 형태로 표시하므로 정수 부분만 넣으세요. |
+| `volume_mount_path` | 문자열 | `/workspace` | 컨테이너 내 네트워크 볼륨 마운트 경로. |
+| `container_disk_gb` | 정수 | `20` | 임시 루트 디스크 크기. |
+| `worker_port` | 정수 | `8000` | Vast가 공용 IP에 호스트-포트-매핑할 컨테이너 포트. |
+| `environment` | 맵 | `null` | 인스턴스 컨테이너에 주입할 추가 환경 변수. |
+| `idle_timeout` | 기간 | `15m` | 마지막 요청 후 인스턴스 중지 지연. `0s`면 자동 중지 비활성. |
+| `start_timeout` | 기간 | `30m` | 인스턴스 부팅 + 이미지 pull + WS 접속의 최대 시간. |
+| `stop_timeout` | 기간 | `2m` | 정상 중지 유예 시간. |
+
+### 16.6.5 수명 주기 및 과금 안전장치
+
+Vast.ai 인스턴스는 `docker-compose up / create / start / stop / down`과
+정렬된 표준 `setup / start / stop / teardown` 수명 주기를 따릅니다:
+
+- **`setup` (`model-compose up` 시점).** 이전 세션의 고아 인스턴스를
+  회수하고, 새 인스턴스를 생성한 뒤 `running` 상태가 되기를 기다립니다.
+  `(instance_id, auth_token)`을 영속화해 다음 세션에서 생성 비용 없이
+  claim할 수 있게 합니다.
+- **`start`.** `stopped` 인스턴스를 `running`으로 재개하고(수 초) WS
+  트랜스포트를 연결합니다. 네트워크 볼륨이 그대로 링크되어 있어 모델
+  가중치는 이미 웜 상태입니다.
+- **`stop`.** 트랜스포트를 분리하고 `stop_instance`를 호출합니다.
+  인스턴스는 계정에 프로비저닝된 채 남아 있으므로 다음 `start`도
+  저렴한 재개입니다.
+- **`teardown` (`model-compose down` 시점).** `destroy_instance` —
+  이 호출이 끝나면 인스턴스는 사라집니다. 네트워크 볼륨은 **삭제되지
+  않습니다**. 대시보드나 `vastai delete volume <id>`로 직접 관리하세요.
+
+Vast 인스턴스는 초 단위 과금이므로 추가 안전장치가 있습니다:
+
+- **업로드 전 접속 프로브.** 모든 `start`에서 짧은 타임아웃으로 WS
+  포트를 먼저 탐지합니다. 이전 세션의 워커가 아직 서빙 중이면 전체
+  업로드 + pip 설치 경로를 생략하고 바로 접속합니다.
+- **접속 실패 시 중지.** 부트스트랩 후 WS 핸드셰이크가 실패하면
+  (느린 이미지 pull이 `start_timeout` 초과, 부트스트랩 크래시 등)
+  인스턴스를 destroy하지 않고 `stop`합니다. 일시적 실패가 흔하고 재개된
+  인스턴스가 복구되는 경우가 많기 때문입니다. destroy는 `teardown`에만
+  예약되어 있습니다.
+- **재개 실패 복구.** `start_instance`가 영구 실패하면 (호스트가
+  인스턴스 중지 중에 GPU를 회수한 경우 등) 죽은 인스턴스를 destroy하고
+  새 인스턴스를 프로비저닝합니다. 네트워크 볼륨의 가중치는 재사용됩니다.
+- **공유 비밀 인증.** Vast가 노출한 호스트 포트는 인스턴스가 `running`이
+  된 순간부터 공용 인터넷에서 접근 가능합니다. 세션마다 새로 생성된
+  랜덤 bearer 토큰이 인스턴스 환경에 주입되며, 올바른
+  `Authorization: Bearer <token>` 헤더가 없는 연결은 WS 업그레이드
+  단계에서 거부됩니다.
+
+### 16.6.6 네트워크 볼륨
+
+Vast 네트워크 볼륨은 인스턴스의 임시 디스크 대비 두 가지 이점이 있습니다:
+
+1. **모델 영속성.** HuggingFace 캐시가 다운로드한 가중치가
+   `stop_instance`와 `destroy_instance`에도 유지되어, 재시작이 분 단위가
+   아니라 초 단위로 끝납니다.
+2. **pip 캐시.** 부트스트랩 스크립트가 `/workspace/.pip-cache`에 wheel을
+   캐시하므로 재개된 인스턴스에서 model-compose를 재설치할 때 느린 의존성
+   빌드가 생략됩니다.
+
+Vast 볼륨은 **현재 대시보드에서 생성할 수 없습니다** — Storage 페이지가
+기존 볼륨만 나열하고 "Create Network Volume" 폼은 아직 없습니다. CLI를
+사용하세요:
+
+```bash
+# 1) 바인딩할 호스트의 볼륨 오퍼 검색
+vastai search volumes "verified=true disk_space>=20" -o storage_cost
+
+# 2) 선택한 호스트에 20 GB 볼륨 생성 (1단계 오퍼 ID 사용)
+vastai create volume <OFFER_ID> -s 20 -n mindor_whisper_vol
+
+# 3) 생성된 볼륨의 정수 ID 확인 (Vast는 V.<정수> 형태로 표시)
+vastai show volumes
+
+# 4) compose 설정에 정수 부분만 참조
+```
+
+```yaml
+runtime:
+  type: vastai
+  # ...
+  network_volume_id: 58912451
+  volume_mount_path: /workspace
+```
+
+주의:
+
+- **볼륨 이름은 알파벳/숫자/언더스코어만** 허용 (최대 64자). 하이픈은
+  거부됩니다.
+- Vast 볼륨은 **머신 종속**이므로 볼륨을 링크하는 모든 인스턴스는 해당
+  머신에 묶입니다. `network_volume_id`가 설정되면 런타임이 자동으로
+  오퍼 검색에 `machine_id=<호스트>` 필터를 추가합니다.
+- 볼륨은 인스턴스 중지/재개/삭제에도 유지됩니다. 작업을 마치면
+  `vastai delete volume <id>`로 명시적으로 삭제하세요.
+
+### 16.6.7 Vast.ai가 적합하지 않은 경우
+
+Vast.ai는 가격을 얻는 대신 운영상의 복잡도가 증가합니다. 다음 경우에는
+RunPod이나 로컬 런타임을 선호하세요:
+
+- 인스턴스별 내장 HTTPS 프록시가 필요한 경우 — Vast는 컨테이너를 공용
+  호스트 포트로 노출합니다 (현재 `ws://`, 인증 토큰 보호). RunPod의
+  `*.proxy.runpod.net`은 기본적으로 `wss://`입니다.
+- Vast 네트워크 볼륨을 만들 수 없는데 (대시보드 플로우 아직 없음) 모델
+  가중치가 너무 커서 destroy 후 재다운로드가 비용적으로 불가능한 경우 —
+  RunPod 볼륨은 대시보드에서 관리되고 데이터센터 전역입니다.
+- 엄격한 SLA가 필요한 경우 — Vast의 안정성은 호스트에 따라 다릅니다.
+  `VERIFIED` 티어는 Vast 검증 호스트로 좁혀주지만 여전히 머신마다
+  편차가 있습니다.
+
+---
+
+## 16.7 배포 모범 사례
 
 ### 환경별 배포 전략
 

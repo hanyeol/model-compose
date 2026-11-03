@@ -4639,7 +4639,7 @@ Classical GAN-based lip-sync (Rudrabha/Wav2Lip, justinjohn0306 fork). Smallest V
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `params.face_bounding_box` | box | `null` | Fixed face box `(left, top, right, bottom)` in pixels; bypasses face detection |
-| `params.face_bounding_box_padding` | box | `[0, 0, 0, 10]` | Pixel padding `(left, top, right, bottom)` added around each detected face box |
+| `params.face_crop_scale` | float | `0.1` | Columbia-style face crop scale; each side extends by this ratio of `max(w, h) / 2`, bottom extends by twice as much to include the mouth |
 | `params.frame_crop_box` | box | `null` | Manual crop rectangle applied to input frames; `null` on any edge keeps the frame edge |
 | `params.resize_factor` | int | `1` | Downscale factor applied to input frames before inference; higher trades quality for speed |
 | `params.face_smoothing` | bool | `true` | Whether to apply temporal smoothing to face detections across frames |
@@ -4661,7 +4661,7 @@ component:
     video: ${input.video as video}
     audio: ${input.audio as audio}
     params:
-      face_bounding_box_padding: [0, 0, 0, 10]
+      face_crop_scale: 0.1
       resize_factor: 1
       face_smoothing: true
 ```
@@ -4677,14 +4677,14 @@ TMElyralab/MuseTalk latent VAE+UNet with InsightFace + Whisper front-end. Higher
 | Preset | Notes |
 |--------|-------|
 | `v1` | Original release; exposes `bbox_shift` for manual mouth region tuning |
-| `v15` | Default; parsing-mask blending for softer edges, `extra_margin`/`parsing_mode`/`cheek_width` params |
+| `v15` | Default; parsing-mask blending for softer edges, `face_crop_scale`/`parsing_mode`/`cheek_width` params |
 
 **Family-specific Action Fields:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `params.bbox_shift` | int | `0` | Vertical shift (pixels) applied to the detected face bounding box (v1 only) |
-| `params.extra_margin` | int | `10` | Extra chin margin (pixels) added to the face region before blending (v15 only) |
+| `params.face_crop_scale` | float | `0.08` | Columbia-style face crop scale; bottom extends by `2 * max(w, h) / 2 * scale` to pull chin into the crop (v15 only) |
 | `params.parsing_mode` | string | `jaw` | Face parsing region: `jaw` (tight), `neck` (widest), `raw` (default face region) (v15 only) |
 | `params.left_cheek_width` | int | `90` | Left cheek width in pixels used by the parsing mask (v15 only) |
 | `params.right_cheek_width` | int | `90` | Right cheek width in pixels used by the parsing mask (v15 only) |
@@ -4708,7 +4708,7 @@ component:
     audio: ${input.audio as audio}
     params:
       parsing_mode: jaw
-      extra_margin: 10
+      face_crop_scale: 0.08
       use_float16: true
 ```
 

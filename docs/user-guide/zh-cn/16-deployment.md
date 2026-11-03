@@ -1129,7 +1129,213 @@ model-compose run chat --session-id my-session -i '{"prompt": "hello"}'
 
 ---
 
-## 16.6 部署最佳实践
+## 16.6 Vast.ai 运行时
+
+在远程 [Vast.ai](https://vast.ai/) GPU 实例上运行组件。控制器仍在本地
+主机上，只有繁重的计算（模型权重、推理、GPU 显存）在实例上运行。请求之间
+的计费通过 `idle_timeout` 自动暂停。Vast.ai 市场在相同 GPU 条件下通常比
+RunPod 便宜约 30–50%，并覆盖 RunPod 不提供的消费级显卡（4090/5090）。
+
+### 16.6.1 工作原理
+
+当带有 `runtime.type: vastai` 的组件被 `model-compose up` 启动时，
+model-compose 会：
+
+1. 销毁来自之前会话的、标签为 `mindor-<component_id>` 的孤立实例以回收
+   资源。网络卷会保留，所以模型权重得以保存。
+2. 通过官方 `vastai` SDK 在 Vast.ai 市场中搜索与所配置的 GPU、主机层级
+   和价格上限匹配的最便宜报价。当设置了 `network_volume_id` 时，搜索
+   会被固定到该卷所在的主机 —— Vast 卷是机器本地的。
+3. 使用配置的镜像租用所选报价，并在 `volume_mount_path` 链接网络卷（如有）。
+4. 实例启动 CUDA 基础镜像，apt 安装 `ffmpeg`，将当前 `model-compose`
+   从 GitHub 安装到卷上的缓存 venv 中，并在配置的端口上启动一个
+   WebSocket IPC 服务器。Vast 通过主机端口映射向外暴露。
+5. model-compose 使用按会话生成的 bearer token 连接到
+   `ws://<public_ip>:<mapped_port>`。此时组件即可使用，请求通过 IPC
+   代理流向嵌入式 worker。
+
+最后一个在途请求完成且 `idle_timeout` 过去后，model-compose 会调用
+`stop_instance` 以暂停 GPU 计费。下一个请求会在数秒内恢复同一个实例，
+网络卷仍然链接 —— 模型权重不会重新下载。
+
+### 16.6.2 基本配置
+
+**Vast.ai 组件的最小可用配置：**
+
+```yaml
+component:
+  type: model
+  task: speech-to-text
+  driver: huggingface
+  architecture: whisper
+  model: openai/whisper-large-v3-turbo
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+    gpu_type: RTX 4090              # Vast.ai GPU 名称；允许空格
+    network_volume_id: 58912451     # 通过 `vastai create volume` 预先创建
+```
+
+必填字段：
+
+- `api_key` —— Vast.ai API 密钥，通常从环境变量读取。
+- `gpu_type` —— Vast GPU 目录名称（如 `RTX 4090`、`H100 SXM`、
+  `H100 PCIE`、`A100 80GB`）。允许空格；客户端会按市场查询语法编码。
+
+可选但推荐：
+
+- `network_volume_id` —— 模型权重的持久化存储。不设置则每个新实例都会
+  将模型重新下载到临时磁盘。Vast 网络卷是**机器本地**的（与 RunPod 的
+  数据中心范围卷不同），因此设置此字段还会把市场搜索限定到该主机。
+
+### 16.6.3 完整配置
+
+```yaml
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  model: MiniMaxAI/MiniMax-H3
+  runtime:
+    type: vastai
+    api_key: ${env.VASTAI_API_KEY}
+
+    # 实例规格
+    gpu_type: H100 SXM
+    gpu_count: 1
+    cloud_type: VERIFIED              # DATACENTER | VERIFIED | UNVERIFIED | ALL
+    max_price: 3.00                   # 每小时美元上限；超过的报价会被跳过
+
+    # 镜像（默认：pytorch/pytorch:*-cuda*-cudnn*-runtime）
+    image: pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
+
+    # 存储
+    network_volume_id: 58912451
+    volume_mount_path: /workspace     # 默认；pip 缓存也在此处
+    container_disk_gb: 20
+
+    # 网络
+    worker_port: 8000                 # 通过 Vast 的主机端口映射对外暴露
+
+    # 注入到实例容器的额外环境变量
+    environment:
+      HF_TOKEN: ${env.HF_TOKEN}
+
+    # 生命周期
+    idle_timeout: 15m                 # 最后一次请求后 stop_instance 的延迟
+    start_timeout: 30m                # 实例启动 + WS 接入的最大时间
+    stop_timeout: 2m                  # stop_instance 的宽限时间
+```
+
+### 16.6.4 字段参考
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `api_key` | string | — | **必填。** Vast.ai API 密钥。 |
+| `gpu_type` | string | — | **必填。** Vast GPU 目录名称。 |
+| `gpu_count` | int | `1` | 实例上附加的 GPU 数量。 |
+| `cloud_type` | enum | `VERIFIED` | `DATACENTER`（严格的商业数据中心）\| `VERIFIED`（Vast 验证主机，DC 或非 DC）\| `UNVERIFIED`（仅对等主机）\| `ALL`。 |
+| `max_price` | float | `null` | 每小时价格上限（美元）；超过的报价会被过滤。 |
+| `image` | string | `pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime` | 实例容器镜像。 |
+| `network_volume_id` | int | `null` | 要链接的 Vast.ai 网络卷 ID。仅为整数 —— Vast 将卷显示为 `V.<整数>`；只传整数部分。 |
+| `volume_mount_path` | string | `/workspace` | 容器内网络卷的挂载路径。 |
+| `container_disk_gb` | int | `20` | 临时根磁盘大小。 |
+| `worker_port` | int | `8000` | Vast 将主机端口映射到公网 IP 的容器端口。 |
+| `environment` | map | `null` | 注入到实例容器的额外环境变量。 |
+| `idle_timeout` | duration | `15m` | 最后一次请求后实例停止的延迟。`0s` 禁用自动停止。 |
+| `start_timeout` | duration | `30m` | 实例启动 + 镜像拉取 + WS 接入的最大时间。 |
+| `stop_timeout` | duration | `2m` | 优雅停止的截止时间。 |
+
+### 16.6.5 生命周期与计费保障
+
+Vast.ai 实例遵循与 `docker-compose up / create / start / stop / down`
+对齐的标准 `setup / start / stop / teardown` 生命周期：
+
+- **`setup`（在 `model-compose up` 时）。** 回收之前会话的孤立实例，
+  创建新实例并等待它进入 `running` 状态，持久化
+  `(instance_id, auth_token)` 以便下个会话可以 claim 而无需再付创建成本。
+- **`start`。** 将 `stopped` 实例恢复到 `running`（数秒）并连接 WS
+  传输。网络卷仍然链接，所以模型权重已经是热的。
+- **`stop`。** 分离传输并调用 `stop_instance`。实例在账号中仍被预留，
+  下一次 `start` 又是便宜的恢复。
+- **`teardown`（在 `model-compose down` 时）。** `destroy_instance` ——
+  此调用返回后实例就不存在了。网络卷**不会被删除**，请从控制台或用
+  `vastai delete volume <id>` 自行管理。
+
+Vast 实例按秒计费，还有额外的保障以防止费用失控：
+
+- **上传前的接入探测。** 每次 `start` 时，model-compose 先用较短超时
+  探测 WS 端口。如果上一会话的 worker 还在服务，就跳过完整的上传 + pip
+  安装路径，直接接入。
+- **接入失败即停止。** 若在引导启动后 WS 握手失败（镜像拉取过慢超出
+  `start_timeout`、引导崩溃等），实例会被 `stop` 而不是 destroy —— 瞬时
+  失败很常见，恢复的实例通常可以继续。销毁只留给 `teardown`。
+- **恢复失败的回退。** `start_instance` 永久失败时（例如宿主在实例停止
+  期间收回了 GPU），死实例会被 destroy 并重新预配一个。网络卷上的权重
+  会被复用。
+- **共享秘密认证。** 实例一旦 `running`，Vast 暴露的主机端口就能从公网
+  访问。每个会话都在实例环境中注入新的随机 bearer token；没有正确
+  `Authorization: Bearer <token>` 头的连接会在 WS 升级阶段被拒绝。
+
+### 16.6.6 网络卷
+
+Vast 网络卷相比实例的临时磁盘有两个好处：
+
+1. **模型持久化。** HuggingFace 缓存下载的权重在 `stop_instance` 和
+   `destroy_instance` 之后仍然保留，所以重新启动是数秒而不是数分钟。
+2. **pip 缓存。** 引导脚本把 wheel 缓存到 `/workspace/.pip-cache`，
+   因此恢复的实例上重新安装 model-compose 会跳过缓慢的依赖构建。
+
+Vast 卷**今天还不能从控制面板创建** —— Vast 存储页只列出已有的卷，没有
+"Create Network Volume" 表单。请使用 CLI：
+
+```bash
+# 1) 搜索你想要绑定的主机上的卷报价
+vastai search volumes "verified=true disk_space>=20" -o storage_cost
+
+# 2) 在所选主机上创建 20 GB 卷（使用步骤 1 的报价 ID）
+vastai create volume <OFFER_ID> -s 20 -n mindor_whisper_vol
+
+# 3) 确认卷的整数 ID（Vast 显示为 V.<整数>）
+vastai show volumes
+
+# 4) 在 compose 配置中引用整数部分
+```
+
+```yaml
+runtime:
+  type: vastai
+  # ...
+  network_volume_id: 58912451
+  volume_mount_path: /workspace
+```
+
+注意：
+
+- **卷名必须是字母数字或下划线**（最长 64 个字符）。连字符会被拒绝。
+- Vast 卷是**机器本地**的 —— 任何链接该卷的实例都会被固定到那台机器。
+  设置 `network_volume_id` 时运行时会自动在报价搜索中加入
+  `machine_id=<宿主>` 过滤。
+- 卷在实例的停止/恢复/销毁后仍然保留。完成后用
+  `vastai delete volume <id>` 显式删除。
+
+### 16.6.7 何时 Vast.ai 不合适
+
+Vast.ai 用价格换取运维上的复杂度。以下情况请选择 RunPod 或本地运行时：
+
+- 需要每个实例的内置 HTTPS 代理 —— Vast 通过原始主机端口暴露容器
+  （目前为 `ws://`，由认证 token 保护）。RunPod 的
+  `*.proxy.runpod.net` 开箱即用是 `wss://`。
+- 无法创建 Vast 网络卷（控制面板流程尚未上线），而模型权重过大导致
+  销毁后重新下载不可接受 —— RunPod 的卷通过控制面板管理，并且是
+  数据中心范围的。
+- 需要严格的 SLA 保证 —— Vast 的可靠性因主机而异；`VERIFIED` 层级会
+  将其收窄到 Vast 验证的主机，但不同机器仍有差异。
+
+---
+
+## 16.7 部署最佳实践
 
 ### 特定于环境的部署策略
 

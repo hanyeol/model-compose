@@ -2058,7 +2058,7 @@ component:
     video: ${input.video as video}
     audio: ${input.audio as audio}
     params:
-      face_bounding_box_padding: [0, 0, 0, 10]
+      face_crop_scale: 0.1
       resize_factor: 1
       face_smoothing: true
 ```
@@ -2076,7 +2076,7 @@ component:
 - `video`、`audio` — 必需输入；均可为单值、列表或流。
 - `params.frame_rate` — 输出帧率；未设置时默认为源视频的帧率。
 - `params.face_bounding_box` — 绕过人脸检测的 LTRB 像素元组（Wav2Lip）。当源视频的自动检测失败时提供。
-- `params.face_bounding_box_padding` — 围绕检测到的人脸添加的 LTRB 像素填充（Wav2Lip）。加大 `bottom` 可在特写镜头中避免下巴被裁掉。
+- `params.face_crop_scale` — 模型消费人脸裁剪前应用的 Columbia 风格 face crop scale（Wav2Lip、MuseTalk v1.5）。在特写镜头中加大数值可避免下巴被裁掉。
 - `params.parsing_mode` — 用于融合的人脸 parsing 区域：`jaw`、`neck` 或 `raw`（MuseTalk v1.5）。
 - `params.inference_steps`、`params.guidance_scale` — 扩散采样控制（LatentSync）。
 - `params.generator_batch_size` — UNet 推理批大小（Wav2Lip、MuseTalk）。

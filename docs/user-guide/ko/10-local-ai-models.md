@@ -2058,7 +2058,7 @@ component:
     video: ${input.video as video}
     audio: ${input.audio as audio}
     params:
-      face_bounding_box_padding: [0, 0, 0, 10]
+      face_crop_scale: 0.1
       resize_factor: 1
       face_smoothing: true
 ```
@@ -2076,7 +2076,7 @@ component:
 - `video`, `audio` — 필수 입력; 둘 다 단일 값, 리스트, 또는 스트림 가능.
 - `params.frame_rate` — 출력 프레임률; 지정하지 않으면 소스 비디오의 프레임률을 사용.
 - `params.face_bounding_box` — 얼굴 검출을 우회하는 LTRB 픽셀 튜플 (Wav2Lip). 소스 비디오의 자동 검출이 실패할 때 제공.
-- `params.face_bounding_box_padding` — 검출된 얼굴 주변에 추가되는 LTRB 픽셀 패딩 (Wav2Lip). 클로즈업 샷에서 턱이 잘리는 것을 막으려면 `bottom`을 확장.
+- `params.face_crop_scale` — 모델이 얼굴 crop을 소비하기 전에 적용되는 Columbia 방식 face crop scale (Wav2Lip, MuseTalk v1.5). 클로즈업 샷에서 턱이 잘리는 것을 막으려면 값을 키움.
 - `params.parsing_mode` — 블렌딩에 사용할 얼굴 파싱 영역: `jaw`, `neck`, `raw` (MuseTalk v1.5).
 - `params.inference_steps`, `params.guidance_scale` — 확산 샘플링 제어 (LatentSync).
 - `params.generator_batch_size` — UNet 추론 배치 (Wav2Lip, MuseTalk).

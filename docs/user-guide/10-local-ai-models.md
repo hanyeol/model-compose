@@ -2172,7 +2172,7 @@ component:
     video: ${input.video as video}
     audio: ${input.audio as audio}
     params:
-      face_bounding_box_padding: [0, 0, 0, 10]
+      face_crop_scale: 0.1
       resize_factor: 1
       face_smoothing: true
 ```
@@ -2190,7 +2190,7 @@ component:
 - `video`, `audio` — required inputs; both can be single values, lists, or streams.
 - `params.frame_rate` — output frame rate; defaults to the source video's frame rate when unset.
 - `params.face_bounding_box` — LTRB pixel tuple that bypasses face detection (Wav2Lip). Provide when the source video's automatic detection fails.
-- `params.face_bounding_box_padding` — LTRB pixel padding added around the detected face (Wav2Lip). Extend `bottom` to keep the chin from getting clipped on close-up shots.
+- `params.face_crop_scale` — Columbia-style face crop scale applied before the model consumes the crop (Wav2Lip, MuseTalk v1.5). Increase to keep the chin from getting clipped on close-up shots.
 - `params.parsing_mode` — face parsing region used for blending: `jaw`, `neck`, or `raw` (MuseTalk v1.5).
 - `params.inference_steps`, `params.guidance_scale` — diffusion sampling controls (LatentSync).
 - `params.generator_batch_size` — UNet inference batch (Wav2Lip, MuseTalk).

@@ -5,6 +5,8 @@ from typing import Optional, Union, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import (
     ModelComponentConfig,
     ModelSubmoduleConfig,
+    ModelQuantizationConfig,
+    ModelQuantizationType,
     PeftAdapterConfig,
     HuggingfaceModelConfig,
 )
@@ -20,6 +22,17 @@ import io
 if TYPE_CHECKING:
     from transformers import PreTrainedModel
     import torch
+
+# Checkpoint-specific modules that must stay in bfloat16 to preserve output quality.
+# Mirrors the lists in the diffusers MiniMax-H3 docs; update when the upstream recipe changes.
+_MINIMAX_H3_TRANSFORMER_SKIP_MODULES: Tuple[str, ...] = (
+    "proj_in", "audio_proj_in", "context_embedder", "time_embedder", "time_proj",
+    "token_refiner", "norm_out", "proj_out", "audio_proj_out",
+)
+
+_MINIMAX_H3_TEXT_ENCODER_SKIP_MODULES: Tuple[str, ...] = (
+    "model.visual", "model.language_model.embed_tokens", "model.language_model.norm", "lm_head",
+)
 
 class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
     config: MinimaxH3TextToVideoModelActionConfig
@@ -232,7 +245,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [
+        requirements: List[Union[str, Tuple[str, List[str]]]] = [
             *torch_requirements("torch", "torchvision"),
             "diffusers>=0.36",
             "transformers>=4.45",
@@ -248,6 +261,19 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             "huggingface_hub>=0.25",
         ]
 
+        if self._has_quantization():
+            requirements.append("torchao>=0.8")
+
+        return requirements
+
+    def _has_quantization(self) -> bool:
+        if self.config.quantization is not None:
+            return True
+
+        text_encoder = getattr(self.config, "text_encoder", None)
+
+        return text_encoder is not None and text_encoder.quantization is not None
+
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
         self.pipeline = await self._load_pipeline()
@@ -260,10 +286,28 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
-        if self.config.text_encoder is not None:
-            text_encoder = await self._load_pretrained_text_encoder(self.config.text_encoder)
+        text_encoder_config = self.config.text_encoder
+        text_encoder_quantization = self._resolve_submodule_quantization(text_encoder_config)
+
+        if text_encoder_config is not None or text_encoder_quantization is not None:
+            text_encoder = await self._load_pretrained_text_encoder(
+                text_encoder_config,
+                model_path,
+                text_encoder_quantization,
+            )
         else:
             text_encoder = None
+
+        transformer_config = None
+        transformer_quantization = self._resolve_submodule_quantization(transformer_config)
+        if transformer_config is not None or transformer_quantization is not None:
+            transformer = await self._load_pretrained_transformer(
+                transformer_config,
+                model_path,
+                transformer_quantization,
+            )
+        else:
+            transformer = None
 
         peft_adapters = self.config.peft_adapter or []
         peft_adapter_paths = [ await self._provision_model(adapter.model) for adapter in peft_adapters ]
@@ -286,10 +330,18 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
                 components_manager=manager,
             )
 
-            # Attach the externally-loaded text_encoder BEFORE load_components;
+            # Inject externally-loaded submodules BEFORE load_components;
             # load_components skips components that are already registered.
+            components: Dict[str, Any] = {}
+
             if text_encoder is not None:
-                pipeline.update_components(text_encoder=text_encoder)
+                components["text_encoder"] = text_encoder
+
+            if transformer is not None:
+                components["transformer"] = transformer
+
+            if components:
+                pipeline.update_components(**components)
 
             pipeline.load_components(dtype=torch.bfloat16)
 
@@ -311,29 +363,140 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
         return await self._run_in_executor(_load)
 
-    async def _load_pretrained_text_encoder(self, text_encoder: ModelSubmoduleConfig) -> PreTrainedModel:
+    async def _load_pretrained_text_encoder(
+        self,
+        text_encoder_config: Optional[ModelSubmoduleConfig],
+        model_path: str,
+        quantization: Optional[ModelQuantizationConfig],
+    ) -> PreTrainedModel:
         from transformers import Qwen3VLForConditionalGeneration
 
-        encoder_path = await self._provision_model(text_encoder.model)
+        model_subfolder: Optional[str] = None
+
+        if text_encoder_config is not None:
+            model_path = await self._provision_model(text_encoder_config.model)
+        else:
+            model_subfolder = "text_encoder"
 
         def _load() -> PreTrainedModel:
             import torch
 
-            logging.info(f"Component '{self.id}': loading {Qwen3VLForConditionalGeneration.__name__} from {encoder_path}")
+            logging.info(f"Component '{self.id}': loading {Qwen3VLForConditionalGeneration.__name__} from {model_path}")
 
             params: Dict[str, Any] = {}
 
-            if text_encoder.precision is not None:
-                params["torch_dtype"] = getattr(torch, text_encoder.precision.value)
+            if text_encoder_config is not None and text_encoder_config.precision is not None:
+                params["torch_dtype"] = getattr(torch, text_encoder_config.precision.value)
             else:
                 params["torch_dtype"] = torch.bfloat16
 
-            if text_encoder.low_cpu_mem_usage:
+            if text_encoder_config is not None and text_encoder_config.low_cpu_mem_usage:
                 params["low_cpu_mem_usage"] = True
 
-            return Qwen3VLForConditionalGeneration.from_pretrained(encoder_path, **params)
+            if model_subfolder is not None:
+                params["subfolder"] = model_subfolder
+
+            if quantization is not None:
+                params["quantization_config"] = self._build_transformers_quantization_config(
+                    quantization,
+                    skip_modules=_MINIMAX_H3_TEXT_ENCODER_SKIP_MODULES,
+                )
+
+            return Qwen3VLForConditionalGeneration.from_pretrained(model_path, **params)
 
         return await self._run_in_executor(_load)
+
+    async def _load_pretrained_transformer(
+        self,
+        transformer_config: Optional[ModelSubmoduleConfig],
+        model_path: str,
+        quantization: Optional[ModelQuantizationConfig],
+    ) -> Any:
+        from diffusers import MiniMaxH3Transformer3DModel
+
+        model_subfolder: Optional[str] = None
+
+        if transformer_config is not None:
+            model_path = await self._provision_model(transformer_config.model)
+        else:
+            model_subfolder = "transformer"
+
+        def _load() -> Any:
+            import torch
+
+            logging.info(f"Component '{self.id}': loading {MiniMaxH3Transformer3DModel.__name__} from {model_path}")
+
+            params: Dict[str, Any] = {}
+
+            if transformer_config is not None and transformer_config.precision is not None:
+                params["torch_dtype"] = getattr(torch, transformer_config.precision.value)
+            else:
+                params["torch_dtype"] = torch.bfloat16
+
+            params["low_cpu_mem_usage"] = False
+
+            if model_subfolder is not None:
+                params["subfolder"] = model_subfolder
+
+            if quantization is not None:
+                params["quantization_config"] = self._build_diffusers_quantization_config(
+                    quantization,
+                    skip_modules=_MINIMAX_H3_TRANSFORMER_SKIP_MODULES,
+                )
+
+            return MiniMaxH3Transformer3DModel.from_pretrained(model_path, **params)
+
+        return await self._run_in_executor(_load)
+
+    def _resolve_submodule_quantization(
+        self,
+        submodule: Optional[ModelSubmoduleConfig],
+    ) -> Optional[ModelQuantizationConfig]:
+        if submodule is not None and submodule.quantization is not None:
+            return submodule.quantization
+
+        return self.config.quantization
+
+    def _build_diffusers_quantization_config(
+        self,
+        quantization: ModelQuantizationConfig,
+        skip_modules: Tuple[str, ...],
+    ) -> Any:
+        from diffusers import TorchAoConfig
+
+        return TorchAoConfig(
+            self._build_quant_type(quantization),
+            modules_to_not_convert=list(skip_modules),
+        )
+
+    def _build_transformers_quantization_config(
+        self,
+        quantization: ModelQuantizationConfig,
+        skip_modules: Tuple[str, ...],
+    ) -> Any:
+        from transformers import TorchAoConfig
+
+        return TorchAoConfig(
+            self._build_quant_type(quantization),
+            modules_to_not_convert=list(skip_modules),
+        )
+
+    def _build_quant_type(self, quantization: ModelQuantizationConfig) -> Any:
+        # `version=2` tensors are pinnable, which group-offload with streaming requires;
+        # the upstream MiniMax-H3 recipe pins the same version for int8 weight-only.
+        if quantization.type == ModelQuantizationType.INT8:
+            from torchao.quantization import Int8WeightOnlyConfig
+            return Int8WeightOnlyConfig(version=2)
+
+        if quantization.type == ModelQuantizationType.INT4:
+            from torchao.quantization import Int4WeightOnlyConfig
+            return Int4WeightOnlyConfig()
+
+        if quantization.type == ModelQuantizationType.FP8:
+            from torchao.quantization import Float8WeightOnlyConfig
+            return Float8WeightOnlyConfig()
+
+        raise ValueError(f"Unsupported quantization type: {quantization.type.value!r}.")
 
     def _attach_peft_adapters(
         self,

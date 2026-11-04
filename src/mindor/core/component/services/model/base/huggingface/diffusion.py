@@ -170,6 +170,7 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
                 load_params["weight_name"] = adapter.model.filename
 
             logging.info(f"Component '{self.id}': loading LoRA adapter '{name}' from {path}")
+
             pipeline.load_lora_weights(path, **load_params)
 
             names.append(name)

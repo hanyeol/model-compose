@@ -39,6 +39,6 @@ class MinimaxH3TextToVideoModelComponentConfig(CommonTextToVideoModelComponentCo
             if adapter.type != PeftAdapterType.LORA:
                 raise ValueError(
                     f"peft_adapter[{index}] has type={adapter.type.value!r}; "
-                    f"minimax-h3 text-to-video only supports type={PeftAdapterType.LORA.value!r}."
+                    f"minimax-h3 only supports type={PeftAdapterType.LORA.value!r}."
                 )
         return self

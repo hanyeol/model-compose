@@ -188,10 +188,20 @@ ModelConfig = Annotated[
     Field(discriminator="provider")
 ]
 
+class ModelQuantizationConfig(BaseModel):
+    type: ModelQuantizationType = Field(..., description="Quantization scheme applied to model weights.")
+    compute_dtype: Optional[str] = Field(default=None, description="Compute dtype used with 4-bit quantization (e.g., float16, bfloat16).")
+    double_quant: bool = Field(default=True, description="Whether to apply nested quantization for 4-bit weights.")
+
+class OnDemandConfig(BaseModel):
+    priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Retention priority when memory pressure forces the model to be unloaded.")
+    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before the model is auto-unloaded, as a duration string (e.g., \"5m\") or seconds; \"0s\" disables auto-unload.")
+
 class ModelSubmoduleConfig(BaseModel):
     model: ModelConfig = Field(..., description="Submodule model identifier — a HuggingFace repo ID or a local path.")
     checkpoint: Optional[str] = Field(default=None, description="Checkpoint file to load from the submodule (e.g. `models/ip-adapter_sd15.bin`).")
     precision: Optional[ModelPrecision] = Field(default=None, description="Numeric precision used for submodule weights and computation.")
+    quantization: Optional[ModelQuantizationConfig] = Field(default=None, description="Weight quantization applied to this submodule; overrides the component-level `quantization` when set. Currently respected only by the MiniMax-H3 text-to-video driver.")
     low_cpu_mem_usage: Union[bool, str] = Field(default=False, description="Whether to load the submodule with reduced CPU RAM usage.")
 
     @model_validator(mode="before")
@@ -229,19 +239,18 @@ class ModelSubmoduleConfig(BaseModel):
 
         return values
 
-class ModelQuantizationConfig(BaseModel):
-    type: ModelQuantizationType = Field(..., description="Quantization scheme applied to model weights.")
-    compute_dtype: Optional[str] = Field(default=None, description="Compute dtype used with 4-bit quantization (e.g., float16, bfloat16).")
-    double_quant: bool = Field(default=True, description="Whether to apply nested quantization for 4-bit weights.")
+    @model_validator(mode="before")
+    def inflate_quantization(cls, values: Any):
+        if isinstance(values, dict):
+            quantization = values.get("quantization")
+            if isinstance(quantization, str):
+                values["quantization"] = { "type": quantization }
+        return values
 
 class PeftAdapterConfig(ModelSubmoduleConfig):
     type: PeftAdapterType = Field(..., description="Type of PEFT adapter to load.")
     name: Optional[str] = Field(default=None, description="Name assigned to the adapter for reference.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight applied when merging with the base model (0.0-1.0).")
-
-class OnDemandConfig(BaseModel):
-    priority: OnDemandPriority = Field(default=OnDemandPriority.NORMAL, description="Retention priority when memory pressure forces the model to be unloaded.")
-    idle_timeout: Union[str, int, float] = Field(default="300s", description="Idle time before the model is auto-unloaded, as a duration string (e.g., \"5m\") or seconds; \"0s\" disables auto-unload.")
 
 class CommonModelComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.MODEL]

@@ -17,30 +17,6 @@ import asyncio, re
 # so the new package becomes importable without touching `sys.path`.
 _MINDOR_INSTALL_ROOT: Path = Path(mindor.__file__).resolve().parent.parent
 
-class PackageInstallError(subprocess.CalledProcessError):
-    """`CalledProcessError` whose message carries the tail of the installer's output.
-
-    The plain `str(CalledProcessError)` is only "Command [...] returned non-zero
-    exit status 1", so a failed install (e.g. a flash-attn sdist build) left no
-    trace of why in the logs (hanyeol/model-compose#50).
-    """
-    _TAIL_LINES = 40
-
-    def __str__(self) -> str:
-        message = super().__str__()
-
-        for stream in (self.stderr, self.output):
-            if not stream:
-                continue
-
-            text = stream.decode("utf-8", errors="replace") if isinstance(stream, bytes) else str(stream)
-            tail = "\n".join(text.strip().splitlines()[-self._TAIL_LINES:])
-
-            if tail:
-                return f"{message}\n{tail}"
-
-        return message
-
 async def install_package(
     package_spec: str,
     repository: Optional[str] = None,
@@ -106,21 +82,19 @@ async def install_package(
             install_spec,
         ] + pip_options
 
+    # Inherit stdout/stderr so long-running builds (CUDA extension compiles,
+    # torch wheel downloads) stream to the user's terminal in real time
+    # instead of looking hung, and so pip's own failure output stays visible
+    # when the install exits non-zero (hanyeol/model-compose#50).
     process = await asyncio.create_subprocess_exec(
         *command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        stdin=asyncio.subprocess.DEVNULL,
     )
 
-    stdout, stderr = await process.communicate()
+    await process.wait()
 
     if process.returncode != 0:
-        raise PackageInstallError(
-            process.returncode,
-            command,
-            output=stdout,
-            stderr=stderr
-        )
+        raise subprocess.CalledProcessError(process.returncode, command)
 
 async def install_package_from_github(
     module_name: str,

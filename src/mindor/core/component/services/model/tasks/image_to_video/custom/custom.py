@@ -8,4 +8,8 @@ class CustomImageToVideoTaskDriver:
             from .wan import WanImageToVideoTaskDriver
             return WanImageToVideoTaskDriver(id, config, daemon)
 
+        if config.family == ImageToVideoModelFamily.MINIMAX_H3:
+            from .minimax_h3.minimax_h3 import MinimaxH3ImageToVideoTaskDriver
+            return MinimaxH3ImageToVideoTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

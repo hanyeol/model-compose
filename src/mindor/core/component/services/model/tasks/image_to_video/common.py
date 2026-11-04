@@ -46,13 +46,21 @@ class ImageToVideoTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
-        image  = await context.render_image(self.config.image)
-        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        if self._support_multiple_image_input():
+            image = await context.render_image_array(self.config.image, single_as_array=True)
+        else:
+            image = await context.render_image(self.config.image)
+
+        last_image = await context.render_image(self.config.last_image) if self.config.last_image is not None else None
+        prompt     = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
 
         is_single_input    = not isinstance(image, (list, StreamIterator, AsyncIterator))
         is_streaming_input = isinstance(image, (StreamIterator, AsyncIterator))
 
-        return (image, prompt), image, is_single_input, is_streaming_input
+        return (image, last_image, prompt), image, is_single_input, is_streaming_input
+
+    def _support_multiple_image_input(self) -> bool:
+        return False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         num_frames = await context.render_variable(self.config.params.num_frames)

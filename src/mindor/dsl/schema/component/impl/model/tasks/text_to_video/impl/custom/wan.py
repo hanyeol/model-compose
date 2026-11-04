@@ -1,7 +1,7 @@
 from typing import Literal, List
 from enum import Enum
 from pydantic import Field
-from mindor.dsl.schema.action import TextToVideoModelActionConfig
+from mindor.dsl.schema.action import WanTextToVideoModelActionConfig
 from ..common import CommonTextToVideoModelComponentConfig
 from .common import TextToVideoModelFamily
 from ....common import ModelDriverType
@@ -15,4 +15,4 @@ class WanTextToVideoModelComponentConfig(CommonTextToVideoModelComponentConfig):
     family: Literal[TextToVideoModelFamily.WAN]
     preset: WanTextToVideoPreset = Field(default=WanTextToVideoPreset.T2V_A14B, description="Wan model preset selecting the checkpoint variant.")
     cpu_offload: bool = Field(default=False, description="Low-VRAM mode: offload DiT between steps, keep T5 on CPU, and cast DiT to its config dtype.")
-    actions: List[TextToVideoModelActionConfig] = Field(default_factory=list, description="Actions this text-to-video component exposes to workflows.")
+    actions: List[WanTextToVideoModelActionConfig] = Field(default_factory=list, description="Actions this text-to-video component exposes to workflows.")

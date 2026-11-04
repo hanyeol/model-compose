@@ -31,7 +31,8 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
         self.cpu_offload: bool = cpu_offload
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
-        (image, prompt), primary_input, is_single_input, is_streaming_input = await super()._prepare_input(context)
+        inputs, primary_input, is_single_input, is_streaming_input = await super()._prepare_input(context)
+        image, _, prompt = inputs
 
         negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
 

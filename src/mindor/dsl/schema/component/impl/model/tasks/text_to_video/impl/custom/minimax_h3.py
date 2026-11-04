@@ -5,7 +5,7 @@ from mindor.dsl.schema.action import TextToVideoModelActionConfig
 from mindor.dsl.utils.path import is_local_path
 from ..common import CommonTextToVideoModelComponentConfig
 from .common import TextToVideoModelFamily
-from ....common import ModelDriverType, ModelProvider, ModelSubmoduleConfig
+from ....common import ModelDriverType, ModelProvider, ModelSubmoduleConfig, PeftAdapterType
 
 _DEFAULT_MODEL_REPOSITORY = "MiniMaxAI/MiniMax-H3"
 
@@ -32,3 +32,13 @@ class MinimaxH3TextToVideoModelComponentConfig(CommonTextToVideoModelComponentCo
             else:
                 values["model"] = { "provider": ModelProvider.HUGGINGFACE, "repository": model }
         return values
+
+    @model_validator(mode="after")
+    def validate_lora_peft_adapter(self):
+        for index, adapter in enumerate(self.peft_adapter or []):
+            if adapter.type != PeftAdapterType.LORA:
+                raise ValueError(
+                    f"peft_adapter[{index}] has type={adapter.type.value!r}; "
+                    f"minimax-h3 text-to-video only supports type={PeftAdapterType.LORA.value!r}."
+                )
+        return self

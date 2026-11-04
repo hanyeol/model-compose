@@ -2,7 +2,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Union, Dict, List, Tuple, Any
-from mindor.dsl.schema.component import ModelComponentConfig, ModelSubmoduleConfig
+from mindor.dsl.schema.component import (
+    ModelComponentConfig,
+    ModelSubmoduleConfig,
+    PeftAdapterConfig,
+    HuggingfaceModelConfig,
+)
 from mindor.dsl.schema.action import ModelActionConfig, MinimaxH3TextToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
@@ -260,6 +265,9 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         else:
             text_encoder = None
 
+        peft_adapters = self.config.peft_adapter or []
+        peft_adapter_paths = [ await self._provision_model(adapter.model) for adapter in peft_adapters ]
+
         def _load() -> Any:
             import torch
 
@@ -271,7 +279,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             # be created before `from_pretrained` and passed in so loaded
             # components auto-register under its control; after that the manager
             # (not `pipeline.to`) decides when each module is on GPU vs CPU.
-            manager = ComponentsManager() if self.cpu_offload else None
+            manager = ComponentsManager() if self.config.cpu_offload else None
             pipeline = ModularPipeline.from_pretrained(
                 model_path,
                 workflow="t2va",
@@ -284,6 +292,9 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
                 pipeline.update_components(text_encoder=text_encoder)
 
             pipeline.load_components(dtype=torch.bfloat16)
+
+            if peft_adapters:
+                self._attach_peft_adapters(pipeline, peft_adapters, peft_adapter_paths)
 
             if manager is not None:
                 # Default `memory_reserve_margin` is 3 GB, which is too tight for
@@ -324,6 +335,32 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
         return await self._run_in_executor(_load)
 
-    @property
-    def cpu_offload(self) -> bool:
-        return bool(getattr(self.config, "cpu_offload", False))
+    def _attach_peft_adapters(
+        self,
+        pipeline: Any,
+        adapters: List[PeftAdapterConfig],
+        adapter_paths: List[str],
+    ) -> None:
+        if not hasattr(pipeline, "load_lora_weights"):
+            raise ValueError(
+                f"{type(pipeline).__name__} does not support LoRA loading; remove `peft_adapter` from the component config."
+            )
+
+        names: List[str] = []
+        weights: List[float] = []
+
+        for index, (adapter, path) in enumerate(zip(adapters, adapter_paths)):
+            name = adapter.name or f"peft_adapter_{index}"
+            load_params: Dict[str, Any] = { "adapter_name": name }
+
+            if isinstance(adapter.model, HuggingfaceModelConfig) and adapter.model.filename:
+                load_params["weight_name"] = adapter.model.filename
+
+            logging.info(f"Component '{self.id}': loading LoRA adapter '{name}' from {path}")
+            pipeline.load_lora_weights(path, **load_params)
+
+            names.append(name)
+            weights.append(float(adapter.weight))
+
+        if hasattr(pipeline, "set_adapters"):
+            pipeline.set_adapters(names, adapter_weights=weights)

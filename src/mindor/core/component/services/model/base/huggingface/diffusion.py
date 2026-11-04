@@ -118,7 +118,9 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
             if scheduler is not None:
                 self._apply_scheduler(base_pipeline, scheduler)
 
-            self._attach_peft_adapters(base_pipeline, peft_adapters, peft_adapter_paths)
+            if peft_adapters:
+                self._attach_peft_adapters(base_pipeline, peft_adapters, peft_adapter_paths)
+
             self._configure_memory(base_pipeline, device, cpu_offload, vae_tiling)
 
             pipelines: Dict[Optional[TMethod], DiffusionPipeline] = {}
@@ -147,9 +149,6 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         adapters: List[PeftAdapterConfig],
         adapter_paths: List[str],
     ) -> None:
-        if not adapters:
-            return
-
         if not hasattr(pipeline, "load_lora_weights"):
             raise ValueError(
                 f"{type(pipeline).__name__} does not support LoRA loading; remove `peft_adapter` from the component config."
@@ -165,13 +164,13 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
                 )
 
             name = adapter.name or f"peft_adapter_{index}"
-            load_kwargs: Dict[str, Any] = { "adapter_name": name }
+            load_params: Dict[str, Any] = { "adapter_name": name }
 
             if isinstance(adapter.model, HuggingfaceModelConfig) and adapter.model.filename:
-                load_kwargs["weight_name"] = adapter.model.filename
+                load_params["weight_name"] = adapter.model.filename
 
             logging.info(f"Component '{self.id}': loading LoRA adapter '{name}' from {path}")
-            pipeline.load_lora_weights(path, **load_kwargs)
+            pipeline.load_lora_weights(path, **load_params)
 
             names.append(name)
             weights.append(float(adapter.weight))

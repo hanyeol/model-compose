@@ -18,7 +18,7 @@ def _params(**overrides) -> Dict[str, Any]:
         "return_openpose_keypoints": False,
         "return_skeleton_image":     False,
         "return_track_image":        False,
-        "bounding_box_padding":      0.0,
+        "crop_margin_ratio":      0.0,
     }
     base.update(overrides)
     return base

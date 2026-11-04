@@ -6,7 +6,7 @@ yield the same pixels as cropping the full frame with `origin=(0, 0)`. If that
 ever drifts, hour-long tracks silently start returning wrong pose images.
 
 The extraction runs on the final post-smoothing bbox (see `_add_poses_to_tracks`),
-so the margin equals `bounding_box_padding` exactly and the sub-crop matches
+so the margin equals `crop_margin_ratio` exactly and the sub-crop matches
 the full-frame crop under any smoothing weight / motion speed combination.
 """
 

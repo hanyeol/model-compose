@@ -35,7 +35,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "return_metadata":           False,
         "return_detections":             False,
         "return_detection_image":    False,
-        "bounding_box_padding":      0.0,
+        "crop_margin_ratio":      0.0,
         "bounding_box_smoothing":    None,
     }
     base.update(overrides)

@@ -63,7 +63,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "min_face_size":            0,
         "max_face_count_per_frame": 0,
         "merge_gap":                10.0,   # loose so a single segment covers a burst
-        "bounding_box_padding":     0.0,
+        "crop_margin_ratio":     0.0,
         "bounding_box_smoothing":   None,
         "max_track_distance":       0.0,
         "return_track_image":       False,

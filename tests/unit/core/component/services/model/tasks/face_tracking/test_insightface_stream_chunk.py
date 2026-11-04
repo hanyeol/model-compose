@@ -16,7 +16,7 @@ def _params(**overrides) -> Dict[str, Any]:
     base = {
         "return_track_image":  False,
         "return_gender_age":   False,
-        "bounding_box_padding": 0.0,
+        "crop_margin_ratio": 0.0,
     }
     base.update(overrides)
     return base

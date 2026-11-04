@@ -27,7 +27,7 @@ FRAME_PERIOD = 0.5
 def _default_params(**overrides) -> Dict[str, Any]:
     base = {
         "merge_gap":              0.0,
-        "bounding_box_padding":   0.0,
+        "crop_margin_ratio":   0.0,
         "bounding_box_smoothing": None,
         "return_track_image":     False,
         "return_detection_image": False,

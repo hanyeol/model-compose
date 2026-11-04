@@ -48,7 +48,7 @@ def _add(action, cluster_tracks, face, stash: bool, extractor):
         face=face,
         merge_gap=10.0,
         frame_period=FRAME_PERIOD,
-        bounding_box_padding=0.0,
+        crop_margin_ratio=0.0,
         bounding_box_smoothing=None,
         extract_image_source=extractor,
         stash_image_source=stash,

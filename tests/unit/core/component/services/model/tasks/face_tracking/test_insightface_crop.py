@@ -6,7 +6,7 @@ yield the same pixels as cropping the full frame with `origin=(0, 0)`. If that
 ever drifts, hour-long tracks silently start returning wrong face images.
 
 The extraction runs on the final post-smoothing bbox (see `_add_face_to_track`),
-so the margin equals `bounding_box_padding` exactly and the sub-crop matches
+so the margin equals `crop_margin_ratio` exactly and the sub-crop matches
 the full-frame crop under any smoothing weight / motion speed combination.
 """
 
@@ -84,7 +84,7 @@ def test_build_face_with_image_uses_subregion_origin() -> None:
     }
 
     action = InsightfaceFaceTrackingTaskAction.__new__(InsightfaceFaceTrackingTaskAction)
-    materialized = action._build_face_with_image(face, bounding_box_padding=0.2)
+    materialized = action._build_face_with_image(face, crop_margin_ratio=0.2)
 
     from_full = InsightfaceFaceTrackingTaskAction._crop_face_image(frame, bbox, 0.2)
 

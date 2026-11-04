@@ -297,6 +297,13 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self._configure_routes()
 
         if self.config.websocket is not False:
+            from . import websocket_server
+            from fastapi import WebSocket
+
+            # Same deal as Request above, but for the websocket_server module where
+            # `websocket: WebSocket` is declared on the route handler.
+            websocket_server.__dict__["WebSocket"] = WebSocket
+
             self.websocket_server = WebSocketServer(self.config.websocket, self.controller, self._resolve_workflow_id)
             self.websocket_server.configure_routes(self.router)
 

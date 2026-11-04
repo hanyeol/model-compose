@@ -406,6 +406,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
                     quantization,
                     skip_modules=_MINIMAX_H3_TEXT_ENCODER_SKIP_MODULES,
                 )
+                params["low_cpu_mem_usage"] = True
 
             return Qwen3VLForConditionalGeneration.from_pretrained(model_path, **params)
 
@@ -438,7 +439,8 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             else:
                 params["torch_dtype"] = torch.bfloat16
 
-            params["low_cpu_mem_usage"] = False
+            if transformer_config is not None and transformer_config.low_cpu_mem_usage:
+                params["low_cpu_mem_usage"] = True
 
             if model_subfolder is not None:
                 params["subfolder"] = model_subfolder
@@ -448,6 +450,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
                     quantization,
                     skip_modules=_MINIMAX_H3_TRANSFORMER_SKIP_MODULES,
                 )
+                params["low_cpu_mem_usage"] = True
 
             return MiniMaxH3Transformer3DModel.from_pretrained(model_path, **params)
 

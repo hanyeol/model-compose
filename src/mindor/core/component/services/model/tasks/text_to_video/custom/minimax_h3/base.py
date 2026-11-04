@@ -270,9 +270,13 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         if self.config.quantization is not None:
             return True
 
-        text_encoder = getattr(self.config, "text_encoder", None)
+        for name in ("text_encoder", "transformer"):
+            submodule = getattr(self.config, name, None)
 
-        return text_encoder is not None and text_encoder.quantization is not None
+            if submodule is not None and submodule.quantization is not None:
+                return True
+
+        return False
 
     async def _load_model(self) -> None:
         self.device = self._resolve_device(self.config.device)
@@ -300,6 +304,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
 
         transformer_config = None
         transformer_quantization = self._resolve_submodule_quantization(transformer_config)
+
         if transformer_config is not None or transformer_quantization is not None:
             transformer = await self._load_pretrained_transformer(
                 transformer_config,

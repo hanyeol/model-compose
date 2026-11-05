@@ -122,7 +122,7 @@ class ComponentActionContext:
     def register_source(self, key: str, source: Any, scope: Optional[str] = None) -> None:
         self.sources.setdefault(scope or "__global__", {})[key] = source
 
-    def clear_sources(self) -> None:
+    async def clear_sources(self) -> None:
         self.sources = { "__global__": {} }
 
     async def render_variable(

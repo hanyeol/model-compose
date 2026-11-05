@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, List, Callable, Awaitable, Any
+from mindor.core.foundation.streaming.cleanup import cleanup_dangling_streams
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from mindor.core.foundation.cancellation import CancellationToken
 from .interrupt import InterruptHandler
@@ -51,7 +52,13 @@ class WorkflowContext:
     def record_run_id(self, job_id: str, run_id: str) -> None:
         self.job_run_ids.setdefault(job_id, []).append(run_id)
 
-    def clear_sources(self) -> None:
+    async def clear_sources(self) -> None:
+        # Stream wrappers held in `sources` only release their component's
+        # active counter when consumed or explicitly closed. Job outputs that
+        # no downstream reference picked up are dangling by the time we clear
+        # — close them here so the counter releases and shutdown can finish.
+        await cleanup_dangling_streams(self.sources)
+
         self.sources = { "jobs": {} }
 
     async def render_variable(

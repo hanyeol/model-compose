@@ -57,7 +57,7 @@ class WorkflowRunner:
                         tracing.on_workflow_error(context.task_id, self.id, error, elapsed)
                         logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, error)
 
-                    context.clear_sources()
+                    await context.clear_sources()
 
                 if isinstance(output, (StreamEncodingIterator, JobOutputStreamEncodingIterator)):
                     output = JobOutputStreamEncodingIterator(output, _on_terminated)
@@ -69,7 +69,7 @@ class WorkflowRunner:
                 tracing.on_workflow_end(context.task_id, self.id, output, elapsed)
                 logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, elapsed)
 
-                context.clear_sources()
+                await context.clear_sources()
 
             return output
         except asyncio.CancelledError:
@@ -77,7 +77,7 @@ class WorkflowRunner:
 
             logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, elapsed)
 
-            context.clear_sources()
+            await context.clear_sources()
 
             raise
         except Exception as e:
@@ -86,7 +86,7 @@ class WorkflowRunner:
             tracing.on_workflow_error(context.task_id, self.id, e, elapsed)
             logging.exception("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, e)
 
-            context.clear_sources()
+            await context.clear_sources()
 
             raise
 
@@ -331,7 +331,7 @@ class WorkflowRunner:
                                 else:
                                     logging.info("[task-%s] Job '%s:%s' %s after %.2f seconds.", context.task_id, job_id, self.id, event, job_elapsed)
 
-                                job_context.clear_sources()
+                                await job_context.clear_sources()
 
                             if isinstance(completed_job_output, (StreamEncodingIterator, ComponentOutputStreamEncodingIterator)):
                                 completed_job_output = JobOutputStreamEncodingIterator(completed_job_output, _on_terminated)
@@ -427,7 +427,7 @@ class WorkflowRunner:
             try:
                 output = await job.run(job.context, on_start=on_job_start)
             except BaseException:
-                job.context.clear_sources()
+                await job.context.clear_sources()
                 raise
 
             if isinstance(output, (StreamIterator, AsyncIterator)):
@@ -436,7 +436,7 @@ class WorkflowRunner:
                 # stream termination via the wrapper installed in _run_jobs.
                 return output
 
-            job.context.clear_sources()
+            await job.context.clear_sources()
 
             return output
 

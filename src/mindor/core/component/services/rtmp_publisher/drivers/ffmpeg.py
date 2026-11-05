@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, Union, List, Dict, Tuple, Any
+from typing import Optional, Union, Deque, List, Dict, Tuple, Any
+from collections import deque
 from collections.abc import AsyncIterable
+from urllib.parse import urlsplit, urlunsplit
 from mindor.dsl.schema.component import RtmpPublisherComponentConfig, RtmpPublisherDriverType
 from mindor.dsl.schema.action import RtmpPublisherActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
@@ -28,6 +30,51 @@ _DEFAULT_AUDIO_CODEC: str = "aac"
 # hand a `pipe:<fd>` beyond stdin to a child. When False, callers must spool
 # the second live stream to a temp file so ffmpeg reads it as a file input.
 _SUPPORTS_FD_INPUT: bool = os.name == "posix"
+
+# How many ffmpeg stderr lines a failed publish reports. Only the tail is
+# kept: a live publish can run for days.
+_STDERR_TAIL_LINES: int = 20
+
+_REDACTED: str = "<redacted>"
+
+def _redact_url(url: str) -> str:
+    """`url` with its secrets masked, for logs and error messages.
+
+    RTMP ingest URLs carry the stream key as the last path segment
+    (rtmp://a.rtmp.youtube.com/live2/<key>); some add tokens in the query
+    (Facebook) or credentials before the host. Whoever holds the key can
+    broadcast to the channel, so none of these may reach a log. A plain file
+    path used as the endpoint comes back unchanged.
+    """
+    parts = urlsplit(url)
+
+    if not parts.scheme or not parts.netloc:
+        return url
+
+    netloc = parts.netloc
+
+    if parts.password is not None:
+        userinfo, _, host = netloc.rpartition("@")
+        netloc = f"{userinfo.partition(':')[0]}:{_REDACTED}@{host}"
+
+    head, _, key = parts.path.rpartition("/")
+    path = f"{head}/{_REDACTED}" if head and key else parts.path
+    query = _REDACTED if parts.query else ""
+
+    return urlunsplit((parts.scheme, netloc, path, query, ""))
+
+async def _read_stderr_tail(reader: asyncio.StreamReader) -> str:
+    tail: Deque[str] = deque(maxlen=_STDERR_TAIL_LINES)
+
+    while True:
+        line = await reader.readline()
+
+        if not line:
+            break
+
+        tail.append(line.decode("utf-8", errors="replace").rstrip())
+
+    return "\n".join(tail)
 
 class FFmpegRtmpPublisher:
     """One RTMP publish: spawn ffmpeg, push to the URL, exit.
@@ -61,8 +108,9 @@ class FFmpegRtmpPublisher:
 
         command = self._build_publish_command(video_input, video_attrs, audio_input, audio_format, audio_attrs)
         source = stdin_owner.stream if stdin_owner is not None else None
+        redacted_url = _redact_url(self.url)
 
-        logging.debug("Publishing to RTMP: %s", self.url)
+        logging.debug("Publishing to RTMP: %s", redacted_url)
 
         async def _on_started() -> None:
             # ffmpeg owns the read ends now; each start() drops the parent's
@@ -77,7 +125,7 @@ class FFmpegRtmpPublisher:
         process_task = asyncio.create_task(run_subprocess(
             command,
             source,
-            stderr_handler=lambda r: r.read(),
+            stderr_handler=_read_stderr_tail,
             pass_fds=tuple(channel.read_fd for channel in fd_channels),
             on_started=_on_started,
         ))
@@ -98,12 +146,13 @@ class FFmpegRtmpPublisher:
             process, _, error = await process_task
 
             if process.returncode != 0:
-                error_message = error.decode("utf-8", errors="replace") if error else ""
+                # ffmpeg names its output in its errors ("Error opening output <url>: ...").
+                error_message = (error or "").replace(self.url, redacted_url)
                 raise RuntimeError(f"ffmpeg RTMP publish failed (exit code {process.returncode}): {error_message}")
 
-            logging.debug("RTMP publish completed: %s", self.url)
+            logging.debug("RTMP publish completed: %s", redacted_url)
         except asyncio.CancelledError:
-            logging.info("RTMP publish cancelled for %s", self.url)
+            logging.info("RTMP publish cancelled for %s", redacted_url)
             raise
         finally:
             if watcher_task is not None and not watcher_task.done():
@@ -162,7 +211,10 @@ class FFmpegRtmpPublisher:
         has_video = video_input is not None
         has_audio = audio_input is not None
 
-        command = [ resolve_ffmpeg_executable(), "-hide_banner", "-y" ]
+        # A publish can run for days: without -nostats ffmpeg writes a progress
+        # line to stderr twice a second, and only warnings and errors are worth
+        # keeping for the failure message.
+        command = [ resolve_ffmpeg_executable(), "-hide_banner", "-nostats", "-loglevel", "warning", "-y" ]
 
         if has_video:
             if video_attrs and video_attrs.get("resolution"):

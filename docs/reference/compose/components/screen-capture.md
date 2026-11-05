@@ -80,6 +80,8 @@ Window tracking behaves differently per platform: on Windows, `gdigrab` follows 
 
 The default video container is MPEG-TS (`ts`) because each packet is self-contained, so encoded chunks are available with sub-second latency. `mp4` also works (fragmented-mp4 flags are added automatically) but has higher first-byte latency over a pipe.
 
+`libx264` and `libx265` are tuned for low latency (`-preset veryfast -tune zerolatency`). Other encoders get no tuning flags, so hardware encoders such as `h264_nvenc`, `h264_vaapi` or `h264_videotoolbox` can be used as `video.codec`.
+
 ## Supported Drivers
 
 ### FFmpeg
@@ -123,6 +125,8 @@ Each capture returns a dict containing two independent stream resources plus a s
 | `capture_pts` | float | `time.monotonic()` value recorded when the capture started, shared by both tracks so downstream code can align chunks to an absolute broadcast timeline |
 
 Each `*StreamResource` iterates encoded byte chunks as they are produced. Reading the resource drives the capture forward; closing it or breaking out of the loop stops the underlying ffmpeg (and, on macOS system audio, `audiotee`) processes.
+
+If ffmpeg exits with an error (a display or device it cannot open, an encoder that rejects an option), reading the resource raises a `RuntimeError` with the exit code and the last lines of ffmpeg's stderr, e.g. `ffmpeg video capture failed (exit code 251): [x11grab] Cannot open display :1, error 1.`
 
 ## Multiple Actions Configuration
 

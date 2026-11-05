@@ -44,16 +44,6 @@ class CommonShell(ABC):
         with ``env`` set in the subprocess."""
 
     @abstractmethod
-    def oneliner_script_command(self, python: str, script: str) -> str:
-        """Run ``script`` on the remote via ``<python> -c ...``.
-
-        The script is base64-wrapped so arbitrary quoting / metacharacters
-        inside it pass through the host and remote shells unmangled. Use
-        this when a caller needs to execute Python source but has no
-        importable module on the remote yet (e.g. before mindor's source
-        has been staged into a venv)."""
-
-    @abstractmethod
     def create_venv_command(self, python: str, venv_path: str) -> str:
         """Idempotent command: skip if the venv already has a python,
         otherwise run ``<python> -m venv <venv_path>``."""
@@ -70,6 +60,11 @@ class CommonShell(ABC):
     ) -> str:
         """Install the given requirement files into the venv, preferring
         ``uv`` on PATH when available and falling back to the venv's pip."""
+
+    @abstractmethod
+    def oneliner_script_command(self, python: str, script: str) -> str:
+        """Run ``script`` on the remote via ``<python> -c ...``, base64-wrapped
+        so arbitrary quoting / metacharacters pass through unmangled."""
 
     @abstractmethod
     def pyenv_python_path(self, pyenv_root: str, version: str) -> str:

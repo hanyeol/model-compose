@@ -36,20 +36,6 @@ class WindowsShell(CommonShell):
 
         return "; ".join(commands)
 
-    def oneliner_script_command(self, python: str, script: str) -> str:
-        script = base64.b64encode(script.encode()).decode()
-
-        # PowerShell: double-quoted strings interpolate, so we build the
-        # inner python ``-c`` body with single quotes around the b64 blob.
-        # `-u` forces unbuffered stdio: SSH exec channels have no pty, so
-        # Python's stdout defaults to block-buffering and small sentinel
-        # writes (e.g. the lock-ready marker) never reach the host until
-        # the script exits.
-        return (
-            f"& {self._quote(python)} -u -c "
-            f'"exec(__import__(\'base64\').b64decode(\'{script}\').decode())"'
-        )
-
     def create_venv_command(self, python: str, venv_path: str) -> str:
         venv_python = self.venv_python_path(venv_path)
 
@@ -90,6 +76,20 @@ class WindowsShell(CommonShell):
             )
 
         return "; ".join(commands)
+
+    def oneliner_script_command(self, python: str, script: str) -> str:
+        script = base64.b64encode(script.encode()).decode()
+
+        # PowerShell: double-quoted strings interpolate, so we build the
+        # inner python ``-c`` body with single quotes around the b64 blob.
+        # `-u` forces unbuffered stdio: SSH exec channels have no pty, so
+        # Python's stdout defaults to block-buffering and small sentinel
+        # writes (e.g. the lock-ready marker) never reach the host until
+        # the script exits.
+        return (
+            f"& {self._quote(python)} -u -c "
+            f'"exec(__import__(\'base64\').b64decode(\'{script}\').decode())"'
+        )
 
     def pyenv_python_path(self, pyenv_root: str, version: str) -> str:
         # pyenv-win layout: {root}\versions\{version}\python.exe

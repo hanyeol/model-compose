@@ -5,6 +5,7 @@ from typing import Union, Optional, Dict, List, Tuple, Callable, Any
 from collections.abc import AsyncIterator
 from mindor.dsl.schema.listener import HttpCallbackListenerConfig, HttpCallbackConfig
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
+from mindor.core.utils.uvicorn import create_uvicorn_server
 from mindor.core.foundation.variable.renderer import VariableRenderer
 from ..base import ListenerService, ListenerType, register_listener
 from threading import Lock
@@ -132,14 +133,12 @@ class HttpCallbackListener(ListenerService):
         return True
 
     async def _serve(self) -> None:
-        import uvicorn
-
-        self.server = uvicorn.Server(uvicorn.Config(
+        self.server = create_uvicorn_server(
             self.app,
             host=self.config.host,
             port=self.config.port,
             log_level="info"
-        ))
+        )
         try:
             await self.server.serve()
         finally:

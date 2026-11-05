@@ -18,6 +18,7 @@ from mindor.core.workflow import WorkflowResolver
 from mindor.core.utils.transport.http_client import request_with_url
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.transport.http_stream import HttpEventStreamer
+from mindor.core.utils.uvicorn import create_uvicorn_server
 from mindor.core.controller.errors import TaskNotFoundError, TaskAlreadyFinishedError, TaskCancelInProgressError
 from mindor.core.errors import ShutdownError
 from mindor.core.logger import logging
@@ -512,14 +513,13 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         await super()._start()
 
     async def _serve(self) -> None:
-        import uvicorn
-
-        self.server = uvicorn.Server(uvicorn.Config(
+        self.server = create_uvicorn_server(
             self.app,
             host=self.config.host,
             port=self.config.port,
-            log_level="info"
-        ))
+            log_level="info",
+            on_shutdown_signal=self.controller.request_to_shutdown,
+        )
 
         try:
             await self.server.serve()

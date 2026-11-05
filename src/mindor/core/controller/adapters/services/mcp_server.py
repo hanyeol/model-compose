@@ -16,6 +16,7 @@ from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.foundation.streaming.url import UrlStreamResource, DataUriStreamResource
 from mindor.core.foundation.streaming.model_3d import resolve_model_3d_content_type
 from mindor.core.utils.transport.stdout_relay import StdoutRelay
+from mindor.core.utils.uvicorn import create_uvicorn_server
 from ..base import ControllerAdapterService, register_controller_adapter
 import asyncio, json
 
@@ -396,14 +397,13 @@ class McpServerControllerAdapterService(ControllerAdapterService):
             await self._serve_http()
 
     async def _serve_http(self) -> None:
-        import uvicorn
-
-        self.http_server = uvicorn.Server(uvicorn.Config(
+        self.http_server = create_uvicorn_server(
             self.app.streamable_http_app(),
             host=self.config.host,
             port=self.config.port,
-            log_level="info"
-        ))
+            log_level="info",
+            on_shutdown_signal=self.controller.request_to_shutdown,
+        )
 
         try:
             await self.http_server.serve()

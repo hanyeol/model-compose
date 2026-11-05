@@ -1,11 +1,15 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from typing import Optional, Dict, Any
+from mindor.core.utils.uvicorn import create_uvicorn_server
 from ..driver import WebUIDriver
 from .builder import GradioWebUIBuilder
 from gradio import mount_gradio_app
 from fastapi import FastAPI
-import uvicorn
+
+if TYPE_CHECKING:
+    import uvicorn
 
 class GradioDriver(WebUIDriver):
     def __init__(self, config, workflow_schemas, workflows, components):
@@ -23,12 +27,12 @@ class GradioDriver(WebUIDriver):
         self.app = mount_gradio_app(self.app, blocks, path="", css=css)
 
     async def _start(self) -> None:
-        self.server = uvicorn.Server(uvicorn.Config(
+        self.server = create_uvicorn_server(
             self.app,
             host=self.config.host,
             port=self.config.port,
             log_level="info"
-        ))
+        )
         self._configure_shutdown_handler(self.server)
 
         try:

@@ -52,11 +52,12 @@ class ComponentLocalProcessRuntimeProxy(ComponentRuntimeProxy):
     channel: Tuple[Queue, Queue]
 
     async def _stop(self) -> None:
-        await super()._stop()
-
-        # Unblock the executor thread parked in _recv_message (Queue.get is blocking).
+        # Unblock the executor thread parked in _recv_message (Queue.get is blocking),
+        # which is also what lets the response task super()._stop() waits on finish.
         _, response_queue = self.channel
         response_queue.put(None)
+
+        await super()._stop()
 
     async def _send_start_message(self) -> None:
         # multiprocessing `spawn` pickled the component config into the

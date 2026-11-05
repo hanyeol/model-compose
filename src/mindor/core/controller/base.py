@@ -51,7 +51,7 @@ from .runtime.docker import ControllerDockerRuntimeManager
 from .runtime.apple_container import ControllerAppleContainerRuntimeManager
 from threading import Lock
 from pathlib import Path
-import asyncio, ulid, threading
+import asyncio, os, signal, ulid, threading
 
 if TYPE_CHECKING:
     from mindor.core.controller.adapters.base import ControllerAdapterService
@@ -189,6 +189,7 @@ class ControllerService(AsyncService):
         self._inflight_tasks: Dict[str, asyncio.Task] = {}
         self._shutdown_pending: bool = False
         self._shutting_down: bool = False
+        self._shutdown_signal: Optional[int] = None
         self._task_state_listeners: List[TaskStateListener] = []
         self._task_event_listeners: List[TaskEventListener] = []
         self._job_event_listeners: List[JobEventListener] = []
@@ -231,9 +232,18 @@ class ControllerService(AsyncService):
             try:
                 await self.wait_until_stopped()
             except (asyncio.CancelledError, KeyboardInterrupt):
-                await self._stop()
+                pass
             finally:
+                await self._stop()
                 await self._stop_loggers()
+
+            if self._shutdown_signal is not None:
+                # Restore the default disposition and re-send to self so the
+                # process exits with the signal's canonical status (128+sig)
+                # rather than Python's normal exit 0.
+                signal.signal(self._shutdown_signal, signal.SIG_DFL)
+                os.kill(os.getpid(), self._shutdown_signal)
+
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -241,6 +251,7 @@ class ControllerService(AsyncService):
             await self._start_loggers()
             await ControllerDockerRuntimeManager(self.config, verbose).launch(self._get_runtime_specs(), detach)
             await self._stop_loggers()
+
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
@@ -248,6 +259,7 @@ class ControllerService(AsyncService):
             await self._start_loggers()
             await ControllerAppleContainerRuntimeManager(self.config, verbose).launch(self._get_runtime_specs(), detach)
             await self._stop_loggers()
+
             return
 
     async def terminate_services(self, verbose: bool) -> None:
@@ -266,6 +278,7 @@ class ControllerService(AsyncService):
             await self._teardown_systems()
             await self._stop_loggers()
             await self._teardown_loggers()
+
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
@@ -273,6 +286,7 @@ class ControllerService(AsyncService):
             await ControllerDockerRuntimeManager(self.config, verbose).terminate()
             await self._stop_loggers()
             await self._teardown_loggers()
+
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
@@ -280,6 +294,7 @@ class ControllerService(AsyncService):
             await ControllerAppleContainerRuntimeManager(self.config, verbose).terminate()
             await self._stop_loggers()
             await self._teardown_loggers()
+
             return
 
     async def setup_services(self, verbose: bool) -> None:
@@ -310,21 +325,32 @@ class ControllerService(AsyncService):
             try:
                 await self.wait_until_stopped()
             except (asyncio.CancelledError, KeyboardInterrupt):
-                await self._stop()
+                pass
             finally:
+                await self._stop()
                 await self._stop_loggers()
+
+            if self._shutdown_signal is not None:
+                # Restore the default disposition and re-send to self so the
+                # process exits with the signal's canonical status (128+sig)
+                # rather than Python's normal exit 0.
+                signal.signal(self._shutdown_signal, signal.SIG_DFL)
+                os.kill(os.getpid(), self._shutdown_signal)
+
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
             await ControllerDockerRuntimeManager(self.config, verbose).start()
             await self._stop_loggers()
+
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
             await ControllerAppleContainerRuntimeManager(self.config, verbose).start()
             await self._stop_loggers()
+
             return
 
     async def stop_services(self, verbose: bool) -> None:
@@ -332,19 +358,29 @@ class ControllerService(AsyncService):
             await self._start_loggers(verbose)
             await ControllerNativeRuntimeManager().stop()
             await self._stop_loggers()
+
             return
 
         if self.config.runtime.type == RuntimeType.DOCKER:
             await self._start_loggers()
             await ControllerDockerRuntimeManager(self.config, verbose).stop()
             await self._stop_loggers()
+
             return
 
         if self.config.runtime.type == RuntimeType.APPLE_CONTAINER:
             await self._start_loggers()
             await ControllerAppleContainerRuntimeManager(self.config, verbose).stop()
             await self._stop_loggers()
+
             return
+
+    def request_to_shutdown(self, sig: int) -> None:
+        # Records the signal that initiated shutdown so the launch path can
+        # propagate it to the final exit status after cleanup completes.
+        # Only the first signal is retained; subsequent ones are ignored.
+        if self._shutdown_signal is None:
+            self._shutdown_signal = sig
 
     @property
     def is_shutdown_pending(self) -> bool:
@@ -688,7 +724,11 @@ class ControllerService(AsyncService):
         while self.started:
             if stop_file.exists():
                 stop_file.unlink(missing_ok=True)
-                await self.stop()
+                # Route through SIGTERM so the shutdown path is identical to
+                # external kill -TERM: uvicorn's signal handler fires, cleanup
+                # runs in the launch path's finally, and the exit status
+                # reflects the signal.
+                os.kill(os.getpid(), signal.SIGTERM)
 
                 break
 

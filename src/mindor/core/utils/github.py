@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
+from mindor.core.utils.tarball import extract_tarball
 from pathlib import Path
 from urllib.parse import urlparse
-from mindor.core.utils.tarball import extract_tarball
 import asyncio, urllib.request
 
 async def download_github_tarball(repo_url: str, revision: Optional[str], dest_dir: Path) -> None:

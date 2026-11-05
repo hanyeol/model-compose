@@ -191,7 +191,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
             # unbroken; gaps face-tracking couldn't interpolate (across its
             # `merge_gap`) mark genuine track breaks, so we score each chunk
             # independently and never try to carry context across the gap.
-            results: Dict[int, Dict[str, Any]] = {}
+            scored_tracks: Dict[int, Dict[str, Any]] = {}
 
             for track_id in sorted(tracks.keys()):
                 for chunk in self._split_track_by_gaps(tracks[track_id]):
@@ -215,18 +215,25 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
                         params
                     )
 
-                    result = results.setdefault(track_id, { "track_id": track_id, "segments": [], "frame_scores": [] })
-                    result["segments"].extend(segments)
-                    result["frame_scores"].extend(frame_scores)
+                    scored_track = scored_tracks.setdefault(track_id, {
+                        "track_id": track_id,
+                        "segments": [],
+                        "frame_scores": []
+                    })
 
-            return [ results[track_id] for track_id in sorted(results.keys()) ]
+                    scored_track["segments"].extend(segments)
 
-        results = await self._run_in_executor(_score_tracks)
+                    if frame_scores is not None:
+                        scored_track["frame_scores"].extend(frame_scores)
+
+            return [ scored_tracks[track_id] for track_id in sorted(scored_tracks.keys()) ]
+
+        scored_tracks = await self._run_in_executor(_score_tracks)
 
         if streaming:
-            return self._stream_result(results, frame_count, params)
+            return self._stream_result(scored_tracks, frame_count, params)
 
-        return self._build_result(results, frame_count, params)
+        return self._build_result(scored_tracks, frame_count, params)
 
     async def _load_audio_mfcc(self, audio: MediaSource, start_time: float, duration: float) -> np.ndarray:
         """Load the `start_time`..`start_time+duration` span of `audio` as a
@@ -354,10 +361,10 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         timestamps: List[float],
         frame_period: float,
         params: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> Tuple[List[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
         """Smooth per-frame logits and threshold them into timecoded segments.
 
-        Returns `(segments, frame_scores)` where `frame_scores` is empty
+        Returns `(segments, frame_scores)` where `frame_scores` is `None`
         unless `return_frame_scores` is on.
         """
         smoothing_window = max(1, int(round(params["smoothing_window"] / frame_period)))
@@ -387,16 +394,16 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
 
     def _build_result(
         self,
-        results: List[Dict[str, Any]],
+        scored_tracks: List[Dict[str, Any]],
         frame_count: int,
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        output: Dict[str, Any] = {}
+        result: Dict[str, Any] = {}
 
         if params["return_speakers"]:
             speakers: List[Dict[str, Any]] = []
 
-            for track in results:
+            for track in scored_tracks:
                 speaker: Dict[str, Any] = {
                     "track_id": track["track_id"],
                     "segments": track["segments"],
@@ -407,12 +414,12 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
 
                 speakers.append(speaker)
 
-            output["speakers"] = speakers
+            result["speakers"] = speakers
 
         if params["return_timeline"]:
             timeline: List[Dict[str, Any]] = []
 
-            for track in results:
+            for track in scored_tracks:
                 for segment in track["segments"]:
                     timeline.append({
                         "start_time": segment["start_time"],
@@ -422,17 +429,17 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
                     })
 
             timeline.sort(key=lambda entry: entry["start_time"])
-            output["active_timeline"] = timeline
+            result["active_timeline"] = timeline
 
         if params["return_metadata"]:
-            output["frame_count"] = frame_count
-            output["track_count"] = len(results)
+            result["frame_count"] = frame_count
+            result["track_count"] = len(scored_tracks)
 
-        return output
+        return result
 
     async def _stream_result(
         self,
-        results: List[Dict[str, Any]],
+        scored_tracks: List[Dict[str, Any]],
         frame_count: int,
         params: Dict[str, Any],
     ) -> AsyncIterator[Dict[str, Any]]:
@@ -443,12 +450,12 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         consistency with other tasks (speaker-diarization does the same).
         """
         if params["return_speakers"]:
-            for track in results:
+            for track in scored_tracks:
                 for segment in track["segments"]:
                     yield { "type": "segment", "track_id": track["track_id"], **segment }
 
         if params["return_metadata"]:
-            yield { "type": "metadata", "frame_count": frame_count, "track_count": len(results) }
+            yield { "type": "metadata", "frame_count": frame_count, "track_count": len(scored_tracks) }
 
     @staticmethod
     def _group_detections_by_track(detections: Any, frame_count: int) -> Dict[int, Dict[int, Tuple[int, int, int, int]]]:
@@ -482,6 +489,7 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
                 y = int(bounding_box["y"])
                 width = int(bounding_box["width"])
                 height = int(bounding_box["height"])
+
                 tracks.setdefault(track_id, {})[frame_number] = (x, y, x + width, y + height)
 
         return tracks

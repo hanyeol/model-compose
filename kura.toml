@@ -1,0 +1,72 @@
+# model-compose docs site — the ONLY config. The kurajs/pages action reads this and renders the
+# repo's docs/ into a trilingual (en / 简体中文 / 한국어), searchable, agent-native static site.
+# The workflow shapes a build copy (.docs-site) so the repo's docs/ is never modified.
+
+markdown  = "commonmark"
+base_path = ""
+
+[site]
+name        = "model-compose"
+description = "Portable AI runtime inspired by docker-compose: compose agents, RAG pipelines, and MCP servers in one YAML file."
+
+[deploy]
+target = "github-pages"
+
+[content]
+sources = []
+
+[i18n]
+default_locale = "en"
+[i18n.locales.en]
+[i18n.locales.zh-cn]
+path = "/zh-cn"
+[i18n.locales.ko]
+path = "/ko"
+
+[locale_names]
+en = "English"
+zh-cn = "简体中文"
+ko = "한국어"
+
+# Virtual navigation: two reading modes, two tabs. Page labels are bare slugs so each locale keeps
+# its own translated titles in the sidebar; groups without pages auto-fill from their folder.
+[[nav.tabs]]
+title = "User Guide"
+groups = ["user-guide"]
+
+[[nav.tabs]]
+title = "Reference"
+groups = ["compose-file", "reference/compose/components", "interfaces"]
+
+[nav.groups.user-guide]
+title = "User Guide"
+
+[nav.groups.compose-file]
+title = "Compose File"
+pages = [
+  "reference/compose",
+  "reference/compose/component",
+  "reference/compose/workflow",
+  "reference/compose/controller",
+  "reference/compose/gateway",
+  "reference/compose/listener",
+  "reference/compose/logger",
+  "reference/compose/tracer",
+  "reference/compose/system",
+  "reference/compose/language-codes",
+]
+
+[nav.groups."reference/compose/components"]
+title = "Components"
+
+[nav.groups.interfaces]
+title = "CLI & Interfaces"
+pages = ["reference/cli", "reference/websocket"]
+
+[tab_labels.zh-cn]
+"User Guide" = "用户指南"
+"Reference" = "参考"
+
+[tab_labels.ko]
+"User Guide" = "사용자 가이드"
+"Reference" = "레퍼런스"

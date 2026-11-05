@@ -29,13 +29,16 @@ class ComponentOutputStreamIterator(StreamChunkIterator):
             async for chunk in iterator:
                 yield chunk
         except asyncio.CancelledError:
-            await self._notify_terminated("cancelled", None)
+            if not self._notified_terminated:
+                await self._notify_terminated("cancelled", None)
             raise
         except Exception as e:
-            await self._notify_terminated("failed", str(e))
+            if not self._notified_terminated:
+                await self._notify_terminated("failed", str(e))
             raise
         else:
-            await self._notify_terminated("completed", None)
+            if not self._notified_terminated:
+                await self._notify_terminated("completed", None)
         finally:
             await self._close_stream(iterator)
 

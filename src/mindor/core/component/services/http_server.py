@@ -169,6 +169,9 @@ class HttpServerComponent(ComponentService):
 
         self.client: Optional[HttpClient] = None
 
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "aiohttp" ]
+
     async def _setup(self) -> None:
         if self.config.manage.scripts.install:
             for command in self.config.manage.scripts.install:

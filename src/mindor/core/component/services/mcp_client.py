@@ -1,12 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import McpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpClientActionConfig
-from mindor.core.utils.transport.mcp_client import (
-    McpClient, ContentBlock, TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource,
-    TextResourceContents, BlobResourceContents,
-)
+from mindor.core.utils.transport.mcp_client import McpClient
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
+
+if TYPE_CHECKING:
+    from mcp.types import ContentBlock
 
 class McpClientAction:
     def __init__(self, config: McpClientActionConfig):
@@ -24,6 +27,9 @@ class McpClientAction:
         return (await context.render_variable(self.config.output)) if not is_direct_output else response
 
     async def _convert_output_value(self, content: ContentBlock) -> Any:
+        from mcp.types import EmbeddedResource, TextResourceContents, BlobResourceContents
+        from mcp.types import ImageContent, AudioContent, TextContent, ResourceLink
+
         if isinstance(content, EmbeddedResource):
             if isinstance(content.resource, TextResourceContents):
                 return content.resource.text
@@ -55,7 +61,10 @@ class McpClientComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.client: Optional[McpClient] = None 
+        self.client: Optional[McpClient] = None
+
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
+        return [ "mcp>=1.10.1,<2.0" ]
 
     async def _start(self) -> None:
         self.client = McpClient(self.config.url, self.config.headers)

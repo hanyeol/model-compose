@@ -60,12 +60,8 @@ class McpServerControllerAdapterService(ControllerAdapterService):
         self.stdio_task: Optional[asyncio.Task] = None
         self.app: Optional[FastMCP] = None
 
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [
-            *(super()._get_setup_requirements() or []),
-            "mcp>=1.10.1,<2.0",
-            "uvicorn"
-        ]
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
+        return [ "mcp>=1.10.1,<2.0", "uvicorn" ]
 
     async def _setup(self) -> None:
         from mcp.server.fastmcp.server import FastMCP

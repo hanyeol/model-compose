@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Callable, Awaitable, Any
+from typing import Union, Optional, Dict, List, Tuple, Callable, Awaitable, Any
 from .common import VideoAudioEncodingParams
 from mindor.dsl.schema.component import ChromeWebBrowserComponentConfig, WebBrowserDriverType
 from mindor.core.foundation.streaming.resources import AsyncIterableStreamResource
@@ -468,6 +468,9 @@ class ChromeWebBrowserService(WebBrowserDriver):
         debugger = config.debugger
         self._url: str = debugger.url or f"{debugger.protocol}://{debugger.host}:{debugger.port}"
         self._target_ids: List[str] = []
+
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "aiohttp", "websockets" ]
 
     async def _create_session(self) -> ChromeBrowserSession:
         client, target_id = await CdpClient.create_tab(self._url)

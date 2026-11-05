@@ -276,12 +276,13 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
 
         self._task_callbacks: Dict[str, Tuple[str, Dict[str, str]]] = {}
 
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [
-            *(super()._get_setup_requirements() or []),
-            "fastapi",
-            "uvicorn"
-        ]
+    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
+        requirements = [ "fastapi", "uvicorn", "aiohttp" ]
+
+        if self.config.websocket is not False:
+            requirements.append("websockets")
+
+        return requirements
 
     async def _setup(self) -> None:
         from fastapi import FastAPI, APIRouter, Request

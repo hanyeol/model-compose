@@ -102,7 +102,7 @@ class ComponentVastaiRuntimeManager(ComponentRuntimeManager):
         self._runtime: Optional[VastaiRuntime] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "vastai", "websockets", "aiohttp" ]
+        return [ "vastai", "aiohttp", "websockets" ]
 
     async def _setup(self) -> None:
         self._runtime = VastaiRuntime(

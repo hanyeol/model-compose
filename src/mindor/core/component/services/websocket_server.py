@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Union, Any, Optional, List, Tuple
 from mindor.dsl.schema.component import WebSocketServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WebSocketServerActionConfig
 from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveFormat
@@ -134,6 +134,9 @@ class WebSocketServerComponent(ComponentService):
         super().__init__(id, config, global_configs, daemon)
 
         self.client: Optional[WebSocketClient] = None
+
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "websockets" ]
 
     async def _setup(self) -> None:
         if self.config.manage.scripts.install:

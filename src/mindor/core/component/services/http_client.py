@@ -182,6 +182,9 @@ class HttpClientComponent(ComponentService):
 
         self._rate_limiter: Optional[RateLimiter] = None
 
+    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
+        return [ "aiohttp" ]
+
     async def _start(self) -> None:
         self.client = HttpClient(self.config.base_url, self.config.headers)
 

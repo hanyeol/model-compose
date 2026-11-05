@@ -41,8 +41,12 @@ class WindowsShell(CommonShell):
 
         # PowerShell: double-quoted strings interpolate, so we build the
         # inner python ``-c`` body with single quotes around the b64 blob.
+        # `-u` forces unbuffered stdio: SSH exec channels have no pty, so
+        # Python's stdout defaults to block-buffering and small sentinel
+        # writes (e.g. the lock-ready marker) never reach the host until
+        # the script exits.
         return (
-            f"& {self._quote(python)} -c "
+            f"& {self._quote(python)} -u -c "
             f'"exec(__import__(\'base64\').b64decode(\'{script}\').decode())"'
         )
 
@@ -96,6 +100,9 @@ class WindowsShell(CommonShell):
 
     def join_path(self, *parts: str) -> str:
         return ntpath.join(*parts)
+
+    def is_absolute_path(self, path: str) -> bool:
+        return ntpath.isabs(path)
 
     @staticmethod
     def _quote(value: str) -> str:

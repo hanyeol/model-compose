@@ -5,6 +5,7 @@ from typing import Dict, Iterable, Optional
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 from mindor.core.foundation.variable.time import parse_time
+from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
 from mindor.core.logger import logging
 from mindor.dsl.schema.runtime.remote import SshRemoteTransportConfig
 from mindor.core.runtime.transport.ssh import SshRuntimeTransport
@@ -12,8 +13,6 @@ from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from mindor.core.runtime.shell import CommonShell
 from ..common import CommonRuntime
 import asyncio
-
-_LOCK_READY_SENTINEL = "MINDOR_LOCK_READY"
 
 class RemoteVirtualEnvRuntime(CommonRuntime):
     """Lifecycle wrapper around a venv-isolated Python worker on a remote host.
@@ -271,12 +270,20 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         default (``{cwd}/.runtime/components/{worker_id}/venv``) but anchored
         at the SSH transport's ``working_dir``.
 
+        Relative ``config.path`` is anchored at ``working_dir`` too, so
+        callers that bypass ``_run_remote_command``'s ``cd`` prefix
+        (e.g. the bootstrap-lock exec channel) still land on the same
+        directory as ``create_venv`` / ``install_requirements``.
+
         Uses the remote shell's path join so forward/backslash follows the
         remote filesystem's convention."""
-        if self.config.path:
-            return self.config.path
-
         working_dir = self._transport.working_dir or "."
+
+        if self.config.path:
+            if self._shell.is_absolute_path(self.config.path):
+                return self.config.path
+
+            return self._shell.join_path(working_dir, self.config.path)
 
         return self._shell.join_path(working_dir, ".runtime", "components", self.worker_id, "venv")
 
@@ -318,14 +325,21 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
     def _build_lock_holder_script(lock_path: str) -> str:
         """Script body executed on the remote: acquires an exclusive
         advisory lock on ``lock_path`` using the right OS primitive,
-        prints the ready sentinel, then blocks on stdin so the host can
-        release the lock by closing the exec channel. Inlining
-        ``lock_path`` with ``repr()`` sidesteps shell quoting entirely —
+        emits a STATUS IPC message signalling readiness, then blocks
+        on stdin so the host can release the lock by closing the exec
+        channel. Inlining ``lock_path`` and the pre-built ready
+        message with ``repr()`` sidesteps shell quoting entirely —
         the whole script is base64-wrapped by
         ``oneliner_script_command``."""
+        ready_message = IpcMessage(
+            type=IpcMessageType.STATUS,
+            payload={ "status": "lock-ready" }
+        )
+
         return (
             "import os, sys\n"
             f"lock_path = {lock_path!r}\n"
+            f"ready_message = {ready_message.serialize()!r}\n"
             "os.makedirs(os.path.dirname(lock_path), exist_ok=True)\n"
             "fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)\n"
             "if sys.platform == 'win32':\n"
@@ -334,28 +348,25 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
             "else:\n"
             "    import fcntl\n"
             "    fcntl.flock(fd, fcntl.LOCK_EX)\n"
-            f"sys.stdout.write('{_LOCK_READY_SENTINEL}\\n')\n"
-            "sys.stdout.flush()\n"
+            "sys.stdout.buffer.write(ready_message)\n"
+            "sys.stdout.buffer.flush()\n"
             "sys.stdin.read()\n"
         )
 
     @staticmethod
     async def _await_lock_ready(channel: SshExecChannel) -> None:
-        """Read the exec channel's stdout until the ready sentinel appears.
+        """Wait for the holder's STATUS(lock-ready) IPC message.
 
-        The holder script prints ``MINDOR_LOCK_READY`` after acquiring the
-        lock, so any byte stream containing that token means the lock is
-        ours."""
-        buffer = bytearray()
+        The holder sends a single length-prefixed IPC message after
+        acquiring the lock; ``channel.recv()`` reads one complete
+        message at a time, so one call is enough."""
+        serialized = await channel.recv()
 
-        while True:
-            chunk = await channel.recv()
+        if serialized is None:
+            raise RuntimeError("remote lock holder exited before signalling readiness")
 
-            if chunk is None:
-                raise RuntimeError("remote lock holder exited before signalling readiness")
+        message = IpcMessage.deserialize(serialized)
 
-            buffer.extend(chunk)
-
-            if _LOCK_READY_SENTINEL.encode() in buffer:
-                return
+        if message.type != IpcMessageType.STATUS or (message.payload or {}).get("status") != "lock-ready":
+            raise RuntimeError(f"unexpected IPC frame from remote lock holder: {message.type}")
 

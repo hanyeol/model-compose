@@ -36,8 +36,12 @@ class PosixShell(CommonShell):
     def oneliner_script_command(self, python: str, script: str) -> str:
         script = base64.b64encode(script.encode()).decode()
 
+        # `-u` forces unbuffered stdio: SSH exec channels have no pty, so
+        # Python's stdout defaults to block-buffering and small sentinel
+        # writes (e.g. the lock-ready marker) never reach the host until
+        # the script exits.
         return (
-            f"{shlex.quote(python)} -c "
+            f"{shlex.quote(python)} -u -c "
             f"\"exec(__import__('base64').b64decode('{script}').decode())\""
         )
 
@@ -90,3 +94,6 @@ class PosixShell(CommonShell):
 
     def join_path(self, *parts: str) -> str:
         return posixpath.join(*parts)
+
+    def is_absolute_path(self, path: str) -> bool:
+        return posixpath.isabs(path)

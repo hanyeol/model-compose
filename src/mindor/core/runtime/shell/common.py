@@ -83,3 +83,7 @@ class CommonShell(ABC):
     def join_path(self, *parts: str) -> str:
         """Join path segments using the remote filesystem's separator —
         forward slash on POSIX, backslash on Windows."""
+
+    @abstractmethod
+    def is_absolute_path(self, path: str) -> bool:
+        """Whether ``path`` is absolute under the remote filesystem's rules."""

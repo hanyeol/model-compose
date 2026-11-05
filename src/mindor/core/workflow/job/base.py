@@ -24,6 +24,7 @@ class Job(ABC):
         self.id: str = id
         self.config: JobConfig = config
         self.global_configs: ComponentGlobalConfigs = global_configs
+        self.context: Optional[JobContext] = None
 
         self._on_start: Optional[OnStartCallback] = None
         self._started_fired: bool = False

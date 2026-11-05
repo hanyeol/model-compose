@@ -57,6 +57,8 @@ class WorkflowRunner:
                         tracing.on_workflow_error(context.task_id, self.id, error, elapsed)
                         logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, error)
 
+                    context.clear_sources()
+
                 if isinstance(output, (StreamEncodingIterator, JobOutputStreamEncodingIterator)):
                     output = JobOutputStreamEncodingIterator(output, _on_terminated)
                 else:
@@ -67,11 +69,15 @@ class WorkflowRunner:
                 tracing.on_workflow_end(context.task_id, self.id, output, elapsed)
                 logging.info("[task-%s] Workflow '%s' completed in %.2f seconds.", context.task_id, self.id, elapsed)
 
+                context.clear_sources()
+
             return output
         except asyncio.CancelledError:
             elapsed = workflow_time_tracker.elapsed()
 
             logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, elapsed)
+
+            context.clear_sources()
 
             raise
         except Exception as e:
@@ -79,6 +85,8 @@ class WorkflowRunner:
 
             tracing.on_workflow_error(context.task_id, self.id, e, elapsed)
             logging.exception("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, e)
+
+            context.clear_sources()
 
             raise
 
@@ -303,8 +311,9 @@ class WorkflowRunner:
                             job_time_tracker = job_time_trackers[completed_job_id]
                             job_id = completed_job_id
                             job_type = self.jobs[completed_job_id].type.value
+                            job_context = pending_jobs[completed_job_id].context
 
-                            async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str], job_id=job_id, job_type=job_type, job_time_tracker=job_time_tracker) -> None:
+                            async def _on_terminated(event: StreamTerminatedEvent, error: Optional[str], job_id=job_id, job_type=job_type, job_time_tracker=job_time_tracker, job_context=job_context) -> None:
                                 job_elapsed = job_time_tracker.elapsed()
 
                                 await context.job_event_notifier.notify(
@@ -321,6 +330,8 @@ class WorkflowRunner:
                                     logging.info("[task-%s] Job '%s:%s' completed in %.2f seconds.", context.task_id, job_id, self.id, job_elapsed)
                                 else:
                                     logging.info("[task-%s] Job '%s:%s' %s after %.2f seconds.", context.task_id, job_id, self.id, event, job_elapsed)
+
+                                job_context.clear_sources()
 
                             if isinstance(completed_job_output, (StreamEncodingIterator, ComponentOutputStreamEncodingIterator)):
                                 completed_job_output = JobOutputStreamEncodingIterator(completed_job_output, _on_terminated)
@@ -410,10 +421,26 @@ class WorkflowRunner:
             logging.info("[task-%s] Job '%s:%s' started.", context.task_id, job_id, self.id)
             logging.debug("[task-%s] Job '%s:%s' input: %s", context.task_id, job_id, self.id, input)
 
-        return asyncio.create_task(job.run(
-            JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id)),
-            on_start=on_job_start,
-        ))
+        job.context = JobContext(context, job.id, is_terminal=self._is_terminal_job(job.id))
+
+        async def _run_job() -> Any:
+            try:
+                output = await job.run(job.context, on_start=on_job_start)
+            except BaseException:
+                job.context.clear_sources()
+                raise
+
+            if isinstance(output, (StreamIterator, AsyncIterator)):
+                # Streaming output's generator may still reference the job
+                # context's sources through the renderer; defer cleanup to
+                # stream termination via the wrapper installed in _run_jobs.
+                return output
+
+            job.context.clear_sources()
+
+            return output
+
+        return asyncio.create_task(_run_job())
 
     def _running_jobs_quiesced(
         self,

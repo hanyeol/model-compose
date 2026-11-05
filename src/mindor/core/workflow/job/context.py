@@ -19,6 +19,9 @@ class JobContext:
     def register_source(self, run_id: Optional[str], key: str, source: Any) -> None:
         self._sources.setdefault(run_id or "__global__", {})[key] = source
 
+    def clear_sources(self) -> None:
+        self._sources = { "__global__": {} }
+
     async def render_variable(
         self,
         run_id: Optional[str],

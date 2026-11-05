@@ -203,9 +203,11 @@ class ComponentService(AsyncService):
                     self._active_counter.release()
                     raise
         except asyncio.CancelledError:
+            context.clear_sources()
             await context.event_notifier.notify("cancelled", elapsed=time_tracker.elapsed())
             raise
         except Exception as e:
+            context.clear_sources()
             await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=str(e))
             raise
 
@@ -219,6 +221,7 @@ class ComponentService(AsyncService):
                     else:
                         await context.event_notifier.notify("failed", elapsed=time_tracker.elapsed(), error=error)
                 finally:
+                    context.clear_sources()
                     self._active_counter.release()
 
             if isinstance(output, StreamEncodingIterator):
@@ -227,6 +230,7 @@ class ComponentService(AsyncService):
             return ComponentOutputStreamIterator(output, _on_terminated)
 
         await context.event_notifier.notify("completed", elapsed=time_tracker.elapsed(), output=output)
+        context.clear_sources()
 
         return output
 

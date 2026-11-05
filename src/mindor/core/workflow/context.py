@@ -51,6 +51,9 @@ class WorkflowContext:
     def record_run_id(self, job_id: str, run_id: str) -> None:
         self.job_run_ids.setdefault(job_id, []).append(run_id)
 
+    def clear_sources(self) -> None:
+        self.sources = { "jobs": {} }
+
     async def render_variable(
         self,
         value: Any,

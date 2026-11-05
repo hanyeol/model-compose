@@ -7,6 +7,7 @@ from ..driver import WebUIDriver
 from .builder import GradioWebUIBuilder
 from gradio import mount_gradio_app
 from fastapi import FastAPI
+import os, shutil, tempfile
 
 if TYPE_CHECKING:
     import uvicorn
@@ -17,6 +18,7 @@ class GradioDriver(WebUIDriver):
 
         self.server: Optional[uvicorn.Server] = None
         self.app: FastAPI = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+        self.temp_dir: str = self._configure_temp_dir()
 
         blocks, css = GradioWebUIBuilder().build(
             workflow_schemas=self.workflow_schemas,
@@ -39,6 +41,7 @@ class GradioDriver(WebUIDriver):
             await self.server.serve()
         finally:
             self.server = None
+            self._cleanup_temp_dir()
 
     async def _stop(self) -> None:
         if self.server:
@@ -53,3 +56,13 @@ class GradioDriver(WebUIDriver):
             await shutdown(sockets)
 
         server.shutdown = _shutdown
+
+    def _configure_temp_dir(self) -> str:
+        temp_dir = tempfile.mkdtemp(prefix="gradio-")
+        os.environ["GRADIO_TEMP_DIR"] = temp_dir
+
+        return temp_dir
+
+    def _cleanup_temp_dir(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        os.environ.pop("GRADIO_TEMP_DIR", None)

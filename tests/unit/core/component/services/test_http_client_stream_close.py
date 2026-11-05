@@ -8,13 +8,14 @@ the server keeps producing, e.g. an LLM keeps generating tokens nobody will read
 import asyncio
 
 import pytest
-from aiohttp import web
+from aiohttp import ClientConnectionError, web
 from aiohttp.test_utils import TestServer
 from unittest.mock import AsyncMock, MagicMock
 
 from mindor.core.component.services.http_client import HttpClientAction
 from mindor.core.component.services.http_server import HttpServerAction
 from mindor.core.component.streaming import ComponentOutputStreamIterator
+from mindor.core.controller.base import ControllerService
 from mindor.core.controller.adapters.services.websocket_stream import WebSocketOutboundStream
 from mindor.core.controller.streaming import TaskOutputStreamEncodingIterator
 from mindor.core.foundation.streaming.iterators import StreamEncodingIterator
@@ -106,3 +107,55 @@ async def test_closing_an_outbound_websocket_stream_ends_the_request(served):
     await asyncio.wait_for(events.disconnected.wait(), 1.0)
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("action", [
+    HttpClientAction(HttpClientActionConfig(path="/events", method="POST")),
+    HttpServerAction(HttpServerActionConfig(path="/events", method="POST")),
+], ids=["http-client", "http-server"])
+async def test_closing_the_stream_before_any_read_ends_the_request(served, action):
+    # Nobody read, so the generator that holds the response never started and
+    # cannot run its `finally`; the stream itself has to close the response.
+    client, events = served
+    stream = await _stream(client, action)
+
+    await stream.aclose()
+
+    await asyncio.wait_for(events.disconnected.wait(), 1.0)
+    assert events.sent < 100
+
+
+@pytest.mark.anyio
+async def test_stream_close_before_the_first_pull_ends_the_request(served):
+    client, events = served
+    outbound = WebSocketOutboundStream("s1", StreamKind.BYTES, _wrapped(await _stream(client)), VariableCodec())
+
+    await outbound.aclose()
+
+    await asyncio.wait_for(events.disconnected.wait(), 1.0)
+
+
+@pytest.mark.anyio
+async def test_cancelling_a_task_whose_output_nobody_read_ends_the_request(served):
+    # POST /tasks/{id}/cancel closes the task output, which nobody has pulled yet.
+    client, events = served
+
+    await ControllerService._close_task_output(None, _wrapped(await _stream(client)))
+
+    await asyncio.wait_for(events.disconnected.wait(), 1.0)
+
+
+@pytest.mark.anyio
+async def test_cancelling_a_task_while_a_read_waits_ends_the_request(served):
+    # The component's generator is running, so its own aclose() cannot get in.
+    client, events = served
+    output = _wrapped(await _stream(client))
+    iterator = output.__aiter__()
+    await iterator.__anext__()
+    reading = asyncio.ensure_future(iterator.__anext__())
+    await asyncio.sleep(0)
+
+    await ControllerService._close_task_output(None, output)
+
+    await asyncio.wait_for(events.disconnected.wait(), 1.0)
+    with pytest.raises(ClientConnectionError):
+        await reading

@@ -1820,6 +1820,92 @@ class TestSourceResolverFailureUsesDefault:
         assert result is None
 
 
+class TestQuotedLiteralDefault:
+    """A default written in quotes (`| "gpt-4o"`, `| ""`) is the text between them."""
+
+    @pytest.mark.anyio
+    async def test_double_quoted_default(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.model | "gpt-4o"}') == "gpt-4o"
+
+    @pytest.mark.anyio
+    async def test_single_quoted_default(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render("${input.mode | 'auto'}") == "auto"
+
+    @pytest.mark.anyio
+    async def test_empty_quoted_default_is_empty_string(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.prompt | ""}') == ""
+        assert await r.render("${input.prompt | ''}") == ""
+
+    @pytest.mark.anyio
+    async def test_quoted_default_keeps_inner_spaces_and_commas(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        result = await r.render('${input.negative | "bad quality, worst quality"}')
+        assert result == "bad quality, worst quality"
+
+    @pytest.mark.anyio
+    async def test_quoted_default_keeps_backslashes(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render(r'${input.path | "C:\new\temp"}') == r"C:\new\temp"
+        assert await r.render(r'${input.pattern | "\d+"}') == r"\d+"
+
+    @pytest.mark.anyio
+    async def test_other_quote_inside_is_kept(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render("""${input.text | 'say "hi"'}""") == 'say "hi"'
+        assert await r.render("""${input.text | "it's"}""") == "it's"
+
+    @pytest.mark.anyio
+    async def test_variable_inside_quoted_default_is_rendered(self):
+        r = VariableRenderer(make_source_resolver({"input": {"topic": "AI"}}))
+        assert await r.render('${input.title | "${input.topic}!"}') == "AI!"
+
+    @pytest.mark.anyio
+    async def test_quoted_default_inside_text(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('Hello, ${input.name | "World"}!') == "Hello, World!"
+
+    @pytest.mark.anyio
+    async def test_quoted_default_with_space_before_brace(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.model | "gpt-4o" }') == "gpt-4o"
+
+    @pytest.mark.anyio
+    async def test_quoted_default_then_type_conversion(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.count as integer | "5"}') == 5
+
+    @pytest.mark.anyio
+    async def test_json_default_keeps_its_quotes(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.value as json | "hello"}') == "hello"
+        assert await r.render('${input.value as json | ""}') == ""
+        assert await r.render('${input.tags as list | ["a", "b"]}') == ["a", "b"]
+
+    @pytest.mark.anyio
+    async def test_present_value_ignores_quoted_default(self):
+        r = VariableRenderer(make_source_resolver({"input": {"model": "o3"}}))
+        assert await r.render('${input.model | "gpt-4o"}') == "o3"
+
+    @pytest.mark.anyio
+    async def test_unquoted_default_is_unchanged(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render("${input.mode | auto}") == "auto"
+        assert await r.render("${input.rate | 44100}") == "44100"
+
+    @pytest.mark.anyio
+    async def test_same_quote_inside_is_unchanged(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.pair | "a" or "b"}') == '"a" or "b"'
+
+    @pytest.mark.anyio
+    async def test_nested_default_with_quoted_literal(self):
+        r = VariableRenderer(make_source_resolver({"input": {}}))
+        assert await r.render('${input.key | ${input.fallback | "default-key"}}') == "default-key"
+
+
 class TestBooleanFromBytes:
     """boolean type accepts bytes input (post format resolution)."""
 

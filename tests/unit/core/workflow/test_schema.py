@@ -193,3 +193,33 @@ def test_for_each_terminal_job_still_wraps_output_in_group():
 
     assert len(output) == 1
     assert isinstance(output[0], WorkflowVariableGroupConfig)
+
+
+def test_input_schema_reads_quoted_defaults_as_the_quoted_text():
+    """The schema (web UI, MCP tool parameters) reads a default the way the renderer does:
+    quotes removed, then the type applied; a JSON default keeps the quotes of its string."""
+    compose = _load_compose({
+        "components": [
+            {
+                "id": "api",
+                "type": "http-client",
+                "action": {
+                    "endpoint": "http://localhost/api",
+                    "body": {
+                        "model": '${input.model | "gpt-4o"}',
+                        "prompt": '${input.prompt | ""}',
+                        "count": '${input.count as integer | "5"}',
+                        "value": '${input.value as json | "hello"}',
+                    },
+                },
+            },
+        ],
+        "workflows": [
+            {"id": "main", "job": {"component": "api", "input": "${input}"}},
+        ],
+    })
+
+    schemas = create_workflow_schemas(compose.workflows, compose.components)
+    defaults = {variable.name: variable.default for variable in schemas["main"].input}
+
+    assert defaults == {"model": "gpt-4o", "prompt": "", "count": 5, "value": "hello"}

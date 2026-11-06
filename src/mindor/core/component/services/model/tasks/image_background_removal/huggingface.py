@@ -57,7 +57,7 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
                 transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
             ])
 
-            batch = torch.stack([ transform(image) for image in images ]).to(self.device)
+            batch = torch.stack([ transform(image) for image in images ]).to(self.device, dtype=self.model.dtype)
 
             with torch.inference_mode():
                 outputs = self.model(batch)

@@ -19,6 +19,7 @@ class HttpServerControllerAdapterConfig(CommonControllerAdapterConfig):
     origins: Optional[str] = Field(default="*", description="Comma-separated list of allowed CORS origins.")
     websocket: Union[bool, WebSocketConfig] = Field(default_factory=WebSocketConfig, description="WebSocket settings; false disables the endpoint, true uses defaults.")
     static: List[StaticMountConfig] = Field(default_factory=list, description="Static directory mounts exposed alongside the API.")
+    callback_timeout: Union[str, int, float] = Field(default="30s", description="Maximum time to wait for a callback_url POST to respond.")
 
     @model_validator(mode="before")
     def inflate_websocket(cls, values: Dict[str, Any]):

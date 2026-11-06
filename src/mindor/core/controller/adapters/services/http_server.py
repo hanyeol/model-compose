@@ -19,6 +19,7 @@ from mindor.core.utils.transport.http_client import request_with_url
 from mindor.core.utils.transport.http_request import parse_request_body, parse_options_header
 from mindor.core.utils.transport.http_stream import HttpEventStreamer
 from mindor.core.utils.uvicorn import create_uvicorn_server
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.controller.errors import TaskNotFoundError, TaskAlreadyFinishedError, TaskCancelInProgressError
 from mindor.core.errors import ShutdownError
 from mindor.core.logger import logging
@@ -275,6 +276,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self.websocket_server: Optional[WebSocketServer] = None
 
         self._task_callbacks: Dict[str, Tuple[str, Dict[str, str]]] = {}
+        self._callback_timeout: float = parse_time(config.callback_timeout)
 
     def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
         requirements = [ "fastapi", "uvicorn", "aiohttp" ]
@@ -567,6 +569,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
                 method="POST",
                 body=payload,
                 headers=headers,
+                timeout=self._callback_timeout,
                 raise_on_error=False,
             )
         except Exception:

@@ -1,0 +1,41 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+# Transcribe long-form audio with Faster-Whisper.
+#
+# Faster-Whisper processes long inputs by sliding a 30-second window across the
+# waveform internally (controlled by `chunk_length`) and stitches the decoded
+# segments into a single transcript. No manual splitting is required — pass
+# the full audio file in and get one transcript back.
+
+workflow:
+  title: Speech to Text (Faster-Whisper)
+  description: Transcribe long audio files into a single transcript with a local Faster-Whisper model.
+  job:
+    input: ${input}
+    output:
+      transcription: ${output as text}
+
+component:
+  type: model
+  task: speech-to-text
+  driver: custom
+  family: faster-whisper
+  model: Systran/faster-whisper-large-v3
+  device: cpu
+  max_concurrent_count: 1
+  action:
+    audio: ${input.audio as audio}
+    language: ${input.language}
+    task: ${input.task as select/transcribe,translate | transcribe}
+    chunk_length: 30
+    return_timestamps: false
+    params:
+      vad_filter: true
+      condition_on_previous_text: true

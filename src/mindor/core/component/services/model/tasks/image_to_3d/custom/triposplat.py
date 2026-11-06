@@ -128,7 +128,6 @@ class TripoSplatImageTo3DTaskDriver(ModelTaskDriver):
             *torch_requirements("torch>=2.3", "torchvision>=0.18"),
             "numpy>=1.26,<2",
             "safetensors>=0.4",
-            "Pillow",
             "tqdm",
             "huggingface_hub>=0.34.0,<1.0",
         ]

@@ -274,7 +274,6 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
             "scipy==1.14.1",
             "timm==1.0.11",
             "cupy==13.6.0",
-            "Pillow",
             "imageio[ffmpeg]",
             "decord",
             "imagesize",

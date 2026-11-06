@@ -96,7 +96,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
             "zstandard==0.25.0",
             "imageio==2.37.2",
             "imageio-ffmpeg==0.6.0",
-            "pillow==12.0.0",
+            "Pillow==12.0.0",
             "tqdm==4.67.1",
             "einops",
             "utils3d@https://github.com/LDYang694/Storages/releases/download/20260430/utils3d-0.0.2-py3-none-any.whl",

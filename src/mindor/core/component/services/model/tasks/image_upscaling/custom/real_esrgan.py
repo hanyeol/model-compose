@@ -82,7 +82,6 @@ class RealEsrganImageUpscalingTaskDriver(ModelTaskDriver):
             *torch_requirements("torch", "torchvision"),
             "numpy",
             "opencv-python",
-            "Pillow",
             "tqdm",
             "huggingface_hub>=0.20,<0.26",
         ]

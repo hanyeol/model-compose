@@ -144,7 +144,6 @@ class Hi3DImageTo3DTaskDriver(ModelTaskDriver):
             "einops",
             "omegaconf",
             "scipy",
-            "Pillow",
         ]
 
     async def _setup(self) -> None:

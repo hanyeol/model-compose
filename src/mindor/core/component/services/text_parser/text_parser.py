@@ -11,7 +11,6 @@ from mindor.dsl.schema.action import (
     TextParserActionConfig,
     TextParserFormat,
     TextParserStrategy,
-    TextParserXmlOutput,
 )
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
@@ -63,7 +62,7 @@ class TextParserAction(ComponentAction):
         fallback               = await context.render_variable(self.config.fallback)
         json_schema            = await context.render_variable(self.config.json_schema) if self.config.json_schema is not None else None
         xml_root               = await context.render_variable(self.config.xml_root) if self.config.xml_root is not None else None
-        xml_output             = await context.render_variable(self.config.xml_output)
+        xml_as_object          = await context.render_scalar(self.config.xml_as_object, bool, False)
         list_separator         = await context.render_variable(self.config.list_separator)
         table_column_separator = await context.render_variable(self.config.table_column_separator)
         table_row_separator    = await context.render_variable(self.config.table_row_separator)
@@ -82,11 +81,6 @@ class TextParserAction(ComponentAction):
         except ValueError:
             raise ValueError(f"Unsupported strategy for text-parser: {strategy!r}")
 
-        try:
-            xml_output = TextParserXmlOutput(xml_output)
-        except ValueError:
-            raise ValueError(f"Unsupported xml_output for text-parser: {xml_output!r}")
-
         if format == TextParserFormat.REGEX and not regex_pattern:
             raise ValueError("'regex_pattern' must be specified for regex format.")
 
@@ -96,7 +90,7 @@ class TextParserAction(ComponentAction):
             "fallback":               fallback,
             "json_schema":            json_schema,
             "xml_root":               xml_root,
-            "xml_output":             xml_output,
+            "xml_as_object":          xml_as_object,
             "list_separator":         list_separator,
             "table_column_separator": table_column_separator,
             "table_row_separator":    table_row_separator,
@@ -307,7 +301,7 @@ class TextParserAction(ComponentAction):
         for match in re.finditer(r"<([a-zA-Z][a-zA-Z0-9_:-]*)(?:\s[^>]*)?>[\s\S]*?</\1>", text):
             self._collect_xml_block(match.group(0), root_tag, candidates)
 
-        if params["xml_output"] == TextParserXmlOutput.DICT:
+        if params["xml_as_object"]:
             return [ self._xml_to_dict(ET.fromstring(block)) for block in candidates ]
 
         return candidates

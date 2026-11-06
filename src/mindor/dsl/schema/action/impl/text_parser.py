@@ -18,10 +18,6 @@ class TextParserStrategy(str, Enum):
     ALL     = "all"
     LARGEST = "largest"
 
-class TextParserXmlOutput(str, Enum):
-    TEXT = "text"
-    DICT = "dict"
-
 class TextParserActionConfig(CommonActionConfig):
     text: Union[str, List[str]] = Field(..., description="Input text or list of texts to parse.")
     format: Union[TextParserFormat, str] = Field(default=TextParserFormat.JSON, description="Structured format to extract from the input text.")
@@ -30,7 +26,7 @@ class TextParserActionConfig(CommonActionConfig):
     batch_size: Optional[Union[int, str]] = Field(default=None, description="Number of input texts processed per batch.")
     json_schema: Optional[Dict[str, Any]] = Field(default=None, description="JSON Schema validated against the extracted result. json format only.")
     xml_root: Optional[str] = Field(default=None, description="Extract only the block whose root tag matches. xml format only.")
-    xml_output: Union[TextParserXmlOutput, str] = Field(default=TextParserXmlOutput.TEXT, description="Return the raw XML block string, or parse it into a dict. xml format only.")
+    xml_as_object: Union[bool, str] = Field(default=False, description="If true, parse the XML block into a structured object; otherwise return the raw XML string. xml format only.")
     list_separator: str = Field(default=",", description="Item separator for the list format.")
     table_column_separator: str = Field(default=",", description="Column separator for the table format.")
     table_row_separator: str = Field(default="\n", description="Row separator for the table format.")

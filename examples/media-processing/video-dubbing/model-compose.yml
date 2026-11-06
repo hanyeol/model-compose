@@ -143,6 +143,6 @@ components:
       video: ${input.video}
       audio: ${input.audio}
       params:
-        face_bounding_box_padding: [0, 0, 0, 10]
+        face_crop_scale: 0.1
         resize_factor: 1
         face_smoothing: true

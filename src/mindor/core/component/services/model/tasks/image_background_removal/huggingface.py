@@ -13,7 +13,7 @@ from .common import ImageBackgroundRemovalTaskAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel
+    from transformers import PreTrainedModel, ProcessorMixin
     import torch
 
 _IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -85,7 +85,8 @@ class HuggingfaceImageBackgroundRemovalTaskDriver(HuggingfaceMultimodalModelTask
             "transformers",
             "accelerate",
             "timm",
-            "kornia"
+            "kornia",
+            "einops",
         ]
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
@@ -101,6 +102,9 @@ class HuggingfaceImageBackgroundRemovalTaskDriver(HuggingfaceMultimodalModelTask
         params["trust_remote_code"] = True
 
         return params
+
+    def _get_processor_class(self) -> Optional[Type[ProcessorMixin]]:
+        return None
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await HuggingfaceImageBackgroundRemovalTaskAction(action, self.model, self.device).run(context)

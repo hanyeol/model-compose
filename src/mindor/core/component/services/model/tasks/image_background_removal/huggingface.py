@@ -41,13 +41,13 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
 
         return params
 
-    async def _predict_masks_batch(
+    async def _predict_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        def _predict_masks() -> List[PILImage.Image]:
+        def _predict() -> List[PILImage.Image]:
             from torchvision import transforms
             import torch
 
@@ -57,7 +57,7 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
                 transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
             ])
 
-            batch = torch.stack([ transform(image) for image in images ]).to(self.device, dtype=self.model.dtype)
+            batch = torch.stack([ transform(image.convert("RGB")) for image in images ]).to(self.device, dtype=self.model.dtype)
 
             with torch.inference_mode():
                 outputs = self.model(batch)
@@ -65,17 +65,17 @@ class HuggingfaceImageBackgroundRemovalTaskAction(ImageBackgroundRemovalTaskActi
             logits = outputs[-1] if isinstance(outputs, (list, tuple)) else outputs
             probs = torch.sigmoid(logits).squeeze(1).float().cpu()
 
-            masks: List[PILImage.Image] = []
+            results: List[PILImage.Image] = []
+
             for prob, image in zip(probs, images):
                 mask_tensor = (prob * 255.0).clamp(0, 255).to(torch.uint8)
                 mask = PILImage.fromarray(mask_tensor.numpy(), mode="L")
-                if mask.size != image.size:
-                    mask = mask.resize(image.size, PILImage.Resampling.BILINEAR)
-                masks.append(mask)
 
-            return masks
+                results.append(self._render_output(image, mask, params["format"]))
 
-        return await self._run_in_executor(_predict_masks)
+            return results
+
+        return await self._run_in_executor(_predict)
 
 @register_model_task_driver(ModelTaskType.IMAGE_BACKGROUND_REMOVAL, ModelDriverType.HUGGINGFACE)
 class HuggingfaceImageBackgroundRemovalTaskDriver(HuggingfaceMultimodalModelTaskDriver):

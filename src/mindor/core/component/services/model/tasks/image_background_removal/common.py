@@ -31,10 +31,8 @@ class ImageBackgroundRemovalTaskAction(ModelTaskComponentAction):
         if isinstance(image, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                    batch_images = [ self._normalize_image(image) for image in batch_images ]
-                    batch_masks = await self._predict_masks_batch(batch_images, params, context.cancellation_token)
-                    for image_, mask in zip(batch_images, batch_masks):
-                        result = self._render_output(image_, mask, params["format"])
+                    batch_results = await self._predict_batch(batch_images, params, context.cancellation_token)
+                    for result in batch_results:
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
@@ -45,10 +43,8 @@ class ImageBackgroundRemovalTaskAction(ModelTaskComponentAction):
         else:
             results: List[PILImage.Image] = []
             async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
-                batch_images = [ self._normalize_image(image) for image in batch_images ]
-                batch_masks = await self._predict_masks_batch(batch_images, params, context.cancellation_token)
-                for image, mask in zip(batch_images, batch_masks):
-                    results.append(self._render_output(image, mask, params["format"]))
+                batch_results = await self._predict_batch(batch_images, params, context.cancellation_token)
+                results.extend(batch_results)
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -67,15 +63,14 @@ class ImageBackgroundRemovalTaskAction(ModelTaskComponentAction):
             "format": format,
         }
 
-    def _normalize_image(self, image: PILImage.Image) -> PILImage.Image:
-        return image.convert("RGB")
-
     def _render_output(self, image: PILImage.Image, mask: PILImage.Image, format: BackgroundRemovalOutputFormat) -> PILImage.Image:
-        if format == BackgroundRemovalOutputFormat.RGBA:
-            resized_mask = mask.resize(image.size, PILImage.Resampling.BILINEAR) if mask.size != image.size else mask
-            rgba = image.convert("RGBA")
-            rgba.putalpha(resized_mask)
-            return rgba
+        mask = mask.resize(image.size, PILImage.Resampling.BILINEAR) if mask.size != image.size else mask
+
+        if format == BackgroundRemovalOutputFormat.CUTOUT:
+            cutout = image.convert("RGBA")
+            cutout.putalpha(mask)
+
+            return cutout
 
         if format == BackgroundRemovalOutputFormat.MASK:
             return mask
@@ -83,7 +78,7 @@ class ImageBackgroundRemovalTaskAction(ModelTaskComponentAction):
         raise ValueError(f"Unsupported output format: {format}")
 
     @abstractmethod
-    async def _predict_masks_batch(
+    async def _predict_batch(
         self,
         images: List[PILImage.Image],
         params: Dict[str, Any],

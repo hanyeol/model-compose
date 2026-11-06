@@ -92,7 +92,7 @@ class RealEsrganImageUpscalingTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 "RealESRGAN",
                 "https://github.com/ai-forever/Real-ESRGAN.git",
-                revision="362a0316878f41dbdfbb23657b450c3353de5acf",
+                revision="362a0316878f",
                 subdirs=[ "RealESRGAN" ],
             )
 

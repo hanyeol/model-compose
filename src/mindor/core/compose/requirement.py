@@ -19,7 +19,7 @@ from packaging.version import Version, InvalidVersion
 # Spec syntax matches AsyncService._install_packages:
 #   "<pep508-requirement>@<source>"
 #     torch==2.10.0@https://download.pytorch.org/whl/cu128
-#     realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git
+#     vibevoice@git+https://github.com/microsoft/VibeVoice.git
 #
 # Version-set emptiness is decided by witness search rather than by
 # re-implementing PEP 440 interval arithmetic: candidate versions are

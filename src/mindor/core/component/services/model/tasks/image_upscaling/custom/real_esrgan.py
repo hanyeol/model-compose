@@ -6,6 +6,7 @@ from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, RealEsrganImageUpscalingModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from mindor.core.logger import logging
 from ..common import ImageUpscalingTaskAction
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -76,22 +77,24 @@ class RealEsrganImageUpscalingTaskDriver(ModelTaskDriver):
         self.model: Optional[RealESRGAN] = None
         self.device: Optional[torch.device] = None
 
-        self._patch_huggingface_hub_compatibility()
-
-    def _patch_huggingface_hub_compatibility(self) -> None:
-        import huggingface_hub as hub
-
-        if not hasattr(hub, "cached_download"):
-            def _raise_not_implemented(*args, **kwargs):
-                raise NotImplementedError("cached_download is deprecated; not intended to be used.")
-            hub.cached_download = _raise_not_implemented
-
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision"),
-            "realesrgan>=1.0@git+https://github.com/sberbank-ai/Real-ESRGAN.git",
-            "huggingface_hub"
+            "numpy",
+            "opencv-python",
+            "Pillow",
+            "tqdm",
+            "huggingface_hub>=0.20,<0.26",
         ]
+
+    async def _setup(self) -> None:
+        if not is_package_installed("RealESRGAN"):
+            await install_package_from_github(
+                "RealESRGAN",
+                "https://github.com/ai-forever/Real-ESRGAN.git",
+                revision="362a0316878f41dbdfbb23657b450c3353de5acf",
+                subdirs=[ "RealESRGAN" ],
+            )
 
     async def _load_model(self) -> None:
         self.model, self.device = await self._load_pretrained_model()

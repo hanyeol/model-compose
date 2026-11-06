@@ -185,7 +185,7 @@ component:
     repository: ZhengPeng7/BiRefNet
   action:
     image: ${input.image as image}
-    output_format: mask   # single-channel L mode image
+    format: mask   # single-channel L mode image
 ```
 
 ### Adjusting Input Resolution

@@ -4,6 +4,8 @@ from pydantic import Field
 from mindor.dsl.schema.action import (
     SdxlHuggingfaceImageGenerationModelActionConfig,
     FluxHuggingfaceImageGenerationModelActionConfig,
+    Flux2HuggingfaceImageGenerationModelActionConfig,
+    Flux2KleinHuggingfaceImageGenerationModelActionConfig,
     HunyuanImageHuggingfaceImageGenerationModelActionConfig,
     QwenImageHuggingfaceImageGenerationModelActionConfig,
     QwenImageEditHuggingfaceImageGenerationModelActionConfig,
@@ -15,6 +17,8 @@ from ...common import ModelDriverType
 class HuggingfaceImageGenerationModelArchitecture(str, Enum):
     SDXL             = "sdxl"
     FLUX             = "flux"
+    FLUX_2           = "flux-2"
+    FLUX_2_KLEIN     = "flux-2-klein"
     HUNYUAN_IMAGE    = "hunyuan-image"
     QWEN_IMAGE       = "qwen-image"
     QWEN_IMAGE_EDIT  = "qwen-image-edit"
@@ -33,6 +37,14 @@ class FluxHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageG
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.FLUX]
     actions: List[FluxHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
 
+class Flux2HuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
+    architecture: Literal[HuggingfaceImageGenerationModelArchitecture.FLUX_2]
+    actions: List[Flux2HuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
+
+class Flux2KleinHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
+    architecture: Literal[HuggingfaceImageGenerationModelArchitecture.FLUX_2_KLEIN]
+    actions: List[Flux2KleinHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
+
 class HunyuanImageHuggingfaceImageGenerationModelComponentConfig(CommonHuggingfaceImageGenerationModelComponentConfig):
     architecture: Literal[HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE]
     actions: List[HunyuanImageHuggingfaceImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
@@ -49,6 +61,8 @@ HuggingfaceImageGenerationModelComponentConfig = Annotated[
     Union[
         SdxlHuggingfaceImageGenerationModelComponentConfig,
         FluxHuggingfaceImageGenerationModelComponentConfig,
+        Flux2HuggingfaceImageGenerationModelComponentConfig,
+        Flux2KleinHuggingfaceImageGenerationModelComponentConfig,
         HunyuanImageHuggingfaceImageGenerationModelComponentConfig,
         QwenImageHuggingfaceImageGenerationModelComponentConfig,
         QwenImageEditHuggingfaceImageGenerationModelComponentConfig,

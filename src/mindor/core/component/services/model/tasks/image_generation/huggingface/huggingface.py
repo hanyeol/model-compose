@@ -18,6 +18,14 @@ class HuggingfaceImageGenerationTaskDriver:
             from .architectures.flux import FluxHuggingfaceImageGenerationTaskDriver
             return FluxHuggingfaceImageGenerationTaskDriver(id, config, daemon)
 
+        if config.architecture == HuggingfaceImageGenerationModelArchitecture.FLUX_2:
+            from .architectures.flux2 import Flux2HuggingfaceImageGenerationTaskDriver
+            return Flux2HuggingfaceImageGenerationTaskDriver(id, config, daemon)
+
+        if config.architecture == HuggingfaceImageGenerationModelArchitecture.FLUX_2_KLEIN:
+            from .architectures.flux2_klein import Flux2KleinHuggingfaceImageGenerationTaskDriver
+            return Flux2KleinHuggingfaceImageGenerationTaskDriver(id, config, daemon)
+
         if config.architecture == HuggingfaceImageGenerationModelArchitecture.HUNYUAN_IMAGE:
             from .architectures.hunyuan_image import HunyuanImageHuggingfaceImageGenerationTaskDriver
             return HunyuanImageHuggingfaceImageGenerationTaskDriver(id, config, daemon)

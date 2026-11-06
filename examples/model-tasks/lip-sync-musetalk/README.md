@@ -67,7 +67,7 @@ Unlike cloud lip-sync services, running MuseTalk locally provides:
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "face=@/path/to/face.mp4" \
      -F "voice=@/path/to/speech.wav" \
-     -F 'input={"video": "@face", "audio": "@voice", "parsing_mode": "neck", "extra_margin": 20}'
+     -F 'input={"video": "@face", "audio": "@voice", "parsing_mode": "neck", "face_crop_scale": 0.15}'
 
    # Faster preview with float16
    curl -X POST http://localhost:8080/api/workflows/runs \
@@ -79,7 +79,7 @@ Unlike cloud lip-sync services, running MuseTalk locally provides:
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload a `video` (a clip with a clearly visible face works best) and an `audio` clip (WAV/MP3)
-   - Optionally tune `parsing_mode`, `extra_margin`, `bbox_shift`, `generator_batch_size`, or toggle `use_float16`
+   - Optionally tune `parsing_mode`, `face_crop_scale`, `bbox_shift`, `generator_batch_size`, or toggle `use_float16`
    - Click the "Run Workflow" button to receive an MP4 back
 
 ## Configuration Reference
@@ -101,7 +101,7 @@ Unlike cloud lip-sync services, running MuseTalk locally provides:
 | `video`                              | Source face video (or list/stream of videos) whose mouth region is re-synced.                                                          | —                 |
 | `audio`                              | Driving audio clip (or list of clips) whose speech the mouth follows.                                                                  | —                 |
 | `params.parsing_mode`                | Face parsing region used for blending (v15 only): `jaw` (tight), `neck` (widest), `raw` (default face region).                         | `jaw`             |
-| `params.extra_margin`                | Extra chin margin (in pixels) added to the face region before blending (v15 only).                                                     | `10`              |
+| `params.face_crop_scale`             | Columbia-style face crop scale; bottom extends by `2 * max(w,h)/2 * scale` to pull chin into the crop (v15 only).                      | `0.08`            |
 | `params.left_cheek_width` / `right_cheek_width` | Cheek width used by the parsing mask (v15 only).                                                                            | `90`              |
 | `params.bbox_shift`                  | Vertical shift (in pixels) applied to the detected face bounding box (v1 only).                                                        | `0`               |
 | `params.audio_padding_length_left` / `right` | Number of audio feature frames padded on each side of every window.                                                            | `2`               |

@@ -36,10 +36,10 @@ component:
     video: ${input.video as video}
     audio: ${input.audio as audio}
     params:
-      # Padding around the detected face box; the default extends the box
-      # downward by 10 px so chin motion isn't clipped. Left/top/right/bottom
-      # in pixels.
-      face_bounding_box_padding: ${input.face_bounding_box_padding | [ 0, 0, 0, 10 ]}
+      # Columbia-style face crop scale; left/right/top extend by this ratio
+      # of max(w,h)/2, bottom extends twice as much so chin motion isn't
+      # clipped.
+      face_crop_scale: ${input.face_crop_scale as number | 0.1}
       # Downscale factor applied to input frames before inference; higher
       # values trade quality for speed.
       resize_factor: ${input.resize_factor as integer | 1}

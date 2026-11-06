@@ -69,17 +69,17 @@ Unlike cloud lip-sync services, running Wav2Lip locally provides:
      -F "voice=@/path/to/speech.wav" \
      -F 'input={"video": "@face", "audio": "@voice", "resize_factor": 2, "face_smoothing": false}'
 
-   # Extra bottom padding so chin motion isn't clipped on close-up shots
+   # Wider face crop so chin motion isn't clipped on close-up shots
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "face=@/path/to/face.mp4" \
      -F "voice=@/path/to/speech.wav" \
-     -F 'input={"video": "@face", "audio": "@voice", "face_bounding_box_padding": [0, 0, 0, 20]}'
+     -F 'input={"video": "@face", "audio": "@voice", "face_crop_scale": 0.2}'
    ```
 
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload a `video` (a clip with a clearly visible face works best) and an `audio` clip (WAV/MP3)
-   - Optionally tune `face_bounding_box_padding`, `resize_factor`, or toggle `face_smoothing`
+   - Optionally tune `face_crop_scale`, `resize_factor`, or toggle `face_smoothing`
    - Click the "Run Workflow" button to receive an MP4 back
 
 ## Configuration Reference
@@ -101,7 +101,7 @@ Unlike cloud lip-sync services, running Wav2Lip locally provides:
 | `video`                              | Source face video (or list/stream of videos) whose mouth region is re-synced.                                                          | —                 |
 | `audio`                              | Driving audio clip (or list of clips) whose speech the mouth follows.                                                                  | —                 |
 | `params.face_bounding_box`           | Fixed face bounding box `(left, top, right, bottom)` in pixels that bypasses face detection. Leave unset to detect per frame.          | (none)            |
-| `params.face_bounding_box_padding`   | Pixel padding `(left, top, right, bottom)` added around each detected face box before mouth swap.                                      | `[0, 0, 0, 10]`   |
+| `params.face_crop_scale`             | Columbia-style face crop scale; each side extends by this ratio of `max(w,h)/2`, bottom extends twice as much to pull chin into the crop. | `0.1`             |
 | `params.frame_crop_box`              | Manual crop rectangle `(left, top, right, bottom)` applied to input frames; `null` on any edge keeps the frame edge.                   | (none)            |
 | `params.resize_factor`               | Downscale factor applied to input frames before inference. Higher values trade quality for speed.                                      | `1`               |
 | `params.face_smoothing`              | Temporal smoothing of face detections across frames; disable for short clips or fast head motion.                                      | `true`            |

@@ -39,8 +39,8 @@ component:
     params:
       # Face parsing region used for blending (v15 only): `jaw`, `neck`, or `raw`.
       parsing_mode: ${input.parsing_mode | jaw}
-      # Extra chin margin added to the face region before blending (v15 only).
-      extra_margin: ${input.extra_margin as integer | 10}
+      # Columbia-style face crop scale; extends the chin (v15 only).
+      face_crop_scale: ${input.face_crop_scale as number | 0.08}
       # Vertical shift applied to the detected face bounding box (v1 only).
       bbox_shift: ${input.bbox_shift as integer | 0}
       # Number of samples processed per MuseTalk generator batch.

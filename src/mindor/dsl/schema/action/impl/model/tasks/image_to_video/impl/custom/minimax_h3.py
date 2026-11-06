@@ -1,4 +1,4 @@
-from typing import Union, Literal, Optional
+from typing import Union, Literal, Optional, List
 from pydantic import BaseModel, Field
 from ..common import CommonImageToVideoParamsConfig, CommonImageToVideoModelActionConfig
 
@@ -10,7 +10,11 @@ class MinimaxH3ImageToVideoSolAttnConfig(BaseModel):
 
 class MinimaxH3ImageToVideoParamsConfig(CommonImageToVideoParamsConfig):
     inference_steps: Union[int, str] = Field(default=50, description="Number of sigma grid points (including the terminal 0), one less than the model evaluations.")
+    guidance_scale: Union[float, str] = Field(default=1.0, description="Classifier-free guidance scale applied during sampling.")
+    video_shift: Optional[Union[float, str]] = Field(default=None, description="Flow-matching timestep shift applied to the video scheduler.")
+    audio_shift: Optional[Union[float, str]] = Field(default=None, description="Flow-matching timestep shift applied to the audio scheduler.")
     sol_attn: Optional[MinimaxH3ImageToVideoSolAttnConfig] = Field(default=None, description="Sol-Attn sparse attention acceleration on Blackwell SM120 GPUs; omit to disable.")
 
 class MinimaxH3ImageToVideoModelActionConfig(CommonImageToVideoModelActionConfig):
+    negative_prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
     params: MinimaxH3ImageToVideoParamsConfig = Field(default_factory=MinimaxH3ImageToVideoParamsConfig, description="MiniMax-H3 image-to-video generation parameters.")

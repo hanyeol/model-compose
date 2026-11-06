@@ -46,13 +46,26 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
 
         self.pipeline: Any = pipeline
 
+    async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
+        (prompt,), primary_input, is_single_input, is_streaming_input = await super()._prepare_input(context)
+
+        negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
+
+        return (prompt, negative_prompt), primary_input, is_single_input, is_streaming_input
+
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
         inference_steps = await context.render_scalar(self.config.params.inference_steps, int)
+        guidance_scale  = await context.render_scalar(self.config.params.guidance_scale, float)
+        video_shift     = await context.render_scalar(self.config.params.video_shift, float) if self.config.params.video_shift is not None else None
+        audio_shift     = await context.render_scalar(self.config.params.audio_shift, float) if self.config.params.audio_shift is not None else None
 
         params.update({
             "inference_steps": inference_steps,
+            "guidance_scale":  guidance_scale,
+            "video_shift":     video_shift,
+            "audio_shift":     audio_shift,
         })
 
         return params
@@ -66,29 +79,68 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
         def _generate() -> List[VideoStreamResource]:
             import torch
 
-            (prompts,) = inputs
+            prompts, negative_prompts = inputs
+            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
             results: List[VideoStreamResource] = []
 
-            for prompt in prompts:
-                if params["seed"] is not None:
-                    generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
-                else:
-                    generator = None
+            # `set_shift` on a MiniMax-H3 scheduler mutates in-place and only
+            # takes effect on the next `set_timesteps` call (which runs inside
+            # every pipeline call). Snapshot the previous shift (if we're about
+            # to override it) so one request's shift doesn't leak into the next.
+            if params["video_shift"] is not None:
+                saved_video_shift = self._apply_scheduler_shift("scheduler", params["video_shift"])
+            else:
+                saved_video_shift = None
 
-                output = self.pipeline(
-                    prompt=prompt,
-                    height=params["height"],
-                    width=params["width"],
-                    num_frames=params["num_frames"],
-                    num_inference_steps=params["inference_steps"],
-                    generator=generator,
-                )
+            if params["audio_shift"] is not None:
+                saved_audio_shift = self._apply_scheduler_shift("audio_scheduler", params["audio_shift"])
+            else:
+                saved_audio_shift = None
 
-                results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
+            try:
+                for prompt, negative in zip(prompts, negatives):
+                    if params["seed"] is not None:
+                        generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
+                    else:
+                        generator = None
+
+                    pipeline_params: Dict[str, Any] = {
+                        "prompt": prompt,
+                        "height": params["height"],
+                        "width": params["width"],
+                        "num_frames": params["num_frames"],
+                        "num_inference_steps": params["inference_steps"],
+                        "guidance_scale": params["guidance_scale"],
+                        "generator": generator,
+                    }
+
+                    if negative is not None:
+                        pipeline_params["negative_prompt"] = negative
+
+                    output = self.pipeline(**pipeline_params)
+
+                    results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
+            finally:
+                if saved_audio_shift is not None:
+                    self.pipeline.audio_scheduler.set_shift(saved_audio_shift)
+
+                if saved_video_shift is not None:
+                    self.pipeline.scheduler.set_shift(saved_video_shift)
 
             return results
 
         return await self._run_in_executor(_generate)
+
+    def _apply_scheduler_shift(self, scheduler_attr: str, shift: float) -> Optional[float]:
+        scheduler = getattr(self.pipeline, scheduler_attr, None)
+
+        if scheduler is not None and hasattr(scheduler, "set_shift"):
+            previous = getattr(scheduler.config, "shift", None) if hasattr(scheduler, "config") else None
+            scheduler.set_shift(shift)
+
+            return previous
+
+        return None
 
     def _encode_video_audio_to_mp4(self, output: Any, fps: int) -> VideoStreamResource:
         """Encode a MiniMax-H3 pipeline output (joint video+audio) into an in-memory mp4.

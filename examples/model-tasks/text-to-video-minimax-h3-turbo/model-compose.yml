@@ -1,0 +1,77 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: MiniMax-H3 Text-to-Video (LightX2V Turbo LoRA)
+  description: |
+    Same workflow as text-to-video-minimax-h3, but uses the LightX2V/ModelTC
+    MiniMax-H3 Turbo LoRA to cut generation from 50 to 9 scheduler steps.
+    MiniMax-H3 doesn't ship a few-step checkpoint and its released weights are
+    already CFG-distilled, so the Turbo LoRAs are the step-distilled option
+    most of the community uses.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: text-to-video
+  driver: custom
+  family: minimax-h3
+  device: cuda
+  cpu_offload: true
+  max_concurrent_count: 1
+  model:
+    provider: huggingface
+    repository: MiniMaxAI/MiniMax-H3
+  # LightX2V Turbo LoRAs are published in a single repository with several
+  # variants. The 8-step 768p file below was trained at `shift: 6` (not the
+  # scheduler default 12) — picking the wrong shift runs the schedule
+  # off-calibration and visibly degrades motion. Pairings from
+  # https://github.com/ModelTC/Minimax-H3-Turbo#1-model-specs:
+  #
+  #   | filename                                              | NFE | shift |
+  #   | ----------------------------------------------------- | --- | ----- |
+  #   | minimax_h3_fl2v_turbo_4step_v0.1.safetensors          |  4  |  12   |
+  #   | minimax_h3_fl2v_turbo_8step_v1.0_bf16.safetensors     |  8  |  12   |
+  #   | minimax_h3_fl2v_turbo_4step_v1.0_768p_bf16.safetensors|  4  |   6   |
+  #   | minimax_h3_fl2v_turbo_8step_v1.0_768p_bf16.safetensors|  8  |   6   |
+  #   | minimax_h3_ref2v_turbo_4step_v0.1_bf16.safetensors    |  4  |  12   |
+  #
+  # `inference_steps` is NFE + 1 because the MiniMax-H3 scheduler counts sigma
+  # grid points including the terminal 0: pass "8-step" as `inference_steps: 9`.
+  peft_adapter:
+    - type: lora
+      name: turbo
+      model:
+        provider: huggingface
+        repository: lightx2v/Minimax-h3-Turbo
+        filename: minimax_h3_fl2v_turbo_8step_v1.0_768p_bf16.safetensors
+      weight: 1.0
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/minimax-h3
+  action:
+    prompt: ${input.prompt}
+    negative_prompt: ${input.negative_prompt}
+    width: ${input.width as integer | 1344}
+    height: ${input.height as integer | 768}
+    frame_rate: ${input.frame_rate as integer | 24}
+    seed: ${input.seed as integer}
+    params:
+      num_frames: ${input.num_frames as integer | 96}
+      inference_steps: ${input.inference_steps as integer | 9}
+      # MiniMax-H3 is CFG-distilled so guidance_scale has no real effect; 1.0
+      # keeps the one-pass forward the Turbo LoRA expects.
+      guidance_scale: 1.0
+      # Match the LoRA's training recipe. Omit (or set to null) to keep the
+      # scheduler's default video-shift of 12 / audio-shift of 3.
+      video_shift: 6
+      audio_shift: 3

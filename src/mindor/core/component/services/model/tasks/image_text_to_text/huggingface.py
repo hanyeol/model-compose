@@ -256,8 +256,8 @@ class HuggingfaceImageTextToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver)
 
     def _get_model_class(self) -> Type[PreTrainedModel]:
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.AUTO:
-            from transformers import AutoModelForVision2Seq
-            return AutoModelForVision2Seq
+            from transformers import AutoModelForImageTextToText
+            return AutoModelForImageTextToText
 
         if self.config.architecture == HuggingfaceImageTextToTextModelArchitecture.QWEN2_VL:
             from transformers import Qwen2VLForConditionalGeneration

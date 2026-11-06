@@ -1,3 +1,1 @@
-from .huggingface import HuggingfaceImageGenerationTaskDriver
-
-__all__ = ["HuggingfaceImageGenerationTaskDriver"]
+from .huggingface import *

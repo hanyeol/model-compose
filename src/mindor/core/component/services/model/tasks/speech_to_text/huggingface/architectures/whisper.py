@@ -1,42 +1,22 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple, Type, Optional, Dict, List, Any
+from typing import Union, Type, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
-from mindor.core.utils.streamer import SyncGeneratorStreamer
-from mindor.dsl.schema.component import HuggingfaceSpeechToTextModelArchitecture
-from mindor.dsl.schema.action import ModelActionConfig, HuggingfaceSpeechToTextModelActionConfig
-from mindor.core.foundation.package.torch import torch_requirements
+from mindor.dsl.schema.action import ModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
-from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
-from ...base import ComponentActionContext
-from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
-from ...base.huggingface.streamer import BatchTextIteratorStreamer
-from ...base.huggingface.cancellation import create_cancellation_criteria
-from .common import SpeechToTextTaskAction
+from mindor.core.utils.streamer import SyncGeneratorStreamer
+from .....base import ComponentActionContext
+from .....base.huggingface.streamer import BatchTextIteratorStreamer
+from ..base import HuggingfaceSpeechToTextTaskAction, HuggingfaceSpeechToTextBaseDriver
 from threading import Thread
 import asyncio
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedModel, ProcessorMixin, StoppingCriteriaList
-    import numpy as np
-    import torch
+    from transformers import PreTrainedModel, ProcessorMixin
 
-class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
-    def __init__(
-        self,
-        config: HuggingfaceSpeechToTextModelActionConfig,
-        model: PreTrainedModel,
-        processor: ProcessorMixin,
-        device: torch.device
-    ):
-        super().__init__(config, device)
-
-        self.model: PreTrainedModel = model
-        self.processor: ProcessorMixin = processor
-
+class WhisperHuggingfaceSpeechToTextTaskAction(HuggingfaceSpeechToTextTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
@@ -66,33 +46,6 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
 
         params["generation"]   = generation_params
         params["chunk_length"] = chunk_length
-
-        return params
-
-    async def _resolve_generation_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        num_beams                   = await context.render_variable(self.config.params.num_beams)
-        temperature                 = await context.render_variable(self.config.params.temperature)
-        compression_ratio_threshold = await context.render_variable(self.config.params.compression_ratio_threshold)
-        log_prob_threshold          = await context.render_variable(self.config.params.log_prob_threshold)
-        no_speech_threshold         = await context.render_variable(self.config.params.no_speech_threshold)
-
-        params: Dict[str, Any] = {
-            "num_beams": num_beams,
-        }
-
-        if temperature is not None:
-            params["temperature"] = temperature
-            if temperature > 0:
-                params["do_sample"] = True
-
-        if compression_ratio_threshold is not None:
-            params["compression_ratio_threshold"] = compression_ratio_threshold
-
-        if log_prob_threshold is not None:
-            params["logprob_threshold"] = log_prob_threshold
-
-        if no_speech_threshold is not None:
-            params["no_speech_threshold"] = no_speech_threshold
 
         return params
 
@@ -249,7 +202,7 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
                     }
                     for chunk in optional.get("chunks", [])
                 ]
-    
+
                 result.append({
                     "text":       "".join(word["text"] for word in words),
                     "start_time": float(segment["start"]),
@@ -264,56 +217,28 @@ class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
     def _get_time_precision(self) -> float:
         return self.processor.feature_extractor.chunk_length / self.model.config.max_source_positions
 
-    async def _preprocess_audio(self, audios: List[MediaSource]) -> List[np.ndarray]:
-        waveforms: List[np.ndarray] = []
-
-        for audio in audios:
-            audio = await AudioBufferStreamer(audio, sample_rate=16000, channel="mono").collect()
-            waveforms.append(audio.waveform)
-
-        return waveforms
-
-    def _build_stopping_criteria(self, cancellation_token: Optional[CancellationToken]) -> Optional[StoppingCriteriaList]:
-        from transformers import StoppingCriteriaList
-
-        criteria = []
-
-        if cancellation_token:
-            criteria.append(create_cancellation_criteria(cancellation_token))
-
-        return StoppingCriteriaList(criteria) if criteria else None
-
-@register_model_task_driver(ModelTaskType.SPEECH_TO_TEXT, ModelDriverType.HUGGINGFACE)
-class HuggingfaceSpeechToTextTaskDriver(HuggingfaceMultimodalModelTaskDriver):
-    def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [
-            *torch_requirements("torch", "torchaudio", "torchcodec"),
-            "transformers>=4.52.0",
-            "accelerate",
-            "soxr",
-        ]
-
+class WhisperHuggingfaceSpeechToTextTaskDriver(HuggingfaceSpeechToTextBaseDriver):
     def _get_model_class(self) -> Type[PreTrainedModel]:
-        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.AUTO:
-            from transformers import AutoModelForSpeechSeq2Seq
-            return AutoModelForSpeechSeq2Seq
-
-        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.WHISPER:
-            from transformers import WhisperForConditionalGeneration
-            return WhisperForConditionalGeneration
-
-        raise ValueError(f"Unknown architecture: {self.config.architecture}")
+        from transformers import WhisperForConditionalGeneration
+        return WhisperForConditionalGeneration
 
     def _get_processor_class(self) -> Type[ProcessorMixin]:
-        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.AUTO:
-            from transformers import AutoProcessor
-            return AutoProcessor
-
-        if self.config.architecture == HuggingfaceSpeechToTextModelArchitecture.WHISPER:
-            from transformers import WhisperProcessor
-            return WhisperProcessor
-
-        raise ValueError(f"Unknown architecture: {self.config.architecture}")
+        from transformers import WhisperProcessor
+        return WhisperProcessor
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HuggingfaceSpeechToTextTaskAction(action, self.model, self.processor, self.device).run(context)
+        return await WhisperHuggingfaceSpeechToTextTaskAction(
+            action,
+            self.model,
+            self.processor,
+            self.device,
+        ).run(context)
+
+class AutoHuggingfaceSpeechToTextTaskDriver(WhisperHuggingfaceSpeechToTextTaskDriver):
+    def _get_model_class(self) -> Type[PreTrainedModel]:
+        from transformers import AutoModelForSpeechSeq2Seq
+        return AutoModelForSpeechSeq2Seq
+
+    def _get_processor_class(self) -> Type[ProcessorMixin]:
+        from transformers import AutoProcessor
+        return AutoProcessor

@@ -8,6 +8,7 @@ from ...common import ModelDriverType
 class HuggingfaceSpeechToTextModelArchitecture(str, Enum):
     AUTO    = "auto"
     WHISPER = "whisper"
+    VOXTRAL = "voxtral"
 
 class HuggingfaceSpeechToTextModelComponentConfig(CommonSpeechToTextModelComponentConfig):
     driver: Literal[ModelDriverType.HUGGINGFACE]

@@ -4,8 +4,8 @@ from typing import Optional, Tuple, Dict, List, Any, Union
 from mindor.dsl.schema.component import MusicScoreRendererComponentConfig, MusicScoreRendererDriverType
 from mindor.dsl.schema.action import MusicScoreRendererActionConfig, VerovioMusicScoreRendererActionConfig
 from mindor.dsl.schema.action.impl.music_score_renderer.impl.common import (
-    MusicScoreRendererFormat,
-    MusicScoreRendererMarginConfig,
+    MusicScoreRenderFormat,
+    MusicScoreRenderMarginConfig,
 )
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
@@ -38,7 +38,7 @@ class VerovioMusicScoreRendererAction(MusicScoreRendererAction):
         dpi         = await context.render_scalar(self.config.dpi, int, 150)
 
         try:
-            format = MusicScoreRendererFormat(format)
+            format = MusicScoreRenderFormat(format)
         except ValueError:
             raise ValueError(f"Unsupported format for music-score-renderer: {format!r}")
 
@@ -60,7 +60,7 @@ class VerovioMusicScoreRendererAction(MusicScoreRendererAction):
         if margin is None or isinstance(margin, (int, float)):
             margin = { side: margin if margin is not None else 50.0 for side in sides }
         
-        if isinstance(margin, MusicScoreRendererMarginConfig):
+        if isinstance(margin, MusicScoreRenderMarginConfig):
             margin = margin.model_dump()
         
         if isinstance(margin, dict):
@@ -116,19 +116,19 @@ class VerovioMusicScoreRendererAction(MusicScoreRendererAction):
     async def _encode_svg_pages(
         self,
         svg_pages: List[str],
-        format: MusicScoreRendererFormat,
+        format: MusicScoreRenderFormat,
         dpi: int,
     ) -> List[StreamResource]:
-        if format == MusicScoreRendererFormat.SVG:
+        if format == MusicScoreRenderFormat.SVG:
             return [
                 BytesStreamResource(svg.encode("utf-8"), content_type=_SVG_CONTENT_TYPE, filename=f"page-{index + 1}.svg")
                 for index, svg in enumerate(svg_pages)
             ]
 
-        if format == MusicScoreRendererFormat.PDF:
+        if format == MusicScoreRenderFormat.PDF:
             return await asyncio.to_thread(self._svg_pages_to_pdf, svg_pages)
 
-        if format == MusicScoreRendererFormat.PNG:
+        if format == MusicScoreRenderFormat.PNG:
             return await asyncio.to_thread(self._svg_pages_to_png, svg_pages, dpi)
 
         raise ValueError(f"Unsupported music score renderer format: {format!r}")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Dict, Any, Union, Tuple
 from mindor.dsl.schema.component import Model3DConverterComponentConfig
 from mindor.dsl.schema.action import Model3DConverterActionConfig
+from mindor.dsl.schema.common.model_3d import Model3DFormat
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
@@ -29,20 +30,20 @@ class NativeModel3DConverterAction(Model3DConverterAction):
     async def _convert(
         self,
         source: MediaSource,
-        format: str,
+        format: Model3DFormat,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Model3DStreamResource:
         input_path, spooled = await MediaInputPathResolver().resolve(source, default_format=source.format)
         input_format = source.format or (get_file_extension(input_path) if input_path else None)
-        output_path = get_temporary_path(format)
+        output_path = get_temporary_path(format.value)
 
         if not input_format:
             raise RuntimeError("Cannot determine 3D model input format.")
 
-        logging.debug("Converting 3D model from '%s' to '%s' (input=%s)", input_format, format, input_path)
+        logging.debug("Converting 3D model from '%s' to '%s' (input=%s)", input_format, format.value, input_path)
 
         try:
-            await asyncio.to_thread(self._export, input_path, input_format, output_path, format)
+            await asyncio.to_thread(self._export, input_path, input_format, output_path, format.value)
         finally:
             if spooled:
                 try:
@@ -52,7 +53,7 @@ class NativeModel3DConverterAction(Model3DConverterAction):
 
         logging.debug("3D model conversion completed: '%s'", output_path)
 
-        return Model3DStreamResource(FileStreamResource(output_path, auto_delete=True), format=format)
+        return Model3DStreamResource(FileStreamResource(output_path, auto_delete=True), format=format.value)
 
     @staticmethod
     def _export(input_path: str, input_format: str, output_path: str, format: str) -> None:
@@ -61,7 +62,7 @@ class NativeModel3DConverterAction(Model3DConverterAction):
         scene_or_mesh = trimesh.load(input_path, file_type=input_format, force=None)
         export_params: Dict[str, Any] = { "file_type": format }
 
-        if format == "gltf":
+        if format == Model3DFormat.GLTF:
             export_params["embed_buffers"] = True
 
         try:

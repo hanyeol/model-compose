@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import Model3DConverterActionConfig
+from mindor.dsl.schema.common.model_3d import Model3DFormat
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.media import MediaSource
@@ -51,6 +52,11 @@ class Model3DConverterAction(ComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         format = await context.render_scalar(self.config.format, str, "glb")
+
+        try:
+            format = Model3DFormat(format)
+        except ValueError:
+            raise ValueError(f"Unsupported format for model-3d-converter: {format!r}")
 
         return {
             "format": format,

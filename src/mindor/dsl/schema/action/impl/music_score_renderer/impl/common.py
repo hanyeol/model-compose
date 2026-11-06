@@ -3,12 +3,12 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from ...common import CommonActionConfig
 
-class MusicScoreRendererFormat(str, Enum):
+class MusicScoreRenderFormat(str, Enum):
     SVG = "svg"
     PDF = "pdf"
     PNG = "png"
 
-class MusicScoreRendererMarginConfig(BaseModel):
+class MusicScoreRenderMarginConfig(BaseModel):
     top: Union[float, str] = Field(default=50.0, description="Top page margin in Verovio units.")
     right: Union[float, str] = Field(default=50.0, description="Right page margin in Verovio units.")
     bottom: Union[float, str] = Field(default=50.0, description="Bottom page margin in Verovio units.")

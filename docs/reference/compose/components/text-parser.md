@@ -33,7 +33,7 @@ component:
 | `batch_size` | integer | `null` | Number of input texts processed per batch |
 | `json_schema` | object | `null` | JSON Schema validated against the extracted result (`json` format only). Requires the `jsonschema` package |
 | `xml_root` | string | `null` | Extract only the block whose root tag matches (`xml` format only) |
-| `xml_output` | string | `text` | Return the raw XML block string (`text`) or a parsed dict (`dict`) — `xml` format only |
+| `xml_as_object` | bool | `false` | If true, parse the XML block into a structured object; otherwise return the raw XML string (`xml` format only) |
 | `list_separator` | string | `,` | Item separator for the `list` format |
 | `table_column_separator` | string | `,` | Column separator for the `table` format (`\t` for TSV, `;` for European CSV) |
 | `table_row_separator` | string | `\n` | Row separator for the `table` format |
@@ -49,7 +49,7 @@ component:
 | `json` | `dict` / `list` | Tries whole-string parse → fenced code blocks → balanced `{}`/`[]` spans. Cleans `//`/`/* */` comments and trailing commas. Deduplicates candidates by serialized form. |
 | `yaml` | `dict` / `list` | Parses fenced code blocks and `---`-separated documents via `yaml.safe_load`. Scalar results (plain strings/numbers) are excluded. |
 | `code` | `str` | Returns full fenced code blocks with the ` ```lang ` and closing ` ``` ` lines preserved. |
-| `xml` | `str` or `dict` | Matches `<tag>...</tag>` spans that parse as valid XML. `xml_root` filters by root tag. `xml_output: dict` converts to xmltodict-style dict (attributes as `@name`, mixed text as `#text`, leaf collapses to text). |
+| `xml` | `str` or `dict` | Matches `<tag>...</tag>` spans that parse as valid XML. `xml_root` filters by root tag. `xml_as_object: true` converts to xmltodict-style dict (attributes as `@name`, mixed text as `#text`, leaf collapses to text). |
 | `list` | `List[str]` | Splits on `list_separator`, strips whitespace, drops empty items. |
 | `table` | `List[Dict]` or `List[List[str]]` | Uses Python's `csv` module (respects quoting/escaping). `table_row_separator` other than `\n` is normalized first. |
 | `regex` | `dict` / `List[str]` / `str` | Applies `regex_pattern` with `regex_flags`. Named groups return `dict`; unnamed groups return `List[str]`; no groups returns the full match string. |
@@ -131,14 +131,13 @@ If the extracted object fails validation, `fallback` is returned instead — pai
   text: ${jobs.tagged-output.output}
   format: xml
   xml_root: answer
-  xml_output: text
 
 # Parse a <person> block into a dict
 - id: parse-person
   text: ${jobs.tagged-output.output}
   format: xml
   xml_root: person
-  xml_output: dict
+  xml_as_object: true
   # → {"name": "Alice", "age": "30"}
 ```
 
@@ -232,7 +231,7 @@ All fields support variable interpolation:
 2. **Always set `fallback`**: A `null` return on parse failure is often a workflow bug amplifier. Set a shape-preserving default so downstream jobs stay type-stable.
 3. **Use `json_schema` to catch shape drift**: When the LLM output structure matters, validate. Combine with a conditional retry job for self-healing pipelines.
 4. **Reach for `regex` for surgical extractions**: When the payload has no JSON/XML structure but a predictable pattern (numbers in prose, "key: value" lines), `regex` is faster and more robust than post-processing free text.
-5. **`xml_output: dict` when consuming**: If the workflow needs to reach into extracted XML fields, ask for `dict` output up front rather than parsing the returned string.
+5. **`xml_as_object: true` when consuming**: If the workflow needs to reach into extracted XML fields, parse to an object up front rather than parsing the returned string.
 
 ## Common Use Cases
 

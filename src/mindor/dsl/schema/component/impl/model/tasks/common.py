@@ -122,6 +122,7 @@ class HuggingfaceModelConfig(CommonModelConfig):
     allow_patterns: Optional[List[str]] = Field(default=None, description="Glob patterns selecting which files to download from the repository snapshot.")
     local_files_only: Union[bool, str] = Field(default=False, description="Whether to skip network access and load only from the local cache.")
     token: Optional[str] = Field(default=None, description="HuggingFace access token used for gated or private repositories.")
+    trust_remote_code: Optional[bool] = Field(default=None, description="Whether to execute custom model code shipped in the HuggingFace repository.")
 
     @field_validator("cache_dir", mode="after")
     def expand_cache_dir(cls, value: Optional[str]) -> Optional[str]:

@@ -107,6 +107,9 @@ class VllmModelTaskDriver(ModelTaskDriver):
             if model.token is not None:
                 params["hf_token"] = model.token
 
+            if model.trust_remote_code is not None:
+                params["trust_remote_code"] = model.trust_remote_code
+
         return params
 
     def _get_model_options(self, config: BaseModel) -> Dict[str, Any]:

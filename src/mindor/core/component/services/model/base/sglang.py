@@ -101,6 +101,9 @@ class SglangModelTaskDriver(ModelTaskDriver):
             if model.cache_dir is not None:
                 params["download_dir"] = model.cache_dir
 
+            if model.trust_remote_code is not None:
+                params["trust_remote_code"] = model.trust_remote_code
+
         return params
 
     def _get_model_options(self, config: BaseModel) -> Dict[str, Any]:

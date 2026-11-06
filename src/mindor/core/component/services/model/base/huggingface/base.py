@@ -177,6 +177,9 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
             if model.token:
                 params["token"] = model.token
 
+            if model.trust_remote_code is not None:
+                params["trust_remote_code"] = model.trust_remote_code
+
         return params
 
     def _get_model_options(

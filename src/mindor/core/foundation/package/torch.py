@@ -174,6 +174,28 @@ def torch_requirements(*specs: str) -> List[str]:
 
     return _rewrite_specs(specs, torch_version, channel, pin_torch=pin, pin_siblings=pin)
 
+def torchao_int4_requirements() -> List[str]:
+    """Return the install spec for `mslk`, torchao's int4 GEMM kernel package.
+
+    torchao's `Int4WeightOnlyConfig` lowers to `Int4Tensor`, whose matmul path
+    depends on `mslk` (shipped as a torch third-party kernel bundle for SM100+
+    Blackwell). PyPI only hosts an `mslk==0.0.0` placeholder; the real wheels
+    live on the PyTorch wheel index under the CUDA channel the installed/
+    resolved torch targets. We reuse `resolve_torch_build()` so the channel
+    matches what `torch_requirements()` already settled on for the env.
+
+    Returns [] on hosts without a CUDA wheel channel (CPU/non-NVIDIA) — the
+    kernel can't run there, so skipping the requirement lets the pipeline fall
+    through to the natural ImportError at config-build time rather than the
+    opaque pip failure of "no wheel on the CPU index".
+    """
+    _, channel = resolve_torch_build()
+
+    if channel is None or channel == _CPU_CHANNEL:
+        return []
+
+    return [ f"mslk>=1.0.0@{_WHEEL_INDEX_BASE}/{channel}" ]
+
 def resolve_torch_build(*specs: str) -> Tuple[Optional[str], Optional[str]]:
     """Return the (torch version, wheel channel) that `torch_requirements(*specs)` settles on.
 

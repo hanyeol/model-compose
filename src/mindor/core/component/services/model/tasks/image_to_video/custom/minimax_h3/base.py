@@ -11,7 +11,7 @@ from mindor.dsl.schema.component import (
     HuggingfaceModelConfig,
 )
 from mindor.dsl.schema.action import ModelActionConfig, MinimaxH3ImageToVideoModelActionConfig
-from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.torch import torch_requirements, torchao_int4_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.logger import logging
@@ -321,17 +321,22 @@ class MinimaxH3ImageToVideoBaseDriver(ModelTaskDriver):
         if self._has_quantization():
             requirements.append("torchao>=0.8")
 
+        if self._has_quantization(ModelQuantizationType.INT4):
+            requirements.extend(torchao_int4_requirements())
+
         return requirements
 
-    def _has_quantization(self) -> bool:
+    def _has_quantization(self, type: Optional[ModelQuantizationType] = None) -> bool:
         if self.config.quantization is not None:
-            return True
+            if type is None or self.config.quantization.type == type:
+                return True
 
         for name in ("text_encoder", "transformer"):
             submodule = getattr(self.config, name, None)
 
             if submodule is not None and submodule.quantization is not None:
-                return True
+                if type is None or submodule.quantization.type == type:
+                    return True
 
         return False
 

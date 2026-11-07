@@ -33,6 +33,8 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `workflow` | 调用工作流 | 将其他工作流作为子程序执行 |
 | `shell` | 执行 shell 命令 | 运行脚本、系统命令 |
 | `text-splitter` | 分割文本 | 将文档分割成块 |
+| `text-parser` | 解析结构化数据 | 从含噪声的自由文本中提取 JSON、YAML、XML、表格、列表或正则匹配 |
+| `text-renderer` | 渲染模板 | 将模板字符串渲染为文本 —— 用于组装提示词及其他输出 |
 | `image-processor` | 处理图像 | 图像转换、调整大小、滤镜等 |
 | `image-drawing` | 在图像上绘制 | 通过 Pillow ImageDraw 绘制图形、文本和位图 — 边界框、标签、关键点、掩膜叠加 |
 | `image-compressor` | 压缩图像 | 通过 Pillow、oxipng 或 pngquant 进行 PNG 压缩 |
@@ -82,6 +84,8 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 全文搜索 → `search-engine`
 - 键值存储 → `key-value-store`
 - 文本分割 → `text-splitter`
+- 从自由文本提取结构化数据（JSON/YAML/XML/表格/列表/正则）→ `text-parser`
+- 提示词 / 文本模板渲染（将模板字符串渲染为文本）→ `text-renderer`
 - 图像处理（调整大小、裁剪、滤镜、叠加、区域马赛克/填充）→ `image-processor`
 - 图像绘制（边界框、标签、关键点、掩膜叠加）→ `image-drawing`
 - 图像压缩 (PNG) → `image-compressor`

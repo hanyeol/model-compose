@@ -289,6 +289,34 @@ components:
       separator: "\n\n"
 ```
 
+**文本解析器**：
+```yaml
+components:
+  - id: text-parser-id
+    type: text-parser
+    action:
+      text: ${input.text}
+      format: json                 # json | yaml | code | xml | list | table | regex
+      strategy: largest            # first | last | all | largest
+      fallback: null               # 未提取到任何候选时返回的值
+      json_schema: { }             # 可选：校验 JSON 结果（仅 format: json）
+      xml_root: answer             # 可选：按根标签过滤（仅 format: xml）
+      regex_pattern: ""            # format: regex 时必填
+      regex_flags: ""              # 'i' (IGNORECASE)、's' (DOTALL)、'm' (MULTILINE) 的组合
+```
+
+**文本渲染器**：
+```yaml
+components:
+  - id: text-renderer-id
+    type: text-renderer
+    action:
+      template: |-                 # 将渲染为动作输出的模板文本
+        你好，${input.name}！
+        你的角色是 ${input.role | 'guest'}。
+      batch_size: null             # 可选：template 为列表/流时每批处理的模板数量
+```
+
 **Shell 命令**：
 ```yaml
 components:

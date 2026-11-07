@@ -363,6 +363,18 @@ components:
       regex_flags: ""              # Combination of 'i' (IGNORECASE), 's' (DOTALL), 'm' (MULTILINE)
 ```
 
+**Text Renderer**:
+```yaml
+components:
+  - id: text-renderer-id
+    type: text-renderer
+    action:
+      template: |-                 # Template text to render into the action output
+        Hello, ${input.name}!
+        Your role is ${input.role | 'guest'}.
+      batch_size: null             # Optional: number of templates per batch when template is a list/stream
+```
+
 **Shell Command**:
 ```yaml
 components:

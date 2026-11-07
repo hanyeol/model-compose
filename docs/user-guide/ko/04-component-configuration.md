@@ -33,6 +33,8 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `workflow` | 워크플로우 호출 | 다른 워크플로우를 서브루틴으로 실행 |
 | `shell` | 셸 명령 실행 | 스크립트 실행, 시스템 명령 |
 | `text-splitter` | 텍스트 분할 | 문서를 청크로 분할 |
+| `text-parser` | 구조화 데이터 파싱 | 노이즈가 섞인 자유 형식 텍스트에서 JSON, YAML, XML, 표, 목록, 정규식 매치 추출 |
+| `text-renderer` | 템플릿 렌더링 | 템플릿 문자열을 텍스트로 렌더링 — 프롬프트 및 기타 출력 조립 |
 | `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, 필터 등 |
 | `image-drawing` | 이미지에 그리기 | Pillow ImageDraw로 도형·텍스트·비트맵 그리기 — 바운딩 박스, 라벨, 키포인트, 마스크 오버레이 |
 | `image-compressor` | 이미지 압축 | Pillow, oxipng, pngquant를 통한 PNG 압축 |
@@ -82,6 +84,8 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 풀텍스트 검색 → `search-engine`
 - 키-값 저장 → `key-value-store`
 - 텍스트 분할 → `text-splitter`
+- 자유 형식 텍스트에서 구조화 데이터 추출 (JSON/YAML/XML/표/목록/정규식) → `text-parser`
+- 프롬프트 / 텍스트 템플릿 렌더링 (템플릿 문자열을 텍스트로 렌더링) → `text-renderer`
 - 이미지 처리 (리사이즈, 크롭, 필터, 오버레이, 영역 모자이크/채우기) → `image-processor`
 - 이미지 그리기 (바운딩 박스, 라벨, 키포인트, 마스크 오버레이) → `image-drawing`
 - 이미지 압축 (PNG) → `image-compressor`

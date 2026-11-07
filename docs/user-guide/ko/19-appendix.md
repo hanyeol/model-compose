@@ -288,6 +288,34 @@ components:
       separator: "\n\n"
 ```
 
+**텍스트 파서**:
+```yaml
+components:
+  - id: text-parser-id
+    type: text-parser
+    action:
+      text: ${input.text}
+      format: json                 # json | yaml | code | xml | list | table | regex
+      strategy: largest            # first | last | all | largest
+      fallback: null               # 추출 후보가 없을 때 반환되는 값
+      json_schema: { }             # 선택: JSON 결과 검증 (format: json 전용)
+      xml_root: answer             # 선택: 루트 태그 필터링 (format: xml 전용)
+      regex_pattern: ""            # format: regex일 때 필수
+      regex_flags: ""              # 'i' (IGNORECASE), 's' (DOTALL), 'm' (MULTILINE) 조합
+```
+
+**텍스트 렌더러**:
+```yaml
+components:
+  - id: text-renderer-id
+    type: text-renderer
+    action:
+      template: |-                 # 액션 출력으로 렌더링될 템플릿 문자열
+        안녕하세요, ${input.name}!
+        당신의 역할은 ${input.role | 'guest'}입니다.
+      batch_size: null             # 선택: template이 리스트/스트림일 때 배치당 템플릿 수
+```
+
 **쉘 명령**:
 ```yaml
 components:

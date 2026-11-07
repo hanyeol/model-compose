@@ -8,7 +8,7 @@ Components are reusable service definitions that perform specific tasks within w
 
 ```yaml
 component:
-  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | agent-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | music-pitch-corrector | music-score-loader | music-score-renderer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-loader | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
+  type: agent | http-client | http-server | websocket-client | websocket-server | mcp-server | mcp-client | model | agent-memory | model-tokenizer | model-trainer | datasets | vector-processor | vector-store | graph-store | search-engine | key-value-store | file-store | workflow | shell | text-splitter | text-parser | text-renderer | document-loader | image-processor | image-drawing | image-compressor | image-analyzer | video-scene-detector | video-converter | video-encoder | video-frame-extractor | html-frame-renderer | video-clipper | video-mixer | video-analyzer | audio-extractor | audio-converter | audio-feature-extractor | audio-analyzer | music-segment-detector | music-analyzer | music-synthesizer | music-pitch-corrector | music-score-loader | music-score-renderer | audio-silence-detector | audio-synchronizer | audio-clipper | audio-mixer | model-3d-loader | model-3d-converter | camera-pose-estimator | media-inspector | media-downloader | subtitle-loader | web-scraper | web-browser | screen-capture | rtmp-publisher
   id: component-id
   runtime: native | embedded | process | virtualenv | docker | apple-container | runpod | vastai  # default: native
   max_concurrent_count: 0
@@ -61,6 +61,7 @@ Model-compose supports the following component types:
 | `shell` | Shell command execution | [shell.md](components/shell.md) |
 | `text-splitter` | Text processing and splitting | [text-splitter.md](components/text-splitter.md) |
 | `text-parser` | Extract structured data (JSON/YAML/XML/table/list/regex) from noisy free-form text | [text-parser.md](components/text-parser.md) |
+| `text-renderer` | Render a template string into text — for assembling prompts and other outputs | [text-renderer.md](components/text-renderer.md) |
 | `document-loader` | Parse PDF/DOCX/HTML/etc. into a streaming sequence of chunk records (docling, pypdf) | [document-loader.md](components/document-loader.md) |
 | `image-processor` | Image transformation and processing | [image-processor.md](components/image-processor.md) |
 | `image-drawing` | Draw shapes, text, and bitmaps onto images (Pillow ImageDraw) | [image-drawing.md](components/image-drawing.md) |

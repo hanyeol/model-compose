@@ -16,6 +16,7 @@ from .workflow import *
 from .shell import *
 from .text_splitter import *
 from .text_parser import *
+from .text_renderer import *
 from .sentence_splitter import *
 from .transcript_corrector import *
 from .image_processor import *

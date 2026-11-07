@@ -16,6 +16,7 @@ ActionConfig = Union[
     ShellActionConfig,
     TextSplitterActionConfig,
     TextParserActionConfig,
+    TextRendererActionConfig,
     SentenceSplitterActionConfig,
     TranscriptCorrectorActionConfig,
     ImageProcessorActionConfig,

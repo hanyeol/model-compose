@@ -21,11 +21,12 @@ if TYPE_CHECKING:
 class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
     config: InsightfaceFaceSwapModelActionConfig
 
-    def __init__(self, config: InsightfaceFaceSwapModelActionConfig, model: INSwapper, detector: FaceAnalysis):
+    def __init__(self, config: InsightfaceFaceSwapModelActionConfig, model: INSwapper, detector: FaceAnalysis, ctx_id: int):
         super().__init__(config)
 
         self.model: INSwapper = model
         self.detector: FaceAnalysis = detector
+        self.ctx_id: int = ctx_id
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
@@ -54,7 +55,7 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
         import cv2
 
         def _prepare_source_face() -> Face:
-            self.detector.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.detector.prepare(ctx_id=self.ctx_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
 
             image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
             faces = self.detector.get(image_cv)
@@ -77,7 +78,7 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
             import numpy as np
             import cv2
 
-            self.detector.prepare(ctx_id=0, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.detector.prepare(ctx_id=self.ctx_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
 
             results: List[PILImage.Image] = []
 
@@ -115,6 +116,7 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
 
         self.model: Optional[INSwapper] = None
         self.detector: Optional[FaceAnalysis] = None
+        self.ctx_id: int = -1
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
@@ -124,21 +126,20 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        model, detector = await self._load_pretrained_model()
-
-        self.model    = model
-        self.detector = detector
+        self.model, self.detector, self.ctx_id = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model    = None
         self.detector = None
+        self.ctx_id   = -1
 
-    async def _load_pretrained_model(self) -> Tuple[INSwapper, FaceAnalysis]:
+    async def _load_pretrained_model(self) -> Tuple[INSwapper, FaceAnalysis, int]:
         from insightface.app import FaceAnalysis
         from insightface.model_zoo import get_model
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device, use_torch=False)
+        ctx_id = device.index or 0 if device.type == "cuda" else -1
 
         def _load() -> Tuple[INSwapper, FaceAnalysis]:
             providers = resolve_onnx_providers(device)
@@ -147,11 +148,13 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
 
             model = get_model(os.path.join(root, name), download=False, download_zip=False)
             detector = FaceAnalysis(name=self.config.detector_model, root=root, providers=providers)
-            detector.prepare(ctx_id=self._get_device_id(), det_size=(640, 640))
+            detector.prepare(ctx_id=ctx_id, det_size=(640, 640))
 
             return model, detector
 
-        return await self._run_in_executor(_load)
+        model, detector = await self._run_in_executor(_load)
+
+        return model, detector, ctx_id
 
     async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> Tuple[str, str]:
         path = await super()._provision_model(model, prefetch=prefetch)
@@ -216,8 +219,5 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
 
         os.symlink(target, link_path, target_is_directory=True)
 
-    def _get_device_id(self) -> int:
-        return 0
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await InsightfaceFaceSwapTaskAction(action, self.model, self.detector).run(context)
+        return await InsightfaceFaceSwapTaskAction(action, self.model, self.detector, self.ctx_id).run(context)

@@ -33,12 +33,11 @@ if TYPE_CHECKING:
 class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     config: InsightfaceFaceTrackingModelActionConfig
 
-    def __init__(self, config: InsightfaceFaceTrackingModelActionConfig, model: FaceAnalysis, device_id: int):
+    def __init__(self, config: InsightfaceFaceTrackingModelActionConfig, model: FaceAnalysis, ctx_id: int):
         super().__init__(config)
 
         self.model: FaceAnalysis = model
-        self.device_id: int = device_id
-
+        self.ctx_id: int = ctx_id
         self._prepared: bool = False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -348,7 +347,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         import cv2
 
         if not self._prepared:
-            self.model.prepare(ctx_id=self.device_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.model.prepare(ctx_id=self.ctx_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
             self._prepared = True
 
         image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
@@ -1216,6 +1215,7 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
         super().__init__(id, config, daemon)
 
         self.model: Optional[FaceAnalysis] = None
+        self.ctx_id: int = -1
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
@@ -1225,16 +1225,18 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.model = await self._load_pretrained_model()
+        self.model, self.ctx_id = await self._load_pretrained_model()
 
     async def _unload_model(self) -> None:
         self.model = None
+        self.ctx_id = -1
 
-    async def _load_pretrained_model(self) -> FaceAnalysis:
+    async def _load_pretrained_model(self) -> Tuple[FaceAnalysis, int]:
         from insightface.app import FaceAnalysis
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device, use_torch=False)
+        ctx_id = device.index or 0 if device.type == "cuda" else -1
 
         def _load() -> FaceAnalysis:
             providers = resolve_onnx_providers(device)
@@ -1242,11 +1244,13 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
             logging.debug(f"InsightFace providers: {providers}")
 
             model = FaceAnalysis(name=name, root=root, providers=providers)
-            model.prepare(ctx_id=self._get_device_id())
+            model.prepare(ctx_id=ctx_id)
 
             return model
 
-        return await self._run_in_executor(_load)
+        model = await self._run_in_executor(_load)
+
+        return model, ctx_id
 
     async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> Tuple[str, str]:
         path = await super()._provision_model(model, prefetch=prefetch)
@@ -1311,8 +1315,5 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
 
         os.symlink(target, link_path, target_is_directory=True)
 
-    def _get_device_id(self) -> int:
-        return 0
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await InsightfaceFaceTrackingTaskAction(action, self.model, self._get_device_id()).run(context)
+        return await InsightfaceFaceTrackingTaskAction(action, self.model, self.ctx_id).run(context)

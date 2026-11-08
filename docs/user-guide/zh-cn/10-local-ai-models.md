@@ -829,6 +829,7 @@ component:
 - `esrgan`：ESRGAN
 - `swinir`：SwinIR
 - `ldsr`：潜在扩散超分辨率
+- `hat`：HAT（Hybrid Attention Transformer）— 仅支持 ONNX，不依赖 torch。Scale 和分块大小从 ONNX 图中自动读取。示例仓库：`MahoCommerce/Real_HAT_GAN_sharper-ONNX`（fp32，原生 4 倍）。HAT 在 fp16 中数值不稳定，Maho 导出在 CoreML 上无法运行 — Apple Silicon 请设置 `device: cpu`。
 
 ### 10.3.15 text-to-speech
 

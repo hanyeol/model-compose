@@ -872,6 +872,7 @@ component:
 - `esrgan`: ESRGAN
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
+- `hat`: HAT (Hybrid Attention Transformer) — ONNX-only, torch-free; scale and tile size are read from the ONNX graph itself. Example repo: `MahoCommerce/Real_HAT_GAN_sharper-ONNX` (fp32, native 4×). HAT is numerically unstable in fp16 and the Maho export does not run on CoreML — set `device: cpu` on Apple Silicon.
 
 ### 10.3.15 text-to-speech
 

@@ -829,6 +829,7 @@ component:
 - `esrgan`: ESRGAN
 - `swinir`: SwinIR
 - `ldsr`: Latent Diffusion Super Resolution
+- `hat`: HAT (Hybrid Attention Transformer) — ONNX 전용, torch 비의존. scale 과 tile 크기는 ONNX 그래프에서 자동으로 추론됨. 예시 저장소: `MahoCommerce/Real_HAT_GAN_sharper-ONNX` (fp32, 네이티브 4배). HAT 는 fp16 에서 수치적으로 불안정하며, Maho export 는 CoreML 에서 동작하지 않음 — Apple Silicon 에서는 `device: cpu` 로 지정.
 
 ### 10.3.15 text-to-speech
 

@@ -78,25 +78,28 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        min_confidence            = await context.render_scalar(self.config.params.min_confidence, float)
-        min_presence_confidence   = await context.render_scalar(self.config.params.min_presence_confidence, float)
-        min_pose_size             = await context.render_scalar(self.config.params.min_pose_size, int)
-        min_frame_count           = await context.render_scalar(self.config.params.min_frame_count, int)
-        max_pose_count_per_frame  = await context.render_scalar(self.config.params.max_pose_count_per_frame, int)
-        crop_margin_ratio      = await context.render_scalar(self.config.params.crop_margin_ratio, float)
-        bounding_box_smoothing    = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
-        merge_gap                 = await context.render_scalar(self.config.params.merge_gap, float)
-        skeleton_format           = await context.render_scalar(self.config.skeleton_format, str)
-        skeleton_background       = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
-        return_tracks             = await context.render_scalar(self.config.return_tracks, bool)
-        return_keypoints          = await context.render_scalar(self.config.return_keypoints, bool)
-        return_openpose_keypoints = await context.render_scalar(self.config.return_openpose_keypoints, bool)
-        return_skeleton_image     = await context.render_scalar(self.config.return_skeleton_image, bool)
-        return_track_image        = await context.render_scalar(self.config.return_track_image, bool)
-        return_detections         = await context.render_scalar(self.config.return_detections, bool)
-        return_detection_image    = await context.render_scalar(self.config.return_detection_image, bool)
-        return_frame_image        = await context.render_scalar(self.config.return_frame_image, bool)
-        return_metadata           = await context.render_scalar(self.config.return_metadata, bool)
+        max_detection_count_per_frame = await context.render_scalar(self.config.max_detection_count_per_frame, int)
+        skeleton_format               = await context.render_scalar(self.config.skeleton_format, str)
+        skeleton_background           = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
+        return_tracks                 = await context.render_scalar(self.config.return_tracks, bool)
+        return_keypoints              = await context.render_scalar(self.config.return_keypoints, bool)
+        return_openpose_keypoints     = await context.render_scalar(self.config.return_openpose_keypoints, bool)
+        return_skeleton_image         = await context.render_scalar(self.config.return_skeleton_image, bool)
+        return_track_image            = await context.render_scalar(self.config.return_track_image, bool)
+        return_detections             = await context.render_scalar(self.config.return_detections, bool)
+        return_detection_image        = await context.render_scalar(self.config.return_detection_image, bool)
+        return_frame_image            = await context.render_scalar(self.config.return_frame_image, bool)
+        return_metadata               = await context.render_scalar(self.config.return_metadata, bool)
+        min_confidence                = await context.render_scalar(self.config.params.min_confidence, float)
+        min_presence_confidence       = await context.render_scalar(self.config.params.min_presence_confidence, float)
+        min_pose_size                 = await context.render_scalar(self.config.params.min_pose_size, int)
+        min_frame_count               = await context.render_scalar(self.config.params.min_frame_count, int)
+        crop_margin_ratio             = await context.render_scalar(self.config.params.crop_margin_ratio, float)
+        bounding_box_smoothing        = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
+        merge_gap                     = await context.render_scalar(self.config.params.merge_gap, float)
+
+        if max_detection_count_per_frame < 0:
+            raise ValueError(f"'max_detection_count_per_frame' must be >= 0, got {max_detection_count_per_frame}")
 
         if skeleton_format not in ("natural", "openpose"):
             raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")
@@ -117,25 +120,25 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
             raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
 
         return {
-            "min_confidence":            min_confidence,
-            "min_presence_confidence":   min_presence_confidence,
-            "min_pose_size":             min_pose_size,
-            "min_frame_count":           min_frame_count,
-            "max_pose_count_per_frame":  max_pose_count_per_frame,
-            "crop_margin_ratio":      crop_margin_ratio,
-            "bounding_box_smoothing":    bounding_box_smoothing,
-            "merge_gap":                 merge_gap,
-            "skeleton_format":           skeleton_format,
-            "skeleton_background":       skeleton_background,
-            "return_tracks":             return_tracks,
-            "return_keypoints":          return_keypoints,
-            "return_openpose_keypoints": return_openpose_keypoints,
-            "return_skeleton_image":     return_skeleton_image,
-            "return_track_image":        return_track_image,
-            "return_detections":         return_detections,
-            "return_detection_image":    return_detection_image,
-            "return_frame_image":        return_frame_image,
-            "return_metadata":           return_metadata,
+            "max_detection_count_per_frame": max_detection_count_per_frame,
+            "skeleton_format":               skeleton_format,
+            "skeleton_background":           skeleton_background,
+            "return_tracks":                 return_tracks,
+            "return_keypoints":              return_keypoints,
+            "return_openpose_keypoints":     return_openpose_keypoints,
+            "return_skeleton_image":         return_skeleton_image,
+            "return_track_image":            return_track_image,
+            "return_detections":             return_detections,
+            "return_detection_image":        return_detection_image,
+            "return_frame_image":            return_frame_image,
+            "return_metadata":               return_metadata,
+            "min_confidence":                min_confidence,
+            "min_presence_confidence":       min_presence_confidence,
+            "min_pose_size":                 min_pose_size,
+            "min_frame_count":               min_frame_count,
+            "crop_margin_ratio":             crop_margin_ratio,
+            "bounding_box_smoothing":        bounding_box_smoothing,
+            "merge_gap":                     merge_gap,
         }
 
     @abstractmethod

@@ -47,12 +47,18 @@ class ObjectDetectionTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        labels               = await context.render_variable(self.config.labels)
-        max_object_count     = await context.render_scalar(self.config.max_object_count, int)
-        crop_margin_ratio = await context.render_scalar(self.config.crop_margin_ratio, float)
-        min_confidence       = await context.render_scalar(self.config.params.min_confidence, float)
-        iou_threshold        = await context.render_scalar(self.config.params.iou_threshold, float)
-        agnostic_nms         = await context.render_scalar(self.config.params.agnostic_nms, bool)
+        labels              = await context.render_variable(self.config.labels)
+        max_detection_count = await context.render_scalar(self.config.max_detection_count, int)
+        crop_margin_ratio   = await context.render_scalar(self.config.crop_margin_ratio, float)
+        min_confidence      = await context.render_scalar(self.config.params.min_confidence, float)
+        iou_threshold       = await context.render_scalar(self.config.params.iou_threshold, float)
+        agnostic_nms        = await context.render_scalar(self.config.params.agnostic_nms, bool)
+
+        if max_detection_count < 1:
+            raise ValueError(f"'max_detection_count' must be >= 1, got {max_detection_count}")
+
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
@@ -60,22 +66,19 @@ class ObjectDetectionTaskAction(ModelTaskComponentAction):
         if not 0.0 <= iou_threshold <= 1.0:
             raise ValueError(f"'iou_threshold' must be between 0.0 and 1.0, got {iou_threshold}")
 
-        if max_object_count < 1:
-            raise ValueError(f"'max_object_count' must be >= 1, got {max_object_count}")
-
-        if crop_margin_ratio < 0.0:
-            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
-
         if labels is not None and not isinstance(labels, list):
             labels = [ labels ]
 
+        if labels is not None:
+            labels = [ str(label) for label in labels ]
+
         return {
-            "labels":               [ str(label) for label in labels ] if labels else None,
-            "min_confidence":       min_confidence,
-            "max_object_count":     max_object_count,
-            "iou_threshold":        iou_threshold,
-            "agnostic_nms":         agnostic_nms,
-            "crop_margin_ratio": crop_margin_ratio,
+            "labels":              labels,
+            "max_detection_count": max_detection_count,
+            "crop_margin_ratio":   crop_margin_ratio,
+            "min_confidence":      min_confidence,
+            "iou_threshold":       iou_threshold,
+            "agnostic_nms":        agnostic_nms,
         }
 
     @abstractmethod

@@ -44,7 +44,7 @@ class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
                 source=[ image.convert("RGB") for image in images ],
                 conf=params["min_confidence"],
                 iou=params["iou_threshold"],
-                max_det=params["max_object_count"],
+                max_det=params["max_detection_count"],
                 agnostic_nms=params["agnostic_nms"],
                 classes=classes,
                 device=self.device,

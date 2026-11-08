@@ -78,22 +78,25 @@ class ObjectTrackingTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        labels                     = await context.render_variable(self.config.labels)
-        min_confidence             = await context.render_scalar(self.config.params.min_confidence, float)
-        iou_threshold              = await context.render_scalar(self.config.params.iou_threshold, float)
-        agnostic_nms               = await context.render_scalar(self.config.params.agnostic_nms, bool)
-        min_object_size            = await context.render_scalar(self.config.params.min_object_size, int)
-        min_frame_count            = await context.render_scalar(self.config.params.min_frame_count, int)
-        max_object_count_per_frame = await context.render_scalar(self.config.params.max_object_count_per_frame, int)
-        merge_gap                  = await context.render_scalar(self.config.params.merge_gap, float)
-        crop_margin_ratio       = await context.render_scalar(self.config.params.crop_margin_ratio, float)
-        bounding_box_smoothing     = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
-        return_tracks              = await context.render_scalar(self.config.return_tracks, bool)
-        return_track_image         = await context.render_scalar(self.config.return_track_image, bool)
-        return_detections          = await context.render_scalar(self.config.return_detections, bool)
-        return_detection_image     = await context.render_scalar(self.config.return_detection_image, bool)
-        return_frame_image         = await context.render_scalar(self.config.return_frame_image, bool)
-        return_metadata            = await context.render_scalar(self.config.return_metadata, bool)
+        labels                        = await context.render_variable(self.config.labels)
+        max_detection_count_per_frame = await context.render_scalar(self.config.max_detection_count_per_frame, int)
+        return_tracks                 = await context.render_scalar(self.config.return_tracks, bool)
+        return_track_image            = await context.render_scalar(self.config.return_track_image, bool)
+        return_detections             = await context.render_scalar(self.config.return_detections, bool)
+        return_detection_image        = await context.render_scalar(self.config.return_detection_image, bool)
+        return_frame_image            = await context.render_scalar(self.config.return_frame_image, bool)
+        return_metadata               = await context.render_scalar(self.config.return_metadata, bool)
+        min_confidence                = await context.render_scalar(self.config.params.min_confidence, float)
+        iou_threshold                 = await context.render_scalar(self.config.params.iou_threshold, float)
+        agnostic_nms                  = await context.render_scalar(self.config.params.agnostic_nms, bool)
+        min_object_size               = await context.render_scalar(self.config.params.min_object_size, int)
+        min_frame_count               = await context.render_scalar(self.config.params.min_frame_count, int)
+        crop_margin_ratio             = await context.render_scalar(self.config.params.crop_margin_ratio, float)
+        bounding_box_smoothing        = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
+        merge_gap                     = await context.render_scalar(self.config.params.merge_gap, float)
+
+        if max_detection_count_per_frame < 0:
+            raise ValueError(f"'max_detection_count_per_frame' must be >= 0, got {max_detection_count_per_frame}")
 
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
@@ -113,23 +116,26 @@ class ObjectTrackingTaskAction(ModelTaskComponentAction):
         if labels is not None and not isinstance(labels, list):
             labels = [ labels ]
 
+        if labels is not None:
+            labels = [ str(label) for label in labels ]
+
         return {
-            "labels":                     [ str(label) for label in labels ] if labels else None,
-            "min_confidence":             min_confidence,
-            "iou_threshold":              iou_threshold,
-            "agnostic_nms":               agnostic_nms,
-            "min_object_size":            min_object_size,
-            "min_frame_count":            min_frame_count,
-            "max_object_count_per_frame": max_object_count_per_frame,
-            "merge_gap":                  merge_gap,
-            "crop_margin_ratio":       crop_margin_ratio,
-            "bounding_box_smoothing":     bounding_box_smoothing,
-            "return_tracks":              return_tracks,
-            "return_track_image":         return_track_image,
-            "return_detections":          return_detections,
-            "return_detection_image":     return_detection_image,
-            "return_frame_image":         return_frame_image,
-            "return_metadata":            return_metadata,
+            "labels":                        labels,
+            "max_detection_count_per_frame": max_detection_count_per_frame,
+            "return_tracks":                 return_tracks,
+            "return_track_image":            return_track_image,
+            "return_detections":             return_detections,
+            "return_detection_image":        return_detection_image,
+            "return_frame_image":            return_frame_image,
+            "return_metadata":               return_metadata,
+            "min_confidence":                min_confidence,
+            "iou_threshold":                 iou_threshold,
+            "agnostic_nms":                  agnostic_nms,
+            "min_object_size":               min_object_size,
+            "min_frame_count":               min_frame_count,
+            "crop_margin_ratio":             crop_margin_ratio,
+            "bounding_box_smoothing":        bounding_box_smoothing,
+            "merge_gap":                     merge_gap,
         }
 
     @abstractmethod

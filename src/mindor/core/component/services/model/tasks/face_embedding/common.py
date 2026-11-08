@@ -58,12 +58,17 @@ class FaceEmbeddingTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        max_detection_count  = await context.render_scalar(self.config.max_detection_count, int)
         face_detection       = await context.render_scalar(self.config.params.face_detection, bool)
         alignment            = await context.render_scalar(self.config.params.alignment, bool)
         normalize_embeddings = await context.render_scalar(self.config.params.normalize_embeddings, bool)
         min_face_size        = await context.render_scalar(self.config.params.min_face_size, int)
 
+        if max_detection_count < 0:
+            raise ValueError(f"'max_detection_count' must be >= 0, got {max_detection_count}")
+
         return {
+            "max_detection_count":  max_detection_count,
             "face_detection":       face_detection,
             "alignment":            alignment,
             "normalize_embeddings": normalize_embeddings,

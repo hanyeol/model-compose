@@ -146,6 +146,7 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch==2.5.1", "torchvision==0.20.1"),
+            ("onnxruntime", get_onnxruntime_distributions()),
             "diffusers==0.32.2",
             "transformers==4.48.0",
             "accelerate==0.26.1",
@@ -159,7 +160,6 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
             "imageio-ffmpeg==0.5.1",
             "face-alignment==1.4.1",
             "insightface==0.7.3",
-            ("onnxruntime", get_onnxruntime_distributions()),
             "DeepCache==0.1.1",
             "kornia==0.8.0",
             "numpy==1.26.4",

@@ -235,6 +235,7 @@ class EchoMimicTalkingHeadTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
+            ("onnxruntime", get_onnxruntime_distributions()),
             "diffusers==0.24.0",
             "transformers>=4.38.2,<4.49",
             "accelerate",
@@ -248,7 +249,6 @@ class EchoMimicTalkingHeadTaskDriver(ModelTaskDriver):
             "moviepy",
             "safetensors",
             "insightface",
-            ("onnxruntime", get_onnxruntime_distributions()),
             "mediapipe",
             "torchmetrics",
             "torchtyping",

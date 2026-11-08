@@ -10,7 +10,7 @@ class CommonPoseDetectionParamsConfig(BaseModel):
 
 class CommonPoseDetectionModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to detect poses in.")
-    max_pose_count: Union[int, str] = Field(default=1, description="Maximum number of poses returned per image.")
+    max_detection_count: Union[int, str] = Field(default=1, description="Maximum number of poses returned per image.")
     skeleton_format: Union[Literal[ "natural", "openpose" ], str] = Field(default="natural", description="Layout used when rendering the skeleton image.")
     return_keypoints: Union[bool, str] = Field(default=True, description="Whether natural-layout 2D keypoints are included in the result.")
     return_keypoints_3d: Union[bool, str] = Field(default=False, description="Whether 3D world keypoints (meters, hip-centered) are included in the result.")

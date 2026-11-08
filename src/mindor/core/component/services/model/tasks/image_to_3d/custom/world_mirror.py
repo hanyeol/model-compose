@@ -259,6 +259,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
         return [
             *torch_requirements("torch==2.7.1", "torchvision==0.22.1"),
             *flash_attn_requirements("torch==2.7.1", "flash-attn"),
+            ("onnxruntime", get_onnxruntime_distributions()),
             "diffusers==0.36.0",
             "transformers==5.2.0",
             "accelerate",
@@ -290,7 +291,6 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
             "loguru==0.7.3",
             "tqdm",
             "numpy==1.26.4",
-            ("onnxruntime", get_onnxruntime_distributions()),
             "huggingface_hub>=0.34.0,<1.0",
         ]
 

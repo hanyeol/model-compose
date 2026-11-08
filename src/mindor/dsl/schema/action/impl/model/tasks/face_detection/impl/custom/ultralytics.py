@@ -5,7 +5,6 @@ from ..common import CommonFaceDetectionModelActionConfig, CommonFaceDetectionPa
 class YoloFaceDetectionParamsConfig(CommonFaceDetectionParamsConfig):
     detection_size: Union[int, str] = Field(default=640, description="Detector input resolution in pixels; the longer image side is resized to this length.")
     iou_threshold: Union[float, str] = Field(default=0.45, description="IoU threshold used by non-maximum suppression when merging overlapping boxes.")
-    max_num_faces: Union[int, str] = Field(default=0, description="Maximum number of faces detected per image; 0 means unbounded.")
 
 class YoloFaceDetectionModelActionConfig(CommonFaceDetectionModelActionConfig):
     params: YoloFaceDetectionParamsConfig = Field(default_factory=YoloFaceDetectionParamsConfig, description="YOLO-specific face detection parameters.")

@@ -4,7 +4,6 @@ from ..common import CommonFaceDetectionModelActionConfig, CommonFaceDetectionPa
 
 class InsightfaceFaceDetectionParamsConfig(CommonFaceDetectionParamsConfig):
     detection_size: Union[Tuple[int, int], List[Union[int, str]], str] = Field(default=(640, 640), description="Detector input resolution as (width, height) in pixels.")
-    max_num_faces: Union[int, str] = Field(default=0, description="Maximum number of faces detected per image; 0 means unbounded.")
 
 class InsightfaceFaceDetectionModelActionConfig(CommonFaceDetectionModelActionConfig):
     return_gender_age: Union[bool, str] = Field(default=False, description="Whether gender and age predictions are included in the result.")

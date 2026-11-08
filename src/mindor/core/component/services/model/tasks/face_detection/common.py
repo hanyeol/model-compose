@@ -47,20 +47,25 @@ class FaceDetectionTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        min_confidence       = await context.render_scalar(self.config.params.min_confidence, float)
-        return_landmarks     = await context.render_scalar(self.config.return_landmarks, bool)
-        crop_margin_ratio = await context.render_scalar(self.config.crop_margin_ratio, float)
+        max_detection_count = await context.render_scalar(self.config.max_detection_count, int)
+        crop_margin_ratio   = await context.render_scalar(self.config.crop_margin_ratio, float)
+        return_landmarks    = await context.render_scalar(self.config.return_landmarks, bool)
+        min_confidence      = await context.render_scalar(self.config.params.min_confidence, float)
 
-        if not 0.0 <= min_confidence <= 1.0:
-            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
+        if max_detection_count < 0:
+            raise ValueError(f"'max_detection_count' must be >= 0, got {max_detection_count}")
 
         if crop_margin_ratio < 0.0:
             raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
 
+        if not 0.0 <= min_confidence <= 1.0:
+            raise ValueError(f"'min_confidence' must be between 0.0 and 1.0, got {min_confidence}")
+
         return {
-            "min_confidence":       min_confidence,
-            "return_landmarks":     return_landmarks,
-            "crop_margin_ratio": crop_margin_ratio,
+            "max_detection_count": max_detection_count,
+            "crop_margin_ratio":   crop_margin_ratio,
+            "return_landmarks":    return_landmarks,
+            "min_confidence":      min_confidence,
         }
 
     @abstractmethod

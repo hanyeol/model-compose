@@ -55,7 +55,11 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
         import cv2
 
         def _prepare_source_face() -> Face:
-            self.detector.prepare(ctx_id=self.ctx_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.detector.prepare(
+                ctx_id=self.ctx_id,
+                det_size=params["detection_size"],
+                det_thresh=params["detection_threshold"]
+            )
 
             image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
             faces = self.detector.get(image_cv)
@@ -78,33 +82,37 @@ class InsightfaceFaceSwapTaskAction(FaceSwapTaskAction):
             import numpy as np
             import cv2
 
-            self.detector.prepare(ctx_id=self.ctx_id, det_size=params["detection_size"], det_thresh=params["detection_threshold"])
+            self.detector.prepare(
+                ctx_id=self.ctx_id,
+                det_size=params["detection_size"],
+                det_thresh=params["detection_threshold"]
+            )
 
             results: List[PILImage.Image] = []
 
             for image in images:
-                image_cv = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-                target_faces = self.detector.get(image_cv)
+                image_bgr = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+                target_faces = self.detector.get(image_bgr)
 
                 if not target_faces:
                     results.append(image)
+
                     continue
 
                 target_faces.sort(key=lambda face: face.det_score, reverse=True)
 
-                if params["swap_all_faces"]:
-                    selected_faces = target_faces
-                else:
+                if not params["swap_all_faces"]:
                     if params["face_index"] >= len(target_faces):
                         results.append(image)
+
                         continue
-                    selected_faces = [ target_faces[params["face_index"]] ]
 
-                swapped = image_cv
-                for target_face in selected_faces:
-                    swapped = self.model.get(swapped, target_face, source_face, paste_back=True)
+                    target_faces = [ target_faces[params["face_index"]] ]
 
-                results.append(PILImage.fromarray(cv2.cvtColor(swapped, cv2.COLOR_BGR2RGB)))
+                for target_face in target_faces:
+                    image_bgr = self.model.get(image_bgr, target_face, source_face, paste_back=True)
+
+                results.append(PILImage.fromarray(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)))
 
             return results
 
@@ -120,9 +128,9 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
+            ("onnxruntime", get_onnxruntime_distributions()),
             "insightface",
             "opencv-python",
-            ("onnxruntime", get_onnxruntime_distributions())
         ]
 
     async def _load_model(self) -> None:
@@ -191,8 +199,10 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
         for entry in os.listdir(nested):
             src = os.path.join(nested, entry)
             dst = os.path.join(path, entry)
+
             if os.path.exists(dst):
                 continue
+
             shutil.move(src, dst)
 
         if not os.listdir(nested):

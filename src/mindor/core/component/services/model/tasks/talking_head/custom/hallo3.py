@@ -120,6 +120,7 @@ class Hallo3TalkingHeadTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
+            ("onnxruntime", get_onnxruntime_distributions()),
             "diffusers",
             "transformers",
             "accelerate",
@@ -137,7 +138,6 @@ class Hallo3TalkingHeadTaskDriver(ModelTaskDriver):
             "audio-separator",
             "insightface",
             "mediapipe",
-            ("onnxruntime", get_onnxruntime_distributions()),
             "moviepy<2",
             "safetensors",
             "av<14",

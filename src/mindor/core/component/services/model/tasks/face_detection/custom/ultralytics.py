@@ -27,7 +27,6 @@ class YoloFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         detection_size = await context.render_scalar(self.config.params.detection_size, int)
         iou_threshold  = await context.render_scalar(self.config.params.iou_threshold, float)
-        max_num_faces  = await context.render_scalar(self.config.params.max_num_faces, int)
 
         if detection_size <= 0:
             raise ValueError(f"'detection_size' must be > 0, got {detection_size}")
@@ -38,7 +37,6 @@ class YoloFaceDetectionTaskAction(FaceDetectionTaskAction):
         params.update({
             "detection_size": detection_size,
             "iou_threshold":  iou_threshold,
-            "max_num_faces":  max_num_faces,
         })
 
         return params
@@ -50,14 +48,17 @@ class YoloFaceDetectionTaskAction(FaceDetectionTaskAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
         def _detect() -> List[Dict[str, Any]]:
-            max_det = params["max_num_faces"] if params["max_num_faces"] and params["max_num_faces"] > 0 else 300
+            # YOLO's `max_det` is a hard upper bound and treats 0 as "return 0 boxes";
+            # fall back to YOLO's own default cap (300) to keep `max_detection_count=0`
+            # meaning "unbounded" consistent with the InsightFace driver.
+            max_detection_count = params["max_detection_count"] or 300
 
             predictions = self.model.predict(
                 source=[ image.convert("RGB") for image in images ],
                 imgsz=params["detection_size"],
                 conf=params["min_confidence"],
                 iou=params["iou_threshold"],
-                max_det=max_det,
+                max_det=max_detection_count,
                 device=str(self.device),
                 verbose=False,
             )

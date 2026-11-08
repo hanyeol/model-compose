@@ -129,8 +129,4 @@ class HSEmotionFaceEmotionClassificationTaskDriver(ModelTaskDriver):
         return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await HSEmotionFaceEmotionClassificationTaskAction(
-            action,
-            self.session,
-            self.labels,
-        ).run(context)
+        return await HSEmotionFaceEmotionClassificationTaskAction(action, self.session, self.labels).run(context)

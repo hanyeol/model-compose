@@ -82,21 +82,24 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        similarity_threshold     = await context.render_scalar(self.config.params.similarity_threshold, float)
-        min_face_size            = await context.render_scalar(self.config.params.min_face_size, int)
-        min_frame_count          = await context.render_scalar(self.config.params.min_frame_count, int)
-        max_face_count_per_frame = await context.render_scalar(self.config.params.max_face_count_per_frame, int)
-        max_track_distance       = await context.render_scalar(self.config.params.max_track_distance, float)
-        crop_margin_ratio     = await context.render_scalar(self.config.params.crop_margin_ratio, float)
-        bounding_box_smoothing   = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
-        merge_gap                = await context.render_scalar(self.config.params.merge_gap, float)
-        return_tracks            = await context.render_scalar(self.config.return_tracks, bool)
-        return_track_image       = await context.render_scalar(self.config.return_track_image, bool)
-        return_embedding         = await context.render_scalar(self.config.return_embedding, bool)
-        return_detections        = await context.render_scalar(self.config.return_detections, bool)
-        return_detection_image   = await context.render_scalar(self.config.return_detection_image, bool)
-        return_frame_image       = await context.render_scalar(self.config.return_frame_image, bool)
-        return_metadata          = await context.render_scalar(self.config.return_metadata, bool)
+        max_detection_count_per_frame = await context.render_scalar(self.config.max_detection_count_per_frame, int)
+        return_tracks                 = await context.render_scalar(self.config.return_tracks, bool)
+        return_embedding              = await context.render_scalar(self.config.return_embedding, bool)
+        return_track_image            = await context.render_scalar(self.config.return_track_image, bool)
+        return_detections             = await context.render_scalar(self.config.return_detections, bool)
+        return_detection_image        = await context.render_scalar(self.config.return_detection_image, bool)
+        return_frame_image            = await context.render_scalar(self.config.return_frame_image, bool)
+        return_metadata               = await context.render_scalar(self.config.return_metadata, bool)
+        similarity_threshold          = await context.render_scalar(self.config.params.similarity_threshold, float)
+        min_face_size                 = await context.render_scalar(self.config.params.min_face_size, int)
+        min_frame_count               = await context.render_scalar(self.config.params.min_frame_count, int)
+        max_track_distance            = await context.render_scalar(self.config.params.max_track_distance, float)
+        crop_margin_ratio             = await context.render_scalar(self.config.params.crop_margin_ratio, float)
+        bounding_box_smoothing        = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
+        merge_gap                     = await context.render_scalar(self.config.params.merge_gap, float)
+
+        if max_detection_count_per_frame < 0:
+            raise ValueError(f"'max_detection_count_per_frame' must be >= 0, got {max_detection_count_per_frame}")
 
         if not 0.0 <= similarity_threshold <= 1.0:
             raise ValueError(f"'similarity_threshold' must be between 0.0 and 1.0, got {similarity_threshold}")
@@ -114,21 +117,21 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
             raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
 
         return {
-            "similarity_threshold":     similarity_threshold,
-            "min_face_size":            min_face_size,
-            "min_frame_count":          min_frame_count,
-            "max_face_count_per_frame": max_face_count_per_frame,
-            "merge_gap":                merge_gap,
-            "max_track_distance":       max_track_distance,
-            "return_tracks":            return_tracks,
-            "return_track_image":       return_track_image,
-            "return_embedding":         return_embedding,
-            "return_detections":        return_detections,
-            "return_detection_image":   return_detection_image,
-            "return_frame_image":       return_frame_image,
-            "return_metadata":          return_metadata,
-            "crop_margin_ratio":     crop_margin_ratio,
-            "bounding_box_smoothing":   bounding_box_smoothing,
+            "max_detection_count_per_frame": max_detection_count_per_frame,
+            "return_tracks":                 return_tracks,
+            "return_embedding":              return_embedding,
+            "return_track_image":            return_track_image,
+            "return_detections":             return_detections,
+            "return_detection_image":        return_detection_image,
+            "return_frame_image":            return_frame_image,
+            "return_metadata":               return_metadata,
+            "similarity_threshold":          similarity_threshold,
+            "min_face_size":                 min_face_size,
+            "min_frame_count":               min_frame_count,
+            "max_track_distance":            max_track_distance,
+            "crop_margin_ratio":             crop_margin_ratio,
+            "bounding_box_smoothing":        bounding_box_smoothing,
+            "merge_gap":                     merge_gap,
         }
 
     @abstractmethod

@@ -128,6 +128,7 @@ class SonicTalkingHeadTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
             *torch_requirements("torch", "torchvision", "torchaudio"),
+            ("onnxruntime", get_onnxruntime_distributions()),
             "diffusers",
             "transformers",
             "accelerate",
@@ -141,7 +142,6 @@ class SonicTalkingHeadTaskDriver(ModelTaskDriver):
             "moviepy",
             "safetensors",
             "insightface",
-            ("onnxruntime", get_onnxruntime_distributions()),
         ]
 
     async def _setup(self) -> None:

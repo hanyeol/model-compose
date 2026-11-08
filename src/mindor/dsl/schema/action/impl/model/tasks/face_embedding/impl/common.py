@@ -10,5 +10,6 @@ class CommonFaceEmbeddingParamsConfig(BaseModel):
 
 class CommonFaceEmbeddingModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to extract face embeddings from.")
+    max_detection_count: Union[int, str] = Field(default=1, description="Maximum number of faces embedded per image.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input images processed per batch.")
     params: CommonFaceEmbeddingParamsConfig = Field(default_factory=CommonFaceEmbeddingParamsConfig, description="Detection, alignment, and normalization parameters for face embedding.")

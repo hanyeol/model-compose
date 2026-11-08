@@ -349,15 +349,17 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
     def _detect_objects_in_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         # `persist=True` keeps the tracker state alive across successive frames
-        # of the same video so track ids are stable. `max_object_count_per_frame`
+        # of the same video so track ids are stable. `max_detection_count_per_frame`
         # caps detections up front; the tracker consumes what YOLO returns.
-        max_det = params["max_object_count_per_frame"] or 300
+        # YOLO treats `max_det=0` as "return 0 boxes", so fall back to its own
+        # default cap to keep the 0-means-unbounded contract.
+        max_detection_count_per_frame = params["max_detection_count_per_frame"] or 300
 
         predictions = self.model.track(
             source=image.convert("RGB"),
             conf=params["min_confidence"],
             iou=params["iou_threshold"],
-            max_det=max_det,
+            max_det=max_detection_count_per_frame,
             agnostic_nms=params["agnostic_nms"],
             classes=params["classes"],
             tracker=params["tracker"],
@@ -376,13 +378,13 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
         self,
         objects: List[Dict[str, Any]],
         min_object_size: int,
-        max_object_count_per_frame: int,
+        max_detection_count_per_frame: int,
     ) -> List[Dict[str, Any]]:
         if min_object_size > 0:
             objects = [ object for object in objects if self._bounding_box_meets_min_size(object["bounding_box"], min_object_size) ]
 
-        if max_object_count_per_frame > 0 and len(objects) > max_object_count_per_frame:
-            objects = sorted(objects, key=lambda object: object["score"], reverse=True)[:max_object_count_per_frame]
+        if max_detection_count_per_frame > 0 and len(objects) > max_detection_count_per_frame:
+            objects = sorted(objects, key=lambda object: object["score"], reverse=True)[:max_detection_count_per_frame]
 
         return objects
 
@@ -714,7 +716,7 @@ class YoloObjectTrackingTaskAction(ObjectTrackingTaskAction):
 
             objects.append(object)
 
-        return self._filter_objects(objects, params["min_object_size"], params["max_object_count_per_frame"])
+        return self._filter_objects(objects, params["min_object_size"], params["max_detection_count_per_frame"])
 
     def _image_source_extractor(self, image: PILImage.Image, params: Dict[str, Any]) -> ExtractImageSourceCallable:
         """Bind the current frame and padding into an image_source extractor.

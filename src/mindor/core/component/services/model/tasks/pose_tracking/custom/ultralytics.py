@@ -329,14 +329,16 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
     def _detect_poses_in_frame(self, image: PILImage.Image, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         # `persist=True` keeps the tracker state alive across successive frames
-        # of the same video so track ids are stable. `max_pose_count_per_frame`
+        # of the same video so track ids are stable. `max_detection_count_per_frame`
         # caps detections up front; the tracker consumes what YOLO returns.
-        max_det = params["max_pose_count_per_frame"] or 300
+        # YOLO treats `max_det=0` as "return 0 boxes", so fall back to its own
+        # default cap to keep the 0-means-unbounded contract.
+        max_detection_count_per_frame = params["max_detection_count_per_frame"] or 300
 
         predictions = self.model.track(
             source=image.convert("RGB"),
             conf=params["min_confidence"],
-            max_det=max_det,
+            max_det=max_detection_count_per_frame,
             tracker=params["tracker"],
             persist=True,
             device=self.device,
@@ -353,13 +355,13 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         self,
         poses: List[Dict[str, Any]],
         min_pose_size: int,
-        max_pose_count_per_frame: int,
+        max_detection_count_per_frame: int,
     ) -> List[Dict[str, Any]]:
         if min_pose_size > 0:
             poses = [ pose for pose in poses if self._bounding_box_meets_min_size(pose["bounding_box"], min_pose_size) ]
 
-        if max_pose_count_per_frame > 0 and len(poses) > max_pose_count_per_frame:
-            poses = sorted(poses, key=lambda pose: pose["score"], reverse=True)[:max_pose_count_per_frame]
+        if max_detection_count_per_frame > 0 and len(poses) > max_detection_count_per_frame:
+            poses = sorted(poses, key=lambda pose: pose["score"], reverse=True)[:max_detection_count_per_frame]
 
         return poses
 
@@ -706,7 +708,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
             poses.append(pose)
 
-        return self._filter_poses(poses, params["min_pose_size"], params["max_pose_count_per_frame"])
+        return self._filter_poses(poses, params["min_pose_size"], params["max_detection_count_per_frame"])
 
     def _build_keypoints(
         self,

@@ -37,7 +37,7 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
             options = vision.PoseLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=self.model_path),
                 running_mode=vision.RunningMode.IMAGE,
-                num_poses=params["max_pose_count"],
+                num_poses=params["max_detection_count"],
                 min_pose_detection_confidence=params["min_confidence"],
                 min_pose_presence_confidence=params["min_presence_confidence"],
                 min_tracking_confidence=params["min_tracking_confidence"],
@@ -61,7 +61,6 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
     def _serialize_detection_result(self, prediction: PoseLandmarkerResult, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
         # MediaPipe internal field names (pose_landmarks/pose_world_landmarks) stay inside this method.
         # Outward keys are normalized to keypoints / keypoints_3d.
-        poses: List[Dict[str, Any]] = []
         landmarks_lists    = prediction.pose_landmarks or []
         landmarks_3d_lists = prediction.pose_world_landmarks or []
         segmentation_masks = prediction.segmentation_masks or []
@@ -71,6 +70,8 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
             or (params["return_skeleton_image"] and params["skeleton_format"] == "openpose")
         )
         min_visibility = params["min_presence_confidence"]
+
+        poses: List[Dict[str, Any]] = []
 
         for index, landmarks in enumerate(landmarks_lists):
             pose: Dict[str, Any] = {}
@@ -94,6 +95,7 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
 
             if params["return_skeleton_image"]:
                 background = params["skeleton_background"]
+
                 if params["skeleton_format"] == "openpose":
                     pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height, background=background)
                 else:

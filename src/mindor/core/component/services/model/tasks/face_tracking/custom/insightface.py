@@ -38,14 +38,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
         self.model: FaceAnalysis = model
         self.ctx_id: int = ctx_id
+
         self._prepared: bool = False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool)
         detection_threshold = await context.render_scalar(self.config.params.detection_threshold, float)
         detection_size      = await context.render_variable(self.config.params.detection_size)
-        return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool)
 
         if not 0.0 <= detection_threshold <= 1.0:
             raise ValueError(f"'detection_threshold' must be between 0.0 and 1.0, got {detection_threshold}")
@@ -53,9 +54,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if not isinstance(detection_size, (list, tuple)) or len(detection_size) != 2:
             raise ValueError(f"'detection_size' must be a (width, height) pair, got {detection_size!r}")
 
-        params["detection_threshold"] = detection_threshold
-        params["detection_size"]      = (int(detection_size[0]), int(detection_size[1]))
-        params["return_gender_age"]   = return_gender_age
+        params.update({
+            "return_gender_age":   return_gender_age,
+            "detection_threshold": detection_threshold,
+            "detection_size":      (int(detection_size[0]), int(detection_size[1])),
+        })
 
         return params
 
@@ -369,15 +372,15 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[int, Dict[str, Any]]]]:
         import numpy as np
 
-        similarity_threshold     = params["similarity_threshold"] or 0.0
-        min_face_size            = params["min_face_size"] or 0
-        max_face_count_per_frame = params["max_face_count_per_frame"] or 0
-        crop_margin_ratio     = params["crop_margin_ratio"] or 0.0
-        bounding_box_smoothing   = params["bounding_box_smoothing"]
-        max_track_distance       = params["max_track_distance"] or 0.0
-        merge_gap                = params["merge_gap"] or 0.0
+        max_detection_count_per_frame = params["max_detection_count_per_frame"]
+        similarity_threshold          = params["similarity_threshold"] or 0.0
+        min_face_size                 = params["min_face_size"] or 0
+        max_track_distance            = params["max_track_distance"] or 0.0
+        crop_margin_ratio             = params["crop_margin_ratio"] or 0.0
+        bounding_box_smoothing        = params["bounding_box_smoothing"]
+        merge_gap                     = params["merge_gap"] or 0.0
 
-        candidates = self._filter_faces(faces, min_face_size, max_face_count_per_frame)
+        candidates = self._filter_faces(faces, min_face_size, max_detection_count_per_frame)
         centroids: List[np.ndarray] = centroids_state["centroids"]
         counts: List[int] = centroids_state["counts"]
 
@@ -483,13 +486,13 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         self,
         faces: List[Dict[str, Any]],
         min_face_size: int,
-        max_face_count_per_frame: int
+        max_detection_count_per_frame: int
     ) -> List[Dict[str, Any]]:
         if min_face_size > 0:
             faces = [ face for face in faces if self._bounding_box_meets_min_size(face["bounding_box"], min_face_size) ]
 
-        if max_face_count_per_frame > 0 and len(faces) > max_face_count_per_frame:
-            faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_face_count_per_frame]
+        if max_detection_count_per_frame > 0 and len(faces) > max_detection_count_per_frame:
+            faces = sorted(faces, key=lambda face: face["score"], reverse=True)[:max_detection_count_per_frame]
 
         return faces
 
@@ -560,6 +563,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
             face = { **face, "bounding_box": tuple(int(round(value)) for value in bounding_box) }
         else:
             track["last_bbox"] = tuple(float(value) for value in face["bounding_box"])
+
         track["last_seen"] = timestamp
 
         if extract_image_source is not None:
@@ -734,8 +738,10 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
 
             for face, cluster_id in frame["tracked_faces"]:
                 last_face = last_face_by_cluster.get(cluster_id)
+
                 if last_face is not None:
                     prev_index, prev_timestamp, prev_face = last_face
+
                     if timestamp - prev_timestamp <= threshold:
                         self._interpolate_between_faces(
                             tracked_frames,
@@ -1057,6 +1063,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         if params["return_gender_age"]:
             if "gender" in best_face:
                 chunk["gender"] = self._gender_to_label(best_face["gender"])
+
             if "age" in best_face:
                 chunk["age"] = best_face["age"]
 
@@ -1219,9 +1226,9 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
+            ("onnxruntime", get_onnxruntime_distributions()),
             "insightface",
             "opencv-python",
-            ("onnxruntime", get_onnxruntime_distributions())
         ]
 
     async def _load_model(self) -> None:
@@ -1287,8 +1294,10 @@ class InsightfaceFaceTrackingTaskDriver(ModelTaskDriver):
         for entry in os.listdir(nested):
             src = os.path.join(nested, entry)
             dst = os.path.join(path, entry)
+
             if os.path.exists(dst):
                 continue
+
             shutil.move(src, dst)
 
         if not os.listdir(nested):

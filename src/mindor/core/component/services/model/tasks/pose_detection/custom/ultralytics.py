@@ -42,7 +42,7 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
             predictions = self.model.predict(
                 source=[ image.convert("RGB") for image in images ],
                 conf=params["min_confidence"],
-                max_det=params["max_pose_count"],
+                max_det=params["max_detection_count"],
                 device=self.device,
                 half=self.half_precision,
                 verbose=False,
@@ -57,8 +57,6 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
         return await self._run_in_executor(_detect)
 
     def _serialize_detection_result(self, prediction: Results, width: int, height: int, params: Dict[str, Any]) -> Dict[str, Any]:
-        poses: List[Dict[str, Any]] = []
-
         keypoints_xy          = prediction.keypoints.xy.cpu().numpy()
         keypoints_confidences = prediction.keypoints.conf.cpu().numpy() if prediction.keypoints.conf is not None else None
         boxes_xyxy            = prediction.boxes.xyxy.cpu().numpy()
@@ -73,6 +71,8 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
             or (params["return_skeleton_image"] and params["skeleton_format"] == "natural")
         )
         min_visibility = params["min_presence_confidence"]
+
+        poses: List[Dict[str, Any]] = []
 
         for index in range(keypoints_xy.shape[0]):
             pose: Dict[str, Any] = {}

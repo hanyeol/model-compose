@@ -26,6 +26,7 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         self.model: FaceAnalysis = model
         self.ctx_id: int = ctx_id
+
         self._prepared: bool = False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
@@ -33,7 +34,6 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
         return_gender_age = await context.render_scalar(self.config.return_gender_age, bool)
         detection_size    = await context.render_variable(self.config.params.detection_size)
-        max_num_faces     = await context.render_scalar(self.config.params.max_num_faces, int)
 
         if not isinstance(detection_size, (list, tuple)) or len(detection_size) != 2:
             raise ValueError(f"'detection_size' must be a (width, height) pair, got {detection_size!r}")
@@ -41,7 +41,6 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
         params.update({
             "return_gender_age": return_gender_age,
             "detection_size":    (int(detection_size[0]), int(detection_size[1])),
-            "max_num_faces":     max_num_faces,
         })
 
         return params
@@ -58,10 +57,13 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
 
             if not self._prepared:
                 # InsightFace treats `min_confidence` as the detector threshold.
-                self.model.prepare(ctx_id=self.ctx_id, det_size=params["detection_size"], det_thresh=params["min_confidence"])
+                self.model.prepare(
+                    ctx_id=self.ctx_id,
+                    det_size=params["detection_size"],
+                    det_thresh=params["min_confidence"]
+                )
                 self._prepared = True
 
-            max_num = params["max_num_faces"] if params["max_num_faces"] and params["max_num_faces"] > 0 else 0
             results: List[Dict[str, Any]] = []
 
             for image in images:
@@ -69,7 +71,7 @@ class InsightfaceFaceDetectionTaskAction(FaceDetectionTaskAction):
                 height, width = rgb_frame.shape[:2]
 
                 bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
-                detections = self.model.get(bgr_frame, max_num=max_num)
+                detections = self.model.get(bgr_frame, max_num=params["max_detection_count"])
 
                 results.append(self._serialize_detection_result(detections, width, height, params))
 
@@ -218,8 +220,10 @@ class InsightfaceFaceDetectionTaskDriver(ModelTaskDriver):
         for entry in os.listdir(nested):
             src = os.path.join(nested, entry)
             dst = os.path.join(path, entry)
+
             if os.path.exists(dst):
                 continue
+
             shutil.move(src, dst)
 
         if not os.listdir(nested):

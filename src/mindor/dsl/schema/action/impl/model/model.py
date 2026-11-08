@@ -32,6 +32,7 @@ ModelActionConfig = Union[
     FaceDetectionModelActionConfig,
     PoseDetectionModelActionConfig,
     PoseTrackingModelActionConfig,
+    HumanMeshRecoveryModelActionConfig,
     FaceEmbeddingModelActionConfig,
     FaceTrackingModelActionConfig,
     FaceSwapModelActionConfig,

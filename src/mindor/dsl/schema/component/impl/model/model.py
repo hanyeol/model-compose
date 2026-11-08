@@ -37,6 +37,7 @@ ModelComponentConfig = Annotated[
         FaceDetectionModelComponentConfig,
         PoseDetectionModelComponentConfig,
         PoseTrackingModelComponentConfig,
+        HumanMeshRecoveryModelComponentConfig,
         FaceEmbeddingModelComponentConfig,
         FaceTrackingModelComponentConfig,
         FaceSwapModelComponentConfig,

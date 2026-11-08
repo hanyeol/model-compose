@@ -45,6 +45,7 @@ class ModelTaskType(str, Enum):
     ACTIVE_SPEAKER_DETECTION    = "active-speaker-detection"
     POSE_DETECTION              = "pose-detection"
     POSE_TRACKING               = "pose-tracking"
+    HUMAN_MESH_RECOVERY         = "human-mesh-recovery"
     TEXT_TO_SPEECH              = "text-to-speech"
     SPEECH_TO_TEXT              = "speech-to-text"
     AUDIO_TEXT_ALIGNMENT        = "audio-text-alignment"

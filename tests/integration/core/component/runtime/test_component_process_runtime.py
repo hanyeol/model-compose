@@ -7,7 +7,7 @@ import pytest
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import create_component
 from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
-from mindor.core.component.runtime.process import ComponentLocalProcessRuntimeWorker
+from mindor.core.component.runtime.process.local import ComponentLocalProcessRuntimeWorker
 from mindor.core.foundation.runtime.ipc_message import IpcMessage, IpcMessageType
 from mindor.dsl.schema.action import LocalShellActionConfig
 from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig

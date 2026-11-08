@@ -18,10 +18,8 @@ from multiprocessing import Queue
 import pytest
 
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.runtime.process import (
-    ComponentProcessRuntimeManager,
-    ComponentLocalProcessRuntimeWorker,
-)
+from mindor.core.component.runtime.process import ComponentProcessRuntimeManager
+from mindor.core.component.runtime.process.local import ComponentLocalProcessRuntimeWorker
 from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import ProcessRuntimeConfig, EmbeddedRuntimeConfig
 

@@ -17,10 +17,8 @@ from pathlib import Path
 import pytest
 
 from mindor.core.component.base import ComponentGlobalConfigs
-from mindor.core.component.runtime.virtualenv import (
-    ComponentVirtualEnvRuntimeManager,
-    ComponentLocalVirtualEnvRuntimeWorker,
-)
+from mindor.core.component.runtime.virtualenv import ComponentVirtualEnvRuntimeManager
+from mindor.core.component.runtime.virtualenv.local import ComponentLocalVirtualEnvRuntimeWorker
 from mindor.dsl.schema.action import LocalShellActionConfig
 from mindor.dsl.schema.component.impl.shell import LocalShellComponentConfig
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig

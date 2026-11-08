@@ -1,0 +1,8 @@
+from pydantic import Field
+from ..common import CommonImageBackgroundRemovalModelActionConfig, CommonImageBackgroundRemovalParamsConfig
+
+class BiRefNetImageBackgroundRemovalParamsConfig(CommonImageBackgroundRemovalParamsConfig):
+    pass
+
+class BiRefNetImageBackgroundRemovalModelActionConfig(CommonImageBackgroundRemovalModelActionConfig):
+    params: BiRefNetImageBackgroundRemovalParamsConfig = Field(default_factory=BiRefNetImageBackgroundRemovalParamsConfig)

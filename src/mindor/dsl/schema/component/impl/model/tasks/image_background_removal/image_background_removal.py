@@ -5,6 +5,7 @@ from .impl import *
 ImageBackgroundRemovalModelComponentConfig = Annotated[
     Union[
         HuggingfaceImageBackgroundRemovalModelComponentConfig,
+        CustomImageBackgroundRemovalModelComponentConfig,
     ],
     Field(discriminator="driver")
 ]

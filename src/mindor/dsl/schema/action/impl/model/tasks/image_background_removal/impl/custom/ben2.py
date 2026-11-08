@@ -1,0 +1,8 @@
+from pydantic import Field
+from ..common import CommonImageBackgroundRemovalModelActionConfig, CommonImageBackgroundRemovalParamsConfig
+
+class Ben2ImageBackgroundRemovalParamsConfig(CommonImageBackgroundRemovalParamsConfig):
+    pass
+
+class Ben2ImageBackgroundRemovalModelActionConfig(CommonImageBackgroundRemovalModelActionConfig):
+    params: Ben2ImageBackgroundRemovalParamsConfig = Field(default_factory=Ben2ImageBackgroundRemovalParamsConfig)

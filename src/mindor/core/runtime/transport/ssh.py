@@ -125,10 +125,17 @@ class SshRuntimeTransport:
         ``Write-Output``). Trailing newlines are tolerated by the pattern.
         """
         sentinel = "MINDOR_" + uuid.uuid4().hex
-        wrapped = f'echo {sentinel}; {command}; echo {sentinel}'
-        pattern = re.compile(re.escape(sentinel) + r'([\s\S]*?)' + re.escape(sentinel))
+        wrapped_command = f'echo {sentinel}; {command}; echo {sentinel}'
 
-        return await self._capture_matched_output(wrapped, pattern, working_dir, timeout, command)
+        # Match the ``echo`` output of ``<sentinel>\n<stdout>\n<sentinel>``
+        # and reject the PTY-echoed input line, which has ``;`` wedged
+        # against the sentinel instead of a bare newline.
+        pattern = re.compile(
+            r'(?:^|\r|\n)' + re.escape(sentinel) + r'\r?\n([\s\S]*?)(?:^|\r|\n)' + re.escape(sentinel) + r'\r?\n',
+            re.MULTILINE,
+        )
+
+        return await self._capture_matched_output(wrapped_command, pattern, working_dir, timeout, command)
 
     async def evaluate_python_expression(
         self,

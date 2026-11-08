@@ -40,13 +40,13 @@ class HSEmotionFaceEmotionClassificationTaskAction(FaceEmotionClassificationTask
         self,
         config: HSEmotionFaceEmotionClassificationModelActionConfig,
         session: ort.InferenceSession,
-        input_name: str,
         labels: List[str],
     ):
         super().__init__(config, labels)
 
         self.session: ort.InferenceSession = session
-        self.input_name: str = input_name
+
+        self._input_name: str = session.get_inputs()[0].name
 
     async def _classify_batch(
         self,
@@ -59,7 +59,7 @@ class HSEmotionFaceEmotionClassificationTaskAction(FaceEmotionClassificationTask
             import numpy as np
 
             batch = np.stack([ self._preprocess_image(image) for image in images ], axis=0)
-            logits = self.session.run(None, { self.input_name: batch })[0]
+            logits = self.session.run(None, { self._input_name: batch })[0]
 
             # Softmax per row.
             shifted = logits - logits.max(axis=1, keepdims=True)
@@ -99,7 +99,6 @@ class HSEmotionFaceEmotionClassificationTaskDriver(ModelTaskDriver):
         super().__init__(id, config, daemon)
 
         self.session: Optional[ort.InferenceSession] = None
-        self.input_name: str = ""
         self.labels: List[str] = _HSEMOTION_AFFECTNET8_LABELS
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
@@ -109,25 +108,23 @@ class HSEmotionFaceEmotionClassificationTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.session, self.input_name = await self._load_onnx_session()
+        self.session = await self._load_onnx_session()
 
     async def _unload_model(self) -> None:
         self.session = None
-        self.input_name = ""
 
-    async def _load_onnx_session(self) -> Tuple[ort.InferenceSession, str]:
+    async def _load_onnx_session(self) -> ort.InferenceSession:
         import onnxruntime as ort
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        providers = resolve_onnx_providers()
+        device = self._resolve_device(self.config.device, use_torch=False)
 
-        logging.debug(f"HSEmotion providers: {providers}")
+        def _load() -> ort.InferenceSession:
+            providers = resolve_onnx_providers(device)
 
-        def _load() -> Tuple[ort.InferenceSession, str]:
-            session = ort.InferenceSession(model_path, providers=providers)
-            input_name = session.get_inputs()[0].name
+            logging.debug(f"HSEmotion providers: {providers}")
 
-            return session, input_name
+            return ort.InferenceSession(model_path, providers=providers)
 
         return await self._run_in_executor(_load)
 
@@ -135,6 +132,5 @@ class HSEmotionFaceEmotionClassificationTaskDriver(ModelTaskDriver):
         return await HSEmotionFaceEmotionClassificationTaskAction(
             action,
             self.session,
-            self.input_name,
             self.labels,
         ).run(context)

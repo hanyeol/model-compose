@@ -164,9 +164,11 @@ class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
         from insightface.app import FaceAnalysis
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
-        providers = resolve_onnx_providers()
+        device = self._resolve_device(self.config.device, use_torch=False)
 
         def _load() -> FaceAnalysis:
+            providers = resolve_onnx_providers(device)
+
             logging.debug(f"InsightFace providers: {providers}")
 
             model = FaceAnalysis(name=name, root=root, providers=providers)

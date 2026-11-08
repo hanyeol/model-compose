@@ -5,3 +5,4 @@ class ImageUpscalingModelFamily(str, Enum):
     REAL_ESRGAN = "real-esrgan"
     LDSR        = "ldsr"
     SWINIR      = "swinir"
+    HAT         = "hat"

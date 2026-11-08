@@ -148,9 +148,9 @@ class InsightfaceFaceDetectionTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
+            ("onnxruntime", get_onnxruntime_distributions()),
             "insightface",
             "opencv-python",
-            ("onnxruntime", get_onnxruntime_distributions())
         ]
 
     async def _load_model(self) -> None:
@@ -163,11 +163,13 @@ class InsightfaceFaceDetectionTaskDriver(ModelTaskDriver):
         from insightface.app import FaceAnalysis
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
-        providers = resolve_onnx_providers()
-
-        logging.debug(f"InsightFace providers: {providers}")
+        device = self._resolve_device(self.config.device, use_torch=False)
 
         def _load() -> FaceAnalysis:
+            providers = resolve_onnx_providers(device)
+
+            logging.debug(f"InsightFace providers: {providers}")
+
             model = FaceAnalysis(name=name, root=root, providers=providers)
             model.prepare(ctx_id=self._get_device_id())
 

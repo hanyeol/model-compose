@@ -4,20 +4,20 @@ from typing import TYPE_CHECKING
 from typing import Union, Tuple, Dict, Optional, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, MdxNetMusicSourceSeparationModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, MdxNetMusicSourceSeparationModelActionConfig
-from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import PcmStreamResource, AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.utils.audio import encode_waveform_to_pcm
+from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
+from ....utils.onnxruntime import resolve_onnx_providers
 from ..common import MusicSourceSeparationTaskAction
 
 if TYPE_CHECKING:
     import numpy as np
     import onnxruntime as ort
-    import torch
 
 # MDX-Net standard hyperparameters shared by the UVR-MDX-NET voice models.
 _MDX_SAMPLE_RATE = 44100
@@ -35,14 +35,16 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
     def __init__(
         self,
         config: MdxNetMusicSourceSeparationModelActionConfig,
-        session: Any,
-        input_name: str,
-        device: Optional[torch.device],
+        session: ort.InferenceSession,
     ):
-        super().__init__(config, device)
+        # mdx_net runs entirely on numpy + onnxruntime, so the torch-typed
+        # `device` slot that base `MusicSourceSeparationTaskAction` carries
+        # for its demucs/mdx23c/roformer siblings stays `None` here.
+        super().__init__(config, device=None)
 
-        self.session: Any = session
-        self.input_name: str = input_name
+        self.session: ort.InferenceSession = session
+
+        self._input_name: str = session.get_inputs()[0].name
 
     async def _separate_batch(
         self,
@@ -153,7 +155,7 @@ class MdxNetMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
         import numpy as np
 
         spectrogram = self._stft(chunk)
-        spectrogram = self.session.run(None, { self.input_name: spectrogram })[0]
+        spectrogram = self.session.run(None, { self._input_name: spectrogram })[0]
 
         return self._istft(spectrogram, chunk.shape[1])
 
@@ -230,13 +232,10 @@ class MdxNetMusicSourceSeparationTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: MdxNetMusicSourceSeparationModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        self.session: Optional[Any] = None
-        self.input_name: str = ""
-        self.device: Optional[torch.device] = None
+        self.session: Optional[ort.InferenceSession] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch"),
             ("onnxruntime", get_onnxruntime_distributions()),
             "numpy",
             "soxr",
@@ -244,40 +243,25 @@ class MdxNetMusicSourceSeparationTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        self.session, self.input_name, self.device = await self._load_onnx_session()
+        self.session = await self._load_onnx_session()
 
     async def _unload_model(self) -> None:
         self.session = None
-        self.input_name = ""
-        self.device = None
 
-    async def _load_onnx_session(self) -> Tuple[Any, str, torch.device]:
+    async def _load_onnx_session(self) -> ort.InferenceSession:
         import onnxruntime as ort
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        device = self._resolve_device(self.config.device)
+        device = self._resolve_device(self.config.device, use_torch=False)
 
-        def _load() -> Tuple[Any, str]:
-            providers: List[str] = []
+        def _load() -> ort.InferenceSession:
+            providers = resolve_onnx_providers(device)
 
-            if device.type == "cuda":
-                providers.append("CUDAExecutionProvider")
+            logging.debug(f"MDX-Net ONNX providers: {providers}")
 
-            providers.append("CPUExecutionProvider")
+            return ort.InferenceSession(model_path, providers=providers)
 
-            session = ort.InferenceSession(model_path, providers=providers)
-            input_name = session.get_inputs()[0].name
-
-            return session, input_name
-
-        session, input_name = await self._run_in_executor(_load)
-
-        return session, input_name, device
+        return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await MdxNetMusicSourceSeparationTaskAction(
-            action,
-            self.session,
-            self.input_name,
-            self.device,
-        ).run(context)
+        return await MdxNetMusicSourceSeparationTaskAction(action, self.session).run(context)

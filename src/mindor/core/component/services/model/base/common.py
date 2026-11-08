@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Mapping, Any
+from typing import Type, Union, Literal, Optional, Dict, List, Set, Annotated, Mapping, Any
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType, ModelConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig
@@ -12,7 +12,7 @@ from mindor.core.logger import logging
 from ....action.base import ComponentAction
 from ....context import ComponentActionContext
 from ..utils.provision import ModelProvisioner
-from ..utils.device import DeviceResolver
+from ..utils.device import DeviceResolver, DeviceSpec
 import asyncio
 
 if TYPE_CHECKING:
@@ -130,11 +130,10 @@ class ModelTaskDriver(ComponentDriver):
     async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> str:
         return await self._model_provisioner.provision(model, prefetch=prefetch)
 
-    def _resolve_device(self, device: str) -> torch.device:
-        return self._device_resolver.resolve(device)
+    def _resolve_device(self, device: str, use_torch: bool = True) -> Union[torch.device, DeviceSpec]:
+        return self._device_resolver.resolve(device, use_torch=use_torch)
 
     def _resolve_torch_dtype(self, precision: ModelPrecision) -> torch.dtype:
-        """Map ``precision`` to ``torch.dtype`` for drivers that apply dtype directly."""
         import torch
 
         if precision == ModelPrecision.FLOAT8_E4M3:

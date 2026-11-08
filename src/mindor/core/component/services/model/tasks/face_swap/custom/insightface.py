@@ -138,14 +138,16 @@ class InsightfaceFaceSwapTaskDriver(ModelTaskDriver):
         from insightface.model_zoo import get_model
 
         root, name = await self._provision_model(self.config.model, prefetch=True)
-        providers = resolve_onnx_providers()
+        device = self._resolve_device(self.config.device, use_torch=False)
 
         def _load() -> Tuple[INSwapper, FaceAnalysis]:
+            providers = resolve_onnx_providers(device)
+
+            logging.debug(f"InsightFace providers: {providers}")
+
             model = get_model(os.path.join(root, name), download=False, download_zip=False)
             detector = FaceAnalysis(name=self.config.detector_model, root=root, providers=providers)
             detector.prepare(ctx_id=self._get_device_id(), det_size=(640, 640))
-
-            logging.debug(f"InsightFace providers: {providers}")
 
             return model, detector
 

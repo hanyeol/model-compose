@@ -20,4 +20,8 @@ class CustomImageUpscalingTaskDriver:
             from .swinir import SwinIRImageUpscalingTaskDriver
             return SwinIRImageUpscalingTaskDriver(id, config, daemon)
 
+        if config.family == ImageUpscalingModelFamily.HAT:
+            from .hat import HatImageUpscalingTaskDriver
+            return HatImageUpscalingTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

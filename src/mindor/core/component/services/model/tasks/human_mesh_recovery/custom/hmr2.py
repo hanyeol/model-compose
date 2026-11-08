@@ -5,7 +5,7 @@ from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import HMR2HumanMeshRecoveryModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, HMR2HumanMeshRecoveryModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
+from mindor.core.foundation.package.installer import install_package, install_package_from_github, is_package_installed
 from collections.abc import AsyncIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
@@ -223,11 +223,15 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
             "yacs",
             "pyrender",
             "smplx>=0.1.28",
-            "chumpy",
             "scikit-image",
         ]
 
     async def _setup(self) -> None:
+        if not is_package_installed("chumpy"):
+            # Needed on sys.path to unpickle SMPL .pkl objects. `--no-build-isolation`
+            # because chumpy's setup.py imports pip, which PEP 517's isolated env hides.
+            await install_package("chumpy", pip_options=[ "--no-build-isolation" ])
+
         if not is_package_installed("hmr2"):
             # 4D-Humans ships `hmr2` as a git package without a PyPI release;
             # install it directly from the upstream tree.

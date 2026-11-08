@@ -208,7 +208,7 @@ class SshRuntimeTransport:
                 except socket.timeout:
                     pass
 
-                raise RuntimeError(f"could not capture remote command output within {timeout}s: {label}")
+                raise RuntimeError(f"could not capture remote command output: {label}")
             finally:
                 try:
                     channel.close()

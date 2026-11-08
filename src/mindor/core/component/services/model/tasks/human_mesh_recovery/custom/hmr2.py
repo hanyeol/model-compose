@@ -197,9 +197,9 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: HMR2HumanMeshRecoveryModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        # 4D-Humans pins torch==2.0.1 and pulls in Detectron2 + PyTorch3D, which
-        # cannot coexist with the controller's stack. Isolate the model worker so
-        # those pins don't leak out.
+        # 4D-Humans pulls in Detectron2, which has to compile its CUDA extension
+        # against the installed torch. Isolate the model worker so the build
+        # products and torch pins do not leak into the controller's stack.
         self._require_isolated_runtime()
 
         self.model: Optional[Any] = None
@@ -209,7 +209,11 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch==2.0.1", "torchvision==0.15.2"),
+            # 4D-Humans leaves torch unpinned upstream; cap below 2.6 because
+            # its `torch.load(weights_only=True)` default breaks hmr2 and
+            # detectron2 checkpoint loading. 2.4/2.5 are confirmed working
+            # (upstream issue #179).
+            *torch_requirements("torch>=2.4,<2.6", "torchvision>=0.19,<0.21"),
             "transformers>=4.30",
             "huggingface_hub>=0.34.0,<1.0",
             "trimesh>=4.0",

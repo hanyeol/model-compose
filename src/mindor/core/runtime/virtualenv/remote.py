@@ -79,7 +79,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         logging.debug("virtualenv: using remote shell dialect %s", self._shell.dialect)
 
         self._executable = await self._resolve_executable()
-        self._venv_path = self._resolve_venv_path()
+        self._venv_path = await self._resolve_venv_path()
         self._mindor_source_path = await self._transport.evaluate_python_expression(
             self._executable,
             "__import__('pathlib').Path(__import__('mindor').__file__).parent",
@@ -265,25 +265,30 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
         return self._shell.pyenv_python_path(pyenv_root, version)
 
-    def _resolve_venv_path(self) -> str:
+    async def _resolve_venv_path(self) -> str:
         """Resolve the remote-side venv directory, mirroring the local
         default (``{cwd}/.runtime/components/{worker_id}/venv``) but anchored
         at the SSH transport's ``working_dir``.
 
-        Relative ``config.path`` is anchored at ``working_dir`` too, so
-        callers that bypass ``_run_remote_command``'s ``cd`` prefix
-        (e.g. the bootstrap-lock exec channel) still land on the same
-        directory as ``create_venv`` / ``install_requirements``.
+        ``config.path`` is resolved on the remote via the transport so
+        ``~``, ``..``, and symlinks all canonicalize against the real
+        filesystem; a relative path is anchored at ``working_dir`` (already
+        absolute at this point) before resolution so the venv lands next
+        to the project regardless of the login shell's cwd. Pre-resolving
+        is required because downstream ``shlex.quote`` would otherwise send
+        ``'~/foo'`` through literally and have bash create a ``~`` directory.
 
         Uses the remote shell's path join so forward/backslash follows the
         remote filesystem's convention."""
         working_dir = self._transport.working_dir or "."
 
-        if self.config.path and self._shell.is_absolute_path(self.config.path):
-                return self.config.path
-
         if self.config.path:
-            return self._shell.join_path(working_dir, self.config.path)
+            if not self._shell.is_absolute_path(self.config.path) and not self.config.path.startswith("~"):
+                path = self._shell.join_path(working_dir, self.config.path)
+            else:
+                path = self.config.path
+
+            return await self._transport.resolve_remote_path(path)
 
         return self._shell.join_path(working_dir, ".runtime", "components", self.worker_id, "venv")
 
@@ -304,9 +309,6 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         working_dir = self._transport.working_dir
 
         if working_dir:
-            # ``cd`` is accepted by bash and PowerShell alike, so this chain
-            # is shell-neutral. PowerShell interprets the semicolon as a
-            # statement separator; bash runs ``cd`` then the command.
             command = f"cd {working_dir}; {command}"
 
         channel = await self._transport.open_exec_channel(command)

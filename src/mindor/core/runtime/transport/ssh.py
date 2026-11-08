@@ -26,6 +26,7 @@ class SshRuntimeTransport:
         self.config: SshRemoteTransportConfig = config
 
         self._client: Optional[SshClient] = SshClient(self._build_connection_params(config))
+        self._working_dir: Optional[str] = None
 
     @property
     def host(self) -> str:
@@ -33,7 +34,7 @@ class SshRuntimeTransport:
 
     @property
     def working_dir(self) -> Optional[str]:
-        return self.config.working_dir
+        return self._working_dir
 
     @property
     def client(self) -> SshClient:
@@ -45,22 +46,29 @@ class SshRuntimeTransport:
     async def connect(self) -> None:
         await self.client.connect()
 
-    async def close(self) -> None:
-        if self._client is None:
-            return
+        if self.config.working_dir:
+            self._working_dir = await self._resolve_working_dir(self.config.working_dir)
 
-        try:
-            await self._client.close()
-        finally:
-            self._client = None
+    async def resolve_remote_path(self, path: str) -> str:
+        """Expand a leading ``~`` and canonicalize ``path`` against the
+        remote filesystem.
+
+        Pre-resolution is required because downstream shell helpers wrap
+        paths in ``shlex.quote`` / PowerShell single quotes, which suppress
+        the remote shell's own tilde expansion — a quoted ``'~/foo'``
+        reaches bash literally and gets a ``~`` directory created for it.
+        """
+        return (await self.evaluate_python_expression(
+            "python",
+            f"__import__('pathlib').Path({path!r}).expanduser().resolve()",
+            working_dir=self.working_dir,
+        )).strip()
 
     async def resolve_remote_shell(self) -> CommonShell:
-        """Probe the remote login shell by asking python what OS it is on.
+        """Pick a shell dialect by asking the remote python which OS it is on.
 
-        Running ``python -c "import platform; print(platform.system())"``
-        bypasses the host shell dialect entirely — the probe wire is the
-        same bash/powershell-compatible ``echo``-wrapped sentinel pattern
-        the transport uses everywhere else.
+        Probing through python keeps the wire shell-neutral — we do not yet
+        know whether the remote login shell is bash or PowerShell.
         """
         system = (await self.evaluate_python_expression(
             "python",
@@ -78,16 +86,11 @@ class SshRuntimeTransport:
         command: str,
         env: Optional[Dict[str, str]] = None,
     ) -> SshExecChannel:
-        """Open a new exec channel on the shared transport and run ``command``.
+        """Run ``command`` on a fresh exec channel over the shared transport.
 
-        Each call returns an independent channel — the underlying SSH
-        connection is multiplexed, so several channels can run in parallel
-        over the same TCP session.
-
-        ``env`` is applied via SSH's ``env`` request; servers that do not
-        accept the requested variables silently ignore them, so prefer
-        prefixing ``VAR=value`` in the command string when the variables
-        are required.
+        ``env`` goes through SSH's ``env`` request, which OpenSSH silently
+        drops for anything not whitelisted in ``AcceptEnv`` — prefix
+        ``VAR=value`` inline when the variables must actually land.
         """
         def _open() -> SshExecChannel:
             channel = self.client.transport.open_session()
@@ -112,17 +115,13 @@ class SshRuntimeTransport:
         timeout: float = 10.0,
     ) -> str:
         """Run ``command`` under the user's interactive shell and return its
-        stdout, with the surrounding shell/pty noise stripped.
+        stdout with PTY noise stripped.
 
-        The command's own stdout is wrapped between a pair of sentinels that
-        we match in the pty transcript; multi-line output is preserved. The
-        interactive shell is used so pyenv init, conda hooks, ``.bashrc``
-        / ``$PROFILE`` etc. are applied — a plain non-interactive
-        ``exec_command`` would skip them.
-
-        ``echo`` is used for sentinel printing because it works verbatim in
-        both bash and PowerShell (PowerShell aliases ``echo`` to
-        ``Write-Output``). Trailing newlines are tolerated by the pattern.
+        The interactive shell is required so ``.bashrc`` / ``$PROFILE``,
+        pyenv init, conda hooks etc. are sourced — a plain
+        ``exec_command`` would skip them. ``echo`` sentinels delimit the
+        real stdout because ``echo`` behaves identically in bash and
+        PowerShell.
         """
         sentinel = "MINDOR_" + uuid.uuid4().hex
         wrapped_command = f'echo {sentinel}; {command}; echo {sentinel}'
@@ -144,12 +143,12 @@ class SshRuntimeTransport:
         working_dir: Optional[str] = None,
         timeout: float = 10.0,
     ) -> str:
-        """Evaluate ``expression`` in a remote python running under the
-        user's interactive shell, and return ``str(expression)``.
+        """Evaluate ``expression`` in a remote python and return ``str()``
+        of the result.
 
-        Base64-encodes the script so neither the host shell nor the user's
-        remote shell can mangle quoting or metacharacters inside the
-        expression. The remote one-liner just decodes and exec()s it.
+        The script is base64-wrapped so arbitrary quoting and shell
+        metacharacters inside ``expression`` reach python untouched by
+        either the host or the remote shell.
         """
         import base64
 
@@ -163,6 +162,25 @@ class SshRuntimeTransport:
         pattern = re.compile(re.escape(sentinel) + r'([^"\r\n]+?)' + re.escape(sentinel))
 
         return await self._capture_matched_output(command, pattern, working_dir, timeout, expression)
+
+    async def close(self) -> None:
+        if self._client is None:
+            return
+
+        try:
+            await self._client.close()
+        finally:
+            self._client = None
+
+    async def _resolve_working_dir(self, working_dir: str) -> str:
+        """Resolve ``working_dir`` to an absolute path via ``cd; pwd``.
+
+        Cannot go through ``resolve_remote_path`` because that helper
+        invokes ``python``, and a remote using ``pyenv local`` scoped to
+        the working_dir itself would have no ``python`` on PATH until we
+        ``cd`` there — which is what this call is for.
+        """
+        return (await self.run_command(f"cd {working_dir}; pwd")).strip()
 
     async def _capture_matched_output(
         self,

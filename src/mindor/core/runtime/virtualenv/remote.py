@@ -279,10 +279,10 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         remote filesystem's convention."""
         working_dir = self._transport.working_dir or "."
 
-        if self.config.path:
-            if self._shell.is_absolute_path(self.config.path):
+        if self.config.path and self._shell.is_absolute_path(self.config.path):
                 return self.config.path
 
+        if self.config.path:
             return self._shell.join_path(working_dir, self.config.path)
 
         return self._shell.join_path(working_dir, ".runtime", "components", self.worker_id, "venv")

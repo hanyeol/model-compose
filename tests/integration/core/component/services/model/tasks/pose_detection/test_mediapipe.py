@@ -230,11 +230,11 @@ class TestDetectionOptions:
             await action.run(context)
 
     @pytest.mark.anyio
-    async def test_invalid_max_pose_count_raises(self, make_action):
-        action = make_action(max_pose_count=0)
+    async def test_invalid_max_detection_count_raises(self, make_action):
+        action = make_action(max_detection_count=0)
         context = ComponentActionContext("run-bad-num", { "image": _blank_image() })
 
-        with pytest.raises(ValueError, match="max_pose_count"):
+        with pytest.raises(ValueError, match="max_detection_count"):
             await action.run(context)
 
 

@@ -63,13 +63,13 @@
    # 检测多个人并包含 3D 关键点
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F "input={\"image\": \"@image\", \"max_pose_count\": 3, \"return_keypoints_3d\": true}"
+     -F "input={\"image\": \"@image\", \"max_detection_count\": 3, \"return_keypoints_3d\": true}"
    ```
 
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 上传图像文件
-   - 可选择调整 `max_pose_count`、`min_confidence` 以及 3D 关键点 / 分割掩码开关
+   - 可选择调整 `max_detection_count`、`min_confidence` 以及 3D 关键点 / 分割掩码开关
    - 点击 "Run Workflow" 按钮
 
    **使用 CLI：**
@@ -78,7 +78,7 @@
    model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg"}'
 
    # 多人检测和 3D 关键点
-   model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "max_pose_count": 3, "return_keypoints_3d": true}'
+   model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "max_detection_count": 3, "return_keypoints_3d": true}'
    ```
 
 ## 组件详情
@@ -133,7 +133,7 @@ graph TD
 | 参数 | 类型 | 必需 | 默认值 | 描述 |
 |-----------|------|----------|---------|-------------|
 | `image` | image | 是 | - | 输入图像文件（JPEG、PNG 等） |
-| `max_pose_count` | int | 否 | 1 | 每张图像检测的最大姿态数 |
+| `max_detection_count` | int | 否 | 1 | 每张图像检测的最大姿态数 |
 | `params.min_confidence` | float | 否 | 0.5 | 最小姿态检测置信度（0.0 - 1.0） |
 | `return_keypoints_3d` | bool | 否 | false | 包含真实 3D 关键点（以髋部为中心，以米为单位） |
 | `return_segmentation_mask` | bool | 否 | false | 为每个姿态包含 PNG 编码的分割掩码 |
@@ -204,7 +204,7 @@ component:
 component:
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     return_keypoints_3d: true
     return_segmentation_mask: true
 ```
@@ -225,7 +225,7 @@ component:
   max_concurrent_count: 1
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     params:
       min_confidence: 0.4
 ```

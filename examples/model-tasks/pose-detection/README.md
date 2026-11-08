@@ -65,7 +65,7 @@ Unlike cloud-based vision APIs, running BlazePose locally provides:
    # Detect multiple people and include 3D keypoints
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F "input={\"image\": \"@image\", \"max_pose_count\": 3, \"return_keypoints_3d\": true}"
+     -F "input={\"image\": \"@image\", \"max_detection_count\": 3, \"return_keypoints_3d\": true}"
 
    # Render an OpenPose-style skeleton image (usable as ControlNet OpenPose input)
    curl -X POST http://localhost:8080/api/workflows/runs \
@@ -76,7 +76,7 @@ Unlike cloud-based vision APIs, running BlazePose locally provides:
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
    - Upload an image file
-   - Optionally adjust `max_pose_count`, `min_confidence`, and toggles for 3D keypoints / segmentation mask / skeleton image (with `skeleton_format`)
+   - Optionally adjust `max_detection_count`, `min_confidence`, and toggles for 3D keypoints / segmentation mask / skeleton image (with `skeleton_format`)
    - Click the "Run Workflow" button
 
    **Using CLI:**
@@ -85,7 +85,7 @@ Unlike cloud-based vision APIs, running BlazePose locally provides:
    model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg"}'
 
    # With multi-person detection and 3D keypoints
-   model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "max_pose_count": 3, "return_keypoints_3d": true}'
+   model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "max_detection_count": 3, "return_keypoints_3d": true}'
 
    # Render a skeleton image in OpenPose BODY_18 layout
    model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "return_skeleton_image": true, "skeleton_format": "openpose"}'
@@ -145,7 +145,7 @@ graph TD
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `image` | image | Yes | - | Input image file (JPEG, PNG, etc.) |
-| `max_pose_count` | int | No | 1 | Maximum number of poses to detect per image |
+| `max_detection_count` | int | No | 1 | Maximum number of poses to detect per image |
 | `params.min_confidence` | float | No | 0.5 | Minimum pose-detection confidence (0.0 - 1.0) |
 | `return_keypoints_3d` | bool | No | false | Include real-world 3D keypoints (hip-centered, meters) |
 | `return_segmentation_mask` | bool | No | false | Include a PNG-encoded segmentation mask per pose |
@@ -223,7 +223,7 @@ component:
 component:
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     return_keypoints_3d: true
     return_segmentation_mask: true
 ```
@@ -260,7 +260,7 @@ component:
   max_concurrent_count: 1
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     params:
       min_confidence: 0.4
 ```

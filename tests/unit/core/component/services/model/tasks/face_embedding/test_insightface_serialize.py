@@ -7,7 +7,7 @@ Validates that:
   - Optional fields (landmarks, gender, age, pose) appear only when the underlying
     Face object exposes them AND the corresponding option is enabled.
   - normalize_embeddings picks `normed_embedding` when available, else falls back to `embedding`.
-  - max_num_faces truncates the detected list.
+  - max_detection_count truncates the detected list.
   - Landmarks prefer the densest available set (2d_106 > 3d_68 > kps).
 """
 
@@ -44,12 +44,12 @@ def _serialize(
 
 def _default_params(**overrides) -> Dict[str, Any]:
     base = {
+        "max_detection_count":  0,  # 0 = no limit
+        "return_landmarks":     False,
+        "return_gender_age":    False,
         "face_detection":       True,
         "alignment":            True,
         "normalize_embeddings": True,
-        "return_landmarks":     False,
-        "return_gender_age":    False,
-        "max_num_faces":        0,  # 0 = no limit
         "min_face_size":        0,
     }
     base.update(overrides)
@@ -135,11 +135,11 @@ class TestMaxNumFaces:
         ]
 
     def test_zero_means_unlimited(self):
-        result = _serialize(params=_default_params(max_num_faces=0), faces=self._make(4))
+        result = _serialize(params=_default_params(max_detection_count=0), faces=self._make(4))
         assert len(result["faces"]) == 4
 
     def test_larger_than_detected(self):
-        result = _serialize(params=_default_params(max_num_faces=10), faces=self._make(3))
+        result = _serialize(params=_default_params(max_detection_count=10), faces=self._make(3))
         assert len(result["faces"]) == 3
 
 

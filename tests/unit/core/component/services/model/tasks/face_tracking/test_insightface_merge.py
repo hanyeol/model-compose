@@ -28,22 +28,22 @@ ALICE = [1.0, 0.0, 0.0]
 
 def _default_params(**overrides) -> Dict[str, Any]:
     base = {
-        "similarity_threshold":     0.4,
-        "min_face_size":            0,
-        "min_frame_count":          1,
-        "merge_gap":                0.0,
-        "max_face_count_per_frame": 0,
-        "max_track_distance":       0.0,
-        "return_tracks":            True,
-        "return_track_image":       False,
-        "return_frame_image":       False,
-        "return_metadata":          False,
-        "return_embedding":         False,
-        "return_gender_age":        False,
-        "return_detections":        False,
-        "return_detection_image":   False,
-        "crop_margin_ratio":     0.0,
-        "bounding_box_smoothing":   None,
+        "max_detection_count_per_frame": 0,
+        "return_tracks":                 True,
+        "return_embedding":              False,
+        "return_track_image":            False,
+        "return_detections":             False,
+        "return_detection_image":        False,
+        "return_frame_image":            False,
+        "return_metadata":               False,
+        "return_gender_age":             False,
+        "similarity_threshold":          0.4,
+        "min_face_size":                 0,
+        "min_frame_count":               1,
+        "max_track_distance":            0.0,
+        "crop_margin_ratio":             0.0,
+        "bounding_box_smoothing":        None,
+        "merge_gap":                     0.0,
     }
     base.update(overrides)
     return base

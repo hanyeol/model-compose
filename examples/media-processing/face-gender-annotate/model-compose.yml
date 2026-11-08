@@ -96,7 +96,7 @@ components:
   #
   # For batch throughput bump `detection_size` to (960, 960) or (1280,
   # 1280) — it recovers smaller / more distant faces at proportional cost
-  # per image. `max_num_faces: 0` means no cap on faces per image.
+  # per image. `max_detection_count: 0` means no cap on faces per image.
   - id: face-detector
     type: model
     task: face-detection
@@ -108,10 +108,10 @@ components:
     action:
       image: ${input.image as image}
       return_gender_age: true
+      max_detection_count: 0
       params:
         min_confidence: ${input.min_confidence}
         detection_size: [ 640, 640 ]
-        max_num_faces:  0
 
   # ---- Draw a single bounding box in one call ----
   # Called once per face by the inline `accumulate` job above.

@@ -89,10 +89,10 @@ components:
       return_openpose_keypoints: ${input.return_openpose_keypoints}
       return_skeleton_image: ${input.return_skeleton_image}
       skeleton_format: ${input.skeleton_format}
+      max_detection_count_per_frame: 0
       params:
         tracker: ${input.tracker}
         min_confidence: ${input.min_confidence}
         min_pose_size: 40
         min_frame_count: ${input.min_frame_count}
         merge_gap: ${input.merge_gap}
-        max_pose_count_per_frame: 0

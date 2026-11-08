@@ -56,7 +56,7 @@
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
    - 上传图像文件
-   - 可选择调整 `labels`、`min_confidence`、`max_object_count`、`iou_threshold`、`agnostic_nms` 和 `crop_margin_ratio`
+   - 可选择调整 `labels`、`min_confidence`、`max_detection_count`、`iou_threshold`、`agnostic_nms` 和 `crop_margin_ratio`
    - 点击"运行工作流"按钮
 
 ## 结果格式
@@ -109,7 +109,7 @@ component:
 |---|---|---|---|
 | `image` | image | （必需） | 输入图像 |
 | `labels` | list[str] | `null` | 将检测限制为这些类别标签。未知标签将快速失败 |
-| `max_object_count` | int | `300` | 每张图像的最大检测数 |
+| `max_detection_count` | int | `300` | 每张图像的最大检测数 |
 | `crop_margin_ratio` | float | `0.0` | 按其宽度/高度的比例在每一侧扩展每个边界框（例如 `0.1` = 10%）。限制在图像边界内。当将框传递给裁剪或 SAM 框提示时非常有用 |
 | `params.min_confidence` | float | `0.25` | 最小检测置信度 |
 | `params.iou_threshold` | float | `0.7` | 非极大值抑制的 IoU 阈值 |

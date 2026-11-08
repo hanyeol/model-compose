@@ -63,13 +63,13 @@
    # 다중 인물 검출 및 3D 키포인트 포함
    curl -X POST http://localhost:8080/api/workflows/runs \
      -F "image=@/path/to/your/image.jpg" \
-     -F "input={\"image\": \"@image\", \"max_pose_count\": 3, \"return_keypoints_3d\": true}"
+     -F "input={\"image\": \"@image\", \"max_detection_count\": 3, \"return_keypoints_3d\": true}"
    ```
 
    **Web UI 사용:**
    - Web UI 열기: http://localhost:8081
    - 이미지 파일 업로드
-   - 선택적으로 `max_pose_count`, `min_confidence`, 3D 키포인트/세그멘테이션 마스크 토글 조정
+   - 선택적으로 `max_detection_count`, `min_confidence`, 3D 키포인트/세그멘테이션 마스크 토글 조정
    - "Run Workflow" 버튼 클릭
 
    **CLI 사용:**
@@ -78,7 +78,7 @@
    model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg"}'
 
    # 다중 인물 검출 및 3D 키포인트 포함
-   model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "max_pose_count": 3, "return_keypoints_3d": true}'
+   model-compose run pose-detection --input '{"image": "/path/to/your/image.jpg", "max_detection_count": 3, "return_keypoints_3d": true}'
    ```
 
 ## 컴포넌트 상세
@@ -133,7 +133,7 @@ graph TD
 | 매개변수 | 유형 | 필수 | 기본값 | 설명 |
 |-----------|------|----------|---------|-------------|
 | `image` | image | 예 | - | 입력 이미지 파일 (JPEG, PNG 등) |
-| `max_pose_count` | int | 아니요 | 1 | 이미지당 검출할 최대 자세 수 |
+| `max_detection_count` | int | 아니요 | 1 | 이미지당 검출할 최대 자세 수 |
 | `params.min_confidence` | float | 아니요 | 0.5 | 최소 자세 검출 신뢰도 (0.0 - 1.0) |
 | `return_keypoints_3d` | bool | 아니요 | false | 실제 3D 키포인트 포함 (엉덩이 중심, 미터) |
 | `return_segmentation_mask` | bool | 아니요 | false | 자세별 PNG 인코딩 세그멘테이션 마스크 포함 |
@@ -204,7 +204,7 @@ component:
 component:
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     return_keypoints_3d: true
     return_segmentation_mask: true
 ```
@@ -225,7 +225,7 @@ component:
   max_concurrent_count: 1
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     params:
       min_confidence: 0.4
 ```

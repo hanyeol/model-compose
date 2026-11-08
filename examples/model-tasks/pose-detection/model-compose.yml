@@ -30,7 +30,7 @@ component:
   max_concurrent_count: 1
   action:
     image: ${input.image as image}
-    max_pose_count: ${input.max_pose_count | 1}
+    max_detection_count: ${input.max_detection_count | 1}
     skeleton_format: ${input.skeleton_format | natural}
     return_keypoints: true
     return_keypoints_3d: ${input.return_keypoints_3d as boolean | false}

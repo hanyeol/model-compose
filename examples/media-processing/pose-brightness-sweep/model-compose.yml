@@ -115,7 +115,7 @@ workflows:
             target_luma: ${item.luma}
             original_luma: ${jobs.measure.output.mean_brightness}
             min_confidence: ${input.min_confidence as number | 0.4}
-            max_pose_count: ${input.max_pose_count as integer | 5}
+            max_detection_count: ${input.max_detection_count as integer | 5}
           steps:
             # 3a. Compute the brightness factor that maps the source
             #     image's mean luma to this iteration's `target_luma`.
@@ -161,7 +161,7 @@ workflows:
                 factor: ${output.factor}
                 brightened_image: ${output.brightened_image}
                 min_confidence: ${input.min_confidence}
-                max_pose_count: ${input.max_pose_count}
+                max_detection_count: ${input.max_detection_count}
               output:
                 factor: ${step.input.factor}
                 brightened_image: ${step.input.brightened_image}
@@ -276,7 +276,7 @@ components:
       url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n-pose.pt
     action:
       image: ${input.image as image}
-      max_pose_count: ${input.max_pose_count}
+      max_detection_count: ${input.max_detection_count}
       return_keypoints: false
       return_skeleton_image: true
       skeleton_format: natural

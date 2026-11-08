@@ -78,9 +78,9 @@ components:
       return_gender_age: ${input.return_gender_age}
       return_detections: true
       crop_margin_ratio: ${input.crop_margin_ratio}
+      max_detection_count_per_frame: 0
       params:
         similarity_threshold: ${input.similarity_threshold}
         min_face_size: 40
         min_frame_count: ${input.min_frame_count}
         merge_gap: ${input.merge_gap}
-        max_face_count_per_frame: 0

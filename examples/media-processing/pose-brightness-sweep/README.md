@@ -65,14 +65,14 @@ model-compose's variable-binding DSL renders values and does type conversion, bu
 
    **Using Web UI:**
    - Open the Web UI: http://localhost:8081
-   - Upload the image and optionally override `min_confidence` / `max_pose_count`
+   - Upload the image and optionally override `min_confidence` / `max_detection_count`
    - Click "Run Workflow"
    - The response contains 5 image fields (`luma_050` … `luma_210`) — one card per brightness band, showing the brightened image with detected skeletons drawn on top.
 
    **Using API:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F 'input={"min_confidence": 0.4, "max_pose_count": 5};type=application/json' \
+     -F 'input={"min_confidence": 0.4, "max_detection_count": 5};type=application/json' \
      -F 'image=@./person.jpg'
    ```
 
@@ -81,7 +81,7 @@ model-compose's variable-binding DSL renders values and does type conversion, bu
    model-compose run --input '{
      "image": "./person.jpg",
      "min_confidence": 0.4,
-     "max_pose_count": 5
+     "max_detection_count": 5
    }'
    ```
 
@@ -91,7 +91,7 @@ model-compose's variable-binding DSL renders values and does type conversion, bu
 |-----------|------|----------|---------|-------------|
 | `image` | image (file) | Yes | - | Input image to sweep brightness over |
 | `min_confidence` | number | No | `0.4` | Minimum pose-detection confidence (0.0 – 1.0). Lower it (e.g. `0.25`) if any person is missed at every brightness level |
-| `max_pose_count` | integer | No | `5` | Maximum number of poses returned per image |
+| `max_detection_count` | integer | No | `5` | Maximum number of poses returned per image |
 
 ## Output Shape
 
@@ -131,7 +131,7 @@ The band where the skeleton lines up most cleanly with the person(s) in the imag
 - **Type**: `model` — `pose-detection` task
 - **Driver**: `custom`
 - **Family**: `yolo` (`yolov8n-pose.pt` weights)
-- **Function**: Detects up to `max_pose_count` poses in a single image and, for each one, renders a full-resolution skeleton PNG with a transparent background (`return_skeleton_image: true`). Keypoint arrays are suppressed (`return_keypoints: false`) because the overlay pipeline only needs the pre-rendered skeleton image. `max_concurrent_count: 1` serialises inference so GPU memory stays bounded even though the outer `for-each` fans out 5 iterations at once.
+- **Function**: Detects up to `max_detection_count` poses in a single image and, for each one, renders a full-resolution skeleton PNG with a transparent background (`return_skeleton_image: true`). Keypoint arrays are suppressed (`return_keypoints: false`) because the overlay pipeline only needs the pre-rendered skeleton image. `max_concurrent_count: 1` serialises inference so GPU memory stays bounded even though the outer `for-each` fans out 5 iterations at once.
 
 ## Notes and Tuning
 

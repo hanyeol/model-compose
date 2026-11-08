@@ -248,7 +248,7 @@ components:
       path: ./models/nsfw_detector.pt
     action:
       image: ${input.image as image}
-      max_object_count: 100
+      max_detection_count: 100
       crop_margin_ratio: ${input.crop_margin_ratio}
       params:
         min_confidence: ${input.min_confidence}

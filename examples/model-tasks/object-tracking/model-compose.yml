@@ -80,10 +80,10 @@ components:
       labels: ${input.labels}
       return_detections: ${input.return_detections}
       return_frame_image: ${input.return_frame_image}
+      max_detection_count_per_frame: 0
       params:
         tracker: ${input.tracker}
         min_confidence: ${input.min_confidence}
         min_object_size: 40
         min_frame_count: ${input.min_frame_count}
         merge_gap: ${input.merge_gap}
-        max_object_count_per_frame: 0

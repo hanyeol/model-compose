@@ -65,14 +65,14 @@ model-compose 的变量绑定 DSL 渲染值并做类型转换，但不做算术�
 
    **使用 Web UI：**
    - 打开 Web UI：http://localhost:8081
-   - 上传图像，可选择覆盖 `min_confidence` / `max_pose_count`
+   - 上传图像，可选择覆盖 `min_confidence` / `max_detection_count`
    - 点击 "Run Workflow"
    - 响应包含 5 个图像字段（`luma_050` … `luma_210`）— 每个亮度带一张卡片，展示亮度调整后的图像叠加检测到的骨架。
 
    **使用 API：**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F 'input={"min_confidence": 0.4, "max_pose_count": 5};type=application/json' \
+     -F 'input={"min_confidence": 0.4, "max_detection_count": 5};type=application/json' \
      -F 'image=@./person.jpg'
    ```
 
@@ -81,7 +81,7 @@ model-compose 的变量绑定 DSL 渲染值并做类型转换，但不做算术�
    model-compose run --input '{
      "image": "./person.jpg",
      "min_confidence": 0.4,
-     "max_pose_count": 5
+     "max_detection_count": 5
    }'
    ```
 
@@ -91,7 +91,7 @@ model-compose 的变量绑定 DSL 渲染值并做类型转换，但不做算术�
 |------|------|------|--------|------|
 | `image` | image (file) | 是 | - | 用于亮度扫描的输入图像 |
 | `min_confidence` | number | 否 | `0.4` | 姿态检测最小置信度 (0.0 – 1.0)。若在所有亮度层级都漏检某人，可降低（例如 `0.25`） |
-| `max_pose_count` | integer | 否 | `5` | 每张图像返回的最大姿态数 |
+| `max_detection_count` | integer | 否 | `5` | 每张图像返回的最大姿态数 |
 
 ## 输出形状
 
@@ -131,7 +131,7 @@ model-compose 的变量绑定 DSL 渲染值并做类型转换，但不做算术�
 - **类型**：`model` — `pose-detection` 任务
 - **驱动**：`custom`
 - **系列**：`yolo` (`yolov8n-pose.pt` 权重)
-- **功能**：在一张图像上检测最多 `max_pose_count` 个姿态，并为每个姿态渲染全分辨率透明背景骨架 PNG（`return_skeleton_image: true`）。关键点数组被抑制（`return_keypoints: false`），因为叠加流水线只需要预渲染的骨架图。`max_concurrent_count: 1` 序列化推理，让 GPU 显存保持有界，即便外层 `for-each` 一次 fan-out 5 个迭代。
+- **功能**：在一张图像上检测最多 `max_detection_count` 个姿态，并为每个姿态渲染全分辨率透明背景骨架 PNG（`return_skeleton_image: true`）。关键点数组被抑制（`return_keypoints: false`），因为叠加流水线只需要预渲染的骨架图。`max_concurrent_count: 1` 序列化推理，让 GPU 显存保持有界，即便外层 `for-each` 一次 fan-out 5 个迭代。
 
 ## 备注与调优
 

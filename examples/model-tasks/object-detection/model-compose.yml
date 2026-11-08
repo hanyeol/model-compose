@@ -30,7 +30,7 @@ component:
   action:
     image: ${input.image as image}
     labels: ${input.labels as list}
-    max_object_count: ${input.max_object_count | 300}
+    max_detection_count: ${input.max_detection_count | 300}
     crop_margin_ratio: ${input.crop_margin_ratio | 0.0}
     params:
       min_confidence: ${input.min_confidence | 0.25}

@@ -1202,6 +1202,7 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
+| `max_detection_count` | int | `0` | Maximum number of faces returned per image. `0` disables the limit. |
 | `return_landmarks` | bool | `false` | Include facial keypoints in the result (6 for BlazeFace, up to 106 for InsightFace `antelopev2`). |
 | `crop_margin_ratio` | float | `0.0` | Margin added around each returned face crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
 | `batch_size` | int | `1` | Number of images to process per batch |
@@ -1212,7 +1213,6 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `params.detection_size` | [int, int] | `[640, 640]` | Detector input size in pixels. Larger sizes improve recall on small faces at the cost of throughput. |
-| `params.max_num_faces` | int | `0` | Maximum number of faces returned per image. `0` disables the limit. Applied at detection time (before embedding-style postprocessing). |
 
 **Example — BlazeFace:**
 
@@ -1303,12 +1303,12 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
 | `crop_margin_ratio` | float | `0.0` | Margin added around each returned face crop image, as a ratio of the box's own width/height; does not affect the reported bounding box, embeddings, or clustering. |
+| `max_detection_count_per_frame` | int | `0` | Maximum number of faces to keep per frame. `0` disables the limit. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream instead of a single result dict. See [Streaming chunks](#streaming-chunks-face-tracking) below. |
 | `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
 | `params.min_face_size` | int | `0` | Minimum face bounding box size in pixels. `0` disables the filter. |
 | `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
-| `params.max_face_count_per_frame` | int | `0` | Maximum number of faces to keep per frame. `0` disables the limit. |
 | `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
 | `params.max_track_distance` | float | `1.5` | Maximum distance a track may move between consecutive detections, as a multiple of the face size. `0` disables the check. |
 
@@ -1609,7 +1609,7 @@ Detect human bodies in an image and return per-pose keypoints (2D, optionally 3D
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
-| `max_pose_count` | int | `1` | Maximum number of poses to detect per image (>= 1) |
+| `max_detection_count` | int | `1` | Maximum number of poses to detect per image (>= 1) |
 | `return_keypoints` | bool | `true` | Include 2D pose keypoints (pixel coordinates) in the result |
 | `batch_size` | int | `1` | Number of images to process per batch |
 | `params.min_confidence` | float | `0.5` | Minimum pose-detection confidence threshold (0.0 - 1.0) |
@@ -1635,7 +1635,7 @@ component:
   family: blazepose
   action:
     image: ${input.image as image}
-    max_pose_count: 2
+    max_detection_count: 2
     return_keypoints_3d: true
     params:
       min_confidence: 0.6
@@ -1653,7 +1653,7 @@ component:
   family: yolo
   action:
     image: ${input.image as image}
-    max_pose_count: 5
+    max_detection_count: 5
     params:
       min_confidence: 0.4
     output:
@@ -1737,13 +1737,13 @@ Track people (as poses) across a sequence of video frames. Per-frame pose detect
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
 | `crop_margin_ratio` | float | `0.0` | Margin added around each returned pose crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
+| `max_detection_count_per_frame` | int | `0` | Maximum number of poses to keep per frame. `0` disables the limit. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream. See [Streaming chunks](#streaming-chunks-pose-tracking) below. |
 | `params.min_confidence` | float | `0.5` | Minimum detection confidence a pose must reach. |
 | `params.min_presence_confidence` | float | `0.5` | Minimum presence confidence a keypoint must reach to be kept. |
 | `params.min_pose_size` | int | `0` | Minimum pose bounding box size in pixels. `0` disables the filter. |
 | `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
-| `params.max_pose_count_per_frame` | int | `0` | Maximum number of poses to keep per frame. `0` disables the limit. |
 | `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
 
 At least one of `return_tracks` or `return_detections` must be `true`. `return_track_image` requires `return_tracks: true`; `return_detection_image` and `return_frame_image` require `return_detections: true`.
@@ -1856,7 +1856,7 @@ Detect objects in an image and return per-object bounding boxes with class label
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `labels` | list[str] | `null` | Restrict detections to these class labels. Unknown labels raise an error listing available labels. If omitted, all classes are returned |
-| `max_object_count` | int | `300` | Maximum detections per image (>= 1) |
+| `max_detection_count` | int | `300` | Maximum detections per image (>= 1) |
 | `crop_margin_ratio` | float | `0.0` | Margin added around each returned object crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
 | `batch_size` | int | `1` | Number of images to process per batch |
 | `params.min_confidence` | float | `0.25` | Minimum detection confidence threshold (0.0 - 1.0) |
@@ -1928,6 +1928,7 @@ Track objects across a sequence of video frames. Per-frame detections are groupe
 | `return_frame_image` | bool | `false` | Include the source frame image on each per-frame detection entry. Requires `return_detections: true`. |
 | `return_metadata` | bool | `false` | Include processing metadata (`frame_count`, ...) in the result. In streaming mode, appended as a terminal `metadata` chunk. |
 | `crop_margin_ratio` | float | `0.0` | Margin added around each returned object crop image, as a ratio of the box's own width/height; does not affect the reported bounding box. |
+| `max_detection_count_per_frame` | int | `0` | Maximum number of objects to keep per frame. `0` disables the limit. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream. See [Streaming chunks](#streaming-chunks-object-tracking) below. |
 | `params.min_confidence` | float | `0.25` | Minimum detection confidence an object must reach. |
@@ -1935,7 +1936,6 @@ Track objects across a sequence of video frames. Per-frame detections are groupe
 | `params.agnostic_nms` | bool | `false` | Whether NMS is applied across classes rather than per class. |
 | `params.min_object_size` | int | `0` | Minimum object bounding box size in pixels. `0` disables the filter. |
 | `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
-| `params.max_object_count_per_frame` | int | `0` | Maximum number of objects to keep per frame. `0` disables the limit. |
 | `params.merge_gap` | float | `0.5` | Extra seconds an object may be undetected before its segment is split; consecutive frames always merge. |
 
 At least one of `return_tracks` or `return_detections` must be `true`. `return_track_image` requires `return_tracks: true`; `return_detection_image` and `return_frame_image` require `return_detections: true`.

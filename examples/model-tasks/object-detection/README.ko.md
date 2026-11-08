@@ -56,7 +56,7 @@
    **웹 UI 사용:**
    - 웹 UI 열기: http://localhost:8081
    - 이미지 파일 업로드
-   - `labels`, `min_confidence`, `max_object_count`, `iou_threshold`, `agnostic_nms`, `crop_margin_ratio` 선택적 조정
+   - `labels`, `min_confidence`, `max_detection_count`, `iou_threshold`, `agnostic_nms`, `crop_margin_ratio` 선택적 조정
    - "Run Workflow" 버튼 클릭
 
 ## 결과 형식
@@ -109,7 +109,7 @@ component:
 |---|---|---|---|
 | `image` | image | (필수) | 입력 이미지 |
 | `labels` | list[str] | `null` | 이 클래스 레이블로 감지 제한. 알 수 없는 레이블은 즉시 실패 |
-| `max_object_count` | int | `300` | 이미지당 최대 감지 수 |
+| `max_detection_count` | int | `300` | 이미지당 최대 감지 수 |
 | `crop_margin_ratio` | float | `0.0` | 각 경계 상자를 모든 방향으로 너비/높이 비율만큼 확장 (예: `0.1` = 10%). 이미지 경계로 제한됨. 상자를 크롭이나 SAM 박스 프롬프트에 전달할 때 유용 |
 | `params.min_confidence` | float | `0.25` | 최소 감지 신뢰도 |
 | `params.iou_threshold` | float | `0.7` | 비최대 억제를 위한 IoU 임계값 |

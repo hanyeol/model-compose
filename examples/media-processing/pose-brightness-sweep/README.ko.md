@@ -65,14 +65,14 @@ model-compose의 변수 바인딩 DSL은 값을 렌더링하고 타입 변환은
 
    **Web UI 사용:**
    - Web UI 열기: http://localhost:8081
-   - 이미지 업로드, 필요 시 `min_confidence` / `max_pose_count` 오버라이드
+   - 이미지 업로드, 필요 시 `min_confidence` / `max_detection_count` 오버라이드
    - "Run Workflow" 클릭
    - 응답에는 5개의 이미지 필드(`luma_050` … `luma_210`)가 담김 — 밝기 대역별로 카드 하나씩, 밝기 조정된 이미지 위에 검출된 스켈레톤이 그려진 모습.
 
    **API 사용:**
    ```bash
    curl -X POST http://localhost:8080/api/workflows/runs \
-     -F 'input={"min_confidence": 0.4, "max_pose_count": 5};type=application/json' \
+     -F 'input={"min_confidence": 0.4, "max_detection_count": 5};type=application/json' \
      -F 'image=@./person.jpg'
    ```
 
@@ -81,7 +81,7 @@ model-compose의 변수 바인딩 DSL은 값을 렌더링하고 타입 변환은
    model-compose run --input '{
      "image": "./person.jpg",
      "min_confidence": 0.4,
-     "max_pose_count": 5
+     "max_detection_count": 5
    }'
    ```
 
@@ -91,7 +91,7 @@ model-compose의 변수 바인딩 DSL은 값을 렌더링하고 타입 변환은
 |---------|------|------|--------|------|
 | `image` | image (file) | 예 | - | 밝기 스윕할 입력 이미지 |
 | `min_confidence` | number | 아니오 | `0.4` | 포즈 검출 최소 신뢰도 (0.0 – 1.0). 모든 밝기 레벨에서 특정 사람이 놓쳐지면 낮춰봅니다 (예: `0.25`) |
-| `max_pose_count` | integer | 아니오 | `5` | 이미지당 반환할 최대 포즈 개수 |
+| `max_detection_count` | integer | 아니오 | `5` | 이미지당 반환할 최대 포즈 개수 |
 
 ## 출력 형태
 
@@ -131,7 +131,7 @@ model-compose의 변수 바인딩 DSL은 값을 렌더링하고 타입 변환은
 - **타입**: `model` — `pose-detection` 태스크
 - **드라이버**: `custom`
 - **패밀리**: `yolo` (`yolov8n-pose.pt` 가중치)
-- **기능**: 한 이미지에서 최대 `max_pose_count`개의 포즈를 검출하고, 각 포즈마다 투명 배경의 풀 해상도 스켈레톤 PNG를 렌더링(`return_skeleton_image: true`). 키포인트 배열은 억제(`return_keypoints: false`) — 오버레이 파이프라인은 미리 렌더링된 스켈레톤 이미지만 필요하므로. `max_concurrent_count: 1`은 추론을 직렬화하여, 외부 `for-each`가 5개 이터레이션을 한 번에 fan-out하더라도 GPU 메모리가 경계 내에 머물게 합니다.
+- **기능**: 한 이미지에서 최대 `max_detection_count`개의 포즈를 검출하고, 각 포즈마다 투명 배경의 풀 해상도 스켈레톤 PNG를 렌더링(`return_skeleton_image: true`). 키포인트 배열은 억제(`return_keypoints: false`) — 오버레이 파이프라인은 미리 렌더링된 스켈레톤 이미지만 필요하므로. `max_concurrent_count: 1`은 추론을 직렬화하여, 외부 `for-each`가 5개 이터레이션을 한 번에 fan-out하더라도 GPU 메모리가 경계 내에 머물게 합니다.
 
 ## 노트와 튜닝
 

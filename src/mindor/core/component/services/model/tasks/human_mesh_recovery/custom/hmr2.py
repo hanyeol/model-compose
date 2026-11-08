@@ -15,10 +15,13 @@ from mindor.core.utils.files import get_temporary_path
 from ....base import ComponentActionContext, ModelTaskDriver
 from ..common import HumanMeshRecoveryTaskAction
 from PIL import Image as PILImage
+from pathlib import Path
 
 if TYPE_CHECKING:
     import numpy as np
     import torch
+
+_VITDET_CHECKPOINT_URL = "https://dl.fbaipublicfiles.com/detectron2/ViTDet/COCO/cascade_mask_rcnn_vitdet_h/f328730692/model_final_f05665.pkl"
 
 class HMR2HumanMeshRecoveryTaskAction(HumanMeshRecoveryTaskAction):
     """Single-image SMPL recovery with HMR2.0 (4D-Humans).
@@ -279,11 +282,19 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
             from hmr2.models import load_hmr2
             from hmr2.utils.utils_detectron2 import DefaultPredictor_Lazy
             from detectron2.config import LazyConfig
-            from detectron2 import model_zoo
-            import os
+            import hmr2
 
-            model, model_cfg = load_hmr2(model_path)
+            # The upstream tarball expands to `logs/train/multiruns/hmr2/0/
+            # checkpoints/epoch=35-step=1000000.ckpt` plus a sibling
+            # `model_config.yaml`; `load_hmr2` expects the checkpoint file.
+            checkpoint_path = str(
+                Path(model_path)
+                / "logs" / "train" / "multiruns" / "hmr2" / "0"
+                / "checkpoints" / "epoch=35-step=1000000.ckpt"
+            )
+            model, model_cfg = load_hmr2(checkpoint_path)
             model.to(str(device)).eval()
+
             # HMR2 fetches the SMPL body-model files relative to the model
             # config at inference time. Rebind the configured path so the
             # driver honors the user-provided ``smpl`` submodule rather than
@@ -293,8 +304,16 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
             model.smpl.model_path = smpl_path
             model_cfg.freeze()
 
-            detectron_cfg = LazyConfig.load(str(model_zoo.get_config_file("new_baselines/mask_rcnn_regnety_4gf_dds_FPN_400ep_LSJ.py")))
-            detectron_cfg.train.init_checkpoint = os.path.join(model_path, "model_final_f05665.pkl")
+            # ViTDet detector — config ships inside the hmr2 package, weights
+            # are pulled on demand from fbaipublicfiles. Mirrors the upstream
+            # `demo.py --detector vitdet` branch.
+            detectron_cfg_path = Path(hmr2.__file__).parent / "configs" / "cascade_mask_rcnn_vitdet_h_75ep.py"
+            detectron_cfg = LazyConfig.load(str(detectron_cfg_path))
+            detectron_cfg.train.init_checkpoint = _VITDET_CHECKPOINT_URL
+
+            for index in range(3):
+                detectron_cfg.model.roi_heads.box_predictors[index].test_score_thresh = 0.25
+
             detector = DefaultPredictor_Lazy(detectron_cfg)
 
             return model, model_cfg, detector

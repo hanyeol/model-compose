@@ -241,7 +241,7 @@ class GVHMRHumanMeshRecoveryTaskDriver(ModelTaskDriver):
             )
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        smplx_path = await self._provision_model(self.config.smplx.model, prefetch=True)
+        smplx_path = await self._provision_model(self.config.smplx_model, prefetch=True)
 
         def _load() -> Any:
             import hydra

@@ -276,7 +276,7 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
             )
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        smpl_path = await self._provision_model(self.config.smpl.model, prefetch=True)
+        smpl_path = await self._provision_model(self.config.smpl_model, prefetch=True)
 
         def _load() -> Tuple[Any, Any, Any]:
             from hmr2.models import load_hmr2

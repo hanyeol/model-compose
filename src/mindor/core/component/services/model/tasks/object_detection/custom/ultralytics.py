@@ -132,7 +132,7 @@ class YoloObjectDetectionTaskDriver(ModelTaskDriver):
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
-            *torch_requirements("torch>=2.5,<2.13"),
+            *torch_requirements("torch>=2.5,<2.13", "torchvision"),
             "ultralytics",
         ]
 

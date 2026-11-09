@@ -107,11 +107,8 @@ class GVHMRHumanMeshRecoveryTaskAction(HumanMeshRecoveryTaskAction):
 
         # GVHMR's network consumes the whole clip at once, so collect any
         # streaming sources up front before entering the sync executor path.
-        # `frames`/`tracks` may arrive as ImageArrayValue/ArrayValue (with
-        # `.collect()`) or as a raw StreamChunkIterator (no `.collect()`), so
-        # iterate uniformly instead.
-        frames = [ frame async for frame in frames ]
-        tracks = [ track async for track in tracks ]
+        frames = await frames.collect()
+        tracks = await tracks.collect()
 
         frames_np = np.stack([ np.array(frame.convert("RGB")) for frame in frames ], axis=0)
         frame_count, height, width, _ = frames_np.shape

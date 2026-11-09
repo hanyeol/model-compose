@@ -25,7 +25,7 @@ from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
 from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
-from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
+from mindor.core.foundation.variable.codec import StreamKind, StreamDecodeCallback, StreamEncodeCallback, VariableCodec
 import asyncio
 
 # Sentinels placed in IpcInboundStream.queue.
@@ -47,12 +47,13 @@ class IpcInboundStream:
 
         self._codec: VariableCodec = codec
 
-    def decode_chunk(self, data: Any) -> Any:
+    def decode_chunk(self, data: Any, on_stream_decode: Optional[StreamDecodeCallback] = None) -> Any:
         """Convert on-wire chunk data back to the Python value for this stream's kind.
 
         - StreamKind.BYTES  ← raw bytes (travels in the IpcMessage binary trailer, not the JSON payload)
         - StreamKind.TEXT   ← raw string
-        - StreamKind.OBJECT ← codec.decode(data) (may contain nested __variable__ markers)
+        - StreamKind.OBJECT ← codec.decode(data) (may carry nested __variable__ markers,
+                               so callers must forward `on_stream_decode` to restore them)
         """
         if self.kind == StreamKind.BYTES:
             if not isinstance(data, (bytes, bytearray)):
@@ -67,7 +68,7 @@ class IpcInboundStream:
             return data
 
         # StreamKind.OBJECT
-        return self._codec.decode(data)
+        return self._codec.decode(data, on_stream_decode=on_stream_decode)
 
     def push_end(self) -> None:
         self.queue.put_nowait(_STREAM_END)
@@ -82,6 +83,7 @@ class IpcInboundStream:
         filename: Optional[str],
         size: Optional[int],
         attrs: Dict[str, Any],
+        is_fragmented: bool = False,
     ) -> Union[StreamResource, StreamChunkIterator]:
         """Wrap the `IpcStreamReader` in the appropriate `StreamResource` (or
         `StreamChunkIterator`) per §2.3.1 mapping. The returned object is what
@@ -99,8 +101,7 @@ class IpcInboundStream:
         cls = self._resolve_resource_class(content_type, self.kind)
 
         if cls is StreamChunkIterator:
-            # TODO: propagate `is_fragmented` from the origin worker via the IPC wire protocol.
-            return StreamChunkIterator(reader)
+            return StreamChunkIterator(reader, is_fragmented=is_fragmented)
 
         source = AsyncIterableStreamResource(
             reader,
@@ -215,12 +216,13 @@ class IpcOutboundStream:
         finally:
             self._pull_task = None
 
-    def encode_chunk(self, raw: Any) -> Any:
+    def encode_chunk(self, raw: Any, on_stream_encode: Optional[StreamEncodeCallback] = None) -> Any:
         """Convert a raw chunk yielded by the source into the on-wire form.
 
         - StreamKind.BYTES  → raw bytes (sent in the IpcMessage binary trailer, not the JSON payload)
         - StreamKind.TEXT   → raw string (str)
-        - StreamKind.OBJECT → codec.encode(raw) (may contain nested __variable__ markers)
+        - StreamKind.OBJECT → codec.encode(raw) (may carry nested __variable__ markers,
+                               so callers must forward `on_stream_encode` to register them)
         """
         if self.kind == StreamKind.BYTES:
             if isinstance(raw, (bytes, bytearray)):
@@ -239,7 +241,7 @@ class IpcOutboundStream:
             )
 
         # StreamKind.OBJECT
-        return self._codec.encode(raw)
+        return self._codec.encode(raw, on_stream_encode=on_stream_encode)
 
     async def aclose(self) -> None:
         """Terminate the source cooperatively.

@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from enum import Enum
 from pydantic import BaseModel
 from ..streaming.resources import StreamResource
-from ..streaming.iterators import StreamIterator, StreamEncodingIterator, StreamEncodingFormat
+from ..streaming.iterators import StreamChunkIterator, StreamIterator, StreamEncodingIterator, StreamEncodingFormat
 from ..streaming.image import ImageStreamResource
 from ..streaming.file import UploadFileStreamResource, is_upload_file
 from .atomic import AtomicDict, AtomicList
@@ -151,6 +151,9 @@ class VariableCodec:
 
             if attrs:
                 variable["attrs"] = dict(attrs)
+
+        if isinstance(source, StreamChunkIterator):
+            variable["is_fragmented"] = source.is_fragmented
 
         if on_stream_encode is not None:
             on_stream_encode(stream_id, source, kind)

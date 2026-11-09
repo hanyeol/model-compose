@@ -275,6 +275,7 @@ class IpcRuntimeProxy(ABC):
             variable.get("filename"),
             variable.get("size"),
             variable.get("attrs") or {},
+            is_fragmented=bool(variable.get("is_fragmented", False)),
         )
 
     def _build_outbound_stream_handler(
@@ -319,7 +320,7 @@ class IpcRuntimeProxy(ABC):
 
             # BYTES chunks travel in the binary trailer; other kinds ride in payload.data.
             data = message.binary if stream.kind == StreamKind.BYTES else payload.get("data")
-            chunk = stream.decode_chunk(data)
+            chunk = stream.decode_chunk(data, on_stream_decode=self._handle_inbound_stream)
             stream.queue.put_nowait(chunk)
 
             return
@@ -418,7 +419,10 @@ class IpcRuntimeProxy(ABC):
             return
 
         try:
-            chunk = stream.encode_chunk(chunk)
+            chunk = stream.encode_chunk(
+                chunk,
+                on_stream_encode=self._build_outbound_stream_handler(stream.owner_kind, stream.owner_id),
+            )
         except Exception as e:
             await self._send_stream_abort_message(stream_id, str(e))
             self._outbound_streams.pop(stream_id, None)

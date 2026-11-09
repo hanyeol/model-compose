@@ -125,19 +125,11 @@ class HuggingfaceModelConfig(CommonModelConfig):
     token: Optional[str] = Field(default=None, description="HuggingFace access token used for gated or private repositories.")
     trust_remote_code: Optional[bool] = Field(default=None, description="Whether to execute custom model code shipped in the HuggingFace repository.")
 
-    @field_validator("cache_dir", mode="after")
-    def expand_cache_dir(cls, value: Optional[str]) -> Optional[str]:
-        return os.path.expanduser(value) if value else value
-
 class LocalModelConfig(CommonModelConfig):
     provider: Literal[ModelProvider.LOCAL]
     path: Optional[str] = Field(default=None, description="Local filesystem path to the model file or directory.")
     url: Optional[UrlFetchConfig] = Field(default=None, description="Remote source used to download the model when the local path is missing.")
     bundled: bool = Field(default=False, description="Whether the downloaded file is an archive to extract into `path`.")
-
-    @field_validator("path", mode="after")
-    def expand_path(cls, value: Optional[str]) -> Optional[str]:
-        return os.path.expanduser(value) if value else value
 
     @model_validator(mode="before")
     def inflate_url(cls, values: Dict[str, Any]):
@@ -147,34 +139,20 @@ class LocalModelConfig(CommonModelConfig):
         return values
 
     @model_validator(mode="after")
-    def apply_default_path(self):
-        if not self.path and self.url:
-            filename = os.path.basename(self.url.endpoint)
-            # For bundled archives the on-disk path names the extracted
-            # directory, not the archive — strip the archive suffix so the
-            # directory name is clean (e.g. `antelopev2.zip` -> `antelopev2`).
-            if self.bundled:
-                for suffix in (".tar.gz", ".tgz", ".tar", ".zip"):
-                    if filename.lower().endswith(suffix):
-                        filename = filename[: -len(suffix)]
-                        break
-            subdir = self._cache_subdir()
-            if subdir:
-                self.path = os.path.join(self.get_cache_dir(), subdir, filename)
-            else:
-                self.path = os.path.join(self.get_cache_dir(), filename)
-        return self
-
-    @model_validator(mode="after")
     def validate_path_or_url(self):
         if not self.path and not self.url:
             raise ValueError("LocalModelConfig requires 'path' or 'url'.")
         return self
 
-    def get_cache_dir(self) -> str:
-        return os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "models")
-
     def _cache_subdir(self) -> Optional[str]:
+        """Cache subdirectory under `<cache_root>/models/` for this model's
+        files; overridden per driver (e.g. ``wav2lip``, ``hmr2``). Returns
+        ``None`` to drop files directly under the shared cache root.
+
+        Resolved at download time so the cache root honors the remote
+        process's filesystem — expanding ``~`` here would bake the host's
+        home path into the config and leak to remote workers.
+        """
         return None
 
 class NamedModelConfig(CommonModelConfig):

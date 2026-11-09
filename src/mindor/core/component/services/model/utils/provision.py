@@ -157,7 +157,7 @@ class ModelProvisioner:
                     repo_id=model.repository,
                     filename=model.filename,
                     revision=model.revision,
-                    cache_dir=model.cache_dir,
+                    cache_dir=os.path.expanduser(model.cache_dir) if model.cache_dir else None,
                     allow_patterns=model.allow_patterns,
                     local_files_only=model.local_files_only,
                     token=model.token,
@@ -166,14 +166,19 @@ class ModelProvisioner:
             return model.repository
 
         if isinstance(model, LocalModelConfig):
-            if model.path and os.path.exists(model.path):
-                return model.path
+            # Resolve ``~`` against the running process's home — the config
+            # travels unchanged from host to remote worker, so expansion has
+            # to happen here, in the worker's own filesystem context.
+            path = os.path.expanduser(model.path) if model.path else self._default_local_path(model)
+
+            if os.path.exists(path):
+                return path
 
             if not model.url:
-                raise FileNotFoundError(f"Model not found: {model.path}")
+                raise FileNotFoundError(f"Model not found: {path}")
 
             return await LocalModelDownloader().download(
-                path=model.path,
+                path=path,
                 endpoint=model.url.endpoint,
                 method=model.url.method,
                 headers=model.url.headers,
@@ -189,3 +194,30 @@ class ModelProvisioner:
             )
 
         raise ValueError(f"Unknown model config type: {type(model).__name__}")
+
+    def _default_local_path(self, model: LocalModelConfig) -> str:
+        """Derive a cache path from ``model.url`` when the caller did not set
+        ``model.path``. The schema's ``validate_path_or_url`` guarantees a
+        ``url`` is present whenever ``path`` is not.
+
+        Bundled archives land in a directory named after the archive with its
+        suffix stripped (``antelopev2.zip`` → ``antelopev2/``); plain files
+        keep their basename. The cache root is read at call time so it
+        follows the current process's home, not whichever filesystem parsed
+        the config.
+        """
+        filename = os.path.basename(model.url.endpoint)
+
+        if model.bundled:
+            for suffix in (".tar.gz", ".tgz", ".tar", ".zip"):
+                if filename.lower().endswith(suffix):
+                    filename = filename[: -len(suffix)]
+                    break
+
+        cache_root = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "models")
+        subdir = model._cache_subdir()
+
+        if subdir:
+            return os.path.join(cache_root, subdir, filename)
+        
+        return os.path.join(cache_root, filename)

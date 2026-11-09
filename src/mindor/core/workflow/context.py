@@ -52,12 +52,14 @@ class WorkflowContext:
     def record_run_id(self, job_id: str, run_id: str) -> None:
         self.job_run_ids.setdefault(job_id, []).append(run_id)
 
-    async def clear_sources(self) -> None:
-        # Stream wrappers held in `sources` only release their component's
-        # active counter when consumed or explicitly closed. Job outputs that
-        # no downstream reference picked up are dangling by the time we clear
-        # — close them here so the counter releases and shutdown can finish.
-        await cleanup_dangling_streams(self.sources)
+    async def clear_sources(self, completed: bool = True) -> None:
+        # On normal completion the consumer (controller / outer renderer) still
+        # holds the workflow output and will drive stream wrappers to close as
+        # it drains them — forcing close here would race and drop in-flight
+        # chunks for dict-nested streams. Only on cancel/error is the output
+        # not handed off, so dangling streams need to be swept proactively.
+        if not completed:
+            await cleanup_dangling_streams(self.sources)
 
         self.sources = { "jobs": {} }
 

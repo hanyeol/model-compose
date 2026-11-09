@@ -186,7 +186,7 @@ class HMR2HumanMeshRecoveryTaskAction(HumanMeshRecoveryTaskAction):
         mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
         output_path = get_temporary_path("glb")
-        mesh.export(output_path)
+        mesh.export(output_path, file_type="glb")
 
         return Model3DStreamResource(
             FileStreamResource(output_path, auto_delete=True),

@@ -23,6 +23,7 @@ from mindor.core.foundation.streaming.text import TextStreamResource
 from mindor.core.foundation.streaming.audio import PcmStreamResource, WavStreamResource, AudioStreamResource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import ImageStreamResource
+from mindor.core.foundation.streaming.model_3d import Model3DStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.variable.codec import StreamKind, VariableCodec
 import asyncio
@@ -120,6 +121,9 @@ class IpcInboundStream:
         if cls is VideoStreamResource:
             return VideoStreamResource(source, attrs=attrs, filename=filename)
 
+        if cls is Model3DStreamResource:
+            return Model3DStreamResource(source, attrs=attrs, filename=filename)
+
         # BytesStreamResource / ImageStreamResource / TextStreamResource → keep
         # the raw async-iterable resource; component decodes if it needs a
         # PIL.Image or decoded str.
@@ -150,6 +154,9 @@ class IpcInboundStream:
 
         if content_type.startswith("video/"):
             return VideoStreamResource
+
+        if content_type.startswith("model/"):
+            return Model3DStreamResource
 
         if content_type.startswith("text/"):
             return TextStreamResource

@@ -57,7 +57,7 @@ class WorkflowRunner:
                         tracing.on_workflow_error(context.task_id, self.id, error, elapsed)
                         logging.error("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, error)
 
-                    await context.clear_sources()
+                    await context.clear_sources(completed=bool(event == "completed"))
 
                 if isinstance(output, (StreamEncodingIterator, JobOutputStreamEncodingIterator)):
                     output = JobOutputStreamEncodingIterator(output, _on_terminated)
@@ -77,7 +77,7 @@ class WorkflowRunner:
 
             logging.info("[task-%s] Workflow '%s' cancelled after %.2f seconds.", context.task_id, self.id, elapsed)
 
-            await context.clear_sources()
+            await context.clear_sources(completed=False)
 
             raise
         except Exception as e:
@@ -86,7 +86,7 @@ class WorkflowRunner:
             tracing.on_workflow_error(context.task_id, self.id, e, elapsed)
             logging.exception("[task-%s] Workflow '%s' failed after %.2f seconds: %s", context.task_id, self.id, elapsed, e)
 
-            await context.clear_sources()
+            await context.clear_sources(completed=False)
 
             raise
 

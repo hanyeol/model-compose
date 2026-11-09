@@ -1,16 +1,17 @@
-from typing import Union, Optional, List, Any
+from typing import Union, Optional, List, Dict, Any
 from pydantic import Field, model_validator
 from ..common import CommonHumanMeshRecoveryParamsConfig, CommonHumanMeshRecoveryModelActionConfig
 
 class GVHMRHumanMeshRecoveryParamsConfig(CommonHumanMeshRecoveryParamsConfig):
     static_camera: Union[bool, str] = Field(default=False, description="Whether to treat the input as captured from a static camera; disables camera trajectory estimation.")
+    focal_length: Optional[Union[float, str]] = Field(default=None, description="Full-frame-equivalent focal length in mm; None lets the pipeline estimate from frame size.")
+    track_id: Optional[Union[int, str]] = Field(default=None, description="Pose-tracking track id to recover; None picks the longest track.")
 
 class GVHMRHumanMeshRecoveryModelActionConfig(CommonHumanMeshRecoveryModelActionConfig):
-    frames: Union[Any, List[Any], List[List[Any]], str] = Field(..., description="Frame images to analyze; a single frame, flat list, list of batches, or stream of batches.")
-    timestamps: Optional[Union[float, List[float], List[List[float]], str]] = Field(default=None, description="Per-frame timestamps in seconds paired with `frames`; overrides `frame_rate`/`time_offset` when set.")
-    frame_rate: Optional[Union[float, str]] = Field(default=None, description="Frames per second; required when `timestamps` is unset to derive per-frame timestamps.")
-    time_offset: Union[Union[str, float, int], List[Union[str, float, int]], str] = Field(default=0.0, description="Timestamp offset in seconds for the first frame of each batch; scalar values broadcast, lists pair per batch.")
-    batch_size: Union[int, str] = Field(default=1, description="Number of frame sequences processed per iteration.")
+    frames: Union[Any, List[Any], str] = Field(..., description="One video's ordered frame images; a flat list, stream, or reference. Reuse the frames fed to the paired pose-tracking component.")
+    tracks: Union[Dict[str, Any], List[Dict[str, Any]], str] = Field(..., description="Pose-tracking detections paired with `frames`; the per-frame `detections` list produced by a pose-tracking component with `return_detections: true` and `return_keypoints: true` (COCO 17 layout).")
+    timestamps: Optional[Union[float, List[float], str]] = Field(default=None, description="Per-frame timestamps in seconds paired with `frames`; overrides `frame_rate` when set.")
+    frame_rate: Optional[Union[float, str]] = Field(default=None, description="Frames per second; required when `timestamps` is unset.")
     params: GVHMRHumanMeshRecoveryParamsConfig = Field(default_factory=GVHMRHumanMeshRecoveryParamsConfig, description="GVHMR recovery parameters.")
 
     @model_validator(mode="after")

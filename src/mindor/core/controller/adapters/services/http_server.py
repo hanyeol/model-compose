@@ -279,7 +279,7 @@ class HttpServerControllerAdapterService(ControllerAdapterService):
         self._callback_timeout: float = parse_time(config.callback_timeout)
 
     def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
-        requirements = [ "fastapi", "uvicorn", "aiohttp" ]
+        requirements = [ "fastapi", "uvicorn" ]
 
         if self.config.websocket is not False:
             requirements.append("websockets")

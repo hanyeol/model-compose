@@ -6,6 +6,7 @@ from collections.abc import AsyncIterable, AsyncIterator
 from functools import partial
 from mindor.dsl.schema.component import ModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, YoloPoseTrackingModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
@@ -1033,7 +1034,11 @@ class YoloPoseTrackingTaskDriver(ModelTaskDriver):
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "ultralytics", "lap" ]
+        return [
+            *torch_requirements("torch>=2.5,<2.13"),
+            "ultralytics",
+            "lap",
+        ]
 
     async def _load_model(self) -> None:
         from ultralytics import YOLO

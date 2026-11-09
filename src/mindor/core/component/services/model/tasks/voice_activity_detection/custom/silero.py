@@ -137,6 +137,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
         offset = 0  # samples consumed so far
 
         self.model.reset_states()
+
         try:
             with torch.no_grad():
                 async for frame in frames:
@@ -144,6 +145,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
                     prob = self.model(tensor, sample_rate).item()
 
                     segment = segmenter.feed(prob, offset)
+
                     if segment is not None:
                         # audio_length is not known ahead of time; clamp trailing padding to current offset + pad.
                         yield { "type": "segment", **self._build_padded_segment(
@@ -156,6 +158,7 @@ class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
                     offset += window_size
 
             trailing = segmenter.flush(offset)
+
             if trailing is not None:
                 yield { "type": "segment", **self._build_padded_segment(
                     *trailing,

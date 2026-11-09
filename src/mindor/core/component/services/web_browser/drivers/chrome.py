@@ -470,7 +470,7 @@ class ChromeWebBrowserService(WebBrowserDriver):
         self._target_ids: List[str] = []
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "aiohttp", "websockets" ]
+        return [ "websockets" ]
 
     async def _create_session(self) -> ChromeBrowserSession:
         client, target_id = await CdpClient.create_tab(self._url)

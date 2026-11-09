@@ -12,4 +12,5 @@ class CommonHumanMeshRecoveryModelActionConfig(CommonModelActionConfig):
     return_mesh: Union[bool, str] = Field(default=False, description="Whether a posed mesh file (GLB) is included in the result.")
     return_camera: Union[bool, str] = Field(default=False, description="Whether estimated camera parameters (focal length, principal point) are included in the result.")
     return_metadata: Union[bool, str] = Field(default=True, description="Whether the body-model parameters (shape, pose, translation) and other recovery metadata are included in the result.")
+    batch_size: Union[int, str] = Field(default=1, description="Number of inputs processed per batch.")
     params: CommonHumanMeshRecoveryParamsConfig = Field(default_factory=CommonHumanMeshRecoveryParamsConfig, description="Shared human-mesh-recovery parameters.")

@@ -409,7 +409,7 @@ class WebScraperComponent(ComponentService):
         self._rate_limiter: Optional[RateLimiter] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "aiohttp", "playwright", "beautifulsoup4", "lxml" ]
+        return [ "playwright", "beautifulsoup4", "lxml" ]
 
     async def _setup(self) -> None:
         install_browser("chromium")

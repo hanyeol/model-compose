@@ -163,8 +163,11 @@ class LightAsdActiveSpeakerDetectionTaskAction(ActiveSpeakerDetectionTaskAction)
         streaming: bool,
         params: Dict[str, Any],
     ) -> Union[Dict[str, Any], AsyncIterable[Dict[str, Any]]]:
-        frames = await frames.collect()
-        tracks = await tracks.collect()
+        # `frames`/`tracks` may arrive as ImageArrayValue/ArrayValue (with
+        # `.collect()`) or as a raw StreamChunkIterator (no `.collect()`), so
+        # iterate uniformly instead.
+        frames = [ frame async for frame in frames ]
+        tracks = [ track async for track in tracks ]
 
         frame_count = len(frames)
         frame_rate = float(frame_rate) if frame_rate else 25.0

@@ -102,7 +102,7 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         self._runtime: Optional[RunPodRuntime] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "runpod", "aiohttp", "websockets" ]
+        return [ "runpod", "websockets" ]
 
     async def _setup(self) -> None:
         self._runtime = RunPodRuntime(

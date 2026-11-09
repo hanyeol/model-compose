@@ -8,5 +8,4 @@ class HMR2HumanMeshRecoveryParamsConfig(CommonHumanMeshRecoveryParamsConfig):
 class HMR2HumanMeshRecoveryModelActionConfig(CommonHumanMeshRecoveryModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to recover body meshes from.")
     max_person_count: Union[int, str] = Field(default=1, description="Maximum number of people recovered per image.")
-    batch_size: Union[int, str] = Field(default=1, description="Number of input images processed per batch.")
     params: HMR2HumanMeshRecoveryParamsConfig = Field(default_factory=HMR2HumanMeshRecoveryParamsConfig, description="HMR2 recovery parameters.")

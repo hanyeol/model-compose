@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, SamImageSegmentationModelActionConfig
+from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.cancellation import CancellationToken
 from ..common import ImageSegmentationTaskAction
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -137,7 +138,10 @@ class SamImageSegmentationTaskDriver(ModelTaskDriver):
         self.model: Optional[SAM] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "ultralytics" ]
+        return [
+            *torch_requirements("torch>=2.5,<2.13"),
+            "ultralytics",
+        ]
 
     async def _load_model(self) -> None:
         from ultralytics import SAM

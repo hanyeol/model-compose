@@ -47,14 +47,7 @@ class HumanMeshRecoveryTaskAction(ModelTaskComponentAction):
 
     @abstractmethod
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Any, Any, bool, bool]:
-        """Return ``(slots, primary_input, is_single_input, is_streaming_input)``.
-
-        ``slots`` is a tuple of per-request input streams that the base ``run``
-        zips into per-request tuples before dispatching to ``_recover_batch``.
-        Drivers differ in input shape (single image for HMR2, frame sequence
-        for GVHMR), so each concrete subclass owns this entirely.
-        """
-        pass
+       pass
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return_joints_3d = await context.render_scalar(self.config.return_joints_3d, bool)

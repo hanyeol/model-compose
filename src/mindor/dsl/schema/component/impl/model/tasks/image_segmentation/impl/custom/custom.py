@@ -1,6 +1,6 @@
 from typing import Union, Annotated
 from pydantic import Field
-from .sam import SamImageSegmentationModelComponentConfig
+from .ultralytics import SamImageSegmentationModelComponentConfig
 
 CustomImageSegmentationModelComponentConfig = Annotated[
     Union[

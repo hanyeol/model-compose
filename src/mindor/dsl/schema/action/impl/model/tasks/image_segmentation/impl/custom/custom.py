@@ -1,5 +1,5 @@
 from typing import Union
-from .sam import SamImageSegmentationModelActionConfig
+from .ultralytics import SamImageSegmentationModelActionConfig
 
 CustomImageSegmentationModelActionConfig = Union[
     SamImageSegmentationModelActionConfig,

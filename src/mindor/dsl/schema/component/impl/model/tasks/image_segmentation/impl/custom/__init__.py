@@ -1,3 +1,3 @@
 from .common import *
-from .sam import *
+from .ultralytics import *
 from .custom import *

@@ -5,7 +5,7 @@ from ....base import ModelTaskType, ModelDriverType, register_model_task_driver
 class CustomImageSegmentationTaskDriver:
     def __new__(cls, id: str, config: ModelComponentConfig, daemon: bool):
         if config.family == ImageSegmentationModelFamily.SAM:
-            from .sam import SamImageSegmentationTaskDriver
+            from .ultralytics import SamImageSegmentationTaskDriver
             return SamImageSegmentationTaskDriver(id, config, daemon)
 
         raise ValueError(f"Unknown family: {config.family}")

@@ -165,12 +165,18 @@ class GVHMRHumanMeshRecoveryTaskAction(HumanMeshRecoveryTaskAction):
         return result
 
     def _export_mesh(self, prediction: Dict[str, Any], index: int) -> Model3DStreamResource:
+        import numpy as np
         import trimesh
 
         vertices = prediction["pred_vertices_global"][index].cpu().numpy()
         faces = self.model.smplx.faces
 
         mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+
+        # GVHMR predicts vertices in an image-aligned frame (+Y down, +Z forward);
+        # rotate 180° around X to match glTF's +Y-up convention so viewers show
+        # the subject upright.
+        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(180), [1, 0, 0]))
 
         output_path = get_temporary_path("glb")
         mesh.export(output_path, file_type="glb")

@@ -220,7 +220,7 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
             "transformers>=4.30",
             "huggingface_hub>=0.34.0,<1.0",
             "trimesh>=4.0",
-            "numpy>=1.23,<2",
+            "numpy>=1.26",
             "opencv-python",
             "einops",
             "yacs",

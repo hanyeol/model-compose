@@ -217,7 +217,7 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
             # detectron2 checkpoint loading. 2.4/2.5 are confirmed working
             # (upstream issue #179).
             *torch_requirements("torch>=2.4,<2.6", "torchvision>=0.19,<0.21"),
-            "transformers>=4.30",
+            "transformers>=4.30,<5",
             "huggingface_hub>=0.34.0,<1.0",
             "trimesh>=4.0",
             "numpy>=1.26",

@@ -278,31 +278,57 @@ class HMR2HumanMeshRecoveryTaskDriver(ModelTaskDriver):
         model_path = await self._provision_model(self.config.model, prefetch=True)
         smpl_path = await self._provision_model(self.config.smpl_model, prefetch=True)
 
+        def _load_hmr2(checkpoint_path: str) -> Tuple[Any, Any]:
+            """Drop-in replacement for ``hmr2.models.load_hmr2`` that honors
+            the user-provided ``smpl_model`` path and the local extraction
+            root for `data/*` assets.
+
+            Upstream's ``load_hmr2`` calls ``check_smpl_exists`` against a
+            hard-coded ``~/.cache/4DHumans/data/smpl/SMPL_NEUTRAL.pkl``
+            before constructing the model, and ``update_cachedir=True``
+            prefixes relative paths with the same hard-coded cache dir —
+            neither honors our provisioned model path or the user's SMPL
+            path. We repoint ``CACHE_DIR_4DHUMANS`` and override the SMPL
+            path before ``HMR2.load_from_checkpoint`` builds its SMPLLayer.
+            """
+            from hmr2.models import HMR2
+            from hmr2.configs import get_config
+            import hmr2.configs
+
+            hmr2.configs.CACHE_DIR_4DHUMANS = model_path
+
+            model_cfg = get_config(
+                str(Path(checkpoint_path).parent.parent / "model_config.yaml"),
+                update_cachedir=True,
+            )
+
+            model_cfg.defrost()
+
+            if model_cfg.MODEL.BACKBONE.TYPE == "vit" and "BBOX_SHAPE" not in model_cfg.MODEL:
+                model_cfg.MODEL.BBOX_SHAPE = [ 192, 256 ]
+
+            model_cfg.SMPL.MODEL_PATH = smpl_path
+            model_cfg.freeze()
+
+            model = HMR2.load_from_checkpoint(checkpoint_path, strict=False, cfg=model_cfg)
+
+            return model, model_cfg
+
         def _load() -> Tuple[Any, Any, Any]:
-            from hmr2.models import load_hmr2
             from hmr2.utils.utils_detectron2 import DefaultPredictor_Lazy
             from detectron2.config import LazyConfig
             import hmr2
 
             # The upstream tarball expands to `logs/train/multiruns/hmr2/0/
             # checkpoints/epoch=35-step=1000000.ckpt` plus a sibling
-            # `model_config.yaml`; `load_hmr2` expects the checkpoint file.
+            # `model_config.yaml`.
             checkpoint_path = str(
                 Path(model_path)
                 / "logs" / "train" / "multiruns" / "hmr2" / "0"
                 / "checkpoints" / "epoch=35-step=1000000.ckpt"
             )
-            model, model_cfg = load_hmr2(checkpoint_path)
+            model, model_cfg = _load_hmr2(checkpoint_path)
             model.to(str(device)).eval()
-
-            # HMR2 fetches the SMPL body-model files relative to the model
-            # config at inference time. Rebind the configured path so the
-            # driver honors the user-provided ``smpl`` submodule rather than
-            # the hard-coded ``_DATA/smpl/`` default.
-            model_cfg.defrost()
-            model_cfg.SMPL.MODEL_PATH = smpl_path
-            model.smpl.model_path = smpl_path
-            model_cfg.freeze()
 
             # ViTDet detector — config ships inside the hmr2 package, weights
             # are pulled on demand from fbaipublicfiles. Mirrors the upstream

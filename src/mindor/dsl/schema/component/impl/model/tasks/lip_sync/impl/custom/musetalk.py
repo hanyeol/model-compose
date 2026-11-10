@@ -14,7 +14,9 @@ class MuseTalkPreset(str, Enum):
 # on HuggingFace. `allow_patterns` filters the snapshot to the preset's own
 # subdirectory so a single preset switch doesn't pull the other version's
 # checkpoint too.
-_MUSETALK_REPO = "TMElyralab/MuseTalk"
+_DEFAULT_MODEL_REPOSITORY = "TMElyralab/MuseTalk"
+_DEFAULT_MODEL_PRESET     = MuseTalkPreset.V15
+
 _DEFAULT_MODEL_ALLOW_PATTERNS: Dict[MuseTalkPreset, List[str]] = {
     MuseTalkPreset.V1:  [ "musetalk/*" ],
     MuseTalkPreset.V15: [ "musetalkV15/*" ],
@@ -31,7 +33,7 @@ MuseTalkLipSyncModelConfig = Annotated[
 class MuseTalkLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[LipSyncModelFamily.MUSETALK]
-    preset: MuseTalkPreset = Field(default=MuseTalkPreset.V15, description="MuseTalk release: v1 (bbox_shift tuning) or v15 (default; parsing-based blending).")
+    preset: MuseTalkPreset = Field(default=_DEFAULT_MODEL_PRESET, description="MuseTalk release: v1 (bbox_shift tuning) or v15 (default; parsing-based blending).")
     model: MuseTalkLipSyncModelConfig = Field(..., description="MuseTalk UNet checkpoint — a HuggingFace repo ID or a local directory.")
     actions: List[MuseTalkLipSyncModelActionConfig] = Field(default_factory=list, description="Actions this lip-sync component exposes to workflows.")
 
@@ -42,10 +44,10 @@ class MuseTalkLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
         # one. The extra checkpoints (VAE, whisper, dwpose, face-parsing) are
         # handled by the task service since they live under different repos.
         if values.get("model") is None:
-            preset = MuseTalkPreset(values.get("preset", MuseTalkPreset.V15))
+            preset = MuseTalkPreset(values.get("preset", _DEFAULT_MODEL_PRESET))
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
-                "repository": _MUSETALK_REPO,
+                "repository": _DEFAULT_MODEL_REPOSITORY,
                 "allow_patterns": _DEFAULT_MODEL_ALLOW_PATTERNS[preset],
             }
         return values

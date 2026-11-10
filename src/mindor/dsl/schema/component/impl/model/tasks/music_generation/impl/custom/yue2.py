@@ -6,8 +6,6 @@ from ..common import CommonMusicGenerationModelComponentConfig
 from .common import MusicGenerationModelFamily
 from ....common import ModelDriverType, ModelSubmoduleConfig, ModelQuantizationConfig, ModelQuantizationType, PeftAdapterType
 
-_DEFAULT_VAE_MODEL_REPOSITORY = "m-a-p/YuE2-Vae"
-
 class Yue2Backend(str, Enum):
     TORCH       = "torch"
     TORCH_EAGER = "torch-eager"
@@ -16,6 +14,8 @@ class Yue2Backend(str, Enum):
 class Yue2Submodule(str, Enum):
     AR  = "ar"
     VAE = "vae"
+
+_DEFAULT_VAE_MODEL_REPOSITORY = "m-a-p/YuE2-Vae"
 
 class Yue2QuantizationConfig(ModelQuantizationConfig):
     type: Literal[ModelQuantizationType.FP8] = Field(..., description="Quantization scheme applied to the YuE2 AR model; only fp8 is supported.")

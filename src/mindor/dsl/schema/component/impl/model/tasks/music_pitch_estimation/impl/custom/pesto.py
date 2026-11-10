@@ -7,12 +7,12 @@ from ..common import CommonMusicPitchEstimationModelComponentConfig
 from .common import MusicPitchEstimationModelFamily
 from ....common import ModelDriverType, ModelConfig, ModelProvider, ModelPrecision
 
-_DEFAULT_MODEL = "mir-1k_g7"
-_DEFAULT_STEP_SIZE_MS = 10.0
-
 class PestoBackend(str, Enum):
     TORCH = "torch"
     ONNX  = "onnx"
+
+_DEFAULT_MODEL = "mir-1k_g7"
+_DEFAULT_STEP_SIZE = 10.0
 
 class PestoStreamingConfig(BaseModel):
     chunk_size: int = Field(..., description="Fixed chunk length in audio samples fed to the model per inference step.")
@@ -80,5 +80,5 @@ class PestoMusicPitchEstimationModelComponentConfig(CommonMusicPitchEstimationMo
     def apply_default_step_size(self):
         # Offline torch path needs a concrete step_size for pesto.load_model.
         if self.backend == PestoBackend.TORCH and self.streaming is None and self.step_size is None:
-            self.step_size = _DEFAULT_STEP_SIZE_MS
+            self.step_size = _DEFAULT_STEP_SIZE
         return self

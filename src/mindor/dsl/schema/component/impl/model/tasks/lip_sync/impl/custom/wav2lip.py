@@ -19,6 +19,8 @@ _DEFAULT_MODEL_URLS: Dict[Wav2LipPreset, str] = {
     Wav2LipPreset.WAV2LIP_GAN: f"{_WAV2LIP_RELEASE_BASE_URL}/Wav2Lip_GAN.pth",
 }
 
+_DEFAULT_MODEL_PRESET = Wav2LipPreset.WAV2LIP_GAN
+
 class Wav2LipLocalModelConfig(LocalModelConfig):
     def _cache_subdir(self) -> str:
         return "wav2lip"
@@ -34,7 +36,7 @@ Wav2LipLipSyncModelConfig = Annotated[
 class Wav2LipLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[LipSyncModelFamily.WAV2LIP]
-    preset: Wav2LipPreset = Field(default=Wav2LipPreset.WAV2LIP_GAN, description="Wav2Lip checkpoint variant to load.")
+    preset: Wav2LipPreset = Field(default=_DEFAULT_MODEL_PRESET, description="Wav2Lip checkpoint variant to load.")
     model: Wav2LipLipSyncModelConfig = Field(..., description="Wav2Lip generator checkpoint — a local path or a HuggingFace repo ID.")
     actions: List[Wav2LipLipSyncModelActionConfig] = Field(default_factory=list, description="Actions this lip-sync component exposes to workflows.")
 
@@ -45,7 +47,7 @@ class Wav2LipLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
         # `LocalModelConfig.apply_default_path` then derives the on-disk path
         # from the URL's basename under `~/.cache/models/wav2lip/`.
         if values.get("model") is None:
-            preset = Wav2LipPreset(values.get("preset", Wav2LipPreset.WAV2LIP_GAN))
+            preset = Wav2LipPreset(values.get("preset", _DEFAULT_MODEL_PRESET))
             values["model"] = {
                 "provider": ModelProvider.LOCAL,
                 "url": _DEFAULT_MODEL_URLS[preset],

@@ -6,16 +6,17 @@ from .common import CommonTypedDecisionModelTrainerComponentConfig
 from ...common import ModelTrainerDriverType
 from .....model.tasks.common import ModelProvider, HuggingfaceModelConfig, LocalModelConfig
 
+class LayaTrainerPreset(str, Enum):
+    ENGLISH         = "english"
+    MULTILINGUAL    = "multilingual"
+    TYPED_DECISIONS = "typed-decisions"
+
 # Convai Innovations ships all three checkpoints in a single repo, one per
 # subfolder. Used as the fallback when the user provides neither `model` nor
 # `preset`; the driver reads `preset` to pick which subfolder to warm-start
 # from.
 _DEFAULT_MODEL_REPOSITORY = "convaiinnovations/laya"
-
-class LayaTrainerPreset(str, Enum):
-    ENGLISH         = "english"
-    MULTILINGUAL    = "multilingual"
-    TYPED_DECISIONS = "typed-decisions"
+_DEFAULT_MODEL_PRESET     = LayaTrainerPreset.MULTILINGUAL
 
 LayaTypedDecisionModelTrainerModelConfig = Annotated[
     Union[
@@ -42,7 +43,7 @@ class LayaTypedDecisionModelTrainerComponentConfig(CommonTypedDecisionModelTrain
         # warm-start from.
         if values.get("model") is None:
             if values.get("preset") is None:
-                values["preset"] = LayaTrainerPreset.MULTILINGUAL
+                values["preset"] = _DEFAULT_MODEL_PRESET
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
                 "repository": _DEFAULT_MODEL_REPOSITORY,

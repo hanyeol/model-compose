@@ -7,11 +7,11 @@ from ..common import CommonImageToVideoModelComponentConfig
 from .common import ImageToVideoModelFamily
 from ....common import ModelDriverType, ModelProvider, ModelSubmoduleConfig, PeftAdapterType
 
-_DEFAULT_MODEL_REPOSITORY = "MiniMaxAI/MiniMax-H3"
-
 class MinimaxH3ImageToVideoBackend(str, Enum):
     TORCH = "torch"
     SOL   = "sol"
+
+_DEFAULT_MODEL_REPOSITORY = "MiniMaxAI/MiniMax-H3"
 
 class MinimaxH3ImageToVideoModelComponentConfig(CommonImageToVideoModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)

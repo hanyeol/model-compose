@@ -20,6 +20,8 @@ _DEFAULT_MODEL_URLS: Dict[LightAsdPreset, str] = {
     LightAsdPreset.PRETRAIN_AVA_CVPR:  f"{_LIGHT_ASD_WEIGHT_BASE_URL}/pretrain_AVA_CVPR.model",
 }
 
+_DEFAULT_MODEL_PRESET = LightAsdPreset.FINETUNING_TALKSET
+
 class LightAsdLocalModelConfig(LocalModelConfig):
     def _cache_subdir(self) -> str:
         return "light_asd"
@@ -35,7 +37,7 @@ LightAsdActiveSpeakerDetectionModelConfig = Annotated[
 class LightAsdActiveSpeakerDetectionModelComponentConfig(CommonActiveSpeakerDetectionModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[ActiveSpeakerDetectionModelFamily.LIGHT_ASD]
-    preset: LightAsdPreset = Field(default=LightAsdPreset.FINETUNING_TALKSET, description="Light-ASD checkpoint variant to load.")
+    preset: LightAsdPreset = Field(default=_DEFAULT_MODEL_PRESET, description="Light-ASD checkpoint variant to load.")
     model: LightAsdActiveSpeakerDetectionModelConfig = Field(..., description="Light-ASD checkpoint — a local path or a HuggingFace repo ID.")
     actions: List[LightAsdActiveSpeakerDetectionModelActionConfig] = Field(default_factory=list, description="Actions this active-speaker-detection component exposes to workflows.")
 
@@ -46,7 +48,7 @@ class LightAsdActiveSpeakerDetectionModelComponentConfig(CommonActiveSpeakerDete
         # one. `LocalModelConfig.apply_default_path` then derives the on-disk
         # path from the URL's basename under `~/.cache/models/light_asd/`.
         if values.get("model") is None:
-            preset = LightAsdPreset(values.get("preset", LightAsdPreset.FINETUNING_TALKSET))
+            preset = LightAsdPreset(values.get("preset", _DEFAULT_MODEL_PRESET))
             values["model"] = {
                 "provider": ModelProvider.LOCAL,
                 "url": _DEFAULT_MODEL_URLS[preset],

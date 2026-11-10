@@ -14,7 +14,7 @@ class KimodoCfgType(str, Enum):
 # NVIDIA publishes each Kimodo checkpoint under nvidia/<preset>; the preset
 # string is both the model short key passed to kimodo.load_model and the HF
 # repo name, so default `model` can be derived from `preset`.
-_DEFAULT_KIMODO_PRESET = "Kimodo-SOMA-RP-v1.1"
+_DEFAULT_MODEL_PRESET = "Kimodo-SOMA-RP-v1.1"
 
 KimodoMotionGenerationModelConfig = Annotated[
     Union[
@@ -27,7 +27,7 @@ KimodoMotionGenerationModelConfig = Annotated[
 class KimodoMotionGenerationModelComponentConfig(CommonMotionGenerationModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MotionGenerationModelFamily.KIMODO]
-    preset: str = Field(default=_DEFAULT_KIMODO_PRESET, description="Kimodo model short key or display name (e.g. Kimodo-SOMA-RP-v1.1, soma, g1).")
+    preset: str = Field(default=_DEFAULT_MODEL_PRESET, description="Kimodo model short key or display name (e.g. Kimodo-SOMA-RP-v1.1, soma, g1).")
     model: KimodoMotionGenerationModelConfig = Field(..., description="Kimodo checkpoint — a HuggingFace repo ID or a local directory; derived from `preset` when omitted.")
     cfg_type: KimodoCfgType = Field(default=KimodoCfgType.SEPARATED, description="Classifier-free guidance strategy (nocfg, regular, separated).")
     text_encoder_device: Optional[str] = Field(default=None, description="Device override for the text encoder (e.g. 'cpu' to keep VRAM under 3 GiB).")
@@ -37,7 +37,7 @@ class KimodoMotionGenerationModelComponentConfig(CommonMotionGenerationModelComp
     @model_validator(mode="before")
     def inflate_model_from_preset(cls, values: Dict[str, Any]):
         if values.get("model") is None:
-            preset = values.get("preset", _DEFAULT_KIMODO_PRESET)
+            preset = values.get("preset", _DEFAULT_MODEL_PRESET)
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
                 "repository": f"nvidia/{preset}",

@@ -13,10 +13,11 @@ class LatentSyncPreset(str, Enum):
 # ByteDance ships each release as its own HuggingFace repo. v1.6 renders at
 # 512×512, v1.5 at 256×256. Both contain the LatentSync UNet checkpoint
 # (`latentsync_unet.pt`) plus a whisper subdir with `tiny.pt`.
-_DEFAULT_MODEL_REPOS: Dict[LatentSyncPreset, str] = {
+_DEFAULT_MODEL_REPOSITORIES: Dict[LatentSyncPreset, str] = {
     LatentSyncPreset.V15: "ByteDance/LatentSync-1.5",
     LatentSyncPreset.V16: "ByteDance/LatentSync-1.6",
 }
+_DEFAULT_MODEL_PRESET = LatentSyncPreset.V16
 
 LatentSyncLipSyncModelConfig = Annotated[
     Union[
@@ -29,7 +30,7 @@ LatentSyncLipSyncModelConfig = Annotated[
 class LatentSyncLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[LipSyncModelFamily.LATENTSYNC]
-    preset: LatentSyncPreset = Field(default=LatentSyncPreset.V16, description="LatentSync release: 1.5 (256×256) or 1.6 (512×512).")
+    preset: LatentSyncPreset = Field(default=_DEFAULT_MODEL_PRESET, description="LatentSync release: 1.5 (256×256) or 1.6 (512×512).")
     model: LatentSyncLipSyncModelConfig = Field(..., description="LatentSync UNet checkpoint — a HuggingFace repo ID or a local directory.")
     actions: List[LatentSyncLipSyncModelActionConfig] = Field(default_factory=list, description="Actions this lip-sync component exposes to workflows.")
 
@@ -40,9 +41,9 @@ class LatentSyncLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
         # side checkpoints are handled by the task service since they live
         # under `checkpoints/auxiliary/` outside the main snapshot.
         if values.get("model") is None:
-            preset = LatentSyncPreset(values.get("preset", LatentSyncPreset.V16))
+            preset = LatentSyncPreset(values.get("preset", _DEFAULT_MODEL_PRESET))
             values["model"] = {
                 "provider": ModelProvider.HUGGINGFACE,
-                "repository": _DEFAULT_MODEL_REPOS[preset],
+                "repository": _DEFAULT_MODEL_REPOSITORIES[preset],
             }
         return values

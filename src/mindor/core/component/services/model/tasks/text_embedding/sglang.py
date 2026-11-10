@@ -61,14 +61,14 @@ class SglangTextEmbeddingTaskAction(TextEmbeddingTaskAction):
 @register_model_task_driver(ModelTaskType.TEXT_EMBEDDING, ModelDriverType.SGLANG)
 class SglangTextEmbeddingTaskDriver(SglangModelTaskDriver):
     async def _load_model(self) -> None:
-        from sglang import Engine
-        from transformers import AutoTokenizer
-
         model_path = await self._provision_model(self.config.model)
 
         logging.info(f"Component '{self.id}': loading SGLang embedding model from '{model_path}'")
 
         def _load():
+            from sglang import Engine
+            from transformers import AutoTokenizer
+
             params: Dict[str, Any] = {
                 "is_embedding": True,
                 **self._get_model_params(self.config.model),

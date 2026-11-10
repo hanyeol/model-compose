@@ -6,7 +6,7 @@ from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.logger import logging
 from pathlib import Path
 from urllib.parse import urlparse
-import os, shutil, tempfile, zipfile, tarfile
+import asyncio, os, shutil, tempfile, zipfile, tarfile
 
 class HuggingfaceModelDownloader:
     async def download(
@@ -22,7 +22,8 @@ class HuggingfaceModelDownloader:
         if filename:
             from huggingface_hub import hf_hub_download
 
-            return hf_hub_download(
+            return await asyncio.to_thread(
+                hf_hub_download,
                 repo_id=repo_id,
                 filename=filename,
                 revision=revision,
@@ -33,7 +34,8 @@ class HuggingfaceModelDownloader:
         else:
             from huggingface_hub import snapshot_download
 
-            return snapshot_download(
+            return await asyncio.to_thread(
+                snapshot_download,
                 repo_id=repo_id,
                 revision=revision,
                 cache_dir=cache_dir,
@@ -112,11 +114,15 @@ class LocalModelDownloader:
 
             logging.info(f"Extracting bundled model to {path}")
 
-            self._extract_archive(archive_path, staging_dir)
+            def _extract_bundle() -> None:
+                self._extract_archive(archive_path, staging_dir)
 
-            if path.exists():
-                shutil.rmtree(path)
-            os.replace(staging_dir, path)
+                if path.exists():
+                    shutil.rmtree(path)
+
+                os.replace(staging_dir, path)
+
+            await asyncio.to_thread(_extract_bundle)
         except BaseException:
             if staging_dir.exists():
                 shutil.rmtree(staging_dir, ignore_errors=True)

@@ -343,8 +343,6 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         self.pipeline = None
 
     async def _load_pipeline(self) -> Any:
-        from diffusers import ComponentsManager, ModularPipeline
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         text_encoder_config = self.config.text_encoder
@@ -375,6 +373,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         peft_adapter_paths = [ await self._provision_model(adapter.model) for adapter in peft_adapters ]
 
         def _load() -> Any:
+            from diffusers import ComponentsManager, ModularPipeline
             import torch
 
             # MiniMax-H3 is distributed as Modular Diffusers blocks; pin the
@@ -431,8 +430,6 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         model_path: str,
         quantization: Optional[ModelQuantizationConfig],
     ) -> PreTrainedModel:
-        from transformers import Qwen3VLForConditionalGeneration
-
         model_subfolder: Optional[str] = None
 
         if text_encoder_config is not None:
@@ -441,6 +438,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             model_subfolder = "text_encoder"
 
         def _load() -> PreTrainedModel:
+            from transformers import Qwen3VLForConditionalGeneration
             import torch
 
             logging.info(f"Component '{self.id}': loading {Qwen3VLForConditionalGeneration.__name__} from {model_path}")
@@ -475,8 +473,6 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         model_path: str,
         quantization: Optional[ModelQuantizationConfig],
     ) -> Any:
-        from diffusers import MiniMaxH3Transformer3DModel
-
         model_subfolder: Optional[str] = None
 
         if transformer_config is not None:
@@ -485,6 +481,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             model_subfolder = "transformer"
 
         def _load() -> Any:
+            from diffusers import MiniMaxH3Transformer3DModel
             import torch
 
             logging.info(f"Component '{self.id}': loading {MiniMaxH3Transformer3DModel.__name__} from {model_path}")

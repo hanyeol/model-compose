@@ -278,14 +278,12 @@ class EchoMimicTalkingHeadTaskDriver(ModelTaskDriver):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Any, torch.device]:
-        from omegaconf import OmegaConf
-        from diffusers import AutoencoderKL, DDIMScheduler
-        import torch
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         def _load() -> Any:
+            from omegaconf import OmegaConf
+
             module_name = _ECHOMIMIC_MODULES[self.config.preset]
             module = importlib.import_module(module_name)
             repo_root = os.path.dirname(os.path.dirname(module.__file__))

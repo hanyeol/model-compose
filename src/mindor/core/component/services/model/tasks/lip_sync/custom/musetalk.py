@@ -356,19 +356,18 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
         self.device = None
 
     async def _load_pipeline(self) -> Tuple[Dict[str, Any], torch.device]:
-        import musetalk  # our installed package
-        from transformers import WhisperModel
-        from musetalk.utils.utils import load_all_model
-        from musetalk.utils.audio_processor import AudioProcessor
-        from musetalk.utils.face_parsing import FaceParsing
-        import torch
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
 
         await self._provision_extra_checkpoints()
 
         def _load() -> Dict[str, Any]:
+            from musetalk.utils.audio_processor import AudioProcessor
+            from musetalk.utils.face_parsing import FaceParsing
+            from musetalk.utils.utils import load_all_model
+            from transformers import WhisperModel
+            import musetalk  # our installed package
+
             models_dir = Path(musetalk.__path__[0]).parent / "models"
 
             # Symlink the user's MuseTalk snapshot (containing musetalk/ or

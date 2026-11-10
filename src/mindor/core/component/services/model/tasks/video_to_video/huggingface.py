@@ -441,11 +441,11 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
-        from diffusers import MotionAdapter
-
         adapter_path = await self._provision_model(motion_adapter)
 
         def _load() -> Any:
+            from diffusers import MotionAdapter
+
             logging.info(f"Component '{self.id}': loading {MotionAdapter.__name__} from {adapter_path}")
 
             params: Dict[str, Any] = {
@@ -491,11 +491,11 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
         device: torch.device,
         dtype: torch.dtype,
     ) -> Any:
-        from transformers import CLIPVisionModelWithProjection
-
         encoder_path = await self._provision_model(image_encoder.model)
 
         def _load() -> Any:
+            from transformers import CLIPVisionModelWithProjection
+
             logging.info(f"Component '{self.id}': loading {CLIPVisionModelWithProjection.__name__} from {encoder_path}")
 
             params: Dict[str, Any] = {

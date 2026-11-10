@@ -16,6 +16,12 @@ IpcWebsocketWorkerFactory = Callable[[IpcMessage, Any], IpcRuntimeWorker]
 # and other long gaps between IPC traffic.
 _DEFAULT_PING_INTERVAL = 30.0
 
+# `websockets`' own default `ping_timeout` is 20s, which is too tight for cold
+# model loads (diffusers imports + weight fetch can sit on the loop for 25-35s
+# before the first `_run_in_executor` offload); bump the IPC default well above
+# that so a slow load doesn't trip the keepalive before the worker can respond.
+_DEFAULT_PING_TIMEOUT = 60.0
+
 class IpcWebsocketChannel:
     """Hosts a WebSocket server that drives an `IpcRuntimeWorker` over a single
     long-lived connection.
@@ -35,13 +41,15 @@ class IpcWebsocketChannel:
         auth_token: str,
         host: str = "0.0.0.0",
         port: int = 8000,
-        ping_interval: float = _DEFAULT_PING_INTERVAL,
+        ping_interval: Optional[float] = _DEFAULT_PING_INTERVAL,
+        ping_timeout: Optional[float] = _DEFAULT_PING_TIMEOUT,
     ) -> None:
         self.worker_factory: IpcWebsocketWorkerFactory = worker_factory
         self.host: str = host
         self.port: int = port
         self.auth_token: str = auth_token
-        self.ping_interval: float = ping_interval
+        self.ping_interval: Optional[float] = ping_interval
+        self.ping_timeout: Optional[float] = ping_timeout
 
         self._server = None
         self._session_lock = asyncio.Lock()
@@ -73,6 +81,7 @@ class IpcWebsocketChannel:
             self.host,
             self.port,
             ping_interval=self.ping_interval,
+            ping_timeout=self.ping_timeout,
             # Keep max_size unbounded — IPC binary trailers can carry large
             # tensor chunks. Streaming codec splits them above the pipeline;
             # the WS frame itself should not impose an extra limit.
@@ -136,13 +145,15 @@ class IpcWebsocketTransport:
         self,
         url: str,
         auth_token: str,
-        ping_interval: float = _DEFAULT_PING_INTERVAL,
         connect_timeout: float = 60.0,
+        ping_interval: Optional[float] = _DEFAULT_PING_INTERVAL,
+        ping_timeout: Optional[float] = _DEFAULT_PING_TIMEOUT,
     ) -> None:
         self.url: str = url
         self.auth_token: str = auth_token
-        self.ping_interval: float = ping_interval
         self.connect_timeout: float = connect_timeout
+        self.ping_interval: Optional[float] = ping_interval
+        self.ping_timeout: Optional[float] = ping_timeout
 
         self._websocket = None
 
@@ -154,6 +165,7 @@ class IpcWebsocketTransport:
                 self.url,
                 additional_headers={ "Authorization": f"Bearer {self.auth_token}" },
                 ping_interval=self.ping_interval,
+                ping_timeout=self.ping_timeout,
                 max_size=None,
             ),
             timeout=self.connect_timeout,

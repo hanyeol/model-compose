@@ -129,12 +129,12 @@ class YoloFaceDetectionTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        from ultralytics import YOLO
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
         self.device = self._resolve_device(self.config.device)
 
         def _load() -> YOLO:
+            from ultralytics import YOLO
+
             model = YOLO(model_path)
             model.to(self.device)
 

@@ -23,6 +23,8 @@ class VastaiRuntimeConfig(CommonRuntimeConfig):
 
     # Networking
     worker_port: int = Field(default=8000, description="Port the component IPC worker binds inside the instance and exposes via the Vast.ai host port mapping.")
+    ping_interval: Union[str, int, float] = Field(default="30s", description="Interval between IPC WebSocket keepalive pings; '0s' disables pings.")
+    ping_timeout: Union[str, int, float] = Field(default="60s", description="Maximum seconds to wait for a ping response before closing the IPC connection; '0s' disables the timeout.")
 
     # Env / command overrides
     environment: Optional[Dict[str, str]] = Field(default=None, description="Additional environment variables set inside the instance container.")

@@ -256,6 +256,8 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
             url=self._runtime.proxy_websocket_url,
             auth_token=self._auth_token,
             connect_timeout=min(60.0, budget),
+            ping_interval=parse_time(self._runtime_config.ping_interval) or None,
+            ping_timeout=parse_time(self._runtime_config.ping_timeout) or None,
         )
 
         loop = asyncio.get_event_loop()
@@ -394,6 +396,11 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         env["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
         env["UV_BREAK_SYSTEM_PACKAGES"]  = "1"
 
+        # Precompile .pyc at install time so the first import of a freshly
+        # installed driver (diffusers/transformers) doesn't block the event
+        # loop while the interpreter compiles bytecode for every module.
+        env["UV_COMPILE_BYTECODE"] = "1"
+
         if self._runtime_config.network_volume_id:
             # MooseFS backs RunPod network volumes; its hardlink support is
             # unreliable across clients — uv's default hardlink install
@@ -412,6 +419,8 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
 
         env["MINDOR_WORKER_AUTH_TOKEN"] = self._auth_token
         env["MINDOR_WORKER_PORT"] = str(self._runtime_config.worker_port)
+        env["MINDOR_WORKER_PING_INTERVAL"] = str(self._runtime_config.ping_interval)
+        env["MINDOR_WORKER_PING_TIMEOUT"] = str(self._runtime_config.ping_timeout)
 
         # Host-side mindor version — the pod's upload server replies 304 to
         # the host when its on-disk cache already matches this value, so the
@@ -485,11 +494,16 @@ def main() -> None:
         print("runpod: MINDOR_WORKER_AUTH_TOKEN env is required", file=sys.stderr)
         sys.exit(2)
 
+    ping_interval = os.environ.get("MINDOR_WORKER_PING_INTERVAL")
+    ping_timeout  = os.environ.get("MINDOR_WORKER_PING_TIMEOUT")
+
     channel = IpcWebsocketChannel(
         _worker_factory,
         auth_token=auth_token,
         host=args.host,
         port=args.port,
+        **({ "ping_interval": parse_time(ping_interval) or None } if ping_interval else {}),
+        **({ "ping_timeout":  parse_time(ping_timeout)  or None } if ping_timeout  else {}),
     )
 
     asyncio.run(channel.serve())

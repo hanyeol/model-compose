@@ -144,11 +144,11 @@ class SamImageSegmentationTaskDriver(ModelTaskDriver):
         ]
 
     async def _load_model(self) -> None:
-        from ultralytics import SAM
-
         model_path = await self._provision_model(self.config.model, prefetch=True)
 
         def _load() -> SAM:
+            from ultralytics import SAM
+
             return SAM(model_path)
 
         self.model = await self._run_in_executor(_load)

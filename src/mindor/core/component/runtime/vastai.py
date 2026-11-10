@@ -22,17 +22,17 @@ import argparse, asyncio, json, os, secrets, sys
 
 # Instance bootstrap pins — intentionally hardcoded (not DSL fields) to avoid
 # surfacing an "escape hatch" users would feel obliged to customise.
-_INSTANCE_BASE_IMAGE: str            = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
-_INSTANCE_WORKER_MODULE: str         = "mindor.core.component.runtime.vastai"
+_INSTANCE_BASE_IMAGE    = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
+_INSTANCE_WORKER_MODULE = "mindor.core.component.runtime.vastai"
 
 # Container-disk workspace used when the instance has no network volume
 # linked — ephemeral, so every launch pays extract + install.
-_INSTANCE_DEFAULT_WORKSPACE_DIR: str = "/root/.mindor"
+_INSTANCE_DEFAULT_WORKSPACE_DIR = "/root/.mindor"
 
 # Short attach probe before paying the upload+install path. Long enough to
 # cover one round-trip to the Vast host plus a retry; short enough that a
 # bootstrap-stage instance rolls over to the full bootstrap path quickly.
-_ATTACH_PROBE_TIMEOUT: float         = 10.0
+_ATTACH_PROBE_TIMEOUT = 10.0
 
 class ComponentVastaiRuntimeWorker(ComponentRuntimeWorker):
     """Component-side worker running inside a Vast.ai instance over a WebSocket."""

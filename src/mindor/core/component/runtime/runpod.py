@@ -22,17 +22,17 @@ import argparse, asyncio, json, os, secrets, sys
 
 # Pod bootstrap pins — intentionally hardcoded (not DSL fields) to avoid
 # surfacing an "escape hatch" users would feel obliged to customise.
-_POD_BASE_IMAGE: str             = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
-_POD_WORKER_MODULE: str          = "mindor.core.component.runtime.runpod"
+_POD_BASE_IMAGE    = "pytorch/pytorch:2.13.0-cuda13.2-cudnn9-runtime"
+_POD_WORKER_MODULE = "mindor.core.component.runtime.runpod"
 
 # Container-disk workspace used when the pod has no network volume
 # mounted — ephemeral, so every launch pays extract + install.
-_POD_DEFAULT_WORKSPACE_DIR: str  = "/root/.mindor"
+_POD_DEFAULT_WORKSPACE_DIR = "/root/.mindor"
 
 # Short attach probe before paying the upload+install path. Long enough to
 # cover one RunPod proxy round-trip plus a retry; short enough that a
 # bootstrap-stage pod rolls over to the full bootstrap path quickly.
-_ATTACH_PROBE_TIMEOUT: float     = 10.0
+_ATTACH_PROBE_TIMEOUT = 10.0
 
 class ComponentRunPodRuntimeWorker(ComponentRuntimeWorker):
     """Component-side worker running inside a RunPod pod over a WebSocket."""

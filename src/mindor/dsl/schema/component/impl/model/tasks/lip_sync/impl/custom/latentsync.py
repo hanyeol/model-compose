@@ -17,6 +17,7 @@ _DEFAULT_MODEL_REPOSITORIES: Dict[LatentSyncPreset, str] = {
     LatentSyncPreset.V15: "ByteDance/LatentSync-1.5",
     LatentSyncPreset.V16: "ByteDance/LatentSync-1.6",
 }
+
 _DEFAULT_MODEL_PRESET = LatentSyncPreset.V16
 
 LatentSyncLipSyncModelConfig = Annotated[

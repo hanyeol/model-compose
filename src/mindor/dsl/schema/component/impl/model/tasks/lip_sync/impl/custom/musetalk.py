@@ -15,12 +15,12 @@ class MuseTalkPreset(str, Enum):
 # subdirectory so a single preset switch doesn't pull the other version's
 # checkpoint too.
 _DEFAULT_MODEL_REPOSITORY = "TMElyralab/MuseTalk"
-_DEFAULT_MODEL_PRESET     = MuseTalkPreset.V15
-
 _DEFAULT_MODEL_ALLOW_PATTERNS: Dict[MuseTalkPreset, List[str]] = {
     MuseTalkPreset.V1:  [ "musetalk/*" ],
     MuseTalkPreset.V15: [ "musetalkV15/*" ],
 }
+
+_DEFAULT_MODEL_PRESET = MuseTalkPreset.V15
 
 MuseTalkLipSyncModelConfig = Annotated[
     Union[

@@ -241,13 +241,29 @@ class MuseTalkLipSyncTaskAction(LipSyncTaskAction):
                     continue
 
                 if self.preset == MuseTalkPreset.V15:
-                    generated_frame = get_image(original_frame, generated_frame, [x1, y1, x2, y2], mode=params["parsing_mode"].value, fp=self.pipeline["face_parsing"])
+                    generated_frame = get_image(
+                        original_frame,
+                        generated_frame,
+                        [ x1, y1, x2, y2 ],
+                        mode=params["parsing_mode"].value,
+                        fp=self.pipeline["face_parsing"]
+                    )
                 else:
-                    generated_frame = get_image(original_frame, generated_frame, [x1, y1, x2, y2], fp=self.pipeline["face_parsing"])
+                    generated_frame = get_image(
+                        original_frame,
+                        generated_frame,
+                        [ x1, y1, x2, y2 ],
+                        fp=self.pipeline["face_parsing"]
+                    )
 
                 if writer is None:
                     height, width = generated_frame.shape[:2]
-                    writer = cv2.VideoWriter(silent_video_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+                    writer = cv2.VideoWriter(
+                        silent_video_path,
+                        cv2.VideoWriter_fourcc(*"mp4v"),
+                        fps,
+                        (width, height)
+                    )
 
                 writer.write(generated_frame)
 
@@ -380,8 +396,13 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
                 snapshot_target.parent.mkdir(parents=True, exist_ok=True)
                 os.symlink(snapshot_source, snapshot_target, target_is_directory=True)
 
+            if self.config.preset == MuseTalkPreset.V15:
+                unet_weight_file = "unet.pth"
+            else:
+                unet_weight_file = "pytorch_model.bin"
+
             unet_config_path = str(snapshot_target / "musetalk.json")
-            unet_weight_path = str(snapshot_target / ("unet.pth" if self.config.preset == MuseTalkPreset.V15 else "pytorch_model.bin"))
+            unet_weight_path = str(snapshot_target / unet_weight_file)
             whisper_path = str(models_dir / "whisper")
 
             vae, unet, positional_encoding = load_all_model(

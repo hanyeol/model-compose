@@ -16,6 +16,7 @@ ModelActionConfig = Union[
     ImageEmbeddingModelActionConfig,
     VideoEmbeddingModelActionConfig,
     ImageUpscalingModelActionConfig,
+    ImageDeblurringModelActionConfig,
     ImageBackgroundRemovalModelActionConfig,
     ImageSegmentationModelActionConfig,
     DepthEstimationModelActionConfig,

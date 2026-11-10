@@ -94,9 +94,10 @@ class LocalModelDownloader:
         # Extract into a sibling temp dir first, then atomically swap into place
         # so a partially extracted archive never masquerades as a valid model.
         path.parent.mkdir(parents=True, exist_ok=True)
-        staging_dir = Path(tempfile.mkdtemp(prefix=f".{path.name}.", dir=str(path.parent)))
 
+        staging_dir = Path(tempfile.mkdtemp(prefix=f".{path.name}.", dir=str(path.parent)))
         suffix = self._archive_suffix(endpoint)
+
         with tempfile.NamedTemporaryFile(suffix=suffix, dir=str(path.parent), delete=False) as tmp:
             archive_path = Path(tmp.name)
 

@@ -24,6 +24,7 @@ class ModelTaskType(str, Enum):
     IMAGE_TEXT_SCORING          = "image-text-scoring"
     VIDEO_TEXT_SCORING          = "video-text-scoring"
     IMAGE_UPSCALING             = "image-upscaling"
+    IMAGE_DEBLURRING            = "image-deblurring"
     IMAGE_BACKGROUND_REMOVAL    = "image-background-removal"
     IMAGE_SEGMENTATION          = "image-segmentation"
     DEPTH_ESTIMATION            = "depth-estimation"

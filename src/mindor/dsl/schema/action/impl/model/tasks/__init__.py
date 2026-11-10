@@ -15,6 +15,7 @@ from .video_embedding import *
 from .image_text_scoring import *
 from .video_text_scoring import *
 from .image_upscaling import *
+from .image_deblurring import *
 from .image_background_removal import *
 from .image_segmentation import *
 from .depth_estimation import *

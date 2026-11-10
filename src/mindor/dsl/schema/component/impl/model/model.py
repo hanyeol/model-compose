@@ -21,6 +21,7 @@ ModelComponentConfig = Annotated[
         ImageTextScoringModelComponentConfig,
         VideoTextScoringModelComponentConfig,
         ImageUpscalingModelComponentConfig,
+        ImageDeblurringModelComponentConfig,
         ImageBackgroundRemovalModelComponentConfig,
         ImageSegmentationModelComponentConfig,
         DepthEstimationModelComponentConfig,

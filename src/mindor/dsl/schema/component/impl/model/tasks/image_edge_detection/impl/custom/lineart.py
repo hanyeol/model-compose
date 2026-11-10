@@ -1,10 +1,14 @@
+from enum import Enum
 from typing import Literal, Union, List, Dict
 from pydantic import Field, model_validator
 from mindor.dsl.schema.action import LineartImageEdgeDetectionModelActionConfig
-from mindor.dsl.schema.action.impl.model.tasks.image_edge_detection.impl.custom.common import LineartVariant
 from ..common import CommonImageEdgeDetectionModelComponentConfig
 from .common import ImageEdgeDetectionModelFamily
 from ....common import ModelDriverType, ModelProvider
+
+class LineartVariant(str, Enum):
+    REALISTIC = "realistic"
+    COARSE    = "coarse"
 
 _LINEART_WEIGHT_FILENAMES: Dict[LineartVariant, str] = {
     LineartVariant.REALISTIC: "sk_model.pth",

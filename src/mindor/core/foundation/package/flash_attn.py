@@ -45,8 +45,8 @@ import sys, platform, re
 
 _FLASH_ATTN_PACKAGE_NAME = "flash-attn"
 
-_FLASH_ATTN_RELEASE_BASE = "https://github.com/Dao-AILab/flash-attention/releases/download"
-_FLASH_ATTN_COMMUNITY_RELEASE_BASE = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download"
+_FLASH_ATTN_RELEASE_BASE_URL = "https://github.com/Dao-AILab/flash-attention/releases/download"
+_FLASH_ATTN_COMMUNITY_RELEASE_BASE_URL = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download"
 
 # (torch minor, CUDA major) → upstream wheel entry:
 #   (release_tag, version, cxx11abi, python_minors, archs)
@@ -166,8 +166,14 @@ def flash_attn_requirements(torch_spec: str, *specs: str) -> List[str]:
     for spec in specs:
         requirement = _parse_requirement(spec)
 
-        if requirement is None or canonicalize_name(requirement.name) != _FLASH_ATTN_PACKAGE_NAME or requirement.url is not None:
+        if requirement is None or canonicalize_name(requirement.name) != _FLASH_ATTN_PACKAGE_NAME:
             rewritten_specs.append(spec)
+
+            continue
+
+        if requirement.url is not None:
+            rewritten_specs.append(spec)
+
             continue
 
         rewritten_specs.append(_rewrite_wheel_spec(spec, requirement, candidates, target_build))
@@ -202,7 +208,10 @@ def flash_attn_torch_spec(torch_spec: str, *specs: str) -> str:
     for spec in specs:
         requirement = _parse_requirement(spec)
 
-        if requirement is None or canonicalize_name(requirement.name) != _FLASH_ATTN_PACKAGE_NAME or requirement.url is not None:
+        if requirement is None or canonicalize_name(requirement.name) != _FLASH_ATTN_PACKAGE_NAME:
+            continue
+
+        if requirement.url is not None:
             continue
 
         flash_requirements.append(requirement)
@@ -315,7 +324,7 @@ def _find_supported_wheels(
 
         if arch in archs and py_minor in python_minors:
             url = (
-                f"{_FLASH_ATTN_RELEASE_BASE}/{release_tag}/"
+                f"{_FLASH_ATTN_RELEASE_BASE_URL}/{release_tag}/"
                 f"flash_attn-{version}+cu{cuda_major}torch{torch_minor}cxx11abi{cxx11abi}"
                 f"-cp3{py_minor}-cp3{py_minor}-linux_{arch}.whl"
             )
@@ -324,7 +333,7 @@ def _find_supported_wheels(
     for release_tag, version, python_minors in _FLASH_ATTN_COMMUNITY_WHEELS.get((arch, torch_minor, channel), []):
         if py_minor in python_minors:
             url = (
-                f"{_FLASH_ATTN_COMMUNITY_RELEASE_BASE}/{release_tag}/"
+                f"{_FLASH_ATTN_COMMUNITY_RELEASE_BASE_URL}/{release_tag}/"
                 f"flash_attn-{version}+{channel}torch{torch_minor}"
                 f"-cp3{py_minor}-cp3{py_minor}-linux_{arch}.whl"
             )

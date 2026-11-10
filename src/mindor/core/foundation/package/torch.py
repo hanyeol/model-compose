@@ -493,10 +493,12 @@ def _rewrite_specs(
 
         if requirement is None or requirement.name not in _TORCH_PACKAGE_NAMES:
             rewritten_specs.append(spec)
+
             continue
 
         if requirement.url is not None:
             rewritten_specs.append(spec)
+
             continue
 
         name_with_extras = f"{requirement.name}[{','.join(sorted(requirement.extras))}]" if requirement.extras else requirement.name
@@ -510,7 +512,9 @@ def _rewrite_specs(
                 resolved_specifier = _attach_local_tag(f"=={torch_version}", local_tag)
             else:
                 resolved_specifier = ""
+
             rewritten_specs.append(f"{name_with_extras}{resolved_specifier}{marker_suffix}{index_suffix}")
+
             continue
 
         sibling_version = _resolve_sibling_version(requirement.name, torch_version) if torch_version else None
@@ -522,7 +526,9 @@ def _rewrite_specs(
                     f"paired release for torch=={torch_version} "
                     f"({requirement.name}=={sibling_version}); keeping the caller's pin."
                 )
+
             rewritten_specs.append(f"{name_with_extras}{caller_specifier}{marker_suffix}{index_suffix}")
+
             continue
 
         if pin_siblings and sibling_version:

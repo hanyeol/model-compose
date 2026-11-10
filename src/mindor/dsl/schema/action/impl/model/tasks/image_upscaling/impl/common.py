@@ -12,6 +12,6 @@ class CommonImageUpscalingParamsConfig(BaseModel):
 
 class CommonImageUpscalingModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to upscale.")
-    color_format: ColorFormat = Field(default=ColorFormat.RGB, description="Color channel order used by the model.")
+    color_format: Union[ColorFormat, str] = Field(default=ColorFormat.RGB, description="Color channel order used by the model.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input images processed per batch.")
     params: CommonImageUpscalingParamsConfig = Field(..., description="Backend-specific image upscaling parameters.")

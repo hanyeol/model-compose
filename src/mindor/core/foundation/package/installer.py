@@ -7,8 +7,7 @@ from importlib.metadata import version, metadata, PackageNotFoundError
 from mindor.core.utils.github import download_github_tarball
 from mindor.core.utils.shell import run_command
 import mindor
-import sys, subprocess, shutil, importlib, tempfile
-import asyncio, re
+import asyncio, importlib, re, shutil, subprocess, sys, tempfile
 
 # The directory that hosts the running `mindor` package — site-packages root
 # under a normal install, or `src/` under an editable install. Custom services

@@ -60,12 +60,12 @@ class ImageUpscalingTaskAction(ModelTaskComponentAction):
 
     async def _process_batch(
         self,
-        batch_images: List[PILImage.Image],
+        images: List[PILImage.Image],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[PILImage.Image]:
-        images = [ self._normalize_image(image, params["color_format"]) for image in batch_images ]
-        alphas = [ image.convert("RGBA").split()[-1] if has_alpha(image) else None for image in batch_images ]
+        alphas = [ image.convert("RGBA").split()[-1] if has_alpha(image) else None for image in images ]
+        images = [ self._normalize_image(image, params["color_format"]) for image in images ]
 
         images = await self._upscale_batch(images, params, cancellation_token)
 
@@ -81,6 +81,11 @@ class ImageUpscalingTaskAction(ModelTaskComponentAction):
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         color_format = await context.render_variable(self.config.color_format)
+
+        try:
+            color_format = ColorFormat(color_format)
+        except ValueError:
+            raise ValueError(f"Unsupported color format: {color_format}")
 
         return {
             "color_format": color_format,

@@ -1,11 +1,3 @@
-"""Utilities for inspecting and packaging the host-installed ``mindor`` package
-itself. Peer of ``cuda.py`` / ``torch.py`` / ``flash_attn.py`` under
-``foundation/package/``: those modules know how to install specific external
-packages; this one knows how to extract the currently running ``mindor``
-installation and hand it to an isolated runtime (venv, container, remote pod)."""
-
-from __future__ import annotations
-
 from typing import IO
 from mindor.core.utils.archive import archive_to_stream, skip_python_artifacts
 from pathlib import Path

@@ -6,13 +6,13 @@ from .common import PoseTrackingModelFamily
 from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig, ModelPrecision
 from pathlib import PurePosixPath
 
-_ULTRALYTICS_RELEASE_BASEURL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
+_ULTRALYTICS_RELEASE_BASE_URL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
 _DEFAULT_MODEL_URLS: Dict[str, str] = {
-    "yolov8n-pose.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8n-pose.pt",
-    "yolov8s-pose.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8s-pose.pt",
-    "yolov8m-pose.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8m-pose.pt",
-    "yolov8l-pose.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8l-pose.pt",
-    "yolov8x-pose.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8x-pose.pt",
+    "yolov8n-pose.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8n-pose.pt",
+    "yolov8s-pose.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8s-pose.pt",
+    "yolov8m-pose.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8m-pose.pt",
+    "yolov8l-pose.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8l-pose.pt",
+    "yolov8x-pose.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8x-pose.pt",
 }
 
 class YoloPoseTrackingLocalModelConfig(LocalModelConfig):

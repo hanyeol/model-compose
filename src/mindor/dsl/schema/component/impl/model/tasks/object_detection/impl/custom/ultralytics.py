@@ -6,13 +6,13 @@ from .common import ObjectDetectionModelFamily
 from ....common import ModelDriverType, HuggingfaceModelConfig, LocalModelConfig, ModelPrecision
 from pathlib import PurePosixPath
 
-_ULTRALYTICS_RELEASE_BASEURL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
+_ULTRALYTICS_RELEASE_BASE_URL = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
 _DEFAULT_MODEL_URLS: Dict[str, str] = {
-    "yolov8n.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8n.pt",
-    "yolov8s.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8s.pt",
-    "yolov8m.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8m.pt",
-    "yolov8l.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8l.pt",
-    "yolov8x.pt": f"{_ULTRALYTICS_RELEASE_BASEURL}/yolov8x.pt",
+    "yolov8n.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8n.pt",
+    "yolov8s.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8s.pt",
+    "yolov8m.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8m.pt",
+    "yolov8l.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8l.pt",
+    "yolov8x.pt": f"{_ULTRALYTICS_RELEASE_BASE_URL}/yolov8x.pt",
 }
 
 class YoloObjectDetectionLocalModelConfig(LocalModelConfig):

@@ -14,10 +14,10 @@ class LightAsdPreset(str, Enum):
 # both preset checkpoints under `weight/*.model` directly on `main`. Users can
 # still override `model` explicitly to point at a private mirror or a
 # pre-downloaded file.
-_LIGHT_ASD_WEIGHT_BASEURL = "https://raw.githubusercontent.com/Junhua-Liao/Light-ASD/main/weight"
+_LIGHT_ASD_WEIGHT_BASE_URL = "https://raw.githubusercontent.com/Junhua-Liao/Light-ASD/main/weight"
 _DEFAULT_MODEL_URLS: Dict[LightAsdPreset, str] = {
-    LightAsdPreset.FINETUNING_TALKSET: f"{_LIGHT_ASD_WEIGHT_BASEURL}/finetuning_TalkSet.model",
-    LightAsdPreset.PRETRAIN_AVA_CVPR:  f"{_LIGHT_ASD_WEIGHT_BASEURL}/pretrain_AVA_CVPR.model",
+    LightAsdPreset.FINETUNING_TALKSET: f"{_LIGHT_ASD_WEIGHT_BASE_URL}/finetuning_TalkSet.model",
+    LightAsdPreset.PRETRAIN_AVA_CVPR:  f"{_LIGHT_ASD_WEIGHT_BASE_URL}/pretrain_AVA_CVPR.model",
 }
 
 class LightAsdLocalModelConfig(LocalModelConfig):

@@ -13,10 +13,10 @@ class Wav2LipPreset(str, Enum):
 # Wav2Lip has no first-party HuggingFace repo; the Easy-Wav2Lip release mirror
 # hosts both preset checkpoints under stable URLs. Users can still override
 # `model` explicitly to point at a private mirror or a pre-downloaded file.
-_WAV2LIP_RELEASE_BASEURL = "https://github.com/anothermartz/Easy-Wav2Lip/releases/download/Prerequesits"
+_WAV2LIP_RELEASE_BASE_URL = "https://github.com/anothermartz/Easy-Wav2Lip/releases/download/Prerequesits"
 _DEFAULT_MODEL_URLS: Dict[Wav2LipPreset, str] = {
-    Wav2LipPreset.WAV2LIP:     f"{_WAV2LIP_RELEASE_BASEURL}/Wav2Lip.pth",
-    Wav2LipPreset.WAV2LIP_GAN: f"{_WAV2LIP_RELEASE_BASEURL}/Wav2Lip_GAN.pth",
+    Wav2LipPreset.WAV2LIP:     f"{_WAV2LIP_RELEASE_BASE_URL}/Wav2Lip.pth",
+    Wav2LipPreset.WAV2LIP_GAN: f"{_WAV2LIP_RELEASE_BASE_URL}/Wav2Lip_GAN.pth",
 }
 
 class Wav2LipLocalModelConfig(LocalModelConfig):

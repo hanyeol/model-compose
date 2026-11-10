@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import WorldMirrorImageTo3DModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, WorldMirrorImageTo3DModelActionConfig, WorldMirrorSkyMaskSource
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.package.cupy import cupy_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements
 from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
@@ -274,7 +275,7 @@ class WorldMirrorImageTo3DTaskDriver(ModelTaskDriver):
             "easydict",
             "scipy==1.14.1",
             "timm==1.0.11",
-            "cupy==13.6.0",
+            *cupy_requirements("cupy==13.6.0"),
             "imageio[ffmpeg]",
             "decord",
             "imagesize",

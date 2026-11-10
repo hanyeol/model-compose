@@ -37,7 +37,7 @@ import sys, platform
 
 _NATTEN_PACKAGE_NAME = "natten"
 
-_NATTEN_RELEASE_BASE = "https://github.com/SHI-Labs/NATTEN/releases/download"
+_NATTEN_RELEASE_BASE_URL = "https://github.com/SHI-Labs/NATTEN/releases/download"
 
 # natten version → torch release the wheels were built against →
 #   (CUDA channels, python minors, archs)
@@ -101,8 +101,14 @@ def natten_requirements(torch_spec: str, *specs: str) -> List[str]:
     for spec in specs:
         requirement = _parse_requirement(spec)
 
-        if requirement is None or canonicalize_name(requirement.name) != _NATTEN_PACKAGE_NAME or requirement.url is not None:
+        if requirement is None or canonicalize_name(requirement.name) != _NATTEN_PACKAGE_NAME:
             rewritten_specs.append(spec)
+
+            continue
+
+        if requirement.url is not None:
+            rewritten_specs.append(spec)
+
             continue
 
         wheel = _resolve_wheel_spec(requirement, torch_minor, channel, py_minor, arch) if torch_minor is not None and channel else None
@@ -114,7 +120,9 @@ def natten_requirements(torch_spec: str, *specs: str) -> List[str]:
                 f"and a visible GPU or NATTEN_CUDA_ARCH — without either it installs natten without libnatten "
                 f"(Flex Attention backend only)."
             )
+
             rewritten_specs.append(spec)
+
             continue
 
         version, url = wheel
@@ -150,7 +158,7 @@ def _resolve_wheel_spec(
             # download the file directly (GitHub Release URLs treat `+` as literal,
             # but pip strips it when parsing the direct URL otherwise).
             url = (
-                f"{_NATTEN_RELEASE_BASE}/v{natten_version}/"
+                f"{_NATTEN_RELEASE_BASE_URL}/v{natten_version}/"
                 f"natten-{natten_version}%2B{local_label}"
                 f"-cp3{py_minor}-cp3{py_minor}-linux_{arch}.whl"
             )

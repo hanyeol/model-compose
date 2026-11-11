@@ -175,11 +175,19 @@ class SshRuntimeTransport:
     async def _resolve_working_dir(self, working_dir: str) -> str:
         """Resolve ``working_dir`` to an absolute path via ``cd; pwd``.
 
+        A bare relative path like ``workdir/foo`` is anchored at the
+        remote user's home (``~/workdir/foo``) rather than whatever
+        directory the login shell happens to start in — so
+        ``~/workdir/foo`` and ``workdir/foo`` resolve identically.
+
         Cannot go through ``resolve_remote_path`` because that helper
         invokes ``python``, and a remote using ``pyenv local`` scoped to
         the working_dir itself would have no ``python`` on PATH until we
         ``cd`` there — which is what this call is for.
         """
+        if not working_dir.startswith(("/", "~")):
+            working_dir = f"~/{working_dir}"
+
         return (await self.run_command(f"cd {working_dir}; pwd")).strip()
 
     async def _capture_matched_output(

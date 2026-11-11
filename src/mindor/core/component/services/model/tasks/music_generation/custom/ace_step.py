@@ -555,27 +555,25 @@ class AceStepMusicGenerationTaskDriver(ModelTaskDriver):
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         requirements: List[str] = []
 
-        # Pre-install packages that ace-step pulls from custom sources: pip ignores its
-        # [tool.uv.sources] overrides, so any source-routed dependency must be resolved
-        # here before ace-step itself is processed. torch is pinned to 2.10.0 because
-        # nano-vllm and the shipped flash-attn wheel are built against that release.
-        if sys.platform == "linux" and platform.machine() == "x86_64":
-            requirements.extend([
-                *torch_requirements("torch==2.10.0", "torchaudio==2.10.0", "torchvision==0.25.0"),
-                # The vendored fork (not upstream nano-vllm) is required — it maps the 5Hz
-                # LM checkpoint's flat Qwen3Model weight names onto Qwen3ForCausalLM.
-                # flash-attn is omitted; its wheel is pinned to cu128/torch2.10/cp312/
-                # linux_x86_64 and nano-vllm falls back to SDPA.
-                "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
-            ])
+        # Pre-pin torch to match ace-step's Linux pins (cu128 on x86_64, cu130 on aarch64).
+        # Windows is left to ace-step's own torch==2.7.1+cu128 pin.
+        if sys.platform == "linux" and platform.machine() in ("x86_64", "aarch64"):
+            requirements.extend(
+                torch_requirements("torch==2.10.0", "torchaudio==2.10.0", "torchvision==0.25.0"),
+            )
 
-        # ace-step ships an mlx backend for the 5Hz LM on Apple Silicon; without mlx-lm
-        # it silently falls back to PyTorch/MPS, which is much slower for LM inference.
+        # Without mlx-lm the 5Hz LM silently falls back to PyTorch/MPS, which is much slower.
         if sys.platform == "darwin" and platform.machine() == "arm64":
             requirements.extend([
                 "mlx>=0.25.2",
                 "mlx-lm>=0.20.0",
             ])
+        else:
+            # pip ignores ace-step's [tool.uv.sources], so nano-vllm (vendored fork, not on PyPI)
+            # must be pre-installed on every platform where upstream requires it.
+            requirements.append(
+                "nano-vllm@git+https://github.com/ace-step/ACE-Step-1.5.git#subdirectory=acestep/third_parts/nano-vllm",
+            )
 
         requirements.extend([
             "ace-step@git+https://github.com/ace-step/ACE-Step-1.5.git",

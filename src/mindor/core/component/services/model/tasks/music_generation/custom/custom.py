@@ -16,4 +16,8 @@ class CustomMusicGenerationTaskDriver:
             from .yue2 import Yue2MusicGenerationTaskDriver
             return Yue2MusicGenerationTaskDriver(id, config, daemon)
 
+        if config.family == MusicGenerationModelFamily.MINIMAX_MUSIC3:
+            from .minimax_music3 import MinimaxMusic3MusicGenerationTaskDriver
+            return MinimaxMusic3MusicGenerationTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

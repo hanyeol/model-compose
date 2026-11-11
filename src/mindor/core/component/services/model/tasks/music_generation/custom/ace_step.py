@@ -613,7 +613,7 @@ class AceStepMusicGenerationTaskDriver(ModelTaskDriver):
             )
 
             if self.config.precision is not None:
-                handler.dtype = getattr(torch, self.config.precision.value)
+                handler.dtype = self._resolve_torch_dtype(self.config.precision)
 
             return handler
 
@@ -624,7 +624,10 @@ class AceStepMusicGenerationTaskDriver(ModelTaskDriver):
         import torch
 
         def _load() -> LLMHandler:
-            dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else None
+            if self.config.precision is not None:
+                dtype = self._resolve_torch_dtype(self.config.precision)
+            else:
+                dtype = None
 
             handler = LLMHandler()
             status, success = handler.initialize(

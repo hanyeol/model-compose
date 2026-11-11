@@ -446,7 +446,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             params: Dict[str, Any] = {}
 
             if text_encoder_config is not None and text_encoder_config.precision is not None:
-                params["torch_dtype"] = getattr(torch, text_encoder_config.precision.value)
+                params["torch_dtype"] = self._resolve_torch_dtype(text_encoder_config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 
@@ -489,7 +489,7 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
             params: Dict[str, Any] = {}
 
             if transformer_config is not None and transformer_config.precision is not None:
-                params["torch_dtype"] = getattr(torch, transformer_config.precision.value)
+                params["torch_dtype"] = self._resolve_torch_dtype(transformer_config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 

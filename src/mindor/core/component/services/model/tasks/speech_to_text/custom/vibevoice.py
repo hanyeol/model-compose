@@ -320,7 +320,7 @@ class VibeVoiceSpeechToTextTaskDriver(ModelTaskDriver):
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
         device = self._resolve_device(self.config.device)
-        dtype = self._resolve_torch_dtype(device)
+        dtype = self._resolve_model_dtype(device)
 
         def _load() -> Tuple[Any, Any, Optional[Dict[str, float]]]:
             processor = VibeVoiceASRProcessor.from_pretrained(model_path)
@@ -372,11 +372,11 @@ class VibeVoiceSpeechToTextTaskDriver(ModelTaskDriver):
             "text_audio_delay": config["lookahead_frames"] * frame_seconds,
         }
 
-    def _resolve_torch_dtype(self, device: torch.device) -> torch.dtype:
+    def _resolve_model_dtype(self, device: torch.device) -> torch.dtype:
         import torch
 
         if self.config.precision is not None:
-            return getattr(torch, self.config.precision.value)
+            return self._resolve_torch_dtype(self.config.precision)
 
         # VibeVoice ships and is validated at bfloat16 on CUDA. On MPS,
         # bfloat16 support is uneven but float16 halves memory vs float32

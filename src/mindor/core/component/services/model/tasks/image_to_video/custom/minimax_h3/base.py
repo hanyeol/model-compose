@@ -26,12 +26,22 @@ if TYPE_CHECKING:
 # Checkpoint-specific modules that must stay in bfloat16 to preserve output quality.
 # Mirrors the lists in the diffusers MiniMax-H3 docs; update when the upstream recipe changes.
 _MINIMAX_H3_TRANSFORMER_SKIP_MODULES: Tuple[str, ...] = (
-    "proj_in", "audio_proj_in", "context_embedder", "time_embedder", "time_proj",
-    "token_refiner", "norm_out", "proj_out", "audio_proj_out",
+    "proj_in",
+    "audio_proj_in",
+    "context_embedder",
+    "time_embedder",
+    "time_proj",
+    "token_refiner",
+    "norm_out",
+    "proj_out",
+    "audio_proj_out",
 )
 
 _MINIMAX_H3_TEXT_ENCODER_SKIP_MODULES: Tuple[str, ...] = (
-    "model.visual", "model.language_model.embed_tokens", "model.language_model.norm", "lm_head",
+    "model.visual",
+    "model.language_model.embed_tokens",
+    "model.language_model.norm",
+    "lm_head",
 )
 
 class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
@@ -452,7 +462,7 @@ class MinimaxH3ImageToVideoBaseDriver(ModelTaskDriver):
             params: Dict[str, Any] = {}
 
             if text_encoder_config is not None and text_encoder_config.precision is not None:
-                params["torch_dtype"] = getattr(torch, text_encoder_config.precision.value)
+                params["torch_dtype"] = self._resolve_torch_dtype(text_encoder_config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 
@@ -495,7 +505,7 @@ class MinimaxH3ImageToVideoBaseDriver(ModelTaskDriver):
             params: Dict[str, Any] = {}
 
             if transformer_config is not None and transformer_config.precision is not None:
-                params["torch_dtype"] = getattr(torch, transformer_config.precision.value)
+                params["torch_dtype"] = self._resolve_torch_dtype(transformer_config.precision)
             else:
                 params["torch_dtype"] = torch.bfloat16
 

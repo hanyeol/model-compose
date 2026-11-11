@@ -126,7 +126,10 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
     async def _merge_adapter(self, adapter_path: str, base_path: str) -> str:
         import torch
 
-        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else torch.bfloat16
+        if self.config.precision is not None:
+            dtype = self._resolve_torch_dtype(self.config.precision)
+        else:
+            dtype = torch.bfloat16
 
         # Cache per dtype so switching precision doesn't silently reuse a merge
         # saved under a different one.

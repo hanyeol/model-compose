@@ -115,7 +115,11 @@ class SampleidMusicEmbeddingTaskDriver(ModelTaskDriver):
         from sampleid import SampleID
 
         device = self._resolve_device(self.config.device)
-        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else None
+
+        if self.config.precision is not None:
+            dtype = self._resolve_torch_dtype(self.config.precision)
+        else:
+            dtype = None
 
         def _load() -> Tuple[SampleID, torch.device]:
             # sampleid.SampleID.load_checkpoint auto-downloads the Zenodo weights

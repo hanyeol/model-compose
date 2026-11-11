@@ -187,21 +187,20 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         config: Union[CommonModelComponentConfig, ModelSubmoduleConfig],
         default_dtype: Optional[torch.dtype] = None
     ) -> Dict[str, Any]:
-        import torch
-
         options: Dict[str, Any] = {}
 
         if default_dtype is not None:
             options["torch_dtype"] = default_dtype
 
-        if config.precision is not None:
-            options["torch_dtype"] = getattr(torch, config.precision.value)
-        elif isinstance(config, CommonModelComponentConfig) and "torch_dtype" not in options:
-            # Match the checkpoint's native dtype when loading the base model;
-            # without this transformers silently upcasts to float32 and doubles
-            # the memory footprint. PEFT adapter / VAE sub-configs skip this —
-            # they're layered onto an already-loaded base model.
-            options["torch_dtype"] = "auto"
+        if config.precision is None:
+            if isinstance(config, CommonModelComponentConfig) and "torch_dtype" not in options:
+                # Match the checkpoint's native dtype when loading the base model;
+                # without this transformers silently upcasts to float32 and doubles
+                # the memory footprint. PEFT adapter / VAE sub-configs skip this —
+                # they're layered onto an already-loaded base model.
+                options["torch_dtype"] = "auto"
+        else:
+            options["torch_dtype"] = self._resolve_torch_dtype(config.precision)
 
         if config.low_cpu_mem_usage:
             options["low_cpu_mem_usage"] = True
@@ -255,10 +254,8 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         raise NotImplementedError("Model class loader not implemented.")
 
     def _get_model_dtype(self) -> Optional[torch.dtype]:
-        import torch
-
         if self.config.precision is not None:
-            return getattr(torch, self.config.precision.value)
+            return self._resolve_torch_dtype(self.config.precision)
 
         return None
 

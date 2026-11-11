@@ -105,7 +105,11 @@ class PyannoteVoiceEmbeddingTaskDriver(ModelTaskDriver):
 
         model_path = await self._provision_model(self.config.model)
         device = self._resolve_device(self.config.device)
-        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else None
+
+        if self.config.precision is not None:
+            dtype = self._resolve_torch_dtype(self.config.precision)
+        else:
+            dtype = None
 
         def _load() -> Any:
             token = self.config.model.token if isinstance(self.config.model, HuggingfaceModelConfig) else None

@@ -125,7 +125,7 @@ class MinimaxMusic3MusicGenerationTaskDriver(ModelTaskDriver):
         import torch
 
         device = str(self._resolve_device(self.config.device))
-        dtype = getattr(torch, self.config.precision.value) if self.config.precision is not None else torch.bfloat16
+        dtype = self._resolve_torch_dtype(self.config.precision) if self.config.precision is not None else torch.bfloat16
 
         def _load() -> MiniMaxMusic3ModularPipeline:
             pipeline = MiniMaxMusic3ModularPipeline.from_pretrained(model_path)

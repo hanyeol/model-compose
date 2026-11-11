@@ -1769,7 +1769,7 @@ component:
 
 ### 10.3.31 music-generation
 
-음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`를 사용합니다.
+음악 오디오를 생성하거나 편집합니다. 액션의 `method` 필드로 동작을 선택합니다 — 프롬프트로부터 새로 생성(MIDI 합성도 이 메서드를 사용), 기존 트랙을 새로운 스타일로 커버, 특정 구간 재생성, 뒤에 이어붙이기, 새 악기 레이어 추가, 보컬 전용 소스에 반주 만들기, 편집 가능한 ABC 스코어 계획. `driver: custom`을 사용하며 `family` 필드로 모델 계열을 선택합니다. ACE-Step은 `preset` 필드로 체크포인트 변형을 지정하고, YuE2는 `vae`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`를 사용합니다. MiniMax-Music3는 백엔드 특화 파라미터 없이 구조화된 캡션과 섹션 태그 가사만으로 생성합니다.
 
 ```yaml
 component:
@@ -1814,8 +1814,10 @@ component:
   - 모노포닉 MIDI 파일을 특정 URMP 악기 음색(violin, viola, cello, double-bass, flute, oboe, clarinet, saxophone, bassoon, trumpet, horn, trombone, tuba)으로 합성합니다. `method: generate`에 `midi`와 `instrument` 필드를 사용합니다. 다성 MIDI는 거부됩니다.
 - `yue2`
   - 편집 가능한 ABC 스코어 계획을 갖춘 완전한 곡 생성. `generate`는 `style` + `lyrics`로 작곡하고, `cover`는 제공된 ABC 스코어를 재해석하며, `score`는 계획된 ABC만 반환합니다. `params.cot_mode`가 chain-of-thought 스타일을 선택합니다(`full` — 코드 심볼 포함, `melody` — 커버용, `off` — 직접 생성). 48 kHz 스테레오 오디오를 렌더링합니다.
+- `minimax-music3`
+  - 구조화된 캡션과 `[verse]`, `[chorus]`, `[bridge]` 같은 섹션 태그가 포함된 가사로 완전한 곡을 생성합니다. `method: generate`만 지원하며, `params.duration`으로 최대 300초까지 길이를 조절합니다. diffusers의 `MiniMaxMusic3ModularPipeline`을 통해 44.1 kHz 스테레오 오디오를 렌더링합니다.
 
-`ace-step`과 `midi-ddsp`는 HuggingFace Hub 식별자를 지원하지 않으며, `model`은 반드시 로컬 체크포인트 디렉토리여야 합니다. `yue2`는 HuggingFace 저장소 ID(예: `m-a-p/YuE2-3B`)와 로컬 경로 모두 허용합니다.
+`ace-step`과 `midi-ddsp`는 HuggingFace Hub 식별자를 지원하지 않으며, `model`은 반드시 로컬 체크포인트 디렉토리여야 합니다. `yue2`와 `minimax-music3`는 HuggingFace 저장소 ID(예: `m-a-p/YuE2-3B`, `MiniMaxAI/MiniMax-Music3`)와 로컬 경로 모두 허용합니다.
 
 MIDI-DDSP는 TensorFlow 2.11을 고정 의존하며 호스트 mindor 스택과 함께 실행할 수 없기 때문에, 컴포넌트를 격리된 런타임(`virtualenv`, `docker`, `apple-container`)에서 실행해야 합니다. `native` / `embedded` / `process` 런타임은 로드 시점에 거부됩니다.
 
@@ -1852,6 +1854,22 @@ component:
     lyrics: ${input.lyrics as text}
     params:
       cot_mode: full
+```
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: minimax-music3
+  model: MiniMaxAI/MiniMax-Music3
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics as text}
+    params:
+      duration: 60
 ```
 
 오디오를 생성하는 메서드는 입력당 PCM 오디오 스트림(배치 입력에는 스트림 리스트)을 반환합니다. YuE2의 `score`는 대신 `{ abc, truncated }`를 반환합니다. 메서드별 전체 필드 목록은 [Model Component 레퍼런스](../reference/compose/components/model.md#music-generation)를 참고하세요.

@@ -3533,7 +3533,7 @@ Generate or edit music audio. The action selects an operation via the `method` f
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `music-generation` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (`ace-step`, `midi-ddsp`, `yue2`) |
+| `family` | string | **required** | Model family (`ace-step`, `midi-ddsp`, `yue2`, `minimax-music3`) |
 | `preset` | string | `acestep-v15-turbo` | Checkpoint preset (`ace-step` only: `acestep-v15-turbo`, `acestep-v15-base`, `acestep-v15-sft`) |
 | `expression_generator_weights` | string | `<model>/expression_generator/5000` | Path to the expression generator checkpoint (`midi-ddsp` only) |
 | `vae` | string/object | family-specific | VAE decoder model (`yue2` only). See the YuE2 family section |
@@ -3542,7 +3542,7 @@ Generate or edit music audio. The action selects an operation via the `method` f
 | `memory_budget_gib` | float | `24` | GPU memory budget in GiB reserved for generation (`yue2` only) |
 | `cpu_offload` | string/array | `null` | Submodules to run on CPU (`yue2` only): `ar` moves the AR model during NAR synthesis, `vae` runs the VAE decoder on CPU. Accepts a single value or a list |
 | `verify_hashes` | bool | `true` | Verify model file checksums on load (`yue2` only) |
-| `model` | string | **required** | Local checkpoint directory (`ace-step`, `midi-ddsp`) or HuggingFace repo / local path (`yue2`) |
+| `model` | string | **required** | Local checkpoint directory (`ace-step`, `midi-ddsp`) or HuggingFace repo / local path (`yue2`, `minimax-music3`) |
 
 **Common Action Fields:**
 
@@ -3550,7 +3550,7 @@ Every method shares these fields:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | **required** | Operation: `generate` (all families), `cover` (`ace-step`, `yue2`), `rewrite`, `extend`, `layer`, `accompany` (`ace-step` only), `score` (`yue2` only) |
+| `method` | string | **required** | Operation: `generate` (all families), `cover` (`ace-step`, `yue2`), `rewrite`, `extend`, `layer`, `accompany` (`ace-step` only), `score` (`yue2` only). `minimax-music3` only supports `generate` |
 | `seed` | int | `null` | Random seed for reproducible generation |
 | `batch_size` | int | `1` | Number of inputs processed per batch |
 | `params.duration` | int | `30` | Duration of the generated music in seconds |
@@ -3711,6 +3711,7 @@ component:
 | `ace-step` | `acestep-v15-sft` | SFT variant; recommended `inference_steps: 50`. |
 | `midi-ddsp` | — | Google Magenta MIDI-DDSP. Synthesizes a monophonic MIDI file with a specific URMP instrument voice. |
 | `yue2` | — | M·A·P YuE2. Full-song generation with editable ABC score planning; renders 48 kHz stereo audio. |
+| `minimax-music3` | — | MiniMaxAI MiniMax-Music3. Full-song generation from a structured caption plus section-tagged lyrics; renders 44.1 kHz stereo audio via diffusers' `MiniMaxMusic3ModularPipeline`. |
 
 #### `family: midi-ddsp`
 
@@ -3898,9 +3899,44 @@ component:
     lyrics: ${input.lyrics as text}
 ```
 
+#### `family: minimax-music3`
+
+MiniMaxAI [MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3) full-song generation. An 8B global LLM + 0.6B local LLM pair plans tokens that a 2.4B flow-matching NAR plus a Flow-VAE vocoder render into 44.1 kHz stereo audio. `model` accepts either the HuggingFace repo ID (`MiniMaxAI/MiniMax-Music3`) or a local checkpoint directory; the diffusers `MiniMaxMusic3ModularPipeline` wiring ships in diffusers ≥ 0.40.0, which model-compose installs automatically.
+
+**Runtime requirement:** the 2.4B flow-matching transformer plus the flow-VAE vocoder and the LLM pair require a CUDA GPU with ≥24 GB VRAM for comfortable operation; smaller cards can run with bfloat16 but will swap heavily. No quantization or CPU-offload knobs are exposed.
+
+**Component Fields:**
+
+No family-specific component fields beyond the common ones.
+
+**Action Fields (`method: generate`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string/array | **required** | Structured music description (genre, BPM, key, mood, vocals, arrangement) |
+| `lyrics` | string/array | `null` | Song lyrics with section tags such as `[verse]`, `[chorus]`, `[bridge]` on their own lines |
+| `params.duration` | float | `60.0` | Duration of the generated music in seconds (up to 300) |
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: minimax-music3
+  model: MiniMaxAI/MiniMax-Music3
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics as text}
+    seed: 7
+    params:
+      duration: 60
+```
+
 **Result Shape:**
 
-Audio-producing methods (`generate`, `cover` on all families; `layer`, `accompany`, `rewrite`, `extend` on `ace-step`) return a single PCM audio stream (or a list of streams for batched inputs). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes. `yue2`'s `score` method returns `{ abc: string, truncated: bool }` instead.
+Audio-producing methods (`generate`, `cover` on all families; `layer`, `accompany`, `rewrite`, `extend` on `ace-step`; `generate` on `minimax-music3`) return a single PCM audio stream (or a list of streams for batched inputs). Each stream carries `sample_rate`, `channels`, and `bit_depth` attributes. `yue2`'s `score` method returns `{ abc: string, truncated: bool }` instead.
 
 ### Music Source Separation
 

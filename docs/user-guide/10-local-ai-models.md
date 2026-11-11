@@ -1881,7 +1881,7 @@ Compared with the `video-scene-detector` component (which uses classical CV heur
 
 ### 10.3.32 music-generation
 
-Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `nar`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`, and `peft_adapter` (AR LoRAs).
+Generates or edits music audio. The action's `method` field selects the operation — generate from scratch (also used for MIDI synthesis), cover an existing track in a new style, rewrite a specific region, extend past the end, add an instrument layer, generate accompaniment for a vocal-only stem, or plan an editable ABC score. Uses `driver: custom` with a `family` field to select the model family; ACE-Step also takes a `preset` field for the checkpoint variant, and YuE2 takes `vae`, `nar`, `backend`, `quantization`, `memory_budget_gib`, `cpu_offload`, and `peft_adapter` (AR LoRAs). MiniMax-Music3 generates from a structured caption plus section-tagged lyrics with no backend-specific knobs.
 
 ```yaml
 component:
@@ -1926,8 +1926,10 @@ component:
   - Synthesizes a monophonic MIDI file with a specific URMP instrument voice (violin, viola, cello, double-bass, flute, oboe, clarinet, saxophone, bassoon, trumpet, horn, trombone, tuba). Uses `method: generate` with `midi` and `instrument` fields. Polyphonic MIDI is rejected.
 - `yue2`
   - Full-song generation with editable ABC score planning. `generate` composes from `style` + `lyrics`, `cover` reinterprets a supplied ABC score, and `score` returns only the planned ABC. `params.cot_mode` picks the chain-of-thought style (`full` with chord symbols, `melody` for covers, `off` for direct generation). Renders 48 kHz stereo audio.
+- `minimax-music3`
+  - Full-song generation from a structured caption plus lyrics tagged with `[verse]`, `[chorus]`, `[bridge]` and similar section markers. `method: generate` is the only supported operation; `params.duration` controls length up to 300 seconds. Renders 44.1 kHz stereo audio via diffusers' `MiniMaxMusic3ModularPipeline`.
 
-`ace-step` and `midi-ddsp` do not accept HuggingFace Hub identifiers — `model` must be a local checkpoint directory. `yue2` accepts either a HuggingFace repo ID (e.g. `m-a-p/YuE2-3B`) or a local path.
+`ace-step` and `midi-ddsp` do not accept HuggingFace Hub identifiers — `model` must be a local checkpoint directory. `yue2` and `minimax-music3` accept either a HuggingFace repo ID (e.g. `m-a-p/YuE2-3B`, `MiniMaxAI/MiniMax-Music3`) or a local path.
 
 MIDI-DDSP pins TensorFlow 2.11 and cannot coexist with the host mindor stack, so the component must run under an isolated runtime (`virtualenv`, `docker`, or `apple-container`); native / embedded / process runtimes are rejected at load time.
 
@@ -1966,6 +1968,22 @@ component:
     lyrics: ${input.lyrics as text}
     params:
       cot_mode: full
+```
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: minimax-music3
+  model: MiniMaxAI/MiniMax-Music3
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics as text}
+    params:
+      duration: 60
 ```
 
 Audio-producing methods return a PCM audio stream per input (or a list for batched inputs). YuE2's `score` returns `{ abc, truncated }` instead. See the [Model Component reference](../reference/compose/components/model.md#music-generation) for the full per-method field list.

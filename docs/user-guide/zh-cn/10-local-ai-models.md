@@ -1769,7 +1769,7 @@ component:
 
 ### 10.3.31 music-generation
 
-生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `cpu_offload`。
+生成或编辑音乐音频。动作的 `method` 字段用于选择操作 —— 从提示词从头生成（同时也用于 MIDI 合成）、以新风格翻唱现有曲目、重写指定区间、在结尾之后延续、在源音频上叠加新乐器层、为纯人声源生成伴奏、规划可编辑的 ABC 乐谱。使用 `driver: custom`，通过 `family` 字段选择模型系列；ACE-Step 需要 `preset` 字段选择检查点变体，YuE2 使用 `vae`、`backend`、`quantization`、`memory_budget_gib` 和 `cpu_offload`。MiniMax-Music3 不需要任何后端特定参数，仅用结构化描述文本加上带段落标签的歌词生成。
 
 ```yaml
 component:
@@ -1814,8 +1814,10 @@ component:
   - 使用特定 URMP 乐器音色（violin、viola、cello、double-bass、flute、oboe、clarinet、saxophone、bassoon、trumpet、horn、trombone、tuba）合成单声部 MIDI 文件。`method: generate` 搭配 `midi` 和 `instrument` 字段使用。多声部 MIDI 会被拒绝。
 - `yue2`
   - 具备可编辑 ABC 乐谱规划的完整歌曲生成。`generate` 从 `style` + `lyrics` 创作，`cover` 重新演绎提供的 ABC 乐谱，`score` 仅返回规划后的 ABC。`params.cot_mode` 选择思维链风格（`full` 含和弦符号、`melody` 用于翻唱、`off` 直接生成）。渲染 48 kHz 立体声音频。
+- `minimax-music3`
+  - 根据结构化描述文本与带有 `[verse]`、`[chorus]`、`[bridge]` 等段落标签的歌词生成完整歌曲。仅支持 `method: generate`，`params.duration` 可将时长控制在 300 秒以内。通过 diffusers 的 `MiniMaxMusic3ModularPipeline` 渲染 44.1 kHz 立体声音频。
 
-`ace-step` 和 `midi-ddsp` 均不支持 HuggingFace Hub 标识符，`model` 必须是本地检查点目录。`yue2` 同时接受 HuggingFace 仓库 ID（例如 `m-a-p/YuE2-3B`）和本地路径。
+`ace-step` 和 `midi-ddsp` 均不支持 HuggingFace Hub 标识符，`model` 必须是本地检查点目录。`yue2` 和 `minimax-music3` 同时接受 HuggingFace 仓库 ID（例如 `m-a-p/YuE2-3B`、`MiniMaxAI/MiniMax-Music3`）和本地路径。
 
 MIDI-DDSP 固定依赖 TensorFlow 2.11 且无法与宿主 mindor 栈共存，因此组件必须在隔离运行时（`virtualenv`、`docker` 或 `apple-container`）下运行；`native` / `embedded` / `process` 运行时会在加载时被拒绝。
 
@@ -1852,6 +1854,22 @@ component:
     lyrics: ${input.lyrics as text}
     params:
       cot_mode: full
+```
+
+```yaml
+component:
+  type: model
+  task: music-generation
+  driver: custom
+  family: minimax-music3
+  model: MiniMaxAI/MiniMax-Music3
+  device: cuda
+  action:
+    method: generate
+    prompt: ${input.prompt as text}
+    lyrics: ${input.lyrics as text}
+    params:
+      duration: 60
 ```
 
 生成音频的方法返回每个输入的 PCM 音频流（批处理输入则返回流列表）；YuE2 的 `score` 则返回 `{ abc, truncated }`。每个 method 的完整字段列表请参见 [Model Component 参考](../reference/compose/components/model.md#music-generation)。

@@ -93,10 +93,10 @@ class ModelTaskDriver(ComponentDriver):
     async def _reclaim_device_memory(self) -> None:
         import gc
 
+        gc.collect()
+
         if self._is_torch_installed():
             self._empty_torch_cache()
-
-        gc.collect()
 
     def _empty_torch_cache(self) -> None:
         import torch

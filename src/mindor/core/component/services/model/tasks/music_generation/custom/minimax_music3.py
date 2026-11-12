@@ -132,9 +132,35 @@ class MinimaxMusic3MusicGenerationTaskDriver(ModelTaskDriver):
             dtype = torch.bfloat16
 
         def _load() -> MiniMaxMusic3ModularPipeline:
-            pipeline = MiniMaxMusic3ModularPipeline.from_pretrained(model_path)
+            from diffusers import ComponentsManager
+            from diffusers.hooks import apply_group_offloading
+
+            # ComponentsManager drives placement when cpu_offload is on. It must
+            # be created before `from_pretrained` and passed in so loaded
+            # components auto-register under its control; after that the manager
+            # (not `pipeline.to`) decides when each module is on GPU vs CPU.
+            manager = ComponentsManager() if self.config.cpu_offload is not None else None
+            pipeline = MiniMaxMusic3ModularPipeline.from_pretrained(
+                model_path,
+                components_manager=manager,
+            )
             pipeline.load_components(dtype=dtype)
-            pipeline.to(device)
+
+            if manager is not None:
+                manager.enable_auto_cpu_offload(device=device)
+            else:
+                pipeline.to(device)
+
+            # "sequential" streams the 33B language model layer-by-layer on top
+            # of auto offload, trading speed for memory (fits ~8 GB vs ~22 GB).
+            # Mirrors the "Low VRAM" recipe in the MiniMax-Music3 model card.
+            if self.config.cpu_offload == "sequential":
+                apply_group_offloading(
+                    pipeline.language_model,
+                    onload_device=torch.device(device),
+                    offload_type="leaf_level",
+                    use_stream=True,
+                )
 
             return pipeline
 

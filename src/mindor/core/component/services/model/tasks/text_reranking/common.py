@@ -39,8 +39,8 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
                 async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                     batch_texts = self._extract_document_texts(batch_documents, document_field)
                     batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
-                    for scores, original_documents in zip(batch_scores, batch_documents):
-                        result = self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents)
+                    for scores, documents in zip(batch_scores, batch_documents):
+                        result = self._build_ranked_result(scores, documents, top_k, score_threshold, return_documents)
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
@@ -53,8 +53,8 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
             async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
                 batch_texts = self._extract_document_texts(batch_documents, document_field)
                 batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
-                for scores, original_documents in zip(batch_scores, batch_documents):
-                    results.append(self._build_ranked_result(scores, original_documents, top_k, score_threshold, return_documents))
+                for scores, documents in zip(batch_scores, batch_documents):
+                    results.append(self._build_ranked_result(scores, documents, top_k, score_threshold, return_documents))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)

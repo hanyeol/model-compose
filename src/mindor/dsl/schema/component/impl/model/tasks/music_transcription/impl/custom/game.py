@@ -11,7 +11,6 @@ class GameMusicTranscriptionModelComponentConfig(CommonMusicTranscriptionModelCo
     driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
     family: Literal[MusicTranscriptionModelFamily.GAME]
     model: NamedModelConfig = Field(..., description="GAME bundle size: 'small', 'medium', or 'large'; downloaded from the openvpi/GAME release on first use.")
-    providers: Optional[List[str]] = Field(default=None, description="onnxruntime execution providers; auto-selected from device when omitted.")
     actions: List[GameMusicTranscriptionModelActionConfig] = Field(default_factory=list, description="Actions this music transcription component exposes to workflows.")
 
     @model_validator(mode="before")

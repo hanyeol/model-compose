@@ -10,8 +10,10 @@ from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distribut
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.media import MediaSource
+from mindor.core.logger import logging
 from ........base import ComponentActionContext
 from ......base import ModelTaskDriver
+from ......utils.onnxruntime import resolve_onnx_providers
 from ....common import MusicPitchEstimationTaskAction, PitchContour
 import asyncio
 
@@ -217,7 +219,6 @@ class PestoOnnxMusicPitchEstimationTaskDriver(ModelTaskDriver):
         self.session_pool: Optional[OnnxSessionPool] = None
         self.input_names: Tuple[str, str] = ("", "")
         self.cache_size: int = 0
-        self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
@@ -230,10 +231,13 @@ class PestoOnnxMusicPitchEstimationTaskDriver(ModelTaskDriver):
         import onnxruntime as ort
 
         model_path = await self._provision_model(self.config.model, prefetch=True)
-        device = self._resolve_device(self.config.device)
-        providers = self._resolve_providers(device)
+        device = self._resolve_device(self.config.device, use_torch=False)
 
-        def _load_onnx_session() -> Tuple[Any, Tuple[str, str], int]:
+        def _load_onnx_session() -> Tuple[Any, Tuple[str, str], int, List[Any]]:
+            providers = resolve_onnx_providers(device)
+
+            logging.debug(f"PESTO ONNX providers: {providers}")
+
             session = ort.InferenceSession(model_path, providers=providers)
             inputs = session.get_inputs()
 
@@ -246,13 +250,12 @@ class PestoOnnxMusicPitchEstimationTaskDriver(ModelTaskDriver):
             cache_shape = inputs[1].shape
             cache_size = int(cache_shape[1]) if len(cache_shape) >= 2 and isinstance(cache_shape[1], int) else 0
 
-            return session, (audio_name, cache_name), cache_size
+            return session, (audio_name, cache_name), cache_size, providers
 
-        seed_session, input_names, cache_size = await self._run_in_executor(_load_onnx_session)
+        seed_session, input_names, cache_size, providers = await self._run_in_executor(_load_onnx_session)
 
         self.input_names = input_names
         self.cache_size = cache_size
-        self.device = device
         self.session_pool = OnnxSessionPool(
             factory=lambda: ort.InferenceSession(model_path, providers=providers),
             size=self.config.streaming.max_batch_size,
@@ -267,21 +270,6 @@ class PestoOnnxMusicPitchEstimationTaskDriver(ModelTaskDriver):
 
         self.input_names = ("", "")
         self.cache_size = 0
-        self.device = None
-
-    def _resolve_providers(self, device: torch.device) -> List[str]:
-        providers: List[str] = self.config.providers or []
-
-        if not providers:
-            if device.type == "cuda":
-                providers.append("CUDAExecutionProvider")
-            
-            if device.type == "mps":
-                providers.append("CoreMLExecutionProvider")
-
-            providers.append("CPUExecutionProvider")
-
-        return providers
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await PestoOnnxMusicPitchEstimationTaskAction(
@@ -290,5 +278,5 @@ class PestoOnnxMusicPitchEstimationTaskDriver(ModelTaskDriver):
             self.input_names,
             self.cache_size,
             self.config,
-            self.device,
+            None,
         ).run(context)

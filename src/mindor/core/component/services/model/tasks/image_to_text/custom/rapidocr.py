@@ -2,13 +2,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Optional, Dict, List, Tuple, Any
-from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, RapidOcrImageToTextModelComponentConfig, RapidOcrModel
 from mindor.dsl.schema.action import ModelActionConfig, RapidOcrImageToTextModelActionConfig
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
 from mindor.core.logger import logging
 from ..common import ImageToTextTaskAction
-from ....base import ComponentActionContext, ModelTaskDriver, ModelTaskType, ModelDriverType, register_model_task_driver
+from ....base import ComponentActionContext, ModelTaskDriver
+from ....utils.onnxruntime import ProviderSpec, resolve_onnx_providers
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -172,7 +173,11 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
         self.engine: Optional[RapidOCR] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "rapidocr", "opencv-python" ]
+        return [
+            ("onnxruntime", get_onnxruntime_distributions()),
+            "rapidocr",
+            "opencv-python",
+        ]
 
     async def _load_model(self) -> None:
         self.engine = await self._load_engine()
@@ -181,20 +186,29 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
         self.engine = None
 
     async def _load_engine(self) -> RapidOCR:
-        from rapidocr import RapidOCR
-
-        model = RapidOcrModel(self.config.model.name)
-        params = self._build_engine_params(model, self.config.language)
+        device = self._resolve_device(self.config.device, use_torch=False)
 
         def _load() -> RapidOCR:
-            return RapidOCR(params=params)
+            from rapidocr import RapidOCR
+
+            providers = resolve_onnx_providers(device)
+
+            logging.debug(f"RapidOCR ONNX providers: {providers}")
+
+            engine_params = self._build_engine_params(
+                RapidOcrModel(self.config.model.name),
+                providers,
+                self.config.language
+            )
+
+            return RapidOCR(params=engine_params)
 
         return await self._run_in_executor(_load)
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await RapidOcrImageToTextTaskAction(action, self.engine).run(context)
 
-    def _build_engine_params(self, model: RapidOcrModel, language: Optional[str]) -> Dict[str, Any]:
+    def _build_engine_params(self, model: RapidOcrModel, providers: List[ProviderSpec], language: Optional[str]) -> Dict[str, Any]:
         from rapidocr.utils.typings import ModelType, OCRVersion
 
         model_version, model_size = _RAPIDOCR_MODEL_VARIANTS[model]
@@ -208,7 +222,31 @@ class RapidOcrImageToTextTaskDriver(ModelTaskDriver):
             "Rec.ocr_version": ocr_version,
             "Rec.model_type":  model_type,
             "Rec.lang_type":   rec_lang,
+            **self._build_engine_device_params(providers),
         }
+
+    def _build_engine_device_params(self, providers: List[ProviderSpec]) -> Dict[str, Any]:
+        # RapidOCR's Det/Cls/Rec submodels all read the same EngineConfig.onnxruntime
+        # block, so one flag here switches all three submodels at once.
+        primary = next((provider for provider in providers if provider != "CPUExecutionProvider"), None)
+
+        if primary is None:
+            return {}
+
+        provider, options = primary if isinstance(primary, tuple) else (primary, {})
+        params: Dict[str, Any] = {}
+
+        if provider == "CUDAExecutionProvider":
+            params["EngineConfig.onnxruntime.use_cuda"] = True
+            params["EngineConfig.onnxruntime.cuda_ep_cfg.device_id"] = options.get("device_id", 0)
+        elif provider == "CoreMLExecutionProvider":
+            params["EngineConfig.onnxruntime.use_coreml"] = True
+        elif provider == "DmlExecutionProvider":
+            params["EngineConfig.onnxruntime.use_dml"] = True
+        else:
+            logging.warning(f"RapidOCR does not expose a flag for ONNX provider {provider!r}; falling back to CPU.")
+
+        return params
 
     def _resolve_language(self, model: RapidOcrModel, language: Optional[str]) -> Tuple[str, str]:
         supported_languages = _RAPIDOCR_LANGUAGE_CODE_MAP[model]

@@ -13,6 +13,7 @@ from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.logger import logging
 from ......base import ComponentActionContext
 from ....base import ModelTaskDriver
+from ....utils.onnxruntime import resolve_onnx_providers
 from ..common import MusicTranscriptionTaskAction, MusicTranscriptNotes
 from pathlib import Path
 import os, io, json, shutil, tempfile, zipfile
@@ -345,7 +346,6 @@ class GameMusicTranscriptionTaskDriver(ModelTaskDriver):
 
         self.sessions: Dict[str, Any] = {}
         self.model_config: Dict[str, Any] = {}
-        self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
         return [
@@ -359,10 +359,13 @@ class GameMusicTranscriptionTaskDriver(ModelTaskDriver):
         import onnxruntime as ort
 
         model_path = await self._resolve_model_path()
-        device = self._resolve_device(self.config.device)
-        providers = self._resolve_providers(device)
+        device = self._resolve_device(self.config.device, use_torch=False)
 
         def _load() -> Tuple[Dict[str, Any], Dict[str, Any]]:
+            providers = resolve_onnx_providers(device)
+
+            logging.debug(f"GAME ONNX providers: {providers}")
+
             sessions: Dict[str, Any] = {}
 
             for filename in _GAME_ONNX_FILES:
@@ -378,12 +381,10 @@ class GameMusicTranscriptionTaskDriver(ModelTaskDriver):
 
         self.sessions = sessions
         self.model_config = model_config
-        self.device = device
 
     async def _unload_model(self) -> None:
         self.sessions = {}
         self.model_config = {}
-        self.device = None
 
     async def _resolve_model_path(self) -> Path:
         model_name = self.config.model.name
@@ -445,24 +446,10 @@ class GameMusicTranscriptionTaskDriver(ModelTaskDriver):
 
         raise ValueError(f"GAME bundle does not contain config.json at {staging_dir}")
 
-    def _resolve_providers(self, device: torch.device) -> List[str]:
-        providers: List[str] = self.config.providers or []
-
-        if not providers:
-            if device.type == "cuda":
-                providers.append("CUDAExecutionProvider")
-
-            if device.type == "mps":
-                providers.append("CoreMLExecutionProvider")
-
-            providers.append("CPUExecutionProvider")
-
-        return providers
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await GameMusicTranscriptionTaskAction(
             action,
             self.sessions,
             self.model_config,
-            self.device,
+            None,
         ).run(context)

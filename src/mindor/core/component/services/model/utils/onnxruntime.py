@@ -5,29 +5,43 @@ from mindor.core.logger import logging
 from .device import DeviceSpec
 
 # Hardware-accelerated providers in the order we'd like them tried when the
-# caller lets us pick (`device_type=None`). CPU is appended separately as
+# caller lets us pick (`device_type=None`). Ordered by expected throughput on
+# the hardware they target: vendor-native kernels (TensorRT > CUDA on NVIDIA,
+# ROCm on AMD, CoreML on Apple) come before cross-vendor fallbacks (DirectML
+# on Windows, OpenVINO on Intel). In practice `ort.get_available_providers()`
+# only lists what the installed wheel ships with, so at most one or two of
+# these are real candidates on any given host. CPU is appended separately as
 # the last-resort fallback.
 _ACCELERATED_PROVIDERS = [
-    "CUDAExecutionProvider",
     "TensorrtExecutionProvider",
+    "CUDAExecutionProvider",
     "ROCMExecutionProvider",
     "CoreMLExecutionProvider",
     "DmlExecutionProvider",
+    "OpenVINOExecutionProvider",
 ]
 
-# Map torch-style device types to the single onnxruntime execution provider
-# that runs ops on that device. None (auto-select) is handled specially.
+# Map device types to the single onnxruntime execution provider that runs ops
+# on that device. The `cuda`/`rocm`/`mps` keys line up with torch device types;
+# `tensorrt`/`dml`/`openvino` are ONNX-only aliases that the torch resolver
+# will refuse (surfaced as a clear error at `_resolve_device(use_torch=True)`).
+# None (auto-select) is handled specially.
 _DEVICE_TYPE_PROVIDER_MAP = {
-    "cpu":  "CPUExecutionProvider",
-    "cuda": "CUDAExecutionProvider",
-    "rocm": "ROCMExecutionProvider",
-    "mps":  "CoreMLExecutionProvider",
+    "cpu":      "CPUExecutionProvider",
+    "cuda":     "CUDAExecutionProvider",
+    "rocm":     "ROCMExecutionProvider",
+    "mps":      "CoreMLExecutionProvider",
+    "tensorrt": "TensorrtExecutionProvider",
+    "dml":      "DmlExecutionProvider",
+    "openvino": "OpenVINOExecutionProvider",
 }
 
-# Providers that accept a numeric `device_id` option. CoreML and plain CPU
-# don't — CoreML targets the single Apple Neural Engine / integrated GPU,
-# and CPU EP has no device concept. Passing a device_id to these is silently
-# ignored (not a warning) so `device: mps` and `device: cpu` stay no-ops.
+# Providers that accept a numeric `device_id` option. CoreML, OpenVINO and
+# plain CPU don't — CoreML targets the single Apple Neural Engine / integrated
+# GPU, OpenVINO uses a `device_type` string ("CPU"/"GPU"/"NPU") instead, and
+# CPU EP has no device concept. Passing a device_id to these is silently
+# ignored (not a warning) so `device: mps` / `device: openvino` / `device: cpu`
+# stay no-ops.
 _DEVICE_ID_CAPABLE_PROVIDERS = {
     "CUDAExecutionProvider",
     "ROCMExecutionProvider",

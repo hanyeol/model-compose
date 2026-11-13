@@ -26,7 +26,6 @@ class PestoMusicPitchEstimationModelComponentConfig(CommonMusicPitchEstimationMo
     sample_rate: Optional[int] = Field(default=None, description="Sample rate the model expects; required for onnx and for streaming.")
     step_size: Optional[float] = Field(default=None, description="Hop between CQT frames in milliseconds; torch backend only, mutually exclusive with streaming.chunk_size.")
     streaming: Optional[PestoStreamingConfig] = Field(default=None, description="Enable chunked inference; required for onnx backend.")
-    providers: Optional[List[str]] = Field(default=None, description="onnxruntime execution providers; auto-selected from device when omitted.")
     actions: List[PestoMusicPitchEstimationModelActionConfig] = Field(default_factory=list, description="Actions this music pitch estimation component exposes to workflows.")
 
     @classmethod
@@ -70,9 +69,6 @@ class PestoMusicPitchEstimationModelComponentConfig(CommonMusicPitchEstimationMo
                 raise ValueError("'streaming' requires 'sample_rate'.")
             if self.step_size is not None:
                 raise ValueError("'streaming.chunk_size' and 'step_size' are mutually exclusive; pick one.")
-
-        if self.providers is not None and self.backend != PestoBackend.ONNX:
-            raise ValueError("'providers' only applies when backend=onnx.")
 
         return self
 

@@ -334,6 +334,9 @@ class MinimaxH3ImageToVideoBaseDriver(ModelTaskDriver):
         if self._has_quantization(ModelQuantizationType.INT4):
             requirements.extend(torchao_int4_requirements())
 
+        if self.config.peft_adapter:
+            requirements.append("peft")
+
         return requirements
 
     def _has_quantization(self, type: Optional[ModelQuantizationType] = None) -> bool:

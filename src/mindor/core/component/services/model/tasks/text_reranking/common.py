@@ -5,6 +5,7 @@ from typing import Optional, Dict, List, Any
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import TextRerankingModelActionConfig
+from mindor.core.foundation.variable.text import TextArrayValue
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
@@ -15,34 +16,24 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
         self.config: TextRerankingModelActionConfig = config
 
     async def run(self, context: ComponentActionContext) -> Any:
-        query            = await context.render_text(self.config.query)
-        documents        = await context.render_variable(self.config.documents)
-        document_field   = await context.render_variable(self.config.document_field)
-        top_k            = await context.render_variable(self.config.top_k)
-        score_threshold  = await context.render_variable(self.config.score_threshold)
-        return_documents = await context.render_variable(self.config.return_documents)
-        batch_size       = await context.render_variable(self.config.batch_size)
+        query           = await context.render_text(self.config.query)
+        texts           = await context.render_text_array(self.config.texts, item_is_list=True, single_as_array=True)
+        top_k           = await context.render_variable(self.config.top_k)
+        score_threshold = await context.render_variable(self.config.score_threshold)
+        batch_size      = await context.render_variable(self.config.batch_size)
 
         params = await self._resolve_params(context)
 
         is_single_input  = not isinstance(query, (list, StreamIterator, AsyncIterator))
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        # Wrap a single (query, documents) pair as one reranking job. The tuple zip
-        # below would otherwise broadcast the scalar query across each document,
-        # yielding one rerank per document instead of one rerank over all documents.
-        query     = [ query ] if is_single_input else query
-        documents = [ documents ] if is_single_input else documents
-
         if isinstance(query, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
-                    batch_texts = self._extract_document_texts(batch_documents, document_field)
-                    batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
-                    for scores, documents in zip(batch_scores, batch_documents):
-                        result = self._build_ranked_result(scores, documents, top_k, score_threshold, return_documents)
-                        context.register_source("result", result)
-                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+                async for query, texts in BatchSourceIterator((query, texts), batch_size=1):
+                    scores = await self._rerank(query, texts, batch_size or 1, params, context.cancellation_token)
+                    result = self._build_ranked_result(scores, top_k, score_threshold)
+                    context.register_source("result", result)
+                    yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
             if isinstance(query, StreamChunkIterator) and query.is_fragmented:
                 return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
@@ -50,11 +41,9 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_queries, batch_documents in BatchSourceIterator((query, documents), batch_size=batch_size or 1):
-                batch_texts = self._extract_document_texts(batch_documents, document_field)
-                batch_scores = await self._rerank_batch(batch_queries, batch_texts, params, context.cancellation_token)
-                for scores, documents in zip(batch_scores, batch_documents):
-                    results.append(self._build_ranked_result(scores, documents, top_k, score_threshold, return_documents))
+            async for query, texts in BatchSourceIterator((query, texts), batch_size=1):
+                scores = await self._rerank(query, texts, batch_size or 1, params, context.cancellation_token)
+                results.append(self._build_ranked_result(scores, top_k, score_threshold))
 
             result = results[0] if is_single_input else results
             context.register_source("result", result)
@@ -70,43 +59,13 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
             "normalize":        normalize,
         }
 
-    def _extract_document_texts(self, batch_documents: List[Any], field: Optional[str]) -> List[List[str]]:
-        batch_texts: List[List[str]] = []
-
-        for index, documents in enumerate(batch_documents):
-            if not isinstance(documents, list):
-                batch_documents[index] = documents = [ documents ]
-            batch_texts.append([ self._select_document_text(document, field) for document in documents ])
-
-        return batch_texts
-
-    def _select_document_text(self, document: Any, field: Optional[str]) -> str:
-        if isinstance(document, str):
-            return document
-
-        if isinstance(document, dict):
-            if not field:
-                raise ValueError("document_field must be set when documents are objects.")
-            return document[field]
-
-        raise TypeError(f"Unsupported document element type: {type(document).__name__}")
-
     def _build_ranked_result(
         self,
         scores: List[float],
-        documents: List[Any],
         top_k: Optional[int],
         score_threshold: Optional[float],
-        return_documents: bool,
     ) -> List[Dict[str, Any]]:
-        result: List[Dict[str, Any]] = []
-
-        for index, score in enumerate(scores):
-            item: Dict[str, Any] = { "index": index, "score": float(score) }
-            if return_documents:
-                item["document"] = documents[index]
-            result.append(item)
-
+        result = [ { "index": index, "score": float(score) } for index, score in enumerate(scores) ]
         result.sort(key=lambda item: item["score"], reverse=True)
 
         if score_threshold is not None:
@@ -117,12 +76,16 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
 
         return result
 
+    # Not `_rerank_batch` like sibling tasks: reranking has no job-axis batching
+    # (each call is one query + its candidates). `batch_size` chunks the (query,
+    # text) pair axis inside a single call to cap attention memory.
     @abstractmethod
-    async def _rerank_batch(
+    async def _rerank(
         self,
-        queries: List[str],
-        documents: List[List[str]],
+        query: str,
+        texts: TextArrayValue,
+        batch_size: int,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
+    ) -> List[float]:
         pass

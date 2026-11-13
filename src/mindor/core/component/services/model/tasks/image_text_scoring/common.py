@@ -12,7 +12,6 @@ from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChu
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
-from PIL import Image as PILImage
 
 class ImageTextScore(AtomicDict):
     def __log__(self) -> str:
@@ -35,7 +34,7 @@ class ImageTextScoringTaskAction(ModelTaskComponentAction):
         is_single_input  = isinstance(image, ImageArrayValue)
         is_direct_output = not self.config.output or self.config.output == "${result}"
 
-        # Wrap a single (image_array, text_array) pair as one scoring job so the
+        # Wrap a single (image, text) pair as one scoring job so the
         # BatchSourceIterator below iterates jobs, not elements within the array.
         image = [ image ] if is_single_input else image
         text  = [ text  ] if is_single_input else text
@@ -63,26 +62,6 @@ class ImageTextScoringTaskAction(ModelTaskComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    async def _score_batch(
-        self,
-        images_arrays: List[ImageArrayValue],
-        texts_arrays: List[TextArrayValue],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[ImageTextScore]:
-        results: List[ImageTextScore] = []
-
-        for images_array, texts_array in zip(images_arrays, texts_arrays):
-            images = await images_array.collect()
-            texts  = await texts_array.collect()
-
-            mode = self._resolve_scoring_mode(len(images), len(texts))
-            score = await self._score(images, texts, mode, params, cancellation_token)
-
-            results.append(ImageTextScore(score))
-
-        return results
-
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return_logit   = await context.render_variable(self.config.params.return_logit)
         return_softmax = await context.render_variable(self.config.params.return_softmax)
@@ -92,37 +71,12 @@ class ImageTextScoringTaskAction(ModelTaskComponentAction):
             "return_softmax": return_softmax,
         }
 
-    def _resolve_scoring_mode(self, num_images: int, num_texts: int) -> str:
-        if num_images == 0 or num_texts == 0:
-            raise ValueError(f"Image-text scoring input cannot be empty: images={num_images}, texts={num_texts}")
-
-        if num_images == num_texts:
-            return "pairwise"
-
-        if num_images == 1:
-            return "texts_to_image"
-
-        if num_texts == 1:
-            return "images_to_text"
-
-        raise ValueError(
-            f"Incompatible image/text lengths for scoring: images={num_images}, texts={num_texts}. "
-            "Lengths must match, or one side must have length 1."
-        )
-
     @abstractmethod
-    async def _score(
+    async def _score_batch(
         self,
-        images: List[PILImage.Image],
-        texts: List[str],
-        mode: str,
+        images: List[ImageArrayValue],
+        texts: List[TextArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        """Score one scoring job.
-
-        `mode` is one of 'pairwise', 'texts_to_image', 'images_to_text'.
-        Returns a dict with 'cosine' (float for pairwise len-1, list otherwise)
-        plus optional 'logit' and 'softmax' entries per params.
-        """
+    ) -> List[ImageTextScore]:
         pass

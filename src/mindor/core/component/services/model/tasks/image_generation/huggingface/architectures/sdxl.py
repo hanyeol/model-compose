@@ -193,16 +193,20 @@ class SdxlHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerationBaseDri
         return ControlNetModel
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        pipeline = self.pipelines.get(action.method)
-
         if action.method == ImageGenerationActionMethod.GENERATE:
             return await SdxlHuggingfaceImageGenerationGenerateAction(
-                action, pipeline, self.device, self._get_controlnet_count()
+                action,
+                self.pipelines.get(action.method),
+                self.device,
+                self._get_controlnet_count()
             ).run(context)
 
         if action.method == ImageGenerationActionMethod.INPAINT:
             return await SdxlHuggingfaceImageGenerationInpaintAction(
-                action, pipeline, self.device, self._get_controlnet_count()
+                action,
+                self.pipelines.get(action.method),
+                self.device,
+                self._get_controlnet_count()
             ).run(context)
 
         raise ValueError(f"Unknown method: {action.method}")

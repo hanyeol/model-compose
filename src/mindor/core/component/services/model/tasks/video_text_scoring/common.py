@@ -13,7 +13,6 @@ from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChu
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
-from PIL import Image as PILImage
 
 class VideoTextScore(AtomicDict):
     def __log__(self) -> str:
@@ -43,9 +42,10 @@ class VideoTextScoringTaskAction(ModelTaskComponentAction):
 
         if isinstance(frames, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_videos, batch_texts in BatchSourceIterator((frames, text), batch_size=batch_size or 1):
-                    batch_results = await self._score_batch(batch_videos, batch_texts, params, context.cancellation_token)
-                    for result in batch_results:
+                async for batch_frames, batch_texts in BatchSourceIterator((frames, text), batch_size=batch_size or 1):
+                    batch_scores = await self._score_batch(batch_frames, batch_texts, params, context.cancellation_token)
+                    for score in batch_scores:
+                        result = VideoTextScore(score)
                         context.register_source("result", result)
                         yield (await context.render_variable(self.config.output)) if not is_direct_output else result
 
@@ -55,42 +55,14 @@ class VideoTextScoringTaskAction(ModelTaskComponentAction):
             return _stream_output_generator()
         else:
             results: List[VideoTextScore] = []
-            async for batch_videos, batch_texts in BatchSourceIterator((frames, text), batch_size=batch_size or 1):
-                batch_results = await self._score_batch(batch_videos, batch_texts, params, context.cancellation_token)
-                results.extend(batch_results)
+            async for batch_frames, batch_texts in BatchSourceIterator((frames, text), batch_size=batch_size or 1):
+                batch_scores = await self._score_batch(batch_frames, batch_texts, params, context.cancellation_token)
+                results.extend(VideoTextScore(score) for score in batch_scores)
 
             result = results[0]  # collect-mode packs every video into one job
             context.register_source("result", result)
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
-
-    async def _score_batch(
-        self,
-        frames_arrays: List[Union[ArrayValue, ImageArrayValue]],
-        texts_arrays: List[TextArrayValue],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[VideoTextScore]:
-        results: List[VideoTextScore] = []
-
-        for frames_array, texts_array in zip(frames_arrays, texts_arrays):
-            # `frames_array` is either an ArrayValue (collect-mode: N videos
-            # packed into one job) or a single ImageArrayValue (stream-mode:
-            # one video per tick).
-            if isinstance(frames_array, ArrayValue):
-                videos = await frames_array.collect()
-            else:
-                videos = [ frames_array ]
-
-            videos = [ await video.collect() for video in videos ]
-            texts  = await texts_array.collect()
-
-            mode = self._resolve_scoring_mode(len(videos), len(texts))
-            score = await self._score(videos, texts, mode, params, cancellation_token)
-
-            results.append(VideoTextScore(score))
-
-        return results
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         return_logit   = await context.render_variable(self.config.params.return_logit)
@@ -101,39 +73,12 @@ class VideoTextScoringTaskAction(ModelTaskComponentAction):
             "return_softmax": return_softmax,
         }
 
-    def _resolve_scoring_mode(self, num_videos: int, num_texts: int) -> str:
-        if num_videos == 0 or num_texts == 0:
-            raise ValueError(f"Video-text scoring input cannot be empty: videos={num_videos}, texts={num_texts}")
-
-        if num_videos == num_texts:
-            return "pairwise"
-
-        if num_videos == 1:
-            return "texts_to_video"
-
-        if num_texts == 1:
-            return "videos_to_text"
-
-        raise ValueError(
-            f"Incompatible video/text lengths for scoring: videos={num_videos}, texts={num_texts}. "
-            "Lengths must match, or one side must have length 1."
-        )
-
     @abstractmethod
-    async def _score(
+    async def _score_batch(
         self,
-        videos: List[List[PILImage.Image]],
-        texts: List[str],
-        mode: str,
+        frames: List[Union[ArrayValue, ImageArrayValue]],
+        texts: List[TextArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        """Score one job.
-
-        `videos` is a list of per-video frame sequences; the driver samples each
-        to the architecture's expected frame count before forwarding.
-        `mode` is one of 'pairwise', 'texts_to_video', 'videos_to_text'.
-        Returns a dict with 'cosine' (float for single-pair pairwise, list
-        otherwise) plus optional 'logit' and 'softmax' entries per params.
-        """
+    ) -> List[Dict[str, Any]]:
         pass

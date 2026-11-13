@@ -1,32 +1,25 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple, Type, Optional, Dict, List, Any
+from typing import Tuple, Type, Optional, Dict, List, Any
 from collections.abc import AsyncIterator
+
 from mindor.dsl.schema.action import ModelActionConfig, AnimateDiffHuggingfaceVideoToVideoModelActionConfig
-from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, ModelSubmoduleConfig, HuggingfaceVideoToVideoModelArchitecture
-from mindor.core.foundation.package.torch import torch_requirements
+from mindor.dsl.schema.component import ModelConfig, ModelSubmoduleConfig
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator
-from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource, encode_frames_to_mp4
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.logger import logging
-from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
-from ...base import ComponentActionContext
-from ...base.huggingface.diffusion import HuggingfaceDiffusionPipelineTaskDriver
-from .common import VideoToVideoTaskAction
+from .....base import ComponentActionContext
+from ..base import HuggingfaceVideoToVideoTaskAction, HuggingfaceVideoToVideoBaseDriver
 from PIL import Image as PILImage
-import asyncio
 
 if TYPE_CHECKING:
     from diffusers import DiffusionPipeline
     import torch
 
-class PipelineCancelled(Exception):
-    pass
-
-class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
+class AnimateDiffHuggingfaceVideoToVideoTaskAction(HuggingfaceVideoToVideoTaskAction):
     config: AnimateDiffHuggingfaceVideoToVideoModelActionConfig
 
     def __init__(
@@ -37,10 +30,8 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
         ip_adapter_count: int = 0,
         controlnet_count: int = 0,
     ):
-        super().__init__(config)
+        super().__init__(config, pipeline, device)
 
-        self.pipeline: DiffusionPipeline = pipeline
-        self.device: Optional[torch.device] = device
         self.ip_adapter_count: int = ip_adapter_count
         self.controlnet_count: int = controlnet_count
 
@@ -251,7 +242,12 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
     ) -> List[VideoStreamResource]:
         sources, prompts, negative_prompts, reference_images, attention_masks, conditioning_frames = inputs
 
-        batch_frames, batch_fps = await self._collect_batch_frames(sources, params)
+        batch_frames, batch_fps = await self._collect_batch_frames(
+            sources,
+            params.get("num_frames"),
+            params["pipeline"].get("width"),
+            params["pipeline"].get("height"),
+        )
 
         if self.ip_adapter_count > 0 and reference_images is not None:
             reference_images = await self._build_pipeline_reference_images(reference_images)
@@ -342,75 +338,7 @@ class AnimateDiffHuggingfaceVideoToVideoTaskAction(VideoToVideoTaskAction):
 
         return await self._run_in_executor(_generate)
 
-    def _process_pipeline(
-        self,
-        pipeline_params: Dict[str, Any],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken],
-    ) -> Any:
-        """Invoke the diffusers pipeline with a seed generator and cancel hook."""
-        import torch
-
-        generator: Optional[torch.Generator] = None
-
-        if params["seed"] is not None:
-            generator = torch.Generator(device=self.device).manual_seed(params["seed"])
-
-        if cancellation_token is not None:
-            def _abort_if_cancelled(pipe, step, timestep, callback_kwargs):
-                if cancellation_token.is_cancelled():
-                    raise PipelineCancelled()
-                return callback_kwargs
-
-            pipeline_params = { **pipeline_params, "callback_on_step_end": _abort_if_cancelled }
-
-        try:
-            return self.pipeline(generator=generator, **pipeline_params)
-        except PipelineCancelled:
-            raise asyncio.CancelledError()
-
-    async def _collect_batch_frames(
-        self,
-        sources: List[Union[MediaSource, ImageArrayValue]],
-        params: Dict[str, Any],
-    ) -> Tuple[List[List[PILImage.Image]], List[Optional[float]]]:
-        """Collect batch frames along with each clip's detected native fps.
-
-        Video sources report their native fps via imageio metadata; image_array
-        inputs can't, so their slot is left None and callers fall back to the
-        action's `fps` (or a default) when encoding.
-        """
-        num_frames = params.get("num_frames")
-        width      = params["pipeline"].get("width")
-        height     = params["pipeline"].get("height")
-
-        batch_frames: List[List[PILImage.Image]] = []
-        batch_fps: List[Optional[float]] = []
-
-        for source in sources:
-            if isinstance(source, MediaSource):
-                frames, fps = await self._collect_frames_from_video(source, num_frames, width, height)
-                batch_frames.append(frames)
-                batch_fps.append(fps)
-            else:
-                frames = await self._collect_frames_from_image_array(source, num_frames, width, height)
-                batch_frames.append(frames)
-                batch_fps.append(None)
-
-        return batch_frames, batch_fps
-
-@register_model_task_driver(ModelTaskType.VIDEO_TO_VIDEO, ModelDriverType.HUGGINGFACE)
-class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[None]):
-    def _get_setup_requirements(self) -> List[Union[str, Tuple[str, List[str]]]]:
-        return [
-            *super()._get_setup_requirements(),
-            "imageio",
-            "imageio-ffmpeg",
-        ]
-
-    def _get_torch_requirements(self) -> List[str]:
-        return torch_requirements("torch", "torchaudio")
-
+class AnimateDiffHuggingfaceVideoToVideoTaskDriver(HuggingfaceVideoToVideoBaseDriver):
     async def _load_model(self) -> None:
         await super()._load_model()
 
@@ -418,22 +346,19 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
             await self._attach_ip_adapters()
 
     async def _load_pipeline_submodules(self, device: torch.device, dtype: torch.dtype) -> Dict[str, Any]:
-        if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            submodules: Dict[str, Any] = {
-                "motion_adapter": await self._load_pretrained_motion_adapter(self.config.motion_adapter, device, dtype),
-            }
+        submodules: Dict[str, Any] = {
+            "motion_adapter": await self._load_pretrained_motion_adapter(self.config.motion_adapter, device, dtype),
+        }
 
-            image_encoder = self._get_shared_image_encoder()
+        image_encoder = self._get_shared_image_encoder()
 
-            if image_encoder is not None:
-                submodules["image_encoder"] = await self._load_pretrained_image_encoder(image_encoder, device, dtype)
+        if image_encoder is not None:
+            submodules["image_encoder"] = await self._load_pretrained_image_encoder(image_encoder, device, dtype)
 
-            if self.config.controlnet:
-                submodules["controlnet"] = await self._load_pretrained_controlnet_models(self.config.controlnet, device, dtype)
+        if self.config.controlnet:
+            submodules["controlnet"] = await self._load_pretrained_controlnet_models(self.config.controlnet, device, dtype)
 
-            return submodules
-
-        raise ValueError(f"Unknown architecture: {self.config.architecture}")
+        return submodules
 
     async def _load_pretrained_motion_adapter(
         self,
@@ -454,34 +379,6 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
             }
 
             return MotionAdapter.from_pretrained(adapter_path, **params).to(device)
-
-        return await self._run_in_executor(_load)
-
-    async def _load_pretrained_controlnet_models(
-        self,
-        controlnets: List[ModelSubmoduleConfig],
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> Any:
-        model_class = self._get_controlnet_model_class()
-        model_paths = [ await self._provision_model(controlnet.model) for controlnet in controlnets ]
-
-        def _load() -> Any:
-            models: List[Any] = []
-
-            for controlnet, model_path in zip(controlnets, model_paths):
-                logging.info(f"Component '{self.id}': loading {model_class.__name__} from {model_path}")
-
-                params: Dict[str, Any] = {
-                    **self._get_model_params(controlnet.model),
-                    **self._get_model_options(controlnet, default_dtype=dtype),
-                }
-
-                models.append(model_class.from_pretrained(model_path, **params).to(device))
-
-            # diffusers accepts a single ControlNetModel for one net and a list
-            # for multi-ControlNet (wrapped internally as MultiControlNetModel).
-            return models[0] if len(models) == 1 else models
 
         return await self._run_in_executor(_load)
 
@@ -561,33 +458,30 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
         image_encoder_folder = None if self._get_shared_image_encoder() is not None else "image_encoder"
 
         def _load() -> None:
-            for pipeline in self.pipelines.values():
-                pipeline.load_ip_adapter(
-                    adapter_paths,
-                    subfolder=subfolders,
-                    weight_name=weight_names,
-                    image_encoder_folder=image_encoder_folder,
-                )
+            self.pipelines.get(None).load_ip_adapter(
+                adapter_paths,
+                subfolder=subfolders,
+                weight_name=weight_names,
+                image_encoder_folder=image_encoder_folder,
+            )
 
         await self._run_in_executor(_load)
 
     def _get_pipeline_class(self, method: Optional[None]) -> Type[DiffusionPipeline]:
-        if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            if self._get_controlnet_count() > 0:
-                from diffusers import AnimateDiffVideoToVideoControlNetPipeline
-                return AnimateDiffVideoToVideoControlNetPipeline
-            else:
-                from diffusers import AnimateDiffVideoToVideoPipeline
-                return AnimateDiffVideoToVideoPipeline
+        if self._get_controlnet_count() > 0:
+            from diffusers import AnimateDiffVideoToVideoControlNetPipeline
+            return AnimateDiffVideoToVideoControlNetPipeline
 
-        raise ValueError(f"Unknown architecture: {self.config.architecture}")
+        from diffusers import AnimateDiffVideoToVideoPipeline
+        return AnimateDiffVideoToVideoPipeline
 
     def _get_controlnet_model_class(self) -> Type[Any]:
-        if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            from diffusers import ControlNetModel
-            return ControlNetModel
+        from diffusers import ControlNetModel
+        return ControlNetModel
 
-        raise ValueError(f"ControlNet is not supported for architecture: {self.config.architecture}")
+    def _get_accelerated_dtype(self) -> torch.dtype:
+        import torch
+        return torch.float16
 
     def _get_ip_adapter_count(self) -> int:
         return len(self.config.ip_adapter) if self.config.ip_adapter else 0
@@ -595,24 +489,11 @@ class HuggingfaceVideoToVideoTaskDriver(HuggingfaceDiffusionPipelineTaskDriver[N
     def _get_controlnet_count(self) -> int:
         return len(self.config.controlnet) if self.config.controlnet else 0
 
-    def _get_accelerated_dtype(self) -> torch.dtype:
-        import torch
-
-        if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            return torch.float16
-
-        return torch.bfloat16
-
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        pipeline = self.pipelines.get(None) if self.pipelines else None
-
-        if self.config.architecture == HuggingfaceVideoToVideoModelArchitecture.ANIMATEDIFF:
-            return await AnimateDiffHuggingfaceVideoToVideoTaskAction(
-                action,
-                pipeline,
-                self.device,
-                self._get_ip_adapter_count(),
-                self._get_controlnet_count()
-            ).run(context)
-
-        raise ValueError(f"Unknown architecture: {self.config.architecture}")
+        return await AnimateDiffHuggingfaceVideoToVideoTaskAction(
+            action,
+            self.pipelines.get(None),
+            self.device,
+            self._get_ip_adapter_count(),
+            self._get_controlnet_count(),
+        ).run(context)

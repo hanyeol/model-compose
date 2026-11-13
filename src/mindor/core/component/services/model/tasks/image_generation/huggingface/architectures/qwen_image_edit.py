@@ -103,11 +103,12 @@ class QwenImageEditHuggingfaceImageGenerationTaskDriver(HuggingfaceImageGenerati
         return [ "transformer", "text_encoder" ]
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        pipeline = self.pipelines.get(action.method)
-
         if action.method == ImageGenerationActionMethod.GENERATE:
             return await QwenImageEditHuggingfaceImageGenerationGenerateAction(
-                action, pipeline, self.device, self._get_controlnet_count()
+                action,
+                self.pipelines.get(action.method),
+                self.device,
+                self._get_controlnet_count()
             ).run(context)
 
         raise ValueError(f"Inpainting is not supported for architecture: qwen-image-edit")

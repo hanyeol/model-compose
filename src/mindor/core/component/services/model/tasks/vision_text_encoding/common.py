@@ -4,12 +4,11 @@ from typing import Any, Dict, List, Optional
 from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VisionTextEncodingModelActionConfig
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
-from PIL import Image as PILImage
-import asyncio
 
 class VisionTextEncodingTaskAction(ModelTaskComponentAction):
     def __init__(self, config: VisionTextEncodingModelActionConfig):
@@ -60,29 +59,13 @@ class VisionTextEncodingTaskAction(ModelTaskComponentAction):
             "max_length":         max_length,
         }
 
+    @abstractmethod
     async def _encode_batch(
         self,
         texts: List[str],
-        images: List[Any],
-        frames: List[Any],
+        images: List[Optional[ImageArrayValue]],
+        frames: List[Optional[ImageArrayValue]],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[Dict[str, Any]]:
-        images = [ (await item.collect() if item is not None else []) for item in images ]
-        frames = [ (await item.collect() if item is not None else []) for item in frames ]
-
-        return await asyncio.gather(*[
-            self._encode(text, images[index], frames[index], params, cancellation_token)
-            for index, text in enumerate(texts)
-        ])
-
-    @abstractmethod
-    async def _encode(
-        self,
-        text: str,
-        images: List[PILImage.Image],
-        frames: List[PILImage.Image],
-        params: Dict[str, Any],
-        cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
         pass

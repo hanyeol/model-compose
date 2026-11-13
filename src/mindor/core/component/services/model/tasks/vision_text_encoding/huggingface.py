@@ -4,12 +4,14 @@ from typing import TYPE_CHECKING
 from typing import Any, Dict, List, Optional, Protocol, Type, Union
 from mindor.dsl.schema.action import ModelActionConfig, VisionTextEncodingModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceVisionTextEncodingModelComponentConfig
+from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
 from .common import VisionTextEncodingTaskAction
 from PIL import Image as PILImage
+import asyncio
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer, ProcessorMixin
@@ -34,6 +36,22 @@ class HuggingfaceVisionTextEncodingTaskAction(VisionTextEncodingTaskAction):
         self.processor: Union[ProcessorMixin, WithTokenizer] = processor
         self.device: torch.device = device
         self.chat_template: Optional[str] = chat_template
+
+    async def _encode_batch(
+        self,
+        texts: List[str],
+        images: List[Optional[ImageArrayValue]],
+        frames: List[Optional[ImageArrayValue]],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Dict[str, Any]]:
+        images = [ (await item.collect() if item is not None else []) for item in images ]
+        frames = [ (await item.collect() if item is not None else []) for item in frames ]
+
+        return await asyncio.gather(*[
+            self._encode(text, images[index], frames[index], params, cancellation_token)
+            for index, text in enumerate(texts)
+        ])
 
     async def _encode(
         self,

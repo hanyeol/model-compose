@@ -39,11 +39,11 @@ class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoEmbedding]:
-        expected_frames = self._get_expected_frame_count()
         sampled_videos: List[List[PILImage.Image]] = []
+        frame_count = self._get_expected_frame_count()
 
         for video in videos:
-            sampled_videos.append(self._sample_frames(await video.collect(), expected_frames))
+            sampled_videos.append(self._sample_frames(await video.collect(), frame_count))
 
         def _embed() -> List[VideoEmbedding]:
             import torch, torch.nn.functional as F

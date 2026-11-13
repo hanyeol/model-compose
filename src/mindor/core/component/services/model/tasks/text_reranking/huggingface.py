@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from typing import Type, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import HuggingfaceTextRerankingModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, TextRerankingModelActionConfig
+from mindor.core.foundation.variable.text import TextArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
@@ -44,40 +45,41 @@ class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
 
         return params
 
-    async def _rerank_batch(
+    async def _rerank(
         self,
-        queries: List[str],
-        documents: List[List[str]],
+        query: str,
+        texts: TextArrayValue,
+        batch_size: int,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> List[List[float]]:
-        def _rerank() -> List[List[float]]:
+    ) -> List[float]:
+        texts = await texts.collect()
+        pairs: List[Tuple[str, str]] = [ (query, text) for text in texts ]
+
+        def _rerank() -> List[float]:
             import torch
 
-            pairs: List[Tuple[str, str]] = []
-            offsets: List[int] = []
-            for query, texts in zip(queries, documents):
-                offsets.append(len(pairs))
-                pairs.extend((query, text) for text in texts)
+            scores: List[float] = []
 
-            inputs: Dict[str, Tensor] = self.tokenizer(pairs, **params["tokenizer"])
-            inputs = { key: value.to(self.device) for key, value in inputs.items() }
+            for start in range(0, len(pairs), batch_size):
+                inputs: Dict[str, Tensor] = self.tokenizer(pairs[start:start + batch_size], **params["tokenizer"])
+                inputs = { key: value.to(self.device) for key, value in inputs.items() }
 
-            with torch.inference_mode():
-                outputs: SequenceClassifierOutput = self.model(**inputs)
-                logits = outputs.logits
+                with torch.inference_mode():
+                    outputs: SequenceClassifierOutput = self.model(**inputs)
+                    logits = outputs.logits
 
-            if logits.dim() == 2 and logits.size(-1) > 1:
-                scores = logits[:, -1]
-            else:
-                scores = logits.view(-1)
+                if logits.dim() == 2 and logits.size(-1) > 1:
+                    chunk_scores = logits[:, -1]
+                else:
+                    chunk_scores = logits.view(-1)
 
-            if params["normalize"]:
-                scores = torch.sigmoid(scores)
+                if params["normalize"]:
+                    chunk_scores = torch.sigmoid(chunk_scores)
 
-            scores = scores.float().cpu().tolist()
+                scores.extend(chunk_scores.float().cpu().tolist())
 
-            return [ scores[start:start + len(texts)] for start, texts in zip(offsets, documents) ]
+            return scores
 
         return await self._run_in_executor(_rerank)
 

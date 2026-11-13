@@ -115,10 +115,10 @@ class KokoroTextToSpeechTaskDriver(ModelTaskDriver):
     def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
         super().__init__(id, config, daemon)
 
-        # One pipeline per Kokoro lang_code. Loaded lazily on first request
-        # for that language and cached for the lifetime of the service, since
-        # each pipeline pulls in language-specific g2p resources.
+        # KPipeline loads a fresh KModel per instance unless one is injected;
+        # share `self.model` across lang_code pipelines to avoid duplication.
         self.pipelines: Dict[str, Any] = {}
+        self.model: Optional[Any] = None
         self.device: Optional[torch.device] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
@@ -140,10 +140,15 @@ class KokoroTextToSpeechTaskDriver(ModelTaskDriver):
                 device=str(device)
             )
 
-        self.pipelines[_KOKORO_DEFAULT_LANG_CODE], self.device = await self._run_in_executor(_load), device
+        pipeline = await self._run_in_executor(_load)
+
+        self.pipelines[_KOKORO_DEFAULT_LANG_CODE] = pipeline
+        self.model = pipeline.model
+        self.device = device
 
     async def _unload_model(self) -> None:
         self.pipelines = {}
+        self.model = None
         self.device = None
 
     def _get_or_create_pipeline(self, lang_code: str) -> Any:
@@ -151,7 +156,8 @@ class KokoroTextToSpeechTaskDriver(ModelTaskDriver):
 
         if pipeline is None:
             from kokoro import KPipeline
-            pipeline = KPipeline(lang_code=lang_code, device=str(self.device))
+
+            pipeline = KPipeline(lang_code=lang_code, model=self.model, device=str(self.device))
             self.pipelines[lang_code] = pipeline
 
         return pipeline

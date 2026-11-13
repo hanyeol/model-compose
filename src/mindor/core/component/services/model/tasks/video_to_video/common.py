@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Union, Optional, Dict, List, Tuple, Any
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoToVideoModelActionConfig
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
@@ -120,6 +120,34 @@ class VideoToVideoTaskAction(ModelTaskComponentAction):
             frames.append(self._preprocess_frame(image, width, height))
 
         return frames
+
+    async def _collect_batch_frames(
+        self,
+        sources: List[Union[MediaSource, ImageArrayValue]],
+        num_frames: Optional[int],
+        width: Optional[int],
+        height: Optional[int],
+    ) -> Tuple[List[List[PILImage.Image]], List[Optional[float]]]:
+        """Collect batch frames along with each clip's detected native fps.
+
+        Video sources report their native fps via imageio metadata; image_array
+        inputs can't, so their slot is left None and callers fall back to the
+        action's `fps` (or a default) when encoding.
+        """
+        batch_frames: List[List[PILImage.Image]] = []
+        batch_fps: List[Optional[float]] = []
+
+        for source in sources:
+            if isinstance(source, MediaSource):
+                frames, fps = await self._collect_frames_from_video(source, num_frames, width, height)
+                batch_frames.append(frames)
+                batch_fps.append(fps)
+            else:
+                frames = await self._collect_frames_from_image_array(source, num_frames, width, height)
+                batch_frames.append(frames)
+                batch_fps.append(None)
+
+        return batch_frames, batch_fps
 
     @staticmethod
     def _preprocess_frame(

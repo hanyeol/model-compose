@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING
 from typing import Type, Optional, Dict, List, Any
 from mindor.dsl.schema.action import ModelActionConfig, ImageTextScoringModelActionConfig
 from mindor.dsl.schema.component import HuggingfaceImageTextScoringModelArchitecture
+from mindor.core.foundation.variable.image import ImageArrayValue
+from mindor.core.foundation.variable.text import TextArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
 from ...base import ModelTaskType, ModelDriverType, register_model_task_driver
 from ...base import ComponentActionContext
 from ...base.huggingface.multimodal import HuggingfaceMultimodalModelTaskDriver
-from .common import ImageTextScoringTaskAction
+from .common import ImageTextScore, ImageTextScoringTaskAction
 from PIL import Image as PILImage
 
 if TYPE_CHECKING:
@@ -30,21 +32,29 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
         self.processor: ProcessorMixin = processor
         self.device: torch.device = device
 
-    async def _score(
+    async def _score_batch(
         self,
-        images: List[PILImage.Image],
-        texts: List[str],
-        mode: str,
+        images: List[ImageArrayValue],
+        texts: List[TextArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        def _score() -> Dict[str, Any]:
-            cosines, logits = self._forward(images, texts)
+    ) -> List[ImageTextScore]:
+        images = [ await images.collect() for images in images ]
+        texts  = [ await texts.collect()  for texts  in texts  ]
+        modes  = [ self._resolve_scoring_mode(len(images), len(texts)) for images, texts in zip(images, texts) ]
 
-            if mode == "pairwise":
-                return self._build_pairwise_result(cosines, logits, params)
+        def _score() -> List[ImageTextScore]:
+            results: List[ImageTextScore] = []
 
-            return self._build_cross_result(cosines, logits, mode, params)
+            for images, texts, mode in zip(images, texts, modes):
+                cosines, logits = self._forward(images, texts)
+
+                if mode == "pairwise":
+                    results.append(ImageTextScore(self._build_pairwise_result(cosines, logits, params)))
+                else:
+                    results.append(ImageTextScore(self._build_cross_result(cosines, logits, mode, params)))
+
+            return results
 
         return await self._run_in_executor(_score)
 
@@ -75,6 +85,24 @@ class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
             cosines = image_features @ text_features.T
 
             return cosines.detach().cpu(), None
+
+    def _resolve_scoring_mode(self, num_images: int, num_texts: int) -> str:
+        if num_images == 0 or num_texts == 0:
+            raise ValueError(f"Image-text scoring input cannot be empty: images={num_images}, texts={num_texts}")
+
+        if num_images == num_texts:
+            return "pairwise"
+
+        if num_images == 1:
+            return "texts_to_image"
+
+        if num_texts == 1:
+            return "images_to_text"
+
+        raise ValueError(
+            f"Incompatible image/text lengths for scoring: images={num_images}, texts={num_texts}. "
+            "Lengths must match, or one side must have length 1."
+        )
 
     def _build_pairwise_result(self, cosines: Tensor, logits: Optional[Tensor], params: Dict[str, Any]) -> Dict[str, Any]:
         # Diagonal: (image[index], text[index]) scores.

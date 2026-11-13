@@ -29,10 +29,10 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
 
         if isinstance(query, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
-                async for batch_query, batch_texts in BatchSourceIterator((query, texts), batch_size=1):
+                async for batch_queries, batch_texts in BatchSourceIterator((query, texts), batch_size=1):
                     # BatchSourceIterator packs each tick into a length-1 batch; the
                     # reranker API takes one (query, texts) pair, so unpack here.
-                    scores = await self._rerank(batch_query[0], batch_texts[0], batch_size or 1, params, context.cancellation_token)
+                    scores = await self._rerank(batch_queries[0], batch_texts[0], batch_size or 1, params, context.cancellation_token)
                     result = self._build_ranked_result(scores, top_k, score_threshold)
                     context.register_source("result", result)
                     yield (await context.render_variable(self.config.output)) if not is_direct_output else result
@@ -43,10 +43,10 @@ class TextRerankingTaskAction(ModelTaskComponentAction):
             return _stream_output_generator()
         else:
             results: List[Any] = []
-            async for batch_query, batch_texts in BatchSourceIterator((query, texts), batch_size=1):
+            async for batch_queries, batch_texts in BatchSourceIterator((query, texts), batch_size=1):
                 # BatchSourceIterator packs each tick into a length-1 batch; the
                 # reranker API takes one (query, texts) pair, so unpack here.
-                scores = await self._rerank(batch_query[0], batch_texts[0], batch_size or 1, params, context.cancellation_token)
+                scores = await self._rerank(batch_queries[0], batch_texts[0], batch_size or 1, params, context.cancellation_token)
                 results.append(self._build_ranked_result(scores, top_k, score_threshold))
 
             result = results[0] if is_single_input else results

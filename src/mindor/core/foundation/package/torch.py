@@ -85,6 +85,24 @@ _TORCH_SIBLING_TABLES: Dict[str, Dict[str, SiblingPin]] = {
     "torchcodec":  _TORCHCODEC_FOR_TORCH,
 }
 
+# torchao's int4 GEMM kernel (`mslk`), pinned per (torch, channel) because
+# mslk 1.2.0 switched its `at::Tag` mangling to `torch::headeronly::Tag` to
+# track the move added in pytorch v2.12.0 — so 1.1.x only links against
+# torch <= 2.11 and 1.2+ only against torch >= 2.12. Channel-scoped because
+# the two ABI generations don't overlap on every channel; a missing channel
+# key means no ABI-matching wheel exists and the caller refuses the install.
+_MSLK_FOR_TORCH: Dict[str, SiblingPin] = {
+    "2.13.0": { "cu130": "1.4.0", "cu132": "1.4.0" },
+    "2.12.1": { "cu130": "1.4.0", "cu132": "1.4.0" },
+    "2.12.0": { "cu130": "1.4.0", "cu132": "1.4.0" },
+    "2.11.1": { "cu126": "1.1.1", "cu128": "1.1.1", "cu130": "1.1.1" },
+    "2.11.0": { "cu126": "1.1.1", "cu128": "1.1.1", "cu130": "1.1.1" },
+    "2.10.0": { "cu126": "1.1.1", "cu128": "1.1.1", "cu130": "1.1.1" },
+    "2.9.1":  { "cu126": "1.1.1", "cu128": "1.1.1", "cu130": "1.1.1" },
+    "2.9.0":  { "cu126": "1.1.1", "cu128": "1.1.1", "cu130": "1.1.1" },
+    "2.8.0":  { "cu126": "1.1.1", "cu128": "1.1.1", "cu129": "1.1.0" },
+}
+
 # torch version → CUDA channels that ship a wheel for it, ordered high-to-low.
 # A "channel" pairs a wheel name (cu128) with the minimum driver CUDA version
 # it requires (driver must be >= this). Data source: PyTorch previous-versions
@@ -184,24 +202,34 @@ def torch_requirements(*specs: str) -> List[str]:
 def torchao_int4_requirements() -> List[str]:
     """Return the install spec for `mslk`, torchao's int4 GEMM kernel package.
 
-    torchao's `Int4WeightOnlyConfig` lowers to `Int4Tensor`, whose matmul path
-    depends on `mslk` (shipped as a torch third-party kernel bundle for SM100+
-    Blackwell). PyPI only hosts an `mslk==0.0.0` placeholder; the real wheels
-    live on the PyTorch wheel index under the CUDA channel the installed/
-    resolved torch targets. We reuse `resolve_torch_build()` so the channel
-    matches what `torch_requirements()` already settled on for the env.
+    Pinned per (torch, channel) because `mslk` has two libtorch ABI
+    generations (see `_MSLK_FOR_TORCH`) — a plain `>=1.0.0` lets pip pick the
+    channel-newest wheel, which on cu126/cu128 is still ABI-A and dies at
+    import against torch 2.12+ with `undefined symbol: ...Library::_def...`.
 
-    Returns [] on hosts without a CUDA wheel channel (CPU/non-NVIDIA) — the
-    kernel can't run there, so skipping the requirement lets the pipeline fall
-    through to the natural ImportError at config-build time rather than the
-    opaque pip failure of "no wheel on the CPU index".
+    Raises `RuntimeError` when the resolved pair has no ABI-matching wheel,
+    so the pipeline fails before any checkpoint download rather than at
+    import time. Returns [] on CPU/non-CUDA hosts; torchao surfaces its own
+    ImportError there.
     """
-    _, channel = resolve_torch_build()
+    torch_version, channel = resolve_torch_build()
 
     if channel is None or channel == _CPU_CHANNEL:
         return []
 
-    return [ f"mslk>=1.0.0@{_WHEEL_INDEX_BASE}/{channel}" ]
+    if torch_version is None:
+        return []
+
+    mslk_version = _lookup_sibling_pin(_MSLK_FOR_TORCH.get(torch_version), channel)
+
+    if mslk_version is None:
+        raise RuntimeError(
+            f"No ABI-matching `mslk` wheel for torch {torch_version} on channel {channel}. "
+            f"Use `quantization: fp8`/`int8`, or move to a channel that ships `mslk` for this "
+            f"torch — torch 2.12+ needs cu130/cu132, torch <= 2.11 needs cu126/cu128/cu129/cu130."
+        )
+
+    return [ f"mslk=={mslk_version}@{_WHEEL_INDEX_BASE}/{channel}" ]
 
 def resolve_torch_build(*specs: str) -> Tuple[Optional[str], Optional[str]]:
     """Return the (torch version, wheel channel) that `torch_requirements(*specs)` settles on.

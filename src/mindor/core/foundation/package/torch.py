@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict, Iterable
+from typing import Optional, List, Tuple, Dict, Iterable, Union
 from importlib.metadata import PackageNotFoundError, version as _get_installed_version
 from packaging.requirements import Requirement
 from packaging.version import InvalidVersion, Version
@@ -13,9 +13,16 @@ import functools
 # torch (see `_resolve_sibling_version`) — this covers packages that stopped
 # releasing paired versions and instead declared forward compatibility, such
 # as torchaudio 2.11.0 which is ABI-stable with later torch releases.
+#
+# A value may be either a plain string (same sibling version on every channel)
+# or a `{channel: version}` dict with a "*" key for the default; use the dict
+# form when a sibling release is only published to a subset of channels (e.g.
+# torchaudio 2.11.1 ships on cu132 only, while other channels keep 2.11.0).
 
-_TORCHAUDIO_FOR_TORCH: Dict[str, str] = {
-    "2.11.1": "2.11.1",
+SiblingPin = Union[str, Dict[str, str]]
+
+_TORCHAUDIO_FOR_TORCH: Dict[str, SiblingPin] = {
+    "2.11.1": { "cu132": "2.11.1", "*": "2.11.0" },
     "2.11.0": "2.11.0",
     "2.10.0": "2.10.0",
     "2.9.1":  "2.9.1",
@@ -30,7 +37,7 @@ _TORCHAUDIO_FOR_TORCH: Dict[str, str] = {
     "2.4.0":  "2.4.0",
 }
 
-_TORCHVISION_FOR_TORCH: Dict[str, str] = {
+_TORCHVISION_FOR_TORCH: Dict[str, SiblingPin] = {
     "2.13.0": "0.28.0",
     "2.12.1": "0.27.1",
     "2.12.0": "0.27.0",
@@ -50,7 +57,7 @@ _TORCHVISION_FOR_TORCH: Dict[str, str] = {
 
 # torchcodec compatibility per https://github.com/pytorch/torchcodec — pinned to
 # the highest release that officially supports each torch version.
-_TORCHCODEC_FOR_TORCH: Dict[str, str] = {
+_TORCHCODEC_FOR_TORCH: Dict[str, SiblingPin] = {
     # Per the torchcodec compatibility matrix, 0.14+ supports any torch
     # `>=2.11`, so later torch releases pin to the latest torchcodec with
     # a matching wheel channel; only torch==2.11.0 needs the old 0.11 pin.
@@ -72,7 +79,7 @@ _TORCHCODEC_FOR_TORCH: Dict[str, str] = {
     "2.4.0":  "0.0.3",
 }
 
-_TORCH_SIBLING_TABLES: Dict[str, Dict[str, str]] = {
+_TORCH_SIBLING_TABLES: Dict[str, Dict[str, SiblingPin]] = {
     "torchaudio":  _TORCHAUDIO_FOR_TORCH,
     "torchvision": _TORCHVISION_FOR_TORCH,
     "torchcodec":  _TORCHCODEC_FOR_TORCH,
@@ -264,17 +271,19 @@ def _resolve_torch_and_channel(
     if reusable_torch is not None:
         installed_version, channel = reusable_torch
 
-        if all(_resolve_sibling_version(sibling, installed_version) is not None for sibling in torch_siblings):
+        if all(_resolve_sibling_version(sibling, installed_version, channel) is not None for sibling in torch_siblings):
             return installed_version, channel, False
 
     for version in _supported_torch_versions(torch_specifier):
-        if not all(_resolve_sibling_version(sibling, version) is not None for sibling in torch_siblings):
-            continue
-
         channel = _pick_channel_for_cuda_driver(version, cuda_version)
 
-        if channel is not None:
-            return version, channel, True
+        if channel is None:
+            continue
+
+        if not all(_resolve_sibling_version(sibling, version, channel) is not None for sibling in torch_siblings):
+            continue
+
+        return version, channel, True
 
     return None
 
@@ -302,28 +311,53 @@ def _resolve_torch_without_channel(torch_specifier: Optional[SpecifierSet]) -> O
 
     return candidates[0]
 
-def _resolve_sibling_version(sibling: str, torch_version: str) -> Optional[str]:
-    """Return the sibling release paired with `torch_version`.
+def _resolve_sibling_version(sibling: str, torch_version: str, channel: Optional[str] = None) -> Optional[str]:
+    """Return the sibling release paired with `torch_version` on `channel`.
 
     Prefers an exact entry in the sibling table; otherwise falls back to the
     highest tabled version whose paired torch is <= `torch_version`. The
     fallback covers packages that stopped shipping same-cadence releases and
     declared forward compatibility instead (e.g. torchaudio 2.11.0), so a new
     torch release doesn't require editing the sibling table.
+
+    Entries may be channel-scoped dicts (e.g. torchaudio 2.11.1 ships on
+    cu132 only). `channel` selects the per-channel override; when the
+    resolved entry has no matching channel key and no "*" default, the
+    resolver falls through to the next-lower torch version so the final pin
+    always names a wheel that the chosen index actually publishes.
     """
     table = _TORCH_SIBLING_TABLES[sibling]
-    exact = table.get(torch_version)
+    sibling_version = _lookup_sibling_pin(table.get(torch_version), channel)
 
-    if exact is not None:
-        return exact
+    if sibling_version is not None:
+        return sibling_version
 
-    torch_key = Version(torch_version)
-    candidates = [ tabled for tabled in table if Version(tabled) <= torch_key ]
+    torch_version = Version(torch_version)
+    fallback_versions = sorted(
+        (version for version in table if Version(version) <= torch_version),
+        key=Version,
+        reverse=True,
+    )
 
-    if not candidates:
+    for version in fallback_versions:
+        sibling_version = _lookup_sibling_pin(table[version], channel)
+
+        if sibling_version is not None:
+            return sibling_version
+
+    return None
+
+def _lookup_sibling_pin(entry: Optional[SiblingPin], channel: Optional[str]) -> Optional[str]:
+    if entry is None:
         return None
 
-    return table[max(candidates, key=Version)]
+    if isinstance(entry, str):
+        return entry
+
+    if channel is not None and channel in entry:
+        return entry[channel]
+
+    return entry.get("*")
 
 def _get_torch_specifier(specs: Iterable[str]) -> Optional[SpecifierSet]:
     for spec in specs:
@@ -517,7 +551,7 @@ def _rewrite_specs(
 
             continue
 
-        sibling_version = _resolve_sibling_version(requirement.name, torch_version) if torch_version else None
+        sibling_version = _resolve_sibling_version(requirement.name, torch_version, channel) if torch_version else None
 
         if caller_specifier:
             if sibling_version is not None and not requirement.specifier.contains(sibling_version, prereleases=True):

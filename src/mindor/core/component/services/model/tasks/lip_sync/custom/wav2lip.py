@@ -413,7 +413,7 @@ class Wav2LipLipSyncTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("wav2lip"):
+        if not is_package_installed("wav2lip", revision="ebe4687d9ecc"):
             # Wav2Lip's code sits at the repo root (audio.py, models/, face_detection/,
             # hparams.py) rather than under a src/ subdir, so mount the whole
             # tree as a `wav2lip/` package. Internal imports stay top-level

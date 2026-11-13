@@ -173,7 +173,7 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("virtuoso"):
+        if not is_package_installed("virtuoso", revision="f20e5b0c3326"):
             # jdasam/virtuosoNet ships the `virtuoso/` package at the repo root
             # without `setup.py`/`pyproject.toml`, so pip-install isn't an
             # option — drop the directory next to `mindor` as a top-level
@@ -182,7 +182,7 @@ class VirtuosoNetMusicPerformanceTaskDriver(ModelTaskDriver):
             await install_package_from_github(
                 module_name="virtuoso",
                 repo_url="https://github.com/jdasam/virtuosoNet.git",
-                revision="f20e5b0",
+                revision="f20e5b0c3326",
                 subdirs=[ "virtuoso" ],
             )
 

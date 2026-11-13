@@ -305,7 +305,7 @@ class FireRedTextToSpeechTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("fireredtts3"):
+        if not is_package_installed("fireredtts3", revision="7a1f3a7282ff"):
             await install_package_from_github(
                 "fireredtts3",
                 "https://github.com/FireRedTeam/FireRedTTS3.git",

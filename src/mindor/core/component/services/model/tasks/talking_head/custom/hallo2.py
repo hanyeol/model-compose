@@ -191,7 +191,7 @@ class Hallo2TalkingHeadTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("hallo"):
+        if not is_package_installed("hallo", revision="58a9aa6c9f66"):
             await install_package_from_github(
                 "hallo",
                 "https://github.com/fudan-generative-vision/hallo2.git",

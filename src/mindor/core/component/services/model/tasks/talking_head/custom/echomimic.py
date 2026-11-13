@@ -259,10 +259,9 @@ class EchoMimicTalkingHeadTaskDriver(ModelTaskDriver):
 
     async def _setup(self) -> None:
         module_name = _ECHOMIMIC_MODULES[self.config.preset]
+        repo_url, revision = _ECHOMIMIC_REPOS[self.config.preset]
 
-        if not is_package_installed(module_name):
-            repo_url, revision = _ECHOMIMIC_REPOS[self.config.preset]
-
+        if not is_package_installed(module_name, revision=revision):
             await install_package_from_github(
                 module_name,
                 repo_url,

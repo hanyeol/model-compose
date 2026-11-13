@@ -218,7 +218,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
         # imports torch at build time (pip's isolated build env has none).
         pip_options: List[str] = [ "--no-build-isolation" ]
 
-        if not is_package_installed("pytorch3d"):
+        if not is_package_installed("pytorch3d", revision="75ebeeaea090"):
             await install_package_from_github(
                 "pytorch3d",
                 "https://github.com/facebookresearch/pytorch3d.git",
@@ -227,7 +227,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if not is_package_installed("nvdiffrast"):
+        if not is_package_installed("nvdiffrast", revision="729261dc64c4"):
             await install_package_from_github(
                 "nvdiffrast",
                 "https://github.com/NVlabs/nvdiffrast.git",
@@ -236,7 +236,7 @@ class AniGenImageTo3DTaskDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if not is_package_installed("anigen"):
+        if not is_package_installed("anigen", revision="c49db3d6b466"):
             # AniGen's `anigen/` is pure Python; drop it next to `mindor` so
             # `from anigen.pipelines import AnigenImageTo3DPipeline` resolves
             # without any sys.path manipulation.

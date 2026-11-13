@@ -151,7 +151,7 @@ class FloatTalkingHeadTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("float_talker"):
+        if not is_package_installed("float_talker", revision="3b5b2dfc3e65"):
             # `models/`, `options/`, and `generate.py` sit at Float's repo root
             # with no packaging metadata; funnel them into one `float_talker/`
             # package so top-level names don't collide with anything else

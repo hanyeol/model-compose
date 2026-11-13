@@ -8,7 +8,7 @@ from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from mindor.core.utils.archive import archive_to_directory, skip_python_artifacts
-from mindor.core.utils.locks import FileLock
+from mindor.core.utils.locks import AsyncFileLock
 from ..common import CommonRuntime
 from pathlib import Path
 import asyncio, os, shutil, subprocess, venv
@@ -75,21 +75,8 @@ class LocalVirtualEnvRuntime(CommonRuntime):
         context so a parallel runner cannot observe a half-built venv."""
         self._venv_path.mkdir(parents=True, exist_ok=True)
 
-        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
-        lock = FileLock(self._venv_path / ".mindor.lock")
-
-        def _acquire() -> None:
-            lock.__enter__()
-
-        def _release() -> None:
-            lock.__exit__(None, None, None)
-
-        await loop.run_in_executor(None, _acquire)
-
-        try:
+        async with AsyncFileLock(self._venv_path / ".mindor.lock"):
             yield
-        finally:
-            await loop.run_in_executor(None, _release)
 
     async def create_venv(self) -> None:
         """Create the venv (interpreter + pip) if missing. Idempotent."""

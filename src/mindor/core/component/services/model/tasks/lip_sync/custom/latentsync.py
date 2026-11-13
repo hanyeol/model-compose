@@ -176,7 +176,7 @@ class LatentSyncLipSyncTaskDriver(ModelTaskDriver):
         # (its own submodules use `from latentsync.xxx import ...`) and drop
         # `configs/` under a namespaced directory so it doesn't collide with
         # any other backend that installs its own top-level `configs/`.
-        if not is_package_installed("latentsync"):
+        if not is_package_installed("latentsync", revision="a229c3948406"):
             await install_package_from_github(
                 "latentsync",
                 "https://github.com/bytedance/LatentSync.git",

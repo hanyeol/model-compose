@@ -687,7 +687,7 @@ class LightAsdActiveSpeakerDetectionTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("lightasd"):
+        if not is_package_installed("lightasd", revision="ed38c232de5e"):
             # Light-ASD's code sits at the repo root (ASD.py, loss.py, model/)
             # rather than under a src/ subdir, so mount the whole tree as a
             # `lightasd/` package. Internal imports stay top-level

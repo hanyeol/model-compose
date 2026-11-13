@@ -262,14 +262,14 @@ class CosyvoiceTextToSpeechTaskDriver(ModelTaskDriver):
         # CosyVoice depends on Matcha-TTS at a submodule-pinned commit. Tarball
         # downloads don't include submodules, so we fetch it as a separate top-
         # level `matcha` package.
-        if not is_package_installed("cosyvoice"):
+        if not is_package_installed("cosyvoice", revision="074ca6dc9e80"):
             await install_package_from_github(
                 "cosyvoice",
                 "https://github.com/FunAudioLLM/CosyVoice.git",
                 revision="074ca6dc9e80",
             )
 
-        if not is_package_installed("matcha"):
+        if not is_package_installed("matcha", revision="dd9105b34bf2"):
             await install_package_from_github(
                 "matcha",
                 "https://github.com/shivammehta25/Matcha-TTS.git",

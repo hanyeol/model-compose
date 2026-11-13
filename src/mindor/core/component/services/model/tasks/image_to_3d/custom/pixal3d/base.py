@@ -133,7 +133,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
         # package on top.
         pip_options: List[str] = [ "--no-build-isolation" ]
 
-        if not is_package_installed("cumesh"):
+        if not is_package_installed("cumesh", revision="12289e1062f0"):
             # CuMesh vendors `third_party/cubvh` as a git submodule; the tarball
             # fallback strips it, so `git` must be available for this to succeed.
             await install_package_from_github(
@@ -159,7 +159,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=[ *pip_options, "--force-reinstall", "--no-deps" ],
             )
 
-        if not is_package_installed("nvdiffrast"):
+        if not is_package_installed("nvdiffrast", revision="253ac4fcea7d"):
             # o_voxel's postprocess.py imports `nvdiffrast.torch`; source-built
             # because upstream ships no wheels.
             await install_package_from_github(
@@ -170,7 +170,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if not is_package_installed("o_voxel"):
+        if not is_package_installed("o_voxel", revision="75fbf0183001"):
             # TRELLIS.2's o-voxel lives one level down (`o-voxel/`) and needs a
             # full pip build for its CUDA kernels — the earlier tree-copy path
             # dropped a pure-Python shell that crashed at import time.
@@ -182,7 +182,7 @@ class Pixal3DImageTo3DTaskBaseDriver(ModelTaskDriver):
                 pip_options=pip_options,
             )
 
-        if not is_package_installed("pixal3d"):
+        if not is_package_installed("pixal3d", revision="f7cf38429b0b"):
             # Pixal3D's `pixal3d/` is pure Python — keep the tree-copy path so
             # its top-level module lands next to `mindor` without invoking pip.
             await install_package_from_github(

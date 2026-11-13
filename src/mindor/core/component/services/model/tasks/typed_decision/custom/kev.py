@@ -128,11 +128,11 @@ class KevTypedDecisionTaskDriver(ModelTaskDriver):
     async def _setup(self) -> None:
         # kev ships a proper pyproject.toml; install it as a normal package.
         # Revision pinned to jaredpalmer/kev@main as of 2026-09-24.
-        if not is_package_installed("kev"):
+        if not is_package_installed("kev", revision="c9c1f8555053"):
             await install_package_from_github(
                 "kev",
                 "https://github.com/jaredpalmer/kev.git",
-                revision="c9c1f855505336ac32092a5f68305d397f7fcc3e",
+                revision="c9c1f8555053",
                 source_path=".",
             )
 

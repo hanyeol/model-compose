@@ -133,7 +133,7 @@ class TripoSplatImageTo3DTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("triposplat_pipeline"):
+        if not is_package_installed("triposplat_pipeline", revision="main"):
             # TripoSplat ships `triposplat.py` and `model.py` as bare top-level
             # files without `__init__.py` or packaging metadata, so pip-install
             # isn't an option — bundle both into one package next to `mindor`.

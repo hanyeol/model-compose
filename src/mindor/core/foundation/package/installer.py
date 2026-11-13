@@ -5,6 +5,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import Version, InvalidVersion
 from importlib.metadata import version, metadata, PackageNotFoundError
 from mindor.core.utils.github import download_github_tarball
+from mindor.core.utils.locks import AsyncFileLock
 from mindor.core.utils.shell import run_command
 import mindor
 import asyncio, importlib, re, shutil, subprocess, sys, tempfile
@@ -179,12 +180,22 @@ async def install_package_from_github(
             await download_github_tarball(repo_url, revision, clone_dir)
 
     if source_path is not None:
-        package_root = clone_dir / source_path
+        package_dir = clone_dir / source_path
 
-        if not package_root.exists():
+        if not package_dir.exists():
             raise FileNotFoundError(f"Package source '{source_path}' not found in downloaded repo at {clone_dir}")
 
-        await install_package(str(package_root), pip_options=pip_options)
+        # Pip replaces the entire installed tree on every install, so a prior
+        # `.mindor-revision` is guaranteed to be wiped — only the drop-next-to-
+        # mindor paths below need the explicit teardown. Recording the installed
+        # revision after pip install (located via `find_spec(module_name)`) lets
+        # the matching `is_package_installed(module_name, revision=...)` guard
+        # in the caller short-circuit on subsequent runs when the pin is
+        # unchanged.
+        await install_package(str(package_dir), pip_options=pip_options)
+
+        if revision is not None:
+            _save_installed_revision_for_module(module_name, revision)
 
     if subdirs is not None:
         for package in subdirs:
@@ -194,13 +205,27 @@ async def install_package_from_github(
                 package_name, package_source_path = package, package
 
             source = clone_dir / package_source_path
-            target = _MINDOR_INSTALL_ROOT / package_name
+            package_dir = _MINDOR_INSTALL_ROOT / package_name
 
             if not source.exists():
                 raise FileNotFoundError(f"Package source '{package_source_path}' not found in downloaded repo at {clone_dir}")
 
-            if not target.exists():
-                shutil.copytree(source, target)
+            # Serialize writers under the host's _MINDOR_INSTALL_ROOT. Unlike
+            # `install_package`, which delegates to pip/uv (their own locking
+            # and atomic rename-into-place make an outer lock redundant), the
+            # subdirs/bundle paths do raw shutil copies with no upstream guarantee,
+            # so without this lock two concurrent writers could race a half-
+            # populated tree into place (hanyeol/model-compose#28).
+            async with AsyncFileLock(_MINDOR_INSTALL_ROOT / f".{package_name}.mindor.lock"):
+                # Re-check under the lock: another writer may have finished the
+                # install for this revision while we were waiting.
+                if package_dir.exists() and _is_revision_installed(package_dir, revision):
+                    continue
+
+                if package_dir.exists():
+                    shutil.rmtree(package_dir)
+
+                shutil.copytree(source, package_dir)
 
                 # `package_source_path == "."` means the repo root is the package —
                 # there is no original top-level module name to rewrite. Skip the
@@ -212,47 +237,71 @@ async def install_package_from_github(
                 top_module = parts[0] if parts else None
 
                 if top_module is not None and top_module != package_name:
-                    rewrite_python_imports(target, { top_module: package_name })
+                    rewrite_python_imports(package_dir, { top_module: package_name })
+
+                if revision is not None:
+                    _save_installed_revision(package_dir, revision)
 
     if bundle is not None:
         package_name, sources = bundle
-        target = _MINDOR_INSTALL_ROOT / package_name
+        package_dir = _MINDOR_INSTALL_ROOT / package_name
 
-        if not target.exists():
-            target.mkdir(parents=True, exist_ok=False)
-            (target / "__init__.py").write_text("", encoding="utf-8")
+        async with AsyncFileLock(_MINDOR_INSTALL_ROOT / f".{package_name}.mindor.lock"):
+            if not (package_dir.exists() and _is_revision_installed(package_dir, revision)):
+                if package_dir.exists():
+                    shutil.rmtree(package_dir)
 
-            top_modules: List[str] = []
+                package_dir.mkdir(parents=True, exist_ok=False)
+                (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
-            for source_path in sources:
-                source = clone_dir / source_path
-                top_module = Path(source_path).stem
+                top_modules: List[str] = []
 
-                if source.is_dir():
-                    shutil.copytree(source, target / top_module)
-                elif source.is_file():
-                    shutil.copy2(source, target / f"{top_module}.py")
-                else:
-                    raise FileNotFoundError(f"Bundle source '{source_path}' not found in downloaded repo at {clone_dir}")
+                for source_path in sources:
+                    source = clone_dir / source_path
+                    top_module = Path(source_path).stem
 
-                top_modules.append(top_module)
+                    if source.is_dir():
+                        shutil.copytree(source, package_dir / top_module)
+                    elif source.is_file():
+                        shutil.copy2(source, package_dir / f"{top_module}.py")
+                    else:
+                        raise FileNotFoundError(f"Bundle source '{source_path}' not found in downloaded repo at {clone_dir}")
 
-            rewrite_python_imports(target, { name: f"{package_name}.{name}" for name in top_modules })
+                    top_modules.append(top_module)
+
+                rewrite_python_imports(package_dir, { name: f"{package_name}.{name}" for name in top_modules })
+
+                if revision is not None:
+                    _save_installed_revision(package_dir, revision)
 
     importlib.invalidate_caches()
 
-def is_package_installed(module_name: str) -> bool:
+def is_package_installed(module_name: str, revision: Optional[str] = None) -> bool:
     """Return True when `module_name` is importable.
 
-    Thin wrapper around `importlib.util.find_spec` so pre-install guards read
-    as intent (`if not is_package_installed(...)`) rather than a bare spec
-    lookup. Kept parameter-light for now; GitHub-specific checks (e.g. a
-    revision arg matched against `.mindor-revision`) can layer on later.
-    """
-    if importlib.util.find_spec(module_name) is None:
-        return False
+    When `revision` is passed, additionally require that the installed package
+    carries a matching `.mindor-revision` file — the one
+    `install_package_from_github` writes next to its installs. Drivers that
+    pin an upstream revision pass the pin here so venvs that were provisioned
+    against an older pin surface as "not installed" and trigger reinstall,
+    instead of silently continuing to import the stale copy
+    (hanyeol/model-compose#28).
 
-    return True
+    `revision=None` skips the revision check — kept for callers that don't
+    track revisions (pure PyPI packages).
+    """
+    spec = importlib.util.find_spec(module_name)
+
+    if spec is not None:
+        if revision is not None:
+            package_dir = _resolve_package_dir(spec)
+
+            if package_dir is not None and _is_revision_installed(package_dir, revision):
+                return True
+        else:
+            return True
+
+    return False
 
 def rewrite_python_imports(root: Path, mapping: Dict[str, str]) -> None:
     """Rewrite top-level import names inside every `.py` file under `root`.
@@ -423,6 +472,52 @@ def _installed_wheel_matches_channel(installed_version: str, repository: Optiona
 
     return installed_channel == requested_channel
 
+def _is_revision_installed(package_dir: Path, revision: str) -> bool:
+    """Return True when `package_dir`'s `.mindor-revision` matches `revision`.
+
+    False both when the file is missing (fresh install) and when its contents
+    differ (pinned revision moved) — either way the caller should treat the
+    target as needing a reinstall.
+    """
+    revision_path = package_dir / ".mindor-revision"
+
+    try:
+        return revision_path.read_text(encoding="utf-8").strip() == revision
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False
+
+def _save_installed_revision(package_dir: Path, revision: str) -> None:
+    """Record the installed revision inside `package_dir`.
+
+    Callers must skip this when they have no revision to record — an empty
+    file would falsely report "pinned to the empty string" on the next read.
+    """
+    revision_path = package_dir / ".mindor-revision"
+    revision_path.write_text(revision, encoding="utf-8")
+
+def _save_installed_revision_for_module(module_name: str, revision: str) -> None:
+    """Resolve `module_name`'s installed directory and record the revision there.
+
+    Used for pip-installed sources where the layout is set by setup.py and the
+    package name may not match `_MINDOR_INSTALL_ROOT/<module_name>`. Invalidates
+    the import caches first so pip's fresh install is visible to `find_spec`.
+    """
+    importlib.invalidate_caches()
+
+    spec = importlib.util.find_spec(module_name)
+
+    if spec is None:
+        return
+
+    package_dir = _resolve_package_dir(spec)
+
+    if package_dir is None:
+        return
+
+    _save_installed_revision(package_dir, revision)
+
 def _resolve_install_spec(package_spec: str, repository: Optional[str]) -> Tuple[str, List[str]]:
     """Translate (spec, repository) into (final_spec, extra_pip_options).
 
@@ -439,3 +534,21 @@ def _resolve_install_spec(package_spec: str, repository: Optional[str]) -> Tuple
         return repository, []
 
     return package_spec, [ "--index-url", repository ]
+
+def _resolve_package_dir(spec: "importlib.machinery.ModuleSpec") -> Optional[Path]:
+    """Return the on-disk directory that holds the installed package.
+
+    Prefers `submodule_search_locations` so namespace/regular packages resolve
+    to the containing directory; falls back to the parent of `spec.origin` for
+    single-file modules shipped by pip as a top-level `.py`. Returns None when
+    neither is available (builtin / frozen / partial specs).
+    """
+    locations = spec.submodule_search_locations
+
+    if locations:
+        return Path(next(iter(locations)))
+
+    if spec.origin and spec.origin not in ("built-in", "frozen"):
+        return Path(spec.origin).parent
+
+    return None

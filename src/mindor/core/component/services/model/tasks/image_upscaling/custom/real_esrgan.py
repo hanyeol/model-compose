@@ -87,7 +87,7 @@ class RealEsrganImageUpscalingTaskDriver(ModelTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("RealESRGAN"):
+        if not is_package_installed("RealESRGAN", revision="362a0316878f"):
             await install_package_from_github(
                 "RealESRGAN",
                 "https://github.com/ai-forever/Real-ESRGAN.git",

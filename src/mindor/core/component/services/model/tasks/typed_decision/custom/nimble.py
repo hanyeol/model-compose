@@ -105,7 +105,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
         # bespokelabsai/nimble is a research repo without pyproject/setup.py, so
         # `pip install git+...` fails. Drop the `nimble/` package next to `mindor`
         # via install_package_from_github's subdirs mechanism.
-        if not is_package_installed("nimble"):
+        if not is_package_installed("nimble", revision="f136b3f75721"):
             await install_package_from_github(
                 "nimble",
                 "https://github.com/bespokelabsai/nimble.git",

@@ -278,7 +278,7 @@ class SadTalkerTalkingHeadTaskDriver(ModelTaskDriver):
         # would collide with model-compose's editable-install root. Rename it to
         # `sadtalker/` on install; the tuple form triggers automatic rewrites of
         # `import src.…` inside the copied tree.
-        if not is_package_installed("sadtalker"):
+        if not is_package_installed("sadtalker", revision="cd4c0465ae0b"):
             await install_package_from_github(
                 "sadtalker",
                 "https://github.com/OpenTalker/SadTalker.git",

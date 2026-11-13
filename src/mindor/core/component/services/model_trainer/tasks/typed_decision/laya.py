@@ -80,7 +80,7 @@ class LayaTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("laya_trainer"):
+        if not is_package_installed("laya_trainer", revision="v1.0.0"):
             await install_package_from_github(
                 "laya_trainer",
                 "https://github.com/hanyeol/mindor-laya-trainer.git",

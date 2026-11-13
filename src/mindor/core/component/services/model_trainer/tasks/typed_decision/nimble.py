@@ -120,7 +120,7 @@ class NimbleTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):
         # (the trainer-relevant code sits under the `nimble/` subdir); drop that
         # subdir onto sys.path alongside mindor the same way the inference driver
         # does.
-        if not is_package_installed("nimble"):
+        if not is_package_installed("nimble", revision="f136b3f75721"):
             await install_package_from_github(
                 "nimble",
                 "https://github.com/bespokelabsai/nimble.git",
@@ -128,7 +128,7 @@ class NimbleTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):
                 subdirs=[ "nimble" ],
             )
 
-        if not is_package_installed("nimble_trainer"):
+        if not is_package_installed("nimble_trainer", revision="v1.0.0"):
             await install_package_from_github(
                 "nimble_trainer",
                 "https://github.com/hanyeol/mindor-nimble-trainer.git",

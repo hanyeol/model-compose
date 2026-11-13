@@ -151,7 +151,7 @@ class SonicTalkingHeadTaskDriver(ModelTaskDriver):
         # a proper `sonic/` package (import rewrites happen automatically),
         # then fold `sonic.py`'s contents into `sonic/__init__.py` — with the
         # rewrites applied there too — so callers can `from sonic import Sonic`.
-        if not is_package_installed("sonic"):
+        if not is_package_installed("sonic", revision="c1bd2d133ecc"):
             await install_package_from_github(
                 "sonic",
                 "https://github.com/jixiaozhong/Sonic.git",

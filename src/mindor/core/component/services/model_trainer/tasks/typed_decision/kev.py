@@ -83,7 +83,7 @@ class KevTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):
         return requirements
 
     async def _setup(self) -> None:
-        if not is_package_installed("kev"):
+        if not is_package_installed("kev", revision="c9c1f8555053"):
             await install_package_from_github(
                 "kev",
                 "https://github.com/jaredpalmer/kev.git",
@@ -91,7 +91,7 @@ class KevTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):
                 source_path=".",
             )
 
-        if not is_package_installed("kev_trainer"):
+        if not is_package_installed("kev_trainer", revision="v1.0.0"):
             await install_package_from_github(
                 "kev_trainer",
                 "https://github.com/hanyeol/mindor-kev-trainer.git",

@@ -74,7 +74,7 @@ class ClefTypedDecisionModelTrainerTaskDriver(ModelTrainerTaskDriver):
         ]
 
     async def _setup(self) -> None:
-        if not is_package_installed("clef_trainer"):
+        if not is_package_installed("clef_trainer", revision="v1.0.0"):
             await install_package_from_github(
                 "clef_trainer",
                 "https://github.com/hanyeol/mindor-clef-trainer.git",

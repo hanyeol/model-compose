@@ -356,7 +356,7 @@ class MuseTalkLipSyncTaskDriver(ModelTaskDriver):
         # the sample yaml in `configs/` are avoided so they don't collide
         # with other backends that install their own top-level `scripts` /
         # `configs` directories into site-packages.
-        if not is_package_installed("musetalk"):
+        if not is_package_installed("musetalk", revision="0a89dec45a01"):
             await install_package_from_github(
                 "musetalk",
                 "https://github.com/TMElyralab/MuseTalk.git",

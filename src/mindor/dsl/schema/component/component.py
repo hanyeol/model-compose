@@ -38,6 +38,7 @@ ComponentConfig = Annotated[
         VideoEncoderComponentConfig,
         VideoFrameExtractorComponentConfig,
         VideoFrameAnalyzerComponentConfig,
+        VideoMotionEstimatorComponentConfig,
         VideoMixerComponentConfig,
         VideoProcessorComponentConfig,
         VideoAnalyzerComponentConfig,

@@ -36,6 +36,7 @@ class ComponentType(str, Enum):
     VIDEO_ENCODER           = "video-encoder"
     VIDEO_FRAME_EXTRACTOR   = "video-frame-extractor"
     VIDEO_FRAME_ANALYZER    = "video-frame-analyzer"
+    VIDEO_MOTION_ESTIMATOR  = "video-motion-estimator"
     VIDEO_MIXER             = "video-mixer"
     VIDEO_PROCESSOR         = "video-processor"
     VIDEO_ANALYZER          = "video-analyzer"

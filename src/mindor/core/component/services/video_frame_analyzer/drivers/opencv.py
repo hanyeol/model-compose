@@ -299,8 +299,8 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
     def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
         """PIL frame -> BT.601 luma float32 thumbnail, resized with OpenCV's INTER_AREA
         (faster than Pillow for the sizes this analyzer works with)."""
-        import cv2
         import numpy as np
+        import cv2
 
         luma = np.asarray(frame.convert("L"), dtype=np.float32)
         height, width = luma.shape

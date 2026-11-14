@@ -27,6 +27,7 @@ from .web_scraper import *
 from .web_browser import *
 from .html_frame_renderer import *
 from .video_scene_detector import *
+from .video_scene_transition_classifier import *
 from .video_clipper import *
 from .video_converter import *
 from .video_encoder import *

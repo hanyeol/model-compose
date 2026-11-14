@@ -133,6 +133,7 @@ class PySceneVideoSceneDetectorAction(VideoSceneDetectorAction):
 
         if start_time:
             params["start_time"] = start_time
+
         if end_time:
             params["end_time"] = end_time
 

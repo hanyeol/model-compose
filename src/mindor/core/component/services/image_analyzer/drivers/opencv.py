@@ -132,8 +132,8 @@ class OpenCvImageAnalyzerAction(ImageAnalyzerAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         def _analyze_gradient() -> Dict[str, Any]:
-            import cv2
             import numpy as np
+            import cv2
 
             luma = np.asarray(image.convert("L"), dtype=np.float32)
             dx = cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3)
@@ -179,8 +179,8 @@ class OpenCvImageAnalyzerAction(ImageAnalyzerAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         def _analyze_edge_structure() -> Dict[str, Any]:
-            import cv2
             import numpy as np
+            import cv2
 
             luma = np.asarray(image.convert("L"), dtype=np.float32)
             dx = cv2.Sobel(luma, cv2.CV_32F, 1, 0, ksize=3)
@@ -233,8 +233,8 @@ class OpenCvImageAnalyzerAction(ImageAnalyzerAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         def _analyze_texture() -> Dict[str, Any]:
-            import cv2
             import numpy as np
+            import cv2
 
             # medianBlur requires uint8 input; converting afterwards to float32 so
             # the high-pass residuals can go negative without wrapping.
@@ -275,8 +275,8 @@ class OpenCvImageAnalyzerAction(ImageAnalyzerAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Dict[str, Any]:
         def _analyze_lit_structure() -> Dict[str, Any]:
-            import cv2
             import numpy as np
+            import cv2
 
             luma_uint8 = np.asarray(image.convert("L"), dtype=np.uint8)
             luma = luma_uint8.astype(np.float32)

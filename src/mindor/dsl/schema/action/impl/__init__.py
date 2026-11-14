@@ -31,6 +31,7 @@ from .video_clipper import *
 from .video_converter import *
 from .video_encoder import *
 from .video_frame_extractor import *
+from .video_frame_analyzer import *
 from .video_mixer import *
 from .video_processor import *
 from .video_analyzer import *

@@ -42,8 +42,8 @@ class OpenCvImageProcessorAction(ImageProcessorAction):
 
     async def _canny(self, image: PILImage.Image, params: Dict[str, Any]) -> PILImage.Image:
         def _canny() -> PILImage.Image:
-            import cv2
             import numpy as np
+            import cv2
 
             rgb = image.convert("RGB")
             array = np.array(rgb)

@@ -24,6 +24,7 @@ class ModelTokenizerTaskDriver(ComponentDriver):
 
     async def _start(self) -> None:
         logging.info(f"Component '{self.id}': loading tokenizer...")
+
         await self._load_tokenizer()
 
         await super()._start()

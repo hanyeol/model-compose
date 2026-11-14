@@ -80,7 +80,6 @@ _FALLBACK_BASE_COLOR_SRGB = (0.8, 0.8, 0.82)
 _ALPHA_MODES = { "OPAQUE": 0, "MASK": 1, "BLEND": 2 }
 _TEXTURE_SLOTS = ("base_color", "metallic_roughness", "normal", "occlusion", "emissive")  # = texture units 0..4
 
-
 class ModelMatrixHelper:
     """Build model-space matrices applied to loaded meshes."""
 

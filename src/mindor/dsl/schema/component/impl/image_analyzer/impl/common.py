@@ -5,6 +5,7 @@ from ...common import CommonComponentConfig, ComponentType
 
 class ImageAnalyzerDriverType(str, Enum):
     NATIVE = "native"
+    OPENCV = "opencv"
 
 class CommonImageAnalyzerComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.IMAGE_ANALYZER]

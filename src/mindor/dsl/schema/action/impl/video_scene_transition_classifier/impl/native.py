@@ -8,7 +8,7 @@ class NativeVideoSceneTransitionClassifierMode(VideoSceneTransitionClassifierMod
 class ClassifyVideoSceneTransitionClassifierActionConfig(CommonVideoSceneTransitionClassifierActionConfig):
     mode: Literal[NativeVideoSceneTransitionClassifierMode.CLASSIFY]
     analysis_width: Union[int, str] = Field(default=96, description="Width in pixels the frames are resampled to before measuring transition signals (16-4096).")
-    window_size: Union[int, str] = Field(default=5, description="Number of frames sampled on each side of a boundary; cut needs 1-2, dissolve/fade need 5+ (1-64).")
+    window_size: Union[int, str] = Field(default=15, description="Upper bound on frames sampled on each side of a boundary; the analysis span auto-narrows within it to the actual transition ramp (1-64).")
     cut_mad_threshold: Union[float, str] = Field(default=20.0, description="Mean absolute luma difference across the boundary pair above which a cut is considered.")
     dissolve_blend_threshold: Union[float, str] = Field(default=0.25, description="Maximum median scale-normalized residual of the linear-blend fit for a boundary to be classified as a dissolve (0.0-1.0; smaller = stricter).")
     fade_black_threshold: Union[float, str] = Field(default=45.0, description="Mean luma below which the window's flat frame reads as a fade through black.")

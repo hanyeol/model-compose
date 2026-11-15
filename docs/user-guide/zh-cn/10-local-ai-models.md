@@ -530,6 +530,7 @@ component:
 - `top_k`：每个查询仅保留前 K 个结果。
 - `score_threshold`：丢弃分数低于此值的结果。
 - `return_documents`：为 `false` 时结果仅包含 `index` 和 `score`。
+- `batch_size`（默认 `32`）：对单个查询的候选列表，每次 forward pass 处理多少对 (query, document)。文档较长或 GPU 内存较小时请调低 —— 注意力内存按 `O(batch_size × length²)` 增长。与大多数任务的 `batch_size` 不同,它不会把多个重排任务合并执行,每个 (query, candidates) 调用都独立处理。
 
 使用示例（RAG 重排阶段）：
 ```yaml

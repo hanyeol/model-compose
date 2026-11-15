@@ -38,11 +38,14 @@ model-compose provides various component types for performing different tasks.
 | `image-processor` | Process images | Image transformation, resizing, filters, etc. |
 | `image-drawing` | Draw on images | Shapes, text, and bitmaps via Pillow ImageDraw — bounding boxes, labels, keypoints, masks |
 | `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
-| `image-analyzer` | Measure image properties | Brightness, contrast, sharpness (blur), and exposure clipping via Pillow + numpy |
+| `image-analyzer` | Measure image properties | Luma statistics (brightness, contrast, exposure, darkness), texture/structure (sharpness, noise, flat regions), colour (palette, colour variety) via Pillow + numpy; plus gradient, edge structure, multi-scale texture, and lit/ink structure via OpenCV |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect or FFmpeg (for deep-learning cut detection, use the `shot-boundary-detection` model task) |
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
+| `video-frame-analyzer` | Measure frame-sequence properties | Temporal noise, pair differences, zero-pixel share (numpy), moving pairs, duplicate-frame pulldown cadence (24→30 fps), sharpness oscillation (frame-interpolation fingerprint) (OpenCV) |
+| `video-motion-estimator` | Estimate frame-pair motion | Lucas-Kanade feature tracking + RANSAC similarity fit: rigid motion (`zoom_per_s`, `pan_px_per_s`, inlier ratio) and Ken Burns detection (still-content-with-camera-move score) via OpenCV |
+| `video-scene-transition-classifier` | Label scene boundaries | Classify each scene boundary from `video-scene-detector` as `cut`, `jump`, `dissolve`, `fade_in`, `fade_out`, `flash`, `wipe`, `slide`, `blur`, or `unknown` via numpy; the `opencv` driver adds motion-hidden cut labels (`whip`, `zoom`, `spin`, `shake`, `glitch`) via feature tracking + affine estimation |
 | `html-frame-renderer` | Render HTML as video frames | Drive an HTML/CSS/JS animation via a `window.render(t)` contract and capture each frame as a PIL image |
 | `video-clipper` | Clip video segments | Cut one or more time ranges from a video, losslessly via ffmpeg stream copy |
 | `video-mixer` | Composite videos | Concat videos end-to-end or overlay one/more videos on a base (watermark, PIP) via ffmpeg |
@@ -103,9 +106,12 @@ model-compose provides various component types for performing different tasks.
 - Image processing (resize, crop, filters, overlay, mosaic/fill regions) → `image-processor`
 - Image drawing (bounding boxes, labels, keypoints, mask overlays) → `image-drawing`
 - Image compression (PNG) → `image-compressor`
-- Image analysis (brightness, contrast, sharpness/blur, exposure clipping) → `image-analyzer`
+- Image analysis (brightness, contrast, sharpness/blur, exposure clipping, darkness, noise, flat regions, palette, colour variety, gradient, edge structure, multi-scale texture, lit/ink structure) → `image-analyzer`
 - Video scene detection → `video-scene-detector`
 - Video frame extraction → `video-frame-extractor`
+- Frame-sequence analysis (temporal noise, pair differences, zero-pixel share, moving pairs, pulldown cadence, sharpness oscillation) → `video-frame-analyzer`
+- Frame-pair motion estimation (rigid zoom/pan rates, Ken Burns detection) → `video-motion-estimator`
+- Scene transition labeling (cut/jump/dissolve/fade/flash/wipe/slide/blur on boundaries from `video-scene-detector`, plus whip/zoom/spin/shake/glitch via opencv) → `video-scene-transition-classifier`
 - HTML/CSS/JS animation → video frames → `html-frame-renderer`
 - Video encoding (frames → video, or re-encoding) → `video-encoder`
 - Video / audio clipping (cut time ranges losslessly) → `video-clipper` / `audio-clipper`

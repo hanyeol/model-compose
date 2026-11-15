@@ -38,11 +38,14 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `image-processor` | 이미지 처리 | 이미지 변환, 리사이즈, 필터 등 |
 | `image-drawing` | 이미지에 그리기 | Pillow ImageDraw로 도형·텍스트·비트맵 그리기 — 바운딩 박스, 라벨, 키포인트, 마스크 오버레이 |
 | `image-compressor` | 이미지 압축 | Pillow, oxipng, pngquant를 통한 PNG 압축 |
-| `image-analyzer` | 이미지 속성 측정 | Pillow + numpy로 밝기, 대비, 선명도(블러), 노출 클리핑 측정 |
+| `image-analyzer` | 이미지 속성 측정 | Pillow + numpy로 루마 통계(밝기, 대비, 노출, 어둠), 질감/구조(선명도, 노이즈, 평탄 영역), 색상(팔레트, 색상 다양성) 측정. OpenCV로 그래디언트, 엣지 구조, 다중 스케일 질감, 조명/잉크 구조 측정 |
 | `video-scene-detector` | 비디오 장면 감지 | PySceneDetect, FFmpeg, TransNetV2를 사용한 장면 전환 감지 |
 | `video-converter` | 비디오 변환 | 비디오 트랜스코딩/포맷 변환 (컨테이너, 코덱, 해상도 등) |
 | `video-encoder` | 비디오 인코딩 | PIL 프레임을 비디오로 인코딩하거나 기존 비디오를 재인코딩, 선택적 오디오 트랙 결합 (ffmpeg) |
 | `video-frame-extractor` | 비디오 프레임 추출 | 비디오를 PIL 이미지 프레임으로 디코딩하며 샘플링과 시간 범위 지원 |
+| `video-frame-analyzer` | 프레임 시퀀스 속성 측정 | numpy로 시간 노이즈, 쌍 차이, 제로 픽셀 비율 측정. OpenCV로 움직임 쌍, 중복 프레임 pulldown 주기(24→30 fps), 선명도 진동(프레임 보간 지문) 측정 |
+| `video-motion-estimator` | 프레임 쌍 운동 추정 | OpenCV로 Lucas-Kanade 특징점 추적 + RANSAC similarity 피팅: 리짓드 운동(`zoom_per_s`, `pan_px_per_s`, inlier 비율)과 Ken Burns 검출(정지 이미지 + 카메라 이동 스코어) |
+| `video-scene-transition-classifier` | 씬 경계 라벨링 | `video-scene-detector`가 찾은 각 씬 경계를 `cut`, `jump`, `dissolve`, `fade_in`, `fade_out`, `flash`, `wipe`, `slide`, `blur`, `unknown` 중 하나로 분류 (numpy); `opencv` 드라이버는 특징점 추적 + 어파인 추정으로 모션에 숨겨진 컷(`whip`, `zoom`, `spin`, `shake`, `glitch`) 라벨을 추가 |
 | `video-clipper` | 비디오 구간 클리핑 | ffmpeg 스트림 카피로 비디오에서 하나 이상의 시간 범위를 무손실로 잘라내기 |
 | `video-processor` | 프레임 단위 비디오 DSP | ffmpeg 필터로 리사이즈, 크롭, 패딩, 반전, 회전, 배속 (`setpts` + `atempo`로 A/V 동기화) |
 | `video-analyzer` | 비디오 속성 측정 | ffmpeg 필터로 블랙 프레임·프리즈·밝기·움직임 측정 |
@@ -89,9 +92,12 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 이미지 처리 (리사이즈, 크롭, 필터, 오버레이, 영역 모자이크/채우기) → `image-processor`
 - 이미지 그리기 (바운딩 박스, 라벨, 키포인트, 마스크 오버레이) → `image-drawing`
 - 이미지 압축 (PNG) → `image-compressor`
-- 이미지 분석 (밝기, 대비, 선명도/블러, 노출 클리핑) → `image-analyzer`
+- 이미지 분석 (밝기, 대비, 선명도/블러, 노출 클리핑, 어둠, 노이즈, 평탄 영역, 팔레트, 색상 다양성, 그래디언트, 엣지 구조, 다중 스케일 질감, 조명/잉크 구조) → `image-analyzer`
 - 비디오 장면 감지 → `video-scene-detector`
 - 비디오 프레임 추출 → `video-frame-extractor`
+- 프레임 시퀀스 분석 (시간 노이즈, 쌍 차이, 제로 픽셀 비율, 움직임 쌍, pulldown 주기, 선명도 진동) → `video-frame-analyzer`
+- 프레임 쌍 운동 추정 (리짓드 zoom/pan 속도, Ken Burns 검출) → `video-motion-estimator`
+- 씬 전환 라벨링 (`video-scene-detector`가 찾은 경계를 cut/jump/dissolve/fade/flash/wipe/slide/blur로 분류, opencv 드라이버는 whip/zoom/spin/shake/glitch 추가) → `video-scene-transition-classifier`
 - 비디오 인코딩 (프레임 → 비디오, 또는 재인코딩) → `video-encoder`
 - 비디오 / 오디오 클리핑 (무손실 시간 범위 잘라내기) → `video-clipper` / `audio-clipper`
 - 프레임 단위 비디오 DSP (리사이즈, 크롭, 패딩, 반전, 회전, 오디오 동기화 배속) → `video-processor`

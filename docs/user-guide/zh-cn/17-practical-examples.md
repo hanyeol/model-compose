@@ -1156,6 +1156,218 @@ component:
 - 修改特定区域
 - 风格转换
 
+### 17.7.3 图像质量评分（Native 像素分析）
+
+**目标**：在模糊、曝光过度或内容不足的上传到达下游模型之前进行筛选。
+
+**配置文件**：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: 上传质量检查
+  description: 根据清晰度、曝光和暗区特征对传入图像打分。
+  input: ${input}
+  output:
+    sharp:    ${jobs.sharp.output}
+    exposure: ${jobs.exposure.output}
+    dark:     ${jobs.dark.output}
+
+  jobs:
+    - id: sharp
+      component: quality
+      action: sharpness
+      input:
+        image: ${input.image as image}
+
+    - id: exposure
+      component: quality
+      action: exposure
+      input:
+        image: ${input.image as image}
+
+    - id: dark
+      component: quality
+      action: darkness
+      input:
+        image: ${input.image as image}
+
+component:
+  id: quality
+  type: image-analyzer
+  driver: native
+  actions:
+    - id: sharpness
+      metric: sharpness
+      image: ${input.image}
+      blur_threshold: 120
+
+    - id: exposure
+      metric: exposure
+      image: ${input.image}
+      shadow_threshold: 12
+      highlight_threshold: 243
+
+    - id: darkness
+      metric: darkness
+      image: ${input.image}
+```
+
+**输出**：三个可用于门控的 JSON 块 — `is_blurry`、`shadow_clipped_ratio` / `highlight_clipped_ratio`、`dark_std` / `dark_flat`。
+
+### 17.7.4 渲染 vs 实拍提示（OpenCV 驱动）
+
+**目标**：评估图像更像 UI / 代码绘制 / 3D 渲染还是实拍照片。对将上传路由到合适的下游管线很有用（文档走 OCR，照片走 caption 模型，运动图形走 Remotion 重建）。
+
+**配置文件**：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: 渲染 vs 实拍
+  input: ${input}
+  output:
+    axis_edge_ratio: ${jobs.edges.output.axis_edge_ratio}  # 0（照片）→ 1（UI 网格）
+    flat_ratio:      ${jobs.flat.output.flat_ratio}         # 0（照片）→ 1（平面色块）
+    noise_sigma:     ${jobs.noise.output.noise_sigma}       # ~0（渲染）→ >1（传感器噪声）
+    grad_clean:      ${jobs.gradient.output.grad_clean}     # 0（照片）→ 1（程序化梯度）
+    lit_peaks:       ${jobs.lit.output.lit_peaks}           # ~0（阴影）→ ~1（粒子 / 点阵）
+
+  jobs:
+    - id: edges
+      component: cv-stats
+      action: edge_structure
+      input:
+        image: ${input.image as image}
+    - id: gradient
+      component: cv-stats
+      action: gradient
+      input:
+        image: ${input.image as image}
+    - id: lit
+      component: cv-stats
+      action: lit_structure
+      input:
+        image: ${input.image as image}
+    - id: flat
+      component: native-stats
+      action: flat_regions
+      input:
+        image: ${input.image as image}
+    - id: noise
+      component: native-stats
+      action: noise
+      input:
+        image: ${input.image as image}
+
+components:
+  - id: native-stats
+    type: image-analyzer
+    driver: native
+    actions:
+      - id: flat_regions
+        metric: flat_regions
+        image: ${input.image}
+      - id: noise
+        metric: noise
+        image: ${input.image}
+
+  - id: cv-stats
+    type: image-analyzer
+    driver: opencv
+    actions:
+      - id: edge_structure
+        metric: edge_structure
+        image: ${input.image}
+      - id: gradient
+        metric: gradient
+        image: ${input.image}
+      - id: lit_structure
+        metric: lit_structure
+        image: ${input.image}
+```
+
+**解读**：UI 截图的 `axis_edge_ratio` 高 + `flat_ratio` 高 + `noise_sigma` ~0。自然照片相反。程序化梯度（CSS 卡片、3D 天空）让 `grad_clean` 接近 1.0；粒子 / 点云图形让 `lit_peaks` 接近 1.0。
+
+### 17.7.5 视频帧取证（Pulldown 检测）
+
+**目标**：通过对短帧窗口的重复帧模式进行自相关分析，检测 24 fps → 30 fps pulldown（流媒体平台上 AI 生成视频、电影内容、动漫的指纹）。
+
+**配置文件**：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: Pulldown 检测
+  description: 以原生 fps 提取帧并检查其重复周期。
+  input: ${input}
+  output:
+    dup_ratio:      ${jobs.cadence.output.dup_ratio}
+    dup_period:     ${jobs.cadence.output.dup_period}
+    dup_regularity: ${jobs.cadence.output.dup_regularity}
+    pulldown:       ${jobs.cadence.output.pulldown}
+    temporal_noise: ${jobs.noise.output.temporal_noise}
+
+  jobs:
+    - id: extract
+      component: extractor
+      input:
+        video: ${input.video as video}
+    - id: cadence
+      component: cv-stats
+      action: duplicate
+      input:
+        frames: ${jobs.extract.output}
+    - id: noise
+      component: native-stats
+      action: temporal_noise
+      input:
+        frames: ${jobs.extract.output}
+
+components:
+  - id: extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_rate: 30     # 原生 fps；降采样会抹除 pulldown 指纹
+
+  - id: cv-stats
+    type: video-frame-analyzer
+    driver: opencv
+    actions:
+      - id: duplicate
+        metric: duplicate
+        frames: ${input.frames}
+        frame_rate: 30
+
+  - id: native-stats
+    type: video-frame-analyzer
+    driver: native
+    actions:
+      - id: temporal_noise
+        metric: temporal_noise
+        frames: ${input.frames}
+```
+
+**解读**：
+
+- `pulldown == "24->30"` + `dup_regularity > 0.9` + `dup_ratio ≈ 0.2` → **24 fps 原始转到 30 fps**（AI 视频、电影、动漫）
+- `pulldown == null` + `dup_ratio < 0.05` → **原生 30 fps 拍摄**（手机、摄像机、屏幕录制）
+- 结合 `temporal_noise`：接近 0 的噪声 + 24→30 pulldown 强烈暗示 AI 生成内容；高噪声 + 24→30 pulldown 暗示电影源。
+
 ---
 
 ## 17.8 浏览器自动化

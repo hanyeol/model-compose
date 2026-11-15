@@ -1156,6 +1156,218 @@ component:
 - 특정 영역 수정
 - 스타일 변환
 
+### 17.7.3 이미지 품질 스코어링 (Native 픽셀 분석)
+
+**목표**: 블러·노출 과다·콘텐츠 부족 업로드를 다운스트림 모델에 넘기기 전에 걸러낸다.
+
+**구성 파일**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: 업로드 품질 검사
+  description: 선명도, 노출, 어두운 영역 프로파일로 업로드 이미지를 점수화한다.
+  input: ${input}
+  output:
+    sharp:    ${jobs.sharp.output}
+    exposure: ${jobs.exposure.output}
+    dark:     ${jobs.dark.output}
+
+  jobs:
+    - id: sharp
+      component: quality
+      action: sharpness
+      input:
+        image: ${input.image as image}
+
+    - id: exposure
+      component: quality
+      action: exposure
+      input:
+        image: ${input.image as image}
+
+    - id: dark
+      component: quality
+      action: darkness
+      input:
+        image: ${input.image as image}
+
+component:
+  id: quality
+  type: image-analyzer
+  driver: native
+  actions:
+    - id: sharpness
+      metric: sharpness
+      image: ${input.image}
+      blur_threshold: 120
+
+    - id: exposure
+      metric: exposure
+      image: ${input.image}
+      shadow_threshold: 12
+      highlight_threshold: 243
+
+    - id: darkness
+      metric: darkness
+      image: ${input.image}
+```
+
+**출력**: 게이트에 쓸 수 있는 세 개의 JSON 블록 — `is_blurry`, `shadow_clipped_ratio` / `highlight_clipped_ratio`, `dark_std` / `dark_flat`.
+
+### 17.7.4 렌더링 vs 실사 힌트 (OpenCV 드라이버)
+
+**목표**: 이미지가 UI / 코드 렌더 / 3D 렌더에 가까운지, 실사 사진에 가까운지 점수화한다. 업로드를 적합한 파이프라인으로 라우팅할 때 유용하다 (문서는 OCR, 사진은 캡션 모델, 모션 그래픽은 Remotion 재구성).
+
+**구성 파일**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: 렌더링 vs 실사
+  input: ${input}
+  output:
+    axis_edge_ratio: ${jobs.edges.output.axis_edge_ratio}  # 0 (사진) → 1 (UI 격자)
+    flat_ratio:      ${jobs.flat.output.flat_ratio}         # 0 (사진) → 1 (플랫 색면)
+    noise_sigma:     ${jobs.noise.output.noise_sigma}       # ~0 (렌더) → >1 (센서 노이즈)
+    grad_clean:      ${jobs.gradient.output.grad_clean}     # 0 (사진) → 1 (프로시저럴 그래디언트)
+    lit_peaks:       ${jobs.lit.output.lit_peaks}           # ~0 (셰이딩) → ~1 (입자 / 점)
+
+  jobs:
+    - id: edges
+      component: cv-stats
+      action: edge_structure
+      input:
+        image: ${input.image as image}
+    - id: gradient
+      component: cv-stats
+      action: gradient
+      input:
+        image: ${input.image as image}
+    - id: lit
+      component: cv-stats
+      action: lit_structure
+      input:
+        image: ${input.image as image}
+    - id: flat
+      component: native-stats
+      action: flat_regions
+      input:
+        image: ${input.image as image}
+    - id: noise
+      component: native-stats
+      action: noise
+      input:
+        image: ${input.image as image}
+
+components:
+  - id: native-stats
+    type: image-analyzer
+    driver: native
+    actions:
+      - id: flat_regions
+        metric: flat_regions
+        image: ${input.image}
+      - id: noise
+        metric: noise
+        image: ${input.image}
+
+  - id: cv-stats
+    type: image-analyzer
+    driver: opencv
+    actions:
+      - id: edge_structure
+        metric: edge_structure
+        image: ${input.image}
+      - id: gradient
+        metric: gradient
+        image: ${input.image}
+      - id: lit_structure
+        metric: lit_structure
+        image: ${input.image}
+```
+
+**해석**: UI 스크린샷은 `axis_edge_ratio` 높음 + `flat_ratio` 높음 + `noise_sigma` ~0. 실사 사진은 반대. 프로시저럴 그래디언트(CSS 카드, 3D 하늘)는 `grad_clean`을 1.0에 근접하게 만들고, 입자 / 점구름 그래픽은 `lit_peaks`를 1.0에 가깝게 만든다.
+
+### 17.7.5 비디오 프레임 포렌식 (Pulldown 검출)
+
+**목표**: 짧은 프레임 윈도우의 중복 프레임 패턴을 autocorrelation으로 분석하여 24 fps → 30 fps pulldown(스트리밍 플랫폼의 AI 생성 영상·영화 콘텐츠·애니메이션의 지문)을 검출한다.
+
+**구성 파일**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: Pulldown 검출
+  description: 네이티브 fps로 프레임을 추출하고 중복 주기를 분석한다.
+  input: ${input}
+  output:
+    dup_ratio:      ${jobs.cadence.output.dup_ratio}
+    dup_period:     ${jobs.cadence.output.dup_period}
+    dup_regularity: ${jobs.cadence.output.dup_regularity}
+    pulldown:       ${jobs.cadence.output.pulldown}
+    temporal_noise: ${jobs.noise.output.temporal_noise}
+
+  jobs:
+    - id: extract
+      component: extractor
+      input:
+        video: ${input.video as video}
+    - id: cadence
+      component: cv-stats
+      action: duplicate
+      input:
+        frames: ${jobs.extract.output}
+    - id: noise
+      component: native-stats
+      action: temporal_noise
+      input:
+        frames: ${jobs.extract.output}
+
+components:
+  - id: extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_rate: 30     # 네이티브 fps; 다운샘플하면 pulldown 지문이 사라진다
+
+  - id: cv-stats
+    type: video-frame-analyzer
+    driver: opencv
+    actions:
+      - id: duplicate
+        metric: duplicate
+        frames: ${input.frames}
+        frame_rate: 30
+
+  - id: native-stats
+    type: video-frame-analyzer
+    driver: native
+    actions:
+      - id: temporal_noise
+        metric: temporal_noise
+        frames: ${input.frames}
+```
+
+**해석**:
+
+- `pulldown == "24->30"` + `dup_regularity > 0.9` + `dup_ratio ≈ 0.2` → **24 fps 원본을 30 fps로 변환** (AI 영상, 영화, 애니)
+- `pulldown == null` + `dup_ratio < 0.05` → **네이티브 30 fps 촬영** (폰, 카메라, 화면 녹화)
+- `temporal_noise`와 조합: 노이즈 ~0 + 24→30 pulldown은 AI 생성 콘텐츠 강력 시사. 노이즈 높음 + 24→30 pulldown은 영화 소스 시사.
+
 ---
 
 ## 17.8 브라우저 자동화

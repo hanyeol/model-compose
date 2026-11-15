@@ -38,11 +38,14 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `image-processor` | 处理图像 | 图像转换、调整大小、滤镜等 |
 | `image-drawing` | 在图像上绘制 | 通过 Pillow ImageDraw 绘制图形、文本和位图 — 边界框、标签、关键点、掩膜叠加 |
 | `image-compressor` | 压缩图像 | 通过 Pillow、oxipng 或 pngquant 进行 PNG 压缩 |
-| `image-analyzer` | 图像属性测量 | 通过 Pillow + numpy 测量亮度、对比度、清晰度（模糊）、曝光削波 |
+| `image-analyzer` | 图像属性测量 | 通过 Pillow + numpy 测量亮度统计（亮度、对比度、曝光、暗度）、纹理/结构（清晰度、噪声、平坦区域）、颜色（调色板、色彩多样性）。通过 OpenCV 测量梯度、边缘结构、多尺度纹理、亮/墨结构 |
 | `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
 | `video-converter` | 视频转换 | 视频转码/格式转换（容器、编解码器、分辨率等） |
 | `video-encoder` | 视频编码 | 将 PIL 帧编码为视频，或对现有视频进行再编码，支持可选音轨（ffmpeg） |
 | `video-frame-extractor` | 视频帧提取 | 将视频解码为 PIL 图像帧，支持采样和时间范围 |
+| `video-frame-analyzer` | 帧序列属性测量 | 通过 numpy 测量时间噪声、帧对差异、零像素比率。通过 OpenCV 测量运动帧对、重复帧 pulldown 周期（24→30 fps）、清晰度振荡（帧插值指纹） |
+| `video-motion-estimator` | 帧对运动估计 | 通过 OpenCV 进行 Lucas-Kanade 特征点追踪 + RANSAC similarity 拟合：刚性运动（`zoom_per_s`、`pan_px_per_s`、inlier 比率）和 Ken Burns 检测（静态内容 + 相机移动分数） |
+| `video-scene-transition-classifier` | 场景边界标注 | 将 `video-scene-detector` 检测到的各场景边界分类为 `cut`、`jump`、`dissolve`、`fade_in`、`fade_out`、`flash`、`wipe`、`slide`、`blur` 或 `unknown`（numpy）；`opencv` 驱动通过特征点追踪 + 仿射估计增加运动隐藏的切换（`whip`、`zoom`、`spin`、`shake`、`glitch`）标签 |
 | `video-clipper` | 视频片段裁剪 | 通过 ffmpeg 流复制无损裁剪视频中一个或多个时间范围 |
 | `video-processor` | 逐帧视频 DSP | 通过 ffmpeg 滤镜进行 resize、crop、pad、flip、rotate、变速（`setpts` + `atempo` 保持 A/V 同步） |
 | `video-analyzer` | 视频属性测量 | 通过 ffmpeg 滤镜测量黑帧、冻结、亮度、运动 |
@@ -89,9 +92,12 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 图像处理（调整大小、裁剪、滤镜、叠加、区域马赛克/填充）→ `image-processor`
 - 图像绘制（边界框、标签、关键点、掩膜叠加）→ `image-drawing`
 - 图像压缩 (PNG) → `image-compressor`
-- 图像分析（亮度、对比度、清晰度/模糊、曝光削波）→ `image-analyzer`
+- 图像分析（亮度、对比度、清晰度/模糊、曝光削波、暗度、噪声、平坦区域、调色板、色彩多样性、梯度、边缘结构、多尺度纹理、亮/墨结构）→ `image-analyzer`
 - 视频场景检测 → `video-scene-detector`
 - 视频帧提取 → `video-frame-extractor`
+- 帧序列分析（时间噪声、帧对差异、零像素比率、运动帧对、pulldown 周期、清晰度振荡）→ `video-frame-analyzer`
+- 帧对运动估计（刚性 zoom/pan 速率、Ken Burns 检测）→ `video-motion-estimator`
+- 场景过渡标注（将 `video-scene-detector` 检测到的边界分类为 cut/jump/dissolve/fade/flash/wipe/slide/blur；opencv 驱动追加 whip/zoom/spin/shake/glitch）→ `video-scene-transition-classifier`
 - 视频编码（帧 → 视频，或再编码）→ `video-encoder`
 - 视频 / 音频裁剪（无损裁切时间范围）→ `video-clipper` / `audio-clipper`
 - 逐帧视频 DSP（resize、crop、pad、flip、rotate、音视频同步变速）→ `video-processor`

@@ -530,6 +530,7 @@ component:
 - `top_k`: 쿼리별 상위 K개 결과만 유지합니다.
 - `score_threshold`: 이 점수 미만의 결과를 버립니다.
 - `return_documents`: `false`이면 결과에 `index`와 `score`만 포함됩니다.
+- `batch_size` (기본값 `32`): 하나의 쿼리에 대한 후보 목록을 forward pass 한 번당 몇 쌍씩 스코어링할지 결정합니다. 문서가 길거나 GPU 메모리가 작으면 값을 줄이세요 — 어텐션 메모리는 `O(batch_size × length²)`로 증가합니다. 다른 태스크의 `batch_size`와 달리 여러 리랭킹 작업을 묶는 값이 아니며, 각 (query, candidates) 호출은 독립적으로 처리됩니다.
 
 사용 예제 (RAG 리랭크 단계):
 ```yaml

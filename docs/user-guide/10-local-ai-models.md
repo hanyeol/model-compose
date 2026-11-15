@@ -531,6 +531,7 @@ component:
 - `top_k`: Keep only the top K results per query.
 - `score_threshold`: Drop results below this score.
 - `return_documents`: When `false`, results contain only `index` and `score`.
+- `batch_size` (default `32`): Pairs scored per forward pass within one query's candidate list. Lower it on long documents or small GPUs — attention memory grows as `O(batch_size × length²)`. Unlike most tasks, this does not group multiple reranking jobs together; each (query, candidates) call is processed on its own.
 
 Usage example (RAG rerank stage):
 ```yaml

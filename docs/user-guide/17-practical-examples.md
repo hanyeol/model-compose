@@ -1156,6 +1156,218 @@ component:
 - Modify specific regions
 - Style transfer
 
+### 17.7.3 Image Quality Scoring (Native Pixel Analysis)
+
+**Goal**: Reject blurry, badly exposed, or content-poor uploads before they reach downstream models.
+
+**Configuration File**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: Upload Quality Check
+  description: Score an incoming image on sharpness, exposure, and dark-region profile.
+  input: ${input}
+  output:
+    sharp:    ${jobs.sharp.output}
+    exposure: ${jobs.exposure.output}
+    dark:     ${jobs.dark.output}
+
+  jobs:
+    - id: sharp
+      component: quality
+      action: sharpness
+      input:
+        image: ${input.image as image}
+
+    - id: exposure
+      component: quality
+      action: exposure
+      input:
+        image: ${input.image as image}
+
+    - id: dark
+      component: quality
+      action: darkness
+      input:
+        image: ${input.image as image}
+
+component:
+  id: quality
+  type: image-analyzer
+  driver: native
+  actions:
+    - id: sharpness
+      metric: sharpness
+      image: ${input.image}
+      blur_threshold: 120
+
+    - id: exposure
+      metric: exposure
+      image: ${input.image}
+      shadow_threshold: 12
+      highlight_threshold: 243
+
+    - id: darkness
+      metric: darkness
+      image: ${input.image}
+```
+
+**What you get**: three JSON blocks you can gate on — `is_blurry`, `shadow_clipped_ratio` / `highlight_clipped_ratio`, and `dark_std` / `dark_flat`.
+
+### 17.7.4 Rendered-vs-Photographic Hint (OpenCV Driver)
+
+**Goal**: Score how likely an image is UI / code-drawn / 3D-rendered versus photographic. Useful for routing uploads to the right downstream pipeline (OCR for documents, caption model for photos, Remotion rebuild for motion graphics).
+
+**Configuration File**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: Rendered-vs-Photographic
+  input: ${input}
+  output:
+    axis_edge_ratio: ${jobs.edges.output.axis_edge_ratio}  # 0 (photo) → 1 (UI grid)
+    flat_ratio:      ${jobs.flat.output.flat_ratio}         # 0 (photo) → 1 (flat fills)
+    noise_sigma:     ${jobs.noise.output.noise_sigma}       # ~0 (rendered) → >1 (sensor noise)
+    grad_clean:      ${jobs.gradient.output.grad_clean}     # 0 (photo) → 1 (procedural gradient)
+    lit_peaks:       ${jobs.lit.output.lit_peaks}           # ~0 (shaded) → ~1 (particle / dot matrix)
+
+  jobs:
+    - id: edges
+      component: cv-stats
+      action: edge_structure
+      input:
+        image: ${input.image as image}
+    - id: gradient
+      component: cv-stats
+      action: gradient
+      input:
+        image: ${input.image as image}
+    - id: lit
+      component: cv-stats
+      action: lit_structure
+      input:
+        image: ${input.image as image}
+    - id: flat
+      component: native-stats
+      action: flat_regions
+      input:
+        image: ${input.image as image}
+    - id: noise
+      component: native-stats
+      action: noise
+      input:
+        image: ${input.image as image}
+
+components:
+  - id: native-stats
+    type: image-analyzer
+    driver: native
+    actions:
+      - id: flat_regions
+        metric: flat_regions
+        image: ${input.image}
+      - id: noise
+        metric: noise
+        image: ${input.image}
+
+  - id: cv-stats
+    type: image-analyzer
+    driver: opencv
+    actions:
+      - id: edge_structure
+        metric: edge_structure
+        image: ${input.image}
+      - id: gradient
+        metric: gradient
+        image: ${input.image}
+      - id: lit_structure
+        metric: lit_structure
+        image: ${input.image}
+```
+
+**Reading the result**: UI screenshots score high `axis_edge_ratio` + high `flat_ratio` + ~0 `noise_sigma`. Natural photos score the opposite. Procedural gradients (CSS cards, 3D sky) push `grad_clean` close to 1.0. Particle / point-cloud graphics push `lit_peaks` close to 1.0.
+
+### 17.7.5 Video Frame Forensics (Pulldown Detection)
+
+**Goal**: Detect 24 fps → 30 fps pulldown (the fingerprint of AI-generated video, cinema content, and anime on streaming platforms) by autocorrelating the duplicate-frame pattern of a short frame window.
+
+**Configuration File**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: Pulldown Detection
+  description: Extract frames at native rate and inspect their duplicate cadence.
+  input: ${input}
+  output:
+    dup_ratio:      ${jobs.cadence.output.dup_ratio}
+    dup_period:     ${jobs.cadence.output.dup_period}
+    dup_regularity: ${jobs.cadence.output.dup_regularity}
+    pulldown:       ${jobs.cadence.output.pulldown}
+    temporal_noise: ${jobs.noise.output.temporal_noise}
+
+  jobs:
+    - id: extract
+      component: extractor
+      input:
+        video: ${input.video as video}
+    - id: cadence
+      component: cv-stats
+      action: duplicate
+      input:
+        frames: ${jobs.extract.output}
+    - id: noise
+      component: native-stats
+      action: temporal_noise
+      input:
+        frames: ${jobs.extract.output}
+
+components:
+  - id: extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_rate: 30     # native rate; downsampling kills the pulldown signature
+
+  - id: cv-stats
+    type: video-frame-analyzer
+    driver: opencv
+    actions:
+      - id: duplicate
+        metric: duplicate
+        frames: ${input.frames}
+        frame_rate: 30
+
+  - id: native-stats
+    type: video-frame-analyzer
+    driver: native
+    actions:
+      - id: temporal_noise
+        metric: temporal_noise
+        frames: ${input.frames}
+```
+
+**Reading the result**:
+
+- `pulldown == "24->30"` with `dup_regularity > 0.9` and `dup_ratio ≈ 0.2` → **24 fps source transcoded to 30 fps** (AI video, cinema, anime)
+- `pulldown == null` with `dup_ratio < 0.05` → **native 30 fps capture** (phone, camera, screen recording)
+- Pair with `temporal_noise`: near-zero noise + 24→30 pulldown strongly suggests AI-generated content; high noise + 24→30 pulldown suggests cinematic source
+
 ---
 
 ## 17.8 Browser Automation

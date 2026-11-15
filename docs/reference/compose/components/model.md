@@ -352,7 +352,7 @@ component:
 | `top_k` | integer | `null` | Keep only the top K results per query after scoring. |
 | `score_threshold` | float | `null` | Drop any result whose score is below this threshold. |
 | `return_documents` | bool | `true` | Include the original document under `document` in each result. Set to `false` to return only `index` and `score`. |
-| `batch_size` | integer | `32` | Number of (query, document) pairs the driver scores in a single forward pass. |
+| `batch_size` | integer | `32` | Number of (query, document) pairs the driver scores in a single forward pass. Caps attention memory (`O(B × L²)`); lower it on long documents or small GPUs. Unlike most tasks' `batch_size`, this is a pair-axis chunk size inside one reranking job, not a count of jobs grouped together. |
 | `max_input_length` | integer | `null` | Maximum tokens per (query, document) pair; longer pairs are truncated. Defaults to the tokenizer's `model_max_length`. |
 | `params.normalize` | bool | `true` | Apply sigmoid to raw logits so scores are in `[0, 1]`. Set to `false` to return raw logits. |
 
@@ -4273,7 +4273,6 @@ Sony CSL Paris PESTO — self-supervised CQT-based pitch estimator (ISMIR 2023 /
 | `step_size` | float | `10.0` | Hop between CQT frames in milliseconds; torch backend only, mutually exclusive with `streaming.chunk_size` |
 | `streaming.chunk_size` | int | — | Fixed chunk length in audio samples fed to the model per inference step |
 | `streaming.max_batch_size` | int | `1` | Maximum number of concurrent streams the component can serve |
-| `providers` | list | — | `onnxruntime` execution providers (e.g. `[CUDAExecutionProvider, CPUExecutionProvider]`); auto-selected from `device` when omitted |
 | `precision` | string | — | Numeric precision (`float32`, `float16`); `float16` speeds up CUDA inference on the torch backend. `bfloat16` falls back to float32. |
 
 Offline (torch backend):

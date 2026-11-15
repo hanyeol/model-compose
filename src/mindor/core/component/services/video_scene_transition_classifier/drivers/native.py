@@ -16,6 +16,17 @@ from .common import VideoSceneTransitionClassifierAction
 if TYPE_CHECKING:
     from PIL import Image as PILImage
 
+# Per-frame luma standard deviation below which a frame reads as "flat"
+# (the black/white card a fade passes through). A whip through a dark
+# corner or a hand over the lens also produces flat frames, but the
+# endpoint-stability check keeps that from registering as a fade.
+_FADE_FLAT_STD = 8.0
+
+# Minimum luma standard deviation at each window endpoint for a boundary
+# to be read as a real transition. Rejects clips that are uniformly dim
+# throughout — otherwise the whole window reads as a fade through black.
+_ENDPOINT_MIN_STD = 12.0
+
 _STREAM_END = object()
 
 class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierAction):
@@ -285,6 +296,13 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         "before" side, the last W are the "after" side. `thumb_lumas` maps frame
         index to luma thumbnail; indices outside the available range (video start
         or truncated window at stream end) are simply missing from the dict.
+
+        `min_luma` reports the level a fade passes through: the mean luma of
+        the window's flat frames (nearly a single colour) when any exist,
+        otherwise the plain window minimum. When flat frames are present, the
+        endpoint standard deviations must clear `_ENDPOINT_MIN_STD`; a clip
+        that is uniformly dim throughout fails this gate and `min_luma` is
+        then reported as the bright window max so the fade branch skips it.
         """
         import numpy as np
 
@@ -303,19 +321,33 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         blend_residual, blend_length = self._linear_blend_residual(blend_window)
 
         # Brightness ramp — mean luma over the window, slope per frame.
-        window_lumas = [ float(luma.mean()) for luma in blend_window ]
+        window_means = np.asarray([ float(luma.mean()) for luma in blend_window ], dtype=np.float32) if blend_window else np.zeros(0, dtype=np.float32)
 
-        if len(window_lumas) >= 2:
-            window_lumas     = np.asarray(window_lumas, dtype=np.float32)
-            indices          = np.arange(len(window_lumas), dtype=np.float32)
-            slope, _offset   = np.polyfit(indices, window_lumas, 1)
+        if len(window_means) >= 2:
+            indices          = np.arange(len(window_means), dtype=np.float32)
+            slope, _offset   = np.polyfit(indices, window_means, 1)
             brightness_slope = float(slope)
-            min_luma         = float(window_lumas.min())
-            max_luma         = float(window_lumas.max())
+            max_luma         = float(window_means.max())
         else:
             brightness_slope = 0.0
-            min_luma         = float(window_lumas[0]) if window_lumas else 0.0
-            max_luma         = float(window_lumas[0]) if window_lumas else 0.0
+            max_luma         = float(window_means[0]) if len(window_means) else 0.0
+
+        # Fade passes through a flat (nearly single-colour) frame. When the
+        # window has any such frame, report their mean luma as `min_luma` so
+        # the fade branch tests the actual fade level. But only if the two
+        # endpoints are real pictures: a uniformly dim clip would otherwise
+        # read as a fade along its whole length.
+        flat_lumas = [ float(luma.mean()) for luma in blend_window if float(luma.std()) < _FADE_FLAT_STD ]
+        endpoints_are_pictures = (
+            len(blend_window) > 0
+            and float(blend_window[0].std())  > _ENDPOINT_MIN_STD
+            and float(blend_window[-1].std()) > _ENDPOINT_MIN_STD
+        )
+
+        if flat_lumas and endpoints_are_pictures:
+            min_luma = float(np.mean(flat_lumas))
+        else:
+            min_luma = float(window_means.min()) if len(window_means) else 0.0
 
         return {
             "pair_mad":          pair_mad,
@@ -327,9 +359,13 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         }
 
     def _linear_blend_residual(self, window_lumas: List[Any]) -> Tuple[float, int]:
-        """Fit each in-between frame as alpha * first + (1 - alpha) * last and
-        return the mean residual. A small residual means the window is a clean
-        linear blend (dissolve signature). Returns (residual, blend_length)."""
+        """Fit each middle frame as `first + alpha * (last - first)` with alpha
+        unclipped, and return the median scale-normalized residual plus the
+        window length. A clean dissolve yields small residuals AND an alpha
+        series that rises monotonically across the window — a hard cut
+        snaps alpha to 0/1 at the boundary with no progression and fails
+        the rising test, so its residual is forced to infinity to keep the
+        dissolve branch from accepting it."""
         import numpy as np
 
         if len(window_lumas) < 3:
@@ -337,30 +373,48 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         first = window_lumas[0]
         last  = window_lumas[-1]
-        delta = first - last
-        delta_energy = float((delta * delta).sum())
-
-        if delta_energy == 0.0:
-            return float("inf"), len(window_lumas)
+        delta = last - first
+        denom = float((delta * delta).sum()) + 1e-6
+        scale = float(np.abs(delta).mean()) + 1e-6
 
         residuals: List[float] = []
+        alphas:    List[float] = []
 
         for index in range(1, len(window_lumas) - 1):
-            # Per-frame optimal alpha = <frame - last, first - last> / ||first - last||^2
-            diff  = window_lumas[index] - last
-            alpha = float((diff * delta).sum()) / delta_energy
-            alpha = max(0.0, min(1.0, alpha))
+            alpha = float(((window_lumas[index] - first) * delta).sum() / denom)
+            alphas.append(alpha)
+            residuals.append(float(np.abs(window_lumas[index] - (first + alpha * delta)).mean()) / scale)
 
-            predicted = alpha * first + (1.0 - alpha) * last
-            residuals.append(float(np.abs(window_lumas[index] - predicted).mean()))
+        alphas = np.asarray(alphas, dtype=np.float32)
+        # The index-correlation + endpoint conditions are from rea-video's
+        # `_blend_fit`. The adjacent-diff uniformity gate is additional:
+        # upstream rea-video skips `_blend_fit` entirely for hard cuts (its
+        # shot detector already labelled them), so a step-shaped alpha
+        # `[0,0,...,1,1]` never reaches the test there. Here it does, with
+        # correlation ~0.87 against the frame index — just above 0.85. A
+        # true dissolve's alpha advances by a near-constant step per frame
+        # (max/mean ≈ 1); a step cut concentrates the advance into a
+        # single jump (max/mean ≈ N).
+        alpha_diffs = np.diff(alphas) if len(alphas) >= 2 else np.zeros(0, dtype=np.float32)
+        mean_diff   = float(alpha_diffs.mean()) if len(alpha_diffs) else 0.0
+        rising = len(alphas) < 3 or (
+            float(np.corrcoef(alphas, np.arange(len(alphas)))[0, 1]) > 0.85
+            and alphas[0]  < 0.6
+            and alphas[-1] > 0.4
+            and mean_diff > 0.0
+            and float(alpha_diffs.max()) / mean_diff < 2.0
+        )
 
-        return (sum(residuals) / len(residuals)) if residuals else float("inf"), len(window_lumas)
+        return (float(np.median(residuals)) if rising else float("inf")), len(window_lumas)
 
     def _decide_label(self, signals: Dict[str, Any], params: Dict[str, Any]) -> Tuple[str, float]:
-        """Rule chain over the measured signals. Fades are checked first because
-        their brightness ramp is unambiguous; cuts precede dissolves because a
-        hard boundary (frames split into two constant blocks) also satisfies the
-        linear-blend reconstruction trivially — the pair-MAD spike disambiguates.
+        """Rule chain over the measured signals. Fade and dissolve carry
+        multi-signal gates that a hard cut cannot satisfy: a fade requires a
+        flat-level `min_luma` AND a ramp slope; a dissolve requires a small
+        scale-normalized blend residual AND a monotonically rising alpha. Cut
+        is the pair-MAD-spike fallback. Unknown covers boundaries where none
+        of the gates fire (often false-positive scene boundaries from frame
+        interpolation).
         """
         min_luma         = signals["min_luma"]
         brightness_slope = signals["brightness_slope"]
@@ -376,11 +430,11 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         if is_fade_out:
             return "fade_out", min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
 
-        if pair_mad >= params["cut_mad_threshold"]:
-            return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
-
         if blend_residual <= params["dissolve_blend_threshold"] and signals["blend_length"] >= 3:
             return "dissolve", max(0.0, 1.0 - blend_residual / params["dissolve_blend_threshold"])
+
+        if pair_mad >= params["cut_mad_threshold"]:
+            return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
 
         return "unknown", 0.0
 

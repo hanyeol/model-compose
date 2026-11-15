@@ -37,7 +37,13 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             cut_mad_threshold        = await context.render_scalar(self.config.cut_mad_threshold, float)
             dissolve_blend_threshold = await context.render_scalar(self.config.dissolve_blend_threshold, float)
             fade_black_threshold     = await context.render_scalar(self.config.fade_black_threshold, float)
+            fade_white_threshold     = await context.render_scalar(self.config.fade_white_threshold, float)
             fade_ramp_min_slope      = await context.render_scalar(self.config.fade_ramp_min_slope, float)
+            flash_peak_threshold     = await context.render_scalar(self.config.flash_peak_threshold, float)
+            flash_endpoint_gap       = await context.render_scalar(self.config.flash_endpoint_gap, float)
+            wipe_edge_threshold         = await context.render_scalar(self.config.wipe_edge_threshold, float)
+            wipe_region_pure_threshold  = await context.render_scalar(self.config.wipe_region_pure_threshold, float)
+            blur_detail_ratio           = await context.render_scalar(self.config.blur_detail_ratio, float)
 
             if not 16 <= analysis_width <= 4096:
                 raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
@@ -54,16 +60,40 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             if fade_black_threshold < 0.0:
                 raise ValueError(f"'fade_black_threshold' must be non-negative, got {fade_black_threshold}")
 
+            if fade_white_threshold > 255.0 or fade_white_threshold <= fade_black_threshold:
+                raise ValueError(f"'fade_white_threshold' must be greater than 'fade_black_threshold' and at most 255.0, got {fade_white_threshold}")
+
             if fade_ramp_min_slope <= 0.0:
                 raise ValueError(f"'fade_ramp_min_slope' must be positive, got {fade_ramp_min_slope}")
 
+            if flash_peak_threshold <= 0.0 or flash_peak_threshold > 255.0:
+                raise ValueError(f"'flash_peak_threshold' must be in (0.0, 255.0], got {flash_peak_threshold}")
+
+            if flash_endpoint_gap < 0.0:
+                raise ValueError(f"'flash_endpoint_gap' must be non-negative, got {flash_endpoint_gap}")
+
+            if not 0.0 < wipe_edge_threshold <= 1.0:
+                raise ValueError(f"'wipe_edge_threshold' must be in (0.0, 1.0], got {wipe_edge_threshold}")
+
+            if not 0.0 < wipe_region_pure_threshold <= 1.0:
+                raise ValueError(f"'wipe_region_pure_threshold' must be in (0.0, 1.0], got {wipe_region_pure_threshold}")
+
+            if not 0.0 < blur_detail_ratio <= 1.0:
+                raise ValueError(f"'blur_detail_ratio' must be in (0.0, 1.0], got {blur_detail_ratio}")
+
             return {
-                "analysis_width":           analysis_width,
-                "window_size":              window_size,
-                "cut_mad_threshold":        cut_mad_threshold,
-                "dissolve_blend_threshold": dissolve_blend_threshold,
-                "fade_black_threshold":     fade_black_threshold,
-                "fade_ramp_min_slope":      fade_ramp_min_slope,
+                "analysis_width":             analysis_width,
+                "window_size":                window_size,
+                "cut_mad_threshold":          cut_mad_threshold,
+                "dissolve_blend_threshold":   dissolve_blend_threshold,
+                "fade_black_threshold":       fade_black_threshold,
+                "fade_white_threshold":       fade_white_threshold,
+                "fade_ramp_min_slope":        fade_ramp_min_slope,
+                "flash_peak_threshold":       flash_peak_threshold,
+                "flash_endpoint_gap":         flash_endpoint_gap,
+                "wipe_edge_threshold":        wipe_edge_threshold,
+                "wipe_region_pure_threshold": wipe_region_pure_threshold,
+                "blur_detail_ratio":          blur_detail_ratio,
             }
 
         raise ValueError(f"Unsupported video scene transition classification mode: {mode}")
@@ -115,7 +145,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         Two async tasks feed asyncio queues; the main loop awaits whichever
         queue produces first. State kept across iterations:
 
-        * `boundary_windows`:  boundary -> (start_idx, end_idx)  (end exclusive)
+        * `boundary_windows`:  boundary -> (start_frame, end_frame)  (end exclusive)
         * `pending_boundaries`: boundary -> {frame_idx: luma}
         * `recent_frames`:     frame_idx -> luma  (frames received before any
                                                    boundary claimed them; held
@@ -171,6 +201,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
                 for task in pending_tasks:
                     if task not in done:
                         task.cancel()
+
                         try:
                             await task
                         except (asyncio.CancelledError, Exception):
@@ -192,16 +223,16 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
                         # into a boundary here.
                         if previous_scene is not None:
                             boundary = int(previous_scene["end_frame"])
-                            start = max(0, boundary - params["window_size"])
-                            end   = boundary + params["window_size"]  # exclusive
-                            boundary_windows[boundary] = (start, end)
+                            start_frame = max(0, boundary - params["window_size"])
+                            end_frame   = boundary + params["window_size"]  # exclusive
+                            boundary_windows[boundary] = (start_frame, end_frame)
                             pending_boundaries[boundary] = {}
                             boundary_order.append(boundary)
 
                             # Reclaim any already-received frames that fall into
                             # this boundary's window.
                             for frame_index in list(recent_frames.keys()):
-                                if start <= frame_index < end:
+                                if start_frame <= frame_index < end_frame:
                                     pending_boundaries[boundary][frame_index] = recent_frames.pop(frame_index)
 
                         previous_scene = item
@@ -223,8 +254,8 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
                         # share a frame when their windows overlap.
                         claimed = False
 
-                        for boundary, (start, end) in boundary_windows.items():
-                            if start <= frame_index < end:
+                        for boundary, (start_frame, end_frame) in boundary_windows.items():
+                            if start_frame <= frame_index < end_frame:
                                 pending_boundaries[boundary][frame_index] = luma
                                 claimed = True
 
@@ -242,8 +273,8 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
                     if boundary not in boundary_windows:
                         continue
 
-                    start, end = boundary_windows[boundary]
-                    if max_seen_frame_index + 1 >= end or frames_done:
+                    _, end_frame = boundary_windows[boundary]
+                    if max_seen_frame_index + 1 >= end_frame or frames_done:
                         thumb_lumas = pending_boundaries.pop(boundary)
                         boundary_windows.pop(boundary)
                         boundary_order.remove(boundary)
@@ -271,22 +302,6 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
                     await task
                 except (asyncio.CancelledError, Exception):
                     pass
-
-    def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
-        """Resample a frame to `analysis_width` on the long axis and return BT.601 luma as float32."""
-        import numpy as np
-
-        width, height = frame.size
-
-        if width == 0 or height == 0:
-            return np.zeros((1, 1), dtype=np.float32)
-
-        if width > analysis_width:
-            scale = analysis_width / width
-            new_size = (analysis_width, max(1, int(round(height * scale))))
-            frame = frame.resize(new_size)
-
-        return np.asarray(frame.convert("L"), dtype=np.float32)
 
     def _measure_signals(self, boundary: int, thumb_lumas: Dict[int, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         """Measure the raw signals used to decide a transition label at a boundary.
@@ -327,17 +342,19 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             indices          = np.arange(len(window_means), dtype=np.float32)
             slope, _offset   = np.polyfit(indices, window_means, 1)
             brightness_slope = float(slope)
-            max_luma         = float(window_means.max())
         else:
             brightness_slope = 0.0
-            max_luma         = float(window_means[0]) if len(window_means) else 0.0
 
         # Fade passes through a flat (nearly single-colour) frame. When the
-        # window has any such frame, report their mean luma as `min_luma` so
-        # the fade branch tests the actual fade level. But only if the two
-        # endpoints are real pictures: a uniformly dim clip would otherwise
-        # read as a fade along its whole length.
+        # window has any such frame AND the two endpoints are real pictures,
+        # report `min_luma` / `max_luma` as the mean luma of the flat frames
+        # so the fade branch can test fade-through-black (small min_luma) or
+        # fade-through-white (large max_luma). Without the endpoint guard a
+        # uniformly dim clip would read as a fade along its whole length;
+        # without the flat-frame check a dissolve that crosses mid-grey
+        # would also look like a fade.
         flat_lumas = [ float(luma.mean()) for luma in blend_window if float(luma.std()) < _FADE_FLAT_STD ]
+
         endpoints_are_pictures = (
             len(blend_window) > 0
             and float(blend_window[0].std())  > _ENDPOINT_MIN_STD
@@ -345,9 +362,57 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         )
 
         if flat_lumas and endpoints_are_pictures:
-            min_luma = float(np.mean(flat_lumas))
+            flat_level = float(np.mean(flat_lumas))
+            min_luma = flat_level
+            max_luma = flat_level
         else:
             min_luma = float(window_means.min()) if len(window_means) else 0.0
+            max_luma = float(window_means.max()) if len(window_means) else 0.0
+
+        # Peak luma — raw window maximum, unaffected by the flat-frame
+        # reinterpretation above. Flash detection needs the real bright burst
+        # even when the burst does not cross the flat-frame std threshold.
+        peak_luma = float(window_means.max()) if len(window_means) else 0.0
+
+        # Endpoint max luma — the brighter of the two window endpoints, used
+        # as the reference level a flash must stand out from.
+        endpoint_max_luma = float(max(window_means[0], window_means[-1])) if len(window_means) else 0.0
+
+        # Straight-edge fit (wipe / slide): can each in-between frame be
+        # explained as the old picture on one side of a moving straight
+        # edge and the new picture on the other? Returns the relative
+        # residual plus the best mode + direction.
+        if len(blend_window) >= 3:
+            edge_fit = self._edge_fit(blend_window[0], blend_window[-1], blend_window[1:-1])
+        else:
+            edge_fit = None
+
+        # Region fit (iris / non-straight wipe): block-by-block each
+        # in-between frame is either the old picture or the new one, and
+        # the "new" region grows across the window.
+        if len(blend_window) >= 3:
+            region_fit = self._region_fit(blend_window[0], blend_window[-1], blend_window[1:-1])
+        else:
+            region_fit = None
+
+        # Blur ratio (defocus / motion-smear): compare the minimum
+        # per-axis gradient of the in-between frames to the median gradient
+        # of the two endpoints. A defocus transition drops detail (small
+        # grad) in both axes while the endpoints remain sharp — the
+        # resulting ratios `rx`, `ry` fall well below 1.0. The endpoints
+        # must themselves be sharp pictures (same std gate used for fade
+        # endpoints); a flat-grey clip has no detail to lose and must not
+        # read as blur.
+        if len(blend_window) >= 3 and endpoints_are_pictures:
+            endpoint_gradients   = [ self._frame_gradient(blend_window[0]), self._frame_gradient(blend_window[-1]) ]
+            horizontal_endpoint  = float(np.median([ gradient[0] for gradient in endpoint_gradients ])) + 1e-6
+            vertical_endpoint    = float(np.median([ gradient[1] for gradient in endpoint_gradients ])) + 1e-6
+            inside_gradients     = [ self._frame_gradient(frame) for frame in blend_window[1:-1] ]
+            blur_rx              = min(gradient[0] for gradient in inside_gradients) / horizontal_endpoint
+            blur_ry              = min(gradient[1] for gradient in inside_gradients) / vertical_endpoint
+        else:
+            blur_rx = 1.0
+            blur_ry = 1.0
 
         return {
             "pair_mad":          pair_mad,
@@ -356,6 +421,15 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             "brightness_slope":  brightness_slope,
             "min_luma":          min_luma,
             "max_luma":          max_luma,
+            "peak_luma":         peak_luma,
+            "endpoint_max_luma": endpoint_max_luma,
+            "edge_residual":     edge_fit["residual"]  if edge_fit else float("inf"),
+            "edge_mode":         edge_fit["mode"]      if edge_fit else None,
+            "edge_direction":    edge_fit["direction"] if edge_fit else None,
+            "region_pure":       region_fit["pure"]      if region_fit else 0.0,
+            "region_direction":  region_fit["direction"] if region_fit else None,
+            "blur_rx":           blur_rx,
+            "blur_ry":           blur_ry,
         }
 
     def _linear_blend_residual(self, window_lumas: List[Any]) -> Tuple[float, int]:
@@ -397,6 +471,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         # single jump (max/mean ≈ N).
         alpha_diffs = np.diff(alphas) if len(alphas) >= 2 else np.zeros(0, dtype=np.float32)
         mean_diff   = float(alpha_diffs.mean()) if len(alpha_diffs) else 0.0
+
         rising = len(alphas) < 3 or (
             float(np.corrcoef(alphas, np.arange(len(alphas)))[0, 1]) > 0.85
             and alphas[0]  < 0.6
@@ -405,30 +480,306 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             and float(alpha_diffs.max()) / mean_diff < 2.0
         )
 
-        return (float(np.median(residuals)) if rising else float("inf")), len(window_lumas)
+        residual = float(np.median(residuals)) if rising else float("inf")
+
+        return residual, len(window_lumas)
+
+    def _frame_gradient(self, frame: Any) -> Tuple[float, float]:
+        """Mean absolute per-axis gradient of a luma thumbnail. The pair
+        (horizontal, vertical) measures horizontal and vertical detail; a
+        sharp picture has both >> 0, a defocused frame or a flat colour has
+        both ~ 0."""
+        import numpy as np
+
+        horizontal = float(np.abs(np.diff(frame, axis=1)).mean())
+        vertical   = float(np.abs(np.diff(frame, axis=0)).mean())
+
+        return horizontal, vertical
+
+    def _edge_fit(self, before: Any, after: Any, middle_frames: List[Any]) -> Optional[Dict[str, Any]]:
+        """Best straight-edge explanation of the in-between frames.
+
+        For each (direction, mode) pair, synthesize the frame that would
+        appear once the edge has travelled `distance` pixels, compare against
+        each middle frame, keep the best match. A good fit requires the median
+        residual to be below 0.38 of the raw before/after difference AND the
+        edge position to travel monotonically across the span. Modes: `wipe`
+        (nothing moves), `push` / `cover` / `reveal` (one or both pictures
+        slide). Direction: `left` / `right` / `up` / `down`.
+        """
+        import numpy as np
+
+        if not middle_frames:
+            return None
+
+        before_after_diff = float(np.abs(before - after).mean()) + 1e-6
+        best: Optional[Dict[str, Any]] = None
+
+        for direction in ("left", "right", "up", "down"):
+            size  = before.shape[1] if direction in ("left", "right") else before.shape[0]
+            steps = np.unique(np.linspace(0, size, num=min(size + 1, 33)).astype(int))
+
+            for mode in ("wipe", "push", "cover", "reveal"):
+                candidates = [ self._compose_moving_edge(before, after, mode, direction, int(step)) for step in steps ]
+                residuals, positions = [], []
+
+                for middle_frame in middle_frames:
+                    errors    = [ float(np.abs(middle_frame - candidate).mean()) for candidate in candidates ]
+                    best_step = int(np.argmin(errors))
+                    residuals.append(errors[best_step] / before_after_diff)
+                    positions.append(steps[best_step] / size)
+
+                residual = float(np.median(residuals))
+
+                # Nothing moving is the simpler reading; a moving mode has to
+                # fit clearly better to be chosen over wipe.
+                if best is None or residual < best["residual"] * (0.8 if best["mode"] == "wipe" and mode != "wipe" else 1.0):
+                    best = { "mode": mode, "direction": direction, "residual": residual, "positions": positions }
+
+        if best is None or best["residual"] > 0.38:
+            return None
+
+        positions = np.asarray(best["positions"], dtype=np.float32)
+
+        if len(positions) >= 3 and (
+            float(np.corrcoef(positions, np.arange(len(positions)))[0, 1]) < 0.8
+            or positions[-1] - positions[0] < 0.3
+        ):
+            return None  # the edge has to travel across the frame
+
+        return { "mode": best["mode"], "direction": best["direction"], "residual": best["residual"] }
+
+    def _compose_moving_edge(self, before: Any, after: Any, mode: str, direction: str, distance: int) -> Any:
+        """Frame a straight-edge transition shows once the edge has travelled
+        `distance` pixels in `direction`. `mode`: `wipe` (nothing moves),
+        `push` (both pictures move), `cover` (new slides in over old),
+        `reveal` (old slides away off new)."""
+        import numpy as np
+
+        if direction in ("up", "down"):
+            return self._compose_moving_edge(before.T, after.T, mode, "left" if direction == "up" else "right", distance).T
+
+        if direction == "right":
+            return self._compose_moving_edge(before[:, ::-1], after[:, ::-1], mode, "left", distance)[:, ::-1]
+
+        width = before.shape[1]
+
+        if distance <= 0:
+            return before.copy()
+
+        if distance >= width:
+            return after.copy()
+
+        frame = np.empty_like(before)
+        frame[:, :width - distance] = before[:, distance:] if mode in ("push", "reveal") else before[:, :width - distance]
+        frame[:, width - distance:] = after[:, :distance]  if mode in ("push", "cover")  else after[:, width - distance:]
+
+        return frame
+
+    def _region_fit(self, before: Any, after: Any, middle_frames: List[Any]) -> Optional[Dict[str, Any]]:
+        """Wipe of any shape: block by block every in-between frame is the
+        old picture or the new one, and the new region grows. Direction
+        from the order in which the blocks turn: `left`/`right`/`up`/`down`
+        for a straight edge, `center_out`/`edges_in` for an iris,
+        `diagonal` for a corner wipe."""
+        import numpy as np
+
+        if len(middle_frames) < 2:
+            return None
+
+        before_after_diff = self._block_diff(before, after)
+        significant = before_after_diff > max(10.0, 0.5 * float(np.median(before_after_diff)))
+
+        if significant.mean() < 0.4:
+            return None
+
+        pure_shares: List[float] = []
+        new_masks:   List[Any]   = []
+
+        for middle_frame in middle_frames:
+            middle_before_diff = self._block_diff(middle_frame, before)
+            middle_after_diff  = self._block_diff(middle_frame, after)
+            pure_shares.append(float((np.minimum(middle_before_diff, middle_after_diff)[significant] < 0.4 * before_after_diff[significant]).mean()))
+            new_masks.append(middle_after_diff < middle_before_diff)
+
+        new_shares = [ float(mask[significant].mean()) for mask in new_masks ]
+
+        # Judge pure-ness only where the two pictures share the frame; half-
+        # way through a dissolve no block is purely old or purely new even
+        # when the endpoints look clean.
+        central_pure_shares = [ pure for pure, new in zip(pure_shares, new_shares) if 0.2 < new < 0.8 ] or pure_shares
+
+        if min(central_pure_shares) < 0.6:
+            return None
+
+        if float(np.percentile(pure_shares, 20)) < 0.7:
+            return None
+
+        if new_shares[-1] - new_shares[0] < 0.3:
+            return None
+
+        # Blocks that turn and then turn back are motion, not a wipe.
+        flips = np.diff(np.asarray(new_masks, dtype=np.int8), axis=0)
+
+        if float((flips < 0).any(axis=0)[significant].mean()) > 0.2:
+            return None
+
+        # First in-between frame showing the new picture, per block.
+        turn_time = np.asarray(new_masks, dtype=np.float32).argmax(axis=0).astype(np.float32)
+        turn_time[~np.asarray(new_masks).any(axis=0)] = len(middle_frames)
+
+        grid_height, grid_width = turn_time.shape
+        y_axis, x_axis = np.mgrid[0:grid_height, 0:grid_width].astype(np.float32)
+        radius_axis = np.hypot((x_axis - (grid_width - 1) / 2) / grid_width, (y_axis - (grid_height - 1) / 2) / grid_height)
+
+        def _axis_correlation(axis: Any) -> float:
+            times = turn_time[significant]
+            coord = axis[significant]
+
+            return float(np.corrcoef(times, coord)[0, 1]) if times.std() > 0 and coord.std() > 0 else 0.0
+
+        corr_x      = _axis_correlation(x_axis)
+        corr_y      = _axis_correlation(y_axis)
+        corr_radius = _axis_correlation(radius_axis)
+
+        direction = None
+
+        if max(abs(corr_x), abs(corr_y), abs(corr_radius)) >= 0.55:
+            if abs(corr_radius) >= max(abs(corr_x), abs(corr_y)):
+                direction = "center_out" if corr_radius > 0 else "edges_in"
+            elif min(abs(corr_x), abs(corr_y)) >= 0.45:
+                direction = "diagonal"
+            elif abs(corr_x) > abs(corr_y):
+                direction = "right" if corr_x > 0 else "left"
+            else:
+                direction = "down" if corr_y > 0 else "up"
+
+        return { "direction": direction, "pure": float(np.median(pure_shares)) }
+
+    def _block_diff(self, before: Any, after: Any, shift: int = 2) -> Any:
+        """Per-block mean `|before - after|` on a 6x8 grid, taking the best of
+        a few small shifts so that ordinary subject motion inside the shot
+        does not read as a different picture. numpy equivalent of rea-video's
+        `block_diff` with cv2.resize replaced by a mean-pool reshape."""
+        import numpy as np
+
+        height, width = before.shape
+        best: Optional[Any] = None
+
+        for shift_y, shift_x in ((0, 0), (shift, 0), (-shift, 0), (0, shift), (0, -shift)):
+            shifted = np.roll(after, (shift_y, shift_x), axis=(0, 1))
+            diff    = np.abs(before - shifted)[shift:height - shift, shift:width - shift]
+            pooled  = self._mean_pool(diff, (6, 8))
+            best    = pooled if best is None else np.minimum(best, pooled)
+
+        return best
+
+    def _mean_pool(self, array: Any, grid: Tuple[int, int]) -> Any:
+        """Downsample `array` to the given (rows, cols) grid by averaging
+        each block. numpy replacement for `cv2.resize(..., INTER_AREA)`
+        on integer-divisible shapes; for other shapes the array is cropped
+        to the nearest multiple of the grid."""
+        grid_rows, grid_cols = grid
+        height, width = array.shape
+        block_height  = max(1, height // grid_rows)
+        block_width   = max(1, width  // grid_cols)
+
+        array = array[: grid_rows * block_height, : grid_cols * block_width]
+
+        return array.reshape(grid_rows, block_height, grid_cols, block_width).mean(axis=(1, 3))
 
     def _decide_label(self, signals: Dict[str, Any], params: Dict[str, Any]) -> Tuple[str, float]:
-        """Rule chain over the measured signals. Fade and dissolve carry
-        multi-signal gates that a hard cut cannot satisfy: a fade requires a
-        flat-level `min_luma` AND a ramp slope; a dissolve requires a small
-        scale-normalized blend residual AND a monotonically rising alpha. Cut
-        is the pair-MAD-spike fallback. Unknown covers boundaries where none
-        of the gates fire (often false-positive scene boundaries from frame
-        interpolation).
+        """Rule chain over the measured signals, ordered to mirror rea-video's
+        `classify` cascade: fade and flash gate first (both require specific
+        luma shapes a cut cannot forge), then a cut fast-path intercepts the
+        case rea-video handles via an upstream `found_as="cut"` hint — without
+        it, a constant-colour cut can fool `_edge_fit` into a perfect
+        straight-edge fit. Wipe/slide, dissolve, and the pair-MAD fallback
+        follow. Unknown covers boundaries where none of the gates fire (often
+        false-positive scene boundaries from frame interpolation).
         """
         min_luma         = signals["min_luma"]
+        max_luma         = signals["max_luma"]
         brightness_slope = signals["brightness_slope"]
         blend_residual   = signals["blend_residual"]
         pair_mad         = signals["pair_mad"]
 
-        is_fade_in  = min_luma < params["fade_black_threshold"] and brightness_slope >=  params["fade_ramp_min_slope"]
-        is_fade_out = min_luma < params["fade_black_threshold"] and brightness_slope <= -params["fade_ramp_min_slope"]
+        # A fade passes through a flat (nearly single-colour) frame; `min_luma`
+        # (reinterpreted in _measure_signals) and `max_luma` identify whether
+        # that flat frame is near-black or near-white. The slope direction
+        # alone does not tell fade-in from fade-out — black and white fades
+        # reverse its meaning (`black → picture` and `white → picture` are
+        # both fade-ins, with opposite slope signs). We orient by whether
+        # the slope points away from the flat colour (fade-in: picture
+        # emerging from the flat frame) or towards it (fade-out).
+        if min_luma < params["fade_black_threshold"]:
+            if brightness_slope >=  params["fade_ramp_min_slope"]:
+                return "fade_in",  min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
 
-        if is_fade_in:
-            return "fade_in", min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
+            if brightness_slope <= -params["fade_ramp_min_slope"]:
+                return "fade_out", min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
 
-        if is_fade_out:
-            return "fade_out", min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
+        if max_luma > params["fade_white_threshold"]:
+            if brightness_slope <= -params["fade_ramp_min_slope"]:
+                return "fade_in",  min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
+
+            if brightness_slope >=  params["fade_ramp_min_slope"]:
+                return "fade_out", min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
+
+        # Flash: a bright burst (e.g. light leak, camera flash) between two
+        # normal shots. The window peak clears an absolute threshold AND
+        # stands out from the brighter endpoint by a fixed gap.
+        peak_luma         = signals["peak_luma"]
+        endpoint_max_luma = signals["endpoint_max_luma"]
+
+        if peak_luma >= params["flash_peak_threshold"] and peak_luma >= endpoint_max_luma + params["flash_endpoint_gap"]:
+            return "flash", min(1.0, (peak_luma - endpoint_max_luma) / (params["flash_endpoint_gap"] * 2.0))
+
+        edge_residual    = signals["edge_residual"]
+        edge_mode        = signals["edge_mode"]
+        region_pure      = signals["region_pure"]
+        region_direction = signals["region_direction"]
+
+        # Cut fast-path: rea-video reaches this point already knowing an
+        # upstream shot detector marked the boundary a cut (`found_as`), so
+        # it short-circuits before the wipe/slide branches can mistakenly
+        # claim a constant-colour cut whose `_edge_fit` fits trivially. We
+        # have no upstream hint, so synthesize one from the pair-MAD spike
+        # AND the absence of a rising blend (step-shaped alpha rejects the
+        # uniformity gate, leaving `blend_residual == inf`).
+        if pair_mad >= params["cut_mad_threshold"] and blend_residual == float("inf"):
+            return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
+
+        # Wipe (iris) first: a block-wise region fit whose direction is
+        # center_out / edges_in wins over a straight edge unless the edge
+        # fit is near-perfect.
+        is_iris_wipe = region_direction in ("center_out", "edges_in")
+
+        if is_iris_wipe and region_pure >= params["wipe_region_pure_threshold"] and not (edge_mode is not None and edge_residual < 0.1):
+            return "wipe", min(1.0, region_pure)
+
+        # Straight-edge wipe/slide: residual must clear the edge threshold
+        # AND be clearly better than the dissolve fit (prevents a dissolve
+        # with modest translation from reading as a slide).
+        if edge_mode is not None and edge_residual <= params["wipe_edge_threshold"] and edge_residual < 0.6 * blend_residual:
+            label = "wipe" if edge_mode == "wipe" else "slide"
+
+            return label, max(0.0, 1.0 - edge_residual / params["wipe_edge_threshold"])
+
+        # Region fit with any direction: block-wise wipe that is not a
+        # straight edge (e.g. shape-mask wipe).
+        if region_direction is not None and region_pure >= params["wipe_region_pure_threshold"]:
+            return "wipe", min(1.0, region_pure)
+
+        # Blur (defocus): detail drops in both axes across the window
+        # relative to the endpoints. The rising-blend gate for dissolve
+        # also fires on a defocus-and-back (luma ramps smoothly), so blur
+        # must run before dissolve or a soft blur reads as a dissolve.
+        blur_rx = signals["blur_rx"]
+        blur_ry = signals["blur_ry"]
+
+        if max(blur_rx, blur_ry) < params["blur_detail_ratio"]:
+            return "blur", min(1.0, 1.0 - max(blur_rx, blur_ry) / params["blur_detail_ratio"])
 
         if blend_residual <= params["dissolve_blend_threshold"] and signals["blend_length"] >= 3:
             return "dissolve", max(0.0, 1.0 - blend_residual / params["dissolve_blend_threshold"])
@@ -437,6 +788,22 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
 
         return "unknown", 0.0
+
+    def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
+        """Resample a frame to `analysis_width` on the long axis and return BT.601 luma as float32."""
+        import numpy as np
+
+        width, height = frame.size
+
+        if width == 0 or height == 0:
+            return np.zeros((1, 1), dtype=np.float32)
+
+        if width > analysis_width:
+            scale = analysis_width / width
+            new_size = (analysis_width, max(1, int(round(height * scale))))
+            frame = frame.resize(new_size)
+
+        return np.asarray(frame.convert("L"), dtype=np.float32)
 
 @register_video_scene_transition_classifier_driver(VideoSceneTransitionClassifierDriverType.NATIVE)
 class NativeVideoSceneTransitionClassifierService(VideoSceneTransitionClassifierDriver):

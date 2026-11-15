@@ -2,6 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Optional, List, Dict, Any, Union, Tuple
+from collections.abc import AsyncIterator
+import asyncio
 from mindor.dsl.schema.component import VideoSceneTransitionClassifierComponentConfig, VideoSceneTransitionClassifierDriverType
 from mindor.dsl.schema.action import VideoSceneTransitionClassifierActionConfig, NativeVideoSceneTransitionClassifierMode
 from mindor.core.foundation.variable.array import ArrayValue
@@ -13,6 +15,8 @@ from .common import VideoSceneTransitionClassifierAction
 
 if TYPE_CHECKING:
     from PIL import Image as PILImage
+
+_STREAM_END = object()
 
 class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierAction):
     async def _resolve_params(self, mode: NativeVideoSceneTransitionClassifierMode, context: ComponentActionContext) -> Dict[str, Any]:
@@ -62,66 +66,200 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         streaming: bool,
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
+    ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
         if mode == NativeVideoSceneTransitionClassifierMode.CLASSIFY:
-            return await self._classify_scenes(scenes, frames, frame_rate, params, cancellation_token)
+            if streaming:
+                return self._stream_scenes(scenes, frames, frame_rate, params, cancellation_token)
+
+            return await self._collect_scenes(scenes, frames, frame_rate, params, cancellation_token)
 
         raise ValueError(f"Unsupported video scene transition classification mode: {mode}")
 
-    async def _classify_scenes(
+    async def _collect_scenes(
         self,
         scenes: ArrayValue,
         frames: ImageArrayValue,
         frame_rate: Optional[float],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        scenes = await scenes.collect()
-        frames = await frames.collect()
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
 
-        # Boundaries sit between consecutive scenes: the end_frame of scene N
-        # is the start of scene N+1. The final scene has no following scene,
-        # so its end is the video end, not a transition.
-        boundaries: List[int] = [ int(scenes[index]["end_frame"]) for index in range(len(scenes) - 1) ]
+        async for scene in self._stream_scenes(scenes, frames, frame_rate, params, cancellation_token):
+            results.append(scene)
 
-        def _classify_scenes() -> Dict[str, Any]:
-            import numpy as np
+        return results
 
-            thumb_lumas = [ self._thumb_luma(frame, params["analysis_width"]) for frame in frames ]
+    async def _stream_scenes(
+        self,
+        scenes: ArrayValue,
+        frames: ImageArrayValue,
+        frame_rate: Optional[float],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Concurrently consume `scenes` and `frames` as async streams, emitting
+        a transition dict as soon as each boundary's window is complete.
 
-            transitions: List[Dict[str, Any]] = []
-            label_counts: Dict[str, int] = { "cut": 0, "dissolve": 0, "fade_in": 0, "fade_out": 0, "wipe": 0, "none": 0 }
+        Two async tasks feed asyncio queues; the main loop awaits whichever
+        queue produces first. State kept across iterations:
 
-            for boundary in boundaries:
-                signals = self._measure_signals(boundary, thumb_lumas, params)
-                label, confidence = self._decide_label(signals, params)
+        * `boundary_windows`:  boundary -> (start_idx, end_idx)  (end exclusive)
+        * `pending_boundaries`: boundary -> {frame_idx: luma}
+        * `recent_frames`:     frame_idx -> luma  (frames received before any
+                                                   boundary claimed them; held
+                                                   in case a later scene does)
 
-                transitions.append({
-                    "boundary_frame": boundary,
-                    "boundary_time":  boundary / frame_rate if frame_rate else None,
-                    "label":          label,
-                    "confidence":     confidence,
-                    "signals":        signals,
-                })
-                label_counts[label] += 1
+        Memory stays bounded by the number of in-flight windows: once a boundary
+        is complete it is emitted and dropped. `recent_frames` is pruned whenever
+        we learn no future scene can land in a given index range.
+        """
+        scene_queue: asyncio.Queue = asyncio.Queue()
+        frame_queue: asyncio.Queue = asyncio.Queue()
 
-            return {
-                "transitions":    transitions,
-                "cut_count":      label_counts["cut"],
-                "dissolve_count": label_counts["dissolve"],
-                "fade_in_count":  label_counts["fade_in"],
-                "fade_out_count": label_counts["fade_out"],
-                "wipe_count":     label_counts["wipe"],
-                "none_count":     label_counts["none"],
-                "boundary_count": len(boundaries),
-                "scene_count":    len(scenes),
-                "frame_count":    len(frames),
-                "frame_rate":     frame_rate,
-                "analysis_width": params["analysis_width"],
-                "window_size":    params["window_size"],
-            }
+        async def _consume_scenes() -> None:
+            try:
+                async for scene in scenes:
+                    await scene_queue.put(scene)
+            finally:
+                await scene_queue.put(_STREAM_END)
 
-        return await self._run_in_executor(_classify_scenes)
+        async def _consume_frames() -> None:
+            try:
+                index = 0
+                async for frame in frames:
+                    await frame_queue.put((index, frame))
+                    index += 1
+            finally:
+                await frame_queue.put(_STREAM_END)
+
+        scene_task = asyncio.create_task(_consume_scenes())
+        frame_task = asyncio.create_task(_consume_frames())
+
+        pending_boundaries: Dict[int, Dict[int, Any]] = {}
+        boundary_windows:   Dict[int, Tuple[int, int]] = {}
+        recent_frames:      Dict[int, Any] = {}
+        boundary_order:     List[int] = []  # emission order (scene arrival order)
+
+        previous_scene: Optional[Dict[str, Any]] = None
+        scenes_done = False
+        frames_done = False
+        max_seen_frame_index = -1
+
+        try:
+            while not (scenes_done and frames_done):
+                scene_next = asyncio.create_task(scene_queue.get()) if not scenes_done else None
+                frame_next = asyncio.create_task(frame_queue.get()) if not frames_done else None
+
+                pending_tasks = [ task for task in (scene_next, frame_next) if task is not None ]
+                done, _ = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
+
+                # Keep whichever task wasn't ready — it will be the first wait on
+                # the next loop iteration via a fresh get() wrap (we cancel the
+                # unused one to avoid leaking a pending Queue.get).
+                for task in pending_tasks:
+                    if task not in done:
+                        task.cancel()
+                        try:
+                            await task
+                        except (asyncio.CancelledError, Exception):
+                            pass
+
+                for task in done:
+                    item = task.result()
+
+                    if task is scene_next:
+                        if item is _STREAM_END:
+                            scenes_done = True
+
+                            continue
+
+                        # The boundary is the current scene's end_frame — but
+                        # only when there is a following scene. We learn that
+                        # there IS a following scene only when the NEXT one
+                        # arrives, so we promote the previous scene's end_frame
+                        # into a boundary here.
+                        if previous_scene is not None:
+                            boundary = int(previous_scene["end_frame"])
+                            start = max(0, boundary - params["window_size"])
+                            end   = boundary + params["window_size"]  # exclusive
+                            boundary_windows[boundary] = (start, end)
+                            pending_boundaries[boundary] = {}
+                            boundary_order.append(boundary)
+
+                            # Reclaim any already-received frames that fall into
+                            # this boundary's window.
+                            for frame_index in list(recent_frames.keys()):
+                                if start <= frame_index < end:
+                                    pending_boundaries[boundary][frame_index] = recent_frames.pop(frame_index)
+
+                        previous_scene = item
+
+                        continue
+
+                    if task is frame_next:
+                        if item is _STREAM_END:
+                            frames_done = True
+
+                            continue
+
+                        frame_index, frame = item
+                        max_seen_frame_index = frame_index
+                        luma = self._thumb_luma(frame, params["analysis_width"])
+
+                        # Route the new luma into every pending boundary whose
+                        # window covers this index. Multiple boundaries can
+                        # share a frame when their windows overlap.
+                        claimed = False
+
+                        for boundary, (start, end) in boundary_windows.items():
+                            if start <= frame_index < end:
+                                pending_boundaries[boundary][frame_index] = luma
+                                claimed = True
+
+                        if not claimed:
+                            # Hold it for future scenes — but drop frames that
+                            # can no longer land in any window: once scenes are
+                            # done, nothing further can claim them.
+                            if not scenes_done:
+                                recent_frames[frame_index] = luma
+
+                # Emit transitions for any boundary whose window is fully
+                # covered (either its end index is past max_seen_frame_index,
+                # or the frame stream ended).
+                for boundary in list(boundary_order):
+                    if boundary not in boundary_windows:
+                        continue
+
+                    start, end = boundary_windows[boundary]
+                    if max_seen_frame_index + 1 >= end or frames_done:
+                        thumb_lumas = pending_boundaries.pop(boundary)
+                        boundary_windows.pop(boundary)
+                        boundary_order.remove(boundary)
+
+                        signals = self._measure_signals(boundary, thumb_lumas, params)
+                        label, confidence = self._decide_label(signals, params)
+
+                        yield {
+                            "boundary_frame": boundary,
+                            "boundary_time":  boundary / frame_rate if frame_rate else None,
+                            "label":          label,
+                            "confidence":     confidence,
+                            "signals":        signals,
+                        }
+
+            # Scenes done: the previous_scene's end_frame is the end of video
+            # (no following scene), so it is NOT a boundary. Nothing to flush
+            # from previous_scene.
+        finally:
+            scene_task.cancel()
+            frame_task.cancel()
+
+            for task in (scene_task, frame_task):
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
     def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
         """Resample a frame to `analysis_width` on the long axis and return BT.601 luma as float32."""
@@ -139,25 +277,20 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         return np.asarray(frame.convert("L"), dtype=np.float32)
 
-    def _measure_signals(self, boundary: int, thumb_lumas: List[Any], params: Dict[str, Any]) -> Dict[str, Any]:
+    def _measure_signals(self, boundary: int, thumb_lumas: Dict[int, Any], params: Dict[str, Any]) -> Dict[str, Any]:
         """Measure the raw signals used to decide a transition label at a boundary.
 
         A boundary sits between frames `boundary - 1` and `boundary`. A window of
         size W pulls frames `[boundary - W, boundary + W)` — the first W are the
-        "before" side, the last W are the "after" side.
+        "before" side, the last W are the "after" side. `thumb_lumas` maps frame
+        index to luma thumbnail; indices outside the available range (video start
+        or truncated window at stream end) are simply missing from the dict.
         """
         import numpy as np
 
-        window_size = params["window_size"]
-        frame_count = len(thumb_lumas)
-
-        before_start = max(0, boundary - window_size)
-        before_end   = boundary
-        after_start  = boundary
-        after_end    = min(frame_count, boundary + window_size)
-
-        before_window = thumb_lumas[before_start:before_end]
-        after_window  = thumb_lumas[after_start:after_end]
+        before_window = [ thumb_lumas[index] for index in range(boundary - params["window_size"], boundary) if index in thumb_lumas ]
+        after_window  = [ thumb_lumas[index] for index in range(boundary, boundary + params["window_size"]) if index in thumb_lumas ]
+        blend_window  = before_window + after_window
 
         # Pair MAD across the boundary — how different are the two sides' innermost frames.
         if before_window and after_window:
@@ -167,19 +300,18 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         # Linear-blend fit — if the in-between frames can be reconstructed as
         # alpha * A + (1-alpha) * B (with monotone alpha), the residual is small.
-        blend_window = thumb_lumas[before_start:after_end]
         blend_residual, blend_length = self._linear_blend_residual(blend_window)
 
         # Brightness ramp — mean luma over the window, slope per frame.
         window_lumas = [ float(luma.mean()) for luma in blend_window ]
 
         if len(window_lumas) >= 2:
-            lumas_array = np.asarray(window_lumas, dtype=np.float32)
-            indices     = np.arange(len(lumas_array), dtype=np.float32)
-            slope, offset = np.polyfit(indices, lumas_array, 1)
+            window_lumas     = np.asarray(window_lumas, dtype=np.float32)
+            indices          = np.arange(len(window_lumas), dtype=np.float32)
+            slope, _offset   = np.polyfit(indices, window_lumas, 1)
             brightness_slope = float(slope)
-            min_luma         = float(lumas_array.min())
-            max_luma         = float(lumas_array.max())
+            min_luma         = float(window_lumas.min())
+            max_luma         = float(window_lumas.max())
         else:
             brightness_slope = 0.0
             min_luma         = float(window_lumas[0]) if window_lumas else 0.0
@@ -205,7 +337,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         first = window_lumas[0]
         last  = window_lumas[-1]
-        delta = last - first
+        delta = first - last
         delta_energy = float((delta * delta).sum())
 
         if delta_energy == 0.0:
@@ -225,8 +357,11 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         return (sum(residuals) / len(residuals)) if residuals else float("inf"), len(window_lumas)
 
     def _decide_label(self, signals: Dict[str, Any], params: Dict[str, Any]) -> Tuple[str, float]:
-        """Rule chain over the measured signals. Order matters — fade is checked
-        before dissolve because a fade satisfies the blend-residual test too."""
+        """Rule chain over the measured signals. Fades are checked first because
+        their brightness ramp is unambiguous; cuts precede dissolves because a
+        hard boundary (frames split into two constant blocks) also satisfies the
+        linear-blend reconstruction trivially — the pair-MAD spike disambiguates.
+        """
         min_luma         = signals["min_luma"]
         brightness_slope = signals["brightness_slope"]
         blend_residual   = signals["blend_residual"]
@@ -241,13 +376,13 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         if is_fade_out:
             return "fade_out", min(1.0, abs(brightness_slope) / (params["fade_ramp_min_slope"] * 4.0))
 
-        if blend_residual <= params["dissolve_blend_threshold"] and signals["blend_length"] >= 3:
-            return "dissolve", max(0.0, 1.0 - blend_residual / params["dissolve_blend_threshold"])
-
         if pair_mad >= params["cut_mad_threshold"]:
             return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
 
-        return "none", 0.0
+        if blend_residual <= params["dissolve_blend_threshold"] and signals["blend_length"] >= 3:
+            return "dissolve", max(0.0, 1.0 - blend_residual / params["dissolve_blend_threshold"])
+
+        return "unknown", 0.0
 
 @register_video_scene_transition_classifier_driver(VideoSceneTransitionClassifierDriverType.NATIVE)
 class NativeVideoSceneTransitionClassifierService(VideoSceneTransitionClassifierDriver):

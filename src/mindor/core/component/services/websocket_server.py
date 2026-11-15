@@ -73,11 +73,15 @@ class WebSocketServerAction:
     async def _receive_collect(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY:
             buffer = bytearray()
+
             async for frame in connection.receive_frames():
                 if isinstance(frame, bytes):
                     buffer.extend(frame)
+
             return bytes(buffer)
+
         items = []
+
         async for frame in connection.receive_frames():
             if isinstance(frame, str):
                 if format == WebSocketReceiveFormat.JSON:
@@ -92,8 +96,10 @@ class WebSocketServerAction:
     async def _receive_single(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
         async for frame in connection.receive_frames():
             frame = self._decode_frame(frame, format)
+
             if frame is not None:
                 return frame
+
         return None
 
     async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned: bool = False):
@@ -103,6 +109,7 @@ class WebSocketServerAction:
         try:
             async for frame in connection.receive_frames():
                 frame = self._decode_frame(frame, format)
+
                 if frame is not None:
                     context.register_source("response[]", frame, scope=scope)
                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else frame
@@ -113,13 +120,16 @@ class WebSocketServerAction:
     def _decode_frame(self, frame: Any, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY and isinstance(frame, bytes):
             return frame
+
         if format == WebSocketReceiveFormat.JSON and isinstance(frame, str):
             try:
                 return json.loads(frame)
             except json.JSONDecodeError:
                 return None
+
         if format == WebSocketReceiveFormat.TEXT and isinstance(frame, str):
             return frame
+
         return None
 
 @register_component(ComponentType.WEBSOCKET_SERVER)

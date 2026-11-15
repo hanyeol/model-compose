@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Callable, Dict, List, Optional, Union, Awaitable, Any
 from collections.abc import AsyncIterator, AsyncIterable
 from dataclasses import dataclass, replace
@@ -20,6 +22,9 @@ from ..streaming.model_3d import Model3DStreamResource
 from ..streaming.url import UrlStreamResource, DataUriStreamResource
 from urllib.parse import unquote_to_bytes
 import re, aiofiles, os, asyncio
+
+# Sentinel for `RenderState.item` when no item is bound (distinct from a real `None` item).
+_UNSET_ITEM: Any = object()
 
 class FieldResolver:
     def __init__(self):
@@ -72,16 +77,14 @@ class FieldResolver:
 
         return value
 
-_MISSING: Any = object()
-
 @dataclass(frozen=True)
 class RenderState:
     scope: Optional[str] = None
     skip_decode: bool = False
-    item: Any = _MISSING
+    item: Any = _UNSET_ITEM
     index: Optional[int] = None
 
-    def with_item(self, item: Any, index: int) -> "RenderState":
+    def with_item(self, item: Any, index: int) -> RenderState:
         return replace(self, item=item, index=index)
 
 class VariableRenderer:
@@ -511,7 +514,7 @@ class VariableRenderer:
         return await evaluate_where(where, _evaluate_condition)
 
     async def _resolve_source(self, state: RenderState, key: str, index: Optional[Union[int, slice]]) -> Any:
-        if key == "item" and state.item is not _MISSING:
+        if key == "item" and state.item is not _UNSET_ITEM:
             value = state.item
 
             if index is not None and isinstance(value, list):

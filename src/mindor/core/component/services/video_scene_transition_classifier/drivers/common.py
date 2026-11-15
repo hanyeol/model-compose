@@ -15,9 +15,8 @@ from ..base import ComponentActionContext
 class VideoSceneTransitionClassifierAction(ComponentAction):
     """Driver-agnostic skeleton for video-scene-transition-classifier actions.
 
-    Subclasses declare their own mode set and override `_resolve_params`
-    and `_classify` to dispatch on that set — common.py does not know which
-    modes exist, only how to stream/batch them.
+    Subclasses override `_resolve_params` and `_classify`; common.py only
+    knows how to stream / batch each boundary-level classification.
     """
     def __init__(self, config: VideoSceneTransitionClassifierActionConfig):
         self.config: VideoSceneTransitionClassifierActionConfig = config
@@ -29,7 +28,7 @@ class VideoSceneTransitionClassifierAction(ComponentAction):
         batch_size = await context.render_variable(self.config.batch_size)
         streaming  = await context.render_scalar(self.config.streaming, bool)
 
-        params = await self._resolve_params(self.config.mode, context)
+        params = await self._resolve_params(context)
 
         is_single_input  = isinstance(frames, ImageArrayValue)
         is_direct_output = not self.config.output or self.config.output == "${result}"
@@ -37,7 +36,7 @@ class VideoSceneTransitionClassifierAction(ComponentAction):
         if isinstance(frames, (StreamIterator, AsyncIterator)):
             async def _stream_output_generator():
                 async for batch_frames in BatchSourceIterator(frames, batch_size=batch_size or 1):
-                    batch_results = await self._classify_batch(scenes, batch_frames, self.config.mode, frame_rate, streaming, params, context.cancellation_token)
+                    batch_results = await self._classify_batch(scenes, batch_frames, frame_rate, streaming, params, context.cancellation_token)
                     for result in batch_results:
                         if streaming:
                             async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -57,7 +56,7 @@ class VideoSceneTransitionClassifierAction(ComponentAction):
         else:
             results: List[Any] = []
             async for batch_frames in BatchSourceIterator(frames, batch_size=batch_size or 1):
-                batch_results = await self._classify_batch(scenes, batch_frames, self.config.mode, frame_rate, streaming, params, context.cancellation_token)
+                batch_results = await self._classify_batch(scenes, batch_frames, frame_rate, streaming, params, context.cancellation_token)
                 for result in batch_results:
                     if streaming:
                         async def _stream_chunk_generator(result=result, scope=f"stream:{id(result)}"):
@@ -78,7 +77,6 @@ class VideoSceneTransitionClassifierAction(ComponentAction):
         self,
         scenes: Any,
         frames: List[ImageArrayValue],
-        mode: Any,
         frame_rate: Optional[float],
         streaming: bool,
         params: Dict[str, Any],
@@ -89,18 +87,17 @@ class VideoSceneTransitionClassifierAction(ComponentAction):
         results: List[Any] = []
 
         for index in range(len(frames)):
-            results.append(await self._classify(mode, scenes_batch[index], frames[index], frame_rate, streaming, params, cancellation_token))
+            results.append(await self._classify(scenes_batch[index], frames[index], frame_rate, streaming, params, cancellation_token))
 
         return results
 
     @abstractmethod
-    async def _resolve_params(self, mode: Any, context: ComponentActionContext) -> Dict[str, Any]:
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         pass
 
     @abstractmethod
     async def _classify(
         self,
-        mode: Any,
         scenes: ArrayValue,
         frames: ImageArrayValue,
         frame_rate: Optional[float],

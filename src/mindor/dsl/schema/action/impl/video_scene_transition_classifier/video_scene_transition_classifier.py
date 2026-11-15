@@ -3,4 +3,5 @@ from .impl import *
 
 VideoSceneTransitionClassifierActionConfig = Union[
     NativeVideoSceneTransitionClassifierActionConfig,
+    OpenCvVideoSceneTransitionClassifierActionConfig,
 ]

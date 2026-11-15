@@ -5,6 +5,7 @@ from ...common import CommonComponentConfig, ComponentType
 
 class VideoSceneTransitionClassifierDriverType(str, Enum):
     NATIVE = "native"
+    OPENCV = "opencv"
 
 class CommonVideoSceneTransitionClassifierComponentConfig(CommonComponentConfig):
     type: Literal[ComponentType.VIDEO_SCENE_TRANSITION_CLASSIFIER]

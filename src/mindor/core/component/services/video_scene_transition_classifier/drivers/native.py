@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 from collections.abc import AsyncIterator
 import asyncio
 from mindor.dsl.schema.component import VideoSceneTransitionClassifierComponentConfig, VideoSceneTransitionClassifierDriverType
-from mindor.dsl.schema.action import VideoSceneTransitionClassifierActionConfig, NativeVideoSceneTransitionClassifierMode
+from mindor.dsl.schema.action import VideoSceneTransitionClassifierActionConfig
 from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.cancellation import CancellationToken
@@ -29,7 +29,7 @@ _ENDPOINT_MIN_STD = 12.0
 
 # Candidate half-widths (in seconds) `_measure_span` tries from smallest to
 # largest when narrowing the analysis window to the actual ramp of a gradual
-# transition. Ported from rea-video's `SPAN_SECONDS`.
+# transition.
 _SPAN_SECONDS = (0.1, 0.2, 0.35, 0.6, 1.0, 1.5)
 
 # Maximum MAD between a window endpoint and its outer-pad frames, expressed
@@ -40,77 +40,93 @@ _SPAN_PLATEAU = 0.4
 _STREAM_END = object()
 
 class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierAction):
-    async def _resolve_params(self, mode: NativeVideoSceneTransitionClassifierMode, context: ComponentActionContext) -> Dict[str, Any]:
-        if mode == NativeVideoSceneTransitionClassifierMode.CLASSIFY:
-            analysis_width             = await context.render_scalar(self.config.analysis_width, int)
-            window_size                = await context.render_scalar(self.config.window_size, int)
-            cut_mad_threshold          = await context.render_scalar(self.config.cut_mad_threshold, float)
-            dissolve_blend_threshold   = await context.render_scalar(self.config.dissolve_blend_threshold, float)
-            fade_black_threshold       = await context.render_scalar(self.config.fade_black_threshold, float)
-            fade_white_threshold       = await context.render_scalar(self.config.fade_white_threshold, float)
-            fade_ramp_min_slope        = await context.render_scalar(self.config.fade_ramp_min_slope, float)
-            flash_peak_threshold       = await context.render_scalar(self.config.flash_peak_threshold, float)
-            flash_endpoint_gap         = await context.render_scalar(self.config.flash_endpoint_gap, float)
-            wipe_edge_threshold        = await context.render_scalar(self.config.wipe_edge_threshold, float)
-            wipe_region_pure_threshold = await context.render_scalar(self.config.wipe_region_pure_threshold, float)
-            blur_detail_ratio          = await context.render_scalar(self.config.blur_detail_ratio, float)
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        analysis_width             = await context.render_scalar(self.config.analysis_width, int)
+        window_size                = await context.render_scalar(self.config.window_size, int)
+        cut_mad_threshold          = await context.render_scalar(self.config.cut_mad_threshold, float)
+        dissolve_blend_threshold   = await context.render_scalar(self.config.dissolve_blend_threshold, float)
+        fade_black_threshold       = await context.render_scalar(self.config.fade_black_threshold, float)
+        fade_white_threshold       = await context.render_scalar(self.config.fade_white_threshold, float)
+        fade_ramp_min_slope        = await context.render_scalar(self.config.fade_ramp_min_slope, float)
+        flash_peak_threshold       = await context.render_scalar(self.config.flash_peak_threshold, float)
+        flash_endpoint_gap         = await context.render_scalar(self.config.flash_endpoint_gap, float)
+        wipe_edge_threshold        = await context.render_scalar(self.config.wipe_edge_threshold, float)
+        wipe_region_pure_threshold = await context.render_scalar(self.config.wipe_region_pure_threshold, float)
+        blur_detail_ratio          = await context.render_scalar(self.config.blur_detail_ratio, float)
+        jump_block_min_std         = await context.render_scalar(self.config.jump_block_min_std, float)
+        jump_block_correlation     = await context.render_scalar(self.config.jump_block_correlation, float)
+        jump_min_matching_blocks   = await context.render_scalar(self.config.jump_min_matching_blocks, int)
+        jump_min_match_ratio       = await context.render_scalar(self.config.jump_min_match_ratio, float)
 
-            if not 16 <= analysis_width <= 4096:
-                raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
+        if not 16 <= analysis_width <= 4096:
+            raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
 
-            if not 1 <= window_size <= 64:
-                raise ValueError(f"'window_size' must be between 1 and 64, got {window_size}")
+        if not 1 <= window_size <= 64:
+            raise ValueError(f"'window_size' must be between 1 and 64, got {window_size}")
 
-            if cut_mad_threshold <= 0.0:
-                raise ValueError(f"'cut_mad_threshold' must be positive, got {cut_mad_threshold}")
+        if cut_mad_threshold <= 0.0:
+            raise ValueError(f"'cut_mad_threshold' must be positive, got {cut_mad_threshold}")
 
-            if dissolve_blend_threshold <= 0.0:
-                raise ValueError(f"'dissolve_blend_threshold' must be positive, got {dissolve_blend_threshold}")
+        if dissolve_blend_threshold <= 0.0:
+            raise ValueError(f"'dissolve_blend_threshold' must be positive, got {dissolve_blend_threshold}")
 
-            if fade_black_threshold < 0.0:
-                raise ValueError(f"'fade_black_threshold' must be non-negative, got {fade_black_threshold}")
+        if fade_black_threshold < 0.0:
+            raise ValueError(f"'fade_black_threshold' must be non-negative, got {fade_black_threshold}")
 
-            if fade_white_threshold > 255.0 or fade_white_threshold <= fade_black_threshold:
-                raise ValueError(f"'fade_white_threshold' must be greater than 'fade_black_threshold' and at most 255.0, got {fade_white_threshold}")
+        if fade_white_threshold > 255.0 or fade_white_threshold <= fade_black_threshold:
+            raise ValueError(f"'fade_white_threshold' must be greater than 'fade_black_threshold' and at most 255.0, got {fade_white_threshold}")
 
-            if fade_ramp_min_slope <= 0.0:
-                raise ValueError(f"'fade_ramp_min_slope' must be positive, got {fade_ramp_min_slope}")
+        if fade_ramp_min_slope <= 0.0:
+            raise ValueError(f"'fade_ramp_min_slope' must be positive, got {fade_ramp_min_slope}")
 
-            if flash_peak_threshold <= 0.0 or flash_peak_threshold > 255.0:
-                raise ValueError(f"'flash_peak_threshold' must be in (0.0, 255.0], got {flash_peak_threshold}")
+        if flash_peak_threshold <= 0.0 or flash_peak_threshold > 255.0:
+            raise ValueError(f"'flash_peak_threshold' must be in (0.0, 255.0], got {flash_peak_threshold}")
 
-            if flash_endpoint_gap < 0.0:
-                raise ValueError(f"'flash_endpoint_gap' must be non-negative, got {flash_endpoint_gap}")
+        if flash_endpoint_gap < 0.0:
+            raise ValueError(f"'flash_endpoint_gap' must be non-negative, got {flash_endpoint_gap}")
 
-            if not 0.0 < wipe_edge_threshold <= 1.0:
-                raise ValueError(f"'wipe_edge_threshold' must be in (0.0, 1.0], got {wipe_edge_threshold}")
+        if not 0.0 < wipe_edge_threshold <= 1.0:
+            raise ValueError(f"'wipe_edge_threshold' must be in (0.0, 1.0], got {wipe_edge_threshold}")
 
-            if not 0.0 < wipe_region_pure_threshold <= 1.0:
-                raise ValueError(f"'wipe_region_pure_threshold' must be in (0.0, 1.0], got {wipe_region_pure_threshold}")
+        if not 0.0 < wipe_region_pure_threshold <= 1.0:
+            raise ValueError(f"'wipe_region_pure_threshold' must be in (0.0, 1.0], got {wipe_region_pure_threshold}")
 
-            if not 0.0 < blur_detail_ratio <= 1.0:
-                raise ValueError(f"'blur_detail_ratio' must be in (0.0, 1.0], got {blur_detail_ratio}")
+        if not 0.0 < blur_detail_ratio <= 1.0:
+            raise ValueError(f"'blur_detail_ratio' must be in (0.0, 1.0], got {blur_detail_ratio}")
 
-            return {
-                "analysis_width":             analysis_width,
-                "window_size":                window_size,
-                "cut_mad_threshold":          cut_mad_threshold,
-                "dissolve_blend_threshold":   dissolve_blend_threshold,
-                "fade_black_threshold":       fade_black_threshold,
-                "fade_white_threshold":       fade_white_threshold,
-                "fade_ramp_min_slope":        fade_ramp_min_slope,
-                "flash_peak_threshold":       flash_peak_threshold,
-                "flash_endpoint_gap":         flash_endpoint_gap,
-                "wipe_edge_threshold":        wipe_edge_threshold,
-                "wipe_region_pure_threshold": wipe_region_pure_threshold,
-                "blur_detail_ratio":          blur_detail_ratio,
-            }
+        if jump_block_min_std < 0.0:
+            raise ValueError(f"'jump_block_min_std' must be non-negative, got {jump_block_min_std}")
 
-        raise ValueError(f"Unsupported video scene transition classification mode: {mode}")
+        if not 0.0 <= jump_block_correlation <= 1.0:
+            raise ValueError(f"'jump_block_correlation' must be between 0.0 and 1.0, got {jump_block_correlation}")
+
+        if not 1 <= jump_min_matching_blocks <= 64:
+            raise ValueError(f"'jump_min_matching_blocks' must be between 1 and 64, got {jump_min_matching_blocks}")
+
+        if not 0.0 < jump_min_match_ratio <= 1.0:
+            raise ValueError(f"'jump_min_match_ratio' must be in (0.0, 1.0], got {jump_min_match_ratio}")
+
+        return {
+            "analysis_width":             analysis_width,
+            "window_size":                window_size,
+            "cut_mad_threshold":          cut_mad_threshold,
+            "dissolve_blend_threshold":   dissolve_blend_threshold,
+            "fade_black_threshold":       fade_black_threshold,
+            "fade_white_threshold":       fade_white_threshold,
+            "fade_ramp_min_slope":        fade_ramp_min_slope,
+            "flash_peak_threshold":       flash_peak_threshold,
+            "flash_endpoint_gap":         flash_endpoint_gap,
+            "wipe_edge_threshold":        wipe_edge_threshold,
+            "wipe_region_pure_threshold": wipe_region_pure_threshold,
+            "blur_detail_ratio":          blur_detail_ratio,
+            "jump_block_min_std":         jump_block_min_std,
+            "jump_block_correlation":     jump_block_correlation,
+            "jump_min_matching_blocks":   jump_min_matching_blocks,
+            "jump_min_match_ratio":       jump_min_match_ratio,
+        }
 
     async def _classify(
         self,
-        mode: NativeVideoSceneTransitionClassifierMode,
         scenes: ArrayValue,
         frames: ImageArrayValue,
         frame_rate: Optional[float],
@@ -118,13 +134,10 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> Union[List[Dict[str, Any]], AsyncIterator[Dict[str, Any]]]:
-        if mode == NativeVideoSceneTransitionClassifierMode.CLASSIFY:
-            if streaming:
-                return self._stream_scenes(scenes, frames, frame_rate, params, cancellation_token)
+        if streaming:
+            return self._stream_scenes(scenes, frames, frame_rate, params, cancellation_token)
 
-            return await self._collect_scenes(scenes, frames, frame_rate, params, cancellation_token)
-
-        raise ValueError(f"Unsupported video scene transition classification mode: {mode}")
+        return await self._collect_scenes(scenes, frames, frame_rate, params, cancellation_token)
 
     async def _collect_scenes(
         self,
@@ -325,12 +338,12 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         A boundary sits between frames `boundary - 1` and `boundary`. `window_size`
         bounds how far we look on each side; the actual analysis window is then
         narrowed by `_measure_span` to the smallest half-width whose outer pad
-        holds steady and whose inner progress curve covers the full ramp (rea-video
-        `span` on a gradual boundary). When no narrower span satisfies the gates —
-        or when `frame_rate` is unknown — the full `[boundary - W, boundary + W)`
-        bound is used. `thumb_lumas` maps frame index to luma thumbnail; indices
-        outside the available range (video start or truncated window at stream end)
-        are simply missing from the dict.
+        holds steady and whose inner progress curve covers the full ramp. When
+        no narrower span satisfies the gates — or when `frame_rate` is unknown —
+        the full `[boundary - W, boundary + W)` bound is used. `thumb_lumas`
+        maps frame index to luma thumbnail; indices outside the available range
+        (video start or truncated window at stream end) are simply missing from
+        the dict.
 
         `min_luma` reports the level a fade passes through: the mean luma of
         the window's flat frames (nearly a single colour) when any exist,
@@ -352,6 +365,16 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         else:
             pair_mad = 0.0
 
+        # Same-structure (jump vs cut): block-wise brightness-normalized
+        # correlation across the boundary pair. A real cut shows unrelated
+        # pictures so most blocks fail to line up; a jump (same shot, only
+        # lighting / exposure changed) keeps the picture detail intact and
+        # most blocks correlate once brightness is removed.
+        if before_window and after_window:
+            has_same_structure = self._same_structure(before_window[-1], after_window[0], params)
+        else:
+            has_same_structure = False
+
         # Linear-blend fit — if the in-between frames can be reconstructed as
         # alpha * A + (1-alpha) * B (with monotone alpha), the residual is small.
         blend_residual, blend_length = self._linear_blend_residual(blend_window)
@@ -361,7 +384,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         if len(window_means) >= 2:
             indices          = np.arange(len(window_means), dtype=np.float32)
-            slope, _offset   = np.polyfit(indices, window_means, 1)
+            slope, _         = np.polyfit(indices, window_means, 1)
             brightness_slope = float(slope)
         else:
             brightness_slope = 0.0
@@ -378,20 +401,24 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         endpoints_are_pictures = (
             len(blend_window) > 0
-            and float(blend_window[0].std())  > _ENDPOINT_MIN_STD
-            and float(blend_window[-1].std()) > _ENDPOINT_MIN_STD
+            and (
+                float(blend_window[0].std()) > _ENDPOINT_MIN_STD
+                and float(blend_window[-1].std()) > _ENDPOINT_MIN_STD
+            )
         )
 
         # Looser gate than `endpoints_are_pictures` — only one endpoint has
         # to be a real picture. Fade_in / fade_out keep one shot and one
-        # flat colour by definition, so rea-video's two-sided picture
-        # requirement would reject them; the one-sided gate still rejects
-        # all-flat clips (a bright burst between two grey shots would
-        # otherwise flip the fade-through-white branch).
+        # flat colour by definition, so a two-sided picture requirement
+        # would reject them; this one-sided gate still rejects all-flat
+        # clips (a bright burst between two grey shots would otherwise
+        # flip the fade-through-white branch).
         has_picture_endpoint = (
             len(blend_window) > 0
-            and (float(blend_window[0].std())  > _ENDPOINT_MIN_STD
-                 or float(blend_window[-1].std()) > _ENDPOINT_MIN_STD)
+            and (
+                float(blend_window[0].std()) > _ENDPOINT_MIN_STD
+                or float(blend_window[-1].std()) > _ENDPOINT_MIN_STD
+            )
         )
 
         if flat_lumas and endpoints_are_pictures:
@@ -437,18 +464,19 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         # endpoints); a flat-grey clip has no detail to lose and must not
         # read as blur.
         if len(blend_window) >= 3 and endpoints_are_pictures:
-            endpoint_gradients   = [ self._frame_gradient(blend_window[0]), self._frame_gradient(blend_window[-1]) ]
-            horizontal_endpoint  = float(np.median([ gradient[0] for gradient in endpoint_gradients ])) + 1e-6
-            vertical_endpoint    = float(np.median([ gradient[1] for gradient in endpoint_gradients ])) + 1e-6
-            inside_gradients     = [ self._frame_gradient(frame) for frame in blend_window[1:-1] ]
-            blur_rx              = min(gradient[0] for gradient in inside_gradients) / horizontal_endpoint
-            blur_ry              = min(gradient[1] for gradient in inside_gradients) / vertical_endpoint
+            endpoint_gradients  = [ self._frame_gradient(blend_window[0]), self._frame_gradient(blend_window[-1]) ]
+            horizontal_endpoint = float(np.median([ gradient[0] for gradient in endpoint_gradients ])) + 1e-6
+            vertical_endpoint   = float(np.median([ gradient[1] for gradient in endpoint_gradients ])) + 1e-6
+            inside_gradients    = [ self._frame_gradient(frame) for frame in blend_window[1:-1] ]
+            blur_rx             = min(gradient[0] for gradient in inside_gradients) / horizontal_endpoint
+            blur_ry             = min(gradient[1] for gradient in inside_gradients) / vertical_endpoint
         else:
             blur_rx = 1.0
             blur_ry = 1.0
 
         return {
             "pair_mad":               pair_mad,
+            "has_same_structure":     has_same_structure,
             "blend_residual":         blend_residual,
             "blend_length":           blend_length,
             "brightness_slope":       brightness_slope,
@@ -458,10 +486,10 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             "endpoint_max_luma":      endpoint_max_luma,
             "endpoints_are_pictures": endpoints_are_pictures,
             "has_picture_endpoint":   has_picture_endpoint,
-            "edge_residual":          edge_fit["residual"]  if edge_fit else float("inf"),
-            "edge_mode":              edge_fit["mode"]      if edge_fit else None,
+            "edge_residual":          edge_fit["residual"] if edge_fit else float("inf"),
+            "edge_mode":              edge_fit["mode"] if edge_fit else None,
             "edge_direction":         edge_fit["direction"] if edge_fit else None,
-            "region_pure":            region_fit["pure"]    if region_fit else 0.0,
+            "region_pure":            region_fit["pure"] if region_fit else 0.0,
             "region_direction":       region_fit["direction"] if region_fit else None,
             "blur_rx":                blur_rx,
             "blur_ry":                blur_ry,
@@ -475,10 +503,10 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         params: Dict[str, Any]
     ) -> int:
         """Find the smallest half-width whose outer pad holds steady and whose
-        inner progress curve covers the full ramp (rea-video `span` on a gradual
-        boundary). Falls back to the full `window_size` bound when no narrower
-        half-width qualifies, when `frame_rate` is unknown (pad has no second-
-        based scale), or when the needed frames fall outside `thumb_lumas`."""
+        inner progress curve covers the full ramp of a gradual transition.
+        Falls back to the full `window_size` bound when no narrower half-width
+        qualifies, when `frame_rate` is unknown (pad has no second-based
+        scale), or when the needed frames fall outside `thumb_lumas`."""
         import numpy as np
 
         window_size = params["window_size"]
@@ -524,6 +552,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
                 if middle_frame is None:
                     inner_complete = False
+
                     break
 
                 before_diff = float(np.abs(middle_frame - before_frame).mean())
@@ -540,22 +569,62 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         return window_size
 
+    def _same_structure(self, before: Any, after: Any, params: Dict[str, Any]) -> bool:
+        """Block-wise brightness-normalized correlation check — True when
+        the two frames show the same scene under different light (lamp
+        switched on, exposure ramp, colour flash). Separates a jump (same
+        shot, lighting change) from a cut (different shot). Flat blocks
+        have no detail to line up and are skipped; the boundary is treated
+        as same-structure only when enough detailed blocks match."""
+        height, width = before.shape
+        block_height  = max(4, height // 8)
+        block_width   = max(4, width  // 6)
+        min_std       = params["jump_block_min_std"]
+        min_corr      = params["jump_block_correlation"]
+
+        matching = 0
+        detailed = 0
+
+        for y in range(0, height - block_height + 1, block_height):
+            for x in range(0, width - block_width + 1, block_width):
+                before_block = before[y:y + block_height, x:x + block_width]
+                after_block  = after[y:y + block_height, x:x + block_width]
+                before_std   = float(before_block.std())
+                after_std    = float(after_block.std())
+
+                if before_std < min_std or after_std < min_std:
+                    continue  # flat block: no detail to line up
+
+                before_centered = before_block - before_block.mean()
+                after_centered  = after_block  - after_block.mean()
+                correlation     = float((before_centered * after_centered).mean() / (before_std * after_std))
+
+                detailed += 1
+
+                if correlation > min_corr:
+                    matching += 1
+
+        if detailed < params["jump_min_matching_blocks"]:
+            return False
+
+        return matching / detailed > params["jump_min_match_ratio"]
+
     def _linear_blend_residual(self, window_lumas: List[Any]) -> Tuple[float, int]:
-        """Fit each middle frame as `first + alpha * (last - first)` with alpha
-        unclipped, and return the median scale-normalized residual plus the
-        window length. A clean dissolve yields small residuals AND an alpha
-        series that rises monotonically across the window — a hard cut
-        snaps alpha to 0/1 at the boundary with no progression and fails
-        the rising test, so its residual is forced to infinity to keep the
-        dissolve branch from accepting it."""
+        """Fit each middle frame as `first_frame + alpha * (last_frame -
+        first_frame)` with alpha unclipped, and return the median scale-
+        normalized residual plus the window length. A clean dissolve
+        yields small residuals AND an alpha series that rises monotonically
+        across the window — a hard cut snaps alpha to 0/1 at the boundary
+        with no progression and fails the rising test, so its residual is
+        forced to infinity to keep the dissolve branch from accepting it."""
         import numpy as np
 
         if len(window_lumas) < 3:
             return float("inf"), len(window_lumas)
 
-        first = window_lumas[0]
-        last  = window_lumas[-1]
-        delta = last - first
+        first_frame = window_lumas[0]
+        last_frame  = window_lumas[-1]
+        delta = last_frame - first_frame
         denom = float((delta * delta).sum()) + 1e-6
         scale = float(np.abs(delta).mean()) + 1e-6
 
@@ -563,20 +632,19 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         alphas:    List[float] = []
 
         for index in range(1, len(window_lumas) - 1):
-            alpha = float(((window_lumas[index] - first) * delta).sum() / denom)
+            alpha = float(((window_lumas[index] - first_frame) * delta).sum() / denom)
             alphas.append(alpha)
-            residuals.append(float(np.abs(window_lumas[index] - (first + alpha * delta)).mean()) / scale)
+            residuals.append(float(np.abs(window_lumas[index] - (first_frame + alpha * delta)).mean()) / scale)
 
         alphas = np.asarray(alphas, dtype=np.float32)
-        # The index-correlation + endpoint conditions are from rea-video's
-        # `_blend_fit`. The adjacent-diff uniformity gate is additional:
-        # upstream rea-video skips `_blend_fit` entirely for hard cuts (its
-        # shot detector already labelled them), so a step-shaped alpha
-        # `[0,0,...,1,1]` never reaches the test there. Here it does, with
-        # correlation ~0.87 against the frame index — just above 0.85. A
-        # true dissolve's alpha advances by a near-constant step per frame
-        # (max/mean ≈ 1); a step cut concentrates the advance into a
-        # single jump (max/mean ≈ N).
+        # The index-correlation + endpoint conditions check that alpha
+        # grows monotonically from 0 to 1 across the window. The adjacent-
+        # diff uniformity gate is extra: a step-shaped alpha `[0,0,...,1,1]`
+        # (a hard cut with no upstream filter) still correlates ~0.87 with
+        # the frame index — just above 0.85. A true dissolve's alpha
+        # advances by a near-constant step per frame (max/mean ≈ 1); a
+        # step cut concentrates the advance into a single jump (max/mean
+        # ≈ N).
         alpha_diffs = np.diff(alphas) if len(alphas) >= 2 else np.zeros(0, dtype=np.float32)
         mean_diff   = float(alpha_diffs.mean()) if len(alpha_diffs) else 0.0
 
@@ -767,8 +835,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
     def _block_diff(self, before: Any, after: Any, shift: int = 2) -> Any:
         """Per-block mean `|before - after|` on a 6x8 grid, taking the best of
         a few small shifts so that ordinary subject motion inside the shot
-        does not read as a different picture. numpy equivalent of rea-video's
-        `block_diff` with cv2.resize replaced by a mean-pool reshape."""
+        does not read as a different picture."""
         import numpy as np
 
         height, width = before.shape
@@ -797,17 +864,18 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         return array.reshape(grid_rows, block_height, grid_cols, block_width).mean(axis=(1, 3))
 
     def _decide_label(self, signals: Dict[str, Any], params: Dict[str, Any]) -> Tuple[str, float]:
-        """Rule chain over the measured signals, ordered to mirror rea-video's
-        `classify` cascade: fade and flash gate first (both require specific
-        luma shapes a cut cannot forge), then a cut fast-path intercepts the
-        case rea-video handles via an upstream `found_as="cut"` hint — without
-        it, a constant-colour cut can fool `_edge_fit` into a perfect
-        straight-edge fit. Wipe/slide, blur, dissolve, and the pair-MAD
-        fallback follow. Unknown covers boundaries where none of the gates
-        fire (often false-positive scene boundaries from frame interpolation).
-        Fade uses a one-sided picture gate (`has_picture_endpoint`) because
-        fade_in / fade_out carry exactly one shot and one flat colour, so
-        rea's two-sided `A.std() > 12 and B.std() > 12` would reject them.
+        """Rule chain over the measured signals: fade and flash gate first
+        (both require specific luma shapes a cut cannot forge), then a cut
+        fast-path intercepts constant-colour cuts that would otherwise fool
+        `_edge_fit` into a perfect straight-edge fit. Wipe/slide, blur,
+        dissolve, and the pair-MAD fallback follow. Each cut gate consults
+        `has_same_structure` to redirect same-shot lighting changes to the
+        `jump` label instead of `cut`. Unknown covers boundaries where none
+        of the gates fire (often false-positive scene boundaries from frame
+        interpolation).
+        Fade uses a one-sided picture gate (`has_picture_endpoint`) so
+        fade_in / fade_out carrying exactly one shot and one flat colour
+        still fire (a two-sided picture requirement would reject them).
         """
         min_luma             = signals["min_luma"]
         max_luma             = signals["max_luma"]
@@ -815,6 +883,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         blend_residual       = signals["blend_residual"]
         pair_mad             = signals["pair_mad"]
         has_picture_endpoint = signals["has_picture_endpoint"]
+        has_same_structure   = signals["has_same_structure"]
 
         # A fade passes through a flat (nearly single-colour) frame; `min_luma`
         # (reinterpreted in _measure_signals) and `max_luma` identify whether
@@ -854,14 +923,17 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         region_pure      = signals["region_pure"]
         region_direction = signals["region_direction"]
 
-        # Cut fast-path: rea-video reaches this point already knowing an
-        # upstream shot detector marked the boundary a cut (`found_as`), so
-        # it short-circuits before the wipe/slide branches can mistakenly
-        # claim a constant-colour cut whose `_edge_fit` fits trivially. We
-        # have no upstream hint, so synthesize one from the pair-MAD spike
-        # AND the absence of a rising blend (step-shaped alpha rejects the
-        # uniformity gate, leaving `blend_residual == inf`).
+        # Cut fast-path: a constant-colour cut whose `_edge_fit` fits
+        # trivially would be swept into the wipe/slide branches without
+        # this guard. Fire it when the pair-MAD spike is accompanied by
+        # the absence of a rising blend (step-shaped alpha fails the
+        # uniformity gate, leaving `blend_residual == inf`). A jump
+        # (same shot, lighting change only) also shows a pair-MAD spike
+        # with no rising blend; `has_same_structure` separates the two.
         if pair_mad >= params["cut_mad_threshold"] and blend_residual == float("inf"):
+            if has_same_structure:
+                return "jump", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
+
             return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
 
         # Wipe (iris) first: a block-wise region fit whose direction is
@@ -899,6 +971,9 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             return "dissolve", max(0.0, 1.0 - blend_residual / params["dissolve_blend_threshold"])
 
         if pair_mad >= params["cut_mad_threshold"]:
+            if has_same_structure:
+                return "jump", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
+
             return "cut", min(1.0, pair_mad / (params["cut_mad_threshold"] * 2.0))
 
         return "unknown", 0.0

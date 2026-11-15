@@ -6,6 +6,7 @@ from .impl import *
 VideoSceneTransitionClassifierComponentConfig = Annotated[
     Union[
         NativeVideoSceneTransitionClassifierComponentConfig,
+        OpenCvVideoSceneTransitionClassifierComponentConfig,
     ],
     Field(discriminator="driver")
 ]

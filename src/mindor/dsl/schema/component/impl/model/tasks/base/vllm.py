@@ -61,6 +61,9 @@ class VllmEngineOptionsConfig(BaseModel):
     mamba_block_size: Optional[int] = Field(default=None, description="Mamba cache block size.")
     mamba_cache_mode: Optional[str] = Field(default=None, description="Mamba caching strategy.")
 
+    # Gated DeltaNet (hybrid attention/SSM models, e.g. Qwen3.6)
+    gdn_prefill_backend: Optional[str] = Field(default=None, description="GDN prefill kernel backend.")
+
     # Compilation & CUDA graphs
     enforce_eager: Optional[bool] = Field(default=None, description="Whether to disable CUDA graph capture and run in eager mode.")
     cudagraph_capture_sizes: Optional[List[int]] = Field(default=None, description="Sizes for CUDA graph capture.")

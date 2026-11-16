@@ -5,6 +5,7 @@ from typing import Union, Tuple, Type, Literal, Optional, Dict, List, Set, Annot
 from pydantic import BaseModel
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, HuggingfaceModelConfig, ModelQuantizationType
 from mindor.dsl.schema.component.impl.model.tasks.base.vllm import VllmEngineOptionsConfig
+from mindor.core.foundation.package.cuda import is_cuda_installed
 from mindor.core.logger import logging
 from .common import ModelTaskDriver
 
@@ -27,17 +28,29 @@ class VllmModelTaskDriver(ModelTaskDriver):
         self.tokenizer: Optional[PreTrainedTokenizerBase] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        return [ "vllm" ]
+        requirements: List[Union[str, Tuple[str, List[str]]]] = [ "vllm" ]
+
+        # Unlocks FlashInfer kernels (CUTLASS MoE, TRTLLM, CuTe DSL) that vLLM
+        # leaves as optional deps. flashinfer-cubin ships pre-built CUDA
+        # binaries so no nvcc is needed at runtime; nvidia-cutlass-dsl enables
+        # the Python-side CuTe DSL path. Both are CUDA-only.
+        if is_cuda_installed():
+            requirements.extend([
+                "nvidia-cutlass-dsl",
+                "flashinfer-cubin"
+            ])
+
+        return requirements
 
     async def _load_model(self) -> None:
-        from vllm import AsyncEngineArgs, AsyncLLMEngine
-        from transformers import AutoTokenizer
-
         model_path = await self._provision_model(self.config.model)
 
         logging.info(f"Component '{self.id}': loading vLLM model from '{model_path}'")
 
         def _load() -> AsyncLLMEngine:
+            from vllm import AsyncEngineArgs, AsyncLLMEngine
+            from transformers import AutoTokenizer
+
             params: Dict[str, Any] = {
                 **self._get_model_params(self.config.model),
                 **self._get_model_options(self.config),

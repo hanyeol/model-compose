@@ -62,7 +62,7 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
             sampling_params["temperature"] = 0.0
 
         if stop_sequences:
-            sampling_params["stop"] = stop_sequences if isinstance(stop_sequences, list) else [stop_sequences]
+            sampling_params["stop"] = stop_sequences if isinstance(stop_sequences, list) else [ stop_sequences ]
 
         params.update({
             "num_return_sequences": num_return_sequences,

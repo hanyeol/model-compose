@@ -1,10 +1,34 @@
 from typing import Union, Literal, Optional, Dict, List, Any
 from pydantic import BaseModel, Field
 
+# `*_backend`, `*_dtype`, and `*_policy` enums are hoisted here so these
+# cross-cutting choices live in one place and track SGLang's own choice
+# lists. Short, single-use enums stay inline at their field.
+SglangLoadFormat = Literal[
+    "auto", "pt", "safetensors", "npcache", "dummy",
+    "sharded_state", "gguf", "bitsandbytes", "layered",
+]
+
+SglangDevice = Literal[ "cuda", "xpu", "hpu", "npu", "cpu" ]
+SglangDtype = Literal[ "auto", "half", "float16", "bfloat16", "float", "float32" ]
+SglangKvCacheDtype = Literal[ "auto", "fp8_e5m2", "fp8_e4m3" ]
+
+SglangAttentionBackend = Literal[
+    "flashinfer", "triton", "torch_native", "flashmla", "fa3", "fa4",
+    "cutlass_mla", "ascend", "wave", "intel_amx", "intel_xpu", "aiter",
+    "trtllm_mla", "trtllm_mha",
+]
+SglangSamplingBackend = Literal[ "flashinfer", "pytorch" ]
+SglangHicacheIoBackend = Literal[ "direct", "kernel" ]
+SglangLoraBackend = Literal[ "triton", "flashinfer" ]
+
+SglangSchedulePolicy = Literal[ "lpm", "random", "fcfs", "dfs-weight" ]
+SglangHicacheWritePolicy = Literal[ "write_back", "write_through", "write_through_selective" ]
+
 class SglangEngineOptionsConfig(BaseModel):
     # Model & tokenizer
     tokenizer_path: Optional[str] = Field(default=None, description="Name or path of the HuggingFace tokenizer to use.")
-    tokenizer_mode: Optional[Literal[ "auto", "slow" ]] = Field(default=None, description="Tokenizer mode.")
+    tokenizer_mode: Optional[Union[Literal[ "auto", "slow" ], str]] = Field(default=None, description="Tokenizer mode.")
     skip_tokenizer_init: Optional[bool] = Field(default=None, description="Whether to skip tokenizer and detokenizer initialization and expect pre-tokenized inputs.")
     trust_remote_code: Optional[bool] = Field(default=None, description="Whether to execute custom model code shipped in the HuggingFace repository.")
     revision: Optional[str] = Field(default=None, description="Model version (branch, tag, or commit).")
@@ -14,23 +38,23 @@ class SglangEngineOptionsConfig(BaseModel):
 
     # Loading
     download_dir: Optional[str] = Field(default=None, description="Directory to download and cache model weights.")
-    load_format: Optional[Literal[ "auto", "pt", "safetensors", "npcache", "dummy", "sharded_state", "gguf", "bitsandbytes", "layered" ]] = Field(default=None, description="Format of the model weights to load.")
+    load_format: Optional[Union[SglangLoadFormat, str]] = Field(default=None, description="Format of the model weights to load.")
     model_loader_extra_config: Optional[Dict[str, Any]] = Field(default=None, description="Extra config for model loader.")
 
     # Numerical types & limits
-    dtype: Optional[Literal[ "auto", "half", "float16", "bfloat16", "float", "float32" ]] = Field(default=None, description="Data type for model weights and activations.")
+    dtype: Optional[Union[SglangDtype, str]] = Field(default=None, description="Data type for model weights and activations.")
     random_seed: Optional[int] = Field(default=None, description="Random seed.")
     context_length: Optional[int] = Field(default=None, description="Model context length.")
-    device: Optional[Literal[ "cuda", "rocm", "cpu", "hpu", "xpu" ]] = Field(default=None, description="Device to run the model on.")
+    device: Optional[Union[SglangDevice, str]] = Field(default=None, description="Device to run the model on.")
 
     # Quantization
     quantization: Optional[str] = Field(default=None, description="Quantization method (e.g., 'awq', 'gptq', 'fp8', 'bitsandbytes', 'marlin').")
     quantization_param_path: Optional[str] = Field(default=None, description="Path to the quantization parameter file.")
-    kv_cache_dtype: Optional[Literal[ "auto", "fp8_e5m2", "fp8_e4m3" ]] = Field(default=None, description="Data type for KV cache.")
+    kv_cache_dtype: Optional[Union[SglangKvCacheDtype, str]] = Field(default=None, description="Data type for KV cache.")
 
     # Attention / compilation
-    attention_backend: Optional[Literal[ "flashinfer", "triton", "torch_native", "flashmla", "fa3", "fa4", "cutlass_mla", "ascend", "wave", "intel_amx", "intel_xpu", "aiter", "trtllm_mla", "trtllm_mha" ]] = Field(default=None, description="Attention implementation selection.")
-    sampling_backend: Optional[Literal[ "flashinfer", "pytorch" ]] = Field(default=None, description="Sampling kernel backend.")
+    attention_backend: Optional[Union[SglangAttentionBackend, str]] = Field(default=None, description="Attention implementation selection.")
+    sampling_backend: Optional[Union[SglangSamplingBackend, str]] = Field(default=None, description="Sampling kernel backend.")
     disable_cuda_graph: Optional[bool] = Field(default=None, description="Whether to disable CUDA graph capture and run in eager mode.")
     disable_cuda_graph_padding: Optional[bool] = Field(default=None, description="Whether to disable CUDA graph padding.")
     cuda_graph_max_bs: Optional[int] = Field(default=None, description="Maximum batch size for CUDA graph capture.")
@@ -45,15 +69,15 @@ class SglangEngineOptionsConfig(BaseModel):
     max_total_tokens: Optional[int] = Field(default=None, description="Maximum number of tokens held in the KV cache pool.")
     chunked_prefill_size: Optional[int] = Field(default=None, description="Chunk size for prefill scheduling; -1 disables chunking.")
     max_prefill_tokens: Optional[int] = Field(default=None, description="Maximum number of tokens prefilled per batch.")
-    schedule_policy: Optional[Literal[ "lpm", "random", "fcfs", "dfs-weight" ]] = Field(default=None, description="Request scheduling policy.")
+    schedule_policy: Optional[Union[SglangSchedulePolicy, str]] = Field(default=None, description="Request scheduling policy.")
     schedule_conservativeness: Optional[float] = Field(default=None, description="Scheduler admission conservativeness factor.")
     page_size: Optional[int] = Field(default=None, description="Token block size for paged attention.")
     disable_radix_cache: Optional[bool] = Field(default=None, description="Whether to disable the radix (prefix) cache.")
     enable_hierarchical_cache: Optional[bool] = Field(default=None, description="Whether to enable the hierarchical KV cache.")
     hicache_ratio: Optional[float] = Field(default=None, description="Hierarchical cache size ratio relative to the KV pool.")
     hicache_size: Optional[int] = Field(default=None, description="Hierarchical cache size in GiB.")
-    hicache_write_policy: Optional[Literal[ "write_back", "write_through", "write_through_selective" ]] = Field(default=None, description="Hierarchical cache write policy.")
-    hicache_io_backend: Optional[Literal[ "direct", "kernel" ]] = Field(default=None, description="Hierarchical cache I/O backend.")
+    hicache_write_policy: Optional[Union[SglangHicacheWritePolicy, str]] = Field(default=None, description="Hierarchical cache write policy.")
+    hicache_io_backend: Optional[Union[SglangHicacheIoBackend, str]] = Field(default=None, description="Hierarchical cache I/O backend.")
     hicache_storage_backend: Optional[str] = Field(default=None, description="Hierarchical cache storage backend.")
 
     # Distributed execution
@@ -61,7 +85,7 @@ class SglangEngineOptionsConfig(BaseModel):
     pp_size: Optional[int] = Field(default=None, description="Number of pipeline stages.")
     dp_size: Optional[int] = Field(default=None, description="Number of data parallel replicas.")
     ep_size: Optional[int] = Field(default=None, description="Number of expert parallel groups for MoE models.")
-    load_balance_method: Optional[Literal[ "round_robin", "shortest_queue" ]] = Field(default=None, description="Data parallel load balancing strategy.")
+    load_balance_method: Optional[Union[Literal[ "round_robin", "shortest_queue" ], str]] = Field(default=None, description="Data parallel load balancing strategy.")
     dist_init_addr: Optional[str] = Field(default=None, description="Multi-node master address.")
     nnodes: Optional[int] = Field(default=None, description="Total number of nodes.")
     node_rank: Optional[int] = Field(default=None, description="Current node identifier.")
@@ -76,7 +100,7 @@ class SglangEngineOptionsConfig(BaseModel):
     # LoRA
     lora_paths: Optional[Union[List[str], Dict[str, str]]] = Field(default=None, description="LoRA adapters to load.")
     max_loras_per_batch: Optional[int] = Field(default=None, description="Maximum number of LoRA adapters in a single batch.")
-    lora_backend: Optional[Literal[ "triton", "flashinfer" ]] = Field(default=None, description="LoRA kernel backend.")
+    lora_backend: Optional[Union[SglangLoraBackend, str]] = Field(default=None, description="LoRA kernel backend.")
 
     # Speculative decoding
     speculative_algorithm: Optional[str] = Field(default=None, description="Speculative decoding algorithm.")
@@ -88,7 +112,7 @@ class SglangEngineOptionsConfig(BaseModel):
     # Expert / MoE
     enable_ep_moe: Optional[bool] = Field(default=None, description="Whether to enable expert parallelism for MoE models.")
     enable_deepep_moe: Optional[bool] = Field(default=None, description="Whether to enable DeepEP MoE communication.")
-    deepep_mode: Optional[Literal[ "auto", "normal", "low_latency" ]] = Field(default=None, description="DeepEP communication mode.")
+    deepep_mode: Optional[Union[Literal[ "auto", "normal", "low_latency" ], str]] = Field(default=None, description="DeepEP communication mode.")
 
     # Runtime modes
     disable_overlap_schedule: Optional[bool] = Field(default=None, description="Whether to disable overlapped scheduling of prefill and decode.")

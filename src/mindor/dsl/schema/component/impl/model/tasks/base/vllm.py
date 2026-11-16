@@ -1,14 +1,13 @@
 from typing import Union, Literal, Optional, Dict, List, Any
 from pydantic import BaseModel, Field
 
-# vLLM-side types that accept known literal values **and** arbitrary strings (so
-# plugins or new upstream backends work without a schema bump). Mirroring vLLM's
-# own `Literal | str` unions keeps IDE completion for the common case while
-# leaving the escape hatch open.
-VllmTokenizerMode = Literal[ "auto", "slow", "mistral", "custom" ]
-VllmModelImpl = Literal[ "auto", "vllm", "transformers", "terratorch" ]
-VllmConfigFormat = Literal[ "auto", "hf", "mistral" ]
+# `*_backend`, `*_dtype`, and `*_policy` enums are hoisted here so these
+# cross-cutting choices live in one place and track vLLM's own aliases.
+# Short, single-use enums stay inline at their field.
+VllmDtype = Literal[ "auto", "half", "float16", "bfloat16", "float", "float32" ]
 VllmKvCacheDtype = Literal[ "auto", "fp8", "fp8_e5m2", "fp8_e4m3", "bfloat16", "float16" ]
+VllmLoraDtype = Literal[ "auto", "float16", "bfloat16", "float32" ]
+
 VllmAttentionBackend = Literal[
     "FLASH_ATTN", "FLASH_ATTN_DIFFKV",
     "TRITON_ATTN", "TRITON_ATTN_DIFFKV", "TRITON_FLASH_ATTN",
@@ -21,11 +20,14 @@ VllmAttentionBackend = Literal[
 ]
 VllmGdnPrefillBackend = Literal[ "flashinfer", "triton", "cutedsl", "aiter_flydsl", "sycl" ]
 VllmDistributedExecutorBackend = Literal[ "ray", "mp", "uni", "external_launcher" ]
+VllmDataParallelBackend = Literal[ "mp", "ray" ]
+
+VllmSchedulingPolicy = Literal[ "fcfs", "priority" ]
 
 class VllmEngineOptionsConfig(BaseModel):
     # Model & tokenizer
     tokenizer: Optional[str] = Field(default=None, description="Name or path of the HuggingFace tokenizer to use.")
-    tokenizer_mode: Optional[Union[VllmTokenizerMode, str]] = Field(default=None, description="Tokenizer mode.")
+    tokenizer_mode: Optional[Union[Literal[ "auto", "slow", "mistral", "custom" ], str]] = Field(default=None, description="Tokenizer mode.")
     skip_tokenizer_init: Optional[bool] = Field(default=None, description="Whether to skip tokenizer and detokenizer initialization and expect pre-tokenized inputs.")
     enable_prompt_embeds: Optional[bool] = Field(default=None, description="Whether to accept prompt embeddings as inputs alongside text.")
     trust_remote_code: Optional[bool] = Field(default=None, description="Whether to execute custom model code shipped in the HuggingFace repository.")
@@ -39,13 +41,13 @@ class VllmEngineOptionsConfig(BaseModel):
     hf_overrides: Optional[Dict[str, Any]] = Field(default=None, description="Overrides for HuggingFace config.")
     runner: Optional[Literal[ "auto", "draft", "generate", "pooling" ]] = Field(default=None, description="Model runner type.")
     convert: Optional[Literal[ "auto", "classify", "embed", "none" ]] = Field(default=None, description="Model adapter conversion.")
-    model_impl: Optional[Union[VllmModelImpl, str]] = Field(default=None, description="Model implementation to use.")
+    model_impl: Optional[Union[Literal[ "auto", "vllm", "transformers", "terratorch" ], str]] = Field(default=None, description="Model implementation to use.")
     served_model_name: Optional[Union[str, List[str]]] = Field(default=None, description="Model name(s) exposed by the API.")
 
     # Loading
     download_dir: Optional[str] = Field(default=None, description="Directory to download and cache model weights.")
     load_format: Optional[str] = Field(default=None, description="Format of the model weights to load.")
-    config_format: Optional[Union[VllmConfigFormat, str]] = Field(default=None, description="Format of the model config.")
+    config_format: Optional[Union[Literal[ "auto", "hf", "mistral" ], str]] = Field(default=None, description="Format of the model config.")
     model_loader_extra_config: Optional[Dict[str, Any]] = Field(default=None, description="Extra config for model loader.")
     ignore_patterns: Optional[List[str]] = Field(default=None, description="Patterns to ignore when loading the model.")
     use_tqdm_on_load: Optional[bool] = Field(default=None, description="Whether to show a tqdm progress bar while loading weights.")
@@ -55,7 +57,7 @@ class VllmEngineOptionsConfig(BaseModel):
     pt_load_map_location: Optional[str] = Field(default=None, description="Device mapping for PyTorch checkpoint loading.")
 
     # Numerical types & limits
-    dtype: Optional[Literal[ "auto", "half", "float16", "bfloat16", "float", "float32" ]] = Field(default=None, description="Data type for model weights and activations.")
+    dtype: Optional[Union[VllmDtype, str]] = Field(default=None, description="Data type for model weights and activations.")
     seed: Optional[int] = Field(default=None, description="Random seed.")
     max_model_len: Optional[Union[int, Literal["auto"]]] = Field(default=None, description="Model context length.")
     max_logprobs: Optional[int] = Field(default=None, description="Maximum number of returned log probabilities per token.")
@@ -125,7 +127,7 @@ class VllmEngineOptionsConfig(BaseModel):
     data_parallel_size_local: Optional[int] = Field(default=None, description="Local replicas per node.")
     data_parallel_address: Optional[str] = Field(default=None, description="Cluster head node address.")
     data_parallel_rpc_port: Optional[int] = Field(default=None, description="Inter-rank communication port.")
-    data_parallel_backend: Optional[Literal[ "mp", "ray" ]] = Field(default=None, description="Data parallel coordination method.")
+    data_parallel_backend: Optional[VllmDataParallelBackend] = Field(default=None, description="Data parallel coordination method.")
     data_parallel_hybrid_lb: Optional[bool] = Field(default=None, description="Whether to enable per-node load balancing for data parallel replicas.")
     data_parallel_external_lb: Optional[bool] = Field(default=None, description="Whether to run in external load balancer mode.")
     prefill_context_parallel_size: Optional[int] = Field(default=None, description="Prefill context parallelism groups.")
@@ -165,7 +167,7 @@ class VllmEngineOptionsConfig(BaseModel):
     long_prefill_token_threshold: Optional[int] = Field(default=None, description="Token threshold for long prefill classification.")
     enable_chunked_prefill: Optional[bool] = Field(default=None, description="Whether to enable chunked prefill scheduling.")
     disable_chunked_mm_input: Optional[bool] = Field(default=None, description="Whether to disable chunked multimodal input scheduling.")
-    scheduling_policy: Optional[Literal[ "fcfs", "priority" ]] = Field(default=None, description="Scheduling policy.")
+    scheduling_policy: Optional[VllmSchedulingPolicy] = Field(default=None, description="Scheduling policy.")
     scheduler_cls: Optional[str] = Field(default=None, description="Custom scheduler class path.")
     scheduler_reserve_full_isl: Optional[bool] = Field(default=None, description="Whether to reserve memory for the full input sequence length when scheduling.")
     watermark: Optional[float] = Field(default=None, description="KV cache reservation fraction.")
@@ -195,7 +197,7 @@ class VllmEngineOptionsConfig(BaseModel):
     enable_lora: Optional[bool] = Field(default=None, description="Whether to enable LoRA adapter support.")
     max_loras: Optional[int] = Field(default=None, description="Maximum number of LoRA adapters in a single batch.")
     max_lora_rank: Optional[int] = Field(default=None, description="Maximum LoRA rank.")
-    lora_dtype: Optional[Literal[ "auto", "float16", "bfloat16", "float32" ]] = Field(default=None, description="Data type for LoRA weights.")
+    lora_dtype: Optional[Union[VllmLoraDtype, str]] = Field(default=None, description="Data type for LoRA weights.")
     max_cpu_loras: Optional[int] = Field(default=None, description="Maximum number of LoRA adapters stored in CPU memory.")
     fully_sharded_loras: Optional[bool] = Field(default=None, description="Whether to use fully sharded LoRA layers.")
     lora_target_modules: Optional[List[str]] = Field(default=None, description="Module-level adapter restrictions.")

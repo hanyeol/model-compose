@@ -1,10 +1,31 @@
 from typing import Union, Literal, Optional, Dict, List, Any
 from pydantic import BaseModel, Field
 
+# vLLM-side types that accept known literal values **and** arbitrary strings (so
+# plugins or new upstream backends work without a schema bump). Mirroring vLLM's
+# own `Literal | str` unions keeps IDE completion for the common case while
+# leaving the escape hatch open.
+VllmTokenizerMode = Literal[ "auto", "slow", "mistral", "custom" ]
+VllmModelImpl = Literal[ "auto", "vllm", "transformers", "terratorch" ]
+VllmConfigFormat = Literal[ "auto", "hf", "mistral" ]
+VllmKvCacheDtype = Literal[ "auto", "fp8", "fp8_e5m2", "fp8_e4m3", "bfloat16", "float16" ]
+VllmAttentionBackend = Literal[
+    "FLASH_ATTN", "FLASH_ATTN_DIFFKV",
+    "TRITON_ATTN", "TRITON_ATTN_DIFFKV", "TRITON_FLASH_ATTN",
+    "ROCM_ATTN", "ROCM_SEGMENTED_ATTN",
+    "ROCM_AITER_MLA", "ROCM_AITER_TRITON_MLA", "ROCM_AITER_FA", "ROCM_AITER_MLA_SPARSE",
+    "XPU_MLA_SPARSE",
+    "TORCH_SDPA",
+    "FLASHINFER", "TRITON_FLASHINFER", "FLASHINFER_MLA",
+    "TOKENSPEED_MLA",
+]
+VllmGdnPrefillBackend = Literal[ "flashinfer", "triton", "cutedsl", "aiter_flydsl", "sycl" ]
+VllmDistributedExecutorBackend = Literal[ "ray", "mp", "uni", "external_launcher" ]
+
 class VllmEngineOptionsConfig(BaseModel):
     # Model & tokenizer
     tokenizer: Optional[str] = Field(default=None, description="Name or path of the HuggingFace tokenizer to use.")
-    tokenizer_mode: Optional[Literal[ "auto", "slow", "mistral", "custom" ]] = Field(default=None, description="Tokenizer mode.")
+    tokenizer_mode: Optional[Union[VllmTokenizerMode, str]] = Field(default=None, description="Tokenizer mode.")
     skip_tokenizer_init: Optional[bool] = Field(default=None, description="Whether to skip tokenizer and detokenizer initialization and expect pre-tokenized inputs.")
     enable_prompt_embeds: Optional[bool] = Field(default=None, description="Whether to accept prompt embeddings as inputs alongside text.")
     trust_remote_code: Optional[bool] = Field(default=None, description="Whether to execute custom model code shipped in the HuggingFace repository.")
@@ -18,13 +39,13 @@ class VllmEngineOptionsConfig(BaseModel):
     hf_overrides: Optional[Dict[str, Any]] = Field(default=None, description="Overrides for HuggingFace config.")
     runner: Optional[Literal[ "auto", "draft", "generate", "pooling" ]] = Field(default=None, description="Model runner type.")
     convert: Optional[Literal[ "auto", "classify", "embed", "none" ]] = Field(default=None, description="Model adapter conversion.")
-    model_impl: Optional[Literal[ "auto", "vllm", "transformers" ]] = Field(default=None, description="Model implementation to use.")
+    model_impl: Optional[Union[VllmModelImpl, str]] = Field(default=None, description="Model implementation to use.")
     served_model_name: Optional[Union[str, List[str]]] = Field(default=None, description="Model name(s) exposed by the API.")
 
     # Loading
     download_dir: Optional[str] = Field(default=None, description="Directory to download and cache model weights.")
     load_format: Optional[str] = Field(default=None, description="Format of the model weights to load.")
-    config_format: Optional[Literal[ "auto", "hf", "mistral" ]] = Field(default=None, description="Format of the model config.")
+    config_format: Optional[Union[VllmConfigFormat, str]] = Field(default=None, description="Format of the model config.")
     model_loader_extra_config: Optional[Dict[str, Any]] = Field(default=None, description="Extra config for model loader.")
     ignore_patterns: Optional[List[str]] = Field(default=None, description="Patterns to ignore when loading the model.")
     use_tqdm_on_load: Optional[bool] = Field(default=None, description="Whether to show a tqdm progress bar while loading weights.")
@@ -48,7 +69,7 @@ class VllmEngineOptionsConfig(BaseModel):
     # RoPE / attention
     rope_scaling: Optional[Dict[str, Any]] = Field(default=None, description="RoPE scaling configuration.")
     rope_theta: Optional[float] = Field(default=None, description="RoPE theta override.")
-    attention_backend: Optional[str] = Field(default=None, description="Attention implementation selection.")
+    attention_backend: Optional[Union[VllmAttentionBackend, str]] = Field(default=None, description="Attention implementation selection.")
     attention_config: Optional[Dict[str, Any]] = Field(default=None, description="Attention mechanism tuning configuration.")
     disable_sliding_window: Optional[bool] = Field(default=None, description="Whether to disable sliding window attention.")
     disable_cascade_attn: Optional[bool] = Field(default=None, description="Whether to disable cascade attention in the V1 engine.")
@@ -62,7 +83,7 @@ class VllmEngineOptionsConfig(BaseModel):
     mamba_cache_mode: Optional[str] = Field(default=None, description="Mamba caching strategy.")
 
     # Gated DeltaNet (hybrid attention/SSM models, e.g. Qwen3.6)
-    gdn_prefill_backend: Optional[str] = Field(default=None, description="GDN prefill kernel backend.")
+    gdn_prefill_backend: Optional[Union[VllmGdnPrefillBackend, str]] = Field(default=None, description="GDN prefill kernel backend.")
 
     # Compilation & CUDA graphs
     enforce_eager: Optional[bool] = Field(default=None, description="Whether to disable CUDA graph capture and run in eager mode.")
@@ -86,7 +107,7 @@ class VllmEngineOptionsConfig(BaseModel):
     enable_prefix_caching: Optional[bool] = Field(default=None, description="Whether to enable automatic prefix caching.")
     prefix_caching_hash_algo: Optional[str] = Field(default=None, description="Hash algorithm for prefix caching.")
     num_gpu_blocks_override: Optional[int] = Field(default=None, description="Override the number of GPU blocks.")
-    kv_cache_dtype: Optional[Literal[ "auto", "fp8", "fp8_e5m2", "fp8_e4m3", "bfloat16", "float16" ]] = Field(default=None, description="Data type for KV cache.")
+    kv_cache_dtype: Optional[Union[VllmKvCacheDtype, str]] = Field(default=None, description="Data type for KV cache.")
     kv_cache_dtype_skip_layers: Optional[List[str]] = Field(default=None, description="Layer names to exclude from KV cache quantization.")
     kv_sharing_fast_prefill: Optional[bool] = Field(default=None, description="Whether to enable the KV sharing fast-prefill optimization.")
     kv_offloading_size: Optional[int] = Field(default=None, description="CPU offload buffer size for KV cache.")
@@ -96,7 +117,7 @@ class VllmEngineOptionsConfig(BaseModel):
     ec_transfer_config: Optional[Dict[str, Any]] = Field(default=None, description="Distributed EC cache transfer configuration.")
 
     # Distributed execution
-    distributed_executor_backend: Optional[Literal[ "ray", "mp", "uni", "external_launcher" ]] = Field(default=None, description="Distributed executor backend.")
+    distributed_executor_backend: Optional[Union[VllmDistributedExecutorBackend, str]] = Field(default=None, description="Distributed executor backend.")
     pipeline_parallel_size: Optional[int] = Field(default=None, description="Number of pipeline stages.")
     tensor_parallel_size: Optional[int] = Field(default=None, description="Number of GPUs for tensor parallelism.")
     data_parallel_size: Optional[int] = Field(default=None, description="Number of data parallel replicas.")

@@ -92,10 +92,12 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
                 pose["openpose_keypoints"] = openpose_keypoints
 
             if params["return_skeleton_image"]:
+                background = params["skeleton_background"]
+
                 if params["skeleton_format"] == "openpose":
-                    pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height)
+                    pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height, background=background)
                 else:
-                    pose["skeleton_image"] = coco.render_skeleton(keypoints, width, height)
+                    pose["skeleton_image"] = coco.render_skeleton(keypoints, width, height, background=background)
 
             poses.append(pose)
 

@@ -39,6 +39,12 @@ class SglangModelTaskDriver(ModelTaskDriver):
 
         def _load() -> Engine:
             params: Dict[str, Any] = {
+                # Force delta streaming at the engine level — sglang has no
+                # per-request override like vLLM's SamplingParams.output_kind,
+                # so the choice must be made when the engine comes up. Without
+                # this each streamed chunk carries the entire running text,
+                # forcing the driver to diff on the client side.
+                "incremental_streaming_output": True,
                 **self._get_model_params(self.config.model),
                 **self._get_model_options(self.config),
             }

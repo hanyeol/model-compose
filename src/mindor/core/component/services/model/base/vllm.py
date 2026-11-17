@@ -29,7 +29,7 @@ class VllmModelTaskDriver(ModelTaskDriver):
         self.tokenizer: Optional[PreTrainedTokenizerBase] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
-        requirements: List[Union[str, Tuple[str, List[str]]]] = [ "vllm" ]
+        requirements: List[Union[str, Tuple[str, List[str]]]] = [ "vllm<0.34.0" ]
 
         # Unlocks FlashInfer kernels (CUTLASS MoE, TRTLLM, CuTe DSL) that vLLM
         # leaves as optional deps. flashinfer-cubin ships pre-built CUDA
@@ -147,4 +147,3 @@ class VllmModelTaskDriver(ModelTaskDriver):
                 options[field] = value
 
         return options
-

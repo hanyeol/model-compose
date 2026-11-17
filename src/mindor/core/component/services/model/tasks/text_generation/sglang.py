@@ -99,18 +99,38 @@ class SglangTextGenerationTaskAction(TextGenerationTaskAction):
         request_id = f"request-{ulid.ulid()}"
         texts: List[str] = [ "" ] * num_return_sequences
 
-        outputs = await self.engine.async_generate(prompt, sampling, stream=False, rid=request_id)
+        async def _generate_sequences() -> None:
+            # Stream is on at the engine level so chunks arrive as deltas; we
+            # concatenate them into the per-sequence final text.
+            async for output in await self.engine.async_generate(prompt, sampling, stream=True, rid=request_id):
+                index = output.get("index", 0)
+                texts[index] += output["text"]
 
-        if cancellation_token is not None and cancellation_token.is_cancelled():
-            self.engine.abort_request(request_id)
-            return texts
+        generate_task = asyncio.create_task(_generate_sequences())
+        watcher_task: Optional[asyncio.Task] = None
 
-        if num_return_sequences == 1 and isinstance(outputs, dict):
-            outputs = [ outputs ]
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if generate_task.done():
+                        return
 
-        for output in outputs:
-            index = output.get("index", 0)
-            texts[index] = output["text"]
+                    await asyncio.sleep(0.2)
+
+                self.engine.abort_request(request_id)
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
+        try:
+            await generate_task
+        finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
         return texts
 
@@ -121,25 +141,20 @@ class SglangTextGenerationTaskAction(TextGenerationTaskAction):
         num_return_sequences: int,
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[AsyncIterator[str]]:
-        # SGLang interleaves every sequence's cumulative text in one shared
-        # async iterator (tagged by `index`), so fan it out into n independent
-        # per-sequence queues so each returned iterator can be consumed on its
-        # own. Queues are bounded to apply backpressure on the engine when
-        # consumers are slow, and the fan-out task is aborted if any consumer
-        # stops early.
+        # SGLang interleaves every sequence's delta text in one shared async
+        # iterator (tagged by `index`), so fan it out into n independent
+        # per-sequence queues so each returned iterator can be consumed on
+        # its own. Queues are bounded to apply backpressure on the engine
+        # when consumers are slow, and the fan-out task is aborted if any
+        # consumer stops early.
         request_id = f"request-{ulid.ulid()}"
         queues: List[asyncio.Queue] = [ asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE) for _ in range(num_return_sequences) ]
         active = [ True ] * num_return_sequences
         end_of_stream = object()
 
-        async def _fan_out_sequences():
-            previous = [ "" ] * num_return_sequences
-
+        async def _generate_sequences():
             try:
                 async for output in await self.engine.async_generate(prompt, sampling, stream=True, rid=request_id):
-                    if cancellation_token is not None and cancellation_token.is_cancelled():
-                        break
-
                     if not any(active):
                         break
 
@@ -148,15 +163,13 @@ class SglangTextGenerationTaskAction(TextGenerationTaskAction):
                     if not active[index]:
                         continue
 
-                    delta = output["text"][len(previous[index]):]
-                    previous[index] = output["text"]
-
-                    if delta:
-                        await queues[index].put(delta)
+                    if output["text"]:
+                        await queues[index].put(output["text"])
             except asyncio.CancelledError:
                 pass
             finally:
                 self.engine.abort_request(request_id)
+
                 for index, queue in enumerate(queues):
                     if active[index]:
                         try:
@@ -169,19 +182,43 @@ class SglangTextGenerationTaskAction(TextGenerationTaskAction):
                                 pass
                             queue.put_nowait(end_of_stream)
 
-        fan_out_task = asyncio.create_task(_fan_out_sequences())
+        generate_task = asyncio.create_task(_generate_sequences())
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if generate_task.done():
+                        return
+                    await asyncio.sleep(0.2)
+
+                self.engine.abort_request(request_id)
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
 
         async def _stream(index: int, queue: asyncio.Queue) -> AsyncIterator[str]:
             try:
                 while True:
                     chunk = await queue.get()
+
                     if chunk is end_of_stream:
                         return
+
                     yield chunk
             finally:
                 active[index] = False
-                if not any(active) and not fan_out_task.done():
-                    fan_out_task.cancel()
+
+                if not any(active):
+                    if not generate_task.done():
+                        generate_task.cancel()
+
+                    if watcher_task is not None and not watcher_task.done():
+                        watcher_task.cancel()
+
+                        try:
+                            await watcher_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
 
         return [ _stream(index, queue) for index, queue in enumerate(queues) ]
 

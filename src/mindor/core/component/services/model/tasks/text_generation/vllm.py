@@ -103,13 +103,36 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         request_id = f"request-{ulid.ulid()}"
         texts: List[str] = [ "" ] * num_return_sequences
 
-        async for output in self.engine.generate(prompt, sampling, request_id=request_id):
-            if cancellation_token is not None and cancellation_token.is_cancelled():
-                await self.engine.abort(request_id)
-                break
+        async def _generate_sequences() -> None:
+            async for output in self.engine.generate(prompt, sampling, request_id=request_id):
+                for sequence in output.outputs:
+                    texts[sequence.index] = sequence.text
 
-            for sequence in output.outputs:
-                texts[sequence.index] = sequence.text
+        generate_task = asyncio.create_task(_generate_sequences())
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if generate_task.done():
+                        return
+
+                    await asyncio.sleep(0.2)
+
+                await self.engine.abort(request_id)
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
+
+        try:
+            await generate_task
+        finally:
+            if watcher_task is not None and not watcher_task.done():
+                watcher_task.cancel()
+
+                try:
+                    await watcher_task
+                except (asyncio.CancelledError, Exception):
+                    pass
 
         return texts
 
@@ -125,28 +148,31 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         # each returned iterator can be consumed on its own. Queues are
         # bounded to apply backpressure on the engine when consumers are
         # slow, and the fan-out task is aborted if any consumer stops early.
+        from vllm.sampling_params import RequestOutputKind
+
         request_id = f"request-{ulid.ulid()}"
         queues: List[asyncio.Queue] = [ asyncio.Queue(maxsize=_STREAM_QUEUE_SIZE) for _ in range(num_return_sequences) ]
         active = [ True ] * num_return_sequences
         end_of_stream = object()
 
-        async def _fan_out_sequences():
+        async def _generate_sequences():
             # AsyncLLMEngine.generate() bypasses OutputProcessor, so we
             # replicate its stream_interval batching here: hold deltas until
             # `stream_interval` new tokens have accumulated, or the sequence
             # finishes, or it's the first emit — mirrors
             # vllm/v1/engine/output_processor.py:RequestState.make_request_output.
-            processed_text = [ "" ] * num_return_sequences
-            processed_token_count = [ 0 ] * num_return_sequences
             pending_delta = [ "" ] * num_return_sequences
             pending_tokens = [ 0 ] * num_return_sequences
             emitted_once = [ False ] * num_return_sequences
 
+            # Switch to DELTA so each engine emission carries only the newly
+            # generated tokens. vLLM's CUMULATIVE default sends the whole running
+            # text per step, which also forces per-token flush even when
+            # stream_interval > 1 (vllm-project/vllm#60547).
+            sampling.output_kind = RequestOutputKind.DELTA
+
             try:
                 async for output in self.engine.generate(prompt, sampling, request_id=request_id):
-                    if cancellation_token is not None and cancellation_token.is_cancelled():
-                        break
-
                     if not any(active):
                         break
 
@@ -158,15 +184,9 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
                         if not active[index]:
                             continue
 
-                        delta = sequence.text[len(processed_text[index]):]
-                        processed_text[index] = sequence.text
-
-                        new_token_count = len(sequence.token_ids) - processed_token_count[index]
-                        processed_token_count[index] = len(sequence.token_ids)
-
-                        if delta:
-                            pending_delta[index] += delta
-                            pending_tokens[index] += new_token_count
+                        if sequence.text:
+                            pending_delta[index] += sequence.text
+                            pending_tokens[index] += len(sequence.token_ids)
 
                         should_emit = (
                             finished
@@ -192,6 +212,7 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
                                 queue.put_nowait(pending_delta[index])
                             except asyncio.QueueFull:
                                 pass
+
                         try:
                             queue.put_nowait(end_of_stream)
                         except asyncio.QueueFull:
@@ -200,21 +221,47 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
                                 queue.get_nowait()
                             except asyncio.QueueEmpty:
                                 pass
+
                             queue.put_nowait(end_of_stream)
 
-        fan_out_task = asyncio.create_task(_fan_out_sequences())
+        generate_task = asyncio.create_task(_generate_sequences())
+        watcher_task: Optional[asyncio.Task] = None
+
+        if cancellation_token is not None:
+            async def _watch_cancellation() -> None:
+                while not cancellation_token.is_cancelled():
+                    if generate_task.done():
+                        return
+
+                    await asyncio.sleep(0.2)
+
+                await self.engine.abort(request_id)
+
+            watcher_task = asyncio.create_task(_watch_cancellation())
 
         async def _stream(index: int, queue: asyncio.Queue) -> AsyncIterator[str]:
             try:
                 while True:
                     chunk = await queue.get()
+
                     if chunk is end_of_stream:
                         return
+
                     yield chunk
             finally:
                 active[index] = False
-                if not any(active) and not fan_out_task.done():
-                    fan_out_task.cancel()
+
+                if not any(active):
+                    if not generate_task.done():
+                        generate_task.cancel()
+
+                    if watcher_task is not None and not watcher_task.done():
+                        watcher_task.cancel()
+
+                        try:
+                            await watcher_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
 
         return [ _stream(index, queue) for index, queue in enumerate(queues) ]
 

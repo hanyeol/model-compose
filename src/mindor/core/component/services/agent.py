@@ -284,13 +284,13 @@ class AgentComponent(ComponentService):
     ):
         super().__init__(id, config, global_configs, daemon)
 
-        self.model_component: Optional[ComponentService] = None
-        self.tools: Optional[Dict[str, Union[WorkflowTool, ModelTool]]] = None
-        self.tool_schemas: Optional[List[Dict[str, Any]]] = None
+        self._model_component: Optional[ComponentService] = None
+        self._tools: Optional[Dict[str, Union[WorkflowTool, ModelTool]]] = None
+        self._tool_schemas: Optional[List[Dict[str, Any]]] = None
 
     async def _start(self) -> None:
-        self.model_component = self._create_component(self.config.model.component)
-        self.tools, self.tool_schemas = await self._generate_tools()
+        self._model_component = self._create_component(self.config.model.component)
+        self._tools, self._tool_schemas = await self._generate_tools()
 
         await super()._start()
 
@@ -337,10 +337,10 @@ class AgentComponent(ComponentService):
     async def _run(self, action: ActionConfig, context: ComponentActionContext) -> Any:
         return await AgentAction(
             action,
-            self.model_component,
+            self._model_component,
             self.config.model,
-            self.tools,
-            self.tool_schemas,
+            self._tools,
+            self._tool_schemas,
             self.config.instructions,
             self.config.max_iteration_count
         ).run(context)

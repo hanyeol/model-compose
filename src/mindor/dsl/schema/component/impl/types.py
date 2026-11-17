@@ -10,6 +10,7 @@ class ComponentType(str, Enum):
     AGENT                             = "agent"
     MODEL                             = "model"
     AGENT_MEMORY                      = "agent-memory"
+    AGENT_SKILL_STORE                 = "agent-skill-store"
     MODEL_TRAINER                     = "model-trainer"
     MODEL_TOKENIZER                   = "model-tokenizer"
     DATASETS                          = "datasets"

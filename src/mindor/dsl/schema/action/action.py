@@ -11,6 +11,7 @@ ActionConfig = Union[
     McpClientActionConfig,
     ModelActionConfig,
     AgentMemoryActionConfig,
+    AgentSkillStoreActionConfig,
     ModelTokenizerActionConfig,
     WorkflowActionConfig,
     ShellActionConfig,

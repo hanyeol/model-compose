@@ -13,6 +13,7 @@ ComponentConfig = Annotated[
         ModelComponentConfig,
         ModelTrainerComponentConfig,
         AgentMemoryComponentConfig,
+        AgentSkillStoreComponentConfig,
         ModelTokenizerComponentConfig,
         DatasetsComponentConfig,
         VectorStoreComponentConfig,

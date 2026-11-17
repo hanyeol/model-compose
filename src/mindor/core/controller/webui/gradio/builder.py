@@ -815,11 +815,13 @@ class GradioWebUIBuilder:
         for variable, component in zip(variables, components):
             if isinstance(variable, WorkflowVariableGroupConfig):
                 values = (self._resolve_variable_output(output, variable) if isinstance(output, dict) and variable.name else output) or ()
+
                 for index, group in enumerate(component):
                     if index == len(component) - 1:
                         value = values[-1] if values else None
                     else:
                         value = values[index] if index < len(values) else None
+
                     if value is None:
                         updates.extend(gr.update() for _ in group.components)
                     else:
@@ -827,10 +829,12 @@ class GradioWebUIBuilder:
             else:
                 value = self._resolve_variable_output(output, variable)
                 value = await self._convert_output_value(value, variable)
+
                 # Gradio's Gallery/Audio/Video/File components reject None entries; drop them here
                 # so upstream `${...}` transforms don't have to filter nulls just for the UI.
                 if variable.is_list and self._is_media_variable(variable) and isinstance(value, list):
                     value = [ item for item in value if item is not None ]
+
                 updates.append(value)
 
         return updates
@@ -870,6 +874,7 @@ class GradioWebUIBuilder:
 
         if not streams:
             yield self._flatten_stream_updates(updates, update_sizes)
+
             return
 
         queue: asyncio.Queue = asyncio.Queue()
@@ -890,6 +895,7 @@ class GradioWebUIBuilder:
 
                 if item is None:
                     active_streams -= 1
+
                     continue
 
                 index, chunk = item
@@ -901,6 +907,7 @@ class GradioWebUIBuilder:
                     window.append(chunk)
 
                     group_updates: List[Any] = []
+
                     for group_index, group in enumerate(component):
                         value = window[group_index] if group_index < len(window) else None
 

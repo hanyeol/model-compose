@@ -46,13 +46,7 @@ class ComponentOutputStreamIterator(StreamChunkIterator):
                 await self._notify_terminated("cancelled", "consumer closed stream")
 
     async def aclose(self) -> None:
-        closer = getattr(self.source, "aclose", None)
-
-        if closer is not None:
-            try:
-                await closer()
-            except Exception:
-                pass
+        await super().aclose()
 
         if not self._notified_terminated:
             await self._notify_terminated("cancelled", "consumer closed stream")

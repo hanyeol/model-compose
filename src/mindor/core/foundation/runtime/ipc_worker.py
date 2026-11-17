@@ -84,6 +84,9 @@ class IpcRuntimeWorker(ABC):
                     if target_request_id:
                         target = self._run_tasks.get(target_request_id)
 
+                        # _run_request parks in `_wait_for_outbound_streams`
+                        # after RESULT, so cancel reaches its exception
+                        # branch where the streams are torn down.
                         if target is not None and not target.done():
                             target.cancel()
 
@@ -93,6 +96,7 @@ class IpcRuntimeWorker(ABC):
                     # Reply first so the parent's `request()` future resolves,
                     # then exit the dispatch loop; shutdown runs in `finally`.
                     await self._send_result(message.request_id, { "status": "stopped" })
+
                     break
 
                 try:
@@ -108,6 +112,7 @@ class IpcRuntimeWorker(ABC):
                 task.cancel()
 
             eof_error = ConnectionError("parent transport closed")
+
             for future in list(self._pending_calls.values()):
                 if not future.done():
                     future.set_exception(eof_error)
@@ -145,6 +150,7 @@ class IpcRuntimeWorker(ABC):
         except Exception:
             self._pending_calls.pop(call_id, None)
             await self._abort_streams_for_owner("call", call_id)
+
             raise
 
         try:
@@ -159,6 +165,7 @@ class IpcRuntimeWorker(ABC):
                 pass
 
             await self._abort_streams_for_owner("call", call_id)
+
             raise
         finally:
             self._pending_calls.pop(call_id, None)
@@ -181,6 +188,7 @@ class IpcRuntimeWorker(ABC):
                 output = self._codec.decode(payload.get("output"), on_stream_decode=self._handle_inbound_stream)
             except Exception as e:
                 future.set_exception(e)
+
                 return
 
             future.set_result(output)
@@ -199,11 +207,18 @@ class IpcRuntimeWorker(ABC):
         try:
             result = await self._dispatch_message(message)
             await self._send_result(message.request_id, result)
+
+            # Stay parked until outbound streams terminate so mid-stream
+            # CANCEL lands here and routes to the exception branch for
+            # source teardown (engine.abort() in vLLM / sglang).
+            if message.request_id:
+                await self._wait_for_outbound_streams("run", message.request_id)
         except asyncio.CancelledError:
             if message.request_id:
                 await self._abort_streams_for_owner("run", message.request_id)
 
             await self._send_error(message.request_id, "Request was cancelled")
+
             raise
         except Exception as e:
             if message.request_id:
@@ -291,8 +306,10 @@ class IpcRuntimeWorker(ABC):
 
         if message.type == IpcMessageType.STREAM_CHUNK:
             stream = self._inbound_streams.get(stream_id)
+
             if stream is None or stream.closed:
                 return
+
             # BYTES chunks travel in the binary trailer; other kinds ride in payload.data.
             data = message.binary if stream.kind == StreamKind.BYTES else payload.get("data")
             chunk = stream.decode_chunk(data, on_stream_decode=self._handle_inbound_stream)
@@ -314,7 +331,7 @@ class IpcRuntimeWorker(ABC):
             if stream is not None:
                 stream.push_abort()
 
-            outbound = self._outbound_streams.pop(stream_id, None)
+            outbound = self._finalize_outbound_stream(stream_id)
 
             if outbound is not None:
                 await outbound.aclose()
@@ -322,7 +339,7 @@ class IpcRuntimeWorker(ABC):
             return
 
         if message.type == IpcMessageType.STREAM_CLOSE:
-            outbound = self._outbound_streams.pop(stream_id, None)
+            outbound = self._finalize_outbound_stream(stream_id)
 
             if outbound is not None:
                 await outbound.aclose()
@@ -343,7 +360,7 @@ class IpcRuntimeWorker(ABC):
             chunk = await stream.next_chunk()
         except StopAsyncIteration:
             await self._send_stream_end_message(stream_id)
-            self._outbound_streams.pop(stream_id, None)
+            self._finalize_outbound_stream(stream_id)
 
             return
         except asyncio.CancelledError:
@@ -354,7 +371,7 @@ class IpcRuntimeWorker(ABC):
             return
         except Exception as e:
             await self._send_stream_abort_message(stream_id, str(e))
-            self._outbound_streams.pop(stream_id, None)
+            self._finalize_outbound_stream(stream_id)
 
             return
 
@@ -370,12 +387,41 @@ class IpcRuntimeWorker(ABC):
             )
         except Exception as e:
             await self._send_stream_abort_message(stream_id, str(e))
-            self._outbound_streams.pop(stream_id, None)
+            self._finalize_outbound_stream(stream_id)
 
             return
 
         await self._send_stream_chunk_message(stream_id, stream.seq, chunk)
         stream.seq += 1
+
+    def _finalize_outbound_stream(self, stream_id: str) -> Optional[IpcOutboundStream]:
+        """Pop a stream from the registry and signal its `done_event` so any
+        owner parked in `_wait_for_outbound_streams` unblocks. Single entry
+        point for every removal path (exhaustion, abort, close, shutdown)."""
+        stream = self._outbound_streams.pop(stream_id, None)
+
+        if stream is not None:
+            stream.signal_done()
+
+        return stream
+
+    async def _wait_for_outbound_streams(self, owner_kind: str, owner_id: str) -> None:
+        """Park until every outbound stream tagged with the given owner has
+        terminated. Rechecks the registry after each wake so streams
+        registered mid-await (nested outputs) are also awaited."""
+        while True:
+            matches = [
+                stream for stream in self._outbound_streams.values()
+                if stream.owner_kind == owner_kind and stream.owner_id == owner_id
+            ]
+
+            if not matches:
+                return
+
+            await asyncio.wait(
+                [asyncio.ensure_future(stream.wait_until_done()) for stream in matches],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
 
     async def _abort_streams_for_owner(self, owner_kind: str, owner_id: str) -> None:
         """Abort every outbound stream tagged with the given owner — used when
@@ -387,7 +433,7 @@ class IpcRuntimeWorker(ABC):
         ]
 
         for stream_id, stream in matches:
-            self._outbound_streams.pop(stream_id, None)
+            self._finalize_outbound_stream(stream_id)
 
             try:
                 await self._send_stream_abort_message(stream_id, "owner cancelled")
@@ -412,7 +458,13 @@ class IpcRuntimeWorker(ABC):
             except Exception:
                 pass
 
-        self._outbound_streams.clear()
+            stream = self._finalize_outbound_stream(stream_id)
+
+            if stream is not None:
+                try:
+                    await stream.aclose()
+                except Exception:
+                    pass
 
     async def _send_stream_pull_message(self, stream_id: str) -> None:
         await self._send_message(IpcMessage(
@@ -493,9 +545,10 @@ class IpcRuntimeWorker(ABC):
     def _build_error_payload(self, error: Union[BaseException, str]) -> Dict[str, Any]:
         if isinstance(error, BaseException):
             return {
-                "error":     str(error) or type(error).__name__,
+                "error": str(error) or type(error).__name__,
                 "traceback": "".join(traceback.format_exception(type(error), error, error.__traceback__)),
             }
+
         return { "error": error }
 
     @abstractmethod

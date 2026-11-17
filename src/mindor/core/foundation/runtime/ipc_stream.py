@@ -29,8 +29,9 @@ from mindor.core.foundation.variable.codec import StreamKind, StreamDecodeCallba
 import asyncio
 
 # Sentinels placed in IpcInboundStream.queue.
-_STREAM_END   = object()
-_STREAM_ABORT = object()
+_STREAM_END    = object()  # producer finished normally
+_STREAM_ABORT  = object()  # producer-side failure (wire STREAM_ABORT, transport EOF)
+_STREAM_CANCEL = object()  # consumer-side cancel (local aclose)
 
 class IpcInboundStream:
     """Consumer-side bookkeeping for one inbound stream.
@@ -43,9 +44,16 @@ class IpcInboundStream:
         self.stream_id: str = stream_id
         self.kind: StreamKind = kind
         self.queue: asyncio.Queue[Any] = asyncio.Queue()
-        self.closed: bool = False
 
         self._codec: VariableCodec = codec
+        self._closed: bool = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        self._closed = True
 
     def decode_chunk(self, data: Any, on_stream_decode: Optional[StreamDecodeCallback] = None) -> Any:
         """Convert on-wire chunk data back to the Python value for this stream's kind.
@@ -75,6 +83,9 @@ class IpcInboundStream:
 
     def push_abort(self) -> None:
         self.queue.put_nowait(_STREAM_ABORT)
+
+    def push_cancel(self) -> None:
+        self.queue.put_nowait(_STREAM_CANCEL)
 
     def build_resource(
         self,
@@ -193,17 +204,24 @@ class IpcOutboundStream:
         self.kind: StreamKind = kind
         self.source: Any = source
         self.seq: int = 0
-        self.closed: bool = False
         self.owner_kind: str = owner_kind
         self.owner_id: str = owner_id
 
         self._codec: VariableCodec = codec
         self._iterator: AsyncIterator[Any] = source.__aiter__()
+        self._closed: bool = False
 
         # The pump task currently parked in `__anext__`, if any. When the
         # consumer or an owner cancels, we cancel this task so an async
         # generator source sees `GeneratorExit` and runs its `finally`.
         self._pull_task: Optional[asyncio.Task] = None
+
+        # Signalled when the stream reaches a terminal state (exhaustion,
+        # abort, or close). `wait_until_done` lets the owning RUN/CALL task stay
+        # parked until every stream it produced has released its source —
+        # so CANCEL can still interrupt the owner and reach the source's
+        # `finally` cleanup.
+        self._done_event: asyncio.Event = asyncio.Event()
 
     async def next_chunk(self) -> Any:
         """Pull the next raw chunk from the source. Raises `StopAsyncIteration`
@@ -243,6 +261,23 @@ class IpcOutboundStream:
         # StreamKind.OBJECT
         return self._codec.encode(raw, on_stream_encode=on_stream_encode)
 
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        self._closed = True
+
+    def signal_done(self) -> None:
+        """Signal that the stream has reached a terminal state. Called by the
+        owner (worker/proxy) after popping the stream from its registry so
+        `wait_until_done` consumers unblock."""
+        self._done_event.set()
+
+    async def wait_until_done(self) -> None:
+        """Block until `signal_done` is called."""
+        await self._done_event.wait()
+
     async def aclose(self) -> None:
         """Terminate the source cooperatively.
 
@@ -253,7 +288,7 @@ class IpcOutboundStream:
         `finally` on aclose — the resource the source holds (an HTTP response,
         a model still generating) would leak. The source's own close drives
         cleanup regardless. Idempotent — safe to call multiple times."""
-        self.closed = True
+        self.close()
 
         if self._pull_task is not None and not self._pull_task.done():
             self._pull_task.cancel()
@@ -302,6 +337,7 @@ class IpcStreamReader:
 
     async def _iterate(self) -> AsyncIterator[Any]:
         stream = self._stream
+
         try:
             while not stream.closed:
                 # Credit=1: request next chunk before waiting.
@@ -309,30 +345,42 @@ class IpcStreamReader:
                 item = await stream.queue.get()
 
                 if item is _STREAM_END:
-                    stream.closed = True
+                    # Producer already told us it's done; no close ack needed.
+                    stream.close()
 
                     return
 
                 if item is _STREAM_ABORT:
-                    stream.closed = True
+                    # Producer-side failure — surfaced to consumers as IOError
+                    # so the "failed" branch fires in wrapper layers.
                     raise IOError(f"Stream {stream.stream_id} aborted")
+
+                if item is _STREAM_CANCEL:
+                    # Local aclose() injected this to wake us up. Raise
+                    # CancelledError so wrapper layers classify it as
+                    # cancelled rather than failed.
+                    raise asyncio.CancelledError()
 
                 yield item
         finally:
-            # Fires on exhaustion, break, exception, cancellation, or explicit
-            # aclose — guaranteeing STREAM_CLOSE lands on the producer.
             if not stream.closed:
-                stream.closed = True
+                stream.close()
+
                 try:
                     await self._on_close(stream.stream_id)
                 except Exception:
                     pass
 
     async def aclose(self) -> None:
-        """Explicitly close the reader. Consumers rarely need this — the
-        `async for` cleanup path already runs `_iterate`'s finally — but
-        exposed for callers that hold the reader without iterating."""
+        """Explicitly close the reader. Idempotent."""
+        if self._stream.closed:
+            return
+
         if self._iterator is not None:
+            # push_cancel wakes consumers parked on queue.get(); iterator.aclose
+            # covers the case where no one is driving __anext__ to drain it.
+            self._stream.push_cancel()
+
             closer = getattr(self._iterator, "aclose", None)
 
             if closer is not None:
@@ -341,15 +389,10 @@ class IpcStreamReader:
                 except Exception:
                     pass
 
-            self._iterator = None
-
             return
 
-        # Reader was never iterated — mark closed and notify directly.
-        if self._stream.closed:
-            return
-
-        self._stream.closed = True
+        # Reader was never iterated — notify directly.
+        self._stream.close()
 
         try:
             await self._on_close(self._stream.stream_id)

@@ -10,7 +10,7 @@ from mindor.core.logger import logging
 from .common import ModelTaskDriver
 
 if TYPE_CHECKING:
-    from vllm import AsyncLLMEngine
+    from vllm import AsyncLLMEngine, AsyncEngineArgs
     from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 
 _BITSANDBYTES_QUANT_TYPES = {
@@ -25,6 +25,7 @@ class VllmModelTaskDriver(ModelTaskDriver):
         super().__init__(id, config, daemon)
 
         self.engine: Optional[AsyncLLMEngine] = None
+        self.engine_args: Optional[AsyncEngineArgs] = None
         self.tokenizer: Optional[PreTrainedTokenizerBase] = None
 
     def _get_setup_requirements(self) -> Optional[List[Union[str, Tuple[str, List[str]]]]]:
@@ -47,7 +48,7 @@ class VllmModelTaskDriver(ModelTaskDriver):
 
         logging.info(f"Component '{self.id}': loading vLLM model from '{model_path}'")
 
-        def _load() -> AsyncLLMEngine:
+        def _load() -> Tuple[AsyncLLMEngine, AsyncEngineArgs]:
             from vllm import AsyncEngineArgs, AsyncLLMEngine
             from transformers import AutoTokenizer
 
@@ -61,9 +62,9 @@ class VllmModelTaskDriver(ModelTaskDriver):
 
             self._load_tokenizer(AutoTokenizer, model_path, params)
 
-            return engine
+            return engine, engine_args
 
-        self.engine = await self._run_in_executor(_load)
+        self.engine, self.engine_args = await self._run_in_executor(_load)
 
     def _load_tokenizer(self, tokenizer_class: Type[PreTrainedTokenizerBase], model_path: str, params: Dict[str, Any]) -> None:
         tokenizer_path = params.get("tokenizer") or model_path
@@ -90,6 +91,7 @@ class VllmModelTaskDriver(ModelTaskDriver):
                 pass
             self.engine = None
 
+        self.engine_args = None
         self.tokenizer = None
 
         try:
@@ -145,3 +147,4 @@ class VllmModelTaskDriver(ModelTaskDriver):
                 options[field] = value
 
         return options
+

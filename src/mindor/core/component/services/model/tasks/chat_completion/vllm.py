@@ -30,8 +30,9 @@ class VllmChatCompletionTaskAction(VllmTextGenerationTaskAction):
         chat_template: Optional[str] = None,
         tool_call_parser: Optional[ToolCallParserConfig] = None,
         reasoning_parser: Optional[ReasoningParserConfig] = None,
+        stream_interval: int = 1,
     ):
-        super().__init__(config, engine)
+        super().__init__(config, engine, stream_interval)
 
         self.tokenizer: PreTrainedTokenizerBase = tokenizer
         self.tools: Optional[List[ModelTool]] = tools
@@ -102,4 +103,5 @@ class VllmChatCompletionTaskDriver(VllmModelTaskDriver):
             self.config.chat_template,
             self.config.tool_call_parser,
             self.config.reasoning_parser,
+            self.engine_args.stream_interval or 1,
         ).run(context)

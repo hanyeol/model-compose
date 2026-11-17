@@ -21,10 +21,12 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         self,
         config: HuggingfaceTextGenerationModelActionConfig,
         engine: AsyncLLMEngine,
+        stream_interval: int = 1,
     ):
         super().__init__(config)
 
         self.engine: AsyncLLMEngine = engine
+        self.stream_interval: int = max(1, stream_interval)
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         from vllm import SamplingParams
@@ -129,7 +131,16 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
         end_of_stream = object()
 
         async def _fan_out_sequences():
-            previous = [ "" ] * num_return_sequences
+            # AsyncLLMEngine.generate() bypasses OutputProcessor, so we
+            # replicate its stream_interval batching here: hold deltas until
+            # `stream_interval` new tokens have accumulated, or the sequence
+            # finishes, or it's the first emit — mirrors
+            # vllm/v1/engine/output_processor.py:RequestState.make_request_output.
+            processed_text = [ "" ] * num_return_sequences
+            processed_token_count = [ 0 ] * num_return_sequences
+            pending_delta = [ "" ] * num_return_sequences
+            pending_tokens = [ 0 ] * num_return_sequences
+            emitted_once = [ False ] * num_return_sequences
 
             try:
                 async for output in self.engine.generate(prompt, sampling, request_id=request_id):
@@ -139,23 +150,48 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
                     if not any(active):
                         break
 
+                    finished = output.finished
+
                     for sequence in output.outputs:
                         index = sequence.index
 
                         if not active[index]:
                             continue
 
-                        delta = sequence.text[len(previous[index]):]
-                        previous[index] = sequence.text
+                        delta = sequence.text[len(processed_text[index]):]
+                        processed_text[index] = sequence.text
+
+                        new_token_count = len(sequence.token_ids) - processed_token_count[index]
+                        processed_token_count[index] = len(sequence.token_ids)
 
                         if delta:
-                            await queues[index].put(delta)
+                            pending_delta[index] += delta
+                            pending_tokens[index] += new_token_count
+
+                        should_emit = (
+                            finished
+                            or not emitted_once[index]
+                            or pending_tokens[index] >= self.stream_interval
+                        )
+
+                        if should_emit and pending_delta[index]:
+                            await queues[index].put(pending_delta[index])
+                            pending_delta[index] = ""
+                            pending_tokens[index] = 0
+                            emitted_once[index] = True
             except asyncio.CancelledError:
                 pass
             finally:
                 await self.engine.abort(request_id)
+
                 for index, queue in enumerate(queues):
                     if active[index]:
+                        # Flush whatever didn't reach the interval threshold.
+                        if pending_delta[index]:
+                            try:
+                                queue.put_nowait(pending_delta[index])
+                            except asyncio.QueueFull:
+                                pass
                         try:
                             queue.put_nowait(end_of_stream)
                         except asyncio.QueueFull:
@@ -185,4 +221,8 @@ class VllmTextGenerationTaskAction(TextGenerationTaskAction):
 @register_model_task_driver(ModelTaskType.TEXT_GENERATION, ModelDriverType.VLLM)
 class VllmTextGenerationTaskDriver(VllmModelTaskDriver):
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        return await VllmTextGenerationTaskAction(action, self.engine).run(context)
+        return await VllmTextGenerationTaskAction(
+            action,
+            self.engine,
+            self.engine_args.stream_interval or 1,
+        ).run(context)

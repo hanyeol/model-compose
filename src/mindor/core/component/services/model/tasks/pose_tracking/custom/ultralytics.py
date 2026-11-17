@@ -857,10 +857,13 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
                     if params["return_keypoints"] and "keypoints" in best_pose:
                         segment["keypoints"] = best_pose["keypoints"]
+
                     if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
                         segment["openpose_keypoints"] = best_pose["openpose_keypoints"]
+
                     if params["return_skeleton_image"]:
                         segment["skeleton_image"] = self._render_skeleton(best_pose, params)
+
                     if params["return_track_image"]:
                         segment["image"] = self._crop_pose_image(best_pose, params["crop_margin_ratio"])
 

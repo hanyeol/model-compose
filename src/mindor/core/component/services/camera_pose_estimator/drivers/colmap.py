@@ -87,7 +87,9 @@ class ColmapCameraPoseEstimatorAction(CameraPoseEstimatorAction):
                     while not cancellation_token.is_cancelled():
                         if pipeline_task.done():
                             return
+
                         await asyncio.sleep(0.2)
+
                     pycolmap_cancellation_token.cancel()
 
                 watcher_task = asyncio.create_task(_watch_cancellation())

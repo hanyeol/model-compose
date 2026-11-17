@@ -102,7 +102,9 @@ class FFmpegAudioPlaybackAction(AudioPlaybackAction):
                 while not cancellation_token.is_cancelled():
                     if process_task.done():
                         return
+
                     await asyncio.sleep(0.2)
+
                 process_task.cancel()
 
             watcher_task = asyncio.create_task(_watch_cancellation())

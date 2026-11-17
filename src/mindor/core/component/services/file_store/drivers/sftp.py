@@ -63,16 +63,13 @@ class SftpFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        content_type = params["content_type"]
-        chunk_size   = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
-
         source = await resolve_stream_resource(source) if source is not None else None
 
         if source is None:
             raise ValueError("'source' is required for 'put' action")
 
         remote_path = self._resolve_remote_path(path)
-        content_type = content_type or guess_content_type(path) or source.content_type
+        content_type = params["content_type"] or guess_content_type(path) or source.content_type
 
         parent = posixpath.dirname(remote_path)
 
@@ -82,7 +79,7 @@ class SftpFileStoreAction(FileStoreAction):
         tmp_path = f"{remote_path}.tmp"
 
         try:
-            uploaded_size = await self._upload_stream(source, tmp_path, chunk_size)
+            uploaded_size = await self._upload_stream(source, tmp_path, params["chunk_size"] or _DEFAULT_CHUNK_SIZE)
             await self.client.rename(tmp_path, remote_path)
         except BaseException:
             try:
@@ -105,10 +102,6 @@ class SftpFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        save_to    = params["save_to"]
-        streaming  = params["streaming"]
-        chunk_size = params["chunk_size"]
-
         remote_path = self._resolve_remote_path(path)
 
         try:
@@ -123,7 +116,9 @@ class SftpFileStoreAction(FileStoreAction):
         content_type = guess_content_type(path)
         modified_at = format_datetime_iso_string(attrs.st_mtime) if attrs.st_mtime is not None else None
 
-        if save_to:
+        if params["save_to"]:
+            save_to = params["save_to"]
+
             if os.path.isdir(save_to):
                 save_to = os.path.join(save_to, posixpath.basename(path))
 
@@ -132,10 +127,11 @@ class SftpFileStoreAction(FileStoreAction):
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
+            chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
             file = await self.client.open_file(remote_path, "rb")
             stream = ReaderStreamResource(
                 SftpFileReader(file),
-                chunk_size=chunk_size or _DEFAULT_CHUNK_SIZE,
+                chunk_size=chunk_size,
                 size=attrs.st_size,
             )
             await save_stream_to_file(stream, save_to)
@@ -149,13 +145,14 @@ class SftpFileStoreAction(FileStoreAction):
                 "save_to": save_to,
             }
 
-        if streaming:
+        if params["streaming"]:
+            chunk_size = params["chunk_size"] or _DEFAULT_STREAMING_CHUNK_SIZE
             file = await self.client.open_file(remote_path, "rb")
             content = ReaderStreamResource(
                 SftpFileReader(file),
                 content_type=content_type,
                 filename=posixpath.basename(path) or None,
-                chunk_size=chunk_size or _DEFAULT_STREAMING_CHUNK_SIZE,
+                chunk_size=chunk_size,
                 size=attrs.st_size,
             )
 
@@ -219,23 +216,18 @@ class SftpFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        recursive        = params["recursive"]
-        pattern          = params["pattern"]
-        max_result_count = params["max_result_count"]
-        page_token       = params["next_token"]
-
         list_path = self._resolve_remote_path(path) if path else self.base_path
 
         if not await self.client.is_directory(list_path):
             raise NotADirectoryError(f"Path is not a directory: {path!r}")
 
-        start_index = int(page_token) if page_token else 0
-        limit = int(max_result_count) if max_result_count is not None else sys.maxsize
+        start_index = int(params["next_token"]) if params["next_token"] else 0
+        limit = params["max_result_count"] if params["max_result_count"] is not None else sys.maxsize
 
         items: List[Dict[str, Any]] = []
         offset = 0
 
-        async for dir_path, entries in self._iterate_files(list_path, recursive):
+        async for dir_path, entries in self._iterate_files(list_path, params["recursive"]):
             for entry in entries:
                 if not stat_module.S_ISREG(entry.st_mode):
                     continue
@@ -243,7 +235,7 @@ class SftpFileStoreAction(FileStoreAction):
                 absolute_path = posixpath.join(dir_path, entry.filename)
                 relative_path = self._resolve_relative_path(absolute_path)
 
-                if pattern and not is_glob_match(relative_path, pattern):
+                if params["pattern"] and not is_glob_match(relative_path, params["pattern"]):
                     continue
 
                 if offset >= start_index:

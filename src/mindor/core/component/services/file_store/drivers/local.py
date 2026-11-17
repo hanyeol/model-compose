@@ -31,9 +31,6 @@ class LocalFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        content_type = params["content_type"]
-        chunk_size   = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
-
         source = await resolve_stream_resource(source) if source is not None else None
 
         if source is None:
@@ -48,11 +45,13 @@ class LocalFileStoreAction(FileStoreAction):
             raise IsADirectoryError(f"Cannot overwrite an existing directory: {path!r}")
 
         url = self._build_file_url(absolute_path)
-        content_type = content_type or guess_content_type(path) or source.content_type
+        content_type = params["content_type"] or guess_content_type(path) or source.content_type
 
         os.makedirs(os.path.dirname(absolute_path) or self.base_path, exist_ok=True)
 
         tmp_path = f"{absolute_path}.tmp"
+        chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
+
         try:
             await save_stream_to_file(ChunkedStreamResource(source, chunk_size), tmp_path)
             os.replace(tmp_path, absolute_path)
@@ -80,10 +79,6 @@ class LocalFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        save_to    = params["save_to"]
-        streaming  = params["streaming"]
-        chunk_size = params["chunk_size"]
-
         absolute_path = self._resolve_absolute_path(path)
 
         if not is_path_within(self.base_path, absolute_path):
@@ -101,7 +96,9 @@ class LocalFileStoreAction(FileStoreAction):
         modified_at = format_datetime_iso_string(stat.st_mtime)
         content_type = guess_content_type(path)
 
-        if save_to:
+        if params["save_to"]:
+            save_to = params["save_to"]
+
             if os.path.isdir(save_to):
                 save_to = os.path.join(save_to, os.path.basename(path))
 
@@ -110,7 +107,8 @@ class LocalFileStoreAction(FileStoreAction):
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
-            stream = FileStreamResource(absolute_path, chunk_size=chunk_size or _DEFAULT_CHUNK_SIZE)
+            chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
+            stream = FileStreamResource(absolute_path, chunk_size=chunk_size)
             await save_stream_to_file(stream, save_to)
 
             return {
@@ -122,12 +120,13 @@ class LocalFileStoreAction(FileStoreAction):
                 "save_to": save_to,
             }
 
-        if streaming:
+        if params["streaming"]:
+            chunk_size = params["chunk_size"] or _DEFAULT_STREAMING_CHUNK_SIZE
             content = FileStreamResource(
                 absolute_path,
                 content_type=content_type,
                 filename=os.path.basename(path),
-                chunk_size=chunk_size or _DEFAULT_STREAMING_CHUNK_SIZE,
+                chunk_size=chunk_size,
             )
 
             return {
@@ -195,11 +194,6 @@ class LocalFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        recursive        = params["recursive"]
-        pattern          = params["pattern"]
-        max_result_count = params["max_result_count"]
-        page_token       = params["next_token"]
-
         list_path = self._resolve_absolute_path(path) if path else self.base_path
 
         if not is_path_within(self.base_path, list_path):
@@ -208,18 +202,18 @@ class LocalFileStoreAction(FileStoreAction):
         if not os.path.isdir(list_path):
             raise NotADirectoryError(f"Path is not a directory: {path!r}")
 
-        start_index = int(page_token) if page_token else 0
-        limit = int(max_result_count) if max_result_count is not None else sys.maxsize
+        start_index = int(params["next_token"]) if params["next_token"] else 0
+        limit = params["max_result_count"] if params["max_result_count"] is not None else sys.maxsize
 
         items: List[Dict[str, Any]] = []
         offset = 0
 
-        async for dir, files in self._iterate_files(list_path, recursive):
+        async for dir, files in self._iterate_files(list_path, params["recursive"]):
             for filename, stat in files:
                 absolute_path = os.path.join(dir, filename)
                 relative_path = os.path.relpath(absolute_path, self.base_path).replace(os.sep, "/")
 
-                if pattern and not is_glob_match(relative_path, pattern):
+                if params["pattern"] and not is_glob_match(relative_path, params["pattern"]):
                     continue
 
                 if offset >= start_index:

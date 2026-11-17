@@ -95,18 +95,14 @@ class AzureBlobFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        content_type        = params["content_type"]
-        metadata            = params["metadata"]
-        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
-        chunk_size          = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
-
         source = await resolve_stream_resource(source) if source is not None else None
 
         if source is None:
             raise ValueError("'source' is required for 'put' action")
 
-        blob_name     = self._resolve_blob_name(path)
-        content_type  = content_type or guess_content_type(path) or source.content_type
+        blob_name = self._resolve_blob_name(path)
+        content_type = params["content_type"] or guess_content_type(path) or source.content_type
+        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
         use_multipart = source.size is None or source.size > multipart_threshold
 
         blob_client = self.container_client.get_blob_client(blob_name)
@@ -115,16 +111,16 @@ class AzureBlobFileStoreAction(FileStoreAction):
             uploaded_size = await multipart_upload(
                 blob_client,
                 source,
-                chunk_size=chunk_size,
+                chunk_size=params["chunk_size"] or _DEFAULT_CHUNK_SIZE,
                 content_type=content_type,
-                metadata=metadata,
+                metadata=params["metadata"],
             )
         else:
             uploaded_size = await upload(
                 blob_client,
                 source,
                 content_type=content_type,
-                metadata=metadata,
+                metadata=params["metadata"],
             )
 
         return {
@@ -143,32 +139,32 @@ class AzureBlobFileStoreAction(FileStoreAction):
     ) -> Dict[str, Any]:
         from mindor.core.foundation.streaming.resources import ReaderStreamResource
 
-        save_to    = params["save_to"]
-        streaming  = params["streaming"]
-        chunk_size = params["chunk_size"]
-
         blob_name = self._resolve_blob_name(path)
         blob_client = self.container_client.get_blob_client(blob_name)
 
         downloader = await blob_client.download_blob()
         properties = downloader.properties
 
+        url = self._build_file_url(blob_name)
         size = properties.size
         content_type = getattr(properties.content_settings, "content_type", None) or guess_content_type(path)
         last_modified = properties.last_modified
         modified_at = format_datetime_iso_string(last_modified) if last_modified else None
-        url = self._build_file_url(blob_name)
 
-        if save_to:
+        if params["save_to"]:
+            save_to = params["save_to"]
+
             if os.path.isdir(save_to):
                 save_to = os.path.join(save_to, os.path.basename(path))
 
             parent = os.path.dirname(os.path.abspath(save_to))
+
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
-            reader = AzureBlobDownloadReader(downloader, chunk_size or _DEFAULT_CHUNK_SIZE)
-            stream = ReaderStreamResource(reader, chunk_size=chunk_size or _DEFAULT_CHUNK_SIZE)
+            chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
+            reader = AzureBlobDownloadReader(downloader, chunk_size)
+            stream = ReaderStreamResource(reader, chunk_size=chunk_size)
             await save_stream_to_file(stream, save_to)
 
             return {
@@ -180,13 +176,14 @@ class AzureBlobFileStoreAction(FileStoreAction):
                 "save_to": save_to,
             }
 
-        if streaming:
-            reader = AzureBlobDownloadReader(downloader, chunk_size or _DEFAULT_STREAMING_CHUNK_SIZE)
+        if params["streaming"]:
+            chunk_size = params["chunk_size"] or _DEFAULT_STREAMING_CHUNK_SIZE
+            reader = AzureBlobDownloadReader(downloader, chunk_size)
             content = ReaderStreamResource(
                 reader,
                 content_type=content_type,
                 filename=os.path.basename(path) or None,
-                chunk_size=chunk_size or _DEFAULT_STREAMING_CHUNK_SIZE,
+                chunk_size=chunk_size,
             )
 
             return {
@@ -243,30 +240,27 @@ class AzureBlobFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        recursive        = params["recursive"]
-        pattern          = params["pattern"]
-        max_result_count = params["max_result_count"]
-        next_token       = params["next_token"]
+        list_params: Dict[str, Any] = {}
 
         name_prefix = self._resolve_blob_name(path) if path else (self.base_path or "")
 
-        list_params: Dict[str, Any] = {}
         if name_prefix:
             list_params["name_starts_with"] = name_prefix
-        if max_result_count is not None:
-            list_params["results_per_page"] = int(max_result_count)
 
-        if recursive:
+        if params["max_result_count"] is not None:
+            list_params["results_per_page"] = params["max_result_count"]
+
+        if params["recursive"]:
             blobs = self.container_client.list_blobs(**list_params)
         else:
             # Azure exposes hierarchical listing through `walk_blobs`; "/" is the
             # default delimiter and matches the S3 driver's behavior.
             blobs = self.container_client.walk_blobs(delimiter="/", **list_params)
 
-        pages = blobs.by_page(continuation_token=next_token or None)
+        pages = blobs.by_page(continuation_token=params["next_token"] or None)
 
         items: List[Dict[str, Any]] = []
-        continuation: Optional[str] = None
+        next_token: Optional[str] = None
 
         try:
             page = await pages.__anext__()
@@ -276,6 +270,7 @@ class AzureBlobFileStoreAction(FileStoreAction):
         if page is not None:
             from azure.storage.blob import BlobPrefix as SyncBlobPrefix
             from azure.storage.blob.aio import BlobPrefix as AsyncBlobPrefix
+
             prefix_classes = (SyncBlobPrefix, AsyncBlobPrefix)
 
             async for blob in page:
@@ -289,7 +284,7 @@ class AzureBlobFileStoreAction(FileStoreAction):
                 last_modified = blob.last_modified
                 content_type = getattr(blob.content_settings, "content_type", None) or guess_content_type(relative_path)
 
-                if pattern and not is_glob_match(relative_path, pattern):
+                if params["pattern"] and not is_glob_match(relative_path, params["pattern"]):
                     continue
 
                 items.append({
@@ -300,12 +295,12 @@ class AzureBlobFileStoreAction(FileStoreAction):
                     "modified_at": format_datetime_iso_string(last_modified) if last_modified else None,
                 })
 
-            continuation = pages.continuation_token
+            next_token = pages.continuation_token
 
         return {
             "items": items,
             "count": len(items),
-            "next_token": continuation or None,
+            "next_token": next_token,
         }
 
     def _resolve_blob_name(self, path: str) -> str:

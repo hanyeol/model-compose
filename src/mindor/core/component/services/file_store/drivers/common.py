@@ -118,7 +118,7 @@ class FileStoreAction(ComponentAction):
         if method == FileStoreActionMethod.LIST:
             recursive        = await context.render_variable(self.config.recursive)
             pattern          = await context.render_variable(self.config.pattern)
-            max_result_count = await context.render_variable(self.config.max_result_count)
+            max_result_count = await context.render_scalar(self.config.max_result_count, int)
             next_token       = await context.render_variable(self.config.next_token)
 
             return {

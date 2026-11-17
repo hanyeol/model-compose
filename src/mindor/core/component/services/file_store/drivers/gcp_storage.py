@@ -54,18 +54,14 @@ class GcpStorageFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        content_type        = params["content_type"]
-        metadata            = params["metadata"]
-        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
-        chunk_size          = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
-
         source = await resolve_stream_resource(source) if source is not None else None
 
         if source is None:
             raise ValueError("'source' is required for 'put' action")
 
-        object_name   = self._resolve_object_name(path)
-        content_type  = content_type or guess_content_type(path) or source.content_type
+        object_name = self._resolve_object_name(path)
+        content_type = params["content_type"] or guess_content_type(path) or source.content_type
+        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
         use_multipart = source.size is None or source.size > multipart_threshold
 
         if use_multipart:
@@ -74,9 +70,9 @@ class GcpStorageFileStoreAction(FileStoreAction):
                 self.location.bucket,
                 object_name,
                 source,
-                chunk_size=chunk_size,
+                chunk_size=params["chunk_size"] or _DEFAULT_CHUNK_SIZE,
                 content_type=content_type,
-                metadata=metadata,
+                metadata=params["metadata"],
             )
         else:
             uploaded_size = await upload(
@@ -85,7 +81,7 @@ class GcpStorageFileStoreAction(FileStoreAction):
                 object_name,
                 source,
                 content_type=content_type,
-                metadata=metadata,
+                metadata=params["metadata"],
             )
 
         return {
@@ -102,66 +98,63 @@ class GcpStorageFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        save_to    = params["save_to"]
-        streaming  = params["streaming"]
-        chunk_size = params["chunk_size"]
-
         object_name = self._resolve_object_name(path)
 
+        content = await self.client.download(self.location.bucket, object_name)
         metadata = await self.client.download_metadata(self.location.bucket, object_name)
 
-        size_raw = metadata.get("size")
-        size = int(size_raw) if size_raw is not None else None
+        url = self._build_file_url(object_name)
+        size = int(metadata["size"]) if "size" in metadata else len(content)
         content_type = metadata.get("contentType") or guess_content_type(path)
         last_modified = metadata.get("updated") or metadata.get("timeCreated")
         modified_at = last_modified  # GCS already returns RFC 3339 strings
-        url = self._build_file_url(object_name)
 
-        if save_to:
+        if params["save_to"]:
+            save_to = params["save_to"]
+
             if os.path.isdir(save_to):
                 save_to = os.path.join(save_to, os.path.basename(path))
 
             parent = os.path.dirname(os.path.abspath(save_to))
+
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
-            data = await self.client.download(self.location.bucket, object_name)
-            stream = BytesStreamResource(data, chunk_size=chunk_size or _DEFAULT_CHUNK_SIZE)
+            chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
+            stream = BytesStreamResource(content, chunk_size=chunk_size)
             await save_stream_to_file(stream, save_to)
 
             return {
                 "path": path,
                 "url": url,
-                "size": size if size is not None else os.path.getsize(save_to),
+                "size": size,
                 "content_type": content_type,
                 "modified_at": modified_at,
                 "save_to": save_to,
             }
 
-        if streaming:
-            data = await self.client.download(self.location.bucket, object_name)
+        if params["streaming"]:
+            chunk_size = params["chunk_size"] or _DEFAULT_STREAMING_CHUNK_SIZE
             content = BytesStreamResource(
-                data,
+                content,
                 content_type=content_type,
                 filename=os.path.basename(path) or None,
-                chunk_size=chunk_size or _DEFAULT_STREAMING_CHUNK_SIZE,
+                chunk_size=chunk_size,
             )
 
             return {
                 "path": path,
                 "url": url,
-                "size": size if size is not None else len(data),
+                "size": size,
                 "content_type": content_type,
                 "modified_at": modified_at,
                 "content": content,
             }
 
-        content = await self.client.download(self.location.bucket, object_name)
-
         return {
             "path": path,
             "url": url,
-            "size": size if size is not None else len(content),
+            "size": size,
             "content_type": content_type,
             "modified_at": modified_at,
             "content": content,
@@ -209,39 +202,39 @@ class GcpStorageFileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        recursive        = params["recursive"]
-        pattern          = params["pattern"]
-        max_result_count = params["max_result_count"]
-        next_token       = params["next_token"]
+        list_params: Dict[str, Any] = {}
 
         name_prefix = self._resolve_object_name(path) if path else (self.base_path or "")
 
-        list_params: Dict[str, Any] = {}
         if name_prefix:
             list_params["prefix"] = name_prefix
-        if not recursive:
+
+        if not params["recursive"]:
             list_params["delimiter"] = "/"
-        if max_result_count is not None:
-            list_params["maxResults"] = int(max_result_count)
-        if next_token:
-            list_params["pageToken"] = next_token
+
+        if params["max_result_count"] is not None:
+            list_params["maxResults"] = params["max_result_count"]
+
+        if params["next_token"]:
+            list_params["pageToken"] = params["next_token"]
 
         response = await self.client.list_objects(self.location.bucket, params=list_params)
 
         items: List[Dict[str, Any]] = []
+
         for blob in response.get("items", []) or []:
             object_name = blob["name"]
             relative_path = self._resolve_relative_path(object_name)
-            size_raw = blob.get("size")
+            size = blob.get("size")
             last_modified = blob.get("updated") or blob.get("timeCreated")
 
-            if pattern and not is_glob_match(relative_path, pattern):
+            if params["pattern"] and not is_glob_match(relative_path, params["pattern"]):
                 continue
 
             items.append({
                 "path": relative_path,
                 "url": self._build_file_url(object_name),
-                "size": int(size_raw) if size_raw is not None else None,
+                "size": int(size) if size is not None else None,
                 "content_type": blob.get("contentType") or guess_content_type(relative_path),
                 "modified_at": last_modified,
             })

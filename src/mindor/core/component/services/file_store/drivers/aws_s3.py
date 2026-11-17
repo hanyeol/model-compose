@@ -54,18 +54,14 @@ class AwsS3FileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        content_type        = params["content_type"]
-        metadata            = params["metadata"]
-        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
-        chunk_size          = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
-
         source = await resolve_stream_resource(source) if source is not None else None
 
         if source is None:
             raise ValueError("'source' is required for 'put' action")
 
-        object_key    = self._resolve_object_key(path)
-        content_type  = content_type or guess_content_type(path) or source.content_type
+        object_key = self._resolve_object_key(path)
+        content_type = params["content_type"] or guess_content_type(path) or source.content_type
+        multipart_threshold = params["multipart_threshold"] or _DEFAULT_MULTIPART_THRESHOLD
         use_multipart = source.size is None or source.size > multipart_threshold
 
         if use_multipart:
@@ -74,9 +70,9 @@ class AwsS3FileStoreAction(FileStoreAction):
                 self.location.bucket,
                 object_key,
                 source,
-                chunk_size=chunk_size,
+                chunk_size=params["chunk_size"] or _DEFAULT_CHUNK_SIZE,
                 content_type=content_type,
-                metadata=metadata,
+                metadata=params["metadata"],
             )
         else:
             uploaded_size = await upload(
@@ -85,7 +81,7 @@ class AwsS3FileStoreAction(FileStoreAction):
                 object_key,
                 source,
                 content_type=content_type,
-                metadata=metadata,
+                metadata=params["metadata"],
             )
 
         return {
@@ -102,29 +98,30 @@ class AwsS3FileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        save_to    = params["save_to"]
-        streaming  = params["streaming"]
-        chunk_size = params["chunk_size"]
-
         object_key = self._resolve_object_key(path)
-        response = await self.client.get_object(Bucket=self.location.bucket, Key=object_key)
 
-        body = response["Body"]
+        response = await self.client.get_object(Bucket=self.location.bucket, Key=object_key)
+        content = response["Body"]
+
+        url = self._build_file_url(object_key)
         size = response.get("ContentLength")
         content_type = response.get("ContentType") or guess_content_type(path)
         last_modified = response.get("LastModified")
         modified_at = format_datetime_iso_string(last_modified) if last_modified else None
-        url = self._build_file_url(object_key)
 
-        if save_to:
+        if params["save_to"]:
+            save_to = params["save_to"]
+
             if os.path.isdir(save_to):
                 save_to = os.path.join(save_to, os.path.basename(path))
 
             parent = os.path.dirname(os.path.abspath(save_to))
+
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
-            stream = ReaderStreamResource(body, chunk_size=chunk_size or _DEFAULT_CHUNK_SIZE)
+            chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
+            stream = ReaderStreamResource(content, chunk_size=chunk_size)
             await save_stream_to_file(stream, save_to)
 
             return {
@@ -136,12 +133,13 @@ class AwsS3FileStoreAction(FileStoreAction):
                 "save_to": save_to,
             }
 
-        if streaming:
+        if params["streaming"]:
+            chunk_size = params["chunk_size"] or _DEFAULT_CHUNK_SIZE
             content = ReaderStreamResource(
-                body,
+                content,
                 content_type=content_type,
                 filename=os.path.basename(path) or None,
-                chunk_size=chunk_size or _DEFAULT_STREAMING_CHUNK_SIZE,
+                chunk_size=chunk_size,
             )
 
             return {
@@ -153,7 +151,7 @@ class AwsS3FileStoreAction(FileStoreAction):
                 "content": content,
             }
 
-        content = await body.read()
+        content = await content.read()
 
         return {
             "path": path,
@@ -198,6 +196,7 @@ class AwsS3FileStoreAction(FileStoreAction):
             response = e.response or {}
             code = response.get("Error", {}).get("Code")
             status = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+
             # HEAD returns "404"; GET returns "NoSuchKey"; some S3-compatible stores return "NotFound"
             if code in ("404", "NoSuchKey", "NotFound") or status == 404:
                 exists = False
@@ -213,33 +212,33 @@ class AwsS3FileStoreAction(FileStoreAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken],
     ) -> Dict[str, Any]:
-        recursive        = params["recursive"]
-        pattern          = params["pattern"]
-        max_result_count = params["max_result_count"]
-        next_token       = params["next_token"]
+        list_params: Dict[str, Any] = { "Bucket": self.location.bucket }
 
         key_prefix = self._resolve_object_key(path) if path else (self.base_path or "")
 
-        list_params: Dict[str, Any] = { "Bucket": self.location.bucket }
         if key_prefix:
             list_params["Prefix"] = key_prefix
-        if not recursive:
+
+        if not params["recursive"]:
             list_params["Delimiter"] = "/"
-        if max_result_count is not None:
-            list_params["MaxKeys"] = int(max_result_count)
-        if next_token:
-            list_params["ContinuationToken"] = next_token
+
+        if params["max_result_count"] is not None:
+            list_params["MaxKeys"] = params["max_result_count"]
+
+        if params["next_token"]:
+            list_params["ContinuationToken"] = params["next_token"]
 
         response = await self.client.list_objects_v2(**list_params)
         contents = response.get("Contents", []) or []
 
         items: List[Dict[str, Any]] = []
+
         for content in contents:
             object_key = content["Key"]
             relative_path = self._resolve_relative_path(object_key)
             last_modified = content.get("LastModified")
 
-            if pattern and not is_glob_match(relative_path, pattern):
+            if params["pattern"] and not is_glob_match(relative_path, params["pattern"]):
                 continue
 
             items.append({

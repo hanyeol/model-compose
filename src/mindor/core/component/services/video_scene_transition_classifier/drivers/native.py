@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 # Per-frame luma standard deviation below which a frame reads as "flat"
 # (the black/white card a fade passes through). A whip through a dark
-# corner or a hand over the lens also produces flat frames, but the
+# corner or a hand over the lens also produces flat fraㄷmes, but the
 # endpoint-stability check keeps that from registering as a fade.
 _FADE_FLAT_STD = 8.0
 
@@ -270,7 +270,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
                         frame_index, frame = item
                         max_seen_frame_index = frame_index
-                        luma = self._thumb_luma(frame, params["analysis_width"])
+                        luma = self._luma_thumbnail(frame, params["analysis_width"])
 
                         # Route the new luma into every pending boundary whose
                         # window covers this index. Multiple boundaries can
@@ -297,6 +297,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
                         continue
 
                     _, end_frame = boundary_windows[boundary]
+
                     if max_seen_frame_index + 1 >= end_frame or frames_done:
                         thumb_lumas = pending_boundaries.pop(boundary)
                         boundary_windows.pop(boundary)
@@ -978,7 +979,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         return "unknown", 0.0
 
-    def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
+    def _luma_thumbnail(self, frame: "PILImage.Image", analysis_width: int):
         """Resample a frame to `analysis_width` on the long axis and return BT.601 luma as float32."""
         import numpy as np
 

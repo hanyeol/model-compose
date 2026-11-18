@@ -27,7 +27,7 @@ component:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `metric` | string | **required** | Measurement to run. Native: `brightness`, `contrast`, `exposure`, `darkness`, `sharpness`, `noise`, `flat_regions`, `palette`, `color_variety`. OpenCV: `gradient`, `edge_structure`, `texture`, `lit_structure` |
+| `metric` | string | **required** | Measurement to run. Native: `brightness`, `contrast`, `exposure`, `darkness`, `sharpness`, `noise`, `flat-regions`, `palette`, `color-variety`. OpenCV: `gradient`, `edge-structure`, `texture`, `lit-structure` |
 | `image` | any | **required** | Image source: file path, variable reference, or upload stream |
 | `batch_size` | integer | `null` | Number of input images to process in a single batch |
 | `output` | string | `null` | Output template applied to the collected result |
@@ -75,7 +75,7 @@ Immerkær (1996) fast noise estimate. The 3×3 mask annihilates smooth regions a
 |-------|------|---------|-------------|
 | `edge_quantile` | float | `0.6` | Gradient-magnitude quantile above which pixels are treated as edges and excluded from the noise estimate (0.0-1.0) |
 
-### Flat Regions Metric Fields (`metric: flat_regions`)
+### Flat Regions Metric Fields (`metric: flat-regions`)
 
 Fraction of block-sized tiles whose luma standard deviation falls below a threshold. Rendered graphics (flat colour fills) score high; photographic content scores low.
 
@@ -94,7 +94,7 @@ Quantizes RGB to a reduced bit depth and counts the smallest palette covering th
 | `coverage` | float | `0.95` | Fraction of pixels the counted palette must cover; the reported count is the smallest palette reaching this coverage |
 | `top_k` | integer | `8` | Number of dominant colours returned in order of pixel share |
 
-### Color Variety Metric Fields (`metric: color_variety`)
+### Color Variety Metric Fields (`metric: color-variety`)
 
 Counts vivid pixels and distinct hue bands. Captures both saturation diversity (how colourful) and hue diversity (how many different colours).
 
@@ -115,7 +115,7 @@ Gentle-gradient band: pixels brighter than flat (`gradient_min`) but below an ed
 | `gradient_max` | float | `20.0` | Upper Sobel-magnitude bound of the gentle-gradient band (above is treated as an edge) |
 | `curvature_threshold` | float | `1.0` | Second-derivative magnitude below which a gentle-gradient pixel counts as `clean` (smoothly curving) |
 
-### Edge Structure Metric Fields (`metric: edge_structure`, OpenCV driver)
+### Edge Structure Metric Fields (`metric: edge-structure`, OpenCV driver)
 
 Edge density, axis-aligned ratio (horizontal/vertical strokes — a UI signature), and orientation entropy over edge pixels.
 
@@ -138,7 +138,7 @@ Band-pass residuals at three scales via progressive median blurs. A rendered gra
 
 Kernels must be strictly increasing: `fine_kernel < mid_kernel < coarse_kernel`.
 
-### Lit Structure Metric Fields (`metric: lit_structure`, OpenCV driver)
+### Lit Structure Metric Fields (`metric: lit-structure`, OpenCV driver)
 
 Local-maxima peaks and neighbourhood smoothness for lit pixels (bright on dark) and ink pixels (dark on light). Particle/wireframe graphics produce many peaks and little smoothness; photographic shading produces few peaks and high smoothness.
 
@@ -175,7 +175,7 @@ component:
   type: image-analyzer
   driver: opencv
   action:
-    metric: edge_structure
+    metric: edge-structure
     image: ${input.image}
 ```
 
@@ -268,7 +268,7 @@ component:
 }
 ```
 
-### Flat Regions Output (`metric: flat_regions`)
+### Flat Regions Output (`metric: flat-regions`)
 
 ```python
 {
@@ -303,7 +303,7 @@ component:
 }
 ```
 
-### Color Variety Output (`metric: color_variety`)
+### Color Variety Output (`metric: color-variety`)
 
 ```python
 {
@@ -335,7 +335,7 @@ component:
 }
 ```
 
-### Edge Structure Output (`metric: edge_structure`)
+### Edge Structure Output (`metric: edge-structure`)
 
 ```python
 {
@@ -369,7 +369,7 @@ component:
 }
 ```
 
-### Lit Structure Output (`metric: lit_structure`)
+### Lit Structure Output (`metric: lit-structure`)
 
 ```python
 {
@@ -423,7 +423,7 @@ components:
         metric: noise
         image: ${input.image}
       - id: flat
-        metric: flat_regions
+        metric: flat-regions
         image: ${input.image}
 
   - id: cv-stats
@@ -431,7 +431,7 @@ components:
     driver: opencv
     actions:
       - id: edges
-        metric: edge_structure
+        metric: edge-structure
         image: ${input.image}
       - id: texture
         metric: texture
@@ -492,7 +492,7 @@ components:
         metric: noise
         image: ${input.image}
       - id: flat
-        metric: flat_regions
+        metric: flat-regions
         image: ${input.image}
 
   - id: cv-stats
@@ -500,7 +500,7 @@ components:
     driver: opencv
     actions:
       - id: edges
-        metric: edge_structure
+        metric: edge-structure
         image: ${input.image}
 ```
 
@@ -515,9 +515,9 @@ High `axis_edge_ratio` + high `flat_ratio` + low `noise_sigma` is the UI/code-re
 5. **`noise` excludes edges by design**: the `edge_quantile` cut keeps strong boundaries out of the sigma estimate. On text-heavy frames the glyph edges still leak noise upward; verify on representative content before setting thresholds.
 6. **`darkness` tells crushed shadows from a rendered dark background**: `dark_std` near zero plus `dark_flat` near 1.0 means a code-drawn dark panel; photographic night scenes keep grain and stay closer to `dark_std` ≈ 3-8, `dark_flat` well below 1.0.
 7. **`palette` is sensitive to `bits_per_channel`**: at 4 bits the palette tops out at 4096 colours, which is often what distinguishes "heavily quantized export" from "natural photo". Lower the bit depth for a coarser summary.
-8. **`color_variety.hue_bands` works best on vivid content**: dim or desaturated frames rarely cross the `vivid_value` / `vivid_saturation` thresholds, so `hue_bands` stays low. Not a flaw — just means the metric is a vivid-colour-diversity probe, not a general palette counter.
-9. **`gradient` + `edge_structure` cover opposite ends of the derivative range**: gentle gradients (0-20) versus edges (≥80 by default). If `grad_share` is high and `edge_density` is low, the image is mostly smooth colour.
+8. **`color-variety`'s `hue_bands` works best on vivid content**: dim or desaturated frames rarely cross the `vivid_value` / `vivid_saturation` thresholds, so `hue_bands` stays low. Not a flaw — just means the metric is a vivid-colour-diversity probe, not a general palette counter.
+9. **`gradient` + `edge-structure` cover opposite ends of the derivative range**: gentle gradients (0-20) versus edges (≥80 by default). If `grad_share` is high and `edge_density` is low, the image is mostly smooth colour.
 10. **`texture` kernels control scale sensitivity**: `(3, 7, 15)` is a good default. Larger media (above ~2K) benefits from `(5, 11, 23)` or similar. Keep the ratio roughly 1 : 2.3 : 5.
-11. **`lit_structure.lit_peaks` near 1.0 indicates point-cloud / particle / dot-matrix imagery** — the dilation-equals-source test is extremely sensitive to isolated bright pixels. Natural images peak around 0.01-0.05.
+11. **`lit-structure`'s `lit_peaks` near 1.0 indicates point-cloud / particle / dot-matrix imagery** — the dilation-equals-source test is extremely sensitive to isolated bright pixels. Natural images peak around 0.01-0.05.
 12. **Batch multiple images with `batch_size`**: the batch runs metrics in parallel with `asyncio.gather` — helpful for scanning a library.
 13. **All metrics use BT.601 luma**: the same coefficients Pillow's `convert("L")` uses. If you need a different color space (Rec. 709, linear light) that isn't currently exposed — file it as a request.

@@ -9,9 +9,9 @@ class NativeImageAnalyzerMetric(ImageAnalyzerMetric):
     DARKNESS      = "darkness"
     SHARPNESS     = "sharpness"
     NOISE         = "noise"
-    FLAT_REGIONS  = "flat_regions"
+    FLAT_REGIONS  = "flat-regions"
     PALETTE       = "palette"
-    COLOR_VARIETY = "color_variety"
+    COLOR_VARIETY = "color-variety"
 
 class BrightnessImageAnalyzerActionConfig(CommonImageAnalyzerActionConfig):
     metric: Literal[NativeImageAnalyzerMetric.BRIGHTNESS]

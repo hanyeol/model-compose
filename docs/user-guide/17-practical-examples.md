@@ -1244,7 +1244,7 @@ workflow:
   jobs:
     - id: edges
       component: cv-stats
-      action: edge_structure
+      action: edge-structure
       input:
         image: ${input.image as image}
     - id: gradient
@@ -1254,12 +1254,12 @@ workflow:
         image: ${input.image as image}
     - id: lit
       component: cv-stats
-      action: lit_structure
+      action: lit-structure
       input:
         image: ${input.image as image}
     - id: flat
       component: native-stats
-      action: flat_regions
+      action: flat-regions
       input:
         image: ${input.image as image}
     - id: noise
@@ -1273,8 +1273,8 @@ components:
     type: image-analyzer
     driver: native
     actions:
-      - id: flat_regions
-        metric: flat_regions
+      - id: flat-regions
+        metric: flat-regions
         image: ${input.image}
       - id: noise
         metric: noise
@@ -1284,14 +1284,14 @@ components:
     type: image-analyzer
     driver: opencv
     actions:
-      - id: edge_structure
-        metric: edge_structure
+      - id: edge-structure
+        metric: edge-structure
         image: ${input.image}
       - id: gradient
         metric: gradient
         image: ${input.image}
-      - id: lit_structure
-        metric: lit_structure
+      - id: lit-structure
+        metric: lit-structure
         image: ${input.image}
 ```
 
@@ -1332,7 +1332,7 @@ workflow:
         frames: ${jobs.extract.output}
     - id: noise
       component: native-stats
-      action: temporal_noise
+      action: temporal-noise
       input:
         frames: ${jobs.extract.output}
 
@@ -1357,8 +1357,8 @@ components:
     type: video-frame-analyzer
     driver: native
     actions:
-      - id: temporal_noise
-        metric: temporal_noise
+      - id: temporal-noise
+        metric: temporal-noise
         frames: ${input.frames}
 ```
 
@@ -1366,7 +1366,7 @@ components:
 
 - `pulldown == "24->30"` with `dup_regularity > 0.9` and `dup_ratio ≈ 0.2` → **24 fps source transcoded to 30 fps** (AI video, cinema, anime)
 - `pulldown == null` with `dup_ratio < 0.05` → **native 30 fps capture** (phone, camera, screen recording)
-- Pair with `temporal_noise`: near-zero noise + 24→30 pulldown strongly suggests AI-generated content; high noise + 24→30 pulldown suggests cinematic source
+- Pair with `temporal-noise`: near-zero noise + 24→30 pulldown strongly suggests AI-generated content; high noise + 24→30 pulldown suggests cinematic source
 
 ---
 

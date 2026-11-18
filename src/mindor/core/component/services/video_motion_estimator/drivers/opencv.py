@@ -138,7 +138,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             previous_source_scale = 1.0
 
             for frame in frames:
-                luma, source_scale = self._thumb_luma(frame, params["analysis_width"])
+                luma, source_scale = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     # LK needs a consistent analysis resolution; if resolutions
@@ -252,7 +252,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             previous_luma = None
 
             for frame in frames:
-                luma, _ = self._thumb_luma(frame, params["analysis_width"])
+                luma, _ = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     if luma.shape != previous_luma.shape:
@@ -309,7 +309,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
 
         return await self._run_in_executor(_estimate_kenburns)
 
-    def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int) -> Tuple[Any, float]:
+    def _luma_thumbnail(self, frame: "PILImage.Image", analysis_width: int) -> Tuple[Any, float]:
         """PIL frame -> (BT.601 luma uint8 thumbnail, source_scale_factor).
 
         Returns the scale factor used to convert translations measured at the
@@ -327,8 +327,8 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             return np.zeros((1, 1), dtype=np.uint8), 1.0
 
         if width > analysis_width:
-            new_height = max(1, int(round(height * analysis_width / width)))
-            luma = cv2.resize(luma, (analysis_width, new_height), interpolation=cv2.INTER_AREA)
+            height = max(1, int(round(height * analysis_width / width)))
+            luma = cv2.resize(luma, (analysis_width, height), interpolation=cv2.INTER_AREA)
 
             return luma, width / analysis_width
 

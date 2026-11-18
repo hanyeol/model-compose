@@ -3,9 +3,9 @@ from pydantic import Field
 from .common import CommonVideoFrameAnalyzerActionConfig, VideoFrameAnalyzerMetric
 
 class NativeVideoFrameAnalyzerMetric(VideoFrameAnalyzerMetric):
-    TEMPORAL_NOISE   = "temporal_noise"
-    PAIR_DIFFERENCE  = "pair_difference"
-    ZERO_PIXEL_RATIO = "zero_pixel_ratio"
+    TEMPORAL_NOISE   = "temporal-noise"
+    PAIR_DIFFERENCE  = "pair-difference"
+    ZERO_PIXEL_RATIO = "zero-pixel-ratio"
 
 class TemporalNoiseVideoFrameAnalyzerActionConfig(CommonVideoFrameAnalyzerActionConfig):
     metric: Literal[NativeVideoFrameAnalyzerMetric.TEMPORAL_NOISE]

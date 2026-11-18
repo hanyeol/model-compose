@@ -92,7 +92,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             pair_stds: List[float] = []
             previous_luma = None
             for frame in collected:
-                luma = self._thumb_luma(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     pair_stds.append(float((luma - previous_luma).std()))
@@ -127,7 +127,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             previous_luma = None
 
             for frame in collected:
-                luma = self._thumb_luma(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     pair_mads.append(float(np.abs(luma - previous_luma).mean()))
@@ -152,8 +152,8 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
 
             pair_mads = np.asarray(pair_mads, dtype=np.float32)
 
-            first_luma = self._thumb_luma(collected[0], params["analysis_width"])
-            last_luma  = self._thumb_luma(collected[-1], params["analysis_width"])
+            first_luma = self._luma_thumbnail(collected[0], params["analysis_width"])
+            last_luma  = self._luma_thumbnail(collected[-1], params["analysis_width"])
             start_end_mad = float(np.abs(first_luma - last_luma).mean())
 
             return {
@@ -190,7 +190,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             previous_luma = None
 
             for frame in collected:
-                luma = self._thumb_luma(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     if params["exact_match"]:
@@ -215,7 +215,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
 
         return await self._run_in_executor(_analyze_zero_pixel_ratio)
 
-    def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
+    def _luma_thumbnail(self, frame: PILImage.Image, analysis_width: int):
         """Resample a frame to `analysis_width` on the long axis and return BT.601 luma
         as float32."""
         import numpy as np
@@ -226,9 +226,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             return np.zeros((1, 1), dtype=np.float32)
 
         if width > analysis_width:
-            scale = analysis_width / width
-            new_size = (analysis_width, max(1, int(round(height * scale))))
-            frame = frame.resize(new_size)
+            frame = frame.resize((analysis_width, max(1, int(round(height * analysis_width / width)))))
 
         return np.asarray(frame.convert("L"), dtype=np.float32)
 

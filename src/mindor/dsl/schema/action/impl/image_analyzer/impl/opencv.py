@@ -4,9 +4,9 @@ from .common import CommonImageAnalyzerActionConfig, ImageAnalyzerMetric
 
 class OpenCvImageAnalyzerMetric(ImageAnalyzerMetric):
     GRADIENT       = "gradient"
-    EDGE_STRUCTURE = "edge_structure"
+    EDGE_STRUCTURE = "edge-structure"
     TEXTURE        = "texture"
-    LIT_STRUCTURE  = "lit_structure"
+    LIT_STRUCTURE  = "lit-structure"
 
 class GradientImageAnalyzerActionConfig(CommonImageAnalyzerActionConfig):
     metric: Literal[OpenCvImageAnalyzerMetric.GRADIENT]

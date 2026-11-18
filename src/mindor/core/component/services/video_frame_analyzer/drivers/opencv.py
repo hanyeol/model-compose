@@ -79,6 +79,76 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
                 "max_period":     max_period,
             }
 
+        if metric == OpenCvVideoFrameAnalyzerMetric.PICTURE_BOX:
+            analysis_width         = await context.render_scalar(self.config.analysis_width, int)
+            sample_count           = await context.render_scalar(self.config.sample_count, int)
+            lit_threshold          = await context.render_scalar(self.config.lit_threshold, float)
+            picture_lit_share      = await context.render_scalar(self.config.picture_lit_share, float)
+            bar_dark_share         = await context.render_scalar(self.config.bar_dark_share, float)
+            bar_min_share          = await context.render_scalar(self.config.bar_min_share, float)
+            picture_edge_lit_share = await context.render_scalar(self.config.picture_edge_lit_share, float)
+            min_picture_fraction   = await context.render_scalar(self.config.min_picture_fraction, float)
+
+            if not 64 <= analysis_width <= 4096:
+                raise ValueError(f"'analysis_width' must be between 64 and 4096, got {analysis_width}")
+
+            if not 4 <= sample_count <= 256:
+                raise ValueError(f"'sample_count' must be between 4 and 256, got {sample_count}")
+
+            if not 0.0 <= lit_threshold <= 255.0:
+                raise ValueError(f"'lit_threshold' must be between 0.0 and 255.0, got {lit_threshold}")
+
+            if not 0.0 <= picture_lit_share <= 1.0:
+                raise ValueError(f"'picture_lit_share' must be between 0.0 and 1.0, got {picture_lit_share}")
+
+            if not 0.0 <= bar_dark_share <= 1.0:
+                raise ValueError(f"'bar_dark_share' must be between 0.0 and 1.0, got {bar_dark_share}")
+
+            if not 0.0 <= bar_min_share <= 1.0:
+                raise ValueError(f"'bar_min_share' must be between 0.0 and 1.0, got {bar_min_share}")
+
+            if not 0.0 <= picture_edge_lit_share <= 1.0:
+                raise ValueError(f"'picture_edge_lit_share' must be between 0.0 and 1.0, got {picture_edge_lit_share}")
+
+            if not 0.0 < min_picture_fraction <= 1.0:
+                raise ValueError(f"'min_picture_fraction' must be in (0.0, 1.0], got {min_picture_fraction}")
+
+            return {
+                "analysis_width":         analysis_width,
+                "sample_count":           sample_count,
+                "lit_threshold":          lit_threshold,
+                "picture_lit_share":      picture_lit_share,
+                "bar_dark_share":         bar_dark_share,
+                "bar_min_share":          bar_min_share,
+                "picture_edge_lit_share": picture_edge_lit_share,
+                "min_picture_fraction":   min_picture_fraction,
+            }
+
+        if metric == OpenCvVideoFrameAnalyzerMetric.PALETTE:
+            analysis_width = await context.render_scalar(self.config.analysis_width, int)
+            sample_count   = await context.render_scalar(self.config.sample_count, int)
+            max_colours    = await context.render_scalar(self.config.max_colours, int)
+            min_share      = await context.render_scalar(self.config.min_share, float)
+
+            if not 16 <= analysis_width <= 4096:
+                raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
+
+            if not 1 <= sample_count <= 256:
+                raise ValueError(f"'sample_count' must be between 1 and 256, got {sample_count}")
+
+            if not 1 <= max_colours <= 32:
+                raise ValueError(f"'max_colours' must be between 1 and 32, got {max_colours}")
+
+            if not 0.0 <= min_share <= 1.0:
+                raise ValueError(f"'min_share' must be between 0.0 and 1.0, got {min_share}")
+
+            return {
+                "analysis_width": analysis_width,
+                "sample_count":   sample_count,
+                "max_colours":    max_colours,
+                "min_share":      min_share,
+            }
+
         raise ValueError(f"Unsupported video frame metric: {metric}")
 
     async def _analyze(
@@ -99,6 +169,12 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
         if metric == OpenCvVideoFrameAnalyzerMetric.SHARPNESS:
             return await self._analyze_sharpness(frames, frame_rate, params, cancellation_token)
 
+        if metric == OpenCvVideoFrameAnalyzerMetric.PICTURE_BOX:
+            return await self._analyze_picture_box(frames, frame_rate, params, cancellation_token)
+
+        if metric == OpenCvVideoFrameAnalyzerMetric.PALETTE:
+            return await self._analyze_palette(frames, frame_rate, params, cancellation_token)
+
         raise ValueError(f"Unsupported video frame metric: {metric}")
 
     async def _analyze_moving_pairs(
@@ -118,7 +194,7 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             previous_luma = None
 
             for frame in collected:
-                luma = self._thumb_luma(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     changed_pixels = cv2.absdiff(luma, previous_luma) >= params["change_threshold"]
@@ -180,7 +256,7 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             previous_luma = None
 
             for frame in collected:
-                luma = self._thumb_luma(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["analysis_width"])
 
                 if previous_luma is not None:
                     duplicate_mask.append(int(float(cv2.absdiff(luma, previous_luma).mean()) < params["duplicate_threshold"]))
@@ -214,7 +290,7 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             else:
                 dup_period, dup_regularity = None, 0.0
 
-            pulldown = _classify_pulldown(dup_period, dup_count / pair_count) if dup_period else None
+            pulldown = self._classify_pulldown(dup_period, dup_count / pair_count) if dup_period else None
 
             return {
                 "dup_ratio":           dup_count / pair_count,
@@ -252,7 +328,7 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             sharpness_series: List[float] = []
 
             for frame in collected:
-                luma = self._thumb_luma(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["analysis_width"])
                 laplacian = cv2.Laplacian(luma, cv2.CV_32F)
                 sharpness_series.append(float(laplacian.var()))
 
@@ -296,7 +372,210 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
 
         return await self._run_in_executor(_analyze_sharpness)
 
-    def _thumb_luma(self, frame: "PILImage.Image", analysis_width: int):
+    async def _analyze_picture_box(
+        self,
+        frames: ImageArrayValue,
+        frame_rate: Optional[float],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
+        collected = await frames.collect()
+
+        def _analyze_picture_box() -> Dict[str, Any]:
+            import numpy as np
+            import cv2
+
+            # Evenly sampled frames stacked as a (N, H, W) "lit" mask;
+            # a pixel lit in any sample makes its row / column count as
+            # inside the picture. Dark bars that stay dark across every
+            # sample remain dark here and get cropped away.
+            if not collected:
+                return {
+                    "detected":       False,
+                    "box":            None,
+                    "aspect":         None,
+                    "bar_share":      None,
+                    "frame_count":    0,
+                    "sample_count":   0,
+                    "frame_rate":     frame_rate,
+                    "analysis_width": params["analysis_width"],
+                }
+
+            sample_indices = np.unique(np.linspace(0, len(collected) - 1, num=min(len(collected), params["sample_count"])).astype(int))
+            samples = [ self._grayscale_thumbnail(collected[int(index)], params["analysis_width"]) for index in sample_indices ]
+            stack   = np.stack(samples)
+            height, width = stack.shape[1:]
+
+            if height < 4 or width < 4:
+                return {
+                    "detected":       False,
+                    "box":            None,
+                    "aspect":         None,
+                    "bar_share":      None,
+                    "frame_count":    len(collected),
+                    "sample_count":   len(samples),
+                    "frame_rate":     frame_rate,
+                    "analysis_width": params["analysis_width"],
+                }
+
+            lit = stack > params["lit_threshold"]
+
+            # Alternate row / column reductions twice so a picture that
+            # fills only part of the height picks up a tighter column
+            # box (and vice versa) — one pass would miss a vertical
+            # column of bars when the picture also has horizontal bars.
+            y0, y1, x0, x1 = 0, height, 0, width
+
+            for _ in range(2):
+                row_pick = self._picture_run(
+                    lit[:, :, x0:x1].mean(axis=2).max(axis=0) > params["picture_lit_share"],
+                    max(1, height // 50),
+                )
+
+                if row_pick is None:
+                    return self._empty_picture_box_result(collected, samples, frame_rate, params)
+
+                y0, y1 = row_pick
+                col_pick = self._picture_run(
+                    lit[:, y0:y1, :].mean(axis=1).max(axis=0) > params["picture_lit_share"],
+                    max(1, width // 50),
+                )
+
+                if col_pick is None:
+                    return self._empty_picture_box_result(collected, samples, frame_rate, params)
+
+                x0, x1 = col_pick
+
+            row_signal = lit[:, :, x0:x1].mean(axis=2).max(axis=0)
+            col_signal = lit[:, y0:y1, :].mean(axis=1).max(axis=0)
+            outside_rows = np.concatenate([row_signal[:y0], row_signal[y1:]])
+            outside_cols = np.concatenate([col_signal[:x0], col_signal[x1:]])
+            bar_share_rows = (y0 + height - y1) / height
+            bar_share_cols = (x0 + width  - x1) / width
+
+            row_bars_ok = (
+                bar_share_rows >= params["bar_min_share"]
+                and (not len(outside_rows) or float(np.median(outside_rows)) < params["bar_dark_share"])
+                and min(row_signal[y0], row_signal[y1 - 1]) > params["picture_edge_lit_share"]
+            )
+            col_bars_ok = (
+                bar_share_cols >= params["bar_min_share"]
+                and (not len(outside_cols) or float(np.median(outside_cols)) < params["bar_dark_share"])
+                and min(col_signal[x0], col_signal[x1 - 1]) > params["picture_edge_lit_share"]
+            )
+
+            if not (row_bars_ok or col_bars_ok):
+                return self._empty_picture_box_result(collected, samples, frame_rate, params)
+
+            if not row_bars_ok:
+                y0, y1 = 0, height
+
+            if not col_bars_ok:
+                x0, x1 = 0, width
+
+            if (y1 - y0) < params["min_picture_fraction"] * height or (x1 - x0) < params["min_picture_fraction"] * width:
+                return self._empty_picture_box_result(collected, samples, frame_rate, params)
+
+            box = [
+                float(x0) / float(width),
+                float(y0) / float(height),
+                float(x1 - x0) / float(width),
+                float(y1 - y0) / float(height),
+            ]
+            aspect    = float(x1 - x0) / float(max(1, y1 - y0))
+            bar_share = 1.0 - float(x1 - x0) * float(y1 - y0) / float(height * width)
+
+            return {
+                "detected":       True,
+                "box":            box,
+                "aspect":         aspect,
+                "bar_share":      bar_share,
+                "frame_count":    len(collected),
+                "sample_count":   len(samples),
+                "frame_rate":     frame_rate,
+                "analysis_width": params["analysis_width"],
+            }
+
+        return await self._run_in_executor(_analyze_picture_box)
+
+    async def _analyze_palette(
+        self,
+        frames: ImageArrayValue,
+        frame_rate: Optional[float],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> Dict[str, Any]:
+        collected = await frames.collect()
+
+        def _analyze_palette() -> Dict[str, Any]:
+            import numpy as np
+            import cv2
+
+            if not collected:
+                return {
+                    "background":     None,
+                    "colours":        [],
+                    "frame_count":    0,
+                    "sample_count":   0,
+                    "frame_rate":     frame_rate,
+                    "analysis_width": params["analysis_width"],
+                }
+
+            sample_indices = np.unique(np.linspace(0, len(collected) - 1, num=min(len(collected), params["sample_count"])).astype(int))
+            samples: List[Any] = []
+
+            for index in sample_indices:
+                frame = collected[int(index)].convert("RGB")
+                width  = params["analysis_width"]
+                height = max(1, int(round(frame.size[1] * width / max(1, frame.size[0]))))
+                frame  = frame.resize((width, height))
+                samples.append(cv2.cvtColor(np.asarray(frame, dtype=np.uint8), cv2.COLOR_RGB2BGR))
+
+            stack = np.vstack(samples)  # (sum_H, W, 3)
+            lab   = cv2.cvtColor(stack, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
+            colour_count = min(params["max_colours"], len(np.unique(lab, axis=0)))
+
+            if colour_count < 1:
+                return {
+                    "background":     None,
+                    "colours":        [],
+                    "frame_count":    len(collected),
+                    "sample_count":   len(samples),
+                    "frame_rate":     frame_rate,
+                    "analysis_width": params["analysis_width"],
+                }
+
+            # Seed k-means++ with a fixed RNG so repeated runs on the
+            # same shot return the same hexes.
+            criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+            cv2.setRNGSeed(0)
+            _, labels, centres = cv2.kmeans(lab, colour_count, None, criteria, 2, cv2.KMEANS_PP_CENTERS)
+            labels = labels.ravel()
+            share  = np.bincount(labels, minlength=colour_count) / float(len(labels))
+            hexes  = [ self._lab_to_hex(centre) for centre in centres ]
+
+            # Border pixels of the stacked image vote for the background:
+            # a per-sample border would mix dominant subjects when samples
+            # are visually different, so the stacked border captures the
+            # colour most often sitting at the frame edges.
+            grid   = labels.reshape(stack.shape[:2])
+            border = np.concatenate([grid[0], grid[-1], grid[:, 0], grid[:, -1]])
+            background_index = int(np.bincount(border, minlength=colour_count).argmax())
+
+            order = [ int(index) for index in np.argsort(-share) if float(share[index]) >= params["min_share"] ]
+
+            return {
+                "background":     hexes[background_index],
+                "colours":        [ { "hex": hexes[index], "share": round(float(share[index]), 4) } for index in order ],
+                "frame_count":    len(collected),
+                "sample_count":   len(samples),
+                "frame_rate":     frame_rate,
+                "analysis_width": params["analysis_width"],
+            }
+
+        return await self._run_in_executor(_analyze_palette)
+
+    def _luma_thumbnail(self, frame: PILImage.Image, analysis_width: int):
         """PIL frame -> BT.601 luma float32 thumbnail, resized with OpenCV's INTER_AREA
         (faster than Pillow for the sizes this analyzer works with)."""
         import numpy as np
@@ -309,10 +588,29 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             return np.zeros((1, 1), dtype=np.float32)
 
         if width > analysis_width:
-            new_height = max(1, int(round(height * analysis_width / width)))
-            luma = cv2.resize(luma, (analysis_width, new_height), interpolation=cv2.INTER_AREA)
+            height = max(1, int(round(height * analysis_width / width)))
+            luma = cv2.resize(luma, (analysis_width, height), interpolation=cv2.INTER_AREA)
 
         return luma
+
+    def _grayscale_thumbnail(self, frame: PILImage.Image, analysis_width: int) -> Any:
+        """PIL frame -> uint8 grayscale thumbnail, resized with OpenCV's
+        INTER_AREA so the picture-box gate sees the same edge sharpness the
+        algorithm expects (nearest-neighbour would smear a narrow bar)."""
+        import numpy as np
+        import cv2
+
+        grayscale = np.asarray(frame.convert("L"), dtype=np.uint8)
+        height, width = grayscale.shape
+
+        if width == 0 or height == 0:
+            return np.zeros((1, 1), dtype=np.uint8)
+
+        if width > analysis_width:
+            height = max(1, int(round(height * analysis_width / width)))
+            grayscale = cv2.resize(grayscale, (analysis_width, height), interpolation=cv2.INTER_AREA)
+
+        return grayscale
 
     def _strongest_period(self, series, max_period: int) -> Tuple[Optional[int], float]:
         """Scan lags 2..max_period for the strongest autocorrelation peak of a
@@ -327,12 +625,15 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
 
         centred = series - series.mean()
         variance = float((centred * centred).mean())
+
         if variance == 0.0:
             return None, 0.0
 
         best_lag, best_corr = 0, 0.0
+
         for lag in range(2, min(max_period, length) + 1):
             corr = float((centred[:-lag] * centred[lag:]).mean()) / variance
+
             if corr > best_corr:
                 best_lag, best_corr = lag, corr
 
@@ -341,16 +642,96 @@ class OpenCvVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
 
         return best_lag, max(0.0, best_corr)
 
-def _classify_pulldown(period: Optional[int], ratio: float) -> Optional[str]:
-    """Match a measured duplicate period / ratio against known pulldown cadences.
-    Returns the label when the period falls into one of the known bands and the
-    duplicate ratio is above a minimal plausibility floor, else None (irregular)."""
-    if period is None or ratio < 0.05:
+    def _classify_pulldown(self, period: Optional[int], ratio: float) -> Optional[str]:
+        """Match a measured duplicate period / ratio against known pulldown cadences.
+        Returns the label when the period falls into one of the known bands and the
+        duplicate ratio is above a minimal plausibility floor, else None (irregular)."""
+        if period is None or ratio < 0.05:
+            return None
+
+        for label, periods in _PULLDOWN_TABLE:
+            if period in periods:
+                return label
+
         return None
-    for label, periods in _PULLDOWN_TABLE:
-        if period in periods:
-            return label
-    return None
+
+    def _picture_run(self, lit_axis: Any, gap_tolerance: int) -> Optional[Tuple[int, int]]:
+        """Longest run of lit entries along an axis, allowing short dark gaps.
+        Returns (start, end) as half-open indices, or None when nothing clears
+        the gap-tolerance threshold."""
+        import numpy as np
+
+        length = len(lit_axis)
+
+        if length == 0:
+            return None
+
+        start = end = -1
+        best_start = best_end = -1
+        gap = 0
+
+        for index in range(length):
+            if lit_axis[index]:
+                if start < 0:
+                    start = index
+
+                end = index
+                gap = 0
+
+                continue
+
+            if start < 0:
+                continue
+
+            gap += 1
+
+            if gap > gap_tolerance:
+                if end - start > best_end - best_start:
+                    best_start, best_end = start, end
+
+                start = end = -1
+                gap = 0
+
+        if start >= 0 and end - start > best_end - best_start:
+            best_start, best_end = start, end
+
+        if best_start < 0:
+            return None
+
+        return best_start, best_end + 1
+
+    def _empty_picture_box_result(
+        self,
+        collected: List[Any],
+        samples: List[Any],
+        frame_rate: Optional[float],
+        params: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Shared `detected=False` payload for every early-return branch of
+        the picture-box analyzer; keeps the result shape stable so downstream
+        code can rely on the same keys whether bars were found or not."""
+        return {
+            "detected":       False,
+            "box":            None,
+            "aspect":         None,
+            "bar_share":      None,
+            "frame_count":    len(collected),
+            "sample_count":   len(samples),
+            "frame_rate":     frame_rate,
+            "analysis_width": params["analysis_width"],
+        }
+
+    def _lab_to_hex(self, lab_centre: Any) -> str:
+        """Convert a single LAB triplet (k-means centre) back to a #RRGGBB
+        string so the palette output is UI-ready without the caller touching
+        OpenCV."""
+        import numpy as np
+        import cv2
+
+        lab_pixel = np.uint8([[ lab_centre ]])
+        bgr_pixel = cv2.cvtColor(lab_pixel, cv2.COLOR_LAB2BGR)[0, 0]
+
+        return "#{:02x}{:02x}{:02x}".format(int(bgr_pixel[2]), int(bgr_pixel[1]), int(bgr_pixel[0]))
 
 @register_video_frame_analyzer_driver(VideoFrameAnalyzerDriverType.OPENCV)
 class OpenCvVideoFrameAnalyzerService(VideoFrameAnalyzerDriver):

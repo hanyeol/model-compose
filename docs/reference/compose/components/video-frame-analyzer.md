@@ -1,6 +1,6 @@
 # Video Frame Analyzer Component
 
-The video frame analyzer component measures **sequence-level** properties of a frame stream — temporal noise, pair differences, zero-pixel share, moving pairs, duplicate-frame cadence (pulldown fingerprint), and sharpness oscillation (frame-interpolation fingerprint) — and returns a compact summary. Use it on frames produced by `video-frame-extractor` (or any upstream source that yields an image array) for forensic classification (live action vs rendered / AI / interpolated content), scene-stability checks, and frame-rate detection.
+The video frame analyzer component measures **sequence-level** properties of a frame stream — temporal noise, pair differences, zero-pixel share, moving pairs, duplicate-frame cadence (pulldown fingerprint), sharpness oscillation (frame-interpolation fingerprint), picture-box geometry (letterbox / pillarbox detection), and shot-wide palette — and returns a compact summary. Use it on frames produced by `video-frame-extractor` (or any upstream source that yields an image array) for forensic classification (live action vs rendered / AI / interpolated content), scene-stability checks, frame-rate detection, aspect-ratio recovery, and colour-signature extraction.
 
 Unlike `image-analyzer`, every metric reads **relationships between adjacent frames** (or the whole sequence); a single frame has no sequence-level signal. Unlike `video-analyzer`, the input is a decoded frame sequence, not a video file — the extractor controls sampling, start/end range, and streaming.
 
@@ -37,14 +37,14 @@ components:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `metric` | string | **required** | Measurement to run. Native: `temporal_noise`, `pair_difference`, `zero_pixel_ratio`. OpenCV: `moving_pairs`, `duplicate`, `sharpness` |
+| `metric` | string | **required** | Measurement to run. Native: `temporal-noise`, `pair-difference`, `zero-pixel-ratio`. OpenCV: `moving-pairs`, `duplicate`, `sharpness`, `picture-box`, `palette` |
 | `frames` | any | **required** | Frame sequence to analyze: a flat list of frames, a stream of batches, or a variable reference to a `video-frame-extractor` output |
 | `frame_rate` | float | `null` | Source frame rate in frames per second; required for metrics that interpret cadence (duplicate-frame pulldown classification) |
 | `batch_size` | integer | `1` | Number of independent frame sequences processed per iteration |
 | `streaming` | boolean | `false` | Whether partial measurements are emitted incrementally; metrics that need the full sequence (autocorrelation) ignore this flag |
 | `output` | string | `null` | Output template applied to the collected result |
 
-### Temporal Noise Metric Fields (`metric: temporal_noise`, native)
+### Temporal Noise Metric Fields (`metric: temporal-noise`, native)
 
 Mean of per-pair standard deviations of `current - previous`. High values indicate grainy content (sensor noise, film grain); low values indicate smooth inter-frame motion or rendered content.
 
@@ -52,7 +52,7 @@ Mean of per-pair standard deviations of `current - previous`. High values indica
 |-------|------|---------|-------------|
 | `analysis_width` | integer | `96` | Width in pixels the frames are resampled to before measurement (16-4096) |
 
-### Pair Difference Metric Fields (`metric: pair_difference`, native)
+### Pair Difference Metric Fields (`metric: pair-difference`, native)
 
 Per-pair mean absolute luma difference statistics plus start-to-end difference. Reveals whether the sequence is static, slowly moving, or jumpy.
 
@@ -61,7 +61,7 @@ Per-pair mean absolute luma difference statistics plus start-to-end difference. 
 | `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `move_threshold` | float | `2.0` | Mean absolute luma difference above which a frame pair counts as moving |
 
-### Zero Pixel Ratio Metric Fields (`metric: zero_pixel_ratio`, native)
+### Zero Pixel Ratio Metric Fields (`metric: zero-pixel-ratio`, native)
 
 Share of pixels that never change between consecutive frames. High values are the signature of 2D compositing or motion-graphics animation, where the background plate stays pixel-identical while only a few elements move.
 
@@ -70,7 +70,7 @@ Share of pixels that never change between consecutive frames. High values are th
 | `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `exact_match` | boolean | `true` | When true, a pixel counts as zero only when identical between frames; when false, pixels with sub-quantization-step differences also count |
 
-### Moving Pairs Metric Fields (`metric: moving_pairs`, OpenCV)
+### Moving Pairs Metric Fields (`metric: moving-pairs`, OpenCV)
 
 Fraction of frame pairs where more than a threshold share of pixels changed. Distinguishes "mostly static scene" from "scene with ongoing motion".
 
@@ -99,6 +99,32 @@ Per-frame Laplacian variance as a sharpness proxy, then autocorrelation. Frame i
 | `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `max_period` | integer | `8` | Largest sharpness-oscillation period searched for via autocorrelation (2-32) |
 
+### Picture Box Metric Fields (`metric: picture-box`, OpenCV)
+
+Stacks evenly sampled frames into a lit mask and crops to the longest contiguous rows / columns that stay lit across the shot. Reports the picture rectangle in normalized coordinates plus the bar share so callers can crop letterboxed or pillarboxed content back to the source aspect.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `analysis_width` | integer | `320` | Width in pixels the frames are resampled to before measurement (64-4096) |
+| `sample_count` | integer | `24` | Number of frames evenly sampled across the sequence; sampled max exposes lit areas across the shot (4-256) |
+| `lit_threshold` | float | `24.0` | Minimum grayscale value above which a pixel counts as lit (0.0-255.0) |
+| `picture_lit_share` | float | `0.6` | Minimum share of frames a row or column must stay lit in to count as inside the picture (0.0-1.0) |
+| `bar_dark_share` | float | `0.1` | Maximum median lit share outside the picture for the surrounding region to count as a dark bar (0.0-1.0) |
+| `bar_min_share` | float | `0.06` | Minimum share of frame height / width the surrounding bars must occupy to be reported (0.0-1.0) |
+| `picture_edge_lit_share` | float | `0.8` | Minimum lit share right on the picture's outermost row / column; keeps noisy textures from being counted as a bordered picture (0.0-1.0) |
+| `min_picture_fraction` | float | `0.2` | Minimum share of frame height and width the picture must retain to be reported (0.0-1.0) |
+
+### Palette Metric Fields (`metric: palette`, OpenCV)
+
+Samples frames evenly, stacks them, and runs k-means in LAB colour space to extract a shot-wide palette plus a background hex. Deterministic across runs because the k-means RNG is seeded.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to before k-means clustering (16-4096) |
+| `sample_count` | integer | `8` | Number of frames evenly sampled across the sequence and stacked for a shot-wide palette (1-256) |
+| `max_colours` | integer | `8` | Maximum number of colour clusters extracted via k-means (1-32) |
+| `min_share` | float | `0.01` | Minimum share of pixels a colour must claim to be reported (0.0-1.0) |
+
 ## Supported Drivers
 
 ### Native
@@ -110,7 +136,7 @@ component:
   type: video-frame-analyzer
   driver: native
   action:
-    metric: temporal_noise
+    metric: temporal-noise
     frames: ${jobs.extract.output}
 ```
 
@@ -118,7 +144,7 @@ component:
 
 ### OpenCV
 
-Uses OpenCV plus numpy. Carries metrics that lean on OpenCV's fast resize (`INTER_AREA`), `absdiff`, and `Laplacian`, plus the autocorrelation-based cadence classifiers.
+Uses OpenCV plus numpy. Carries metrics that lean on OpenCV's fast resize (`INTER_AREA`), `absdiff`, and `Laplacian`, autocorrelation-based cadence classifiers, picture-box geometry recovery, and LAB k-means palette extraction.
 
 ```yaml
 component:
@@ -134,7 +160,7 @@ component:
 
 ## Output Format
 
-### Temporal Noise Output (`metric: temporal_noise`)
+### Temporal Noise Output (`metric: temporal-noise`)
 
 ```python
 {
@@ -146,7 +172,7 @@ component:
 }
 ```
 
-### Pair Difference Output (`metric: pair_difference`)
+### Pair Difference Output (`metric: pair-difference`)
 
 ```python
 {
@@ -163,7 +189,7 @@ component:
 }
 ```
 
-### Zero Pixel Ratio Output (`metric: zero_pixel_ratio`)
+### Zero Pixel Ratio Output (`metric: zero-pixel-ratio`)
 
 ```python
 {
@@ -178,7 +204,7 @@ component:
 }
 ```
 
-### Moving Pairs Output (`metric: moving_pairs`)
+### Moving Pairs Output (`metric: moving-pairs`)
 
 ```python
 {
@@ -229,6 +255,38 @@ component:
 }
 ```
 
+### Picture Box Output (`metric: picture-box`)
+
+```python
+{
+  "detected":      True,             # False when no bars qualify; box / aspect / bar_share then None
+  "box":           [0.0, 0.15, 1.0, 0.70],  # [x, y, w, h] in normalized frame coordinates
+  "aspect":        2.39,             # picture aspect ratio (w/h) — e.g. 2.39 is CinemaScope
+  "bar_share":     0.30,             # share of frame area occupied by bars
+  "frame_count":  120,
+  "sample_count": 24,
+  "frame_rate":    30.0,
+  "analysis_width": 320,
+}
+```
+
+### Palette Output (`metric: palette`)
+
+```python
+{
+  "background":   "#1a1a1a",         # border-dominant colour on the stacked samples
+  "colours": [
+    { "hex": "#1a1a1a", "share": 0.62 },
+    { "hex": "#d84a2f", "share": 0.21 },
+    { "hex": "#f0e4c4", "share": 0.11 },
+  ],
+  "frame_count":  120,
+  "sample_count":  8,
+  "frame_rate":    30.0,
+  "analysis_width": 96,
+}
+```
+
 ## Multiple Actions Configuration
 
 Native and OpenCV metrics live in separate components because they are different drivers:
@@ -246,10 +304,10 @@ components:
     driver: native
     actions:
       - id: noise
-        metric: temporal_noise
+        metric: temporal-noise
         frames: ${jobs.extract.output}
       - id: zero
-        metric: zero_pixel_ratio
+        metric: zero-pixel-ratio
         frames: ${jobs.extract.output}
 
   - id: cv-stats
@@ -330,14 +388,42 @@ components:
     driver: native
     actions:
       - id: zero
-        metric: zero_pixel_ratio
+        metric: zero-pixel-ratio
         frames: ${input.frames}
       - id: noise
-        metric: temporal_noise
+        metric: temporal-noise
         frames: ${input.frames}
 ```
 
 High `zero_pixel_ratio_mean` with near-zero `temporal_noise` is the MG/composition signature. Phone footage shows the opposite.
+
+### Letterbox / Pillarbox Recovery
+
+Streaming platforms deliver cinema aspects (2.39:1, 1.85:1) inside a 16:9 container, adding black bars. `picture-box` recovers the picture rectangle so a downstream `image-processor` or `video-converter` can crop back to the source aspect.
+
+```yaml
+component:
+  type: video-frame-analyzer
+  driver: opencv
+  action:
+    metric: picture-box
+    frames: ${jobs.extract.output}
+```
+
+`detected == True` with `aspect ≈ 2.39` and `bar_share ≈ 0.30` is the CinemaScope-in-16:9 signature; use `box` to drive the crop.
+
+### Shot Palette for Thumbnails or Tags
+
+The palette metric returns a deterministic LAB k-means palette for the whole shot plus a border-dominant background hex, usable for thumbnail tinting, colour-based scene tags, or quick visual similarity between shots.
+
+```yaml
+component:
+  type: video-frame-analyzer
+  driver: opencv
+  action:
+    metric: palette
+    frames: ${jobs.extract.output}
+```
 
 ## Best Practices
 
@@ -345,7 +431,10 @@ High `zero_pixel_ratio_mean` with near-zero `temporal_noise` is the MG/compositi
 2. **Keep `analysis_width` modest**: 96 pixels on the long side is plenty for pair-level and autocorrelation signals. Larger widths slow the analyzer down linearly with no measurement benefit at this frame rate.
 3. **`duplicate` needs native frame rate**: if the extractor downsamples (`frame_rate: 10` on a 30 fps source), the duplicate pattern disappears. Extract at native rate for pulldown detection.
 4. **Autocorrelation metrics need enough frames**: `duplicate` and `sharpness` scan lags up to `max_period`; feed at least `3 × max_period` frames, otherwise `dup_period` / `sharp_period` return `null`.
-5. **`temporal_noise` vs image-analyzer `noise`**: the two measure different things. Image-analyzer `noise` is **Immerkær spatial** noise in a single frame; `temporal_noise` here is **inter-frame** noise across the sequence. Both near zero means rendered content.
+5. **`temporal-noise` vs image-analyzer `noise`**: the two measure different things. Image-analyzer `noise` is **Immerkær spatial** noise in a single frame; `temporal-noise` here is **inter-frame** noise across the sequence. Both near zero means rendered content.
 6. **Platform transcodes raise `dup_ratio` slightly**: re-encoding leaves occasional near-duplicate frames even on genuine 30 fps sources. Treat `dup_regularity < 0.5` as "no cadence" rather than trusting the measured `dup_period`.
 7. **`sharp_alt` is a cheaper interpolation probe**: if you only care about "is this interpolated or not" (not the exact period), `sharp_alt > 0.7` on live-action footage is the fast signal and avoids reading `sharp_period_ac`.
 8. **`frame_rate` is metadata, not a sampling setting**: the analyzer does not resample; set it so `duplicate` can classify `pulldown` against known cadences.
+9. **`picture-box` wants more width**: the default `analysis_width` is `320` (not `96`) because narrow thumbnails smear 1-pixel bar edges. Keep the width high enough that a bar occupies at least a few pixels.
+10. **`picture-box` reads lit areas across the whole shot**: a momentarily dark picture (a cut-to-black or a dim scene) does not shrink the detected box as long as the rest of the shot lights those rows / columns — the stacked-max sampling is the mechanism.
+11. **`palette` is deterministic**: the k-means RNG is seeded, so the same shot produces the same hexes across runs. Use it for cache keys without worrying about jitter.

@@ -33,19 +33,23 @@ from mindor.core.foundation.variable.codec import StreamKind
 
 
 class _FakeCodec:
-    """Minimal stand-in for `VariableCodec` used only for OBJECT-kind streams."""
-    def encode(self, value):
+    """Minimal stand-in for `VariableCodec` used only for OBJECT-kind streams.
+
+    The real `VariableCodec.encode/decode` accepts `on_stream_encode` /
+    `on_stream_decode` callbacks for restoring nested ``__variable__`` markers;
+    the IPC layer always forwards them, so the stub must accept the kwargs."""
+    def encode(self, value, on_stream_encode=None):
         return {"wrapped": value}
 
-    def decode(self, value):
+    def decode(self, value, on_stream_decode=None):
         return {"decoded": value}
 
 
 class _IdentityCodec:
-    def encode(self, value):
+    def encode(self, value, on_stream_encode=None):
         return value
 
-    def decode(self, value):
+    def decode(self, value, on_stream_decode=None):
         return value
 
 
@@ -199,9 +203,12 @@ class TestIpcStreamReader:
         with pytest.raises(IOError, match="aborted-stream"):
             await it.__anext__()
         assert stream.closed is True
-        # ABORT is producer-initiated; consumer aclose() should be a no-op.
+        # Even on a producer-initiated ABORT, the reader's async-generator
+        # `finally` fires one on_close for the stream. A subsequent explicit
+        # aclose() is a no-op because stream.closed is already True.
+        assert rec.closes == ["aborted-stream"]
         await reader.aclose()
-        assert rec.closes == []
+        assert rec.closes == ["aborted-stream"]
 
     @pytest.mark.anyio
     async def test_aclose_sends_stream_close_and_marks_closed(self):

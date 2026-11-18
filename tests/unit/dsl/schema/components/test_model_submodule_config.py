@@ -35,11 +35,12 @@ class TestStringShorthand:
         assert isinstance(cfg.model, LocalModelConfig)
         assert cfg.model.path == "/weights/sdxl-vae"
 
-    def test_tilde_user_path_infers_local_provider_and_expands(self):
+    def test_tilde_user_path_infers_local_provider(self):
+        # The DSL layer preserves `~` verbatim; expansion happens at resolve time
+        # in the runtime, not during schema validation.
         cfg = ModelSubmoduleConfig.model_validate("~/weights/vae")
         assert isinstance(cfg.model, LocalModelConfig)
-        assert cfg.model.path.endswith("/weights/vae")
-        assert not cfg.model.path.startswith("~")
+        assert cfg.model.path == "~/weights/vae"
 
     def test_relative_dot_path_infers_local_provider(self):
         cfg = ModelSubmoduleConfig.model_validate("./weights/vae")

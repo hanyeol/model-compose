@@ -18,7 +18,7 @@ from mindor.dsl.schema.action import (
     PidinetImageEdgeDetectionModelActionConfig,
     LineartImageEdgeDetectionModelActionConfig,
 )
-from mindor.dsl.schema.action.impl.model.tasks.image_edge_detection.impl.custom.common import LineartVariant
+from mindor.dsl.schema.component.impl.model.tasks.image_edge_detection.impl.custom.lineart import LineartVariant
 
 
 COMPONENT_ADAPTER = TypeAdapter(ImageEdgeDetectionModelComponentConfig)

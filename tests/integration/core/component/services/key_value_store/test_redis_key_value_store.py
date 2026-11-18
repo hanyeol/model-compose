@@ -22,12 +22,28 @@ def anyio_backend():
 
 @pytest.fixture
 async def redis_client():
-    """Provide a Redis client connected to DB 15 for testing, flushed after use."""
+    """Provide a Redis client connected to DB 15 for testing, flushed after use.
+
+    Skips the test when no Redis server is reachable on localhost:6379 so the
+    suite can run without a live Redis (CI / dev machines without the service).
+    """
     from redis.asyncio import Redis
+    from redis.exceptions import RedisError
+
     client = Redis.from_url("redis://localhost:6379/15")  # use DB 15 for tests
-    yield client
-    await client.flushdb()
-    await client.aclose()
+    try:
+        await client.ping()
+    except (RedisError, OSError) as e:
+        await client.aclose()
+        pytest.skip(f"Redis server unavailable at localhost:6379: {e}")
+
+    try:
+        yield client
+    finally:
+        try:
+            await client.flushdb()
+        finally:
+            await client.aclose()
 
 
 @pytest.fixture

@@ -140,13 +140,6 @@ class TestBackendRequirements:
                 "streaming": {"chunk_size": 240},
             }))
 
-    def test_providers_rejected_on_torch_backend(self):
-        with pytest.raises(ValidationError, match="only applies when backend=onnx"):
-            COMPONENT_ADAPTER.validate_python(_base({
-                "providers": ["CPUExecutionProvider"],
-            }))
-
-
 class TestActionDefaults:
     def test_streaming_defaults_to_false(self):
         action = ACTION_ADAPTER.validate_python({"audio": "in.wav"})

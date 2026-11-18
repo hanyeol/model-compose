@@ -6,10 +6,14 @@ rules match face_tracking / text_reranking:
     is_single_input  = isinstance(image, ImageArrayValue)
     is_stream_input  = isinstance(image, AsyncIterator)
 
-Within a single job, three modes are resolved by ``_resolve_scoring_mode``:
-- pairwise: len(image) == len(text) → per-pair scores (scalar when both are 1)
-- texts_to_image: len(image) == 1, len(text) > 1 → list across text axis
-- images_to_text: len(text) == 1, len(image) > 1 → list across image axis
+Within a single job, three modes are resolved by the driver:
+- pairwise: len(image) == len(text) -> per-pair scores (scalar when both are 1)
+- texts_to_image: len(image) == 1, len(text) > 1 -> list across text axis
+- images_to_text: len(text) == 1, len(image) > 1 -> list across image axis
+
+The core base class delegates to ``_score_batch`` and leaves mode resolution to
+each concrete driver, so the fake action below replicates the driver-side
+mode-resolution + per-pair scoring contract.
 """
 
 from __future__ import annotations
@@ -46,42 +50,69 @@ def _label(image: PILImage.Image) -> str:
     return getattr(image, "filename", "?")
 
 
-class _FakeScoringAction(ImageTextScoringTaskAction):
-    """Deterministic ``_score`` stub.
+def _resolve_mode(num_images: int, num_texts: int) -> str:
+    if num_images == 0 or num_texts == 0:
+        raise ValueError(f"Image-text scoring input cannot be empty: images={num_images}, texts={num_texts}")
+    if num_images == num_texts:
+        return "pairwise"
+    if num_images == 1:
+        return "texts_to_image"
+    if num_texts == 1:
+        return "images_to_text"
+    raise ValueError(
+        f"Incompatible image/text lengths for scoring: images={num_images}, texts={num_texts}. "
+        "Lengths must match, or one side must have length 1."
+    )
 
-    Returns scalar cosine ``float(len(images) + len(texts))`` for pairwise len-1,
-    list of ``[0.1, 1.1, ...]`` otherwise. Softmax is a simple normalized stub.
+
+class _FakeScoringAction(ImageTextScoringTaskAction):
+    """Deterministic ``_score_batch`` stub.
+
+    Replicates the driver-side mode resolution and per-job scoring so tests can
+    assert over the resolved mode and output shape. Scalar cosine ``0.1`` for
+    single-pair pairwise, and a list of ``[0.1, 1.1, ...]`` otherwise; softmax
+    is a trivial normalized stub so tests can assert its presence and shape.
     """
 
     def __init__(self, config: ImageTextScoringModelActionConfig):
         super().__init__(config)
         self.calls: List[Dict[str, Any]] = []
 
-    async def _score(
+    async def _score_batch(
         self,
-        images: List[PILImage.Image],
-        texts: List[str],
-        mode: str,
+        images: List[ImageArrayValue],
+        texts: List[TextArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        self.calls.append({
-            "image_labels": [ _label(i) for i in images ],
-            "texts": list(texts),
-            "mode": mode,
-            "params": params,
-        })
+    ) -> List[ImageTextScore]:
+        # Mirror the Huggingface driver: collect each per-job ArrayValue down to
+        # the underlying Python list before scoring.
+        images_per_job = [ await array.collect() for array in images ]
+        texts_per_job  = [ await array.collect() for array in texts  ]
 
-        length = max(len(images), len(texts))
-        if mode == "pairwise" and length == 1:
-            return { "cosine": 0.1 }
+        results: List[ImageTextScore] = []
+        for job_images, job_texts in zip(images_per_job, texts_per_job):
+            mode = _resolve_mode(len(job_images), len(job_texts))
+            self.calls.append({
+                "image_labels": [ _label(i) for i in job_images ],
+                "texts": list(job_texts),
+                "mode": mode,
+                "params": params,
+            })
 
-        cosines = [ float(i) + 0.1 for i in range(length) ]
-        result: Dict[str, Any] = { "cosine": cosines }
-        if mode != "pairwise" and params["return_softmax"]:
-            total = sum(cosines) or 1.0
-            result["softmax"] = [ c / total for c in cosines ]
-        return result
+            length = max(len(job_images), len(job_texts))
+            if mode == "pairwise" and length == 1:
+                results.append(ImageTextScore({ "cosine": 0.1 }))
+                continue
+
+            cosines = [ float(i) + 0.1 for i in range(length) ]
+            score: Dict[str, Any] = { "cosine": cosines }
+            if mode != "pairwise" and params["return_softmax"]:
+                total = sum(cosines) or 1.0
+                score["softmax"] = [ c / total for c in cosines ]
+            results.append(ImageTextScore(score))
+
+        return results
 
 
 def _make_config(output: Any = None, batch_size: int = 2, **params: Any) -> ImageTextScoringModelActionConfig:

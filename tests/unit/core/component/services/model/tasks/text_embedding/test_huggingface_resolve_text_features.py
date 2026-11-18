@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from mindor.core.component.services.model.tasks.text_embedding.huggingface import (
+from mindor.core.component.services.model.tasks.text_embedding.huggingface.base import (
     HuggingfaceTextEmbeddingTaskAction,
 )
 

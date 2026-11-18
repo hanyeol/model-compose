@@ -44,8 +44,8 @@ def minilm_action_factory():
     import torch
     from transformers import AutoModel, AutoTokenizer
 
-    from mindor.core.component.services.model.tasks.text_embedding.huggingface import (
-        HuggingfaceTextEmbeddingTaskAction,
+    from mindor.core.component.services.model.tasks.text_embedding.huggingface.architectures.general import (
+        GeneralHuggingfaceTextEmbeddingTaskAction,
     )
     from mindor.dsl.schema.component import HuggingfaceTextEmbeddingModelArchitecture
 
@@ -59,8 +59,10 @@ def minilm_action_factory():
     model = model.to(device)
     model.eval()
 
-    def _factory(config: TextEmbeddingModelActionConfig) -> HuggingfaceTextEmbeddingTaskAction:
-        return HuggingfaceTextEmbeddingTaskAction(
+    def _factory(config: TextEmbeddingModelActionConfig) -> GeneralHuggingfaceTextEmbeddingTaskAction:
+        # all-MiniLM-L6-v2 is BERT under the hood; use the General action so the
+        # raw tokenizer + pooling path is exercised (SBERT action bypasses pooling).
+        return GeneralHuggingfaceTextEmbeddingTaskAction(
             config, HuggingfaceTextEmbeddingModelArchitecture.BERT, model, tokenizer, device
         )
 

@@ -83,8 +83,8 @@ def whisper_action_factory():
     import torch
     from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
-    from mindor.core.component.services.model.tasks.speech_to_text.huggingface import (
-        HuggingfaceSpeechToTextTaskAction,
+    from mindor.core.component.services.model.tasks.speech_to_text.huggingface.architectures.whisper import (
+        WhisperHuggingfaceSpeechToTextTaskAction,
     )
 
     try:
@@ -97,8 +97,10 @@ def whisper_action_factory():
     model = model.to(device)
     model.eval()
 
-    def _factory(config: HuggingfaceSpeechToTextModelActionConfig) -> HuggingfaceSpeechToTextTaskAction:
-        return HuggingfaceSpeechToTextTaskAction(config, model, processor, device)
+    def _factory(config: HuggingfaceSpeechToTextModelActionConfig) -> WhisperHuggingfaceSpeechToTextTaskAction:
+        # The base action class only defines the abstract ``_transcribe_batch``;
+        # tests must construct a concrete architecture-specific subclass.
+        return WhisperHuggingfaceSpeechToTextTaskAction(config, model, processor, device)
 
     return _factory
 

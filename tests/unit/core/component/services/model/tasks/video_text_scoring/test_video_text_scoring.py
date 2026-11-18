@@ -8,15 +8,19 @@ job the mode is resolved from the length pair:
 - videos_to_text (N > 1, K == 1): list across the video axis + softmax
 
 Outer input shape:
-- flat frames   → ImageArrayValue        → one video in this job
-- nested frames → List[ImageArrayValue]  → N videos in this job
-- stream        → async iterator         → one job per tick
+- flat frames   -> ImageArrayValue        -> one video in this job
+- nested frames -> List[ImageArrayValue]  -> N videos in this job
+- stream        -> async iterator         -> one job per tick
+
+The core base class delegates to ``_score_batch`` and leaves mode resolution to
+each concrete driver, so the fake action below replicates the driver-side
+mode-resolution + per-job scoring contract.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pytest
 from PIL import Image as PILImage
@@ -27,6 +31,7 @@ from mindor.core.component.services.model.tasks.video_text_scoring.common import
     VideoTextScoringTaskAction,
 )
 from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.foundation.variable.array import ArrayValue
 from mindor.core.foundation.variable.image import ImageArrayValue
 from mindor.core.foundation.variable.text import TextArrayValue
 from mindor.dsl.schema.action import VideoTextScoringModelActionConfig
@@ -51,43 +56,74 @@ def _video(labels: List[str]) -> List[PILImage.Image]:
     return [ _frame(l) for l in labels ]
 
 
-class _FakeScoringAction(VideoTextScoringTaskAction):
-    """Deterministic ``_score`` stub.
+def _resolve_mode(num_videos: int, num_texts: int) -> str:
+    if num_videos == 0 or num_texts == 0:
+        raise ValueError(f"Video-text scoring input cannot be empty: videos={num_videos}, texts={num_texts}")
+    if num_videos == num_texts:
+        return "pairwise"
+    if num_videos == 1:
+        return "texts_to_video"
+    if num_texts == 1:
+        return "videos_to_text"
+    raise ValueError(
+        f"Incompatible video/text lengths for scoring: videos={num_videos}, texts={num_texts}. "
+        "Lengths must match, or one side must have length 1."
+    )
 
-    Returns scalar cosine ``0.1`` for single-pair pairwise, and lists keyed off
-    the many-axis for every other mode. Softmax is a trivial normalized stub so
-    tests can assert its presence and shape only.
+
+class _FakeScoringAction(VideoTextScoringTaskAction):
+    """Deterministic ``_score_batch`` stub.
+
+    Replicates the driver-side mode resolution and per-job scoring contract so
+    tests can assert over the resolved mode and output shape. Scalar cosine
+    ``0.1`` for single-pair pairwise, lists keyed off the many-axis for every
+    other mode. Softmax is a trivial normalized stub.
     """
 
     def __init__(self, config: VideoTextScoringModelActionConfig):
         super().__init__(config)
         self.calls: List[Dict[str, Any]] = []
 
-    async def _score(
+    async def _score_batch(
         self,
-        videos: List[List[PILImage.Image]],
-        texts: List[str],
-        mode: str,
+        frames: List[Union[ArrayValue, ImageArrayValue]],
+        texts: List[TextArrayValue],
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
-    ) -> Dict[str, Any]:
-        self.calls.append({
-            "video_labels": [ [ _label(f) for f in video ] for video in videos ],
-            "texts": list(texts),
-            "mode": mode,
-            "params": params,
-        })
+    ) -> List[Dict[str, Any]]:
+        # Mirror the Huggingface driver: collect lazy containers. Each job's
+        # frames is either an ArrayValue (collect-mode: N videos packed into
+        # one job) or a single ImageArrayValue (stream-mode: one video / tick).
+        videos_per_job: List[List[List[PILImage.Image]]] = []
+        for job_frames in frames:
+            videos = await job_frames.collect() if isinstance(job_frames, ArrayValue) else [ job_frames ]
+            videos_per_job.append([ await video.collect() for video in videos ])
 
-        if mode == "pairwise" and len(videos) == 1:
-            return { "cosine": 0.1 }
+        texts_per_job = [ await array.collect() for array in texts ]
 
-        length = max(len(videos), len(texts))
-        cosines = [ float(i) + 0.1 for i in range(length) ]
-        result: Dict[str, Any] = { "cosine": cosines }
-        if mode != "pairwise" and params["return_softmax"]:
-            total = sum(cosines) or 1.0
-            result["softmax"] = [ c / total for c in cosines ]
-        return result
+        results: List[Dict[str, Any]] = []
+        for videos, job_texts in zip(videos_per_job, texts_per_job):
+            mode = _resolve_mode(len(videos), len(job_texts))
+            self.calls.append({
+                "video_labels": [ [ _label(f) for f in video ] for video in videos ],
+                "texts": list(job_texts),
+                "mode": mode,
+                "params": params,
+            })
+
+            if mode == "pairwise" and len(videos) == 1:
+                results.append({ "cosine": 0.1 })
+                continue
+
+            length = max(len(videos), len(job_texts))
+            cosines = [ float(i) + 0.1 for i in range(length) ]
+            score: Dict[str, Any] = { "cosine": cosines }
+            if mode != "pairwise" and params["return_softmax"]:
+                total = sum(cosines) or 1.0
+                score["softmax"] = [ c / total for c in cosines ]
+            results.append(score)
+
+        return results
 
 
 def _make_config(output: Any = None, batch_size: int = 1, **params: Any) -> VideoTextScoringModelActionConfig:

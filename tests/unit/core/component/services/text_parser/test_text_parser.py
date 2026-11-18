@@ -29,8 +29,17 @@ def mock_context():
     async def render_text(value, collect=True):
         return value
 
+    async def render_scalar(value, typ, default=None):
+        # The MagicMock(spec=...) auto-mock would otherwise return a MagicMock
+        # for render_scalar, which coerces to True under bool() and silently
+        # flips xml_as_object on for every XML test.
+        if value is None:
+            return default
+        return typ(value) if not isinstance(value, typ) else value
+
     context.render_variable = AsyncMock(side_effect=render_variable)
     context.render_text = AsyncMock(side_effect=render_text)
+    context.render_scalar = AsyncMock(side_effect=render_scalar)
     context.register_source = MagicMock()
     return context
 
@@ -249,7 +258,7 @@ class TestXmlFormat:
     async def test_xml_dict_output_simple(self, mock_context):
         text = "<person><name>Alice</name><age>30</age></person>"
         result = await _run(TextParserActionConfig(
-            text=text, format="xml", xml_root="person", xml_output="dict",
+            text=text, format="xml", xml_root="person", xml_as_object=True,
         ), mock_context)
         assert result == {"name": "Alice", "age": "30"}
 
@@ -257,7 +266,7 @@ class TestXmlFormat:
     async def test_xml_dict_output_with_attribute(self, mock_context):
         text = '<item id="42"><label>ok</label></item>'
         result = await _run(TextParserActionConfig(
-            text=text, format="xml", xml_root="item", xml_output="dict",
+            text=text, format="xml", xml_root="item", xml_as_object=True,
         ), mock_context)
         assert result == {"@id": "42", "label": "ok"}
 
@@ -265,7 +274,7 @@ class TestXmlFormat:
     async def test_xml_dict_output_leaf_collapse(self, mock_context):
         text = "<answer>42</answer>"
         result = await _run(TextParserActionConfig(
-            text=text, format="xml", xml_root="answer", xml_output="dict",
+            text=text, format="xml", xml_root="answer", xml_as_object=True,
         ), mock_context)
         assert result == "42"
 
@@ -273,7 +282,7 @@ class TestXmlFormat:
     async def test_xml_dict_output_repeated_children_becomes_list(self, mock_context):
         text = "<list><item>a</item><item>b</item><item>c</item></list>"
         result = await _run(TextParserActionConfig(
-            text=text, format="xml", xml_root="list", xml_output="dict",
+            text=text, format="xml", xml_root="list", xml_as_object=True,
         ), mock_context)
         assert result == {"item": ["a", "b", "c"]}
 
@@ -281,7 +290,7 @@ class TestXmlFormat:
     async def test_xml_dict_mixed_content_text_key(self, mock_context):
         text = '<msg lang="en">hello</msg>'
         result = await _run(TextParserActionConfig(
-            text=text, format="xml", xml_root="msg", xml_output="dict",
+            text=text, format="xml", xml_root="msg", xml_as_object=True,
         ), mock_context)
         assert result == {"@lang": "en", "#text": "hello"}
 
@@ -674,13 +683,6 @@ class TestErrorPaths:
         with pytest.raises(ValueError, match="Unsupported strategy"):
             await _run(TextParserActionConfig(
                 text="x", format="json", strategy="random",
-            ), mock_context)
-
-    @pytest.mark.anyio
-    async def test_unsupported_xml_output_raises(self, mock_context):
-        with pytest.raises(ValueError, match="Unsupported xml_output"):
-            await _run(TextParserActionConfig(
-                text="x", format="xml", xml_output="tree",
             ), mock_context)
 
     @pytest.mark.anyio

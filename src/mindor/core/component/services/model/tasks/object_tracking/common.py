@@ -92,7 +92,7 @@ class ObjectTrackingTaskAction(ModelTaskComponentAction):
         min_object_size               = await context.render_scalar(self.config.params.min_object_size, int)
         min_frame_count               = await context.render_scalar(self.config.params.min_frame_count, int)
         crop_margin_ratio             = await context.render_scalar(self.config.params.crop_margin_ratio, float)
-        bounding_box_smoothing        = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
+        bounding_box_smoothing        = await context.render_scalar(self.config.params.bounding_box_smoothing, float) if self.config.params.bounding_box_smoothing is not None else None
         merge_gap                     = await context.render_scalar(self.config.params.merge_gap, float)
 
         if max_detection_count_per_frame < 0:

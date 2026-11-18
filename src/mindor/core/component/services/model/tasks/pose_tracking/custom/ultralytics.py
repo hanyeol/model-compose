@@ -112,7 +112,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
     ) -> Dict[str, Any]:
         track_segments: Dict[int, Dict[str, Any]] = {}
         tracked_frames: List[Dict[str, Any]] = []
-        merge_gap = params["merge_gap"] or 0.0
+        merge_gap = params["merge_gap"]
         frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
@@ -185,7 +185,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         track_segments: Dict[int, Dict[str, Any]] = {}
-        merge_gap = params["merge_gap"] or 0.0
+        merge_gap = params["merge_gap"]
         frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
@@ -394,7 +394,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         so streaming callers can emit segment events."""
         tracked_poses: List[Tuple[Dict[str, Any], int]] = []
         tracked_segments: List[Tuple[int, Dict[str, Any]]] = []
-        merge_gap = params["merge_gap"] or 0.0
+        merge_gap = params["merge_gap"]
 
         for pose in poses:
             track_id = pose["track_id"]
@@ -489,7 +489,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         `_add_poses_to_tracks`, so re-emission on the next idle period is
         intentional."""
         chunks: List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]] = []
-        min_frame_count = params["min_frame_count"] or 1
+        min_frame_count = params["min_frame_count"]
 
         for track_id in sorted(track_segments.keys()):
             track = track_segments[track_id]
@@ -534,7 +534,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         skip the idle-timeout check and treat `emitted=True` as the only
         reason to omit a track."""
         chunks: List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]] = []
-        min_frame_count = params["min_frame_count"] or 1
+        min_frame_count = params["min_frame_count"]
 
         for track_id in sorted(track_segments.keys()):
             track = track_segments[track_id]
@@ -745,7 +745,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         Valid only while the originating `_track_frame` call runs; never store
         the returned callable on track state, or the frame buffer outlives it.
         """
-        return partial(self._extract_pose_region, image, crop_margin_ratio=params["crop_margin_ratio"] or 0.0)
+        return partial(self._extract_pose_region, image, crop_margin_ratio=params["crop_margin_ratio"])
 
     @classmethod
     def _extract_pose_region(
@@ -833,7 +833,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         result: Dict[str, Any] = {}
 
         if params["return_tracks"]:
-            min_frame_count = params["min_frame_count"] or 1
+            min_frame_count = params["min_frame_count"]
             tracks: List[Dict[str, Any]] = []
 
             for track_id in sorted(track_segments.keys()):

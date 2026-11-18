@@ -136,8 +136,8 @@ class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
                 "confidence": 1.0,
             })
 
-        segments = self._merge_segments(segments, float(params["merge_gap"] or 0.0))
-        segments = [ segment for segment in segments if (segment["end_time"] - segment["start_time"]) >= float(params["min_segment_duration"] or 0.0) ]
+        segments = self._merge_segments(segments, params["merge_gap"])
+        segments = [ segment for segment in segments if (segment["end_time"] - segment["start_time"]) >= params["min_segment_duration"] ]
         segments.sort(key=lambda segment: segment["start_time"])
 
         return segments

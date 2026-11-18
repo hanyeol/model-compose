@@ -72,9 +72,9 @@ class SpeakerDiarizationTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        speaker_count        = await context.render_scalar(self.config.speaker_count, int)
-        min_speaker_count    = await context.render_scalar(self.config.min_speaker_count, int)
-        max_speaker_count    = await context.render_scalar(self.config.max_speaker_count, int)
+        speaker_count        = await context.render_scalar(self.config.speaker_count, int) if self.config.speaker_count is not None else None
+        min_speaker_count    = await context.render_scalar(self.config.min_speaker_count, int) if self.config.min_speaker_count is not None else None
+        max_speaker_count    = await context.render_scalar(self.config.max_speaker_count, int) if self.config.max_speaker_count is not None else None
         min_segment_duration = await context.render_scalar(self.config.params.min_segment_duration, "time")
         merge_gap            = await context.render_scalar(self.config.params.merge_gap, "time")
 

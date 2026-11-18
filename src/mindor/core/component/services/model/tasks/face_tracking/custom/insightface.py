@@ -44,8 +44,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool, False)
-        detection_threshold = await context.render_scalar(self.config.params.detection_threshold, float, 0.5)
+        return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool)
+        detection_threshold = await context.render_scalar(self.config.params.detection_threshold, float)
         detection_size      = await context.render_variable(self.config.params.detection_size)
 
         if not 0.0 <= detection_threshold <= 1.0:
@@ -629,7 +629,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         detection on the same cluster resets `emitted` in `_add_face_to_track`,
         so re-emission on the next idle period is intentional."""
         chunks: List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]] = []
-        min_frame_count = params["min_frame_count"] or 1
+        min_frame_count = params["min_frame_count"]
 
         for cluster_id in sorted(cluster_tracks.keys()):
             track = cluster_tracks[cluster_id]
@@ -679,7 +679,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         skip the idle-timeout check and treat `emitted=True` as the only
         reason to omit a cluster."""
         chunks: List[Tuple[int, Optional[Dict[str, Any]], Dict[str, Any]]] = []
-        min_frame_count = params["min_frame_count"] or 1
+        min_frame_count = params["min_frame_count"]
 
         for cluster_id in sorted(cluster_tracks.keys()):
             track = cluster_tracks[cluster_id]
@@ -954,7 +954,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         result: Dict[str, Any] = {}
 
         if params["return_tracks"]:
-            min_frame_count = params["min_frame_count"] or 1
+            min_frame_count = params["min_frame_count"]
             centroids: List[np.ndarray] = centroids_state["centroids"]
             tracks: List[Dict[str, Any]] = []
 

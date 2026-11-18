@@ -82,21 +82,22 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
             return (await context.render_variable(self.config.output)) if not streaming and not is_direct_output else result
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        max_detection_count_per_frame = await context.render_scalar(self.config.max_detection_count_per_frame, int)
-        return_tracks                 = await context.render_scalar(self.config.return_tracks, bool)
-        return_embedding              = await context.render_scalar(self.config.return_embedding, bool)
-        return_track_image            = await context.render_scalar(self.config.return_track_image, bool)
-        return_detections             = await context.render_scalar(self.config.return_detections, bool)
-        return_detection_image        = await context.render_scalar(self.config.return_detection_image, bool)
-        return_frame_image            = await context.render_scalar(self.config.return_frame_image, bool)
-        return_metadata               = await context.render_scalar(self.config.return_metadata, bool)
-        similarity_threshold          = await context.render_scalar(self.config.params.similarity_threshold, float)
-        min_face_size                 = await context.render_scalar(self.config.params.min_face_size, int)
-        min_frame_count               = await context.render_scalar(self.config.params.min_frame_count, int)
-        max_track_distance            = await context.render_scalar(self.config.params.max_track_distance, float)
-        crop_margin_ratio             = await context.render_scalar(self.config.params.crop_margin_ratio, float)
+        max_detection_count_per_frame = await context.render_scalar(self.config.max_detection_count_per_frame, int, 0)
+        return_tracks                 = await context.render_scalar(self.config.return_tracks, bool, True)
+        return_embedding              = await context.render_scalar(self.config.return_embedding, bool, False)
+        return_track_image            = await context.render_scalar(self.config.return_track_image, bool, False)
+        return_detections             = await context.render_scalar(self.config.return_detections, bool, False)
+        return_detection_image        = await context.render_scalar(self.config.return_detection_image, bool, False)
+        return_frame_image            = await context.render_scalar(self.config.return_frame_image, bool, False)
+        return_metadata               = await context.render_scalar(self.config.return_metadata, bool, False)
+        similarity_threshold          = await context.render_scalar(self.config.params.similarity_threshold, float, 0.4)
+        min_face_size                 = await context.render_scalar(self.config.params.min_face_size, int, 0)
+        min_frame_count               = await context.render_scalar(self.config.params.min_frame_count, int, 1)
+        max_track_distance            = await context.render_scalar(self.config.params.max_track_distance, float, 1.5)
+        crop_margin_ratio             = await context.render_scalar(self.config.params.crop_margin_ratio, float, 0.0)
         bounding_box_smoothing        = await context.render_scalar(self.config.params.bounding_box_smoothing, float)
-        merge_gap                     = await context.render_scalar(self.config.params.merge_gap, float)
+        merge_gap                     = await context.render_scalar(self.config.params.merge_gap, float, 0.5)
+        rejoin_gap                    = await context.render_scalar(self.config.params.rejoin_gap, float, merge_gap)
 
         if max_detection_count_per_frame < 0:
             raise ValueError(f"'max_detection_count_per_frame' must be >= 0, got {max_detection_count_per_frame}")
@@ -116,6 +117,9 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
         if merge_gap < 0.0:
             raise ValueError(f"'merge_gap' must be >= 0.0, got {merge_gap}")
 
+        if rejoin_gap < 0.0:
+            raise ValueError(f"'rejoin_gap' must be >= 0.0, got {rejoin_gap}")
+
         return {
             "max_detection_count_per_frame": max_detection_count_per_frame,
             "return_tracks":                 return_tracks,
@@ -132,6 +136,7 @@ class FaceTrackingTaskAction(ModelTaskComponentAction):
             "crop_margin_ratio":             crop_margin_ratio,
             "bounding_box_smoothing":        bounding_box_smoothing,
             "merge_gap":                     merge_gap,
+            "rejoin_gap":                    rejoin_gap,
         }
 
     @abstractmethod

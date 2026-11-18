@@ -44,8 +44,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool)
-        detection_threshold = await context.render_scalar(self.config.params.detection_threshold, float)
+        return_gender_age   = await context.render_scalar(self.config.return_gender_age, bool, False)
+        detection_threshold = await context.render_scalar(self.config.params.detection_threshold, float, 0.5)
         detection_size      = await context.render_variable(self.config.params.detection_size)
 
         if not 0.0 <= detection_threshold <= 1.0:
@@ -168,7 +168,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 tracked_frames.append(tracked_frame)
 
         if params["return_detections"]:
-            self._interpolate_missing_faces(tracked_frames, params["merge_gap"] or 0.0, params["max_track_distance"] or 0.0)
+            self._interpolate_missing_faces(tracked_frames, params["merge_gap"], params["max_track_distance"])
 
         # Flush any still-open `current` segment so every segment is
         # visible to the result builder.
@@ -192,8 +192,8 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
     ) -> AsyncIterator[Dict[str, Any]]:
         cluster_tracks: Dict[int, Dict[str, Any]] = {}
         centroids_state: Dict[str, Any] = { "centroids": [], "counts": [] }
-        max_track_distance = params["max_track_distance"] or 0.0
-        merge_gap = params["merge_gap"] or 0.0
+        max_track_distance = params["max_track_distance"]
+        merge_gap = params["merge_gap"]
         frame_period = 1.0 / frame_rate if frame_rate else 0.0
         frame_count = 0
 
@@ -373,12 +373,13 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         import numpy as np
 
         max_detection_count_per_frame = params["max_detection_count_per_frame"]
-        similarity_threshold          = params["similarity_threshold"] or 0.0
-        min_face_size                 = params["min_face_size"] or 0
-        max_track_distance            = params["max_track_distance"] or 0.0
-        crop_margin_ratio             = params["crop_margin_ratio"] or 0.0
+        similarity_threshold          = params["similarity_threshold"]
+        min_face_size                 = params["min_face_size"]
+        max_track_distance            = params["max_track_distance"]
+        crop_margin_ratio             = params["crop_margin_ratio"]
         bounding_box_smoothing        = params["bounding_box_smoothing"]
-        merge_gap                     = params["merge_gap"] or 0.0
+        merge_gap                     = params["merge_gap"]
+        rejoin_gap                    = params["rejoin_gap"]
 
         candidates = self._filter_faces(faces, min_face_size, max_detection_count_per_frame)
         centroids: List[np.ndarray] = centroids_state["centroids"]
@@ -390,11 +391,11 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         # (`tie_margin * overlap`). Since overlap ∈ [0, 1], the term can only
         # flip the order of two pairs whose raw similarity gap is smaller than
         # `tie_margin` — i.e. a near-tie defers to spatial overlap with no
-        # bucket-boundary discontinuities. A cluster's last_bounding_box is ignored once
-        # it goes stale (`stale_after` seconds without a detection) so long-
-        # absent clusters can't win tie-breaks with an ancient position.
+        # bucket-boundary discontinuities. A cluster whose last detection is
+        # older than `rejoin_gap` is dropped from rejoin candidacy entirely so
+        # low-quality embeddings can't glue far-apart faces into one track on
+        # similarity alone.
         tie_margin: float = 0.05
-        stale_after: float = 2.0
 
         embeddings: List[np.ndarray] = []
 
@@ -416,18 +417,20 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
                 track = cluster_tracks.get(cluster_id)
                 last_bounding_box = track.get("last_bbox") if track else None
                 last_seen = track.get("last_seen") if track else None
-                is_stale = last_seen is None or (timestamp - last_seen) > stale_after
 
-                # A live cluster whose last detection is farther than `max_track_distance`
+                if last_seen is not None and timestamp - last_seen > rejoin_gap + frame_period + 1e-6:
+                    continue
+
+                # A cluster whose last detection is farther than `max_track_distance`
                 # face-sizes away can't be the same person — reject the pair outright so the
                 # face falls through to a new cluster instead of hijacking this one.
-                if not is_stale and last_bounding_box is not None and max_track_distance > 0.0:
+                if last_bounding_box is not None and max_track_distance > 0.0:
                     face_size = max(face_bbox[2] - face_bbox[0], face_bbox[3] - face_bbox[1])
 
                     if self._bounding_box_center_distance(face_bbox, last_bounding_box) > max_track_distance * face_size:
                         continue
 
-                overlap = 0.0 if is_stale or last_bounding_box is None else self._bounding_box_overlap(face_bbox, last_bounding_box)
+                overlap = 0.0 if last_bounding_box is None else self._bounding_box_overlap(face_bbox, last_bounding_box)
                 face_cluster_scores.append((similarity + tie_margin * overlap, face_index, cluster_id))
 
         # Sort by blended score, descending. Do NOT let face_index / cluster_id
@@ -829,7 +832,7 @@ class InsightfaceFaceTrackingTaskAction(FaceTrackingTaskAction):
         Valid only while the originating `_track_frame` call runs; never store
         the returned callable on track state, or the frame buffer outlives it.
         """
-        return partial(self._extract_face_region, image_cv, crop_margin_ratio=params["crop_margin_ratio"] or 0.0)
+        return partial(self._extract_face_region, image_cv, crop_margin_ratio=params["crop_margin_ratio"])
 
     def _build_detected_faces(self, detections: List[Face], return_gender_age: bool) -> List[Dict[str, Any]]:
         # image_source stashing happens later in `_add_face_to_track`, once the

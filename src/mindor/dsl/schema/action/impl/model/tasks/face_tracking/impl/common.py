@@ -10,6 +10,7 @@ class CommonFaceTrackingParamsConfig(BaseModel):
     crop_margin_ratio: Union[float, str] = Field(default=0.0, description="Margin added around each returned crop image, as a ratio of the box's own width/height")
     bounding_box_smoothing: Optional[Union[float, str]] = Field(default=None, description="EMA weight blended with the previous frame's bounding box; None or 0.0 disables smoothing.")
     merge_gap: Union[float, str] = Field(default=0.5, description="Extra seconds a person may be undetected before their segment is split; consecutive frames always merge.")
+    rejoin_gap: Optional[Union[float, str]] = Field(default=None, description="Extra seconds a lost track remains a rejoin candidate; None falls back to 'merge_gap'.")
 
 class CommonFaceTrackingModelActionConfig(CommonModelActionConfig):
     frames: Union[Any, List[Any], List[List[Any]], str] = Field(..., description="Frame images to analyze; a single frame, flat list, list of batches, or stream of batches.")

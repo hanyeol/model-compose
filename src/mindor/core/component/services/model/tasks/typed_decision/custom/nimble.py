@@ -164,6 +164,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
     def _load_scorer(self, merged_path: str) -> NimbleScorer:
         if sys.platform == "linux" and platform.machine() in ("x86_64", "aarch64"):
             from nimble.scoring.cuda_scorer import CudaCandidateScorer
+
             return CudaCandidateScorer(
                 model_path=merged_path,
                 model_id=getattr(self.config.model, "repository", None) or self.id,
@@ -173,7 +174,11 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
 
         if sys.platform == "darwin" and platform.machine() == "arm64":
             from nimble.scoring.parallel_scorer import ParallelScorer
-            return ParallelScorer(model_path=merged_path, max_input_tokens=self.config.max_seq_length)
+
+            return ParallelScorer(
+                model_path=merged_path,
+                max_input_tokens=self.config.max_seq_length
+            )
 
         raise RuntimeError(
             "Nimble supports only Darwin+arm64 (MLX) or Linux (x86_64 / aarch64) with CUDA; "

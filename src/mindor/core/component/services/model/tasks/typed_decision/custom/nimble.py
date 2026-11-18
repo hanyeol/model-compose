@@ -5,6 +5,7 @@ from typing import Union, Tuple, Optional, Dict, List, Any
 from mindor.dsl.schema.component import NimbleTypedDecisionModelComponentConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig, TypedDecisionModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.platform_dirs import app_cache_dir
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.package.installer import install_package_from_github, is_package_installed
 from ....base import ComponentActionContext, ModelTaskDriver
@@ -133,7 +134,7 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
 
         # Cache per dtype so switching precision doesn't silently reuse a merge
         # saved under a different one.
-        merged_root = os.path.join(self._get_model_cache_dir(), "nimble-merged")
+        merged_root = os.path.join(app_cache_dir("models"), "nimble-merged")
         adapter_name = os.path.basename(adapter_path.rstrip(os.sep))
         merged_path = os.path.join(merged_root, f"{adapter_name}-{str(dtype).replace('torch.', '')}")
 
@@ -178,9 +179,6 @@ class NimbleTypedDecisionTaskDriver(ModelTaskDriver):
             "Nimble supports only Darwin+arm64 (MLX) or Linux (x86_64 / aarch64) with CUDA; "
             f"got platform={sys.platform}, machine={platform.machine()}."
         )
-
-    def _get_model_cache_dir(self) -> str:
-        return os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "models")
 
     async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
         return await NimbleTypedDecisionTaskAction(action, self.scorer).run(context)

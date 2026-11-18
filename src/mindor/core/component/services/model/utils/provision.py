@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Union, Optional, Dict, List
 from mindor.dsl.schema.component import ModelConfig, HuggingfaceModelConfig, LocalModelConfig, NamedModelConfig
+from mindor.core.foundation.platform_dirs import app_cache_dir
 from mindor.core.foundation.streaming.url import download_to_file
 from mindor.core.logger import logging
 from pathlib import Path
@@ -127,6 +128,7 @@ class LocalModelDownloader:
         except BaseException:
             if staging_dir.exists():
                 shutil.rmtree(staging_dir, ignore_errors=True)
+
             raise
         finally:
             if archive_path.exists():
@@ -138,11 +140,13 @@ class LocalModelDownloader:
         if name.endswith(".zip"):
             with zipfile.ZipFile(archive_path) as zf:
                 zf.extractall(path)
+
             return
 
         if name.endswith((".tar.gz", ".tgz", ".tar")):
             with tarfile.open(archive_path) as tf:
                 tf.extractall(path)
+
             return
 
         raise ValueError(f"Unsupported archive format: {archive_path.name}")
@@ -219,9 +223,10 @@ class ModelProvisioner:
             for suffix in (".tar.gz", ".tgz", ".tar", ".zip"):
                 if filename.lower().endswith(suffix):
                     filename = filename[: -len(suffix)]
+
                     break
 
-        cache_root = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "models")
+        cache_root = app_cache_dir("models")
         subdir = model._cache_subdir()
 
         if subdir:

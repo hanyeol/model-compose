@@ -5,6 +5,7 @@ from typing import Union, Tuple, Dict, Optional, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, PianoTranscriptionMusicTranscriptionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, PianoTranscriptionMusicTranscriptionModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
+from mindor.core.foundation.platform_dirs import app_cache_dir
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -201,7 +202,7 @@ class PianoTranscriptionMusicTranscriptionTaskDriver(ModelTaskDriver):
         return transcriptor, device
 
     async def _resolve_checkpoint_path(self) -> str:
-        cache_root = Path(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))) / "models"
+        cache_root = Path(app_cache_dir("models"))
         checkpoint_path = cache_root / "piano_transcription" / "note_F1=0.9677_pedal_F1=0.9186.pth"
 
         if not checkpoint_path.exists():

@@ -18,6 +18,7 @@ from mindor.core.component.runtime.base.ipc_message import IpcStartPayload
 from mindor.core.foundation.project import get_component_state_path
 from mindor.core.foundation.package import mindor as mindor_package
 from mindor.core.logger import logging
+from pathlib import Path
 import argparse, asyncio, json, os, secrets, sys
 
 # Pod bootstrap pins — intentionally hardcoded (not DSL fields) to avoid
@@ -464,7 +465,7 @@ class ComponentRunPodRuntimeManager(ComponentRuntimeManager):
         state_file = self._get_pod_state_path()
         state_file.unlink(missing_ok=True)
 
-    def _get_pod_state_path(self):
+    def _get_pod_state_path(self) -> Path:
         """Where this component's pod state (pod_id + auth_token) lives on
         the host, scoped by compose project namespace."""
         return get_component_state_path(self.worker_id) / "runpod.json"

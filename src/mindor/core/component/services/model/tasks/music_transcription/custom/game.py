@@ -5,6 +5,7 @@ from typing import Union, Tuple, Dict, Optional, List, Any
 from mindor.dsl.schema.component import ModelComponentConfig, GameMusicTranscriptionModelComponentConfig
 from mindor.dsl.schema.action import ModelActionConfig, GameMusicTranscriptionModelActionConfig
 from mindor.core.foundation.package.onnxruntime import get_onnxruntime_distributions
+from mindor.core.foundation.platform_dirs import app_cache_dir
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.foundation.streaming.audio import AudioBufferStreamer
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
@@ -392,7 +393,7 @@ class GameMusicTranscriptionTaskDriver(ModelTaskDriver):
         if model_name not in _GAME_BUNDLE_URLS:
             raise ValueError(f"Unknown GAME bundle '{model_name}'; available: {sorted(_GAME_BUNDLE_URLS.keys())}")
 
-        cache_root = Path(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))) / "models"
+        cache_root = Path(app_cache_dir("models"))
         model_path = cache_root / "game" / model_name
 
         if all((model_path / filename).exists() for filename in ("config.json", *_GAME_ONNX_FILES)):

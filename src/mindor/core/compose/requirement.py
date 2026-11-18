@@ -3,6 +3,7 @@ from typing_extensions import Self
 from enum import Enum
 from dataclasses import dataclass, field
 from mindor.dsl.schema.compose import ComposeConfig
+from mindor.core.foundation.platform_dirs import app_data_dir
 from pathlib import Path
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -92,6 +93,7 @@ class RuntimeEnvironment:
         component_id: str,
         runtime_type: str,
         runtime_path: Optional[str],
+        venv_label:   Optional[str],
         image:        Optional[str],
     ) -> Self:
         """The environment this component's declared runtime resolves to.
@@ -109,7 +111,7 @@ class RuntimeEnvironment:
             if runtime_path:
                 resolved = (Path.cwd() / runtime_path).resolve()
             else:
-                resolved = (Path.cwd() / ".runtime" / "components" / component_id / "venv").resolve()
+                resolved = Path(app_data_dir("venvs", venv_label or component_id)).resolve()
 
             return cls("venv", str(resolved))
 
@@ -357,6 +359,7 @@ class RequirementCollector:
     def collect(self) -> Dict[RuntimeEnvironment, List[PackageRequirement]]:
         from mindor.core.component.component import create_component
         from mindor.core.component.base import ComponentGlobalConfigs
+        from mindor.core.component.runtime.virtualenv import resolve_venv_label
 
         global_configs = ComponentGlobalConfigs.create(
             components=self.config.components,
@@ -383,6 +386,7 @@ class RequirementCollector:
                 component_id = component_config.id,
                 runtime_type = runtime.type.value,
                 runtime_path = getattr(runtime, "path", None),
+                venv_label   = resolve_venv_label(component_config),
                 image        = getattr(runtime, "image", None),
             )
 

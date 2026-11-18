@@ -9,6 +9,7 @@ from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.virtualenv import LocalVirtualEnvRuntime, RemoteVirtualEnvRuntime
 from mindor.core.utils.channels.ssh_exec import SshExecChannel
 from mindor.core.utils.channels.subprocess_pipe import SubprocessPipeChannel
+from .label import resolve_venv_label
 from .local import ComponentLocalVirtualEnvRuntimeProxy
 from .remote import ComponentRemoteVirtualEnvRuntimeProxy
 import os
@@ -36,6 +37,7 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
         self._runtime_config: VirtualEnvRuntimeConfig = component_config.runtime
         self._start_timeout = parse_time(self._runtime_config.start_timeout) if self._runtime_config.start_timeout is not None else None
         self._stop_timeout  = parse_time(self._runtime_config.stop_timeout) if self._runtime_config.stop_timeout is not None else None
+        self._venv_label    = resolve_venv_label(component_config)
 
         self._runtime: Optional[Union[LocalVirtualEnvRuntime, RemoteVirtualEnvRuntime]] = None
 
@@ -96,6 +98,7 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
             worker_id=self.worker_id,
             worker_module=_LOCAL_WORKER_MODULE,
             config=self._runtime_config,
+            venv_label=self._venv_label,
         )
 
         async with self._runtime.bootstrap_lock():
@@ -109,6 +112,7 @@ class ComponentVirtualEnvRuntimeManager(ComponentRuntimeManager):
             worker_id=self.worker_id,
             worker_module=_REMOTE_WORKER_MODULE,
             config=self._runtime_config,
+            venv_label=self._venv_label,
         )
 
         await self._runtime.establish()

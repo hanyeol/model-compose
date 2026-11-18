@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from mindor.dsl.schema.runtime import VirtualEnvRuntimeConfig
 from mindor.dsl.schema.runtime.impl.virtualenv import VirtualEnvDriver
 from mindor.core.foundation.package import mindor as mindor_package
+from mindor.core.foundation.platform_dirs import app_data_dir
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
 from mindor.core.utils.archive import archive_to_directory, skip_python_artifacts
@@ -46,12 +47,14 @@ class LocalVirtualEnvRuntime(CommonRuntime):
         worker_id: str,
         worker_module: str,
         config: VirtualEnvRuntimeConfig,
+        venv_label: str,
         verbose: bool = False,
     ):
         super().__init__(config, verbose)
 
         self.worker_id = worker_id
         self.worker_module = worker_module
+        self.venv_label = venv_label
 
         self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
 
@@ -247,7 +250,7 @@ class LocalVirtualEnvRuntime(CommonRuntime):
         if self.config.path:
             return (Path.cwd() / self.config.path).resolve()
 
-        return (Path.cwd() / ".runtime" / "components" / self.worker_id / "venv").resolve()
+        return Path(app_data_dir("venvs", self.venv_label)).resolve()
 
     def _build_venv_environment(self, overrides: Optional[Dict[str, str]]) -> Dict[str, str]:
         env = { key: value for key, value in os.environ.items() if key not in _EXCLUDED_HOST_ENV_VARS }

@@ -48,12 +48,14 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         worker_id: str,
         worker_module: str,
         config: VirtualEnvRuntimeConfig,
+        venv_label: str,
         verbose: bool = False,
     ):
         super().__init__(config, verbose)
 
         self.worker_id = worker_id
         self.worker_module = worker_module
+        self.venv_label = venv_label
 
         self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
 
@@ -113,6 +115,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
             await asyncio.wait_for(self._await_lock_ready(channel), timeout=timeout)
         except Exception:
             channel.close()
+
             raise
 
         try:
@@ -267,8 +270,11 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
     async def _resolve_venv_path(self) -> str:
         """Resolve the remote-side venv directory, mirroring the local
-        default (``{cwd}/.runtime/components/{worker_id}/venv``) but anchored
-        at the SSH transport's ``working_dir``.
+        default (``<xdg_data_home>/mindor/venvs/<venv_label>``) on the
+        remote host — the remote's own ``$XDG_DATA_HOME`` / ``~/.local/share``
+        is used, not the host's. The default path is computed by invoking
+        ``platform_dirs.app_data_dir`` on the remote so the formatting
+        rule stays single-sourced across local and remote runtimes.
 
         ``config.path`` is resolved on the remote via the transport so
         ``~``, ``..``, and symlinks all canonicalize against the real
@@ -276,10 +282,7 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
         absolute at this point) before resolution so the venv lands next
         to the project regardless of the login shell's cwd. Pre-resolving
         is required because downstream ``shlex.quote`` would otherwise send
-        ``'~/foo'`` through literally and have bash create a ``~`` directory.
-
-        Uses the remote shell's path join so forward/backslash follows the
-        remote filesystem's convention."""
+        ``'~/foo'`` through literally and have bash create a ``~`` directory."""
         working_dir = self._transport.working_dir or "."
 
         if self.config.path:
@@ -290,7 +293,12 @@ class RemoteVirtualEnvRuntime(CommonRuntime):
 
             return await self._transport.resolve_remote_path(path)
 
-        return self._shell.join_path(working_dir, ".runtime", "components", self.worker_id, "venv")
+        return (await self._transport.evaluate_python_expression(
+            self._executable,
+            f"__import__('mindor.core.foundation.platform_dirs', fromlist=['app_data_dir'])"
+            f".app_data_dir('venvs', {self.venv_label!r})",
+            working_dir=working_dir,
+        )).strip()
 
     async def _mindor_requirements_path(self) -> str:
         """``{mindor_source}/core/runtime/bootstrap/requirements.txt`` with

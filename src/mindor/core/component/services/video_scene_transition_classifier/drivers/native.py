@@ -41,7 +41,7 @@ _STREAM_END = object()
 
 class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        analysis_width             = await context.render_scalar(self.config.analysis_width, int)
+        downsample_width             = await context.render_scalar(self.config.downsample_width, int)
         window_size                = await context.render_scalar(self.config.window_size, int)
         cut_mad_threshold          = await context.render_scalar(self.config.cut_mad_threshold, float)
         dissolve_blend_threshold   = await context.render_scalar(self.config.dissolve_blend_threshold, float)
@@ -58,8 +58,8 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         jump_min_matching_blocks   = await context.render_scalar(self.config.jump_min_matching_blocks, int)
         jump_min_match_ratio       = await context.render_scalar(self.config.jump_min_match_ratio, float)
 
-        if not 16 <= analysis_width <= 4096:
-            raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
+        if not 16 <= downsample_width <= 4096:
+            raise ValueError(f"'downsample_width' must be between 16 and 4096, got {downsample_width}")
 
         if not 1 <= window_size <= 64:
             raise ValueError(f"'window_size' must be between 1 and 64, got {window_size}")
@@ -107,7 +107,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
             raise ValueError(f"'jump_min_match_ratio' must be in (0.0, 1.0], got {jump_min_match_ratio}")
 
         return {
-            "analysis_width":             analysis_width,
+            "downsample_width":             downsample_width,
             "window_size":                window_size,
             "cut_mad_threshold":          cut_mad_threshold,
             "dissolve_blend_threshold":   dissolve_blend_threshold,
@@ -270,7 +270,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
                         frame_index, frame = item
                         max_seen_frame_index = frame_index
-                        luma = self._luma_thumbnail(frame, params["analysis_width"])
+                        luma = self._luma_thumbnail(frame, params["downsample_width"])
 
                         # Route the new luma into every pending boundary whose
                         # window covers this index. Multiple boundaries can
@@ -347,7 +347,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         the dict.
 
         `min_luma` reports the level a fade passes through: the mean luma of
-        the window's flat frames (nearly a single colour) when any exist,
+        the window's flat frames (nearly a single color) when any exist,
         otherwise the plain window minimum. When flat frames are present, the
         endpoint standard deviations must clear `_ENDPOINT_MIN_STD`; a clip
         that is uniformly dim throughout fails this gate and `min_luma` is
@@ -390,7 +390,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         else:
             brightness_slope = 0.0
 
-        # Fade passes through a flat (nearly single-colour) frame. When the
+        # Fade passes through a flat (nearly single-color) frame. When the
         # window has any such frame AND the two endpoints are real pictures,
         # report `min_luma` / `max_luma` as the mean luma of the flat frames
         # so the fade branch can test fade-through-black (small min_luma) or
@@ -410,7 +410,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         # Looser gate than `endpoints_are_pictures` — only one endpoint has
         # to be a real picture. Fade_in / fade_out keep one shot and one
-        # flat colour by definition, so a two-sided picture requirement
+        # flat color by definition, so a two-sided picture requirement
         # would reject them; this one-sided gate still rejects all-flat
         # clips (a bright burst between two grey shots would otherwise
         # flip the fade-through-white branch).
@@ -573,7 +573,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
     def _same_structure(self, before: Any, after: Any, params: Dict[str, Any]) -> bool:
         """Block-wise brightness-normalized correlation check — True when
         the two frames show the same scene under different light (lamp
-        switched on, exposure ramp, colour flash). Separates a jump (same
+        switched on, exposure ramp, color flash). Separates a jump (same
         shot, lighting change) from a cut (different shot). Flat blocks
         have no detail to line up and are skipped; the boundary is treated
         as same-structure only when enough detailed blocks match."""
@@ -664,7 +664,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
     def _frame_gradient(self, frame: Any) -> Tuple[float, float]:
         """Mean absolute per-axis gradient of a luma thumbnail. The pair
         (horizontal, vertical) measures horizontal and vertical detail; a
-        sharp picture has both >> 0, a defocused frame or a flat colour has
+        sharp picture has both >> 0, a defocused frame or a flat color has
         both ~ 0."""
         import numpy as np
 
@@ -867,7 +867,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
     def _decide_label(self, signals: Dict[str, Any], params: Dict[str, Any]) -> Tuple[str, float]:
         """Rule chain over the measured signals: fade and flash gate first
         (both require specific luma shapes a cut cannot forge), then a cut
-        fast-path intercepts constant-colour cuts that would otherwise fool
+        fast-path intercepts constant-color cuts that would otherwise fool
         `_edge_fit` into a perfect straight-edge fit. Wipe/slide, blur,
         dissolve, and the pair-MAD fallback follow. Each cut gate consults
         `has_same_structure` to redirect same-shot lighting changes to the
@@ -875,7 +875,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         of the gates fire (often false-positive scene boundaries from frame
         interpolation).
         Fade uses a one-sided picture gate (`has_picture_endpoint`) so
-        fade_in / fade_out carrying exactly one shot and one flat colour
+        fade_in / fade_out carrying exactly one shot and one flat color
         still fire (a two-sided picture requirement would reject them).
         """
         min_luma             = signals["min_luma"]
@@ -886,13 +886,13 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         has_picture_endpoint = signals["has_picture_endpoint"]
         has_same_structure   = signals["has_same_structure"]
 
-        # A fade passes through a flat (nearly single-colour) frame; `min_luma`
+        # A fade passes through a flat (nearly single-color) frame; `min_luma`
         # (reinterpreted in _measure_signals) and `max_luma` identify whether
         # that flat frame is near-black or near-white. The slope direction
         # alone does not tell fade-in from fade-out — black and white fades
         # reverse its meaning (`black → picture` and `white → picture` are
         # both fade-ins, with opposite slope signs). We orient by whether
-        # the slope points away from the flat colour (fade-in: picture
+        # the slope points away from the flat color (fade-in: picture
         # emerging from the flat frame) or towards it (fade-out). The
         # one-sided picture gate rejects all-flat clips so a bright burst
         # between two grey shots cannot flip the fade-through-white branch.
@@ -924,7 +924,7 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         region_pure      = signals["region_pure"]
         region_direction = signals["region_direction"]
 
-        # Cut fast-path: a constant-colour cut whose `_edge_fit` fits
+        # Cut fast-path: a constant-color cut whose `_edge_fit` fits
         # trivially would be swept into the wipe/slide branches without
         # this guard. Fire it when the pair-MAD spike is accompanied by
         # the absence of a rising blend (step-shaped alpha fails the
@@ -979,8 +979,8 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
 
         return "unknown", 0.0
 
-    def _luma_thumbnail(self, frame: "PILImage.Image", analysis_width: int):
-        """Resample a frame to `analysis_width` on the long axis and return BT.601 luma as float32."""
+    def _luma_thumbnail(self, frame: "PILImage.Image", downsample_width: int):
+        """Resample a frame to `downsample_width` on the long axis and return BT.601 luma as float32."""
         import numpy as np
 
         width, height = frame.size
@@ -988,9 +988,9 @@ class NativeVideoSceneTransitionClassifierAction(VideoSceneTransitionClassifierA
         if width == 0 or height == 0:
             return np.zeros((1, 1), dtype=np.float32)
 
-        if width > analysis_width:
-            scale = analysis_width / width
-            new_size = (analysis_width, max(1, int(round(height * scale))))
+        if width > downsample_width:
+            scale = downsample_width / width
+            new_size = (downsample_width, max(1, int(round(height * scale))))
             frame = frame.resize(new_size)
 
         return np.asarray(frame.convert("L"), dtype=np.float32)

@@ -8,7 +8,7 @@ class OpenCvVideoMotionEstimatorMode(VideoMotionEstimatorMode):
 
 class RigidVideoMotionEstimatorActionConfig(CommonVideoMotionEstimatorActionConfig):
     mode: Literal[OpenCvVideoMotionEstimatorMode.RIGID]
-    analysis_width: Union[int, str] = Field(default=320, description="Width in pixels the frames are resampled to before tracking features (64-4096).")
+    downsample_width: Union[int, str] = Field(default=320, description="Width in pixels the frames are resampled to before tracking features (64-4096).")
     max_features: Union[int, str] = Field(default=200, description="Maximum number of feature points tracked per frame pair (16-2000).")
     feature_quality: Union[float, str] = Field(default=0.01, description="Minimum quality level passed to goodFeaturesToTrack (0.0-1.0).")
     feature_min_distance: Union[float, str] = Field(default=8.0, description="Minimum pixel distance between feature points at analysis resolution.")
@@ -17,7 +17,7 @@ class RigidVideoMotionEstimatorActionConfig(CommonVideoMotionEstimatorActionConf
 
 class KenburnsVideoMotionEstimatorActionConfig(CommonVideoMotionEstimatorActionConfig):
     mode: Literal[OpenCvVideoMotionEstimatorMode.KENBURNS]
-    analysis_width: Union[int, str] = Field(default=320, description="Width in pixels the frames are resampled to before tracking features (64-4096).")
+    downsample_width: Union[int, str] = Field(default=320, description="Width in pixels the frames are resampled to before tracking features (64-4096).")
     max_features: Union[int, str] = Field(default=200, description="Maximum number of feature points tracked per frame pair (16-2000).")
     feature_quality: Union[float, str] = Field(default=0.01, description="Minimum quality level passed to goodFeaturesToTrack (0.0-1.0).")
     feature_min_distance: Union[float, str] = Field(default=8.0, description="Minimum pixel distance between feature points at analysis resolution.")

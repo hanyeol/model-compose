@@ -47,7 +47,7 @@ class PaletteImageAnalyzerActionConfig(CommonImageAnalyzerActionConfig):
     metric: Literal[NativeImageAnalyzerMetric.PALETTE]
     bits_per_channel: Union[int, str] = Field(default=4, description="Bits retained per RGB channel when quantizing the image for palette counting (1-8).")
     coverage: Union[float, str] = Field(default=0.95, description="Fraction of pixels the counted palette must cover (0.0-1.0); the reported count is the smallest palette reaching this coverage.")
-    top_k: Union[int, str] = Field(default=8, description="Number of dominant colours returned in order of pixel share.")
+    top_k: Union[int, str] = Field(default=8, description="Number of dominant colors returned in order of pixel share.")
 
 class ColorVarietyImageAnalyzerActionConfig(CommonImageAnalyzerActionConfig):
     metric: Literal[NativeImageAnalyzerMetric.COLOR_VARIETY]

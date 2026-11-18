@@ -34,6 +34,7 @@ ComponentConfig = Annotated[
         WebBrowserComponentConfig,
         HtmlFrameRendererComponentConfig,
         VideoSceneDetectorComponentConfig,
+        VideoGradualSceneDetectorComponentConfig,
         VideoSceneTransitionClassifierComponentConfig,
         VideoClipperComponentConfig,
         VideoConverterComponentConfig,

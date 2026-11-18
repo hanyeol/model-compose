@@ -32,6 +32,7 @@ class ComponentType(str, Enum):
     WEB_BROWSER                       = "web-browser"
     HTML_FRAME_RENDERER               = "html-frame-renderer"
     VIDEO_SCENE_DETECTOR              = "video-scene-detector"
+    VIDEO_GRADUAL_SCENE_DETECTOR      = "video-gradual-scene-detector"
     VIDEO_SCENE_TRANSITION_CLASSIFIER = "video-scene-transition-classifier"
     VIDEO_CLIPPER                     = "video-clipper"
     VIDEO_CONVERTER                   = "video-converter"

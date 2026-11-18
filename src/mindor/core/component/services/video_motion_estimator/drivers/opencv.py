@@ -17,15 +17,15 @@ if TYPE_CHECKING:
 class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
     async def _resolve_params(self, mode: OpenCvVideoMotionEstimatorMode, context: ComponentActionContext) -> Dict[str, Any]:
         if mode == OpenCvVideoMotionEstimatorMode.RIGID:
-            analysis_width       = await context.render_scalar(self.config.analysis_width, int)
+            downsample_width     = await context.render_scalar(self.config.downsample_width, int)
             max_features         = await context.render_scalar(self.config.max_features, int)
             feature_quality      = await context.render_scalar(self.config.feature_quality, float)
             feature_min_distance = await context.render_scalar(self.config.feature_min_distance, float)
             ransac_threshold     = await context.render_scalar(self.config.ransac_threshold, float)
             min_inliers          = await context.render_scalar(self.config.min_inliers, int)
 
-            if not 64 <= analysis_width <= 4096:
-                raise ValueError(f"'analysis_width' must be between 64 and 4096, got {analysis_width}")
+            if not 64 <= downsample_width <= 4096:
+                raise ValueError(f"'downsample_width' must be between 64 and 4096, got {downsample_width}")
 
             if not 16 <= max_features <= 2000:
                 raise ValueError(f"'max_features' must be between 16 and 2000, got {max_features}")
@@ -43,7 +43,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
                 raise ValueError(f"'min_inliers' must be between 4 and 1000, got {min_inliers}")
 
             return {
-                "analysis_width":       analysis_width,
+                "downsample_width":       downsample_width,
                 "max_features":         max_features,
                 "feature_quality":      feature_quality,
                 "feature_min_distance": feature_min_distance,
@@ -52,7 +52,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             }
 
         if mode == OpenCvVideoMotionEstimatorMode.KENBURNS:
-            analysis_width       = await context.render_scalar(self.config.analysis_width, int)
+            downsample_width       = await context.render_scalar(self.config.downsample_width, int)
             max_features         = await context.render_scalar(self.config.max_features, int)
             feature_quality      = await context.render_scalar(self.config.feature_quality, float)
             feature_min_distance = await context.render_scalar(self.config.feature_min_distance, float)
@@ -60,8 +60,8 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             stillness_threshold  = await context.render_scalar(self.config.stillness_threshold, float)
             rigid_inlier_floor   = await context.render_scalar(self.config.rigid_inlier_floor, float)
 
-            if not 64 <= analysis_width <= 4096:
-                raise ValueError(f"'analysis_width' must be between 64 and 4096, got {analysis_width}")
+            if not 64 <= downsample_width <= 4096:
+                raise ValueError(f"'downsample_width' must be between 64 and 4096, got {downsample_width}")
 
             if not 16 <= max_features <= 2000:
                 raise ValueError(f"'max_features' must be between 16 and 2000, got {max_features}")
@@ -82,7 +82,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
                 raise ValueError(f"'rigid_inlier_floor' must be between 0.0 and 1.0, got {rigid_inlier_floor}")
 
             return {
-                "analysis_width":       analysis_width,
+                "downsample_width":       downsample_width,
                 "max_features":         max_features,
                 "feature_quality":      feature_quality,
                 "feature_min_distance": feature_min_distance,
@@ -138,7 +138,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             previous_source_scale = 1.0
 
             for frame in frames:
-                luma, source_scale = self._luma_thumbnail(frame, params["analysis_width"])
+                luma, source_scale = self._luma_thumbnail(frame, params["downsample_width"])
 
                 if previous_luma is not None:
                     # LK needs a consistent analysis resolution; if resolutions
@@ -183,7 +183,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
                     "pair_count":         0,
                     "frame_count":        len(frames),
                     "frame_rate":         frame_rate,
-                    "analysis_width":     params["analysis_width"],
+                    "downsample_width":     params["downsample_width"],
                     "min_inliers":        params["min_inliers"],
                 }
 
@@ -220,7 +220,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
                 "valid_pair_count":   valid_count,
                 "frame_count":        len(frames),
                 "frame_rate":         frame_rate,
-                "analysis_width":     params["analysis_width"],
+                "downsample_width":     params["downsample_width"],
                 "min_inliers":        params["min_inliers"],
             }
 
@@ -252,7 +252,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
             previous_luma = None
 
             for frame in frames:
-                luma, _ = self._luma_thumbnail(frame, params["analysis_width"])
+                luma, _ = self._luma_thumbnail(frame, params["downsample_width"])
 
                 if previous_luma is not None:
                     if luma.shape != previous_luma.shape:
@@ -282,7 +282,7 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
                     "pair_count":          0,
                     "frame_count":         len(frames),
                     "frame_rate":          frame_rate,
-                    "analysis_width":      params["analysis_width"],
+                    "downsample_width":      params["downsample_width"],
                     "stillness_threshold": params["stillness_threshold"],
                     "rigid_inlier_floor":  params["rigid_inlier_floor"],
                 }
@@ -302,14 +302,14 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
                 "pair_count":          pair_count,
                 "frame_count":         len(frames),
                 "frame_rate":          frame_rate,
-                "analysis_width":      params["analysis_width"],
+                "downsample_width":      params["downsample_width"],
                 "stillness_threshold": params["stillness_threshold"],
                 "rigid_inlier_floor":  params["rigid_inlier_floor"],
             }
 
         return await self._run_in_executor(_estimate_kenburns)
 
-    def _luma_thumbnail(self, frame: "PILImage.Image", analysis_width: int) -> Tuple[Any, float]:
+    def _luma_thumbnail(self, frame: "PILImage.Image", downsample_width: int) -> Tuple[Any, float]:
         """PIL frame -> (BT.601 luma uint8 thumbnail, source_scale_factor).
 
         Returns the scale factor used to convert translations measured at the
@@ -326,11 +326,11 @@ class OpenCvVideoMotionEstimatorAction(VideoMotionEstimatorAction):
         if width == 0 or height == 0:
             return np.zeros((1, 1), dtype=np.uint8), 1.0
 
-        if width > analysis_width:
-            height = max(1, int(round(height * analysis_width / width)))
-            luma = cv2.resize(luma, (analysis_width, height), interpolation=cv2.INTER_AREA)
+        if width > downsample_width:
+            height = max(1, int(round(height * downsample_width / width)))
+            luma = cv2.resize(luma, (downsample_width, height), interpolation=cv2.INTER_AREA)
 
-            return luma, width / analysis_width
+            return luma, width / downsample_width
 
         return luma, 1.0
 

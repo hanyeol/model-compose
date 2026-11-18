@@ -127,7 +127,7 @@ class FFmpegVideoProcessorAction(VideoProcessorAction):
 
         # Our schema follows image_processor's counter-clockwise degrees
         # convention. Multiples of 90° are handled by `transpose`/`hflip`
-        # rather than `rotate` — no resampling, no fill colour, and the
+        # rather than `rotate` — no resampling, no fill color, and the
         # dimensions are exact (swapped for 90/270). Everything else falls
         # through to the generic `rotate` path below.
         right_angle_filters = self._right_angle_rotate_filter(angle)

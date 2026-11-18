@@ -16,39 +16,39 @@ if TYPE_CHECKING:
 class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
     async def _resolve_params(self, metric: NativeVideoFrameAnalyzerMetric, context: ComponentActionContext) -> Dict[str, Any]:
         if metric == NativeVideoFrameAnalyzerMetric.TEMPORAL_NOISE:
-            analysis_width = await context.render_scalar(self.config.analysis_width, int)
+            downsample_width = await context.render_scalar(self.config.downsample_width, int)
 
-            if not 16 <= analysis_width <= 4096:
-                raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
+            if not 16 <= downsample_width <= 4096:
+                raise ValueError(f"'downsample_width' must be between 16 and 4096, got {downsample_width}")
 
             return {
-                "analysis_width": analysis_width,
+                "downsample_width": downsample_width,
             }
 
         if metric == NativeVideoFrameAnalyzerMetric.PAIR_DIFFERENCE:
-            analysis_width  = await context.render_scalar(self.config.analysis_width, int)
+            downsample_width  = await context.render_scalar(self.config.downsample_width, int)
             move_threshold  = await context.render_scalar(self.config.move_threshold, float)
 
-            if not 16 <= analysis_width <= 4096:
-                raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
+            if not 16 <= downsample_width <= 4096:
+                raise ValueError(f"'downsample_width' must be between 16 and 4096, got {downsample_width}")
 
             if move_threshold < 0.0:
                 raise ValueError(f"'move_threshold' must be non-negative, got {move_threshold}")
 
             return {
-                "analysis_width": analysis_width,
+                "downsample_width": downsample_width,
                 "move_threshold": move_threshold,
             }
 
         if metric == NativeVideoFrameAnalyzerMetric.ZERO_PIXEL_RATIO:
-            analysis_width = await context.render_scalar(self.config.analysis_width, int)
+            downsample_width = await context.render_scalar(self.config.downsample_width, int)
             exact_match    = await context.render_scalar(self.config.exact_match, bool)
 
-            if not 16 <= analysis_width <= 4096:
-                raise ValueError(f"'analysis_width' must be between 16 and 4096, got {analysis_width}")
+            if not 16 <= downsample_width <= 4096:
+                raise ValueError(f"'downsample_width' must be between 16 and 4096, got {downsample_width}")
 
             return {
-                "analysis_width": analysis_width,
+                "downsample_width": downsample_width,
                 "exact_match":    exact_match,
             }
 
@@ -92,7 +92,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             pair_stds: List[float] = []
             previous_luma = None
             for frame in collected:
-                luma = self._luma_thumbnail(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["downsample_width"])
 
                 if previous_luma is not None:
                     pair_stds.append(float((luma - previous_luma).std()))
@@ -106,7 +106,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
                 "pair_count":     pair_count,
                 "frame_count":    len(collected),
                 "frame_rate":     frame_rate,
-                "analysis_width": params["analysis_width"],
+                "downsample_width": params["downsample_width"],
             }
 
         return await self._run_in_executor(_analyze_temporal_noise)
@@ -127,7 +127,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             previous_luma = None
 
             for frame in collected:
-                luma = self._luma_thumbnail(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["downsample_width"])
 
                 if previous_luma is not None:
                     pair_mads.append(float(np.abs(luma - previous_luma).mean()))
@@ -147,13 +147,13 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
                     "move_threshold":    params["move_threshold"],
                     "frame_count":       len(collected),
                     "frame_rate":        frame_rate,
-                    "analysis_width":    params["analysis_width"],
+                    "downsample_width":    params["downsample_width"],
                 }
 
             pair_mads = np.asarray(pair_mads, dtype=np.float32)
 
-            first_luma = self._luma_thumbnail(collected[0], params["analysis_width"])
-            last_luma  = self._luma_thumbnail(collected[-1], params["analysis_width"])
+            first_luma = self._luma_thumbnail(collected[0], params["downsample_width"])
+            last_luma  = self._luma_thumbnail(collected[-1], params["downsample_width"])
             start_end_mad = float(np.abs(first_luma - last_luma).mean())
 
             return {
@@ -166,7 +166,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
                 "move_threshold":    params["move_threshold"],
                 "frame_count":       len(collected),
                 "frame_rate":        frame_rate,
-                "analysis_width":    params["analysis_width"],
+                "downsample_width":    params["downsample_width"],
             }
 
         return await self._run_in_executor(_analyze_pair_difference)
@@ -190,7 +190,7 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
             previous_luma = None
 
             for frame in collected:
-                luma = self._luma_thumbnail(frame, params["analysis_width"])
+                luma = self._luma_thumbnail(frame, params["downsample_width"])
 
                 if previous_luma is not None:
                     if params["exact_match"]:
@@ -210,13 +210,13 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
                 "frame_count":           len(collected),
                 "exact_match":           params["exact_match"],
                 "frame_rate":            frame_rate,
-                "analysis_width":        params["analysis_width"],
+                "downsample_width":        params["downsample_width"],
             }
 
         return await self._run_in_executor(_analyze_zero_pixel_ratio)
 
-    def _luma_thumbnail(self, frame: PILImage.Image, analysis_width: int):
-        """Resample a frame to `analysis_width` on the long axis and return BT.601 luma
+    def _luma_thumbnail(self, frame: PILImage.Image, downsample_width: int):
+        """Resample a frame to `downsample_width` on the long axis and return BT.601 luma
         as float32."""
         import numpy as np
 
@@ -225,8 +225,8 @@ class NativeVideoFrameAnalyzerAction(VideoFrameAnalyzerAction):
         if width == 0 or height == 0:
             return np.zeros((1, 1), dtype=np.float32)
 
-        if width > analysis_width:
-            frame = frame.resize((analysis_width, max(1, int(round(height * analysis_width / width)))))
+        if width > downsample_width:
+            frame = frame.resize((downsample_width, max(1, int(round(height * downsample_width / width)))))
 
         return np.asarray(frame.convert("L"), dtype=np.float32)
 

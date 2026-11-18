@@ -40,8 +40,11 @@ def app_data_dir(*subpaths: str) -> str:
 
     if base_dir is None:
         if os.name == "nt":
-            base_dir = os.environ.get("LOCALAPPDATA") or os.path.expanduser(r"~\AppData\Local")
+            local_app_data = os.environ.get("LOCALAPPDATA") or os.path.expanduser(r"~\AppData\Local")
+            base_dir = os.path.join(local_app_data, _APP_NAMESPACE)
         else:
-            base_dir = os.path.expanduser("~/.local/share")
+            base_dir = os.path.join(os.path.expanduser("~/.local/share"), _APP_NAMESPACE)
+    else:
+        base_dir = os.path.join(base_dir, _APP_NAMESPACE)
 
-    return os.path.join(base_dir, _APP_NAMESPACE, *subpaths)
+    return os.path.join(base_dir, *subpaths)

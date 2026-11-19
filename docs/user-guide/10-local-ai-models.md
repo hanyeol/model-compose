@@ -1391,9 +1391,14 @@ component:
 
 ### 10.3.20 face-tracking
 
-Tracks faces across a sequence of video frames. Per-frame detections are grouped into identity tracks by cosine similarity on the face embedding, and consecutive hits for the same identity are merged into timecoded segments. Uses InsightFace.
+Tracks faces across a sequence of video frames. Per-frame detections are grouped into identity tracks — by cosine similarity on the face embedding for the `insightface` family, or by the Ultralytics tracker's persistent `track_id` for the `yolo` family — and consecutive hits for the same identity are merged into timecoded segments.
+
+Pick the family by how you need tracks associated:
+- `insightface` — identity embeddings (512-d ArcFace). Correctly re-joins a person after long occlusions / scene cuts / wardrobe changes. Realistic faces only.
+- `yolo` — spatial + motion only (ByteTrack / BoT-SORT). No identity concept, but handles anime and illustrated content InsightFace struggles with, and composes cleanly with detailer workflows that need stable per-frame bounding boxes.
 
 ```yaml
+# InsightFace: identity-aware clustering across occlusions / re-entries
 component:
   type: model
   task: face-tracking
@@ -1412,7 +1417,28 @@ component:
       merge_gap: 1.0
 ```
 
-Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). `return_track_image` attaches one crop per segment; use `return_detection_image` instead to attach a crop to every per-frame detection — only enable the latter when a downstream step classifies each frame independently, since memory then scales with `frames × faces per frame`. See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
+```yaml
+# YOLO: anime-friendly, tracker-assigned ids, smoothed bboxes
+component:
+  type: model
+  task: face-tracking
+  driver: custom
+  family: yolo
+  model:
+    provider: local
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    return_track_image: true
+    params:
+      min_confidence: 0.5
+      min_frame_count: 2
+      merge_gap: 1.0
+      bounding_box_smoothing: 0.5
+      tracker: bytetrack
+```
+
+Accepts a single frame sequence, a list of sequences, or an async stream of frame batches (runs lazily on streamed input without buffering the whole video). `return_track_image` attaches one crop per segment; use `return_detection_image` instead to attach a crop to every per-frame detection — only enable the latter when a downstream step classifies each frame independently, since memory then scales with `frames × faces per frame`. `bounding_box_smoothing` EMA-blends the current bbox with the previous frame's — useful before cropping or compositing on top of the tracked region. See the [Model Component reference](../reference/compose/components/model.md#face-tracking) for the full option list and result shape.
 
 ### 10.3.21 active-speaker-detection
 

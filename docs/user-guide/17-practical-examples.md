@@ -1368,6 +1368,70 @@ components:
 - `pulldown == null` with `dup_ratio < 0.05` → **native 30 fps capture** (phone, camera, screen recording)
 - Pair with `temporal-noise`: near-zero noise + 24→30 pulldown strongly suggests AI-generated content; high noise + 24→30 pulldown suggests cinematic source
 
+### 17.7.6 Gradual Scene Detection (Fades, Dissolves, Wipes)
+
+**Goal**: Catch scene boundaries that hard-cut detectors miss — fades, dissolves, wipes, slides — by scanning the frame sequence for steady-ramp-steady windows and rejecting pans / zooms via optical-flow warping.
+
+**Configuration File**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: Hard-Cut + Gradual Scene Detection
+  description: Find both hard cuts and gradual transitions in one video.
+  input: ${input}
+  output:
+    hard_cuts: ${jobs.cuts.output}
+    gradual:   ${jobs.gradual.output}
+
+  jobs:
+    - id: extract
+      component: extractor
+      input:
+        video: ${input.video as video}
+    - id: cuts
+      component: cut-detector
+      input:
+        video: ${input.video as video}
+    - id: gradual
+      component: gradual-detector
+      input:
+        frames:           ${jobs.extract.output}
+        known_boundaries: ${jobs.cuts.output[*].end_frame}
+
+components:
+  - id: extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_rate: 30     # native rate; downsampling hides short transitions
+
+  - id: cut-detector
+    type: video-scene-detector
+    driver: pyscenedetect
+    action:
+      video: ${input.video}
+
+  - id: gradual-detector
+    type: video-gradual-scene-detector
+    driver: opencv
+    action:
+      frames: ${input.frames}
+      frame_rate: 30
+      known_boundaries: ${input.known_boundaries}
+```
+
+**Reading the result**:
+
+- `hard_cuts`: boundaries where one frame is already the next shot (pyscenedetect)
+- `gradual`: list of `{start_frame, end_frame, boundary_frame, frame_rate}` records for fades / dissolves / wipes / slides
+- `known_boundaries` passes the cut detector's output to the gradual scanner so a fade already picked up as a cut is not double-reported
+
 ---
 
 ## 17.8 Browser Automation

@@ -54,7 +54,7 @@ Per-pair similarity (scale + rotation + translation) fit via `cv2.estimateAffine
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `320` | Width in pixels the frames are resampled to before tracking (64-4096) |
+| `downsample_width` | integer | `320` | Width in pixels the frames are resampled to before tracking (64-4096) |
 | `max_features` | integer | `200` | Maximum number of feature points tracked per frame pair (16-2000) |
 | `feature_quality` | float | `0.01` | `goodFeaturesToTrack` quality level (0.0-1.0) |
 | `feature_min_distance` | float | `8.0` | Minimum pixel distance between features at analysis resolution |
@@ -67,7 +67,7 @@ Per-pair detector that fires when (a) tracked features barely move in scene coor
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `320` | Width in pixels the frames are resampled to before tracking (64-4096) |
+| `downsample_width` | integer | `320` | Width in pixels the frames are resampled to before tracking (64-4096) |
 | `max_features` | integer | `200` | Maximum number of feature points tracked per frame pair (16-2000) |
 | `feature_quality` | float | `0.01` | `goodFeaturesToTrack` quality level (0.0-1.0) |
 | `feature_min_distance` | float | `8.0` | Minimum pixel distance between features at analysis resolution |
@@ -107,7 +107,7 @@ component:
   "valid_pair_count":  115,        # pairs that cleared `min_inliers`
   "frame_count":       120,
   "frame_rate":         30.0,
-  "analysis_width":    320,
+  "downsample_width":    320,
   "min_inliers":        10,
 }
 ```
@@ -125,7 +125,7 @@ Translations are reported in source-resolution pixels (the analysis-width downsc
   "pair_count":           119,
   "frame_count":          120,
   "frame_rate":            30.0,
-  "analysis_width":       320,
+  "downsample_width":       320,
   "stillness_threshold":    0.3,
   "rigid_inlier_floor":     0.85,
 }
@@ -215,8 +215,8 @@ Downstream, apply a per-second zoom of `zoom_per_s` and a per-second translation
 
 1. **Pair with `video-frame-extractor`**: the estimator takes an `ImageArrayValue`; the extractor controls sampling cadence. A denser sampling means smaller per-pair deltas and a more stable aggregate — aim for ≥ 24 pairs per shot.
 2. **Set `frame_rate`**: `zoom_per_s` and `pan_px_per_s` are 0.0 unless `frame_rate` is set — per-pair deltas are unitless without it.
-3. **Keep `analysis_width` ≥ 240**: unlike the analyzer's metric work (which tolerates 96 px), LK + RANSAC need enough texture to find reliable features. 320 px on the long side is the usable floor; 96 px will produce empty inlier sets on smooth content.
+3. **Keep `downsample_width` ≥ 240**: unlike the analyzer's metric work (which tolerates 96 px), LK + RANSAC need enough texture to find reliable features. 320 px on the long side is the usable floor; 96 px will produce empty inlier sets on smooth content.
 4. **`min_inliers` gates aggregation, not reporting**: pairs below `min_inliers` still appear in `rigid_inlier_ratio`/`rigid_residual` but do not contribute to `zoom_per_s`/`pan_px_per_s`. `valid_pair_count` tells you how many pairs cleared the gate.
 5. **`kenburns` is pair-local**: it fires per pair — a long static clip punctuated by one jump cut will dilute `kenburns_score`. For a cleaner read, run the estimator per shot (use `video-scene-detector` first).
 6. **High `rigid_residual` with high `rigid_inlier_ratio`**: the fit is accepting a weak plane. Lower `ransac_threshold` (e.g. `1.5`) to force a tighter fit, at the cost of fewer inliers.
-7. **Translations are in source-resolution pixels**: `analysis_width` is a speed knob, not a unit. `pan_px_per_s` is rescaled internally so it matches the extractor's output resolution — no post-processing needed.
+7. **Translations are in source-resolution pixels**: `downsample_width` is a speed knob, not a unit. `pan_px_per_s` is rescaled internally so it matches the extractor's output resolution — no post-processing needed.

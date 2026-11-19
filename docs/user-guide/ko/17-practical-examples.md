@@ -1368,6 +1368,70 @@ components:
 - `pulldown == null` + `dup_ratio < 0.05` → **네이티브 30 fps 촬영** (폰, 카메라, 화면 녹화)
 - `temporal-noise`와 조합: 노이즈 ~0 + 24→30 pulldown은 AI 생성 콘텐츠 강력 시사. 노이즈 높음 + 24→30 pulldown은 영화 소스 시사.
 
+### 17.7.6 점진적 장면 전환 감지 (페이드, 디졸브, 와이프)
+
+**목표**: 하드 컷 디텍터가 못 보는 경계 — 페이드, 디졸브, 와이프, 슬라이드 — 를 프레임 시퀀스에서 steady→ramp→steady 윈도우로 스캔하고, 옵티컬 플로우 와핑으로 팬/줌은 제외.
+
+**설정 파일**:
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: 하드 컷 + 점진적 장면 전환 감지
+  description: 한 비디오에서 하드 컷과 점진적 전환을 모두 찾는다.
+  input: ${input}
+  output:
+    hard_cuts: ${jobs.cuts.output}
+    gradual:   ${jobs.gradual.output}
+
+  jobs:
+    - id: extract
+      component: extractor
+      input:
+        video: ${input.video as video}
+    - id: cuts
+      component: cut-detector
+      input:
+        video: ${input.video as video}
+    - id: gradual
+      component: gradual-detector
+      input:
+        frames:           ${jobs.extract.output}
+        known_boundaries: ${jobs.cuts.output[*].end_frame}
+
+components:
+  - id: extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_rate: 30     # 네이티브 레이트. 다운샘플하면 짧은 전환은 사라진다.
+
+  - id: cut-detector
+    type: video-scene-detector
+    driver: pyscenedetect
+    action:
+      video: ${input.video}
+
+  - id: gradual-detector
+    type: video-gradual-scene-detector
+    driver: opencv
+    action:
+      frames: ${input.frames}
+      frame_rate: 30
+      known_boundaries: ${input.known_boundaries}
+```
+
+**해석**:
+
+- `hard_cuts`: 한 프레임에서 바로 다음 샷으로 넘어가는 경계 (pyscenedetect)
+- `gradual`: 페이드 / 디졸브 / 와이프 / 슬라이드에 대한 `{start_frame, end_frame, boundary_frame, frame_rate}` 레코드 리스트
+- `known_boundaries`로 cut 디텍터 결과를 gradual 스캐너에 넘겨, cut으로 이미 잡힌 페이드가 중복 보고되지 않도록 함
+
 ---
 
 ## 17.8 브라우저 자동화

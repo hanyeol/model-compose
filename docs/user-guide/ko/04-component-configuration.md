@@ -40,6 +40,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 | `image-compressor` | 이미지 압축 | Pillow, oxipng, pngquant를 통한 PNG 압축 |
 | `image-analyzer` | 이미지 속성 측정 | Pillow + numpy로 루마 통계(밝기, 대비, 노출, 어둠), 질감/구조(선명도, 노이즈, 평탄 영역), 색상(팔레트, 색상 다양성) 측정. OpenCV로 그래디언트, 엣지 구조, 다중 스케일 질감, 조명/잉크 구조 측정 |
 | `video-scene-detector` | 비디오 장면 감지 | PySceneDetect, FFmpeg, TransNetV2를 사용한 장면 전환 감지 |
+| `video-gradual-scene-detector` | 점진적 장면 전환 감지 | 하드 컷 디텍터가 못 보는 페이드 / 디졸브 / 와이프 / 슬라이드를 프레임 시퀀스에서 스캔; Farneback 옵티컬 플로우 게이팅으로 한 테이크 안의 팬·줌 제외 (OpenCV) |
 | `video-converter` | 비디오 변환 | 비디오 트랜스코딩/포맷 변환 (컨테이너, 코덱, 해상도 등) |
 | `video-encoder` | 비디오 인코딩 | PIL 프레임을 비디오로 인코딩하거나 기존 비디오를 재인코딩, 선택적 오디오 트랙 결합 (ffmpeg) |
 | `video-frame-extractor` | 비디오 프레임 추출 | 비디오를 PIL 이미지 프레임으로 디코딩하며 샘플링과 시간 범위 지원 |
@@ -94,6 +95,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 - 이미지 압축 (PNG) → `image-compressor`
 - 이미지 분석 (밝기, 대비, 선명도/블러, 노출 클리핑, 어둠, 노이즈, 평탄 영역, 팔레트, 색상 다양성, 그래디언트, 엣지 구조, 다중 스케일 질감, 조명/잉크 구조) → `image-analyzer`
 - 비디오 장면 감지 → `video-scene-detector`
+- 점진적 장면 전환 (하드 컷 디텍터가 못 보는 페이드 / 디졸브 / 와이프 / 슬라이드) → `video-gradual-scene-detector`
 - 비디오 프레임 추출 → `video-frame-extractor`
 - 프레임 시퀀스 분석 (시간 노이즈, 쌍 차이, 제로 픽셀 비율, 움직임 쌍, pulldown 주기, 선명도 진동) → `video-frame-analyzer`
 - 프레임 쌍 운동 추정 (리짓드 zoom/pan 속도, Ken Burns 검출) → `video-motion-estimator`

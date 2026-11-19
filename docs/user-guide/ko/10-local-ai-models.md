@@ -1348,9 +1348,14 @@ component:
 
 ### 10.3.20 face-tracking
 
-비디오 프레임 시퀀스에서 얼굴을 추적합니다. 프레임별 검출 결과를 얼굴 임베딩의 코사인 유사도로 아이덴티티 트랙에 그룹핑하고, 같은 아이덴티티의 연속 히트를 타임코드 세그먼트로 병합합니다. InsightFace를 사용합니다.
+비디오 프레임 시퀀스에서 얼굴을 추적합니다. 프레임별 검출 결과를 아이덴티티 트랙으로 그룹핑하고 — `insightface` 패밀리는 얼굴 임베딩의 코사인 유사도를 사용하고, `yolo` 패밀리는 Ultralytics 트래커의 지속 `track_id`를 사용합니다 — 같은 아이덴티티의 연속 히트를 타임코드 세그먼트로 병합합니다.
+
+트랙 연관(association)을 어떻게 할지에 따라 패밀리를 고르세요:
+- `insightface` — 얼굴 임베딩(512-d ArcFace). 긴 가림 / 장면 전환 / 의상 변화 뒤에도 같은 인물로 재결합합니다. 실사 얼굴 전용.
+- `yolo` — 공간 + 모션만(ByteTrack / BoT-SORT). 아이덴티티 개념은 없지만 InsightFace가 약한 애니메이션·일러스트 얼굴을 잘 처리하고, 프레임마다 안정된 바운딩 박스를 요구하는 detailer 워크플로우와 잘 맞습니다.
 
 ```yaml
+# InsightFace: 가림·재등장을 가로질러 아이덴티티 기반 클러스터링
 component:
   type: model
   task: face-tracking
@@ -1369,7 +1374,28 @@ component:
       merge_gap: 1.0
 ```
 
-단일 프레임 시퀀스, 시퀀스 리스트, 프레임 배치의 async 스트림을 모두 받으며 스트리밍 입력은 전체 비디오를 버퍼링하지 않고 지연 실행됩니다. `return_track_image`는 세그먼트당 크롭 1장을 붙이고, `return_detection_image`는 매 프레임의 각 검출마다 크롭을 붙입니다. 프레임마다 독립적으로 분류하는 다운스트림이 있을 때만 후자를 켜세요 — 메모리는 `프레임 수 × 프레임당 얼굴 수`에 비례합니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#face-tracking)를 참고하세요.
+```yaml
+# YOLO: 애니 친화, 트래커가 id 부여, bbox 스무딩
+component:
+  type: model
+  task: face-tracking
+  driver: custom
+  family: yolo
+  model:
+    provider: local
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    return_track_image: true
+    params:
+      min_confidence: 0.5
+      min_frame_count: 2
+      merge_gap: 1.0
+      bounding_box_smoothing: 0.5
+      tracker: bytetrack
+```
+
+단일 프레임 시퀀스, 시퀀스 리스트, 프레임 배치의 async 스트림을 모두 받으며 스트리밍 입력은 전체 비디오를 버퍼링하지 않고 지연 실행됩니다. `return_track_image`는 세그먼트당 크롭 1장을 붙이고, `return_detection_image`는 매 프레임의 각 검출마다 크롭을 붙입니다. 프레임마다 독립적으로 분류하는 다운스트림이 있을 때만 후자를 켜세요 — 메모리는 `프레임 수 × 프레임당 얼굴 수`에 비례합니다. `bounding_box_smoothing`은 현재 bbox를 이전 프레임 bbox와 EMA 블렌딩합니다 — 추적 영역 위에서 크롭하거나 합성하기 전에 유용합니다. 전체 옵션과 결과 스키마는 [Model Component 레퍼런스](../reference/compose/components/model.md#face-tracking)를 참고하세요.
 
 ### 10.3.21 face-emotion-classification
 

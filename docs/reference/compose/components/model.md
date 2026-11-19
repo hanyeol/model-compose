@@ -1194,8 +1194,8 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `face-detection` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family: `blazeface` or `insightface` |
-| `model` | string/object | family-dependent | Model source. For `blazeface`, a MediaPipe `.tflite` file (auto-downloads BlazeFace short-range to `~/.cache/models/mediapipe/` when omitted). For `insightface`, a HuggingFace-style identifier or a local path to an InsightFace model pack (auto-downloads `antelopev2` to `~/.cache/models/insightface/` when omitted). |
+| `family` | string | **required** | Model family: `blazeface`, `insightface`, or `yolo` |
+| `model` | string/object | family-dependent | Model source. For `blazeface`, a MediaPipe `.tflite` file (auto-downloads BlazeFace short-range to `~/.cache/mindor/models/mediapipe/` when omitted). For `insightface`, a HuggingFace-style identifier or a local path to an InsightFace model pack (auto-downloads `antelopev2` to `~/.cache/mindor/models/insightface/` when omitted). For `yolo`, a HuggingFace-style identifier or a local path to a YOLO face detector checkpoint (auto-downloads `Bingsu/adetailer face_yolov8n.pt` to `~/.cache/mindor/models/yolo/` when omitted). |
 
 **Action Fields:**
 
@@ -1213,6 +1213,15 @@ Detect faces in an image and return bounding boxes (with optional facial landmar
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `params.detection_size` | [int, int] | `[640, 640]` | Detector input size in pixels. Larger sizes improve recall on small faces at the cost of throughput. |
+
+**Family-Specific Fields (`yolo`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.detection_size` | int | `640` | Detector input resolution in pixels; the longer image side is resized to this length. |
+| `params.iou_threshold` | float | `0.45` | IoU threshold used by non-maximum suppression when merging overlapping boxes. |
+
+`return_landmarks` is not supported by the YOLO family — the detector emits bounding boxes only. Set it to `false` or omit it.
 
 **Example — BlazeFace:**
 
@@ -1250,6 +1259,26 @@ component:
       faces: ${result.faces}
 ```
 
+**Example — YOLO:**
+
+```yaml
+component:
+  type: model
+  task: face-detection
+  driver: custom
+  family: yolo
+  model:
+    provider: local
+  action:
+    image: ${input.image as image}
+    params:
+      min_confidence: 0.5
+      detection_size: 640
+      iou_threshold: 0.45
+    output:
+      faces: ${result.faces}
+```
+
 **Result Shape:**
 
 ```json
@@ -1274,10 +1303,11 @@ When the input is a list, the action returns a list of result dicts. When the in
 |--------|---------|-------|
 | `blazeface` | [MediaPipe Tasks (Face Detector)](https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector) (pip) | Lightweight, optimised for close-up frontal faces (webcam / selfie distance). Fast on CPU but misses profile / small / heavily occluded faces at typical video distances. |
 | `insightface` | [deepinsight/insightface](https://github.com/deepinsight/insightface) (pip) | SCRFD detector from an InsightFace model pack (e.g. `antelopev2`). Handles small, profile, and off-frontal faces far better than BlazeFace. Uses `onnxruntime`; prefers CUDA/CoreML/DirectML/ROCm providers when available. |
+| `yolo` | [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) (pip: `ultralytics`) | Any YOLO face checkpoint (e.g. [Bingsu/adetailer](https://huggingface.co/Bingsu/adetailer) `face_yolov8n.pt` / `face_yolov8m.pt`). Trained on both anime and realistic faces, so it handles illustrated content InsightFace struggles with. Bounding boxes only — no landmarks or embedding. |
 
 ### Face Tracking
 
-Track faces across a sequence of video frames. Per-frame detections are grouped into identity tracks by cosine similarity on the face embedding, and consecutive hits for the same identity are merged into timecoded segments. Accepts a single frame sequence, a list of sequences, or an async stream of frame batches; runs the tracker lazily on streamed input without buffering the whole video. This task uses `driver: custom` with a `family` field to select the model family.
+Track faces across a sequence of video frames. Per-frame detections are grouped into identity tracks (by cosine similarity on the face embedding for `insightface`, or by the underlying tracker's persistent `track_id` for `yolo`), and consecutive hits for the same identity are merged into timecoded segments. Accepts a single frame sequence, a list of sequences, or an async stream of frame batches; runs the tracker lazily on streamed input without buffering the whole video. This task uses `driver: custom` with a `family` field to select the model family.
 
 **Component Settings:**
 
@@ -1285,8 +1315,8 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 |-------|------|---------|-------------|
 | `task` | string | **required** | Must be `face-tracking` |
 | `driver` | string | `custom` | Model driver |
-| `family` | string | **required** | Model family (currently `insightface`) |
-| `model` | string/object | **required** | Model pack. For `insightface`, either a HuggingFace-style identifier or a local path to an InsightFace model pack directory (e.g. `antelopev2` layout with `.onnx` files). |
+| `family` | string | **required** | Model family: `insightface` or `yolo` |
+| `model` | string/object | **required** | Model pack. For `insightface`, either a HuggingFace-style identifier or a local path to an InsightFace model pack directory (e.g. `antelopev2` layout with `.onnx` files). For `yolo`, a HuggingFace-style identifier or a local path to a YOLO face detector checkpoint (auto-downloads `Bingsu/adetailer face_yolov8n.pt` to `~/.cache/mindor/models/yolo/` when omitted). |
 
 **Action Fields:**
 
@@ -1306,11 +1336,13 @@ Track faces across a sequence of video frames. Per-frame detections are grouped 
 | `max_detection_count_per_frame` | int | `0` | Maximum number of faces to keep per frame. `0` disables the limit. |
 | `batch_size` | int | `1` | Number of frame batches per iteration. |
 | `streaming` | bool | `false` | Emit per-frame detections and confirmed track/segment events incrementally as an event stream instead of a single result dict. See [Streaming chunks](#streaming-chunks-face-tracking) below. |
-| `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. |
+| `params.similarity_threshold` | float | `0.4` | Cosine similarity above which two faces are grouped into the same track. `insightface` only. |
 | `params.min_face_size` | int | `0` | Minimum face bounding box size in pixels. `0` disables the filter. |
 | `params.min_frame_count` | int | `1` | Discard tracks that appear in fewer than this many frames. |
 | `params.merge_gap` | float | `0.5` | Extra seconds a person may be undetected before their segment is split; consecutive frames always merge. |
-| `params.max_track_distance` | float | `1.5` | Maximum distance a track may move between consecutive detections, as a multiple of the face size. `0` disables the check. |
+| `params.max_track_distance` | float | `1.5` | Maximum distance a track may move between consecutive detections, as a multiple of the face size. `0` disables the check. `insightface` only. |
+| `params.rejoin_gap` | float | `merge_gap` | Extra seconds a lost track remains a rejoin candidate. `insightface` only. |
+| `params.bounding_box_smoothing` | float | `null` | EMA weight blended with the previous frame's bounding box; `null` or `0.0` disables smoothing. Larger values produce a heavier tail and a slower response to movement (clamped to `[0, 1]`). Useful for suppressing per-frame bbox jitter before downstream steps crop or composite on top of the tracked region. |
 
 At least one of `return_tracks` or `return_detections` must be `true`. `return_track_image` requires `return_tracks: true`; `return_detection_image` and `return_frame_image` require `return_detections: true`.
 
@@ -1322,7 +1354,18 @@ At least one of `return_tracks` or `return_detections` must be `true`. `return_t
 | `params.detection_threshold` | float | `0.5` | Face detection confidence threshold passed to the InsightFace detector (0.0 - 1.0). |
 | `params.detection_size` | [int, int] | `[640, 640]` | Detector input size in pixels. Larger sizes improve recall on small faces at the cost of throughput. |
 
-**Example:**
+**Family-Specific Fields (`yolo`):**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `params.min_confidence` | float | `0.5` | Minimum detection confidence a face must reach (0.0 - 1.0). |
+| `params.detection_size` | int | `640` | Detector input resolution in pixels; the longer image side is resized to this length. |
+| `params.iou_threshold` | float | `0.45` | IoU threshold used by non-maximum suppression when merging overlapping boxes. |
+| `params.tracker` | string | `"bytetrack"` | Underlying Ultralytics tracker used for association. One of `"bytetrack"` or `"botsort"`. |
+
+`return_embedding` is not supported by the YOLO family — YOLO face models emit bounding boxes only. For identity embeddings, pair with a `face-embedding` component (InsightFace / FaceNet / Dlib). `similarity_threshold`, `max_track_distance`, and `rejoin_gap` only affect the InsightFace family's embedding-based clustering; the YOLO family relies on its tracker's own association and ignores them.
+
+**Example — InsightFace:**
 
 ```yaml
 component:
@@ -1344,6 +1387,32 @@ component:
       min_face_size: 40
       min_frame_count: 2
       merge_gap: 1.0
+    output:
+      tracks: ${result.tracks}
+```
+
+**Example — YOLO:**
+
+```yaml
+component:
+  type: model
+  task: face-tracking
+  driver: custom
+  family: yolo
+  model:
+    provider: local
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    time_offset: 0.0
+    return_track_image: true
+    params:
+      min_confidence: 0.5
+      min_face_size: 40
+      min_frame_count: 2
+      merge_gap: 1.0
+      bounding_box_smoothing: 0.5
+      tracker: bytetrack
     output:
       tracks: ${result.tracks}
 ```
@@ -1412,6 +1481,7 @@ Downstream consumers should treat the latest `track` chunk for a given `track_id
 | Family | Backend | Notes |
 |--------|---------|-------|
 | `insightface` | [deepinsight/insightface](https://github.com/deepinsight/insightface) (pip) | Detection + 512-d ArcFace embedding. Requires an InsightFace model pack (e.g. `antelopev2`). Uses `onnxruntime`; prefers CUDA/CoreML/DirectML/ROCm providers when available. |
+| `yolo` | [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) (pip: `ultralytics`, `lap`) | Any YOLO face checkpoint (e.g. [Bingsu/adetailer](https://huggingface.co/Bingsu/adetailer) `face_yolov8n.pt`). Uses Ultralytics' built-in tracker (ByteTrack or BoT-SORT) for id association — spatial/motion only, no identity embedding. Works well on anime and illustrated content InsightFace struggles with. |
 
 ### Active Speaker Detection
 
@@ -1425,7 +1495,7 @@ Decide which on-screen face is actively speaking at each moment. Pairs a video f
 | `driver` | string | `custom` | Model driver |
 | `family` | string | **required** | Model family (currently `light-asd`) |
 | `preset` | string | family-dependent | Checkpoint variant to load. For `light-asd`: `finetuning-talkset` (default) or `pretrain-ava-cvpr`. |
-| `model` | string/object | preset-dependent | Model checkpoint. For `light-asd`, defaults to the preset's checkpoint URL on the upstream GitHub repo (auto-downloads under `~/.cache/models/light_asd/`). Override to point at a local path or HuggingFace mirror. |
+| `model` | string/object | preset-dependent | Model checkpoint. For `light-asd`, defaults to the preset's checkpoint URL on the upstream GitHub repo (auto-downloads under `~/.cache/mindor/models/light_asd/`). Override to point at a local path or HuggingFace mirror. |
 
 **Action Fields:**
 
@@ -1531,7 +1601,7 @@ Classify the facial expression in a face crop and return the top-1 label plus a 
 | `task` | string | **required** | Must be `face-emotion-classification` |
 | `driver` | string | `custom` | Model driver |
 | `family` | string | **required** | Model family (currently `hsemotion`) |
-| `model` | string/object | family-dependent | Model source. For `hsemotion`, a HuggingFace-style identifier or a local path to an ONNX checkpoint (auto-downloads `enet_b0_8_best_afew.onnx` to `~/.cache/models/hsemotion/` when omitted). |
+| `model` | string/object | family-dependent | Model source. For `hsemotion`, a HuggingFace-style identifier or a local path to an ONNX checkpoint (auto-downloads `enet_b0_8_best_afew.onnx` to `~/.cache/mindor/models/hsemotion/` when omitted). |
 
 **Action Fields:**
 
@@ -1848,7 +1918,7 @@ Detect objects in an image and return per-object bounding boxes with class label
 | `task` | string | **required** | Must be `object-detection` |
 | `driver` | string | `custom` | Model driver |
 | `family` | string | **required** | Model family (currently `yolo`) |
-| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads YOLOv11n (`yolo11n.pt`) to `~/.cache/models/ultralytics/`. Any Ultralytics YOLO detection or segmentation checkpoint (`.pt`) is accepted; masks from segmentation checkpoints are ignored. |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads YOLOv11n (`yolo11n.pt`) to `~/.cache/mindor/models/ultralytics/`. Any Ultralytics YOLO detection or segmentation checkpoint (`.pt`) is accepted; masks from segmentation checkpoints are ignored. |
 
 **Action Fields:**
 
@@ -2043,7 +2113,7 @@ Generate per-region binary segmentation masks from an image. Supports **automati
 | `task` | string | **required** | Must be `image-segmentation` |
 | `driver` | string | `custom` | Model driver |
 | `family` | string | **required** | Model family (currently `sam` — Meta's Segment Anything Model via Ultralytics) |
-| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads `sam2_b.pt` to `~/.cache/models/ultralytics/`. Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam_l.pt`, `sam2_t.pt`, `sam2_b.pt`, `sam2_l.pt`, `sam2.1_*.pt`, `mobile_sam.pt`) is accepted |
+| `model` | string | `__default__` | Path or URL of the model checkpoint. `__default__` auto-downloads `sam2_b.pt` to `~/.cache/mindor/models/ultralytics/`. Any Ultralytics SAM checkpoint (`sam_b.pt`, `sam_l.pt`, `sam2_t.pt`, `sam2_b.pt`, `sam2_l.pt`, `sam2.1_*.pt`, `mobile_sam.pt`) is accepted |
 
 **Action Fields:**
 

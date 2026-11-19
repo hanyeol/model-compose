@@ -1,6 +1,6 @@
 # Image Analyzer Component
 
-The image analyzer component measures image properties — luma statistics (brightness, contrast, exposure, darkness), texture/structural detail (sharpness, noise, flat regions), colour (palette, colour variety), gradient structure, edge structure, multi-scale texture, and lit/ink structure — and returns a compact summary. Use it for photo QA, thumbnail scoring, OCR pre-flight checks, archive-scan validation, and pixel-level forensic cues (live action vs rendered / AI / code-drawn content). Every metric is a pure read; the image is never modified.
+The image analyzer component measures image properties — luma statistics (brightness, contrast, exposure, darkness), texture/structural detail (sharpness, noise, flat regions), color (palette, color variety), gradient structure, edge structure, multi-scale texture, and lit/ink structure — and returns a compact summary. Use it for photo QA, thumbnail scoring, OCR pre-flight checks, archive-scan validation, and pixel-level forensic cues (live action vs rendered / AI / code-drawn content). Every metric is a pure read; the image is never modified.
 
 ## Basic Configuration
 
@@ -77,7 +77,7 @@ Immerkær (1996) fast noise estimate. The 3×3 mask annihilates smooth regions a
 
 ### Flat Regions Metric Fields (`metric: flat-regions`)
 
-Fraction of block-sized tiles whose luma standard deviation falls below a threshold. Rendered graphics (flat colour fills) score high; photographic content scores low.
+Fraction of block-sized tiles whose luma standard deviation falls below a threshold. Rendered graphics (flat color fills) score high; photographic content scores low.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -86,17 +86,17 @@ Fraction of block-sized tiles whose luma standard deviation falls below a thresh
 
 ### Palette Metric Fields (`metric: palette`)
 
-Quantizes RGB to a reduced bit depth and counts the smallest palette covering the requested share of pixels. Reports entropy and top-K dominant colours.
+Quantizes RGB to a reduced bit depth and counts the smallest palette covering the requested share of pixels. Reports entropy and top-K dominant colors.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `bits_per_channel` | integer | `4` | Bits retained per RGB channel when quantizing the image for palette counting (1-8) |
 | `coverage` | float | `0.95` | Fraction of pixels the counted palette must cover; the reported count is the smallest palette reaching this coverage |
-| `top_k` | integer | `8` | Number of dominant colours returned in order of pixel share |
+| `top_k` | integer | `8` | Number of dominant colors returned in order of pixel share |
 
 ### Color Variety Metric Fields (`metric: color-variety`)
 
-Counts vivid pixels and distinct hue bands. Captures both saturation diversity (how colourful) and hue diversity (how many different colours).
+Counts vivid pixels and distinct hue bands. Captures both saturation diversity (how colorful) and hue diversity (how many different colors).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -153,7 +153,7 @@ Local-maxima peaks and neighbourhood smoothness for lit pixels (bright on dark) 
 
 ### Native
 
-Uses Pillow to decode and numpy for the numeric work; runs in a thread executor to avoid blocking the event loop. Carries the luma-statistics, texture (sharpness/noise/flat-regions), and colour metrics.
+Uses Pillow to decode and numpy for the numeric work; runs in a thread executor to avoid blocking the event loop. Carries the luma-statistics, texture (sharpness/noise/flat-regions), and color metrics.
 
 ```yaml
 component:
@@ -514,9 +514,9 @@ High `axis_edge_ratio` + high `flat_ratio` + low `noise_sigma` is the UI/code-re
 4. **`exposure` percentages beat absolute counts for gates**: `highlight_clipped_ratio > 0.05` (5%) is a more portable check than raw pixel counts, which scale with resolution.
 5. **`noise` excludes edges by design**: the `edge_quantile` cut keeps strong boundaries out of the sigma estimate. On text-heavy frames the glyph edges still leak noise upward; verify on representative content before setting thresholds.
 6. **`darkness` tells crushed shadows from a rendered dark background**: `dark_std` near zero plus `dark_flat` near 1.0 means a code-drawn dark panel; photographic night scenes keep grain and stay closer to `dark_std` ≈ 3-8, `dark_flat` well below 1.0.
-7. **`palette` is sensitive to `bits_per_channel`**: at 4 bits the palette tops out at 4096 colours, which is often what distinguishes "heavily quantized export" from "natural photo". Lower the bit depth for a coarser summary.
-8. **`color-variety`'s `hue_bands` works best on vivid content**: dim or desaturated frames rarely cross the `vivid_value` / `vivid_saturation` thresholds, so `hue_bands` stays low. Not a flaw — just means the metric is a vivid-colour-diversity probe, not a general palette counter.
-9. **`gradient` + `edge-structure` cover opposite ends of the derivative range**: gentle gradients (0-20) versus edges (≥80 by default). If `grad_share` is high and `edge_density` is low, the image is mostly smooth colour.
+7. **`palette` is sensitive to `bits_per_channel`**: at 4 bits the palette tops out at 4096 colors, which is often what distinguishes "heavily quantized export" from "natural photo". Lower the bit depth for a coarser summary.
+8. **`color-variety`'s `hue_bands` works best on vivid content**: dim or desaturated frames rarely cross the `vivid_value` / `vivid_saturation` thresholds, so `hue_bands` stays low. Not a flaw — just means the metric is a vivid-color-diversity probe, not a general palette counter.
+9. **`gradient` + `edge-structure` cover opposite ends of the derivative range**: gentle gradients (0-20) versus edges (≥80 by default). If `grad_share` is high and `edge_density` is low, the image is mostly smooth color.
 10. **`texture` kernels control scale sensitivity**: `(3, 7, 15)` is a good default. Larger media (above ~2K) benefits from `(5, 11, 23)` or similar. Keep the ratio roughly 1 : 2.3 : 5.
 11. **`lit-structure`'s `lit_peaks` near 1.0 indicates point-cloud / particle / dot-matrix imagery** — the dilation-equals-source test is extremely sensitive to isolated bright pixels. Natural images peak around 0.01-0.05.
 12. **Batch multiple images with `batch_size`**: the batch runs metrics in parallel with `asyncio.gather` — helpful for scanning a library.

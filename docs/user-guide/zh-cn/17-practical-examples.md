@@ -1368,6 +1368,70 @@ components:
 - `pulldown == null` + `dup_ratio < 0.05` → **原生 30 fps 拍摄**（手机、摄像机、屏幕录制）
 - 结合 `temporal-noise`：接近 0 的噪声 + 24→30 pulldown 强烈暗示 AI 生成内容；高噪声 + 24→30 pulldown 暗示电影源。
 
+### 17.7.6 渐变场景过渡检测（淡入淡出、溶解、擦除）
+
+**目标**：通过在帧序列中扫描 steady→ramp→steady 窗口，捕获硬切检测器漏掉的边界——淡入淡出、溶解、擦除、滑动；并用光流 warping 剔除同镜头内的平移/推拉。
+
+**配置文件**：
+
+```yaml
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+
+workflow:
+  title: 硬切 + 渐变场景过渡检测
+  description: 在一个视频中同时找到硬切和渐变过渡。
+  input: ${input}
+  output:
+    hard_cuts: ${jobs.cuts.output}
+    gradual:   ${jobs.gradual.output}
+
+  jobs:
+    - id: extract
+      component: extractor
+      input:
+        video: ${input.video as video}
+    - id: cuts
+      component: cut-detector
+      input:
+        video: ${input.video as video}
+    - id: gradual
+      component: gradual-detector
+      input:
+        frames:           ${jobs.extract.output}
+        known_boundaries: ${jobs.cuts.output[*].end_frame}
+
+components:
+  - id: extractor
+    type: video-frame-extractor
+    driver: ffmpeg
+    action:
+      video: ${input.video}
+      frame_rate: 30     # 原生帧率；降采样会隐藏短过渡
+
+  - id: cut-detector
+    type: video-scene-detector
+    driver: pyscenedetect
+    action:
+      video: ${input.video}
+
+  - id: gradual-detector
+    type: video-gradual-scene-detector
+    driver: opencv
+    action:
+      frames: ${input.frames}
+      frame_rate: 30
+      known_boundaries: ${input.known_boundaries}
+```
+
+**解读**：
+
+- `hard_cuts`：一帧已经是下一个镜头的边界（pyscenedetect）
+- `gradual`：淡入淡出 / 溶解 / 擦除 / 滑动的 `{start_frame, end_frame, boundary_frame, frame_rate}` 记录列表
+- `known_boundaries` 将硬切检测器的输出传给渐变扫描器，避免已被判定为硬切的淡入淡出被重复报告
+
 ---
 
 ## 17.8 浏览器自动化

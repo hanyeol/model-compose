@@ -40,6 +40,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 | `image-compressor` | 压缩图像 | 通过 Pillow、oxipng 或 pngquant 进行 PNG 压缩 |
 | `image-analyzer` | 图像属性测量 | 通过 Pillow + numpy 测量亮度统计（亮度、对比度、曝光、暗度）、纹理/结构（清晰度、噪声、平坦区域）、颜色（调色板、色彩多样性）。通过 OpenCV 测量梯度、边缘结构、多尺度纹理、亮/墨结构 |
 | `video-scene-detector` | 视频场景检测 | 使用 PySceneDetect、FFmpeg、TransNetV2 检测场景变化 |
+| `video-gradual-scene-detector` | 检测渐变场景过渡 | 在帧序列中扫描硬切检测器漏掉的淡入淡出 / 溶解 / 擦除 / 滑动；通过 Farneback 光流门控剔除同一镜头内的平移/推拉（OpenCV） |
 | `video-converter` | 视频转换 | 视频转码/格式转换（容器、编解码器、分辨率等） |
 | `video-encoder` | 视频编码 | 将 PIL 帧编码为视频，或对现有视频进行再编码，支持可选音轨（ffmpeg） |
 | `video-frame-extractor` | 视频帧提取 | 将视频解码为 PIL 图像帧，支持采样和时间范围 |
@@ -94,6 +95,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 - 图像压缩 (PNG) → `image-compressor`
 - 图像分析（亮度、对比度、清晰度/模糊、曝光削波、暗度、噪声、平坦区域、调色板、色彩多样性、梯度、边缘结构、多尺度纹理、亮/墨结构）→ `image-analyzer`
 - 视频场景检测 → `video-scene-detector`
+- 渐变场景过渡（硬切检测器漏掉的淡入淡出 / 溶解 / 擦除 / 滑动） → `video-gradual-scene-detector`
 - 视频帧提取 → `video-frame-extractor`
 - 帧序列分析（时间噪声、帧对差异、零像素比率、运动帧对、pulldown 周期、清晰度振荡）→ `video-frame-analyzer`
 - 帧对运动估计（刚性 zoom/pan 速率、Ken Burns 检测）→ `video-motion-estimator`

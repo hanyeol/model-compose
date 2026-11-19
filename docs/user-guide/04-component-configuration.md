@@ -38,8 +38,9 @@ model-compose provides various component types for performing different tasks.
 | `image-processor` | Process images | Image transformation, resizing, filters, etc. |
 | `image-drawing` | Draw on images | Shapes, text, and bitmaps via Pillow ImageDraw — bounding boxes, labels, keypoints, masks |
 | `image-compressor` | Compress images | PNG compression via Pillow, oxipng, or pngquant |
-| `image-analyzer` | Measure image properties | Luma statistics (brightness, contrast, exposure, darkness), texture/structure (sharpness, noise, flat regions), colour (palette, colour variety) via Pillow + numpy; plus gradient, edge structure, multi-scale texture, and lit/ink structure via OpenCV |
+| `image-analyzer` | Measure image properties | Luma statistics (brightness, contrast, exposure, darkness), texture/structure (sharpness, noise, flat regions), color (palette, color variety) via Pillow + numpy; plus gradient, edge structure, multi-scale texture, and lit/ink structure via OpenCV |
 | `video-scene-detector` | Detect video scenes | Scene change detection with PySceneDetect or FFmpeg (for deep-learning cut detection, use the `shot-boundary-detection` model task) |
+| `video-gradual-scene-detector` | Detect gradual scene transitions | Scan a frame sequence for fades / dissolves / wipes / slides that hard-cut detectors miss, with Farneback optical-flow gating to reject pans and zooms within one take (OpenCV) |
 | `video-converter` | Convert video | Transcode/reformat video (container, codec, resolution, etc.) |
 | `video-encoder` | Encode video | Encode PIL frames into a video, or re-encode existing video, with optional audio track (ffmpeg) |
 | `video-frame-extractor` | Extract video frames | Decode video into PIL frames with sampling and time range support |
@@ -106,8 +107,9 @@ model-compose provides various component types for performing different tasks.
 - Image processing (resize, crop, filters, overlay, mosaic/fill regions) → `image-processor`
 - Image drawing (bounding boxes, labels, keypoints, mask overlays) → `image-drawing`
 - Image compression (PNG) → `image-compressor`
-- Image analysis (brightness, contrast, sharpness/blur, exposure clipping, darkness, noise, flat regions, palette, colour variety, gradient, edge structure, multi-scale texture, lit/ink structure) → `image-analyzer`
+- Image analysis (brightness, contrast, sharpness/blur, exposure clipping, darkness, noise, flat regions, palette, color variety, gradient, edge structure, multi-scale texture, lit/ink structure) → `image-analyzer`
 - Video scene detection → `video-scene-detector`
+- Gradual scene transitions (fades / dissolves / wipes / slides that hard-cut detectors miss) → `video-gradual-scene-detector`
 - Video frame extraction → `video-frame-extractor`
 - Frame-sequence analysis (temporal noise, pair differences, zero-pixel share, moving pairs, pulldown cadence, sharpness oscillation) → `video-frame-analyzer`
 - Frame-pair motion estimation (rigid zoom/pan rates, Ken Burns detection) → `video-motion-estimator`

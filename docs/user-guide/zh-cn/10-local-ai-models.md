@@ -1348,9 +1348,14 @@ component:
 
 ### 10.3.20 face-tracking
 
-在视频帧序列中追踪人脸。逐帧检测结果按人脸嵌入的余弦相似度归入身份轨迹，同一身份的连续命中合并为时间码片段。使用 InsightFace。
+在视频帧序列中追踪人脸。逐帧检测结果归入身份轨迹 — `insightface` 家族按人脸嵌入的余弦相似度归并，`yolo` 家族则沿用 Ultralytics 追踪器的持久 `track_id` — 同一身份的连续命中合并为时间码片段。
+
+根据你需要的轨迹关联方式选择家族：
+- `insightface` — 人脸嵌入（512-d ArcFace）。能跨越长时间遮挡 / 场景切换 / 衣着变化重新关联同一人。仅限写实人脸。
+- `yolo` — 仅使用空间 + 运动（ByteTrack / BoT-SORT）。没有身份概念，但能稳定处理 InsightFace 难以应对的动漫 / 插画内容，并且与需要稳定逐帧包围盒的 detailer 工作流配合良好。
 
 ```yaml
+# InsightFace: 跨越遮挡 / 重现的身份感知聚类
 component:
   type: model
   task: face-tracking
@@ -1369,7 +1374,28 @@ component:
       merge_gap: 1.0
 ```
 
-接受单个帧序列、序列列表或帧批次的 async 流；对流式输入延迟运行，不缓存整个视频。`return_track_image` 为每个片段附加 1 张裁剪，`return_detection_image` 则为每帧的每个检测各附加 1 张裁剪 — 仅在下游需对每一帧独立分类时开启后者，内存开销与 `帧数 × 每帧脸数` 成正比。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#face-tracking)。
+```yaml
+# YOLO: 适配动漫 / 插画，由追踪器分配 id，bbox 平滑
+component:
+  type: model
+  task: face-tracking
+  driver: custom
+  family: yolo
+  model:
+    provider: local
+  action:
+    frames: ${input.frames}
+    frame_rate: ${input.frame_rate}
+    return_track_image: true
+    params:
+      min_confidence: 0.5
+      min_frame_count: 2
+      merge_gap: 1.0
+      bounding_box_smoothing: 0.5
+      tracker: bytetrack
+```
+
+接受单个帧序列、序列列表或帧批次的 async 流；对流式输入延迟运行，不缓存整个视频。`return_track_image` 为每个片段附加 1 张裁剪，`return_detection_image` 则为每帧的每个检测各附加 1 张裁剪 — 仅在下游需对每一帧独立分类时开启后者，内存开销与 `帧数 × 每帧脸数` 成正比。`bounding_box_smoothing` 将当前 bbox 与上一帧 bbox 做 EMA 融合 — 在于跟踪区域之上进行裁剪或合成前非常有用。完整选项和结果结构请参见 [Model Component 参考](../reference/compose/components/model.md#face-tracking)。
 
 ### 10.3.21 face-emotion-classification
 

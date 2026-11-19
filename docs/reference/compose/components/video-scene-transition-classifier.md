@@ -56,7 +56,7 @@ To also detect motion-hidden cuts (whip / zoom / spin / shake / glitch), switch 
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to before measurement (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to before measurement (16-4096) |
 | `window_size` | integer | `15` | Upper bound on frames sampled on each side of a boundary; the analysis span auto-narrows within it to the actual transition ramp (1-64) |
 | `cut_mad_threshold` | float | `20.0` | Mean absolute luma difference across the boundary pair above which a cut is considered |
 | `dissolve_blend_threshold` | float | `0.25` | Maximum median scale-normalized residual of the linear-blend fit for a boundary to be classified as a dissolve (0.0-1.0; smaller = stricter) |
@@ -140,8 +140,8 @@ Prefer `opencv` when the source leans on shorts/music-video editing style with m
 | `cut` | both | Hard snap between two shots | `pair_mad >= cut_mad_threshold` (with no linear-blend rise) |
 | `jump` | both | Same shot, lighting / exposure changes abruptly — cut-like luma spike but structure lines up block by block | `pair_mad >= cut_mad_threshold` AND `has_same_structure` (brightness-normalized block correlation) |
 | `dissolve` | both | Every in-between frame is a linear blend of the two shots | small `blend_residual`, rising unclipped alpha |
-| `fade_in` | both | Picture emerges from a flat colour (black or white) | flat window frame + ramp slope away from the flat colour |
-| `fade_out` | both | Picture dissolves into a flat colour | flat window frame + ramp slope towards the flat colour |
+| `fade_in` | both | Picture emerges from a flat color (black or white) | flat window frame + ramp slope away from the flat color |
+| `fade_out` | both | Picture dissolves into a flat color | flat window frame + ramp slope towards the flat color |
 | `flash` | both | Bright burst between two normal shots | `peak_luma` clears threshold AND stands out from the brighter endpoint by a fixed gap |
 | `wipe` | both | A moving boundary reveals the new shot — straight edge (horizontal, vertical, or diagonal) or iris/shape mask | small `edge_residual` in `wipe` mode, OR high `region_pure` with any direction |
 | `slide` | both | One shot slides over/under the other (push, cover, reveal), straight edge only | small `edge_residual` in `push`/`cover`/`reveal` modes |
@@ -237,7 +237,7 @@ Pair with `video-frame-analyzer`'s `sharpness` metric: AI-interpolated video sho
 When reproducing a reference video shot by shot, each boundary needs the matching join:
 
 - `cut` → concatenate shots directly
-- `jump` → keep the two scenes as one shot with a lighting / exposure change (do not concatenate), or apply colour-balance correction between them
+- `jump` → keep the two scenes as one shot with a lighting / exposure change (do not concatenate), or apply color-balance correction between them
 - `dissolve` → ffmpeg `xfade=dissolve:duration=…`
 - `fade_in` / `fade_out` → ffmpeg `fade=t=in` / `fade=t=out`
 - `flash` → ffmpeg `xfade=fadewhite` (or an overlaid white flash frame)
@@ -254,7 +254,7 @@ When reproducing a reference video shot by shot, each boundary needs the matchin
 ## Best Practices
 
 1. **Pair both upstreams off the same source**: `scenes` from `video-scene-detector` and `frames` from `video-frame-extractor` must both describe the **same video** at the same frame rate — otherwise the boundary indices from `scenes` won't line up with `frames`.
-2. **Keep `analysis_width` modest**: 96 px on the long side is enough for luma-difference, blend-residual, and gradient signals. The opencv driver's feature tracking also tolerates this width; bumping it higher raises motion-estimation cost without a quality bump on typical boundaries.
+2. **Keep `downsample_width` modest**: 96 px on the long side is enough for luma-difference, blend-residual, and gradient signals. The opencv driver's feature tracking also tolerates this width; bumping it higher raises motion-estimation cost without a quality bump on typical boundaries.
 3. **`window_size` trade-off**: this is the upper bound on frames buffered around a boundary — the classifier auto-narrows the analysis span within it to the actual transition ramp (plateau-steady outer pad + rising-progress inside). Larger values catch longer fades and dissolves at the cost of more frame buffering; 15 (0.5 s at 30 fps) is a balanced default. Shrink it only when streaming memory matters more than gradual-transition recall.
 4. **Pick the driver by content**: `native` is faster and numpy-only, which suits documentary / drama / interview footage where motion-hidden cuts are rare. `opencv` adds ~10 ms per boundary for feature tracking but is required to label whip / zoom / spin / shake / glitch — the dominant transition style in short-form video.
 5. **`fade_*` relies on absolute black/white**: if the source has a letterbox or logo-corner that never goes to zero, the "flat frame" check will stay above `fade_black_threshold`. Preprocess with a crop if needed.

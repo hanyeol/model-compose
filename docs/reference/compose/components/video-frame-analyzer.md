@@ -1,6 +1,6 @@
 # Video Frame Analyzer Component
 
-The video frame analyzer component measures **sequence-level** properties of a frame stream — temporal noise, pair differences, zero-pixel share, moving pairs, duplicate-frame cadence (pulldown fingerprint), sharpness oscillation (frame-interpolation fingerprint), picture-box geometry (letterbox / pillarbox detection), and shot-wide palette — and returns a compact summary. Use it on frames produced by `video-frame-extractor` (or any upstream source that yields an image array) for forensic classification (live action vs rendered / AI / interpolated content), scene-stability checks, frame-rate detection, aspect-ratio recovery, and colour-signature extraction.
+The video frame analyzer component measures **sequence-level** properties of a frame stream — temporal noise, pair differences, zero-pixel share, moving pairs, duplicate-frame cadence (pulldown fingerprint), sharpness oscillation (frame-interpolation fingerprint), picture-box geometry (letterbox / pillarbox detection), and shot-wide palette — and returns a compact summary. Use it on frames produced by `video-frame-extractor` (or any upstream source that yields an image array) for forensic classification (live action vs rendered / AI / interpolated content), scene-stability checks, frame-rate detection, aspect-ratio recovery, and color-signature extraction.
 
 Unlike `image-analyzer`, every metric reads **relationships between adjacent frames** (or the whole sequence); a single frame has no sequence-level signal. Unlike `video-analyzer`, the input is a decoded frame sequence, not a video file — the extractor controls sampling, start/end range, and streaming.
 
@@ -50,7 +50,7 @@ Mean of per-pair standard deviations of `current - previous`. High values indica
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to before measurement (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to before measurement (16-4096) |
 
 ### Pair Difference Metric Fields (`metric: pair-difference`, native)
 
@@ -58,7 +58,7 @@ Per-pair mean absolute luma difference statistics plus start-to-end difference. 
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `move_threshold` | float | `2.0` | Mean absolute luma difference above which a frame pair counts as moving |
 
 ### Zero Pixel Ratio Metric Fields (`metric: zero-pixel-ratio`, native)
@@ -67,7 +67,7 @@ Share of pixels that never change between consecutive frames. High values are th
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `exact_match` | boolean | `true` | When true, a pixel counts as zero only when identical between frames; when false, pixels with sub-quantization-step differences also count |
 
 ### Moving Pairs Metric Fields (`metric: moving-pairs`, OpenCV)
@@ -76,7 +76,7 @@ Fraction of frame pairs where more than a threshold share of pixels changed. Dis
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `change_threshold` | float | `6.0` | Per-pixel absolute luma difference above which a pixel counts as changed |
 | `moving_share_threshold` | float | `0.01` | Minimum share of changed pixels for a frame pair to count as moving (0.0-1.0) |
 
@@ -86,7 +86,7 @@ Per-pair duplicate detection plus autocorrelation of the duplicate mask. The dom
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `duplicate_threshold` | float | `0.5` | Mean absolute luma difference below which two consecutive frames count as duplicates |
 | `max_period` | integer | `8` | Largest duplicate-pattern period searched for via autocorrelation (2-32) |
 
@@ -96,7 +96,7 @@ Per-frame Laplacian variance as a sharpness proxy, then autocorrelation. Frame i
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to (16-4096) |
 | `max_period` | integer | `8` | Largest sharpness-oscillation period searched for via autocorrelation (2-32) |
 
 ### Picture Box Metric Fields (`metric: picture-box`, OpenCV)
@@ -105,7 +105,7 @@ Stacks evenly sampled frames into a lit mask and crops to the longest contiguous
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `320` | Width in pixels the frames are resampled to before measurement (64-4096) |
+| `downsample_width` | integer | `320` | Width in pixels the frames are resampled to before measurement (64-4096) |
 | `sample_count` | integer | `24` | Number of frames evenly sampled across the sequence; sampled max exposes lit areas across the shot (4-256) |
 | `lit_threshold` | float | `24.0` | Minimum grayscale value above which a pixel counts as lit (0.0-255.0) |
 | `picture_lit_share` | float | `0.6` | Minimum share of frames a row or column must stay lit in to count as inside the picture (0.0-1.0) |
@@ -116,14 +116,14 @@ Stacks evenly sampled frames into a lit mask and crops to the longest contiguous
 
 ### Palette Metric Fields (`metric: palette`, OpenCV)
 
-Samples frames evenly, stacks them, and runs k-means in LAB colour space to extract a shot-wide palette plus a background hex. Deterministic across runs because the k-means RNG is seeded.
+Samples frames evenly, stacks them, and runs k-means in LAB color space to extract a shot-wide palette plus a background hex. Deterministic across runs because the k-means RNG is seeded.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `analysis_width` | integer | `96` | Width in pixels the frames are resampled to before k-means clustering (16-4096) |
+| `downsample_width` | integer | `96` | Width in pixels the frames are resampled to before k-means clustering (16-4096) |
 | `sample_count` | integer | `8` | Number of frames evenly sampled across the sequence and stacked for a shot-wide palette (1-256) |
-| `max_colours` | integer | `8` | Maximum number of colour clusters extracted via k-means (1-32) |
-| `min_share` | float | `0.01` | Minimum share of pixels a colour must claim to be reported (0.0-1.0) |
+| `max_colors` | integer | `8` | Maximum number of color clusters extracted via k-means (1-32) |
+| `min_share` | float | `0.01` | Minimum share of pixels a color must claim to be reported (0.0-1.0) |
 
 ## Supported Drivers
 
@@ -168,7 +168,7 @@ component:
   "pair_count":  119,
   "frame_count": 120,
   "frame_rate":  30.0,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -185,7 +185,7 @@ component:
   "move_threshold":      2.0,
   "frame_count":  120,
   "frame_rate":    30.0,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -200,7 +200,7 @@ component:
   "frame_count": 120,
   "exact_match": True,
   "frame_rate":   30.0,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -217,7 +217,7 @@ component:
   "moving_share_threshold":  0.01,
   "frame_count":  120,
   "frame_rate":    30.0,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -235,7 +235,7 @@ component:
   "max_period":          8,
   "frame_count":  120,
   "frame_rate":    30.0,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -251,7 +251,7 @@ component:
   "frame_count":   120,
   "frame_rate":     30.0,
   "max_period":     8,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -266,7 +266,7 @@ component:
   "frame_count":  120,
   "sample_count": 24,
   "frame_rate":    30.0,
-  "analysis_width": 320,
+  "downsample_width": 320,
 }
 ```
 
@@ -274,8 +274,8 @@ component:
 
 ```python
 {
-  "background":   "#1a1a1a",         # border-dominant colour on the stacked samples
-  "colours": [
+  "background":   "#1a1a1a",         # border-dominant color on the stacked samples
+  "colors": [
     { "hex": "#1a1a1a", "share": 0.62 },
     { "hex": "#d84a2f", "share": 0.21 },
     { "hex": "#f0e4c4", "share": 0.11 },
@@ -283,7 +283,7 @@ component:
   "frame_count":  120,
   "sample_count":  8,
   "frame_rate":    30.0,
-  "analysis_width": 96,
+  "downsample_width": 96,
 }
 ```
 
@@ -414,7 +414,7 @@ component:
 
 ### Shot Palette for Thumbnails or Tags
 
-The palette metric returns a deterministic LAB k-means palette for the whole shot plus a border-dominant background hex, usable for thumbnail tinting, colour-based scene tags, or quick visual similarity between shots.
+The palette metric returns a deterministic LAB k-means palette for the whole shot plus a border-dominant background hex, usable for thumbnail tinting, color-based scene tags, or quick visual similarity between shots.
 
 ```yaml
 component:
@@ -428,13 +428,13 @@ component:
 ## Best Practices
 
 1. **Pair with `video-frame-extractor`**: analyzer takes an `ImageArrayValue`, so the extractor controls sampling cadence and time range. Extracting once and running multiple analyzer actions against the same output avoids re-decoding.
-2. **Keep `analysis_width` modest**: 96 pixels on the long side is plenty for pair-level and autocorrelation signals. Larger widths slow the analyzer down linearly with no measurement benefit at this frame rate.
+2. **Keep `downsample_width` modest**: 96 pixels on the long side is plenty for pair-level and autocorrelation signals. Larger widths slow the analyzer down linearly with no measurement benefit at this frame rate.
 3. **`duplicate` needs native frame rate**: if the extractor downsamples (`frame_rate: 10` on a 30 fps source), the duplicate pattern disappears. Extract at native rate for pulldown detection.
 4. **Autocorrelation metrics need enough frames**: `duplicate` and `sharpness` scan lags up to `max_period`; feed at least `3 × max_period` frames, otherwise `dup_period` / `sharp_period` return `null`.
 5. **`temporal-noise` vs image-analyzer `noise`**: the two measure different things. Image-analyzer `noise` is **Immerkær spatial** noise in a single frame; `temporal-noise` here is **inter-frame** noise across the sequence. Both near zero means rendered content.
 6. **Platform transcodes raise `dup_ratio` slightly**: re-encoding leaves occasional near-duplicate frames even on genuine 30 fps sources. Treat `dup_regularity < 0.5` as "no cadence" rather than trusting the measured `dup_period`.
 7. **`sharp_alt` is a cheaper interpolation probe**: if you only care about "is this interpolated or not" (not the exact period), `sharp_alt > 0.7` on live-action footage is the fast signal and avoids reading `sharp_period_ac`.
 8. **`frame_rate` is metadata, not a sampling setting**: the analyzer does not resample; set it so `duplicate` can classify `pulldown` against known cadences.
-9. **`picture-box` wants more width**: the default `analysis_width` is `320` (not `96`) because narrow thumbnails smear 1-pixel bar edges. Keep the width high enough that a bar occupies at least a few pixels.
+9. **`picture-box` wants more width**: the default `downsample_width` is `320` (not `96`) because narrow thumbnails smear 1-pixel bar edges. Keep the width high enough that a bar occupies at least a few pixels.
 10. **`picture-box` reads lit areas across the whole shot**: a momentarily dark picture (a cut-to-black or a dim scene) does not shrink the detected box as long as the rest of the shot lights those rows / columns — the stacked-max sampling is the mechanism.
 11. **`palette` is deterministic**: the k-means RNG is seeded, so the same shot produces the same hexes across runs. Use it for cache keys without worrying about jitter.

@@ -8,4 +8,8 @@ class CustomFaceTrackingTaskDriver:
             from .insightface import InsightfaceFaceTrackingTaskDriver
             return InsightfaceFaceTrackingTaskDriver(id, config, daemon)
 
+        if config.family == FaceTrackingModelFamily.YOLO:
+            from .ultralytics import YoloFaceTrackingTaskDriver
+            return YoloFaceTrackingTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

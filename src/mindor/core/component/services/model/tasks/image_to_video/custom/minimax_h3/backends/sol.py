@@ -84,11 +84,8 @@ class SolAttnMinimaxH3Processor:
         rotary_emb: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        from diffusers.models.transformers.transformer_minimax_h3 import _apply_rotary_emb
         import torch
-        from diffusers.models.transformers.transformer_minimax_h3 import (
-            MiniMaxH3AttnProcessor,
-            _apply_rotary_emb,
-        )
 
         # Fall back to the upstream dense processor whenever Sol-Attn is a
         # structural mismatch (short refiner stream, non-bf16, head_dim != 128,
@@ -129,6 +126,7 @@ class SolAttnMinimaxH3Processor:
 
         try:
             from sol_attn_blackwell import sol_attn_flex
+
             hidden_states = sol_attn_flex(query, key, value, tau=self.tau, thresh_type=self.thresh_type)
         except Exception as exc:
             logging.warning(f"Sol-Attn flex path failed ({type(exc).__name__}: {exc}); falling back to dense SDPA.")
@@ -295,7 +293,8 @@ class MinimaxH3SolImageToVideoTaskAction(MinimaxH3ImageToVideoTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
-        images, last_images, prompts = inputs
+        images, last_images, prompts, negative_prompts = inputs
+        negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
 
         def _generate() -> List[VideoStreamResource]:
             import torch
@@ -308,7 +307,7 @@ class MinimaxH3SolImageToVideoTaskAction(MinimaxH3ImageToVideoTaskAction):
 
                 return callback_kwargs
 
-            for image, last_image, prompt in zip(images, last_images, prompts):
+            for image, last_image, prompt, negative in zip(images, last_images, prompts, negatives):
                 if params["seed"] is not None:
                     generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                 else:
@@ -329,6 +328,9 @@ class MinimaxH3SolImageToVideoTaskAction(MinimaxH3ImageToVideoTaskAction):
 
                 if last_image is not None:
                     pipeline_params["last_image"] = last_image
+
+                if negative is not None:
+                    pipeline_params["negative_prompt"] = negative
 
                 output = self.pipeline(**pipeline_params)
 

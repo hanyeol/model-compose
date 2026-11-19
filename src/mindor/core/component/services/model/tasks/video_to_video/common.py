@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from typing import Union, Optional, Dict, List, Tuple, Any
+from collections.abc import AsyncIterator
 from abc import abstractmethod
 from mindor.dsl.schema.action import VideoToVideoModelActionConfig
-from mindor.core.foundation.streaming.iterators import StreamChunkIterator
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.streaming.image import load_image_from_stream, ImageStreamResource
@@ -51,12 +52,41 @@ class VideoToVideoTaskAction(ModelTaskComponentAction):
 
             return (await context.render_variable(self.config.output)) if not is_direct_output else result
 
-    @abstractmethod
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], Any, bool, bool]:
-        pass
+        if self._support_multiple_video_input():
+            video = await context.render_video_array(self.config.video, single_as_array=True) if self.config.video is not None else None
+        else:
+            video = await context.render_video(self.config.video) if self.config.video is not None else None
+
+        frames = await context.render_image_array(self.config.frames, single_as_array=True) if self.config.frames is not None else None
+        prompt = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+
+        # When `video` is a shared references array the batch axis flips to
+        # `prompt`; otherwise the driving clip (video or frames) is the batch axis.
+        primary_input = prompt if self._support_multiple_video_input() else (frames if video is None else video)
+
+        is_single_input    = not isinstance(primary_input, (list, StreamIterator, AsyncIterator))
+        is_streaming_input = isinstance(primary_input, (StreamIterator, AsyncIterator))
+
+        return (video, frames, prompt), primary_input, is_single_input, is_streaming_input
+
+    def _support_multiple_video_input(self) -> bool:
+        return False
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
-        return {}
+        num_frames = await context.render_scalar(self.config.params.num_frames, int) if self.config.params.num_frames is not None else None
+        width      = await context.render_scalar(self.config.width, int) if self.config.width is not None else None
+        height     = await context.render_scalar(self.config.height, int) if self.config.height is not None else None
+        frame_rate = await context.render_scalar(self.config.frame_rate, float)
+        seed       = await context.render_scalar(self.config.seed, int) if self.config.seed is not None else None
+
+        return {
+            "num_frames": num_frames,
+            "width":      width,
+            "height":     height,
+            "frame_rate": frame_rate,
+            "seed":       seed,
+        }
 
     async def _collect_frames_from_video(
         self,

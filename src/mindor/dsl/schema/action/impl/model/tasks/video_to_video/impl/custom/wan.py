@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Optional
+from typing import Any, List, Union, Optional
 from pydantic import Field, model_validator
 from ..common import CommonVideoToVideoParamsConfig, CommonVideoToVideoModelActionConfig
 
@@ -22,12 +22,19 @@ class WanVideoToVideoParamsConfig(CommonVideoToVideoParamsConfig):
     mask_h_len: Union[int, str] = Field(default=1, description="Grid subdivisions along the height axis used to refine the replacement mask contour.")
 
 class WanVideoToVideoModelActionConfig(CommonVideoToVideoModelActionConfig):
+    negative_prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
+    reference_image: Optional[Union[Any, List[Any]]] = Field(default=None, description="Reference character image whose appearance replaces the driving clip's subject.")
     params: WanVideoToVideoParamsConfig = Field(default_factory=WanVideoToVideoParamsConfig, description="Wan-Animate video-to-video generation parameters.")
+
+    @model_validator(mode="after")
+    def validate_video_or_frames(self) -> "WanVideoToVideoModelActionConfig":
+        if (self.video is None) == (self.frames is None):
+            raise ValueError("Exactly one of `video` or `frames` must be provided.")
+        return self
 
     @model_validator(mode="after")
     def validate_reference_image(self) -> "WanVideoToVideoModelActionConfig":
         # Wan-Animate needs a reference character image alongside the driving clip.
-        # `video XOR frames` is already enforced by the base class validator.
         if self.reference_image is None:
             raise ValueError("Wan-Animate requires `reference_image` (target character) to be set.")
         return self

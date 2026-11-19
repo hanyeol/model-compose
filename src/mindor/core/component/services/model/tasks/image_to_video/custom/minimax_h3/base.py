@@ -44,6 +44,14 @@ _MINIMAX_H3_TEXT_ENCODER_SKIP_MODULES: Tuple[str, ...] = (
     "lm_head",
 )
 
+# `num_frames` constraint shared by every MiniMax-H3 workflow (t2va/fl2va/ref2va):
+# the video VAE only decodes frame counts of the form 17*n + 5, and the resulting
+# duration must stay between 5 and 15 seconds (124..345 frames at the fixed 24 fps).
+_MINIMAX_H3_FRAME_STEP = 17
+_MINIMAX_H3_FRAME_OFFSET = 5
+_MINIMAX_H3_MIN_FRAMES = 124
+_MINIMAX_H3_MAX_FRAMES = 345
+
 class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
     config: MinimaxH3ImageToVideoModelActionConfig
 
@@ -66,12 +74,16 @@ class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
+        num_frames      = await context.render_scalar(self.config.params.num_frames, int)
         inference_steps = await context.render_scalar(self.config.params.inference_steps, int)
         guidance_scale  = await context.render_scalar(self.config.params.guidance_scale, float)
         video_shift     = await context.render_scalar(self.config.params.video_shift, float) if self.config.params.video_shift is not None else None
         audio_shift     = await context.render_scalar(self.config.params.audio_shift, float) if self.config.params.audio_shift is not None else None
 
+        num_frames = self._snap_num_frames(num_frames)
+
         params.update({
+            "num_frames":      num_frames,
             "inference_steps": inference_steps,
             "guidance_scale":  guidance_scale,
             "video_shift":     video_shift,
@@ -145,6 +157,32 @@ class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
             return results
 
         return await self._run_in_executor(_generate)
+
+    @staticmethod
+    def _snap_num_frames(num_frames: int) -> int:
+        # The video VAE only decodes frame counts of the form 17*n + 5; snap
+        # upward rather than erroring so non-tuned prompts still generate a
+        # valid clip.
+        if num_frames < _MINIMAX_H3_MIN_FRAMES:
+            num_frames = _MINIMAX_H3_MIN_FRAMES
+
+        if num_frames > _MINIMAX_H3_MAX_FRAMES:
+            raise ValueError(
+                f"MiniMax-H3 supports at most {_MINIMAX_H3_MAX_FRAMES} frames (got {num_frames})."
+            )
+
+        remainder = (num_frames - _MINIMAX_H3_FRAME_OFFSET) % _MINIMAX_H3_FRAME_STEP
+
+        if remainder != 0:
+            num_frames += _MINIMAX_H3_FRAME_STEP - remainder
+
+        if num_frames > _MINIMAX_H3_MAX_FRAMES:
+            raise ValueError(
+                f"MiniMax-H3: snapped num_frames {num_frames} exceeds the "
+                f"{_MINIMAX_H3_MAX_FRAMES}-frame cap."
+            )
+
+        return num_frames
 
     def _apply_scheduler_shift(self, scheduler_attr: str, shift: float) -> Optional[float]:
         scheduler = getattr(self.pipeline, scheduler_attr, None)

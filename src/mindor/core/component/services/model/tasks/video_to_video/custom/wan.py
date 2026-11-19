@@ -2,13 +2,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from typing import Union, Tuple, Optional, Dict, List, Any
-from collections.abc import AsyncIterator
 from mindor.dsl.schema.component import ModelComponentConfig, ModelConfig, WanVideoToVideoPreset
 from mindor.dsl.schema.action import ModelActionConfig, WanVideoToVideoModelActionConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from mindor.core.foundation.package.flash_attn import flash_attn_requirements, flash_attn_torch_spec
 from mindor.core.foundation.cancellation import CancellationToken
-from mindor.core.foundation.streaming.iterators import StreamIterator
 from mindor.core.foundation.streaming.media import MediaSource
 from mindor.core.foundation.streaming.video import VideoStreamResource
 from mindor.core.foundation.variable.image import ImageArrayValue
@@ -48,23 +46,18 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
         self.has_flux_kontext: bool = has_flux_kontext
 
     async def _prepare_input(self, context: ComponentActionContext) -> Tuple[Tuple[Any, ...], Any, bool, bool]:
-        video           = await context.render_video(self.config.video) if self.config.video is not None else None
-        frames          = await context.render_image_array(self.config.frames, single_as_array=True) if self.config.frames is not None else None
-        prompt          = await context.render_text(self.config.prompt) if self.config.prompt is not None else None
+        (video, frames, prompt), primary_input, is_single_input, is_streaming_input = await super()._prepare_input(context)
+
         negative_prompt = await context.render_text(self.config.negative_prompt) if self.config.negative_prompt is not None else None
         reference_image = await context.render_image(self.config.reference_image) if self.config.reference_image is not None else None
 
         source = frames if video is None else video
 
-        is_single_input    = not isinstance(source, (list, StreamIterator, AsyncIterator))
-        is_streaming_input = isinstance(source, (StreamIterator, AsyncIterator))
-
-        return (source, prompt, negative_prompt, reference_image), source, is_single_input, is_streaming_input
+        return (source, prompt, negative_prompt, reference_image), primary_input, is_single_input, is_streaming_input
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        seed              = await context.render_scalar(self.config.seed, int)
         inference_steps   = await context.render_scalar(self.config.params.inference_steps, int)
         guidance_scale    = await context.render_scalar(self.config.params.guidance_scale, float)
         shift             = await context.render_scalar(self.config.params.shift, float)
@@ -92,7 +85,6 @@ class WanVideoToVideoTaskAction(VideoToVideoTaskAction):
                 raise ValueError("Wan-Animate `use_flux=true` requires the component's `flux_kontext_model` to be configured.")
 
         params.update({
-            "seed":              seed,
             "inference_steps":   inference_steps,
             "guidance_scale":    guidance_scale,
             "shift":             shift,

@@ -84,11 +84,8 @@ class SolAttnMinimaxH3Processor:
         rotary_emb: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        from diffusers.models.transformers.transformer_minimax_h3 import _apply_rotary_emb
         import torch
-        from diffusers.models.transformers.transformer_minimax_h3 import (
-            MiniMaxH3AttnProcessor,
-            _apply_rotary_emb,
-        )
 
         # Fall back to the upstream dense processor whenever Sol-Attn is a
         # structural mismatch (short refiner stream, non-bf16, head_dim != 128,
@@ -129,6 +126,7 @@ class SolAttnMinimaxH3Processor:
 
         try:
             from sol_attn_blackwell import sol_attn_flex
+
             hidden_states = sol_attn_flex(query, key, value, tau=self.tau, thresh_type=self.thresh_type)
         except Exception as exc:
             logging.warning(f"Sol-Attn flex path failed ({type(exc).__name__}: {exc}); falling back to dense SDPA.")
@@ -298,7 +296,8 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
         def _generate() -> List[VideoStreamResource]:
             import torch
 
-            (prompts,) = inputs
+            prompts, negative_prompts = inputs
+            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
             processor = self.sol_attn_processor
             results: List[VideoStreamResource] = []
 
@@ -307,7 +306,7 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
 
                 return callback_kwargs
 
-            for prompt in prompts:
+            for prompt, negative in zip(prompts, negatives):
                 if params["seed"] is not None:
                     generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                 else:
@@ -315,15 +314,20 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
 
                 processor.begin_steps(params["inference_steps"])
 
-                output = self.pipeline(
-                    prompt=prompt,
-                    height=params["height"],
-                    width=params["width"],
-                    num_frames=params["num_frames"],
-                    num_inference_steps=params["inference_steps"],
-                    generator=generator,
-                    callback_on_step_end=_on_step_end,
-                )
+                pipeline_params: Dict[str, Any] = {
+                    "prompt": prompt,
+                    "height": params["height"],
+                    "width": params["width"],
+                    "num_frames": params["num_frames"],
+                    "num_inference_steps": params["inference_steps"],
+                    "generator": generator,
+                    "callback_on_step_end": _on_step_end,
+                }
+
+                if negative is not None:
+                    pipeline_params["negative_prompt"] = negative
+
+                output = self.pipeline(**pipeline_params)
 
                 results.append(self._encode_video_audio_to_mp4(output, params["frame_rate"]))
 

@@ -1,13 +1,13 @@
 from typing import Union, Optional, List, Dict, Any
-from pydantic import BaseModel, Field
-from .common import CommonVideoToVideoParamsConfig, CommonVideoToVideoModelActionConfig
+from pydantic import BaseModel, Field, model_validator
+from .common import CommonHuggingfaceVideoToVideoParamsConfig, CommonHuggingfaceVideoToVideoModelActionConfig
 
 class AnimateDiffFreeNoiseConfig(BaseModel):
     context_length: Union[int, str] = Field(default=16, description="FreeNoise sliding-window length in frames.")
     context_stride: Union[int, str] = Field(default=4, description="Frame stride between successive FreeNoise windows.")
     weighting_scheme: str = Field(default="pyramid", description="Window weighting scheme (e.g. 'pyramid', 'flat').")
 
-class AnimateDiffHuggingfaceVideoToVideoParamsConfig(CommonVideoToVideoParamsConfig):
+class AnimateDiffHuggingfaceVideoToVideoParamsConfig(CommonHuggingfaceVideoToVideoParamsConfig):
     inference_steps: Union[int, str] = Field(default=25, description="Number of diffusion inference steps.")
     guidance_scale: Union[float, str] = Field(default=7.5, description="Classifier-free guidance scale applied during sampling.")
     denoise_strength: Union[float, str] = Field(default=0.5, description="Denoising strength; higher values follow the prompt more, lower values preserve the input video.")
@@ -19,12 +19,15 @@ class AnimateDiffHuggingfaceVideoToVideoParamsConfig(CommonVideoToVideoParamsCon
     free_noise: Optional[AnimateDiffFreeNoiseConfig] = Field(default=None, description="Enable FreeNoise sliding-window sampling for clips longer than the motion adapter's native window.")
     decode_chunk_size: Optional[Union[int, str]] = Field(default=None, description="VAE latent decode chunk size; smaller values reduce VRAM at the cost of speed.")
 
-class AnimateDiffHuggingfaceVideoToVideoModelActionConfig(CommonVideoToVideoModelActionConfig):
+class AnimateDiffHuggingfaceVideoToVideoModelActionConfig(CommonHuggingfaceVideoToVideoModelActionConfig):
+    negative_prompt: Optional[Union[str, List[Optional[str]]]] = Field(default=None, description="Text describing content to avoid in the generated video.")
     reference_image: Optional[Union[Any, List[Any], List[List[Any]], str]] = Field(default=None, description="Per-IP-Adapter reference image(s); a single reference (one IP-Adapter), a list of references (one per IP-Adapter), or a per-input list of such lists for batched inputs.")
     attention_mask: Optional[Union[Any, List[Any], List[List[Any]], str]] = Field(default=None, description="Per-IP-Adapter spatial attention mask(s); a single mask (one IP-Adapter), a list of masks (one per IP-Adapter), or a per-input list of such lists for batched inputs. Use `null` within a per-adapter list to leave an adapter unmasked.")
     conditioning_frames: Optional[Union[Any, List[Any], List[List[Any]], str]] = Field(default=None, description="Per-ControlNet frame sequence(s) used as conditioning; a single reference (one ControlNet), a list of references (one per ControlNet), or a per-input list of such lists for batched inputs.")
     params: AnimateDiffHuggingfaceVideoToVideoParamsConfig = Field(default_factory=AnimateDiffHuggingfaceVideoToVideoParamsConfig, description="AnimateDiff video-to-video generation parameters.")
 
-HuggingfaceVideoToVideoModelActionConfig = Union[
-    AnimateDiffHuggingfaceVideoToVideoModelActionConfig,
-]
+    @model_validator(mode="after")
+    def validate_video_or_frames(self) -> "AnimateDiffHuggingfaceVideoToVideoModelActionConfig":
+        if (self.video is None) == (self.frames is None):
+            raise ValueError("Exactly one of `video` or `frames` must be provided.")
+        return self

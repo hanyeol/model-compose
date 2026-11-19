@@ -45,7 +45,7 @@ class Wav2LipLipSyncModelComponentConfig(CommonLipSyncModelComponentConfig):
         # Fill in a default `model` config that fetches the preset's checkpoint
         # from the Easy-Wav2Lip release mirror when the user hasn't provided one.
         # `LocalModelConfig.apply_default_path` then derives the on-disk path
-        # from the URL's basename under `~/.cache/models/wav2lip/`.
+        # from the URL's basename under `~/.cache/mindor/models/wav2lip/`.
         if values.get("model") is None:
             preset = Wav2LipPreset(values.get("preset", _DEFAULT_MODEL_PRESET))
             values["model"] = {

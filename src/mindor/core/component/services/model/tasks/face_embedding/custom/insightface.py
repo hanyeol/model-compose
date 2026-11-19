@@ -247,6 +247,7 @@ class InsightfaceFaceEmbeddingTaskDriver(ModelTaskDriver):
         if os.path.islink(link_path):
             if os.path.realpath(link_path) == target:
                 return
+
             os.unlink(link_path)
         elif os.path.exists(link_path):
             return

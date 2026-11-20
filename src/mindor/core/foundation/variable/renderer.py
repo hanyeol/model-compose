@@ -191,6 +191,7 @@ class VariableRenderer:
                 index = None
             else:
                 index = self._parse_index(index) if index else None
+
             is_list = bool(is_list)
 
             if attrs:
@@ -350,15 +351,18 @@ class VariableRenderer:
                     if isinstance(chunk, (list, tuple)):
                         for item in chunk:
                             yield item
+
                         continue
 
                     if isinstance(chunk, (StreamIterator, AsyncIterable)):
                         async for item in chunk:
                             yield item
+
                         continue
 
                     if chunk is not None:
                         yield chunk
+
                         continue
 
             # `+` collapses its inputs into one logical value, so the result
@@ -412,6 +416,7 @@ class VariableRenderer:
                 for source in sources.values():
                     if isinstance(source, StreamChunkIterator) and source.is_fragmented:
                         is_fragmented = True
+
                         break
 
                 return StreamChunkIterator(_iterate(), is_fragmented=is_fragmented)
@@ -466,9 +471,11 @@ class VariableRenderer:
                         item = await source_iterator.__anext__()
                     except StopAsyncIteration:
                         exhausted = True
+
                         return False
                     except BaseException as e:
                         error = e
+
                         raise
 
                     item_state = state.with_item(item, index)
@@ -485,6 +492,7 @@ class VariableRenderer:
                         if not buffers[key]:
                             if not await _advance_for(key):
                                 return
+
                         yield buffers[key].pop(0)
 
                 return _iterate()
@@ -606,6 +614,7 @@ class VariableRenderer:
 
             if subtype:
                 paths = [ ( path, path.split(".")[-1] ) for path in subtype.split(",") ]
+
                 return { key: self.field_resolver.resolve(value, path) for path, key in paths }
 
             return value
@@ -685,6 +694,7 @@ class VariableRenderer:
 
         if type == "stream":
             format = StreamEncodingFormat(subtype) if subtype else StreamEncodingFormat.TEXT
+
             if isinstance(value, (StreamResource, StreamIterator, AsyncIterator)):
                 if isinstance(value, StreamEncodingIterator) and value.format == format:
                     return value
@@ -702,9 +712,11 @@ class VariableRenderer:
         if format == "url":
             stream = await create_stream_with_url(value)
             chunks: List[bytes] = []
+
             async with stream:
                 async for chunk in stream:
                     chunks.append(chunk)
+
             return b"".join(chunks)
 
         if format == "path":
@@ -716,8 +728,10 @@ class VariableRenderer:
 
         if format == "data-uri":
             _, meta, data = parse_data_uri(value)
+
             if "base64" in meta.split(";"):
                 return await decode_base64_value(data)
+
             return unquote_to_bytes(data)
 
         raise ValueError(f"Unknown format: {format}")
@@ -743,6 +757,7 @@ class VariableRenderer:
 
         for pair in self._split_attrs(value):
             pair = pair.strip()
+
             if "=" in pair:
                 k, _, v = pair.partition("=")
                 attrs[k.strip()] = await self._render_text(attr_state, v.strip())
@@ -757,19 +772,26 @@ class VariableRenderer:
 
         while index < length:
             ch = value[index]
+
             if ch == "$" and index + 1 < length and value[index + 1] == "{":
                 depth += 1
                 index += 2
+
                 continue
+
             if ch == "}" and depth > 0:
                 depth -= 1
                 index += 1
+
                 continue
+
             if ch == "," and depth == 0:
                 parts.append(value[start:index])
                 start = index + 1
                 index += 1
+
                 continue
+
             index += 1
 
         parts.append(value[start:])

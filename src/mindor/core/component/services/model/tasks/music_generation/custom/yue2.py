@@ -245,12 +245,11 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
     async def _load_model(self) -> None:
         model_path     = await self._provision_model(self.config.model, prefetch=True)
         vae_model_path = await self._provision_model(self.config.vae.model, prefetch=True)
-        nar_path       = await self._provision_model(self.config.nar.model, prefetch=True) if self.config.nar is not None else None
+        nar_path       = await self._provision_model(self.config.nar_adapter.model, prefetch=True) if self.config.nar_adapter is not None else None
 
-        peft_adapter = self.config.peft_adapter or []
-
-        ar_lora_paths = await asyncio.gather(*[
-            self._provision_model(adapter.model, prefetch=True) for adapter in peft_adapter
+        ar_adapter = self.config.ar_adapter or []
+        ar_adapter_paths = await asyncio.gather(*[
+            self._provision_model(adapter.model, prefetch=True) for adapter in ar_adapter
         ])
 
         self.pipeline = await self._load_pipeline(model_path, vae_model_path)
@@ -258,7 +257,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         if nar_path is not None:
             await self._merge_nar_lora(self.pipeline, nar_path)
 
-        for adapter, adapter_path in zip(peft_adapter, ar_lora_paths):
+        for adapter, adapter_path in zip(ar_adapter, ar_adapter_paths):
             await self._merge_ar_lora(self.pipeline, adapter_path, float(adapter.weight))
 
     async def _unload_model(self) -> None:
@@ -269,11 +268,9 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
     async def _load_pipeline(self, model_path: str, vae_model_path: str) -> YuE2Pipeline:
         from yue2 import YuE2Pipeline
 
-        cpu_offload = self._resolve_cpu_offload()
-
         def _load() -> YuE2Pipeline:
-            memory_budget_gib = float(self.config.memory_budget_gib)
             vae_core_frames = int(self.config.vae.tile_size) if self.config.vae.tile_size is not None else None
+            cpu_offload = self.config.cpu_offload or []
 
             pipeline = YuE2Pipeline.from_pretrained(
                 model=model_path,
@@ -281,10 +278,11 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
                 device=str(self._resolve_device(self.config.device)),
                 backend=self.config.backend.value,
                 quantization=self.config.quantization.type.value if self.config.quantization is not None else "none",
-                memory_budget_gib=memory_budget_gib,
+                memory_budget_gib=float(self.config.memory_budget),
                 vae_core_frames=vae_core_frames,
                 offload_ar=(Yue2Submodule.AR in cpu_offload),
-                verify_hashes=bool(self.config.verify_hashes),
+                low_vram=bool(self.config.low_vram),
+                verify_hashes=False,
                 progress=False,
             )
 
@@ -294,14 +292,6 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
             return pipeline
 
         return await self._run_in_executor(_load)
-
-    def _resolve_cpu_offload(self) -> List[Yue2Submodule]:
-        cpu_offload = self.config.cpu_offload or []
-
-        if isinstance(cpu_offload, Yue2Submodule):
-            cpu_offload = [ cpu_offload ]
-    
-        return cpu_offload
 
     async def _merge_nar_lora(self, pipeline: YuE2Pipeline, nar_path: str) -> None:
         def _merge() -> None:
@@ -326,10 +316,13 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
                 # NAR ships retrained I/O projections paired with the LoRA;
                 # merging LoRA alone leaves the base I/O mismatched.
                 io = nar.get("io") or {}
+
                 for name in ("vae2llm", "llm2vae"):
                     weights = io.get(name)
+
                     if weights is None:
                         continue
+
                     target = getattr(model, name)
                     dtype = next(target.parameters()).dtype
                     target.load_state_dict({ k: v.to(dtype) for k, v in weights.items() })

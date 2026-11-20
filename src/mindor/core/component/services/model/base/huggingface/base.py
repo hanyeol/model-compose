@@ -15,7 +15,6 @@ from mindor.dsl.schema.component import (
     DeviceMode,
 )
 from mindor.core.foundation.package.torch import torch_requirements
-from mindor.core.logger import logging
 from ..common import ModelTaskDriver
 from ...utils.huggingface import is_checkpoint_prequantized
 import asyncio
@@ -111,9 +110,8 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         ])
 
         def _load() -> PreTrainedModel:
-            names, weights = self._build_peft_adapter_lists(adapters)
-            multiple_adapters = len(adapters) > 1
-            has_non_unit_weight = any(abs(weight - 1.0) > 1e-12 for weight in weights)
+            names = [ adapter.name or f"peft_adapter_{index}" for index, adapter in enumerate(adapters) ]
+            weights = [ float(adapter.weight) for adapter in adapters ]
 
             peft_model = PeftModel.from_pretrained(
                 base_model,
@@ -131,35 +129,28 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
                     **self._get_model_options(adapters[index]),
                 )
 
-            if multiple_adapters or has_non_unit_weight:
-                # Use add_weighted_adapter for merging multiple PEFT adapters with weights.
-                # This can take minutes on 7B+ models — keep it off the event loop.
-                logging.info(
-                    f"Merging {len(names)} PEFT adapters with weights {weights}. "
-                    "This may take a while..."
-                )
-                peft_model.add_weighted_adapter(names, weights=weights, adapter_name="blended_adapter")
-                peft_model.set_adapter("blended_adapter")
-                logging.info("PEFT adapters merging completed.")
-            else:
-                peft_model.set_adapter(names[0])
+            self._activate_peft_adapters(peft_model, names, weights)
 
             return peft_model
 
         return await self._run_in_executor(_load)
 
-    def _build_peft_adapter_lists(
+    def _activate_peft_adapters(
         self,
-        adapters: List[PeftAdapterConfig]
-    ) -> Tuple[List[str], List[float]]:
-        names: List[str] = []
-        weights: List[float] = []
+        peft_model: PreTrainedModel,
+        names: List[str],
+        weights: List[float],
+    ) -> None:
+        # peft forward blends every active adapter as `base(x) + sum(scale_i * B_i @ A_i @ x)`,
+        # so activating multiple names + per-adapter scale avoids a one-shot merge.
+        from peft.tuners.tuners_utils import BaseTunerLayer
 
-        for index, adapter in enumerate(adapters):
-            names.append(adapter.name or f"peft_adapter_{index}")
-            weights.append(adapter.weight)
-
-        return names, weights
+        for module in peft_model.modules():
+            if not isinstance(module, BaseTunerLayer):
+                continue
+            module.set_adapter(names)
+            for name, weight in zip(names, weights):
+                module.set_scale(name, weight)
 
     def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
         params: Dict[str, Any] = {}

@@ -1,0 +1,100 @@
+from __future__ import annotations
+
+from typing import Optional, Dict, List, Any
+from collections.abc import AsyncIterator
+from abc import abstractmethod
+from mindor.dsl.schema.action import HandDetectionModelActionConfig
+from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
+from mindor.core.foundation.cancellation import CancellationToken
+from mindor.core.utils.iterators import BatchSourceIterator
+from ...base import ComponentActionContext, ModelTaskComponentAction
+from PIL import Image as PILImage
+
+class HandDetectionTaskAction(ModelTaskComponentAction):
+    def __init__(self, config: HandDetectionModelActionConfig):
+        self.config: HandDetectionModelActionConfig = config
+
+    async def run(self, context: ComponentActionContext) -> Any:
+        image      = await context.render_image(self.config.image)
+        batch_size = await context.render_variable(self.config.batch_size)
+
+        params = await self._resolve_params(context)
+
+        is_single_input  = not isinstance(image, (list, StreamIterator, AsyncIterator))
+        is_direct_output = not self.config.output or self.config.output == "${result}"
+
+        if isinstance(image, (StreamIterator, AsyncIterator)):
+            async def _stream_output_generator():
+                async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
+                    batch_results = await self._detect_batch(batch_images, params, context.cancellation_token)
+                    for result in batch_results:
+                        context.register_source("result", result)
+                        yield (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+            if isinstance(image, StreamChunkIterator) and image.is_fragmented:
+                return StreamChunkIterator(_stream_output_generator(), is_fragmented=True)
+
+            return _stream_output_generator()
+        else:
+            results: List[Dict[str, Any]] = []
+            async for batch_images in BatchSourceIterator(image, batch_size=batch_size or 1):
+                batch_results = await self._detect_batch(batch_images, params, context.cancellation_token)
+                results.extend(batch_results)
+
+            result = results[0] if is_single_input else results
+            context.register_source("result", result)
+
+            return (await context.render_variable(self.config.output)) if not is_direct_output else result
+
+    async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
+        max_detection_count      = await context.render_scalar(self.config.max_detection_count, int)
+        skeleton_format          = await context.render_scalar(self.config.skeleton_format, str)
+        crop_margin_ratio        = await context.render_scalar(self.config.crop_margin_ratio, float)
+        return_keypoints         = await context.render_scalar(self.config.return_keypoints, bool)
+        return_keypoints_3d      = await context.render_scalar(self.config.return_keypoints_3d, bool)
+        return_segmentation_mask = await context.render_scalar(self.config.return_segmentation_mask, bool)
+        return_skeleton_image    = await context.render_scalar(self.config.return_skeleton_image, bool)
+        skeleton_background      = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
+        min_confidence           = await context.render_scalar(self.config.params.min_confidence, float)
+        min_presence_confidence  = await context.render_scalar(self.config.params.min_presence_confidence, float)
+        min_tracking_confidence  = await context.render_scalar(self.config.params.min_tracking_confidence, float)
+
+        if max_detection_count < 1:
+            raise ValueError(f"'max_detection_count' must be >= 1, got {max_detection_count}")
+
+        if skeleton_format not in ("natural", "openpose"):
+            raise ValueError(f"'skeleton_format' must be 'natural' or 'openpose', got {skeleton_format!r}")
+
+        if crop_margin_ratio < 0.0:
+            raise ValueError(f"'crop_margin_ratio' must be >= 0.0, got {crop_margin_ratio}")
+
+        for name, value in [
+            ("min_confidence",          min_confidence),
+            ("min_presence_confidence", min_presence_confidence),
+            ("min_tracking_confidence", min_tracking_confidence),
+        ]:
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"'{name}' must be between 0.0 and 1.0, got {value}")
+
+        return {
+            "max_detection_count":      max_detection_count,
+            "skeleton_format":          skeleton_format,
+            "crop_margin_ratio":        crop_margin_ratio,
+            "return_keypoints":         return_keypoints,
+            "return_keypoints_3d":      return_keypoints_3d,
+            "return_segmentation_mask": return_segmentation_mask,
+            "return_skeleton_image":    return_skeleton_image,
+            "skeleton_background":      skeleton_background,
+            "min_confidence":           min_confidence,
+            "min_presence_confidence":  min_presence_confidence,
+            "min_tracking_confidence":  min_tracking_confidence,
+        }
+
+    @abstractmethod
+    async def _detect_batch(
+        self,
+        images: List[PILImage.Image],
+        params: Dict[str, Any],
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> List[Dict[str, Any]]:
+        pass

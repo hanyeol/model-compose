@@ -11,10 +11,9 @@ class CommonPoseDetectionParamsConfig(BaseModel):
 class CommonPoseDetectionModelActionConfig(CommonModelActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or list of images to detect poses in.")
     max_detection_count: Union[int, str] = Field(default=1, description="Maximum number of poses returned per image.")
-    skeleton_format: Union[Literal[ "natural", "openpose" ], str] = Field(default="natural", description="Layout used when rendering the skeleton image.")
-    return_keypoints: Union[bool, str] = Field(default=True, description="Whether natural-layout 2D keypoints are included in the result.")
+    skeleton_format: Union[Literal[ "natural", "openpose" ], str] = Field(default="natural", description="Skeleton topology shared by keypoints and the rendered skeleton image.")
+    return_keypoints: Union[bool, str] = Field(default=True, description="Whether 2D keypoints are included in the result.")
     return_keypoints_3d: Union[bool, str] = Field(default=False, description="Whether 3D world keypoints (meters, hip-centered) are included in the result.")
-    return_openpose_keypoints: Union[bool, str] = Field(default=False, description="Whether OpenPose BODY_18 keypoints are included in the result.")
     return_segmentation_mask: Union[bool, str] = Field(default=False, description="Whether the per-pose segmentation mask is included in the result.")
     return_skeleton_image: Union[bool, str] = Field(default=False, description="Whether a rendered per-pose skeleton image is included in the result.")
     skeleton_background: Optional[Union[Color, str]] = Field(default=None, description="Skeleton canvas background: None yields a transparent RGBA PNG; a color (e.g. '#000000') flattens to that solid RGB fill.")

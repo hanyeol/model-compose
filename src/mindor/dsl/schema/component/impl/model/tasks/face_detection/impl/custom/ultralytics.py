@@ -15,7 +15,7 @@ class YoloFaceDetectionLocalModelConfig(LocalModelConfig):
         return values
 
     def _cache_subdir(self) -> str:
-        return "yolo"
+        return "ultralytics"
 
 YoloFaceDetectionModelConfig = Annotated[
     Union[

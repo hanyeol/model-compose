@@ -83,7 +83,6 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
         skeleton_background           = await context.render_scalar(self.config.skeleton_background, "color") if self.config.skeleton_background is not None else None
         return_tracks                 = await context.render_scalar(self.config.return_tracks, bool)
         return_keypoints              = await context.render_scalar(self.config.return_keypoints, bool)
-        return_openpose_keypoints     = await context.render_scalar(self.config.return_openpose_keypoints, bool)
         return_skeleton_image         = await context.render_scalar(self.config.return_skeleton_image, bool)
         return_track_image            = await context.render_scalar(self.config.return_track_image, bool)
         return_detections             = await context.render_scalar(self.config.return_detections, bool)
@@ -125,7 +124,6 @@ class PoseTrackingTaskAction(ModelTaskComponentAction):
             "skeleton_background":           skeleton_background,
             "return_tracks":                 return_tracks,
             "return_keypoints":              return_keypoints,
-            "return_openpose_keypoints":     return_openpose_keypoints,
             "return_skeleton_image":         return_skeleton_image,
             "return_track_image":            return_track_image,
             "return_detections":             return_detections,

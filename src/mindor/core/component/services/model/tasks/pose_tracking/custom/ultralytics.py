@@ -675,23 +675,19 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         keypoints_xy          = keypoints.xy.cpu().numpy()
         keypoints_confidences = keypoints.conf.cpu().numpy() if keypoints.conf is not None else None
 
-        needs_openpose_keypoints = (
-            params["return_openpose_keypoints"]
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "openpose")
-        )
-        needs_keypoints = (
-            params["return_keypoints"] or needs_openpose_keypoints
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "natural")
-        )
-        min_visibility = params["min_presence_confidence"]
-
         poses: List[Dict[str, Any]] = []
 
         for index in range(track_ids.shape[0]):
             x1, y1, x2, y2 = boxes_xyxy[index]
             keypoints_confidence = keypoints_confidences[index] if keypoints_confidences is not None else None
-            pose_keypoints = self._build_keypoints(keypoints_xy[index], keypoints_confidence, min_visibility) if needs_keypoints else None
-            openpose_keypoints = coco.to_body_18(pose_keypoints) if needs_openpose_keypoints else None
+
+            if params["return_keypoints"] or params["return_skeleton_image"]:
+                pose_keypoints = self._build_keypoints(keypoints_xy[index], keypoints_confidence, params["min_presence_confidence"])
+
+                if params["skeleton_format"] == "openpose":
+                    pose_keypoints = coco.to_body_18(pose_keypoints)
+            else:
+                pose_keypoints = None
 
             pose: Dict[str, Any] = {
                 "track_id":     int(track_ids[index]),
@@ -703,9 +699,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
             if pose_keypoints is not None:
                 pose["keypoints"] = pose_keypoints
-
-            if openpose_keypoints is not None:
-                pose["openpose_keypoints"] = openpose_keypoints
 
             poses.append(pose)
 
@@ -735,7 +728,7 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         background = params["skeleton_background"]
 
         if params["skeleton_format"] == "openpose":
-            return openpose.render_skeleton(pose.get("openpose_keypoints"), width, height, background=background)
+            return openpose.render_skeleton(pose.get("keypoints"), width, height, background=background)
 
         return coco.render_skeleton(pose.get("keypoints"), width, height, background=background)
 
@@ -858,9 +851,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
                     if params["return_keypoints"] and "keypoints" in best_pose:
                         segment["keypoints"] = best_pose["keypoints"]
 
-                    if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
-                        segment["openpose_keypoints"] = best_pose["openpose_keypoints"]
-
                     if params["return_skeleton_image"]:
                         segment["skeleton_image"] = self._render_skeleton(best_pose, params)
 
@@ -933,9 +923,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
         if params["return_keypoints"] and "keypoints" in best_pose:
             chunk["keypoints"] = best_pose["keypoints"]
 
-        if params["return_openpose_keypoints"] and "openpose_keypoints" in best_pose:
-            chunk["openpose_keypoints"] = best_pose["openpose_keypoints"]
-
         if params["return_skeleton_image"]:
             chunk["skeleton_image"] = self._render_skeleton(best_pose, params)
 
@@ -978,9 +965,6 @@ class YoloPoseTrackingTaskAction(PoseTrackingTaskAction):
 
         if params["return_keypoints"] and "keypoints" in tracked_pose:
             pose["keypoints"] = tracked_pose["keypoints"]
-
-        if params["return_openpose_keypoints"] and "openpose_keypoints" in tracked_pose:
-            pose["openpose_keypoints"] = tracked_pose["openpose_keypoints"]
 
         if params["return_skeleton_image"]:
             if not tracked_pose.get("interpolated"):

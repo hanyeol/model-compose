@@ -32,6 +32,7 @@ from .shot_boundary_detection import *
 from .face_detection import *
 from .pose_detection import *
 from .pose_tracking import *
+from .hand_detection import *
 from .human_mesh_recovery import *
 from .face_embedding import *
 from .face_tracking import *

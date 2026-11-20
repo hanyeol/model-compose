@@ -63,24 +63,20 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
         boxes_xyxy            = prediction.boxes.xyxy.cpu().numpy()
         boxes_confidences     = prediction.boxes.conf.cpu().numpy()
 
-        needs_openpose_keypoints = (
-            params["return_openpose_keypoints"]
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "openpose")
-        )
-        needs_keypoints = (
-            params["return_keypoints"] or needs_openpose_keypoints
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "natural")
-        )
-        min_visibility = params["min_presence_confidence"]
-
         poses: List[Dict[str, Any]] = []
 
         for index in range(keypoints_xy.shape[0]):
             pose: Dict[str, Any] = {}
 
             keypoints_confidence = keypoints_confidences[index] if keypoints_confidences is not None else None
-            keypoints = self._serialize_keypoints(keypoints_xy[index], keypoints_confidence, min_visibility) if needs_keypoints else None
-            openpose_keypoints = coco.to_body_18(keypoints) if needs_openpose_keypoints else None
+
+            if params["return_keypoints"] or params["return_skeleton_image"]:
+                keypoints = self._serialize_keypoints(keypoints_xy[index], keypoints_confidence, params["min_presence_confidence"])
+
+                if params["skeleton_format"] == "openpose":
+                    keypoints = coco.to_body_18(keypoints)
+            else:
+                keypoints = None
 
             pose["bounding_box"] = self._serialize_bounding_box(boxes_xyxy[index])
             pose["score"] = float(boxes_confidences[index])
@@ -88,14 +84,11 @@ class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
             if params["return_keypoints"]:
                 pose["keypoints"] = keypoints
 
-            if params["return_openpose_keypoints"]:
-                pose["openpose_keypoints"] = openpose_keypoints
-
             if params["return_skeleton_image"]:
                 background = params["skeleton_background"]
 
                 if params["skeleton_format"] == "openpose":
-                    pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height, background=background)
+                    pose["skeleton_image"] = openpose.render_skeleton(keypoints, width, height, background=background)
                 else:
                     pose["skeleton_image"] = coco.render_skeleton(keypoints, width, height, background=background)
 

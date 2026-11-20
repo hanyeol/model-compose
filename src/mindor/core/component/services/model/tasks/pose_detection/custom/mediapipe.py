@@ -65,30 +65,22 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
         landmarks_3d_lists = prediction.pose_world_landmarks or []
         segmentation_masks = prediction.segmentation_masks or []
 
-        needs_openpose_keypoints = (
-            params["return_openpose_keypoints"]
-            or (params["return_skeleton_image"] and params["skeleton_format"] == "openpose")
-        )
-        min_visibility = params["min_presence_confidence"]
-
         poses: List[Dict[str, Any]] = []
 
         for index, landmarks in enumerate(landmarks_lists):
             pose: Dict[str, Any] = {}
 
-            keypoints = self._serialize_keypoints(landmarks, width, height, min_visibility)
-            openpose_keypoints = blazepose.to_body_18(keypoints) if needs_openpose_keypoints else None
-
+            keypoints = self._serialize_keypoints(landmarks, width, height, params["min_presence_confidence"])
             pose["bounding_box"] = topology.keypoints_to_bounding_box(keypoints)
+
+            if params["skeleton_format"] == "openpose":
+                keypoints = blazepose.to_body_18(keypoints)
 
             if params["return_keypoints"]:
                 pose["keypoints"] = keypoints
 
             if params["return_keypoints_3d"]:
                 pose["keypoints_3d"] = self._serialize_keypoints_3d(landmarks_3d_lists[index])
-
-            if params["return_openpose_keypoints"]:
-                pose["openpose_keypoints"] = openpose_keypoints
 
             if params["return_segmentation_mask"]:
                 pose["segmentation_mask"] = self._to_pil_image(segmentation_masks[index])
@@ -97,7 +89,7 @@ class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
                 background = params["skeleton_background"]
 
                 if params["skeleton_format"] == "openpose":
-                    pose["skeleton_image"] = openpose.render_skeleton(openpose_keypoints, width, height, background=background)
+                    pose["skeleton_image"] = openpose.render_skeleton(keypoints, width, height, background=background)
                 else:
                     pose["skeleton_image"] = blazepose.render_skeleton(keypoints, width, height, background=background)
 

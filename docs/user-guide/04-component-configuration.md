@@ -89,7 +89,7 @@ model-compose provides various component types for performing different tasks.
 
 **Local AI Models**
 - Local inference → `model`
-- Vision tasks (face/pose/object detection or image segmentation on local images) → `model` with `task: face-detection`, `task: pose-detection`, `task: object-detection`, or `task: image-segmentation` (see [Model Component reference](../reference/compose/components/model.md))
+- Vision tasks (face/pose/hand/object detection or image segmentation on local images) → `model` with `task: face-detection`, `task: pose-detection`, `task: hand-detection`, `task: object-detection`, or `task: image-segmentation` (see [Model Component reference](../reference/compose/components/model.md))
 - vLLM, Ollama, etc. backend usage → `http-server`
 - Training → `model-trainer`
 

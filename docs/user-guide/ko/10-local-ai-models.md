@@ -264,6 +264,7 @@ model-compose는 다음 태스크 타입을 지원합니다:
 | `voice-activity-detection` | 오디오의 음성 구간 감지 | ASR 전 침묵 필터링, 자막 분할 |
 | `face-detection` | 얼굴 검출 | 이미지에서 얼굴 위치 검출 |
 | `pose-detection` | 자세 검출 | 인체 키포인트 추정 |
+| `hand-detection` | 손 검출 | 손별 21개 키포인트와 좌/우 손 구분 |
 | `object-detection` | 객체 검출 | 클래스 라벨과 바운딩 박스로 객체 검출 |
 | `image-segmentation` | 이미지 세그멘테이션 | 영역별 이진 마스크 생성 (자동 또는 박스 프롬프트) |
 | `text-to-video` | 텍스트→비디오 생성 | 프롬프트 기반 짧은 비디오 클립 |
@@ -854,6 +855,7 @@ component:
 | `method` | string | **필수** | 생성 방식: `generate`, `clone`, `design`, `edit` |
 | `text` | string/array | **필수** | 합성할 텍스트 (또는 텍스트 리스트); `edit`에서는 무시됨 |
 | `language` | string | `null` | 텍스트 언어; 언어 조건부 패밀리에서 사용 |
+| `seed` | int | `null` | 재현 가능한 생성을 위한 난수 시드; 시드를 지원하지 않는 드라이버에서는 무시됨 |
 | `batch_size` | int | `1` | 배치당 처리할 입력 텍스트 수 |
 
 #### 패밀리: `qwen`
@@ -900,7 +902,12 @@ component:
     text: ${input.text as text}
     reference_audio: ${input.reference_audio as audio}
     reference_text: ${input.reference_text as text}
+    seed: ${input.seed | null}
+    temperature: 0.7
+    max_output_length: 2048
 ```
+
+`seed`로 클론 결과를 재현 가능하게 고정하고, `temperature`(및 `subtalker_temperature`)로 샘플링 변동성을 조절하며, `max_output_length`로 EOS를 내지 못하는 실행이 멈추지 않도록 생성 상한을 설정합니다. 네 필드 모두 선택이며, 생략하면 체크포인트의 기본값이 사용됩니다.
 
 `design` — 원하는 음성을 자연어로 설명:
 

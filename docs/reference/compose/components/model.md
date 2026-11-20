@@ -23,7 +23,7 @@ component:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `type` | string | **required** | Must be `model` |
-| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `active-speaker-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `face-emotion-classification`, `pose-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
+| `task` | string | **required** | Model task type: `text-generation`, `chat-completion`, `text-to-text`, `text-embedding`, `text-classification`, `text-reranking`, `image-to-text`, `image-text-to-text`, `image-embedding`, `image-text-scoring`, `video-embedding`, `video-text-scoring`, `text-to-speech`, `speech-to-text`, `speaker-diarization`, `voice-activity-detection`, `active-speaker-detection`, `image-generation`, `image-upscaling`, `text-to-video`, `image-to-video`, `video-to-video`, `image-to-3d`, `talking-head`, `lip-sync`, `face-detection`, `face-tracking`, `face-emotion-classification`, `pose-detection`, `hand-detection`, `face-embedding`, `shot-boundary-detection`, `music-generation`, `music-source-separation`, `music-transcription`, `music-beat-tracking`, `music-pitch-estimation`, `motion-generation` |
 | `driver` | string | `huggingface` | Inference framework: `huggingface`, `unsloth`, `vllm`, `llamacpp`, `custom` (availability depends on task) |
 | `model` | string/object | **required** | Model identifier or configuration object (see below) |
 | `device_mode` | string | `auto` | Device allocation mode: `auto`, `single` |
@@ -1680,7 +1680,10 @@ Detect human bodies in an image and return per-pose keypoints (2D, optionally 3D
 |-------|------|---------|-------------|
 | `image` | image/array | **required** | Input image, list of images, or async stream of images |
 | `max_detection_count` | int | `1` | Maximum number of poses to detect per image (>= 1) |
-| `return_keypoints` | bool | `true` | Include 2D pose keypoints (pixel coordinates) in the result |
+| `skeleton_format` | string | `"natural"` | Skeleton topology shared by keypoints and the skeleton image. One of `"natural"` (family's native layout) or `"openpose"` (BODY_18, ControlNet-ready). |
+| `skeleton_background` | color/null | `null` | Skeleton canvas background: `null` yields a transparent RGBA PNG; a color (e.g. `"#000000"`) flattens to that solid RGB fill. |
+| `return_keypoints` | bool | `true` | Include 2D pose keypoints (pixel coordinates) in the result (layout determined by `skeleton_format`) |
+| `return_skeleton_image` | bool | `false` | Include a rendered per-pose skeleton image (see `skeleton_format` / `skeleton_background`) |
 | `batch_size` | int | `1` | Number of images to process per batch |
 | `params.min_confidence` | float | `0.5` | Minimum pose-detection confidence threshold (0.0 - 1.0) |
 
@@ -1775,6 +1778,93 @@ YOLOv8-pose returns **17 COCO keypoints** per detected pose (nose, eyes, ears, s
 
 List and async-stream inputs behave the same way as face detection.
 
+### Hand Detection
+
+Detect hands in an image and return per-hand keypoints (21 landmarks per hand, 2D and optionally 3D) along with handedness. Uses MediaPipe's Hand Landmarker, which bundles palm detection and hand-landmark regression into a single `.task` file. Runs independently from `pose-detection`; match hands to bodies downstream by comparing wrist coordinates when needed. This task uses `driver: custom` with a `family` field to select the model family.
+
+**Component Settings:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | string | **required** | Must be `hand-detection` |
+| `driver` | string | `custom` | Model driver |
+| `family` | string | **required** | Model family (currently `blazehand`) |
+| `model` | string/object | family-dependent | Model source. For `blazehand`, a MediaPipe `.task` file (auto-downloads `hand_landmarker.task` to `~/.cache/mindor/models/mediapipe/` when omitted). |
+
+**Action Fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | image/array | **required** | Input image, list of images, or async stream of images |
+| `max_detection_count` | int | `2` | Maximum number of hands to detect per image (>= 1) |
+| `skeleton_format` | string | `"natural"` | Layout used when rendering the skeleton image. One of `"natural"` (HSV palette on the MediaPipe 21-point topology) or `"openpose"` (per-finger color scheme, ControlNet-friendly). |
+| `return_keypoints` | bool | `true` | Include 2D keypoints (21 per hand, pixel coordinates) in the result |
+| `return_keypoints_3d` | bool | `false` | Include real-world 3D keypoints in meters (wrist-centered) |
+| `return_segmentation_mask` | bool | `false` | Include a per-hand grayscale mask. Hand Landmarker emits no real segmentation, so this is synthesized as the convex hull of the 21 keypoints — useful as a coarse "hand region" mask for inpaint/ControlNet pipelines but not a true silhouette. |
+| `return_skeleton_image` | bool | `false` | Include a rendered per-hand skeleton image (see `skeleton_format` / `skeleton_background`). |
+| `skeleton_background` | color/null | `null` | Skeleton canvas background: `null` yields a transparent RGBA PNG; a color (e.g. `"#000000"`) flattens to that solid RGB fill. |
+| `crop_margin_ratio` | float | `0.0` | Margin added around each returned bounding box, as a ratio of the box's own width/height |
+| `batch_size` | int | `1` | Number of images to process per batch |
+| `params.min_confidence` | float | `0.5` | Minimum palm-detection confidence a hand must reach (0.0 - 1.0) |
+| `params.min_presence_confidence` | float | `0.5` | Minimum keypoint-presence confidence (0.0 - 1.0) |
+| `params.min_tracking_confidence` | float | `0.5` | Minimum tracking confidence. Reserved for future video running mode. |
+
+**Example — BlazeHand:**
+
+```yaml
+component:
+  type: model
+  task: hand-detection
+  driver: custom
+  family: blazehand
+  action:
+    image: ${input.image as image}
+    max_detection_count: 2
+    return_keypoints_3d: true
+    return_skeleton_image: true
+    skeleton_format: openpose
+    params:
+      min_confidence: 0.5
+    output:
+      hands: ${result.hands}
+```
+
+**Result Shape:**
+
+```json
+{
+  "hands": [
+    {
+      "handedness": "Right",
+      "handedness_score": 0.98,
+      "bounding_box": { "x": 420, "y": 300, "width": 180, "height": 210 },
+      "keypoints": [
+        { "x": 440, "y": 480, "z": 0.00 },
+        ...
+      ],
+      "keypoints_3d": [
+        { "x": 0.00, "y": 0.00, "z": 0.00 },
+        ...
+      ],
+      "segmentation_mask": "<PIL grayscale image>",
+      "skeleton_image":    "<PIL RGBA / RGB image>"
+    }
+  ],
+  "width": 1280,
+  "height": 720
+}
+```
+
+BlazeHand returns **21 keypoints** per detected hand following the MediaPipe Hand landmarks model (wrist + 4 joints per finger × 5 fingers; see [MediaPipe hand landmark diagram](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker#hand_landmarker_model)). `handedness` is `"Left"` or `"Right"` from the model's perspective (mirrored from the image subject). Per-keypoint `visibility`/`presence` are not emitted — the Hand Landmarker regresses all 21 points even when occluded, so hand-level confidence lives in `handedness_score` instead. `keypoints_3d`, `segmentation_mask`, and `skeleton_image` are only present when their corresponding `return_*` flag is enabled.
+
+List and async-stream inputs behave the same way as face detection.
+
+#### Supported families
+
+| Family | Backend | Notes |
+|--------|---------|-------|
+| `blazehand` | [MediaPipe Tasks (Hand Landmarker)](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) (pip: `mediapipe`) | Single `.task` bundle with palm detector + hand landmarker. CPU-friendly. Runs independently from `pose-detection`; both tasks must be invoked separately if body and finger joints are needed together. |
+
 ### Pose Tracking
 
 Track people (as poses) across a sequence of video frames. Per-frame pose detections are grouped into tracks by the underlying tracker's persistent `track_id`, and consecutive hits for the same track are merged into timecoded segments with optional interpolation across small gaps. Accepts a single frame sequence, a list of sequences, or an async stream of frame batches; runs lazily on streamed input without buffering the whole video. This task uses `driver: custom` with a `family` field to select the model family.
@@ -1795,11 +1885,10 @@ Track people (as poses) across a sequence of video frames. Per-frame pose detect
 | `frames` | image/array | **required** | Frame images to analyze. May be a single frame, a flat list, a list of batches, or a stream of batches. |
 | `frame_rate` | float | **required** | Frames per second of the sampled sequence, used to derive per-frame timestamps. |
 | `time_offset` | float/list | `0.0` | Timestamp offset in seconds for the first frame of each batch. Scalar is broadcast; a list is paired per batch. |
-| `skeleton_format` | string | `"natural"` | Layout used when rendering the skeleton image. One of `"natural"` or `"openpose"`. |
+| `skeleton_format` | string | `"natural"` | Skeleton topology shared by keypoints and the skeleton image. One of `"natural"` or `"openpose"`. |
 | `skeleton_background` | color/null | `null` | Skeleton canvas background: `null` yields a transparent RGBA PNG; a color (e.g. `"#000000"`) flattens to that solid RGB fill. |
 | `return_tracks` | bool | `true` | Include the per-person track list (`tracks[]`) in the result. |
-| `return_keypoints` | bool | `true` | Include natural-layout 2D keypoints on each pose. Also emitted per-frame when `return_detections` is enabled. |
-| `return_openpose_keypoints` | bool | `false` | Include OpenPose BODY_18 keypoints on each pose. Also emitted per-frame when `return_detections` is enabled. |
+| `return_keypoints` | bool | `true` | Include 2D keypoints on each pose (layout determined by `skeleton_format`). Also emitted per-frame when `return_detections` is enabled. |
 | `return_skeleton_image` | bool | `false` | Include a rendered skeleton image on each pose (see `skeleton_format` / `skeleton_background`). Also emitted per-frame when `return_detections` is enabled. |
 | `return_track_image` | bool | `false` | Include one representative body crop per segment (highest-scoring frame in the segment, cropped at the detected bounding box in the frame's native resolution). Requires `return_tracks: true`. |
 | `return_detections` | bool | `false` | Include a frame-centric view (`detections[]`) alongside tracks, tagging each pose with its `track_id`. |
@@ -1878,9 +1967,9 @@ component:
 
 - `tracks[i].track_id` is the tracker's persistent id — stable across a segment; the same id can span multiple segments if the person leaves and re-enters the frame.
 - `tracks[i].score` is the highest detection confidence across all frames in the track.
-- `tracks[i].segments[j].keypoints` / `openpose_keypoints` / `skeleton_image` are present only when the corresponding `return_*` flag is enabled — taken from the highest-scoring frame in the segment.
+- `tracks[i].segments[j].keypoints` / `skeleton_image` are present only when the corresponding `return_*` flag is enabled — taken from the highest-scoring frame in the segment.
 - `tracks[i].segments[j].image` is present only when `return_track_image` is enabled.
-- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with a `poses[]` list tagged by `track_id`. Each pose carries `keypoints` / `openpose_keypoints` / `skeleton_image` under their respective flags, and `image` only when `return_detection_image` is enabled.
+- `detections[]` is present only when `return_detections` is enabled — one entry per analyzed frame, each with a `poses[]` list tagged by `track_id`. Each pose carries `keypoints` / `skeleton_image` under their respective flags, and `image` only when `return_detection_image` is enabled.
 - `detections[i].poses[j].interpolated: true` appears when the pose was filled in for a gap between real detections in the same track. Interpolated entries have no `image` even under `return_detection_image`.
 - `frame_count` at the top level is the total number of sampled frames analyzed. Only present when `return_metadata: true`.
 
@@ -1895,7 +1984,7 @@ Instead of a single result dict, the action returns an async iterator of chunks.
 | `type` | When emitted | Payload shape |
 |--------|--------------|---------------|
 | `"detection"` | Once per analyzed frame, after `merge_gap` has passed. Suppressed when `return_detections: false`. | `{ type, number, timestamp, poses: [...], image? }` |
-| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, start_time, end_time, duration, frame_count, score, bounding_box, keypoints?, openpose_keypoints?, skeleton_image?, image? }` |
+| `"segment"` | When a track's ongoing segment is sealed. Suppressed when `return_tracks: false`. | `{ type, track_id, start_time, end_time, duration, frame_count, score, bounding_box, keypoints?, skeleton_image?, image? }` |
 | `"track"` | When a track goes idle past `merge_gap` (may re-emit for the same `track_id` if it reactivates). Suppressed when `return_tracks: false`. | `{ type, track_id, segment_count, frame_count, score }` |
 | `"metadata"` | Once at the end of the stream, only when `return_metadata: true`. | `{ type: "metadata", frame_count }` |
 
@@ -2802,6 +2891,7 @@ Each family may add its own component-level fields (e.g. `preset`, CUDA accelera
 | `method` | string | **required** | TTS generation method — one of `generate`, `clone`, `design`, `edit`. Availability depends on the family. |
 | `text` | string / array | **required** | Text (or list of texts) to synthesize |
 | `language` | string | `null` | Text language as an ISO 639-1 or BCP 47 code (see [language codes](../language-codes.md)). Only used by families that condition on language. |
+| `seed` | int | `null` | Random seed for reproducible generation; ignored by drivers without seed control. |
 | `batch_size` | int | `1` | Number of input texts processed per batch |
 
 **Method Availability by Family:**
@@ -2860,12 +2950,18 @@ component:
     text: ${input.text as text}
     reference_audio: ${input.reference_audio as audio}
     reference_text: ${input.reference_text as text}
+    seed: ${input.seed | null}
+    temperature: 0.7
+    max_output_length: 2048
 ```
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `reference_audio` | string | **required** | Reference audio to clone the voice from |
 | `reference_text` | string | **required** | Transcript of the reference audio |
+| `temperature` | float | — | Sampling temperature for the main decoder; unset uses the model's configured value |
+| `subtalker_temperature` | float | — | Sampling temperature for the subtalker decoder; unset uses the model's configured value |
+| `max_output_length` | int | — | Maximum generated tokens; unset uses the model's configured limit |
 
 **Method: `design`**
 
@@ -3014,7 +3110,6 @@ component:
 | `guidance_scale` | float | `3.0` | Classifier-free guidance scale |
 | `t_shift` | float | `0.5` | Flow-matching time shift |
 | `speed` | float | `1.0` | Speech speed multiplier |
-| `seed` | int | — | Random seed for reproducibility |
 
 Output sample rate: 48 kHz. On CPU, thread count is auto-clamped to `min(cpu_count, 8)`.
 
@@ -3051,7 +3146,6 @@ component:
 |-------|------|---------|-------------|
 | `reference_audio` | string | **required** | Reference audio for voice cloning |
 | `reference_text` | string | — | Transcript of the reference audio; omit to use TADA's built-in English ASR |
-| `seed` | int | — | Random seed for reproducibility |
 
 Output sample rate: 24 kHz. On CUDA/XPU the model uses bfloat16 when supported; MPS falls back to CPU due to flow-matching instability on Apple Silicon.
 

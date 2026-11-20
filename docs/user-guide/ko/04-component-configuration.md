@@ -76,7 +76,7 @@ model-compose는 다양한 작업을 수행할 수 있는 여러 컴포넌트 �
 
 **로컬 AI 모델**
 - 로컬 추론 → `model`
-- 비전 태스크 (로컬 이미지의 얼굴/포즈/객체 검출 및 이미지 세그멘테이션) → `model` + `task: face-detection`, `task: pose-detection`, `task: object-detection`, `task: image-segmentation` ([Model Component 레퍼런스](../../reference/compose/components/model.md) 참고)
+- 비전 태스크 (로컬 이미지의 얼굴/포즈/손/객체 검출 및 이미지 세그멘테이션) → `model` + `task: face-detection`, `task: pose-detection`, `task: hand-detection`, `task: object-detection`, `task: image-segmentation` ([Model Component 레퍼런스](../../reference/compose/components/model.md) 참고)
 - vLLM, Ollama 등 백엔드 사용 → `http-server`
 - 훈련 → `model-trainer`
 

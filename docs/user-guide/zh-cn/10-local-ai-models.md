@@ -264,6 +264,7 @@ model-compose 支持以下任务类型：
 | `voice-activity-detection` | 检测音频中的语音片段 | ASR 前的静音过滤、字幕分割 |
 | `face-detection` | 人脸检测 | 在图像中定位人脸 |
 | `pose-detection` | 姿态检测 | 关键点估计 |
+| `hand-detection` | 手部检测 | 每只手 21 个关键点，含左右手标识 |
 | `object-detection` | 目标检测 | 使用类别标签和边界框检测目标 |
 | `image-segmentation` | 图像分割 | 生成分区二值掩码（自动模式或框提示模式） |
 | `text-to-video` | 从文本生成视频 | 由提示词驱动的短视频片段 |
@@ -854,6 +855,7 @@ component:
 | `method` | string | **必需** | 生成方式：`generate`、`clone`、`design`、`edit` |
 | `text` | string/array | **必需** | 要合成的文本（或文本列表）；`edit` 会忽略 |
 | `language` | string | `null` | 文本语言；用于按语言条件化的系列 |
+| `seed` | int | `null` | 可复现生成的随机种子；不支持种子控制的驱动会忽略 |
 | `batch_size` | int | `1` | 每批处理的输入文本数量 |
 
 #### 系列：`qwen`
@@ -900,7 +902,12 @@ component:
     text: ${input.text as text}
     reference_audio: ${input.reference_audio as audio}
     reference_text: ${input.reference_text as text}
+    seed: ${input.seed | null}
+    temperature: 0.7
+    max_output_length: 2048
 ```
+
+设置 `seed` 可使克隆结果可复现，`temperature`（及 `subtalker_temperature`）用于控制采样变化，`max_output_length` 用于限制生成长度，避免永不发出 EOS 的运行无限停滞。四项均为可选；省略时使用检查点自身配置的默认值。
 
 `design` — 用自然语言描述所需语音：
 

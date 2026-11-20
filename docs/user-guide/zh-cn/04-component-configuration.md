@@ -76,7 +76,7 @@ model-compose 提供了多种组件类型来执行不同的任务。
 
 **本地 AI 模型**
 - 本地推理 → `model`
-- 视觉任务（本地图像的人脸/姿态/目标检测及图像分割）→ `model` 配合 `task: face-detection`、`task: pose-detection`、`task: object-detection` 或 `task: image-segmentation`（详见 [Model Component 参考](../../reference/compose/components/model.md)）
+- 视觉任务（本地图像的人脸/姿态/手部/目标检测及图像分割）→ `model` 配合 `task: face-detection`、`task: pose-detection`、`task: hand-detection`、`task: object-detection` 或 `task: image-segmentation`（详见 [Model Component 参考](../../reference/compose/components/model.md)）
 - 使用 vLLM、Ollama 等后端 → `http-server`
 - 训练 → `model-trainer`
 

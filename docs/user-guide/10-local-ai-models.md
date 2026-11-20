@@ -264,6 +264,7 @@ model-compose supports the following task types:
 | `voice-activity-detection` | Detect speech segments in audio | Pre-ASR silence filtering, subtitle splitting |
 | `face-detection` | Face detection | Locate faces in images |
 | `pose-detection` | Pose detection | Keypoint estimation |
+| `hand-detection` | Hand detection | Per-hand 21-point landmarks with handedness |
 | `object-detection` | Object detection | Detect objects with class labels and bounding boxes |
 | `image-segmentation` | Image segmentation | Generate per-region binary masks (automatic or box-prompted) |
 | `text-to-video` | Video generation from text | Prompt-driven short video clips |
@@ -897,6 +898,7 @@ Not every family implements every method — see the family sections below and t
 | `method` | string | **required** | Generation method: `generate`, `clone`, `design`, `edit` |
 | `text` | string/array | **required** | Text (or list of texts) to synthesize; ignored by `edit` |
 | `language` | string | `null` | Language of the text; used by families that condition on language |
+| `seed` | int | `null` | Random seed for reproducible generation; ignored by drivers without seed control |
 | `batch_size` | int | `1` | Number of input texts processed per batch |
 
 #### Family: `qwen`
@@ -943,7 +945,12 @@ component:
     text: ${input.text as text}
     reference_audio: ${input.reference_audio as audio}
     reference_text: ${input.reference_text as text}
+    seed: ${input.seed | null}
+    temperature: 0.7
+    max_output_length: 2048
 ```
+
+Set `seed` to make a clone reproducible, `temperature` (and `subtalker_temperature`) to steer sampling variation, and `max_output_length` to cap generation so a run that never emits EOS can't stall. All four are optional — leave them unset to use the checkpoint's configured defaults.
 
 `design` — describe the voice you want in natural language:
 

@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class DataQueueDriver(ComponentDriver):
-    def __init__(self, id: str, config: DataQueueComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: DataQueueComponentConfig = config
+    config: DataQueueComponentConfig
 
     async def run(self, action: DataQueueActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

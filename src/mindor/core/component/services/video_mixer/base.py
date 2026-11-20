@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class VideoMixerDriver(ComponentDriver):
-    def __init__(self, id: str, config: VideoMixerComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: VideoMixerComponentConfig = config
+    config: VideoMixerComponentConfig
 
     async def run(self, action: VideoMixerActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

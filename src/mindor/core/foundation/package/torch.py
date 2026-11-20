@@ -278,6 +278,20 @@ def supported_torch_minors(*specs: str) -> List[str]:
 
     return minors
 
+def is_torch_installed() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("torch") is not None
+
+def empty_torch_cache() -> None:
+    import torch
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+
 def _resolve_torch_and_channel(
     torch_specifier: Optional[SpecifierSet],
     torch_siblings: List[str],

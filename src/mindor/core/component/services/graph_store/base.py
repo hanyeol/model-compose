@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class GraphStoreDriver(ComponentDriver):
-    def __init__(self, id: str, config: GraphStoreComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: GraphStoreComponentConfig = config
+    config: GraphStoreComponentConfig
 
     async def run(self, action: GraphStoreActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

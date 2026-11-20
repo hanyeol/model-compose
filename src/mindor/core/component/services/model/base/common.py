@@ -5,8 +5,8 @@ from typing import Type, Union, Literal, Optional, Dict, List, Set, Annotated, M
 from abc import ABC, abstractmethod
 from mindor.dsl.schema.component import ModelComponentConfig, ModelTaskType, ModelDriverType, ModelConfig, ModelPrecision
 from mindor.dsl.schema.action import ModelActionConfig
-from mindor.dsl.schema.runtime import RuntimeType
 from mindor.core.foundation.async_service import AsyncService
+from mindor.core.foundation.package.torch import is_torch_installed, empty_torch_cache
 from mindor.core.component.base import ComponentDriver
 from mindor.core.logger import logging
 from ....action.base import ComponentAction
@@ -46,11 +46,10 @@ class ModelTaskComponentAction(ComponentAction):
         return torch.autocast(device_type="cuda", dtype=dtype)
 
 class ModelTaskDriver(ComponentDriver):
-    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
-        super().__init__(daemon)
+    config: ModelComponentConfig
 
-        self.id: str = id
-        self.config: ModelComponentConfig = config
+    def __init__(self, id: str, config: ModelComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
         self._model_provisioner: ModelProvisioner = ModelProvisioner()
         self._device_resolver: DeviceResolver = DeviceResolver()
@@ -80,6 +79,11 @@ class ModelTaskDriver(ComponentDriver):
         if not self._model_loaded:
             await self._load_model_on_demand()
 
+        if getattr(action, "peft_adapter", None):
+            self._apply_peft_adapters(action.peft_adapter)
+        else:
+            self._disable_peft_adapters()
+
         return await self._run(action, context)
 
     async def _load_model_on_demand(self) -> None:
@@ -89,43 +93,6 @@ class ModelTaskDriver(ComponentDriver):
 
                 await self._load_model()
                 self._model_loaded = True
-
-    async def _reclaim_device_memory(self) -> None:
-        import gc
-
-        gc.collect()
-
-        if self._is_torch_installed():
-            self._empty_torch_cache()
-
-    def _empty_torch_cache(self) -> None:
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-
-    def _is_torch_installed(self) -> bool:
-        import importlib.util
-
-        if importlib.util.find_spec("torch") is not None:
-            return True
-
-        return False
-
-    @abstractmethod
-    async def _load_model(self) -> None:
-        pass
-
-    @abstractmethod
-    async def _unload_model(self) -> None:
-        pass
-
-    @abstractmethod
-    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
-        pass
 
     async def _provision_model(self, model: ModelConfig, prefetch: bool = False) -> str:
         return await self._model_provisioner.provision(model, prefetch=prefetch)
@@ -159,19 +126,33 @@ class ModelTaskDriver(ComponentDriver):
 
         return checkpoint
 
-    def _require_isolated_runtime(self) -> None:
-        # Some upstream packages carry version pins that can't coexist with the
-        # host mindor stack. Refuse runtimes that share the host interpreter or
-        # a plain subprocess of it, forcing the user onto virtualenv/docker.
-        # `EMBEDDED` is the sentinel the worker sets on itself after entering
-        # an already-isolated environment, so it's allowed through.
-        runtime_type = self.config.runtime.type
+    def _apply_peft_adapters(self, adapters: List[Any]) -> None:
+        # Overridden by drivers that support PEFT adapters.
+        pass
 
-        if runtime_type in (RuntimeType.NATIVE, RuntimeType.PROCESS):
-            raise RuntimeError(
-                f"Component '{self.id}' requires an isolated runtime; "
-                f"got runtime.type = '{runtime_type.value}'."
-            )
+    def _disable_peft_adapters(self) -> None:
+        # Overridden by drivers that support PEFT adapters.
+        pass
+
+    async def _reclaim_device_memory(self) -> None:
+        import gc
+
+        gc.collect()
+
+        if is_torch_installed():
+            empty_torch_cache()
+
+    @abstractmethod
+    async def _load_model(self) -> None:
+        pass
+
+    @abstractmethod
+    async def _unload_model(self) -> None:
+        pass
+
+    @abstractmethod
+    async def _run(self, action: ModelActionConfig, context: ComponentActionContext) -> Any:
+        pass
 
 def register_model_task_driver(type: ModelTaskType, driver: ModelDriverType):
     def decorator(cls: Type[ModelTaskDriver]) -> Type[ModelTaskDriver]:

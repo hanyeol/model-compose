@@ -66,7 +66,26 @@ class ComponentDriver(AsyncService):
     lets ``ComponentService`` consolidate lifecycle and requirement forwarding
     for the common single-driver case.
     """
-    pass
+
+    def __init__(self, id: str, config: ComponentConfig, daemon: bool):
+        super().__init__(daemon)
+
+        self.id: str = id
+        self.config: ComponentConfig = config
+
+    def _require_isolated_runtime(self) -> None:
+        # Some upstream packages carry version pins that can't coexist with the
+        # host mindor stack. Refuse runtimes that share the host interpreter or
+        # a plain subprocess of it, forcing the user onto virtualenv/docker.
+        # `EMBEDDED` is the sentinel the worker sets on itself after entering
+        # an already-isolated environment, so it's allowed through.
+        runtime_type = self.config.runtime.type
+
+        if runtime_type in (RuntimeType.NATIVE, RuntimeType.PROCESS):
+            raise RuntimeError(
+                f"Component '{self.id}' requires an isolated runtime; "
+                f"got runtime.type = '{runtime_type.value}'."
+            )
 
 class ComponentService(AsyncService):
     def __init__(

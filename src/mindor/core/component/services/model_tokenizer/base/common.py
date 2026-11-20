@@ -13,13 +13,12 @@ from ....context import ComponentActionContext
 from ...model.utils.provision import ModelProvisioner
 
 class ModelTokenizerTaskDriver(ComponentDriver):
+    config: ModelTokenizerComponentConfig
+
     def __init__(self, id: str, config: ModelTokenizerComponentConfig, daemon: bool):
-        super().__init__(daemon)
+        super().__init__(id, config, daemon)
 
-        self.id: str = id
-        self.config: ModelTokenizerComponentConfig = config
         self.tokenizer = None
-
         self._model_provisioner: ModelProvisioner = ModelProvisioner()
 
     async def _start(self) -> None:

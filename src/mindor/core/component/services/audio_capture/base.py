@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class AudioCaptureDriver(ComponentDriver):
-    def __init__(self, id: str, config: AudioCaptureComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: AudioCaptureComponentConfig = config
+    config: AudioCaptureComponentConfig
 
     async def run(self, action: AudioCaptureActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class MusicScoreLoaderDriver(ComponentDriver):
-    def __init__(self, id: str, config: MusicScoreLoaderComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: MusicScoreLoaderComponentConfig = config
+    config: MusicScoreLoaderComponentConfig
 
     async def run(self, action: MusicScoreLoaderActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

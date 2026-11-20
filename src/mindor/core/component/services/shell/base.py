@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class ShellDriver(ComponentDriver):
-    def __init__(self, id: str, config: ShellComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: ShellComponentConfig = config
+    config: ShellComponentConfig
 
     async def run(self, action: ShellActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class TranscriptCorrectorDriver(ComponentDriver):
-    def __init__(self, id: str, config: TranscriptCorrectorComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: TranscriptCorrectorComponentConfig = config
+    config: TranscriptCorrectorComponentConfig
 
     async def run(self, action: TranscriptCorrectorActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

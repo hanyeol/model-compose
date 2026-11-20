@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class AudioMixerDriver(ComponentDriver):
-    def __init__(self, id: str, config: AudioMixerComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: AudioMixerComponentConfig = config
+    config: AudioMixerComponentConfig
 
     async def run(self, action: AudioMixerActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

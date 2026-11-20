@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class ImageCompressorDriver(ComponentDriver):
-    def __init__(self, id: str, config: ImageCompressorComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: ImageCompressorComponentConfig = config
+    config: ImageCompressorComponentConfig
 
     async def run(self, action: ImageCompressorActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

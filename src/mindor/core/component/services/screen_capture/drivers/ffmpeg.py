@@ -22,13 +22,6 @@ from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from .common import ScreenCaptureAction
 import asyncio, os, platform, shutil, time
 
-# Sentinel put on the chunk queue to signal end-of-stream to the consumer.
-_STREAM_END = object()
-
-# How many encoded chunks may sit in the queue before the reader task blocks.
-# Encoded video chunks are ~KB-scale; 32 gives ~1s of buffering at typical bitrates.
-_CHUNK_QUEUE_SIZE = 32
-
 # MPEG-TS is the default video container because it is designed for streaming:
 # each packet is self-contained, so encoded chunks are available immediately
 # without waiting for an mp4 fragment to close. mp4 over a pipe has multi-second
@@ -38,6 +31,9 @@ _DEFAULT_VIDEO_FORMAT = "ts"
 _DEFAULT_VIDEO_CODEC  = "libx264"
 _DEFAULT_AUDIO_FORMAT = "aac"
 _DEFAULT_AUDIO_CODEC  = "aac"
+
+_STREAM_END = object()
+_CHUNK_QUEUE_SIZE = 32
 
 class FFmpegScreenCaptureAction(ScreenCaptureAction):
     async def _capture(self, params: Dict[str, Any]) -> Dict[str, Any]:

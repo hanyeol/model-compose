@@ -24,6 +24,7 @@ class ArangoDBQueryBuilder:
     def verify_identifier(value: str, field: str) -> str:
         if not _IDENTIFIER_PATTERN.match(value):
             raise ValueError(f"Invalid {field} identifier: '{value}'")
+
         return value
 
     @staticmethod
@@ -31,7 +32,9 @@ class ArangoDBQueryBuilder:
         if "/" in doc_id:
             collection, key = doc_id.split("/", 1)
             ArangoDBQueryBuilder.verify_identifier(collection, "collection")
+
             return collection, key
+
         return default_collection, doc_id
 
     @staticmethod
@@ -39,8 +42,10 @@ class ArangoDBQueryBuilder:
         collection = ArangoDBQueryBuilder.verify_identifier(node.get("label", default_collection or "nodes"), "collection")
         doc = { **node.get("properties", {}) }
         node_id = node.get("id")
+
         if node_id:
             doc["_key"] = str(node_id)
+
         return collection, doc
 
     @staticmethod
@@ -51,12 +56,14 @@ class ArangoDBQueryBuilder:
             "_to": rel.get("to"),
             **(rel.get("properties", {}) or {}),
         }
+
         return collection, doc
 
     @staticmethod
     def build_update_doc(doc_id: str, properties: Dict[str, Any], default_collection: str) -> Tuple[str, Dict[str, Any]]:
         collection, key = ArangoDBQueryBuilder.resolve_doc_id(doc_id, default_collection)
         doc = { "_key": key, **properties }
+
         return collection, doc
 
     @staticmethod
@@ -71,6 +78,7 @@ class ArangoDBQueryBuilder:
         arango_direction = direction_map.get(direction, "outbound")
 
         edge_collections = []
+
         if edge_collection:
             edge_collections = [ edge_collection ]
         elif relationship_types:
@@ -79,11 +87,16 @@ class ArangoDBQueryBuilder:
         if edge_collections:
             for collection in edge_collections:
                 ArangoDBQueryBuilder.verify_identifier(collection, "edge collection")
+
             edge_str = ", ".join(edge_collections)
         else:
             edge_str = "edges"
 
-        aql = f"FOR v, e, p IN 1..@max_depth {arango_direction.upper()} @start_node {edge_str} RETURN {{node: v, edge: e, depth: LENGTH(p.edges)}}"
+        aql = (
+            f"FOR v, e, p IN 1..@max_depth {arango_direction.upper()} @start_node {edge_str} "
+            f"RETURN {{node: v, edge: e, depth: LENGTH(p.edges)}}"
+        )
+
         return aql, { "start_node": str(start_node), "max_depth": max_depth }
 
 class ArangoDBGraphStoreAction(GraphStoreAction):

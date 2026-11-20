@@ -186,13 +186,12 @@ class ModelTrainerTaskAction(ComponentAction):
         }
 
 class ModelTrainerTaskDriver(ComponentDriver):
+    config: ModelTrainerComponentConfig
+
     def __init__(self, id: str, config: ModelTrainerComponentConfig, daemon: bool):
-        super().__init__(daemon)
+        super().__init__(id, config, daemon)
 
-        self.id: str = id
-        self.config: ModelTrainerComponentConfig = config
         self.model_path: Optional[str] = None
-
         self._model_provisioner: ModelProvisioner = ModelProvisioner()
         self._device_resolver: DeviceResolver = DeviceResolver()
 

@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class AudioClipperDriver(ComponentDriver):
-    def __init__(self, id: str, config: AudioClipperComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: AudioClipperComponentConfig = config
+    config: AudioClipperComponentConfig
 
     async def run(self, action: AudioClipperActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

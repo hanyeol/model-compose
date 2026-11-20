@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class MediaDownloaderDriver(ComponentDriver):
-    def __init__(self, id: str, config: MediaDownloaderComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: MediaDownloaderComponentConfig = config
+    config: MediaDownloaderComponentConfig
 
     async def run(self, action: MediaDownloaderActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

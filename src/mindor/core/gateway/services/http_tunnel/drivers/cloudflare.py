@@ -8,9 +8,10 @@ import re
 import tempfile
 import os
 
+_QUICK_TUNNEL_URL_PATTERN = re.compile(r"https://[a-zA-Z0-9\-]+\.trycloudflare\.com")
+
 class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
-    QUICK_TUNNEL_URL_PATTERN = re.compile(r"https://[a-zA-Z0-9\-]+\.trycloudflare\.com")
-    TUNNEL_READY_TIMEOUT = 30
+    _TUNNEL_READY_TIMEOUT = 30
 
     def __init__(self, config: CloudflareHttpTunnelGatewayConfig):
         super().__init__(config)
@@ -56,14 +57,16 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
 
     async def _wait_for_quick_tunnel_url(self, process: asyncio.subprocess.Process) -> Optional[str]:
         try:
-            async with async_timeout(self.TUNNEL_READY_TIMEOUT):
+            async with async_timeout(self._TUNNEL_READY_TIMEOUT):
                 while True:
                     line = await process.stderr.readline()
+
                     if not line:
                         break
 
                     decoded = line.decode("utf-8", errors="replace")
-                    match = self.QUICK_TUNNEL_URL_PATTERN.search(decoded)
+                    match = _QUICK_TUNNEL_URL_PATTERN.search(decoded)
+
                     if match:
                         return match.group(0)
         except TimeoutError:
@@ -89,6 +92,7 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
             config = self._build_named_tunnel_config(self.config.tunnel, self.config.credentials_file)
 
             fd, path = tempfile.mkstemp(suffix=".yml", prefix="cloudflared-")
+
             with os.fdopen(fd, "w") as f:
                 f.write(config)
 
@@ -126,13 +130,15 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
 
     async def _wait_for_named_tunnel_ready(self, process: asyncio.subprocess.Process) -> None:
         try:
-            async with async_timeout(self.TUNNEL_READY_TIMEOUT):
+            async with async_timeout(self._TUNNEL_READY_TIMEOUT):
                 while True:
                     line = await process.stderr.readline()
+
                     if not line:
                         break
 
                     decoded = line.decode("utf-8", errors="replace")
+
                     if "Registered tunnel connection" in decoded:
                         return
         except TimeoutError:
@@ -145,6 +151,7 @@ class CloudflareHttpTunnelGateway(CommonHttpTunnelGateway):
         for process in processes.values():
             if process.returncode is None:
                 process.terminate()
+
                 try:
                     async with async_timeout(5):
                         await process.wait()

@@ -15,9 +15,6 @@ from mindor.core.foundation.media.encoding import VideoAudioEncodingParams
 from .common import VideoCaptureAction
 import asyncio, platform, time
 
-_STREAM_END = object()
-_CHUNK_QUEUE_SIZE = 32
-
 # MPEG-TS is the default for the same reason as screen-capture: each packet is
 # self-contained so encoded chunks are available immediately over a pipe.
 _DEFAULT_VIDEO_FORMAT = "ts"
@@ -43,6 +40,9 @@ _DEFAULT_DEVICE = {
     "Windows": None,  # dshow has no numeric default; user must set device= or list devices.
     "Linux":   "/dev/video0",
 }
+
+_STREAM_END = object()
+_CHUNK_QUEUE_SIZE = 32
 
 class FFmpegVideoCaptureAction(VideoCaptureAction):
     async def _capture(self, params: Dict[str, Any]) -> Dict[str, Any]:

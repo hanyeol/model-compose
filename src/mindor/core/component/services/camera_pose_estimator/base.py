@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class CameraPoseEstimatorDriver(ComponentDriver):
-    def __init__(self, id: str, config: CameraPoseEstimatorComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: CameraPoseEstimatorComponentConfig = config
+    config: CameraPoseEstimatorComponentConfig
 
     async def run(self, action: CameraPoseEstimatorActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class FileStoreDriver(ComponentDriver):
-    def __init__(self, id: str, config: FileStoreComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: FileStoreComponentConfig = config
+    config: FileStoreComponentConfig
 
     async def run(self, action: FileStoreActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

@@ -16,11 +16,10 @@ if TYPE_CHECKING:
     from .drivers.common import HtmlFrameRendererSession
 
 class HtmlFrameRendererDriver(ComponentDriver):
-    def __init__(self, id: str, config: HtmlFrameRendererComponentConfig, daemon: bool):
-        super().__init__(daemon)
+    config: HtmlFrameRendererComponentConfig
 
-        self.id: str = id
-        self.config: HtmlFrameRendererComponentConfig = config
+    def __init__(self, id: str, config: HtmlFrameRendererComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
         self._htmls: Dict[str, UrlResource] = {}
 

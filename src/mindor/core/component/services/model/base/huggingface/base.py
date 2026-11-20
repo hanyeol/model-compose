@@ -14,6 +14,7 @@ from mindor.dsl.schema.component import (
     ModelQuantizationType,
     DeviceMode,
 )
+from mindor.dsl.schema.action import AppliedPeftAdapterConfig
 from mindor.core.foundation.package.torch import torch_requirements
 from ..common import ModelTaskDriver
 from ...utils.huggingface import is_checkpoint_prequantized
@@ -110,13 +111,10 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         ])
 
         def _load() -> PreTrainedModel:
-            names = [ adapter.name for adapter in adapters ]
-            weights = [ float(adapter.weight) for adapter in adapters ]
-
             peft_model = PeftModel.from_pretrained(
                 base_model,
                 peft_model_paths[0],
-                adapter_name=names[0],
+                adapter_name=adapters[0].name,
                 **self._get_model_params(adapters[0].model),
                 **self._get_model_options(adapters[0]),
             )
@@ -124,33 +122,42 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
             for index in range(1, len(adapters)):
                 peft_model.load_adapter(
                     peft_model_paths[index],
-                    adapter_name=names[index],
+                    adapter_name=adapters[index].name,
                     **self._get_model_params(adapters[index].model),
                     **self._get_model_options(adapters[index]),
                 )
 
-            self._activate_peft_adapters(peft_model, names, weights)
+            # Leave the adapter layers off by default; actions turn them on per request.
+            if hasattr(peft_model, "disable_adapter_layers"):
+                peft_model.disable_adapter_layers()
 
             return peft_model
 
         return await self._run_in_executor(_load)
 
-    def _activate_peft_adapters(
-        self,
-        peft_model: PreTrainedModel,
-        names: List[str],
-        weights: List[float],
-    ) -> None:
+    def _apply_peft_adapters(self, adapters: List[AppliedPeftAdapterConfig]) -> None:
         # peft forward blends every active adapter as `base(x) + sum(scale_i * B_i @ A_i @ x)`,
         # so activating multiple names + per-adapter scale avoids a one-shot merge.
         from peft.tuners.tuners_utils import BaseTunerLayer
 
-        for module in peft_model.modules():
+        names = [ adapter.name for adapter in adapters ]
+        weights = [ float(adapter.weight) for adapter in adapters ]
+
+        if hasattr(self.model, "enable_adapter_layers"):
+            self.model.enable_adapter_layers()
+
+        for module in self.model.modules():
             if not isinstance(module, BaseTunerLayer):
                 continue
+
             module.set_adapter(names)
+
             for name, weight in zip(names, weights):
                 module.set_scale(name, weight)
+
+    def _disable_peft_adapters(self) -> None:
+        if hasattr(self.model, "disable_adapter_layers"):
+            self.model.disable_adapter_layers()
 
     def _get_model_params(self, model: ModelConfig) -> Dict[str, Any]:
         params: Dict[str, Any] = {}

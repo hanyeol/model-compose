@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class AudioConverterDriver(ComponentDriver):
-    def __init__(self, id: str, config: AudioConverterComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: AudioConverterComponentConfig = config
+    config: AudioConverterComponentConfig
 
     async def run(self, action: AudioConverterActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

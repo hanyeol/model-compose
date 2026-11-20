@@ -15,6 +15,7 @@ from mindor.dsl.schema.component import (
     PeftAdapterType,
     HuggingfaceModelConfig,
 )
+from mindor.dsl.schema.action import AppliedPeftAdapterConfig
 from mindor.core.logger import logging
 from .base import HuggingfaceModelTaskDriver
 
@@ -154,9 +155,6 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
                 f"{type(pipeline).__name__} does not support LoRA loading; remove `peft_adapter` from the component config."
             )
 
-        names: List[str] = []
-        weights: List[float] = []
-
         for adapter, path in zip(adapters, adapter_paths):
             if adapter.type != PeftAdapterType.LORA:
                 raise ValueError(
@@ -172,11 +170,22 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
 
             pipeline.load_lora_weights(path, **load_params)
 
-            names.append(adapter.name)
-            weights.append(float(adapter.weight))
+        # Leave the adapters disabled by default; actions turn them on per request.
+        if hasattr(pipeline, "disable_lora"):
+            pipeline.disable_lora()
 
-        if hasattr(pipeline, "set_adapters"):
-            pipeline.set_adapters(names, adapter_weights=weights)
+    def _apply_peft_adapters(self, adapters: List[AppliedPeftAdapterConfig]) -> None:
+        names = [ adapter.name for adapter in adapters ]
+        weights = [ float(adapter.weight) for adapter in adapters ]
+
+        for pipeline in self.pipelines.values():
+            if hasattr(pipeline, "set_adapters"):
+                pipeline.set_adapters(names, adapter_weights=weights)
+
+    def _disable_peft_adapters(self) -> None:
+        for pipeline in self.pipelines.values():
+            if hasattr(pipeline, "disable_lora"):
+                pipeline.disable_lora()
 
     def _configure_memory(
         self,

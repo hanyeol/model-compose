@@ -16,11 +16,11 @@ from ..base import ComponentActionContext
 from .common import AudioCaptureAction
 import asyncio, os, platform, shutil, time
 
-_STREAM_END = object()
-_CHUNK_QUEUE_SIZE = 32
-
 _DEFAULT_AUDIO_FORMAT = "aac"
 _DEFAULT_AUDIO_CODEC  = "aac"
+
+_STREAM_END = object()
+_CHUNK_QUEUE_SIZE = 32
 
 class FFmpegAudioCaptureAction(AudioCaptureAction):
     async def _capture(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -131,25 +131,30 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
             # handled by _start_macos_system_audio. Only microphone lands here.
             if source == AudioCaptureSource.MICROPHONE:
                 spec = f":{device}" if device is not None else ":default"
+
                 return [ "-f", "avfoundation", "-i", spec ]
 
         if system == "Windows":
             if source == AudioCaptureSource.SYSTEM:
                 # WASAPI loopback of the default render endpoint.
                 dev = device if device is not None else "virtual-audio-capturer"
+
                 return [ "-f", "dshow", "-i", f"audio={dev}" ]
 
             if source == AudioCaptureSource.MICROPHONE:
                 dev = device if device is not None else "default"
+
                 return [ "-f", "dshow", "-i", f"audio={dev}" ]
 
         if system == "Linux":
             if source == AudioCaptureSource.SYSTEM:
                 dev = device if device is not None else "default.monitor"
+
                 return [ "-f", "pulse", "-i", str(dev) ]
 
             if source == AudioCaptureSource.MICROPHONE:
                 dev = device if device is not None else "default"
+
                 return [ "-f", "pulse", "-i", str(dev) ]
 
         raise NotImplementedError(f"Audio source '{source.value}' is not supported on platform: {system}")
@@ -229,8 +234,10 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
             try:
                 while True:
                     chunk = await ffmpeg_process.stdout.read(65536)
+
                     if not chunk:
                         break
+
                     await queue.put(chunk)
             finally:
                 await queue.put(_STREAM_END)
@@ -241,13 +248,16 @@ class FFmpegAudioCaptureAction(AudioCaptureAction):
             try:
                 while True:
                     item = await queue.get()
+
                     if item is _STREAM_END:
                         break
+
                     yield item
             finally:
                 await kill_process(ffmpeg_process, timeout=2.0)
                 await kill_process(audiotee_process, timeout=2.0)
                 reader_task.cancel()
+
                 try:
                     await reader_task
                 except (asyncio.CancelledError, Exception):

@@ -9,6 +9,8 @@ from mindor.core.component import ComponentResolver, ActionResolver
 from mindor.core.workflow import WorkflowResolver
 import re, json
 
+_TRANSFORM_OPERATOR_KEYS = { "*", "?", "+", "|" }
+
 @dataclass
 class WorkflowVariableAnnotation:
     name: str
@@ -28,8 +30,10 @@ class WorkflowVariable:
     def __eq__(self, other):
         if not isinstance(other, WorkflowVariable):
             return False
+
         if self.name is None or other.name is None:
             return False
+
         return self.name == other.name
 
     def __hash__(self):
@@ -42,8 +46,6 @@ class WorkflowVariableGroup:
     repeat_count: int
 
 class WorkflowVariableResolver:
-    _TRANSFORM_OPERATOR_KEYS = { "*", "?", "+", "|" }
-
     def __init__(self):
         self.patterns: Dict[str, re.Pattern] = {
             "variable": re.compile(
@@ -126,7 +128,7 @@ class WorkflowVariableResolver:
             return self._enumerate_output_variables(name, value.model_dump(exclude_none=True))
 
         if isinstance(value, dict):
-            if self._TRANSFORM_OPERATOR_KEYS & value.keys():
+            if _TRANSFORM_OPERATOR_KEYS & value.keys():
                 # The whole dict is a DSL transformation (map/conditional/join/split), not a nested variable path.
                 # Treat it as one variable at `name`, using the first referenced variable inside for type metadata.
                 # For `*` map, the representative expression is entries["*"]["input"] (dict form) or entries["*"] itself.

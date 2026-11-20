@@ -6,11 +6,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class Model3DLoaderDriver(ComponentDriver):
-    def __init__(self, id: str, config: Model3DLoaderComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: Model3DLoaderComponentConfig = config
+    config: Model3DLoaderComponentConfig
 
     async def run(self, action: Model3DLoaderActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

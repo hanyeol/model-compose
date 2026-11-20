@@ -35,7 +35,6 @@ import asyncio, struct
 _CHUNK_ID_LEN = struct.Struct(">H")
 _CHUNK_SEQ = struct.Struct(">I")
 
-# Sentinels placed in WebSocketInboundStream.queue.
 _STREAM_END = object()
 _STREAM_ABORT = object()
 

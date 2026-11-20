@@ -18,11 +18,10 @@ if TYPE_CHECKING:
 _DEFAULT_SESSION_KEY = "__default__"
 
 class WebBrowserDriver(ComponentDriver):
-    def __init__(self, id: str, config: WebBrowserComponentConfig, daemon: bool):
-        super().__init__(daemon)
+    config: WebBrowserComponentConfig
 
-        self.id: str = id
-        self.config: WebBrowserComponentConfig = config
+    def __init__(self, id: str, config: WebBrowserComponentConfig, daemon: bool):
+        super().__init__(id, config, daemon)
 
         self._sessions: Dict[str, WebBrowserSession] = {}
         self._sessions_lock: asyncio.Lock = asyncio.Lock()

@@ -3,6 +3,11 @@ from __future__ import annotations
 from typing import Optional, Dict, List, Any
 import html, re
 
+_INLINE_TS_PATTERN = re.compile(r"<(\d{2}):(\d{2}):(\d{2})\.(\d{3})>")
+_CUE_TAG_PATTERN   = re.compile(r"</?c[^>]*>", re.IGNORECASE)
+
+# webvtt-py's `start_in_seconds` truncates to whole seconds; parse ms ourselves.
+_VTT_TS_PATTERN    = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})\.(\d{3})")
 
 class SubtitleParser:
     """Base for subtitle parsers. Owns the shared text-normalization helpers."""
@@ -19,17 +24,11 @@ class WebVttSubtitleParser(SubtitleParser):
     YouTube auto-generated captions.
     """
 
-    _INLINE_TS_PATTERN = re.compile(r"<(\d{2}):(\d{2}):(\d{2})\.(\d{3})>")
-    _CUE_TAG_PATTERN   = re.compile(r"</?c[^>]*>", re.IGNORECASE)
-
-    # webvtt-py's `start_in_seconds` truncates to whole seconds; parse ms ourselves.
-    _VTT_TS_PATTERN    = re.compile(r"(?:(\d+):)?(\d{2}):(\d{2})\.(\d{3})")
-
     def parse(self, path: str, encoding: Optional[str]) -> Dict[str, Any]:
         import webvtt
 
         captions = list(webvtt.read(path, encoding=encoding))
-        is_asr = any(self._INLINE_TS_PATTERN.search(caption.raw_text or "") for caption in captions)
+        is_asr = any(_INLINE_TS_PATTERN.search(caption.raw_text or "") for caption in captions)
 
         segments = self._build_asr_segments(captions) if is_asr else self._build_plain_segments(captions)
         full_text = " ".join(segment["text"] for segment in segments)
@@ -121,8 +120,8 @@ class WebVttSubtitleParser(SubtitleParser):
         the trailing chunk). Returns an empty list when the line has no
         inline timestamps.
         """
-        line = self._CUE_TAG_PATTERN.sub("", line)
-        timestamps = list(self._INLINE_TS_PATTERN.finditer(line))
+        line = _CUE_TAG_PATTERN.sub("", line)
+        timestamps = list(_INLINE_TS_PATTERN.finditer(line))
 
         if not timestamps:
             return []
@@ -167,10 +166,10 @@ class WebVttSubtitleParser(SubtitleParser):
         return words
 
     def _strip_cue_markup(self, raw: str) -> str:
-        return self._INLINE_TS_PATTERN.sub("", self._CUE_TAG_PATTERN.sub("", raw))
+        return _INLINE_TS_PATTERN.sub("", _CUE_TAG_PATTERN.sub("", raw))
 
     def _vtt_ts_to_seconds(self, ts: str) -> float:
-        match = self._VTT_TS_PATTERN.search(ts)
+        match = _VTT_TS_PATTERN.search(ts)
 
         if not match:
             raise ValueError(f"Invalid WebVTT timestamp: {ts!r}")

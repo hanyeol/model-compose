@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class Model3DRendererDriver(ComponentDriver):
-    def __init__(self, id: str, config: Model3DRendererComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: Model3DRendererComponentConfig = config
+    config: Model3DRendererComponentConfig
 
     async def run(self, action: Model3DRendererActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

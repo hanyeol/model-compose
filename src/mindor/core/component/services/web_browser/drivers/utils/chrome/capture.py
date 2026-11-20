@@ -83,7 +83,6 @@ async ({ selector, include_video_track, include_audio_track, options, chunkInter
 }
 """
 
-# Sentinel placed on VideoRecorder.queue to signal end-of-stream to consumers.
 _STREAM_END = object()
 
 class PageAdapter(ABC):

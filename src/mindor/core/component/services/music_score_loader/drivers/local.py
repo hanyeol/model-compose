@@ -760,7 +760,7 @@ class LocalMusicScoreLoaderAction(MusicScoreLoaderAction):
         path, spooled = await self._resolve_source_path(source, params["format"])
 
         try:
-            format = params["format"] or self._sniff_format(path)
+            format = params["format"] or self._sniff_format(path).value
             result = await asyncio.to_thread(self._parse_score_file, path, format, params["part"])
         finally:
             if spooled:
@@ -788,24 +788,28 @@ class LocalMusicScoreLoaderAction(MusicScoreLoaderAction):
         return await save_stream_to_temporary_file(stream, format), True
 
     @staticmethod
-    def _sniff_format(path: str) -> str:
+    def _sniff_format(path: str) -> MusicScoreLoaderFormat:
         with open(path, "rb") as file:
             head = file.read(16)
 
         if head.startswith(_MIDI_MAGIC):
-            return MusicScoreLoaderFormat.MIDI.value
+            return MusicScoreLoaderFormat.MIDI
+
         if head.startswith(_XML_MAGIC) or head.lstrip().startswith(_XML_MAGIC):
-            return MusicScoreLoaderFormat.MUSICXML.value
+            return MusicScoreLoaderFormat.MUSICXML
+
         if head.startswith(_ZIP_MAGIC):
             # Compressed MusicXML (`.mxl`) is a ZIP container with the score XML
             # inside; we still treat it as `musicxml` for parser dispatch.
-            return MusicScoreLoaderFormat.MUSICXML.value
+            return MusicScoreLoaderFormat.MUSICXML
 
         extension = os.path.splitext(path)[1].lower()
+
         if extension in (".mid", ".midi"):
-            return MusicScoreLoaderFormat.MIDI.value
+            return MusicScoreLoaderFormat.MIDI
+
         if extension in (".xml", ".musicxml", ".mxl"):
-            return MusicScoreLoaderFormat.MUSICXML.value
+            return MusicScoreLoaderFormat.MUSICXML
 
         raise ValueError(f"Cannot infer score format for {path!r}; set `format` explicitly.")
 
@@ -813,8 +817,10 @@ class LocalMusicScoreLoaderAction(MusicScoreLoaderAction):
     def _parse_score_file(path: str, format: str, part_index: Optional[int]) -> MusicScore:
         if format == MusicScoreLoaderFormat.MIDI.value:
             return MidiScoreLoader().load(path, part_index)
+
         if format == MusicScoreLoaderFormat.MUSICXML.value:
             return MusicXmlScoreLoader().load(path, part_index)
+
         raise ValueError(f"Unsupported score format: {format!r}")
 
 

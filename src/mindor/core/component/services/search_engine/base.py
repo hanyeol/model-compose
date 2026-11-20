@@ -7,11 +7,7 @@ from mindor.core.component.base import ComponentDriver
 from ...context import ComponentActionContext
 
 class SearchEngineDriver(ComponentDriver):
-    def __init__(self, id: str, config: SearchEngineComponentConfig, daemon: bool):
-        super().__init__(daemon)
-
-        self.id: str = id
-        self.config: SearchEngineComponentConfig = config
+    config: SearchEngineComponentConfig
 
     async def run(self, action: SearchEngineActionConfig, context: ComponentActionContext) -> Any:
         return await self._run(action, context)

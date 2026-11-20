@@ -60,6 +60,13 @@ class QwenTextToSpeechTaskAction(TextToSpeechTaskAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[StreamResource]:
         def _generate() -> List[StreamResource]:
+            import torch
+
+            seed = params.get("seed")
+
+            if seed is not None:
+                torch.manual_seed(seed)
+
             results: List[StreamResource] = []
 
             for text in texts:
@@ -119,22 +126,42 @@ class QwenTextToSpeechCloneTaskAction(QwenTextToSpeechTaskAction):
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:
         params = await super()._resolve_params(context)
 
-        reference_audio = await context.render_file(self.config.reference_audio)
-        reference_text  = await context.render_variable(self.config.reference_text)
+        reference_audio       = await context.render_file(self.config.reference_audio)
+        reference_text        = await context.render_variable(self.config.reference_text)
+        seed                  = await context.render_scalar(self.config.seed, int)
+        temperature           = await context.render_scalar(self.config.temperature, float)
+        subtalker_temperature = await context.render_scalar(self.config.subtalker_temperature, float)
+        max_output_length     = await context.render_scalar(self.config.max_output_length, int)
 
         params.update({
-            "reference_audio": reference_audio,
-            "reference_text":  reference_text,
+            "reference_audio":       reference_audio,
+            "reference_text":        reference_text,
+            "seed":                  seed,
+            "temperature":           temperature,
+            "subtalker_temperature": subtalker_temperature,
+            "max_output_length":     max_output_length,
         })
 
         return params
 
     def _synthesize(self, text: str, params: Dict[str, Any]) -> Tuple[Any, int]:
+        generation_params: Dict[str, Any] = {}
+
+        if params["temperature"] is not None:
+            generation_params["temperature"] = params["temperature"]
+
+        if params["subtalker_temperature"] is not None:
+            generation_params["subtalker_temperature"] = params["subtalker_temperature"]
+
+        if params["max_output_length"] is not None:
+            generation_params["max_new_tokens"] = params["max_output_length"]
+
         return self.model.generate_voice_clone(
             text=text,
             language=params["language"],
             ref_audio=params["reference_audio"],
             ref_text=params["reference_text"],
+            **generation_params,
         )
 
 class QwenTextToSpeechDesignTaskAction(QwenTextToSpeechTaskAction):

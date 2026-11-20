@@ -13,4 +13,5 @@ class CommonTextToSpeechModelActionConfig(CommonModelActionConfig):
     method: TextToSpeechActionMethod = Field(..., description="TTS synthesis operation this action performs.")
     text: Union[str, List[str]] = Field(..., description="Text or list of texts to synthesize into speech.")
     language: Optional[str] = Field(default=None, description="Text language as an ISO 639-1 or BCP 47 code (e.g., en, ko, zh-CN).")
+    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make generation reproducible; ignored by drivers without seed control.")
     batch_size: Union[int, str] = Field(default=1, description="Number of input texts processed per batch.")

@@ -1,4 +1,4 @@
-from typing import Union, Literal, Optional, Annotated
+from typing import Union, Literal, Annotated
 from pydantic import Field
 from ..common import CommonTextToSpeechModelActionConfig, TextToSpeechActionMethod
 
@@ -11,7 +11,6 @@ class LuxttsTextToSpeechModelCloneActionConfig(CommonTextToSpeechModelActionConf
     guidance_scale: Union[float, str] = Field(default=3.0, description="Classifier-free guidance scale applied during synthesis.")
     t_shift: Union[float, str] = Field(default=0.5, description="Flow-matching time shift applied by the solver.")
     speed: Union[float, str] = Field(default=1.0, description="Speech speed multiplier; 1.0 is natural.")
-    seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make generation reproducible.")
 
 LuxttsTextToSpeechModelActionConfig = Annotated[
     Union[

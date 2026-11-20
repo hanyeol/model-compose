@@ -731,17 +731,17 @@ class MinimaxH3VideoToVideoBaseDriver(ModelTaskDriver):
         names: List[str] = []
         weights: List[float] = []
 
-        for index, (adapter, path) in enumerate(zip(adapters, adapter_paths)):
-            name = adapter.name or f"peft_adapter_{index}"
-            load_params: Dict[str, Any] = { "adapter_name": name }
+        for adapter, path in zip(adapters, adapter_paths):
+            load_params: Dict[str, Any] = { "adapter_name": adapter.name }
 
             if isinstance(adapter.model, HuggingfaceModelConfig) and adapter.model.filename:
                 load_params["weight_name"] = adapter.model.filename
 
-            logging.info(f"Component '{self.id}': loading LoRA adapter '{name}' from {path}")
+            logging.info(f"Component '{self.id}': loading LoRA adapter '{adapter.name}' from {path}")
+
             pipeline.load_lora_weights(path, **load_params)
 
-            names.append(name)
+            names.append(adapter.name)
             weights.append(float(adapter.weight))
 
         if hasattr(pipeline, "set_adapters"):

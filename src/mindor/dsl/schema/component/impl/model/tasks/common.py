@@ -231,7 +231,7 @@ class ModelSubmoduleConfig(BaseModel):
 
 class PeftAdapterConfig(ModelSubmoduleConfig):
     type: PeftAdapterType = Field(..., description="Type of PEFT adapter to load.")
-    name: Optional[str] = Field(default=None, description="Name assigned to the adapter for reference.")
+    name: str = Field(..., description="Name assigned to the adapter for reference.")
     weight: Union[float, str] = Field(default=1.0, description="Adapter weight applied when merging with the base model (0.0-1.0).")
 
 class CommonModelComponentConfig(CommonComponentConfig):

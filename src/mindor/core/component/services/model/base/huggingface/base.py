@@ -110,7 +110,7 @@ class HuggingfaceModelTaskDriver(ModelTaskDriver):
         ])
 
         def _load() -> PreTrainedModel:
-            names = [ adapter.name or f"peft_adapter_{index}" for index, adapter in enumerate(adapters) ]
+            names = [ adapter.name for adapter in adapters ]
             weights = [ float(adapter.weight) for adapter in adapters ]
 
             peft_model = PeftModel.from_pretrained(

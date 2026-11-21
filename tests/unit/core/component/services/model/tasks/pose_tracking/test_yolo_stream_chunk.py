@@ -14,11 +14,10 @@ from mindor.core.component.services.model.tasks.pose_tracking.custom.ultralytics
 
 def _params(**overrides) -> Dict[str, Any]:
     base = {
-        "return_keypoints":          False,
-        "return_openpose_keypoints": False,
-        "return_skeleton_image":     False,
-        "return_track_image":        False,
-        "crop_margin_ratio":      0.0,
+        "return_keypoints":      False,
+        "return_skeleton_image": False,
+        "return_track_image":    False,
+        "crop_margin_ratio":     0.0,
     }
     base.update(overrides)
     return base

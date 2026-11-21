@@ -169,21 +169,29 @@ def test_detect_issues_reports_both_conflict_and_shadow_when_present():
 
 
 def test_virtualenv_path_normalization_treats_relative_forms_as_one_env():
-    env_a = RuntimeEnvironment.from_component("c", "virtualenv", ".venv", None)
-    env_b = RuntimeEnvironment.from_component("c", "virtualenv", "./.venv", None)
+    env_a = RuntimeEnvironment.from_component("c", "virtualenv", ".venv", venv_label="model", image=None)
+    env_b = RuntimeEnvironment.from_component("c", "virtualenv", "./.venv", venv_label="model", image=None)
     assert env_a == env_b
+
+
+def test_virtualenv_default_path_keyed_by_venv_label():
+    env_a = RuntimeEnvironment.from_component("a", "virtualenv", None, venv_label="model-huggingface", image=None)
+    env_b = RuntimeEnvironment.from_component("b", "virtualenv", None, venv_label="model-huggingface", image=None)
+    env_c = RuntimeEnvironment.from_component("c", "virtualenv", None, venv_label="model-vllm", image=None)
+    assert env_a == env_b
+    assert env_a != env_c
 
 
 # --- P2 #4: container components never share an environment
 
 
 def test_container_components_get_per_component_environments_even_when_sharing_image():
-    env_a = RuntimeEnvironment.from_component("a", "docker", None, "pytorch:2.10")
-    env_b = RuntimeEnvironment.from_component("b", "docker", None, "pytorch:2.10")
+    env_a = RuntimeEnvironment.from_component("a", "docker", None, venv_label=None, image="pytorch:2.10")
+    env_b = RuntimeEnvironment.from_component("b", "docker", None, venv_label=None, image="pytorch:2.10")
     assert env_a != env_b
 
 
 def test_apple_container_components_get_per_component_environments():
-    env_a = RuntimeEnvironment.from_component("a", "apple-container", None, "shared:1")
-    env_b = RuntimeEnvironment.from_component("b", "apple-container", None, "shared:1")
+    env_a = RuntimeEnvironment.from_component("a", "apple-container", None, venv_label=None, image="shared:1")
+    env_b = RuntimeEnvironment.from_component("b", "apple-container", None, venv_label=None, image="shared:1")
     assert env_a != env_b

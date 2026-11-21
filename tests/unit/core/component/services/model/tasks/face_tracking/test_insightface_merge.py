@@ -46,6 +46,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "merge_gap":                     0.0,
     }
     base.update(overrides)
+    base.setdefault("rejoin_gap", base["merge_gap"])
     return base
 
 
@@ -116,8 +117,11 @@ class TestContiguousFrames:
 
 
 class TestAbsence:
-    """merge_gap governs how long a person may go undetected before the segment
-    is split, measured from the frame they were last seen in."""
+    """merge_gap governs how long a person may go undetected before they are no
+    longer considered the same track. A gap within merge_gap keeps the same
+    track (at most splitting into another segment); a gap beyond merge_gap
+    drops the lost cluster from rejoin candidacy entirely, so the next
+    detection — even a visually similar one — starts a fresh track."""
 
     def test_undetected_frame_within_merge_gap_keeps_one_segment(self):
         # Missing for one frame: 0.5s of absence, inside a 0.5s merge_gap.
@@ -126,20 +130,22 @@ class TestAbsence:
 
         assert len(segments) == 1
 
-    def test_undetected_frames_beyond_merge_gap_split_the_segment(self):
+    def test_undetected_frames_beyond_merge_gap_start_a_new_track(self):
         # Missing for three frames: 1.5s of absence, outside a 0.5s merge_gap.
+        # Matches DeepSORT/ByteTrack: lost tracks past their survival window
+        # are retired and a reappearance gets a new ID.
         frames = [[_face(ALICE)], [_face(ALICE)], [], [], [], [_face(ALICE)]]
-        segments = _segments(_run(frames, _default_params(merge_gap=0.5)))
+        result = _run(frames, _default_params(merge_gap=0.5))
 
-        assert len(segments) == 2
-        assert segments[0]["end_time"] == "00:00:00.500"
-        assert segments[1]["start_time"] == "00:00:02.500"
+        assert len(result["tracks"]) == 2
+        assert result["tracks"][0]["segments"][-1]["end_time"] == "00:00:00.500"
+        assert result["tracks"][1]["segments"][0]["start_time"] == "00:00:02.500"
 
-    def test_zero_merge_gap_splits_on_the_first_missed_frame(self):
+    def test_zero_merge_gap_starts_a_new_track_on_the_first_missed_frame(self):
         frames = [[_face(ALICE)], [_face(ALICE)], [], [_face(ALICE)]]
-        segments = _segments(_run(frames, _default_params(merge_gap=0.0)))
+        result = _run(frames, _default_params(merge_gap=0.0))
 
-        assert len(segments) == 2
+        assert len(result["tracks"]) == 2
 
 
 class TestFloatingPointRobustness:

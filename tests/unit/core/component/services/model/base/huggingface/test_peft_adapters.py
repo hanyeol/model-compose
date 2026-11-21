@@ -2,12 +2,12 @@
 
 Covers two layers:
 
-1. Helper methods (``_build_peft_adapter_lists``, ``_resolve_model``,
-   ``_get_model_params``, ``_get_model_options``) — pure logic, no external deps.
-2. Integration of ``_load_peft_adapters`` against a fake ``peft.PeftModel`` that
-   records ``from_pretrained`` / ``load_adapter`` / ``add_weighted_adapter`` /
-   ``set_adapter`` calls. Exercises the single-adapter, multi-adapter, and
-   non-unit-weight branches.
+1. Helper methods (``_resolve_model``, ``_get_model_params``,
+   ``_get_model_options``) — pure logic, no external deps.
+2. Integration of ``_load_peft_adapters`` / ``_apply_peft_adapters`` against a
+   fake ``peft.PeftModel`` and fake ``BaseTunerLayer`` modules. Exercises
+   adapter loading (all adapters start disabled) and forward-time blending
+   via per-module ``set_adapter`` + ``set_scale`` calls.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from pydantic import TypeAdapter
 from mindor.core.component.services.model.base.huggingface.base import (
     HuggingfaceModelTaskDriver,
 )
+from mindor.dsl.schema.action import AppliedPeftAdapterConfig
 from mindor.dsl.schema.component import (
     ModelComponentConfig,
     PeftAdapterConfig,
@@ -55,16 +56,32 @@ class _ConcreteService(HuggingfaceModelTaskDriver):
         raise NotImplementedError
 
 
+class _FakeTunerLayer:
+    """Stand-in for ``peft.tuners.tuners_utils.BaseTunerLayer``. Records
+    ``set_adapter`` / ``set_scale`` calls per module.
+    """
+
+    def __init__(self) -> None:
+        self.active_adapters: List[List[str]] = []
+        self.scales: List[Tuple[str, float]] = []
+
+    def set_adapter(self, names: List[str]) -> None:
+        self.active_adapters.append(list(names))
+
+    def set_scale(self, name: str, weight: float) -> None:
+        self.scales.append((name, weight))
+
+
 class _FakePeftModel:
-    """Records adapter calls so tests can assert on the merge/set behavior."""
+    """Records adapter calls so tests can assert on the load/activation behavior."""
 
     instances: List["_FakePeftModel"] = []
 
     def __init__(self, base_model: Any, model_path: str, adapter_name: str, params: Dict[str, Any]):
         self.base_model = base_model
         self.loaded: List[Tuple[str, str, Dict[str, Any]]] = [(model_path, adapter_name, params)]
-        self.weighted_adapters: List[Tuple[List[str], List[float], str]] = []
-        self.active_adapter: str | None = None
+        self.adapter_layers_enabled: bool = True
+        self.tuner_modules: List[_FakeTunerLayer] = [_FakeTunerLayer()]
         _FakePeftModel.instances.append(self)
 
     @classmethod
@@ -74,21 +91,35 @@ class _FakePeftModel:
     def load_adapter(self, model_path: str, adapter_name: str, **params: Any) -> None:
         self.loaded.append((model_path, adapter_name, params))
 
-    def add_weighted_adapter(self, names: List[str], weights: List[float], adapter_name: str) -> None:
-        self.weighted_adapters.append((list(names), list(weights), adapter_name))
+    def disable_adapter_layers(self) -> None:
+        self.adapter_layers_enabled = False
 
-    def set_adapter(self, name: str) -> None:
-        self.active_adapter = name
+    def enable_adapter_layers(self) -> None:
+        self.adapter_layers_enabled = True
+
+    def modules(self):
+        # Include a non-tuner sibling to verify the isinstance filter skips it.
+        return [object(), *self.tuner_modules]
 
 
 @pytest.fixture
 def fake_peft_module(monkeypatch):
-    """Inject a fake ``peft`` module exposing ``PeftModel`` for the duration of a test."""
+    """Inject fake ``peft`` + ``peft.tuners.tuners_utils`` modules for the test."""
     _FakePeftModel.instances.clear()
-    module = types.ModuleType("peft")
-    module.PeftModel = _FakePeftModel
-    monkeypatch.setitem(sys.modules, "peft", module)
-    return module
+
+    peft_module = types.ModuleType("peft")
+    peft_module.PeftModel = _FakePeftModel
+
+    tuners_utils_module = types.ModuleType("peft.tuners.tuners_utils")
+    tuners_utils_module.BaseTunerLayer = _FakeTunerLayer
+
+    # Parent packages must exist so ``from peft.tuners.tuners_utils import ...`` resolves.
+    tuners_pkg = types.ModuleType("peft.tuners")
+
+    monkeypatch.setitem(sys.modules, "peft", peft_module)
+    monkeypatch.setitem(sys.modules, "peft.tuners", tuners_pkg)
+    monkeypatch.setitem(sys.modules, "peft.tuners.tuners_utils", tuners_utils_module)
+    return peft_module
 
 
 # ---------------------------------------------------------------------------
@@ -109,8 +140,8 @@ def _make_model_config(model: str = "org/base-model"):
     })
 
 
-def _make_adapter_config(**overrides: Any) -> PeftAdapterConfig:
-    raw: Dict[str, Any] = {"type": "lora", "model": "org/lora-adapter"}
+def _make_adapter_config(name: str = "adapter", **overrides: Any) -> PeftAdapterConfig:
+    raw: Dict[str, Any] = {"type": "lora", "name": name, "model": "org/lora-adapter"}
     raw.update(overrides)
     return PeftAdapterConfig.model_validate(raw)
 
@@ -122,29 +153,6 @@ def _make_service(config=None) -> _ConcreteService:
 # ---------------------------------------------------------------------------
 # Helper methods
 # ---------------------------------------------------------------------------
-
-
-class TestBuildPeftAdapterLists:
-    def test_uses_explicit_names_and_weights(self):
-        service = _make_service()
-        adapters = [
-            _make_adapter_config(name="style", weight=0.7),
-            _make_adapter_config(name="domain", weight=0.3),
-        ]
-        names, weights = service._build_peft_adapter_lists(adapters)
-        assert names == ["style", "domain"]
-        assert weights == [0.7, 0.3]
-
-    def test_synthesizes_default_name_per_index(self):
-        service = _make_service()
-        adapters = [
-            _make_adapter_config(),
-            _make_adapter_config(name="explicit"),
-            _make_adapter_config(),
-        ]
-        names, weights = service._build_peft_adapter_lists(adapters)
-        assert names == ["peft_adapter_0", "explicit", "peft_adapter_2"]
-        assert weights == [1.0, 1.0, 1.0]
 
 
 class TestResolveModel:
@@ -213,7 +221,7 @@ class TestGetModelParamsForAdapter:
 
 
 class TestLoadPeftAdaptersSingle:
-    def test_single_unit_weight_skips_weighted_merge(self, fake_peft_module):
+    def test_single_adapter_is_loaded_and_left_disabled(self, fake_peft_module):
         service = _make_service()
         adapter = _make_adapter_config(name="solo", model="org/lora-solo")
         sentinel_base = object()
@@ -223,20 +231,12 @@ class TestLoadPeftAdaptersSingle:
         assert isinstance(peft_model, _FakePeftModel)
         assert peft_model.base_model is sentinel_base
         assert peft_model.loaded == [("org/lora-solo", "solo", {})]
-        assert peft_model.weighted_adapters == []
-        assert peft_model.active_adapter == "solo"
-
-    def test_single_non_unit_weight_triggers_weighted_merge(self, fake_peft_module):
-        service = _make_service()
-        adapter = _make_adapter_config(name="solo", weight=0.5)
-        peft_model = asyncio.run(service._load_peft_adapters(object(), [adapter]))
-
-        assert peft_model.weighted_adapters == [(["solo"], [0.5], "blended_adapter")]
-        assert peft_model.active_adapter == "blended_adapter"
+        # Adapters are loaded but left off; actions turn them on per request.
+        assert peft_model.adapter_layers_enabled is False
 
 
 class TestLoadPeftAdaptersMultiple:
-    def test_multiple_adapters_are_merged_under_blended_name(self, fake_peft_module):
+    def test_multiple_adapters_are_loaded_in_order(self, fake_peft_module):
         service = _make_service()
         adapters = [
             _make_adapter_config(name="style", model="org/style", weight=0.6),
@@ -251,19 +251,7 @@ class TestLoadPeftAdaptersMultiple:
             ("org/domain", "domain", {}),
             ("org/tone", "tone", {}),
         ]
-        assert peft_model.weighted_adapters == [
-            (["style", "domain", "tone"], [0.6, 0.4, 1.0], "blended_adapter")
-        ]
-        assert peft_model.active_adapter == "blended_adapter"
-
-    def test_default_names_are_synthesized_for_multi_adapter(self, fake_peft_module):
-        service = _make_service()
-        adapters = [_make_adapter_config(model="org/a"), _make_adapter_config(model="org/b")]
-        peft_model = asyncio.run(service._load_peft_adapters(object(), adapters))
-
-        names = [entry[1] for entry in peft_model.loaded]
-        assert names == ["peft_adapter_0", "peft_adapter_1"]
-        assert peft_model.weighted_adapters[0][0] == ["peft_adapter_0", "peft_adapter_1"]
+        assert peft_model.adapter_layers_enabled is False
 
 
 class TestLoadPeftAdaptersForwardsParams:
@@ -291,3 +279,65 @@ class TestLoadPeftAdaptersForwardsParams:
 
         assert peft_model.loaded[0] == ("org/style", "style", {"revision": "main"})
         assert peft_model.loaded[1] == ("org/domain", "domain", {"cache_dir": "/cache"})
+
+
+# ---------------------------------------------------------------------------
+# _apply_peft_adapters integration
+# ---------------------------------------------------------------------------
+
+
+class TestApplyPeftAdapters:
+    """``_apply_peft_adapters`` activates named adapters on every tuner layer
+    and sets per-adapter scales — no one-shot merge."""
+
+    def test_single_adapter_sets_name_and_scale(self, fake_peft_module):
+        service = _make_service()
+        # Install a fake peft_model as if _load_peft_adapters had run.
+        peft_model = _FakePeftModel(object(), "org/solo", "solo", {})
+        peft_model.disable_adapter_layers()
+        service.model = peft_model
+
+        service._apply_peft_adapters([AppliedPeftAdapterConfig(name="solo", weight=0.5)])
+
+        assert peft_model.adapter_layers_enabled is True
+        tuner = peft_model.tuner_modules[0]
+        assert tuner.active_adapters == [["solo"]]
+        assert tuner.scales == [("solo", 0.5)]
+
+    def test_multiple_adapters_set_all_names_and_each_scale(self, fake_peft_module):
+        service = _make_service()
+        peft_model = _FakePeftModel(object(), "org/style", "style", {})
+        peft_model.disable_adapter_layers()
+        service.model = peft_model
+
+        service._apply_peft_adapters([
+            AppliedPeftAdapterConfig(name="style", weight=0.6),
+            AppliedPeftAdapterConfig(name="domain", weight=0.4),
+            AppliedPeftAdapterConfig(name="tone", weight=1.0),
+        ])
+
+        assert peft_model.adapter_layers_enabled is True
+        tuner = peft_model.tuner_modules[0]
+        assert tuner.active_adapters == [["style", "domain", "tone"]]
+        assert tuner.scales == [("style", 0.6), ("domain", 0.4), ("tone", 1.0)]
+
+    def test_skips_non_tuner_modules(self, fake_peft_module):
+        service = _make_service()
+        peft_model = _FakePeftModel(object(), "org/solo", "solo", {})
+        service.model = peft_model
+
+        service._apply_peft_adapters([AppliedPeftAdapterConfig(name="solo", weight=1.0)])
+
+        # Only the single real tuner layer received the calls; the plain
+        # ``object()`` sibling in ``modules()`` was skipped.
+        assert len(peft_model.tuner_modules[0].active_adapters) == 1
+
+
+class TestDisablePeftAdapters:
+    def test_disable_turns_off_adapter_layers(self, fake_peft_module):
+        service = _make_service()
+        peft_model = _FakePeftModel(object(), "org/solo", "solo", {})
+        service.model = peft_model
+
+        service._disable_peft_adapters()
+        assert peft_model.adapter_layers_enabled is False

@@ -72,6 +72,7 @@ async def test_component_virtualenv_lifecycle(venv_dir: Path, global_configs):
         driver="local",
         runtime=VirtualEnvRuntimeConfig(
             type="virtualenv",
+            path=".runtime/components/venv-shell/venv",
             start_timeout="300s",
             stop_timeout="30s",
         ),
@@ -152,6 +153,7 @@ async def test_component_virtualenv_skips_injection_when_version_unchanged(
         driver="local",
         runtime=VirtualEnvRuntimeConfig(
             type="virtualenv",
+            path=".runtime/components/venv-skip-injection/venv",
             start_timeout="300s",
             stop_timeout="30s",
         ),

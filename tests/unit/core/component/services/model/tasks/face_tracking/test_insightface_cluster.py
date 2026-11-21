@@ -72,6 +72,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "merge_gap":                     10.0,  # loose so a single segment covers a burst
     }
     base.update(overrides)
+    base.setdefault("rejoin_gap", base["merge_gap"])
     return base
 
 

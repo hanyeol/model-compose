@@ -26,7 +26,6 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "skeleton_format":               "natural",
         "return_tracks":                 True,
         "return_keypoints":              False,
-        "return_openpose_keypoints":     False,
         "return_skeleton_image":         False,
         "return_track_image":            False,
         "return_detections":             False,

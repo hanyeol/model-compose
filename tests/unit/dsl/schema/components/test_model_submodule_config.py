@@ -210,16 +210,16 @@ class TestInheritance:
         assert cfg.image_encoder.model.repository == "laion/CLIP-ViT-H-14"
         assert cfg.image_encoder.precision == ModelPrecision.FLOAT16
 
-    def test_peft_adapter_flat_shorthand_with_type_and_weight(self):
+    def test_peft_adapter_flat_shorthand_with_type_and_name(self):
         cfg = PeftAdapterConfig.model_validate({
             "type": "lora",
+            "name": "my-lora",
             "repository": "org/my-lora",
-            "weight": 0.8,
             "checkpoint": "adapter.safetensors",
         })
         assert cfg.type == PeftAdapterType.LORA
         assert cfg.model.repository == "org/my-lora"
-        assert cfg.weight == 0.8
+        assert cfg.name == "my-lora"
         assert cfg.checkpoint == "adapter.safetensors"
 
     def test_peft_adapter_requires_type(self):
@@ -229,6 +229,7 @@ class TestInheritance:
     def test_peft_adapter_inherits_precision_and_low_cpu_mem_usage(self):
         cfg = PeftAdapterConfig.model_validate({
             "type": "lora",
+            "name": "lora",
             "repository": "org/lora",
             "precision": "float16",
             "low_cpu_mem_usage": True,
@@ -241,7 +242,6 @@ class TestInheritance:
             "type": "lora",
             "repository": "org/lora",
             "name": "style_1",
-            "weight": 0.5,
         })
         # NOTE: `name` collides with NamedModelConfig's `name`. The flat
         # shorthand treats it as a submodule-level sibling (PeftAdapter.name)
@@ -251,7 +251,7 @@ class TestInheritance:
         assert cfg.name == "style_1"
 
     def test_subclass_identity_preserved(self):
-        peft = PeftAdapterConfig.model_validate({"type": "lora", "repository": "org/lora"})
+        peft = PeftAdapterConfig.model_validate({"type": "lora", "name": "lora", "repository": "org/lora"})
         assert isinstance(peft, PeftAdapterConfig)
         assert isinstance(peft, ModelSubmoduleConfig)
 

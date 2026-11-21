@@ -43,6 +43,7 @@ def _default_params(**overrides) -> Dict[str, Any]:
         "merge_gap":                     10.0,
     }
     base.update(overrides)
+    base.setdefault("rejoin_gap", base["merge_gap"])
     return base
 
 

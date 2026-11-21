@@ -403,31 +403,20 @@ class TestRealHumanPose:
 
 class TestOpenposeAndSkeleton:
     @pytest.mark.anyio
-    async def test_openpose_keypoints_returned_when_requested(self, make_action, sample_pose_image):
-        action = make_action(return_openpose_keypoints=True)
+    async def test_keypoints_openpose_layout(self, make_action, sample_pose_image):
+        action = make_action(skeleton_format="openpose")
         context = ComponentActionContext("run-op-kp", { "image": sample_pose_image })
 
         result = await action.run(context)
 
         assert len(result["poses"]) >= 1
         for pose in result["poses"]:
-            assert "openpose_keypoints" in pose
-            assert isinstance(pose["openpose_keypoints"], list)
+            assert "keypoints" in pose
+            assert isinstance(pose["keypoints"], list)
             # BODY_18 layout
-            assert len(pose["openpose_keypoints"]) == 18
-            for keypoint in pose["openpose_keypoints"]:
+            assert len(pose["keypoints"]) == 18
+            for keypoint in pose["keypoints"]:
                 assert set(keypoint.keys()) == { "x", "y", "visibility" }
-
-    @pytest.mark.anyio
-    async def test_openpose_keypoints_independent_from_natural(self, make_action, sample_pose_image):
-        action = make_action(return_keypoints=False, return_openpose_keypoints=True)
-        context = ComponentActionContext("run-op-only", { "image": sample_pose_image })
-
-        result = await action.run(context)
-
-        for pose in result["poses"]:
-            assert "keypoints" not in pose
-            assert "openpose_keypoints" in pose
 
     @pytest.mark.anyio
     async def test_skeleton_image_natural_layout(self, make_action, sample_pose_image):

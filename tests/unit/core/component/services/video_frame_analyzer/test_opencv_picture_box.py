@@ -47,7 +47,7 @@ def _solid_frame(width: int = 320, height: int = 180, value: int = 200) -> PILIm
 
 
 _PICTURE_BOX_PARAMS: Dict[str, Any] = {
-    "analysis_width":         320,
+    "downsample_width":         320,
     "sample_count":           4,
     "lit_threshold":          24.0,
     "picture_lit_share":      0.6,
@@ -96,4 +96,4 @@ async def test_picture_box_handles_empty_input():
     assert result["detected"] is False
     assert result["frame_count"] == 0
     assert result["sample_count"] == 0
-    assert result["analysis_width"] == _PICTURE_BOX_PARAMS["analysis_width"]
+    assert result["downsample_width"] == _PICTURE_BOX_PARAMS["downsample_width"]

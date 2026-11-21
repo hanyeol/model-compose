@@ -187,7 +187,7 @@ component:
   quantization:
     type: fp8       # halves AR memory
   offload_ar: true  # move the AR model to CPU during NAR synthesis
-  memory_budget_gib: 16
+  memory_budget: 16
   vae:
     tile_size: 512
 ```

@@ -187,7 +187,7 @@ component:
   quantization:
     type: fp8       # AR 메모리 절반 절약
   offload_ar: true  # NAR 합성 중 AR 모델을 CPU로 이동
-  memory_budget_gib: 16
+  memory_budget: 16
   vae:
     tile_size: 512
 ```

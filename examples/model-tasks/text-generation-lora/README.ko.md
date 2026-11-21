@@ -54,24 +54,32 @@ model: meta-llama/Llama-2-7b-hf
 ```
 
 ### LoRA 어댑터
-```yaml
-peft_adapter:
-  - type: lora
-    name: alpaca
-    model: tloen/alpaca-lora-7b
-    weight: 0.7
 
-  - type: lora
-    name: assistant
-    model: plncmm/guanaco-lora-7b
-    weight: 0.8
+컴포넌트에는 사용할 어댑터를 이름과 모델 경로만 등록하고, 각 액션에서 어떤 어댑터를 어떤 가중치로 활성화할지 선택합니다.
+
+```yaml
+component:
+  peft_adapter:
+    - type: lora
+      name: alpaca
+      model: tloen/alpaca-lora-7b
+    - type: lora
+      name: assistant
+      model: plncmm/guanaco-lora-7b
+  action:
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
 ```
 
 ### 매개변수
-- `weight`: 어댑터 영향력을 위한 스케일링 인수 (기본값: 1.0)
+- 액션 레벨 `weight`: 해당 액션에서 어댑터가 미치는 영향력 스케일 (기본값: 1.0)
   - `< 1.0`: 어댑터 효과 감소
   - `1.0`: 전체 어댑터 효과
   - `> 1.0`: 어댑터 효과 증폭
+- 액션에서 `peft_adapter`를 생략하면 베이스 모델만 사용해 추론합니다.
 - `precision`: 모델 정밀도 (예: `float16`, `bfloat16`)
 
 ## 실행 방법
@@ -153,38 +161,40 @@ for adapter in adapters:
 
 ### 자체 LoRA 추가
 
-HuggingFace Hub 또는 로컬 경로에서 사용자 정의 LoRA 어댑터를 추가할 수 있습니다:
+HuggingFace Hub나 로컬 경로의 사용자 정의 LoRA 어댑터를 컴포넌트에 등록하고 액션에서 이름으로 참조합니다:
 
 ```yaml
-peft_adapter:
-  # HuggingFace Hub
-  - type: lora
-    name: my_adapter
-    model: username/my-lora-adapter
-    weight: 1.0
+component:
+  peft_adapter:
+    # HuggingFace Hub
+    - type: lora
+      name: my_adapter
+      model: username/my-lora-adapter
 
-  # 로컬 경로
-  - type: lora
-    name: local_adapter
-    model:
-      provider: local
-      path: ./path/to/lora
-    weight: 0.5
+    # 로컬 경로
+    - type: lora
+      name: local_adapter
+      model:
+        provider: local
+        path: ./path/to/lora
+  action:
+    peft_adapter:
+      - name: my_adapter
+      - name: local_adapter
+        weight: 0.5
 ```
 
 ### 어댑터 가중치 조정
 
-어댑터 간 균형 미세 조정:
+어댑터 간 균형은 액션 레벨에서 미세 조정합니다:
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: alpaca
-    weight: 0.3  # 지시 수행 감소
-
-  - type: lora
-    name: assistant
-    weight: 1.2  # 대화형 증가
+action:
+  peft_adapter:
+    - name: alpaca
+      weight: 0.3  # 지시 수행 감소
+    - name: assistant
+      weight: 1.2  # 대화형 증가
 ```
 
 ## 시스템 요구사항

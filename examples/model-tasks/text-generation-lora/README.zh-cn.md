@@ -54,24 +54,32 @@ model: meta-llama/Llama-2-7b-hf
 ```
 
 ### LoRA 适配器
-```yaml
-peft_adapter:
-  - type: lora
-    name: alpaca
-    model: tloen/alpaca-lora-7b
-    weight: 0.7
 
-  - type: lora
-    name: assistant
-    model: plncmm/guanaco-lora-7b
-    weight: 0.8
+在组件上通过名称和模型路径注册可用的适配器，然后在每个动作中选择要激活的适配器及其权重。
+
+```yaml
+component:
+  peft_adapter:
+    - type: lora
+      name: alpaca
+      model: tloen/alpaca-lora-7b
+    - type: lora
+      name: assistant
+      model: plncmm/guanaco-lora-7b
+  action:
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
 ```
 
 ### 参数
-- `weight`：适配器影响的缩放因子（默认：1.0）
+- 动作级 `weight`：适配器在当前动作中影响力的缩放因子（默认：1.0）
   - `< 1.0`：减少适配器效果
   - `1.0`：完整适配器效果
   - `> 1.0`：放大适配器效果
+- 当动作未声明 `peft_adapter` 时，推理仅使用基础模型。
 - `precision`：模型精度（例如 `float16`、`bfloat16`）
 
 ## 如何运行
@@ -153,38 +161,40 @@ for adapter in adapters:
 
 ### 添加您自己的 LoRA
 
-您可以从 HuggingFace Hub 或本地路径添加自定义 LoRA 适配器：
+在组件上注册来自 HuggingFace Hub 或本地路径的自定义 LoRA 适配器，然后在动作中按名称引用：
 
 ```yaml
-peft_adapter:
-  # HuggingFace Hub
-  - type: lora
-    name: my_adapter
-    model: username/my-lora-adapter
-    weight: 1.0
+component:
+  peft_adapter:
+    # HuggingFace Hub
+    - type: lora
+      name: my_adapter
+      model: username/my-lora-adapter
 
-  # 本地路径
-  - type: lora
-    name: local_adapter
-    model:
-      provider: local
-      path: ./path/to/lora
-    weight: 0.5
+    # 本地路径
+    - type: lora
+      name: local_adapter
+      model:
+        provider: local
+        path: ./path/to/lora
+  action:
+    peft_adapter:
+      - name: my_adapter
+      - name: local_adapter
+        weight: 0.5
 ```
 
 ### 调整适配器权重
 
-微调适配器之间的平衡：
+在动作级别微调适配器之间的平衡：
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: alpaca
-    weight: 0.3  # 减少指令遵循
-
-  - type: lora
-    name: assistant
-    weight: 1.2  # 增加对话性
+action:
+  peft_adapter:
+    - name: alpaca
+      weight: 0.3  # 减少指令遵循
+    - name: assistant
+      weight: 1.2  # 增加对话性
 ```
 
 ## 系统要求

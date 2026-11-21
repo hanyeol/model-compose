@@ -54,24 +54,32 @@ model: meta-llama/Llama-2-7b-hf
 ```
 
 ### LoRA Adapters
-```yaml
-peft_adapter:
-  - type: lora
-    name: alpaca
-    model: tloen/alpaca-lora-7b
-    weight: 0.7
 
-  - type: lora
-    name: assistant
-    model: plncmm/guanaco-lora-7b
-    weight: 0.8
+Register adapters on the component (name + model only) and pick which to activate — with what weight — on each action.
+
+```yaml
+component:
+  peft_adapter:
+    - type: lora
+      name: alpaca
+      model: tloen/alpaca-lora-7b
+    - type: lora
+      name: assistant
+      model: plncmm/guanaco-lora-7b
+  action:
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
 ```
 
 ### Parameters
-- `weight`: Scaling factor for adapter influence (default: 1.0)
+- Action-level `weight`: Scaling factor for the adapter's contribution to this action (default: 1.0)
   - `< 1.0`: Reduce adapter effect
   - `1.0`: Full adapter effect
   - `> 1.0`: Amplify adapter effect
+- When an action omits `peft_adapter`, inference runs on the base model only.
 - `precision`: Model precision (e.g., `float16`, `bfloat16`)
 
 ## How to Run
@@ -153,38 +161,40 @@ The `weight` parameter controls each adapter's contribution.
 
 ### Add Your Own LoRA
 
-You can add custom LoRA adapters from HuggingFace Hub or local paths:
+Register custom LoRA adapters on the component from HuggingFace Hub or a local path, then reference them by name on an action:
 
 ```yaml
-peft_adapter:
-  # HuggingFace Hub
-  - type: lora
-    name: my_adapter
-    model: username/my-lora-adapter
-    weight: 1.0
+component:
+  peft_adapter:
+    # HuggingFace Hub
+    - type: lora
+      name: my_adapter
+      model: username/my-lora-adapter
 
-  # Local path
-  - type: lora
-    name: local_adapter
-    model:
-      provider: local
-      path: ./path/to/lora
-    weight: 0.5
+    # Local path
+    - type: lora
+      name: local_adapter
+      model:
+        provider: local
+        path: ./path/to/lora
+  action:
+    peft_adapter:
+      - name: my_adapter
+      - name: local_adapter
+        weight: 0.5
 ```
 
 ### Adjust Adapter Weights
 
-Fine-tune the balance between adapters:
+Fine-tune the balance between adapters at the action level:
 
 ```yaml
-peft_adapter:
-  - type: lora
-    name: alpaca
-    weight: 0.3  # Less instruction following
-
-  - type: lora
-    name: assistant
-    weight: 1.2  # More conversational
+action:
+  peft_adapter:
+    - name: alpaca
+      weight: 0.3  # Less instruction following
+    - name: assistant
+      weight: 1.2  # More conversational
 ```
 
 ## System Requirements

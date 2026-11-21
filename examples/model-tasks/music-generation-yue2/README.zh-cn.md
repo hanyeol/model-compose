@@ -187,7 +187,7 @@ component:
   quantization:
     type: fp8       # 将 AR 内存减半
   offload_ar: true  # NAR 合成期间将 AR 模型移至 CPU
-  memory_budget_gib: 16
+  memory_budget: 16
   vae:
     tile_size: 512
 ```

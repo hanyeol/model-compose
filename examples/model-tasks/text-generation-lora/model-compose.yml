@@ -26,15 +26,18 @@ component:
     - type: lora
       name: alpaca
       model: tloen/alpaca-lora-7b
-      weight: 0.7
     - type: lora
       name: assistant
       model: plncmm/guanaco-lora-7b
-      weight: 0.8
   max_concurrent_count: 1
   action:
     text: ${input.prompt as text}
     max_output_length: 2048
+    peft_adapter:
+      - name: alpaca
+        weight: 0.7
+      - name: assistant
+        weight: 0.8
     params:
       temperature: 0.7
       top_p: 0.9

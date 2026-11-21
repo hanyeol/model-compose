@@ -172,16 +172,102 @@ async def test_eof_releases_run_and_stream_together():
 
 
 @pytest.mark.anyio
-async def test_explicit_abort_pending_on_eof_is_idempotent():
+async def test_explicit_handle_transport_eof_is_idempotent():
     """Calling the cleanup hook twice in a row must be a no-op the second
     time — useful when stop() and EOF race."""
     manager = _EofManager()
     await manager.start()
 
     future = _register_pending_request(manager, "req-x")
-    manager._abort_pending_on_eof()
-    manager._abort_pending_on_eof()  # no error
+    manager._handle_transport_eof()
+    manager._handle_transport_eof()  # no error
 
     with pytest.raises(ConnectionError):
         await asyncio.wait_for(future, timeout=1.0)
+    await manager.stop()
+
+
+@pytest.mark.anyio
+async def test_closed_flag_flips_on_eof():
+    """`closed` property stays False until EOF and latches True after."""
+    manager = _EofManager()
+    await manager.start()
+
+    assert manager.closed is False
+
+    manager.feed_eof()
+    await asyncio.sleep(0.01)
+
+    assert manager.closed is True
+    await manager.stop()
+
+
+@pytest.mark.anyio
+async def test_wait_until_closed_unblocks_on_eof():
+    """`wait_until_closed()` parked before EOF must resume once EOF fires."""
+    manager = _EofManager()
+    await manager.start()
+
+    waiter = asyncio.create_task(manager.wait_until_closed())
+    await asyncio.sleep(0.01)
+    assert not waiter.done()
+
+    manager.feed_eof()
+    await asyncio.wait_for(waiter, timeout=1.0)
+    await manager.stop()
+
+
+@pytest.mark.anyio
+async def test_wait_until_closed_returns_immediately_after_eof():
+    """Supervisors arriving after EOF must still unblock without hanging."""
+    manager = _EofManager()
+    await manager.start()
+
+    manager.feed_eof()
+    await asyncio.sleep(0.01)
+
+    await asyncio.wait_for(manager.wait_until_closed(), timeout=1.0)
+    await manager.stop()
+
+
+@pytest.mark.anyio
+async def test_request_on_closed_proxy_raises_fresh_connection_error():
+    """Each `request()` on a dead proxy must raise its own ConnectionError
+    instance — the proxy no longer caches a shared exception."""
+    manager = _EofManager()
+    await manager.start()
+
+    manager.feed_eof()
+    await asyncio.sleep(0.01)
+
+    with pytest.raises(ConnectionError) as first:
+        await manager.request({"ping": True})
+    with pytest.raises(ConnectionError) as second:
+        await manager.request({"ping": True})
+
+    assert first.value is not second.value
+    assert str(first.value) == "worker transport closed"
+    assert str(second.value) == "worker transport closed"
+    await manager.stop()
+
+
+@pytest.mark.anyio
+async def test_pending_futures_fail_with_distinct_connection_errors():
+    """EOF cleanup must give each pending future its own ConnectionError
+    instance — identity is not shared across callers."""
+    manager = _EofManager()
+    await manager.start()
+
+    future_a = _register_pending_request(manager, "req-a")
+    future_b = _register_pending_request(manager, "req-b")
+
+    manager.feed_eof()
+    await asyncio.sleep(0.01)
+
+    exc_a = future_a.exception()
+    exc_b = future_b.exception()
+
+    assert isinstance(exc_a, ConnectionError)
+    assert isinstance(exc_b, ConnectionError)
+    assert exc_a is not exc_b
     await manager.stop()

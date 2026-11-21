@@ -325,12 +325,16 @@ class ChromeBrowserSession(WebBrowserSession):
 
     async def _get_element_center(self, selector: Optional[str], xpath: Optional[str], timeout: float) -> tuple:
         deadline = asyncio.get_event_loop().time() + timeout
+
         while asyncio.get_event_loop().time() < deadline:
             box = await self._find_element_bounding_box(selector, xpath)
+
             if box:
                 cx = int(box["x"] + box["width"] / 2)
                 cy = int(box["y"] + box["height"] / 2)
+
                 return cx, cy
+
             await asyncio.sleep(0.3)
 
         target = selector or xpath
@@ -348,6 +352,7 @@ class ChromeBrowserSession(WebBrowserSession):
         result = await self.client.send_command("Runtime.evaluate", {
             "expression": script, "returnByValue": True
         })
+
         return result.get("result", {}).get("value")
 
     def _build_query_target_script(self, selector: Optional[str], xpath: Optional[str]) -> str:
@@ -407,6 +412,7 @@ class ChromeBrowserSession(WebBrowserSession):
         if selector:
             if multiple:
                 return f"Array.from(document.querySelectorAll({repr(selector)}))"
+
             return f"[document.querySelector({repr(selector)})].filter(Boolean)"
 
         if xpath:
@@ -416,6 +422,7 @@ class ChromeBrowserSession(WebBrowserSession):
                         XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
                     return Array.from({{length: r.snapshotLength}}, (_, i) => r.snapshotItem(i));
                 }})()"""
+
             return f"""[document.evaluate(
                 {repr(xpath)}, document, null,
                 XPathResult.FIRST_ORDERED_NODE_TYPE, null

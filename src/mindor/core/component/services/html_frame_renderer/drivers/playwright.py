@@ -100,9 +100,9 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
                 render_done = False
 
                 while True:
-                    remaining_time = deadline - asyncio.get_running_loop().time()
+                    time_left = deadline - asyncio.get_running_loop().time()
 
-                    if remaining_time <= 0:
+                    if time_left <= 0:
                         render_signal_task.cancel()
                         raise asyncio.TimeoutError
 
@@ -110,7 +110,7 @@ class PlaywrightHtmlFrameRendererSession(HtmlFrameRendererSession):
                     done, _ = await asyncio.wait(
                         pending,
                         return_when=asyncio.FIRST_COMPLETED,
-                        timeout=remaining_time,
+                        timeout=time_left,
                     )
 
                     if render_signal_task in done:

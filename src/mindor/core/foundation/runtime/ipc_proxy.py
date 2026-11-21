@@ -56,6 +56,7 @@ class IpcRuntimeProxy(ABC):
 
     async def start(self) -> None:
         self._loop = asyncio.get_event_loop()
+
         await self._start()
 
     async def stop(self) -> None:

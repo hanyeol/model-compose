@@ -218,7 +218,9 @@ class ComponentRuntimeManager(RuntimeManager):
                     await self._shutdown(self._channel)
                 except Exception:
                     pass
+
                 self._channel = None
+
             raise
 
     async def stop(self) -> None:
@@ -235,7 +237,12 @@ class ComponentRuntimeManager(RuntimeManager):
                 await self._shutdown(self._channel)
             except Exception:
                 pass
+
             self._channel = None
+
+    async def restart(self) -> None:
+        await self.stop()
+        await self.start()
 
     async def run(
         self,

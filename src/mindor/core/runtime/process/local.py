@@ -45,8 +45,15 @@ class LocalProcessRuntime(CommonRuntime):
         self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
 
         self._subprocess: Optional[Process] = None
+        self._exit_watcher: Optional[asyncio.Task] = None
 
-    async def start(self) -> None:
+    async def start(self, on_exit: Optional[Callable[[], None]] = None) -> None:
+        """Spawn the subprocess. If `on_exit` is given, it is invoked once the
+        subprocess terminates for any reason (normal exit, crash, SIGKILL).
+
+        `on_exit` lets IPC transports that can't observe writer death on their
+        own — notably `multiprocessing.Queue`, where the parent still holds
+        a writer fd — bridge the gap with a watcher task owned by the runtime."""
         if self.config.env:
             for key, value in self.config.env.items():
                 os.environ[key] = value
@@ -58,7 +65,20 @@ class LocalProcessRuntime(CommonRuntime):
         )
         self._subprocess.start()
 
+        if on_exit is not None:
+            self._exit_watcher = asyncio.create_task(self._watch_exit(on_exit))
+
     async def stop(self) -> None:
+        if self._exit_watcher is not None:
+            self._exit_watcher.cancel()
+
+            try:
+                await self._exit_watcher
+            except (asyncio.CancelledError, Exception):
+                pass
+
+            self._exit_watcher = None
+
         if self._subprocess is None:
             return
 
@@ -76,6 +96,24 @@ class LocalProcessRuntime(CommonRuntime):
 
             if self._subprocess.is_alive():
                 self._subprocess.kill()
+
+    async def _watch_exit(self, on_exit: Callable[[], None]) -> None:
+        subprocess = self._subprocess
+
+        if subprocess is None:
+            return
+
+        try:
+            await asyncio.get_event_loop().run_in_executor(None, subprocess.join)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return
+
+        try:
+            on_exit()
+        except Exception:
+            pass
 
     @property
     def is_alive(self) -> bool:

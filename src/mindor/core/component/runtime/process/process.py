@@ -83,7 +83,11 @@ class ComponentProcessRuntimeManager(ComponentRuntimeManager):
             ),
             config=self._runtime_config,
         )
-        await self._runtime.start()
+
+        # `mp.Queue` keeps a writer fd on the parent side, so the proxy's
+        # blocking `recv` never observes EOF on its own. Have the runtime
+        # push a sentinel when the subprocess exits so the supervisor wakes.
+        await self._runtime.start(on_exit=lambda: response_queue.put(None))
 
         return (request_queue, response_queue)
 

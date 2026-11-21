@@ -614,7 +614,7 @@ class WebSocketServer:
         if stream is None:
             return
 
-        stream.closed = True
+        stream.close()
 
         await self.manager.send_message(
             client_id,
@@ -642,7 +642,7 @@ class WebSocketServer:
                 return
 
             # The source itself was cancelled: tell the client, as for any other failure.
-            stream.closed = True
+            await stream.aclose()
             self.streams.remove_outbound(client_id, stream.stream_id)
 
             await self.manager.send_message(
@@ -651,7 +651,7 @@ class WebSocketServer:
             )
             raise
         except StopAsyncIteration:
-            stream.closed = True
+            await stream.aclose()
             self.streams.remove_outbound(client_id, stream.stream_id)
 
             await self.manager.send_message(
@@ -660,7 +660,7 @@ class WebSocketServer:
             )
             return
         except Exception as e:
-            stream.closed = True
+            await stream.aclose()
             self.streams.remove_outbound(client_id, stream.stream_id)
 
             await self.manager.send_message(
@@ -676,7 +676,7 @@ class WebSocketServer:
         try:
             chunk = stream.encode_chunk(chunk)
         except Exception as e:
-            stream.closed = True
+            await stream.aclose()
             self.streams.remove_outbound(client_id, stream.stream_id)
 
             await self.manager.send_message(

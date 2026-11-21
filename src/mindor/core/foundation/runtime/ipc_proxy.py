@@ -48,11 +48,29 @@ class IpcRuntimeProxy(ABC):
         self._inbound_streams: Dict[str, IpcInboundStream] = {}
         self._outbound_streams: Dict[str, IpcOutboundStream] = {}
 
-        # Set to a `ConnectionError` once the response loop observes EOF.
-        # New `request()` calls fail fast against this instead of trying to
-        # send on a dead transport (which surfaces as a noisy RuntimeError /
-        # BrokenPipeError from the subclass).
-        self._closed_error: Optional[ConnectionError] = None
+        # Latched when the response loop observes EOF so new `request()` calls
+        # fail fast instead of sending on a dead transport (which would surface
+        # as a noisy RuntimeError / BrokenPipeError from the subclass).
+        # `_closed_event` wakes external supervisors without polling. Never
+        # cleared — a proxy instance represents one session; the next session
+        # uses a new instance.
+        self._closed: bool = False
+        self._closed_event: asyncio.Event = asyncio.Event()
+
+        # Set at the start of `stop()` so external supervisors can tell an
+        # orderly shutdown from a crash when they wake from `wait_until_closed()`.
+        self._stop_requested: bool = False
+
+    @property
+    def closed(self) -> bool:
+        """True once the response loop has observed transport EOF."""
+        return self._closed
+
+    @property
+    def stop_requested(self) -> bool:
+        """True once `stop()` has been entered — distinguishes orderly shutdown
+        from transport crash for restart policies."""
+        return self._stop_requested
 
     async def start(self) -> None:
         self._loop = asyncio.get_event_loop()
@@ -60,11 +78,20 @@ class IpcRuntimeProxy(ABC):
         await self._start()
 
     async def stop(self) -> None:
-        await self._stop()
+        self._stop_requested = True
+
+        try:
+            await self._stop()
+        finally:
+            # Ensure `wait_until_closed()` returns even when the worker
+            # ignored STOP or `_stop()` timed out and cancelled the response
+            # task — the transport-EOF path would otherwise never fire.
+            self._closed = True
+            self._closed_event.set()
 
     async def request(self, payload: Dict[str, Any], on_event: Optional[IpcEventCallback] = None) -> Any:
-        if self._closed_error is not None:
-            raise self._closed_error
+        if self._closed:
+            raise ConnectionError("worker transport closed")
 
         request_id = ulid.ulid()
         encoded_payload = self._codec.encode(
@@ -90,8 +117,8 @@ class IpcRuntimeProxy(ABC):
             self._pending_requests.pop(request_id, None)
             self._event_callbacks.pop(request_id, None)
 
-            if self._closed_error is not None:
-                raise self._closed_error from e
+            if self._closed:
+                raise ConnectionError("worker transport closed") from e
 
             raise ConnectionError(f"send failed on worker '{self.worker_id}': {e}") from e
 
@@ -100,7 +127,7 @@ class IpcRuntimeProxy(ABC):
         except asyncio.CancelledError:
             # Best-effort: tell the worker to stop the in-flight request so it
             # doesn't run to completion after the caller has abandoned it.
-            if self._closed_error is None:
+            if not self._closed:
                 try:
                     await self._send_message(IpcMessage(
                         type=IpcMessageType.CANCEL,
@@ -115,6 +142,10 @@ class IpcRuntimeProxy(ABC):
         finally:
             self._pending_requests.pop(request_id, None)
             self._event_callbacks.pop(request_id, None)
+
+    async def wait_until_closed(self) -> None:
+        """Block until the session closes. Returns immediately if already closed."""
+        await self._closed_event.wait()
 
     async def _wait_for_ready(self) -> None:
         """Block until the worker publishes STATUS=ready, or raise on timeout/error."""
@@ -154,7 +185,7 @@ class IpcRuntimeProxy(ABC):
                 data = await self._recv_message()
 
                 if data is None:
-                    self._abort_pending_on_eof()
+                    self._handle_transport_eof()
                     break
 
                 message = IpcMessage.deserialize(data)
@@ -233,11 +264,12 @@ class IpcRuntimeProxy(ABC):
         except asyncio.CancelledError:
             pass
 
-    def _abort_pending_on_eof(self, error: str = "worker transport closed") -> None:
-        """Fail pending requests / inbound streams on transport EOF and latch
-        `_closed_error` so later `request()` calls fail fast. Idempotent."""
-        exc = self._closed_error or ConnectionError(error)
-        self._closed_error = exc
+    def _handle_transport_eof(self) -> None:
+        """Mark the session closed, fail pending requests, abort inbound
+        streams, and cancel orphaned inbound calls so later `request()` calls
+        fail fast."""
+        self._closed = True
+        self._closed_event.set()
 
         for stream in list(self._inbound_streams.values()):
             stream.push_abort()
@@ -247,7 +279,7 @@ class IpcRuntimeProxy(ABC):
 
         for future in list(self._pending_requests.values()):
             if not future.done():
-                future.set_exception(exc)
+                future.set_exception(ConnectionError("worker transport closed"))
 
         self._pending_requests.clear()
         self._event_callbacks.clear()

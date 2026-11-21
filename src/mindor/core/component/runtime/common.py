@@ -4,14 +4,16 @@ from abc import abstractmethod
 from typing import Any, Awaitable, Callable, Dict, Optional
 from mindor.dsl.schema.component import ComponentConfig
 from mindor.dsl.schema.runtime import EmbeddedRuntimeConfig
+from mindor.dsl.schema.runtime.impl.common import RuntimeRestartBackoff, RuntimeRestartConfig, RuntimeRestartPolicy
 from mindor.dsl.schema.logger import ConsoleLoggerConfig, LoggerType
 from mindor.core.component.base import ComponentGlobalConfigs
 from mindor.core.component.component import ComponentInstances, create_component
+from mindor.core.foundation.variable.time import parse_time
 from mindor.core.runtime.manager import RuntimeManager
 from mindor.core.foundation.runtime.ipc_proxy import IpcRuntimeProxy
 from mindor.core.foundation.runtime.ipc_worker import IpcRuntimeWorker
 from mindor.core.logger import logging, create_logger, LoggerInstances
-import asyncio
+import asyncio, time
 
 class ComponentRuntimeWorker(IpcRuntimeWorker):
     """Component-side IPC worker base.
@@ -206,39 +208,44 @@ class ComponentRuntimeManager(RuntimeManager):
         self._proxy: Optional[ComponentRuntimeProxy] = None
         self._channel: Optional[Any] = None
 
+        # Serialize session start/stop so `run()` never observes a half-replaced
+        # (_channel, _proxy) pair during restart.
+        self._session_lock: asyncio.Lock = asyncio.Lock()
+
+        # `_restart_gaveup` is read by `run()` to short-circuit requests
+        # against a dead manager; attempt counters live inside the restart task.
+        self._restart_config: RuntimeRestartConfig = component_config.runtime.restart
+        self._restart_task: Optional[asyncio.Task] = None
+        self._restart_gaveup: bool = False
+
     async def start(self) -> None:
-        try:
-            self._channel = await self._launch()
-            self._proxy = self._create_proxy(self._channel)
+        # Entire bring-up stays under the lock so concurrent `start()` calls
+        # can't both complete `_start_session()` and orphan each other.
+        async with self._session_lock:
+            if self._proxy is not None:
+                raise RuntimeError(f"worker '{self.worker_id}' is already started")
 
-            await self._proxy.start()
-        except Exception:
-            if self._channel is not None:
-                try:
-                    await self._shutdown(self._channel)
-                except Exception:
-                    pass
+            self._restart_gaveup = False
+            await self._start_session()
 
-                self._channel = None
-
-            raise
+            if self._restart_config.policy != RuntimeRestartPolicy.NO:
+                self._restart_task = asyncio.create_task(self._restart_on_close())
 
     async def stop(self) -> None:
-        if self._proxy is not None:
+        # Cancel the restart loop first so it doesn't try to restart the
+        # session we're about to tear down.
+        if self._restart_task is not None:
+            self._restart_task.cancel()
+
             try:
-                await self._proxy.stop()
-            except Exception:
+                await self._restart_task
+            except (asyncio.CancelledError, Exception):
                 pass
 
-            self._proxy = None
+            self._restart_task = None
 
-        if self._channel is not None:
-            try:
-                await self._shutdown(self._channel)
-            except Exception:
-                pass
-
-            self._channel = None
+        async with self._session_lock:
+            await self._stop_session()
 
     async def restart(self) -> None:
         await self.stop()
@@ -251,6 +258,9 @@ class ComponentRuntimeManager(RuntimeManager):
         input_data: Dict[str, Any],
         on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
     ) -> Any:
+        if self._restart_gaveup:
+            raise ConnectionError(f"worker '{self.worker_id}' is unavailable")
+
         return await self._run(action_id, run_id, input_data, on_event)
 
     async def _run(
@@ -262,8 +272,160 @@ class ComponentRuntimeManager(RuntimeManager):
     ) -> Any:
         """Dispatch one request through the IPC proxy. Subclasses override to
         wrap the call with per-request lifecycle logic (idle timer, active
-        counter, lazy session bring-up)."""
-        return await self._proxy.run(action_id, run_id, input_data, on_event=on_event)
+        counter, lazy session start)."""
+        proxy = self._proxy
+
+        if proxy is None:
+            raise ConnectionError(f"worker '{self.worker_id}' is not available")
+
+        return await proxy.run(action_id, run_id, input_data, on_event=on_event)
+
+    async def _start_session(self) -> None:
+        """Open a channel and start the IPC proxy. Caller holds `_session_lock`.
+
+        Catches `BaseException` so a cancel mid-`_launch`/`_create_proxy`/
+        `_proxy.start()` still releases the partially-allocated channel —
+        otherwise cancel would leak the subprocess/container/pod we just
+        brought up. The cleanup `_shutdown()` is shielded for the same reason
+        as `_stop_session`: a cancel propagating through here must not abort
+        the OS-level teardown half-way."""
+        try:
+            self._channel = await self._launch()
+            self._proxy = self._create_proxy(self._channel)
+
+            await self._proxy.start()
+        except BaseException:
+            if self._channel is not None:
+                try:
+                    await asyncio.shield(self._shutdown(self._channel))
+                except Exception:
+                    pass
+
+                self._channel = None
+
+            self._proxy = None
+
+            raise
+
+    async def _stop_session(self) -> None:
+        """Stop the IPC proxy and close the channel. Caller holds `_session_lock`.
+
+        `_proxy.stop()` and `_shutdown()` are shielded so a cancel mid-cleanup
+        can't abort the subprocess/container shutdown half-way and leak OS
+        resources. The outer `CancelledError` still propagates after both have
+        run."""
+        try:
+            if self._proxy is not None:
+                try:
+                    await asyncio.shield(self._proxy.stop())
+                except Exception:
+                    pass
+                finally:
+                    self._proxy = None
+        finally:
+            if self._channel is not None:
+                try:
+                    await asyncio.shield(self._shutdown(self._channel))
+                except Exception:
+                    pass
+                finally:
+                    self._channel = None
+
+    async def _restart_on_close(self) -> None:
+        """Watch for IPC session death and bring a fresh session back up.
+
+        Lives for the duration of the manager and runs one relaunch cycle each
+        time the current proxy's `_closed_event` latches. Exits when the manager
+        is stopped, or when attempts exceed the configured ceiling."""
+        window = max(parse_time(self._restart_config.window), 1.0)
+        max_attempt_count = self._restart_config.max_attempt_count
+
+        window_started_at: Optional[float] = None
+        attempts = 0
+
+        try:
+            while True:
+                proxy = self._proxy
+
+                if proxy is None:
+                    return
+
+                await proxy.wait_until_closed()
+
+                # Anything but a manager-initiated stop (worker crash, transport
+                # drop, worker-side sys.exit) counts as a crash.
+                if proxy.stop_requested and self._restart_config.policy != RuntimeRestartPolicy.ALWAYS:
+                    return
+
+                logging.warning("Worker '%s' session closed", self.worker_id)
+
+                # Retry loop for THIS crash — keep trying until a relaunch
+                # succeeds or the attempt budget runs out.
+                while True:
+                    now = time.monotonic()
+                    attempts += 1
+
+                    if window_started_at is None or (now - window_started_at) > window:
+                        window_started_at = now
+                        attempts = 1
+
+                    if max_attempt_count > 0 and attempts > max_attempt_count:
+                        self._restart_gaveup = True
+
+                        logging.error(
+                            "Worker '%s' restart giving up: attempts exhausted (%d) within %.0fs",
+                            self.worker_id, max_attempt_count, window,
+                        )
+
+                        return
+
+                    delay = self._resolve_restart_delay(attempts)
+
+                    if max_attempt_count > 0:
+                        logging.info(
+                            "Worker '%s' restart attempt %d/%d in %.1fs",
+                            self.worker_id, attempts, max_attempt_count, delay,
+                        )
+                    else:
+                        logging.info(
+                            "Worker '%s' restart attempt %d in %.1fs",
+                            self.worker_id, attempts, delay,
+                        )
+
+                    if delay > 0.0:
+                        await asyncio.sleep(delay)
+
+                    try:
+                        async with self._session_lock:
+                            await self._stop_session()
+                            await self._start_session()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        logging.warning(
+                            "Worker '%s' restart attempt failed: %s",
+                            self.worker_id, str(e) or type(e).__name__,
+                        )
+                        continue
+
+                    logging.info("Worker '%s' restarted successfully", self.worker_id)
+                    break
+
+                # Give the next crash a fresh attempt budget.
+                window_started_at = None
+                attempts = 0
+        except asyncio.CancelledError:
+            pass
+
+    def _resolve_restart_delay(self, attempt: int) -> float:
+        delay = parse_time(self._restart_config.delay)
+
+        if self._restart_config.backoff == RuntimeRestartBackoff.EXPONENTIAL:
+            delay = delay * (2 ** (attempt - 1))
+
+        delay = min(delay, parse_time(self._restart_config.max_delay))
+
+        return max(delay, 0.0)
 
     @abstractmethod
     async def _launch(self) -> Any:

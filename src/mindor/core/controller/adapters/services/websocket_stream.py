@@ -48,9 +48,16 @@ class WebSocketInboundStream:
         self.stream_id: str = stream_id
         self.kind: StreamKind = kind
         self.queue: asyncio.Queue[Any] = asyncio.Queue()
-        self.closed: bool = False
 
         self._codec: VariableCodec = codec
+        self._closed: bool = False
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def close(self) -> None:
+        self._closed = True
 
     def decode_chunk(self, data: Any) -> Any:
         if self.kind == StreamKind.BYTES:
@@ -165,10 +172,10 @@ class WebSocketOutboundStream:
         self.kind: StreamKind = kind
         self.source: Any = source
         self.seq: int = 0
-        self.closed: bool = False
 
         self._codec: VariableCodec = codec
         self._iterator: AsyncIterator[Any] = source.__aiter__()
+        self._closed: bool = False
 
         # Each stream_pull adds a credit; one pump task per stream answers them in
         # order (see WebSocketServer). `_pull_task` is the pump while it waits in
@@ -176,6 +183,10 @@ class WebSocketOutboundStream:
         self._credits: int = 0
         self._pump_task: Optional[asyncio.Task] = None
         self._pull_task: Optional[asyncio.Task] = None
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
 
     def accept_pull(self) -> None:
         """Record that the consumer is ready for one more chunk."""
@@ -254,7 +265,7 @@ class WebSocketOutboundStream:
         whose body has not entered yet does not run its `finally` on aclose —
         the resource the source holds (an HTTP response, a model still generating)
         would leak. The source's own close drives cleanup regardless."""
-        self.closed = True
+        self._closed = True
 
         if self._pull_task is not None and not self._pull_task.done():
             self._pull_task.cancel()
@@ -297,11 +308,11 @@ class WebSocketStreamReader:
         item = await self._stream.queue.get()
 
         if item is _STREAM_END:
-            self._stream.closed = True
+            self._stream.close()
             raise StopAsyncIteration
 
         if item is _STREAM_ABORT:
-            self._stream.closed = True
+            self._stream.close()
             raise IOError(f"Stream {self._stream.stream_id} aborted")
 
         return item
@@ -310,7 +321,7 @@ class WebSocketStreamReader:
         if self._stream.closed:
             return
 
-        self._stream.closed = True
+        self._stream.close()
 
         try:
             await self._on_close(self._stream.stream_id)
@@ -368,5 +379,4 @@ class WebSocketStreamRegistry:
             outbound = self._outbound.pop((client_id, stream_id), None)
 
             if outbound is not None and not outbound.closed:
-                outbound.closed = True
                 await outbound.aclose()

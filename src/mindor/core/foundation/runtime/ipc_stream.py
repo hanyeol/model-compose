@@ -265,9 +265,6 @@ class IpcOutboundStream:
     def closed(self) -> bool:
         return self._closed
 
-    def close(self) -> None:
-        self._closed = True
-
     def signal_done(self) -> None:
         """Signal that the stream has reached a terminal state. Called by the
         owner (worker/proxy) after popping the stream from its registry so
@@ -288,7 +285,7 @@ class IpcOutboundStream:
         `finally` on aclose — the resource the source holds (an HTTP response,
         a model still generating) would leak. The source's own close drives
         cleanup regardless. Idempotent — safe to call multiple times."""
-        self.close()
+        self._closed = True
 
         if self._pull_task is not None and not self._pull_task.done():
             self._pull_task.cancel()

@@ -5,20 +5,20 @@ from mindor.dsl.schema.action.impl.websocket_server import WebSocketReceiveForma
 from mindor.core.utils.transport.websocket_client import WebSocketClient, WebSocketConnection
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.foundation.variable.time import parse_time
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import json
 
-class WebSocketClientAction:
+class WebSocketClientAction(ComponentAction):
     def __init__(self, config: WebSocketClientActionConfig):
         self.config: WebSocketClientActionConfig = config
 
     async def run(self, context: ComponentActionContext, client: WebSocketClient) -> Any:
-        path    = await context.render_variable(self.config.path)
-        params  = await context.render_variable(self.config.params)
-        headers = await context.render_variable(self.config.headers)
-        message = await context.render_variable(self.config.message)
-
+        path      = await context.render_variable(self.config.path)
+        params    = await context.render_variable(self.config.params)
+        headers   = await context.render_variable(self.config.headers)
+        message   = await context.render_variable(self.config.message)
         format    = await context.render_variable(self.config.receive.format)
         collect   = await context.render_variable(self.config.receive.collect)
         streaming = await context.render_variable(self.config.receive.streaming)
@@ -50,6 +50,7 @@ class WebSocketClientAction:
         except:
             if owned:
                 await connection.close()
+
             raise
 
         if owned:
@@ -72,11 +73,15 @@ class WebSocketClientAction:
     async def _receive_collect(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY:
             buffer = bytearray()
+
             async for frame in connection.receive_frames():
                 if isinstance(frame, bytes):
                     buffer.extend(frame)
+
             return bytes(buffer)
+
         items = []
+
         async for frame in connection.receive_frames():
             if isinstance(frame, str):
                 if format == WebSocketReceiveFormat.JSON:
@@ -86,13 +91,16 @@ class WebSocketClientAction:
                         pass
                 else:
                     items.append(frame)
+
         return items
 
     async def _receive_single(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
         async for frame in connection.receive_frames():
             frame = self._decode_frame(frame, format)
+
             if frame is not None:
                 return frame
+
         return None
 
     async def _receive_stream(self, connection: WebSocketConnection, format: WebSocketReceiveFormat, context: ComponentActionContext, owned: bool = False):
@@ -102,6 +110,7 @@ class WebSocketClientAction:
         try:
             async for frame in connection.receive_frames():
                 frame = self._decode_frame(frame, format)
+
                 if frame is not None:
                     context.register_source("response[]", frame, scope=scope)
                     yield (await context.render_variable(self.config.output, scope=scope)) if not is_direct_output else frame
@@ -112,13 +121,16 @@ class WebSocketClientAction:
     def _decode_frame(self, frame: Any, format: WebSocketReceiveFormat) -> Any:
         if format == WebSocketReceiveFormat.BINARY and isinstance(frame, bytes):
             return frame
+
         if format == WebSocketReceiveFormat.JSON and isinstance(frame, str):
             try:
                 return json.loads(frame)
             except json.JSONDecodeError:
                 return None
+
         if format == WebSocketReceiveFormat.TEXT and isinstance(frame, str):
             return frame
+
         return None
 
 @register_component(ComponentType.WEBSOCKET_CLIENT)

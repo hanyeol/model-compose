@@ -11,6 +11,7 @@ from mindor.dsl.schema.action import (
 from mindor.core.foundation.streaming.iterators import StreamIterator, StreamChunkIterator
 from mindor.core.foundation.cancellation import CancellationToken
 from mindor.core.utils.iterators import BatchSourceIterator
+from ...action.base import ComponentAction
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .loader import AgentSkill, AgentSkillParser
@@ -19,7 +20,7 @@ import ulid
 
 _SKILL_FILENAME = "SKILL.md"
 
-class AgentSkillStoreAction:
+class AgentSkillStoreAction(ComponentAction):
     def __init__(
         self,
         config: AgentSkillStoreActionConfig,

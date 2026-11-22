@@ -6,11 +6,12 @@ from mindor.core.utils.transport.mcp_client import (
     TextResourceContents, BlobResourceContents,
 )
 from mindor.core.utils.shell import run_command_foreground
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import asyncio
 
-class McpServerAction:
+class McpServerAction(ComponentAction):
     def __init__(self, config: McpServerActionConfig):
         self.config: McpServerActionConfig = config
 

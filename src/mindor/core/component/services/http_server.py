@@ -9,6 +9,7 @@ from mindor.core.utils.transport.http_status import is_status_code_matched
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
 from mindor.core.foundation.streaming.resources import StreamResource
 from mindor.core.utils.shell import run_command_foreground
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timedelta, timezone
@@ -70,7 +71,7 @@ class HttpServerCallbackCompletion(HttpServerCompletion):
 
         return await future
 
-class HttpServerAction:
+class HttpServerAction(ComponentAction):
     def __init__(self, config: HttpServerActionConfig):
         self.config: HttpServerActionConfig = config
         self.completion: HttpServerCompletion = None

@@ -5,13 +5,14 @@ from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annot
 from mindor.dsl.schema.component import McpClientComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpClientActionConfig
 from mindor.core.utils.transport.mcp_client import McpClient
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 
 if TYPE_CHECKING:
     from mcp.types import ContentBlock
 
-class McpClientAction:
+class McpClientAction(ComponentAction):
     def __init__(self, config: McpClientActionConfig):
         self.config: McpClientActionConfig = config
 

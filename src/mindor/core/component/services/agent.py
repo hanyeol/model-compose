@@ -7,11 +7,12 @@ from mindor.core.workflow import WorkflowResolver, WorkflowContext, create_workf
 from mindor.core.workflow.interrupt import InterruptPoint
 from mindor.core.workflow.tool import WorkflowToolGenerator, WorkflowTool
 from mindor.core.workflow.schema import create_workflow_schemas
+from ..action.base import ComponentAction
 from ..base import ComponentType, register_component
 from ..context import ComponentActionContext
 import asyncio, ulid, json
 
-class AgentAction:
+class AgentAction(ComponentAction):
     def __init__(
         self,
         config: AgentActionConfig,

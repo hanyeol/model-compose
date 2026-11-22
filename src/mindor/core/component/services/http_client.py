@@ -10,6 +10,7 @@ from mindor.core.foundation.rate_limit import RateLimiter
 from mindor.core.foundation.streaming.http import HttpEventStreamResource
 from mindor.core.foundation.streaming.iterators import StreamChunkIterator
 from mindor.core.foundation.streaming.resources import StreamResource
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 from datetime import datetime, timedelta, timezone
@@ -77,7 +78,7 @@ class HttpClientCallbackCompletion(HttpClientCompletion):
 
         return await future
 
-class HttpClientAction:
+class HttpClientAction(ComponentAction):
     def __init__(self, config: HttpClientActionConfig):
         self.config: HttpClientActionConfig = config
         self.completion: HttpClientCompletion = None

@@ -4,13 +4,14 @@ from mindor.dsl.schema.action import ActionConfig, ModelActionConfig
 from mindor.dsl.schema.component.impl.model.tasks.common import OnDemandConfig
 from mindor.core.foundation.variable.time import parse_time
 from mindor.core.logger import logging
+from ...action.base import ComponentAction
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .base import ModelTaskDriver, ModelTaskDriverRegistry
 import asyncio
 import importlib
 
-class ModelAction:
+class ModelAction(ComponentAction):
     def __init__(self, config: ModelActionConfig):
         self.config: ModelActionConfig = config
 

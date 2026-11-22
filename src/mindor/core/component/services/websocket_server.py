@@ -6,20 +6,20 @@ from mindor.core.utils.transport.websocket_client import WebSocketClient, WebSoc
 from mindor.core.foundation.streaming.bytes import BytesStreamResource
 from mindor.core.utils.shell import run_command_foreground
 from mindor.core.foundation.variable.time import parse_time
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import asyncio, json
 
-class WebSocketServerAction:
+class WebSocketServerAction(ComponentAction):
     def __init__(self, config: WebSocketServerActionConfig):
         self.config: WebSocketServerActionConfig = config
 
     async def run(self, context: ComponentActionContext, client: WebSocketClient) -> Any:
-        path    = await context.render_variable(self.config.path)
-        params  = await context.render_variable(self.config.params)
-        headers = await context.render_variable(self.config.headers)
-        message = await context.render_variable(self.config.message)
-
+        path      = await context.render_variable(self.config.path)
+        params    = await context.render_variable(self.config.params)
+        headers   = await context.render_variable(self.config.headers)
+        message   = await context.render_variable(self.config.message)
         format    = await context.render_variable(self.config.receive.format)
         collect   = await context.render_variable(self.config.receive.collect)
         streaming = await context.render_variable(self.config.receive.streaming)
@@ -91,6 +91,7 @@ class WebSocketServerAction:
                         pass
                 else:
                     items.append(frame)
+
         return items
 
     async def _receive_single(self, connection: WebSocketConnection, format: WebSocketReceiveFormat) -> Any:
@@ -206,9 +207,11 @@ class WebSocketServerComponent(ComponentService):
             reader, writer = await asyncio.open_connection("localhost", self.config.port)
             writer.write(b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
             await writer.drain()
+
             response = await asyncio.wait_for(reader.read(12), timeout=2)
             writer.close()
             await writer.wait_closed()
+
             return response.startswith(b"HTTP/")
         except Exception:
             return False

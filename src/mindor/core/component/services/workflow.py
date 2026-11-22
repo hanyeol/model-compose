@@ -1,10 +1,11 @@
 from typing import Any
 from mindor.dsl.schema.component import WorkflowComponentConfig
 from mindor.dsl.schema.action import ActionConfig, WorkflowActionConfig
+from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 
-class WorkflowAction:
+class WorkflowAction(ComponentAction):
     def __init__(self, config: WorkflowActionConfig):
         self.config: WorkflowActionConfig = config
 

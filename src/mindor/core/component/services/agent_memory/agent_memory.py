@@ -6,13 +6,14 @@ from mindor.dsl.schema.component import AgentMemoryWindowConfig, AgentMemorySumm
 from mindor.dsl.schema.component import AgentMemoryBufferDriverType, AgentMemoryStorageDriverType
 from mindor.dsl.schema.action import ActionConfig, AgentMemoryActionConfig, AgentMemoryActionMethod
 from mindor.core.logger import logging
+from ...action.base import ComponentAction
 from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ...context import ComponentActionContext
 from .buffer.base import AgentMemoryBuffer, AgentMemoryBufferRegistry
 from .storage.base import AgentMemoryStorage, AgentMemoryStorageRegistry
 import ulid, json, importlib
 
-class AgentMemoryAction:
+class AgentMemoryAction(ComponentAction):
     def __init__(
         self,
         config: AgentMemoryActionConfig,

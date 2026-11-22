@@ -75,11 +75,6 @@ class DockerRuntime(CommonRuntime):
         # docker-py client: the attach socket pins a connection in the
         # shared docker-py pool, blocking any further SDK call (including
         # `container.wait()` and `is_running()`) until the attach ends.
-        name = self._runner.container_name
-
-        if not name:
-            return
-
         try:
             while True:
                 try:
@@ -87,14 +82,14 @@ class DockerRuntime(CommonRuntime):
                 except asyncio.CancelledError:
                     raise
 
-                proc = await asyncio.create_subprocess_exec(
-                    "docker", "inspect", "-f", "{{.State.Running}}", name,
+                process = await asyncio.create_subprocess_exec(
+                    "docker", "inspect", "-f", "{{.State.Running}}", self._runner.container_name,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.DEVNULL,
                 )
-                stdout, _ = await proc.communicate()
+                stdout, _ = await process.communicate()
 
-                if proc.returncode != 0 or stdout.strip() != b"true":
+                if process.returncode != 0 or stdout.strip() != b"true":
                     break
         except asyncio.CancelledError:
             raise

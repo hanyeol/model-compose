@@ -53,7 +53,7 @@ class ComponentDockerRuntimeBackend(DockerRuntimeBackend):
     def _resolve_container_options(self) -> DockerContainerOptions:
         options = super()._resolve_container_options()
 
-        if self.runtime_config.command is None and self.runtime_config.entrypoint is None:
+        if self.runtime_config.container.command is None and self.runtime_config.container.entrypoint is None:
             options.entrypoint = [ "python", "-m", "mindor.core.component.runtime.docker" ]
 
         return options
@@ -213,7 +213,10 @@ class ComponentDockerRuntimeManager(ComponentContainerRuntimeManager):
         loop = asyncio.get_event_loop()
 
         channel = await loop.run_in_executor(None, self._open_attach_channel)
-        await self._runtime.start(detach=True)
+        # Close the attach socket when the container exits so the proxy's
+        # `recv` observes EOF — docker's attach stream otherwise can block
+        # indefinitely after `docker kill`.
+        await self._runtime.start(detach=True, on_exit=channel.close)
 
         return channel
 

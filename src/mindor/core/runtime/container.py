@@ -118,7 +118,8 @@ class ContainerRuntimeBackend(ABC):
         """Ensure the image this run will launch from exists, building/pulling as required by the image kind."""
         if self._image_kind == ContainerImageKind.CUSTOM:
             # User-supplied `image:` wins; otherwise fall back to our locally-built CUSTOM tag.
-            await self._ensure_custom_image(self.runtime_config.image or self._custom_image_tag())
+            await self._ensure_custom_image(self.runtime_config.container.image or self._custom_image_tag())
+
             return
 
         await self._ensure_standard_image(self._standard_image_tag())
@@ -221,7 +222,7 @@ class ContainerRuntimeBackend(ABC):
 
     async def _ensure_custom_image(self, image_tag: str) -> None:
         """Build from `build:` context, or pull `image:` if not already present locally."""
-        build = self.runtime_config.build
+        build = self.runtime_config.container.build
 
         if build:
             logging.info("Building custom image %s...", image_tag)
@@ -246,7 +247,7 @@ class ContainerRuntimeBackend(ABC):
     def _resolve_image_kind(self) -> ContainerImageKind:
         """Classify the runtime as STANDARD / DERIVED / CUSTOM based on the
         user's runtime config and the workspace."""
-        if self.runtime_config.image or self.runtime_config.build:
+        if self.runtime_config.container.image or self.runtime_config.container.build:
             return ContainerImageKind.CUSTOM
 
         if self._has_derived_context():
@@ -262,9 +263,11 @@ class ContainerRuntimeBackend(ABC):
         if self._requirements_path.is_file():
             h.update(b"\x00requirements.txt\x00")
             h.update(self._requirements_path.read_bytes())
+
         if self._setup_script_path.is_file():
             h.update(b"\x00setup.sh\x00")
             h.update(self._setup_script_path.read_bytes())
+
         return h.hexdigest()
 
     def _has_derived_context(self) -> bool:

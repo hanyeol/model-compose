@@ -29,11 +29,12 @@ class ControllerDockerRuntimeBackend(DockerRuntimeBackend):
     def _resolve_container_options(self) -> DockerContainerOptions:
         options = super()._resolve_container_options()
 
-        if not self.config.runtime.working_dir:
+        if not self.config.runtime.container.working_dir:
             options.working_dir = "/workspace"
 
-        if self.config.runtime.ports is None:
+        if self.config.runtime.container.ports is None:
             options.ports = []
+
             for host_ip, port in ControllerContainerSpec.resolve_service_ports(self.config):
                 options.ports.append(DockerPortConfig(container_port=port, host_port=port, host_ip=host_ip))
 

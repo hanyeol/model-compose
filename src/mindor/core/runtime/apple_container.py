@@ -25,7 +25,7 @@ class AppleContainerRuntime(CommonRuntime):
 
         self._stop_timeout = parse_time(config.stop_timeout) if config.stop_timeout is not None else None
 
-        self._runner: AppleContainerRunner = AppleContainerRunner(config, options=options, verbose=verbose)
+        self._runner: AppleContainerRunner = AppleContainerRunner(config.container, options=options, verbose=verbose)
 
     @property
     def container_name(self) -> Optional[str]:

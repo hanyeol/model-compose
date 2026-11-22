@@ -57,7 +57,7 @@ class ComponentAppleContainerRuntimeBackend(AppleContainerRuntimeBackend):
     def _resolve_container_options(self) -> AppleContainerOptions:
         options = super()._resolve_container_options()
 
-        if self.runtime_config.command is None and self.runtime_config.entrypoint is None:
+        if self.runtime_config.container.command is None and self.runtime_config.container.entrypoint is None:
             options.entrypoint = [ "python", "-m", "mindor.core.component.runtime.apple_container" ]
 
         return options

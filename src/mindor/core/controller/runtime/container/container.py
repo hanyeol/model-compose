@@ -120,8 +120,8 @@ class ControllerContainerRuntimeManager(ControllerRuntimeManager):
         the same config see the same mount and re-adding is a no-op."""
         mount_spec = f"{bundle_path}:/mnt/bootstrap:ro"
 
-        if self.config.runtime.volumes is None:
-            self.config.runtime.volumes = []
+        if self.config.runtime.container.volumes is None:
+            self.config.runtime.container.volumes = []
 
-        if mount_spec not in self.config.runtime.volumes:
-            self.config.runtime.volumes.append(mount_spec)
+        if mount_spec not in self.config.runtime.container.volumes:
+            self.config.runtime.container.volumes.append(mount_spec)

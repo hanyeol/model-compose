@@ -26,12 +26,26 @@ class StreamIterator(ABC):
                 pass
 
 class StreamChunkIterator(StreamIterator):
-    def __init__(self, source: AsyncIterable, is_fragmented: bool = False):
+    def __init__(self, source: AsyncIterable, is_fragmented: bool = False, resource: Optional[Any] = None):
         self.source: AsyncIterable = source
         self.is_fragmented: bool = is_fragmented
+        # What the source reads from, such as an HTTP response. It is closed with the
+        # stream, read or not: an async generator whose body never started does not run
+        # its `finally` on aclose, so a source cannot release what it was handed.
+        self.resource: Optional[Any] = resource
 
     async def aclose(self) -> None:
         await self._close_stream(self.source)
+
+        closer = getattr(self.resource, "aclose", None) or getattr(self.resource, "close", None)
+
+        if closer is None:
+            return
+
+        try:
+            await closer()
+        except Exception:
+            pass
 
     async def _iterate_stream(self) -> AsyncIterator[Any]:
         iterator = self.source.__aiter__()

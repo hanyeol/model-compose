@@ -60,12 +60,15 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
+        prompts, negative_prompts = inputs
+
+        if negative_prompts is None:
+            negative_prompts = [ None ] * len(prompts)
+
         def _generate() -> List[VideoStreamResource]:
-            prompts, negative_prompts = inputs
-            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
             results: List[VideoStreamResource] = []
 
-            for prompt, negative in zip(prompts, negatives):
+            for prompt, negative_prompt in zip(prompts, negative_prompts):
                 video = self.pipeline.generate(
                     input_prompt=prompt,
                     size=(params["width"], params["height"]),
@@ -74,7 +77,7 @@ class WanTextToVideoTaskAction(TextToVideoTaskAction):
                     sample_solver="unipc",
                     sampling_steps=params["inference_steps"],
                     guide_scale=params["guidance_scale"],
-                    n_prompt=negative or "",
+                    n_prompt=negative_prompt or "",
                     seed=params["seed"] if params["seed"] is not None else -1,
                     offload_model=self.cpu_offload,
                 )

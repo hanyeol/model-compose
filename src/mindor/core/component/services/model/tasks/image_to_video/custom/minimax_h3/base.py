@@ -99,7 +99,9 @@ class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
         images, last_images, prompts, negative_prompts = inputs
-        negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
+
+        if negative_prompts is None:
+            negative_prompts = [ None ] * len(prompts)
 
         def _generate() -> List[VideoStreamResource]:
             import torch
@@ -121,7 +123,7 @@ class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
                 saved_audio_shift = None
 
             try:
-                for image, last_image, prompt, negative in zip(images, last_images, prompts, negatives):
+                for image, last_image, prompt, negative_prompt in zip(images, last_images, prompts, negative_prompts):
                     if params["seed"] is not None:
                         generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                     else:
@@ -141,8 +143,8 @@ class MinimaxH3ImageToVideoTaskAction(ImageToVideoTaskAction):
                     if last_image is not None:
                         pipeline_params["last_image"] = last_image
 
-                    if negative is not None:
-                        pipeline_params["negative_prompt"] = negative
+                    if negative_prompt is not None:
+                        pipeline_params["negative_prompt"] = negative_prompt
 
                     output = self.pipeline(**pipeline_params)
 

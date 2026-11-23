@@ -259,6 +259,7 @@ class MinimaxH3SolTextToVideoTaskDriver(MinimaxH3TextToVideoBaseDriver):
 
             if chosen is None:
                 chosen = sol_attn
+
                 continue
 
             if sol_attn.model_dump() != chosen.model_dump():
@@ -266,6 +267,7 @@ class MinimaxH3SolTextToVideoTaskDriver(MinimaxH3TextToVideoBaseDriver):
                     "Multiple MiniMax-H3 actions on this component declare different sol_attn overrides; "
                     "using the first action's configuration for the shared transformer."
                 )
+
                 break
 
         return chosen
@@ -293,11 +295,14 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
+        prompts, negative_prompts = inputs
+
+        if negative_prompts is None:
+            negative_prompts = [ None ] * len(prompts)
+
         def _generate() -> List[VideoStreamResource]:
             import torch
 
-            prompts, negative_prompts = inputs
-            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
             processor = self.sol_attn_processor
             results: List[VideoStreamResource] = []
 
@@ -306,7 +311,7 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
 
                 return callback_kwargs
 
-            for prompt, negative in zip(prompts, negatives):
+            for prompt, negative_prompt in zip(prompts, negative_prompts):
                 if params["seed"] is not None:
                     generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                 else:
@@ -324,8 +329,8 @@ class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
                     "callback_on_step_end": _on_step_end,
                 }
 
-                if negative is not None:
-                    pipeline_params["negative_prompt"] = negative
+                if negative_prompt is not None:
+                    pipeline_params["negative_prompt"] = negative_prompt
 
                 output = self.pipeline(**pipeline_params)
 

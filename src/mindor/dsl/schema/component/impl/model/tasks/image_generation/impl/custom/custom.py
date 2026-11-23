@@ -1,11 +1,10 @@
-from typing import Literal, List
+from typing import Union, Annotated
 from pydantic import Field
-from mindor.dsl.schema.action import ImageGenerationModelActionConfig
-from ..common import CommonImageGenerationModelComponentConfig
-from .common import ImageGenerationModelFamily
-from ....common import ModelDriverType
+from .minimax_h3 import MinimaxH3ImageGenerationModelComponentConfig
 
-class CustomImageGenerationModelComponentConfig(CommonImageGenerationModelComponentConfig):
-    driver: Literal[ModelDriverType.CUSTOM] = Field(default=ModelDriverType.CUSTOM)
-    family: ImageGenerationModelFamily = Field(..., description="Model family selecting the custom image generation implementation.")
-    actions: List[ImageGenerationModelActionConfig] = Field(default_factory=list, description="Actions this image generation component exposes to workflows.")
+CustomImageGenerationModelComponentConfig = Annotated[
+    Union[
+        MinimaxH3ImageGenerationModelComponentConfig,
+    ],
+    Field(discriminator="family")
+]

@@ -88,11 +88,14 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
         params: Dict[str, Any],
         cancellation_token: Optional[CancellationToken] = None,
     ) -> List[VideoStreamResource]:
+        prompts, negative_prompts = inputs
+
+        if negative_prompts is None:
+            negative_prompts = [ None ] * len(prompts)
+
         def _generate() -> List[VideoStreamResource]:
             import torch
 
-            prompts, negative_prompts = inputs
-            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(prompts)
             results: List[VideoStreamResource] = []
 
             # `set_shift` on a MiniMax-H3 scheduler mutates in-place and only
@@ -110,7 +113,7 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
                 saved_audio_shift = None
 
             try:
-                for prompt, negative in zip(prompts, negatives):
+                for prompt, negative_prompt in zip(prompts, negative_prompts):
                     if params["seed"] is not None:
                         generator = torch.Generator(device=self.pipeline.device).manual_seed(params["seed"])
                     else:
@@ -126,8 +129,8 @@ class MinimaxH3TextToVideoTaskAction(TextToVideoTaskAction):
                         "generator": generator,
                     }
 
-                    if negative is not None:
-                        pipeline_params["negative_prompt"] = negative
+                    if negative_prompt is not None:
+                        pipeline_params["negative_prompt"] = negative_prompt
 
                     output = self.pipeline(**pipeline_params)
 

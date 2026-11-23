@@ -61,20 +61,23 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
     ) -> List[VideoStreamResource]:
         images, prompts, negative_prompts = inputs
 
+        if prompts is None:
+            prompts = [ None ] * len(images)
+
+        if negative_prompts is None:
+            negative_prompts = [ None ] * len(images)
+
         def _generate() -> List[VideoStreamResource]:
-            captions = prompts if prompts is not None else [ None ] * len(images)
-            negatives = negative_prompts if negative_prompts is not None else [ None ] * len(images)
-            fps = int(params["frame_rate"])
             results: List[VideoStreamResource] = []
 
-            for image, caption, negative in zip(images, captions, negatives):
+            for image, prompt, negative_prompt in zip(images, prompts, negative_prompts):
                 image = image.convert("RGB")
                 width = int(params["width"]) if params["width"] is not None else image.width
                 height = int(params["height"]) if params["height"] is not None else image.height
                 pixel_area = width * height
 
                 video = self.pipeline.generate(
-                    input_prompt=caption or "",
+                    input_prompt=prompt or "",
                     img=image,
                     max_area=pixel_area,
                     frame_num=int(params["num_frames"]),
@@ -82,11 +85,11 @@ class WanImageToVideoTaskAction(ImageToVideoTaskAction):
                     sample_solver="unipc",
                     sampling_steps=int(params["inference_steps"]),
                     guide_scale=float(params["guidance_scale"]),
-                    n_prompt=negative or "",
+                    n_prompt=negative_prompt or "",
                     seed=int(params["seed"]) if params["seed"] is not None else -1,
                     offload_model=bool(self.cpu_offload),
                 )
-                results.append(self._encode_video_tensor_to_mp4(video, fps))
+                results.append(self._encode_video_tensor_to_mp4(video, int(params["frame_rate"])))
 
             return results
 

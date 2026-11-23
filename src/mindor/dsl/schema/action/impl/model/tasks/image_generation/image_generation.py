@@ -3,4 +3,5 @@ from .impl import *
 
 ImageGenerationModelActionConfig = Union[
     HuggingfaceImageGenerationModelActionConfig,
+    CustomImageGenerationModelActionConfig,
 ]

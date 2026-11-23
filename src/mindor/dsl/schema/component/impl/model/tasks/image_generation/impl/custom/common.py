@@ -1,4 +1,4 @@
 from enum import Enum
 
 class ImageGenerationModelFamily(str, Enum):
-    pass
+    MINIMAX_H3 = "minimax-h3"

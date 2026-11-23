@@ -5,6 +5,7 @@ from ...common import CommonModelActionConfig
 
 class ImageGenerationActionMethod(str, Enum):
     GENERATE = "generate"
+    EDIT     = "edit"
     INPAINT  = "inpaint"
     OUTPAINT = "outpaint"
 
@@ -20,6 +21,9 @@ class CommonImageGenerationModelGenerateActionConfig(CommonModelActionConfig):
     seed: Optional[Union[int, str]] = Field(default=None, description="Random seed used to make generation deterministic.")
     batch_size: Union[int, str] = Field(default=1, description="Number of images generated simultaneously per batch.")
     params: CommonImageGenerationParamsConfig = Field(..., description="Model-specific image generation parameters.")
+
+class CommonImageGenerationModelEditActionConfig(CommonImageGenerationModelGenerateActionConfig):
+    image: Union[str, List[str]] = Field(..., description="Reference image or images used as the editing target.")
 
 class CommonImageGenerationModelInpaintActionConfig(CommonImageGenerationModelGenerateActionConfig):
     image: Union[str, List[str]] = Field(..., description="Input image or images to inpaint.")

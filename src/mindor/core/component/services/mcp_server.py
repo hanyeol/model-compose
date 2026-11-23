@@ -1,15 +1,18 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from typing import Type, Union, Literal, Optional, Dict, List, Tuple, Set, Annotated, Any
 from mindor.dsl.schema.component import McpServerComponentConfig
 from mindor.dsl.schema.action import ActionConfig, McpServerActionConfig
-from mindor.core.utils.transport.mcp_client import (
-    McpClient, ContentBlock, TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource,
-    TextResourceContents, BlobResourceContents,
-)
+from mindor.core.utils.transport.mcp_client import McpClient
 from mindor.core.utils.shell import run_command_foreground
 from ..action.base import ComponentAction
 from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, register_component
 from ..context import ComponentActionContext
 import asyncio
+
+if TYPE_CHECKING:
+    from mcp.types import ContentBlock
 
 class McpServerAction(ComponentAction):
     def __init__(self, config: McpServerActionConfig):
@@ -27,6 +30,11 @@ class McpServerAction(ComponentAction):
         return (await context.render_variable(self.config.output)) if not is_direct_output else response
 
     async def _convert_output_value(self, content: ContentBlock) -> Any:
+        from mcp.types import (
+            TextContent, ImageContent, AudioContent, ResourceLink, EmbeddedResource,
+            TextResourceContents, BlobResourceContents,
+        )
+
         if isinstance(content, EmbeddedResource):
             if isinstance(content.resource, TextResourceContents):
                 return content.resource.text

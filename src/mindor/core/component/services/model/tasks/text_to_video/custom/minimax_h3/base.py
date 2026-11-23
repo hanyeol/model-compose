@@ -630,6 +630,9 @@ class MinimaxH3TextToVideoBaseDriver(ModelTaskDriver):
         names = [ adapter.name for adapter in adapters ]
         weights = [ float(adapter.weight) for adapter in adapters ]
 
+        if hasattr(self.pipeline, "enable_lora"):
+            self.pipeline.enable_lora()
+
         if hasattr(self.pipeline, "set_adapters"):
             self.pipeline.set_adapters(names, adapter_weights=weights)
 

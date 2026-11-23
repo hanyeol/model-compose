@@ -179,6 +179,9 @@ class HuggingfaceDiffusionPipelineTaskDriver(HuggingfaceModelTaskDriver, Generic
         weights = [ float(adapter.weight) for adapter in adapters ]
 
         for pipeline in self.pipelines.values():
+            if hasattr(pipeline, "enable_lora"):
+                pipeline.enable_lora()
+
             if hasattr(pipeline, "set_adapters"):
                 pipeline.set_adapters(names, adapter_weights=weights)
 

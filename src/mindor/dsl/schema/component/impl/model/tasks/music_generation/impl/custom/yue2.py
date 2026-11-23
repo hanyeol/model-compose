@@ -44,7 +44,6 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
     backend: Yue2Backend = Field(default=Yue2Backend.TORCH, description="Inference backend for autoregressive generation (torch, torch-eager, vllm).")
     quantization: Optional[Yue2QuantizationConfig] = Field(default=None, description="Weight quantization applied to the AR model; None disables quantization.")
     cpu_offload: Optional[Union[Yue2Submodule, List[Yue2Submodule]]] = Field(default=None, description="Submodules to run on CPU to reduce VRAM.")
-    low_vram: Union[bool, str] = Field(default=False, description="Swap AR/NAR between GPU and CPU per chunk to minimize VRAM.")
     memory_budget: Union[float, str] = Field(default=24, description="GPU memory budget in GiB reserved for generation.")
     actions: List[MusicGenerationModelActionConfig] = Field(default_factory=list, description="Actions this YuE2 music generation component exposes to workflows.")
 
@@ -71,9 +70,5 @@ class Yue2MusicGenerationModelComponentConfig(CommonMusicGenerationModelComponen
     @model_validator(mode="after")
     def validate_cpu_offload(self):
         if Yue2Submodule.NAR in (self.cpu_offload or []):
-            raise ValueError("cpu_offload='nar' is not supported; use 'low_vram' to swap AR/NAR per chunk.")
-        if bool(self.low_vram) and Yue2Submodule.AR in (self.cpu_offload or []):
-            raise ValueError("'low_vram' and cpu_offload='ar' both manage AR residency; enable only one.")
-        if bool(self.low_vram) and self.backend == Yue2Backend.VLLM:
-            raise ValueError("'low_vram' is not supported with backend='vllm'.")
+            raise ValueError("cpu_offload='nar' is not supported.")
         return self

@@ -281,7 +281,6 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
                 memory_budget_gib=float(self.config.memory_budget),
                 vae_core_frames=vae_core_frames,
                 offload_ar=(Yue2Submodule.AR in cpu_offload),
-                low_vram=bool(self.config.low_vram),
                 verify_hashes=False,
                 progress=False,
             )

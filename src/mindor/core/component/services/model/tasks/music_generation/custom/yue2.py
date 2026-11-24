@@ -269,6 +269,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
         from yue2 import YuE2Pipeline
 
         def _load() -> YuE2Pipeline:
+            quantization = self.config.quantization.type.value if self.config.quantization is not None else None
             vae_core_frames = int(self.config.vae.tile_size) if self.config.vae.tile_size is not None else None
             cpu_offload = self.config.cpu_offload or []
 
@@ -277,7 +278,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
                 vae=vae_model_path,
                 device=str(self._resolve_device(self.config.device)),
                 backend=self.config.backend.value,
-                quantization=self.config.quantization.type.value if self.config.quantization is not None else "none",
+                quantization=quantization or "none",
                 memory_budget_gib=float(self.config.memory_budget),
                 vae_core_frames=vae_core_frames,
                 offload_ar=(Yue2Submodule.AR in cpu_offload),

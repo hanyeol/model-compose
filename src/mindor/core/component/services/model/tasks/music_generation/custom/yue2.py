@@ -325,7 +325,7 @@ class Yue2MusicGenerationTaskDriver(ModelTaskDriver):
 
                     target = getattr(model, name)
                     dtype = next(target.parameters()).dtype
-                    target.load_state_dict({ k: v.to(dtype) for k, v in weights.items() })
+                    target.load_state_dict({ key: value.to(dtype) for key, value in weights.items() })
 
         await self._run_in_executor(_merge)
 

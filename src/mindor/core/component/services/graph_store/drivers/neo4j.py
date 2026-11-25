@@ -1,9 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from typing import Union, Tuple
-
-import re
 from typing import Union, Optional, Dict, List, Tuple, Any
 from mindor.dsl.schema.component import GraphStoreComponentConfig
 from mindor.dsl.schema.action import GraphStoreActionConfig
@@ -12,6 +9,7 @@ from mindor.core.foundation.cancellation import CancellationToken
 from ..base import GraphStoreDriver, GraphStoreDriverType, register_graph_store_driver
 from ..base import ComponentActionContext
 from .common import GraphStoreAction
+import re
 
 if TYPE_CHECKING:
     from neo4j import AsyncDriver, AsyncSession

@@ -273,7 +273,7 @@ class _AttachEchoManager:
         from mindor.core.runtime.docker import DockerRuntime
         from mindor.core.utils.channels.docker_attach import DockerAttachChannel
         from mindor.dsl.schema.runtime import DockerRuntimeConfig
-        from mindor.dsl.schema.containers.docker import DockerVolumeConfig
+        from mindor.dsl.schema.containers.docker import DockerContainerConfig, DockerVolumeConfig
         from mindor.dsl.schema.runtime.impl.common import RuntimeType
 
         import asyncio, ulid
@@ -290,14 +290,16 @@ class _AttachEchoManager:
 
         runtime_config = DockerRuntimeConfig(
             type=RuntimeType.DOCKER,
-            image=image,
-            container_name=worker_id,
-            volumes=[
-                DockerVolumeConfig(type="bind", source=str(SRC_DIR), target="/app/src", read_only=True),
-                DockerVolumeConfig(type="bind", source=worker_src_dir, target="/app/worker", read_only=True),
-            ],
-            environment={"PYTHONPATH": "/app/src:/app/worker"},
-            entrypoint=["python", "-u", "/app/worker/echo_worker.py"],
+            container=DockerContainerConfig(
+                image=image,
+                container_name=worker_id,
+                volumes=[
+                    DockerVolumeConfig(type="bind", source=str(SRC_DIR), target="/app/src", read_only=True),
+                    DockerVolumeConfig(type="bind", source=worker_src_dir, target="/app/worker", read_only=True),
+                ],
+                environment={"PYTHONPATH": "/app/src:/app/worker"},
+                entrypoint=["python", "-u", "/app/worker/echo_worker.py"],
+            ),
         )
 
         self.manager = _Manager(worker_id)

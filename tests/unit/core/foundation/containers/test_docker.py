@@ -22,7 +22,6 @@ from mindor.dsl.schema.containers.docker import (
     DockerVolumeOptionsConfig,
     DockerTmpfsOptionsConfig,
 )
-from mindor.dsl.schema.runtime.impl.docker import DockerRuntimeConfig
 
 
 def _runtime(config, verbose: bool = False) -> DockerContainerRunner:
@@ -269,9 +268,8 @@ class TestDockerContainerRunner:
 
     @pytest.fixture
     def config(self):
-        """Create a basic Docker runtime config"""
-        return DockerRuntimeConfig(
-            type="docker",
+        """Create a basic Docker container config"""
+        return DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container"
         )
@@ -490,8 +488,7 @@ class TestDockerContainerRunner:
     
     async def test_start_container_with_ports(self, mock_docker_client):
         """Test starting container with port mappings"""
-        config = DockerRuntimeConfig(
-            type="docker",
+        config = DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
             ports=[ 8080, "443:8443" ]
@@ -514,8 +511,7 @@ class TestDockerContainerRunner:
     
     async def test_start_container_with_environment(self, mock_docker_client):
         """Test starting container with environment variables"""
-        config = DockerRuntimeConfig(
-            type="docker",
+        config = DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
             environment={ "ENV": "production", "DEBUG": False }
@@ -574,8 +570,7 @@ class TestGetContainer:
 
     @pytest.fixture
     def config(self):
-        return DockerRuntimeConfig(
-            type="docker",
+        return DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
         )
@@ -626,8 +621,7 @@ class TestRemoveContainerIdempotency:
 
     @pytest.fixture
     def config(self):
-        return DockerRuntimeConfig(
-            type="docker",
+        return DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
         )
@@ -677,8 +671,7 @@ class TestStartContainerForeground:
 
     @pytest.fixture
     def config(self):
-        return DockerRuntimeConfig(
-            type="docker",
+        return DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
         )
@@ -729,8 +722,7 @@ class TestCreateContainerOptions:
 
     @pytest.fixture
     def config(self):
-        return DockerRuntimeConfig(
-            type="docker",
+        return DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
         )
@@ -785,8 +777,7 @@ class TestContainerMethodErrorWrapping:
 
     @pytest.fixture
     def config(self):
-        return DockerRuntimeConfig(
-            type="docker",
+        return DockerContainerConfig(
             image="test-image:latest",
             container_name="test-container",
         )

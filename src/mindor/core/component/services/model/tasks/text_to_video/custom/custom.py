@@ -12,4 +12,8 @@ class CustomTextToVideoTaskDriver:
             from .minimax_h3.minimax_h3 import MinimaxH3TextToVideoTaskDriver
             return MinimaxH3TextToVideoTaskDriver(id, config, daemon)
 
+        if config.family == TextToVideoModelFamily.PI_H3:
+            from .pi_h3 import PiH3TextToVideoTaskDriver
+            return PiH3TextToVideoTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

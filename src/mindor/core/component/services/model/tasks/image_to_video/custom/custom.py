@@ -12,4 +12,8 @@ class CustomImageToVideoTaskDriver:
             from .minimax_h3.minimax_h3 import MinimaxH3ImageToVideoTaskDriver
             return MinimaxH3ImageToVideoTaskDriver(id, config, daemon)
 
+        if config.family == ImageToVideoModelFamily.PI_H3:
+            from .pi_h3 import PiH3ImageToVideoTaskDriver
+            return PiH3ImageToVideoTaskDriver(id, config, daemon)
+
         raise ValueError(f"Unknown family: {config.family}")

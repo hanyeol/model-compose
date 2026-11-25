@@ -17,14 +17,14 @@ The driver loads the pruned base through diffusers' `ModularPipeline`, then call
 ### Prerequisites
 
 - `model-compose` on PATH
-- A CUDA-capable GPU. Consumer-class (24 GB) should keep `cpu_offload: true` (already set); Blackwell-class (B200 / H200) can turn it off and enable `fp8_quantize: true`.
+- A CUDA-capable GPU. Consumer-class (24 GB) should keep `cpu_offload: true` (already set); Blackwell-class (B200 / H200) can turn it off and enable `quantization: {type: fp8}`.
 - ~45 GB free disk for the pruned base checkpoint plus ~1 GB for the pi-H3 adapter.
 - A Python environment where `torch`, `diffusers (>= 0.36)`, `transformers (>= 4.45)`, `lakonlab (>= 0.3)`, and `av` can be installed. The driver lists these in its setup requirements, so model-compose installs them into `.venv/pi-h3` on first run.
 
 ### Model Access
 
 - **Base model**: `multimodalart/MiniMax-H3-Pruned` on Hugging Face. Governed by the MiniMax H3 Community License — accept the license and run `hf auth login` (or export `HF_TOKEN`) before starting the service.
-- **pi-H3 adapter**: `Lakonik/pi-H3` on Hugging Face. Distributed as "Model Derivatives of MiniMax H3" under the same community license.
+- **Distillation adapter**: `Lakonik/pi-H3` on Hugging Face. Distributed as "Model Derivatives of MiniMax H3" under the same community license. Pin a revision or point at a local snapshot via the `distillation` field.
 
 ## Adapter Variants
 
@@ -67,7 +67,7 @@ The 4-step DWD variant is the recommended default — it is the closest match to
 
 - **There is no `guidance_scale` or `negative_prompt`.** pi-H3 is a few-step distilled adapter; it runs a single forward per step with no classifier-free guidance. The schema omits both fields on purpose.
 - **Do not layer a user LoRA under `peft_adapter`.** The distilled adapter owns the LoRA slot; stacking another one changes the few-step trajectory it was tuned for. The schema rejects the field.
-- **`fp8_quantize: true` requires Blackwell-class hardware** (B200 / H200). On SM89 and below the LakonLab FP8 kernels either fall back to slow paths or fail to load — keep the default `false` unless you've validated the host.
+- **`quantization: {type: fp8}` requires Blackwell-class hardware** (B200 / H200). On SM89 and below the LakonLab FP8 kernels either fall back to slow paths or fail to load — leave `quantization` unset unless you've validated the host.
 - **Leave `video_shift` / `audio_shift` unset to keep the scheduler defaults** (12 / 3). The DWD adapter is tuned for those; override only when matching a specific recipe published by LakonLab.
 - **`num_frames` is snapped upward** to the nearest `17*n + 5` the video VAE can decode (124–345). Requests below 124 round up; requests above 345 error out.
 

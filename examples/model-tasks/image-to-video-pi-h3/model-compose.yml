@@ -1,0 +1,76 @@
+controller:
+  adapter:
+    type: http-server
+    port: 8080
+    base_path: /api
+  webui:
+    driver: gradio
+    port: 8081
+
+workflow:
+  title: pi-H3 Image-to-Video
+  description: |
+    Animate a still image into a short clip with native stereo audio using
+    pi-H3 — a 2/4-step distillation of MiniMax-H3 by LakonLab. Provide a
+    first-frame image, optionally a last-frame image for keyframe
+    interpolation (fl2va), and a prompt describing the motion. DWD skips
+    the video VAE on the final step so the clip lands in a few seconds on
+    recent GPUs.
+  job:
+    input: ${input}
+    output: ${output as video/mp4}
+
+component:
+  type: model
+  task: image-to-video
+  driver: custom
+  # pi-H3 ships as LakonLab adapters on top of the pruned MiniMax-H3 base.
+  # The driver loads the base pipeline (workflow fl2va — first/last frame),
+  # then splices in the DWD head and distilled weights from `distillation`.
+  family: pi-h3
+  device: cuda
+  # The base is the pruned MiniMax-H3 (~40% smaller than the full 70 GB release)
+  # distributed by multimodalart specifically for the pi-H3 recipe. Override
+  # `model:` to point at a fork or a local path.
+  # model:
+  #   provider: huggingface
+  #   repository: multimodalart/MiniMax-H3-Pruned
+  step_count: 4
+  dwd: true
+  # pi-H3 distillation adapter bundle (LoRA on the transformer + DWD head).
+  # The driver auto-picks the subfolder (`pi_h3_<step_count>step[_dwd]_adapter`)
+  # from the fields above; override to pin a specific revision or a local path.
+  distillation: Lakonik/pi-H3
+  # LakonLab FP8 weight quantization on the Omni-Transformer frozen linears.
+  # Blackwell-class GPUs only (B200 / H200); keep unset otherwise.
+  # quantization:
+  #   type: fp8
+  cpu_offload: true
+  max_concurrent_count: 1
+  runtime:
+    type: virtualenv
+    driver: python
+    path: .venv/pi-h3
+  action:
+    # First-frame image (required). The video starts from this frame.
+    image: ${input.image as image}
+    # Optional closing keyframe; when set, pi-H3's fl2va workflow interpolates
+    # smoothly from `image` to `last_image`. Omit to animate from `image`
+    # with the prompt alone driving the motion.
+    last_image: ${input.last_image as image}
+    prompt: ${input.prompt}
+    # `width`/`height` default to the input image dimensions when unset.
+    width: ${input.width as integer}
+    height: ${input.height as integer}
+    # Native output is 24 fps. The model was trained at this frame rate;
+    # changing frame_rate re-encodes the mp4 but does not resample frames.
+    frame_rate: ${input.frame_rate as integer | 24}
+    seed: ${input.seed as integer}
+    params:
+      # 24 fps × 4-15 s window → 96..360 frames. The driver snaps upward to
+      # the nearest 17*n+5 count the video VAE can decode (124..345).
+      num_frames: ${input.num_frames as integer | 128}
+      # Leave unset to keep the scheduler's defaults (video=12, audio=3).
+      # Override only when matching a specific recipe published by LakonLab.
+      # video_shift: 12.0
+      # audio_shift: 3.0

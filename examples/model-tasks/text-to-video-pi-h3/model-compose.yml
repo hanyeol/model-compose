@@ -24,7 +24,7 @@ component:
   driver: custom
   # pi-H3 ships as LakonLab adapters on top of the pruned MiniMax-H3 base.
   # The driver loads the base pipeline (workflow t2va), then splices in the
-  # DWD head and distilled weights from `adapter_repository`.
+  # DWD head and distilled weights from `distillation`.
   family: pi-h3
   device: cuda
   # The base is the pruned MiniMax-H3 (~40% smaller than the full 70 GB release)
@@ -40,13 +40,19 @@ component:
   #   dwd: false    — standard path via the video VAE (slower, more familiar)
   step_count: 4
   dwd: true
-  # Hugging Face repo hosting the pi-H3 adapters. The driver auto-picks the
-  # subfolder (`pi_h3_<step_count>step[_dwd]_adapter`) from the fields above.
-  adapter_repository: Lakonik/pi-H3
+  # pi-H3 distillation adapter bundle (LoRA on the transformer + DWD head).
+  # The driver auto-picks the subfolder (`pi_h3_<step_count>step[_dwd]_adapter`)
+  # from the fields above; override to pin a specific revision or a local path.
+  distillation: Lakonik/pi-H3
+  # distillation:
+  #   provider: huggingface
+  #   repository: Lakonik/pi-H3
+  #   revision: main
   # LakonLab FP8 weight quantization on the Omni-Transformer frozen linears.
   # Matches the upstream reference run on Blackwell-class GPUs (B200 / H200);
-  # consumer-class 24 GB GPUs should start with `false` and `cpu_offload: true`.
-  fp8_quantize: false
+  # consumer-class 24 GB GPUs should leave this unset and keep `cpu_offload: true`.
+  # quantization:
+  #   type: fp8
   # Offload submodules to CPU during generation to fit on single-GPU hosts
   # (the Omni-Transformer alone is ~33B parameters). Disable when all VRAM is
   # available for the active submodules.

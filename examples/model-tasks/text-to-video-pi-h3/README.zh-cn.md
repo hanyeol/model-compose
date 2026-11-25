@@ -17,7 +17,7 @@ MiniMax-H3 的公开权重已经过 CFG 蒸馏，因此社区压缩步数的路�
 ### 前置条件
 
 - PATH 中的 `model-compose`
-- 支持 CUDA 的 GPU。消费级（24 GB）保持 `cpu_offload: true`（已设置）；Blackwell 级（B200 / H200）可关闭并启用 `fp8_quantize: true`。
+- 支持 CUDA 的 GPU。消费级（24 GB）保持 `cpu_offload: true`（已设置）；Blackwell 级（B200 / H200）可关闭并启用 `quantization: {type: fp8}`。
 - 修剪基模检查点约 ~45 GB 磁盘 + pi-H3 适配器约 ~1 GB。
 - 可安装 `torch`、`diffusers (>= 0.36)`、`transformers (>= 4.45)`、`lakonlab (>= 0.3)`、`av` 的 Python 环境。驱动将其列入 setup requirements，首次运行时 model-compose 会安装到 `.venv/pi-h3`。
 
@@ -67,7 +67,7 @@ MiniMax-H3 的公开权重已经过 CFG 蒸馏，因此社区压缩步数的路�
 
 - **不存在 `guidance_scale` 与 `negative_prompt`。** pi-H3 是少步蒸馏适配器，每步单向前传，不应用 CFG。Schema 有意省略这两个字段。
 - **不要在 `peft_adapter` 下叠加用户 LoRA。** 蒸馏适配器已占用 LoRA 槽；再叠加会破坏其调过的少步轨迹。Schema 拒绝该字段。
-- **`fp8_quantize: true` 需要 Blackwell 级硬件**（B200 / H200）。在 SM89 及以下 LakonLab FP8 内核会回退到慢速路径或加载失败——未验证主机时保持默认 `false`。
+- **`quantization: {type: fp8}` 需要 Blackwell 级硬件**（B200 / H200）。在 SM89 及以下 LakonLab FP8 内核会回退到慢速路径或加载失败——未验证主机时请不要设置 `quantization`。
 - **不设置 `video_shift` / `audio_shift` 时保持调度器默认值**（12 / 3）。DWD 适配器针对这些默认值调过；仅在匹配 LakonLab 发布的特定配方时覆盖。
 - **`num_frames` 会向上吸附到视频 VAE 可解码的最近 `17*n + 5` 值**（124–345）。低于 124 的请求会上舍入，高于 345 的请求会报错。
 

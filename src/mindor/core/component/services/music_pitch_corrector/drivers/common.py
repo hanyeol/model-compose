@@ -62,6 +62,8 @@ class MusicPitchCorrectionReport(AtomicDict):
         )
 
 class MusicPitchCorrectorAction(ComponentAction):
+    config: MusicPitchCorrectorActionConfig
+
     """Base action class shared by all drivers. Mirrors the music-analyzer /
     audio-processor shape: ``run`` prepares the input and params, then dispatches
     through a single ``_process`` method whose plan/apply/correct branches are
@@ -69,7 +71,8 @@ class MusicPitchCorrectorAction(ComponentAction):
     their own fields in ``_resolve_params``.
     """
     def __init__(self, config: MusicPitchCorrectorActionConfig, frame_period: float):
-        self.config: MusicPitchCorrectorActionConfig = config
+        super().__init__(config)
+
         self.frame_period: float = frame_period
         self.planner: MusicPitchCorrectionPlanner = MusicPitchCorrectionPlanner(frame_period)
 

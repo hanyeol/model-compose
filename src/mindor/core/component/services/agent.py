@@ -13,6 +13,8 @@ from ..context import ComponentActionContext
 import asyncio, ulid, json
 
 class AgentAction(ComponentAction):
+    config: AgentActionConfig
+
     def __init__(
         self,
         config: AgentActionConfig,
@@ -23,7 +25,8 @@ class AgentAction(ComponentAction):
         instructions: Optional[str],
         max_iteration_count: int
     ):
-        self.config: AgentActionConfig = config
+        super().__init__(config)
+
         self.model_component: ComponentService = model_component
         self.model_config: ComponentRunConfig = model_config
         self.tools: Dict[str, Union[WorkflowTool, ModelTool]] = tools

@@ -10,8 +10,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class TypedDecisionTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: TypedDecisionModelActionConfig):
-        self.config: TypedDecisionModelActionConfig = config
+    config: TypedDecisionModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_variable(self.config.text)

@@ -13,8 +13,7 @@ from ....action.base import ComponentAction
 import asyncio
 
 class AudioProcessorAction(ComponentAction):
-    def __init__(self, config: AudioProcessorActionConfig):
-        self.config: AudioProcessorActionConfig = config
+    config: AudioProcessorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await self._prepare_input(context)

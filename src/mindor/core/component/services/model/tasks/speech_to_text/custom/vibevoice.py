@@ -27,6 +27,8 @@ _DEFAULT_MAX_TOKENS_PER_CHUNK = 256
 _DEFAULT_MAX_TOTAL_TOKENS = 32768
 
 class VibeVoiceSpeechToTextTaskAction(SpeechToTextTaskAction):
+    config: VibeVoiceSpeechToTextModelActionConfig
+
     def __init__(
         self,
         config: VibeVoiceSpeechToTextModelActionConfig,

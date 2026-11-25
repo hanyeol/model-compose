@@ -13,8 +13,11 @@ if TYPE_CHECKING:
     from mcp.types import ContentBlock
 
 class McpClientAction(ComponentAction):
+    config: McpClientActionConfig
+
     def __init__(self, config: McpClientActionConfig, client: McpClient):
-        self.config: McpClientActionConfig = config
+        super().__init__(config)
+
         self.client: McpClient = client
 
     async def run(self, context: ComponentActionContext) -> Any:

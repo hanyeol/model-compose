@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     import torch
 
 class DepthEstimationTaskAction(ModelTaskComponentAction):
+    config: DepthEstimationModelActionConfig
+
     def __init__(self, config: DepthEstimationModelActionConfig, device: Optional[torch.device]):
-        self.config: DepthEstimationModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

@@ -127,8 +127,11 @@ class WebBrowserSession(ABC):
         pass
 
 class WebBrowserAction(ComponentAction):
+    config: WebBrowserActionConfig
+
     def __init__(self, config: WebBrowserActionConfig, timeout: Optional[str]):
-        self.config: WebBrowserActionConfig = config
+        super().__init__(config)
+
         self.timeout = timeout
 
     async def run(self, context: ComponentActionContext, session: WebBrowserSession) -> Any:

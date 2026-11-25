@@ -44,6 +44,8 @@ class SftpFileReader:
         await asyncio.to_thread(self.handle.close)
 
 class SftpFileStoreAction(FileStoreAction):
+    config: SftpFileStoreActionConfig
+
     def __init__(
         self,
         config: SftpFileStoreActionConfig,

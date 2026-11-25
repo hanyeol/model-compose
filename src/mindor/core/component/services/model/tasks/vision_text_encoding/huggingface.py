@@ -22,6 +22,8 @@ class WithTokenizer(Protocol):
     tokenizer: PreTrainedTokenizer
 
 class HuggingfaceVisionTextEncodingTaskAction(VisionTextEncodingTaskAction):
+    config: VisionTextEncodingModelActionConfig
+
     def __init__(
         self,
         config: VisionTextEncodingModelActionConfig,

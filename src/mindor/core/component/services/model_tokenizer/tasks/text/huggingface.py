@@ -13,8 +13,11 @@ from ...base import ModelTokenizerTaskType, ModelTokenizerDriverType, register_m
 from ...base import HuggingfaceModelTokenizerTaskDriver, ComponentActionContext
 
 class HuggingfaceTextModelTokenizerTaskAction(ComponentAction):
+    config: ModelTokenizerActionConfig
+
     def __init__(self, config: ModelTokenizerActionConfig, tokenizer: Any):
-        self.config: ModelTokenizerActionConfig = config
+        super().__init__(config)
+
         self.tokenizer = tokenizer
 
     async def run(self, context: ComponentActionContext) -> Any:

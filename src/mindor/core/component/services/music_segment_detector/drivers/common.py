@@ -13,8 +13,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class MusicSegmentDetectorAction(ComponentAction):
-    def __init__(self, config: MusicSegmentDetectorActionConfig):
-        self.config: MusicSegmentDetectorActionConfig = config
+    config: MusicSegmentDetectorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

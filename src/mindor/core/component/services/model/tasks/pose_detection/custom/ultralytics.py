@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     import torch
 
 class YoloPoseDetectionTaskAction(PoseDetectionTaskAction):
+    config: YoloPoseDetectionModelActionConfig
+
     def __init__(
         self,
         config: YoloPoseDetectionModelActionConfig,

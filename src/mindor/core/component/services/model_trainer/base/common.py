@@ -16,8 +16,11 @@ if TYPE_CHECKING:
     import torch
 
 class ModelTrainerTaskAction(ComponentAction):
+    config: CommonModelTrainerActionConfig
+
     def __init__(self, config: CommonModelTrainerActionConfig, trainer_config: ModelTrainerComponentConfig, model_path: str):
-        self.config: CommonModelTrainerActionConfig = config
+        super().__init__(config)
+
         self.trainer_config: ModelTrainerComponentConfig = trainer_config
         self.model_path: str = model_path
 

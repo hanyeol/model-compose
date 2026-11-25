@@ -22,8 +22,7 @@ class VideoTextScore(AtomicDict):
         return f"<VideoTextScore cosine={cosine:.4f}>"
 
 class VideoTextScoringTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: VideoTextScoringModelActionConfig):
-        self.config: VideoTextScoringModelActionConfig = config
+    config: VideoTextScoringModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames     = await context.render_image_array(self.config.frames, single_as_array=True)

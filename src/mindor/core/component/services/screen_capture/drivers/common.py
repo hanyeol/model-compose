@@ -12,8 +12,7 @@ from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
 class ScreenCaptureAction(ComponentAction):
-    def __init__(self, config: ScreenCaptureActionConfig):
-        self.config: ScreenCaptureActionConfig = config
+    config: ScreenCaptureActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         params = await self._resolve_params(context)

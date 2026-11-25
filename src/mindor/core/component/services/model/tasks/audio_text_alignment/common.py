@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     import torch
 
 class AudioTextAlignmentTaskAction(ModelTaskComponentAction):
+    config: AudioTextAlignmentModelActionConfig
+
     def __init__(self, config: AudioTextAlignmentModelActionConfig, device: Optional[torch.device]):
-        self.config: AudioTextAlignmentModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

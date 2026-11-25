@@ -27,6 +27,8 @@ class WithTokenizer(Protocol):
     tokenizer: PreTrainedTokenizer
 
 class HuggingfaceImageToTextTaskAction(ImageToTextTaskAction):
+    config: HuggingfaceImageToTextModelActionConfig
+
     def __init__(
         self,
         config: HuggingfaceImageToTextModelActionConfig,

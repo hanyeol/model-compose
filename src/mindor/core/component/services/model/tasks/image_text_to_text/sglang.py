@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 _STREAM_QUEUE_SIZE = 32
 
 class SglangImageTextToTextTaskAction(ImageTextToTextTaskAction):
+    config: ImageTextToTextModelActionConfig
+
     def __init__(
         self,
         config: ImageTextToTextModelActionConfig,

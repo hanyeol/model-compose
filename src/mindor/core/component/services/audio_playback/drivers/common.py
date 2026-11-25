@@ -11,8 +11,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class AudioPlaybackAction(ComponentAction):
-    def __init__(self, config: AudioPlaybackActionConfig):
-        self.config: AudioPlaybackActionConfig = config
+    config: AudioPlaybackActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

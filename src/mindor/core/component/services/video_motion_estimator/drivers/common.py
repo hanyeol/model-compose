@@ -16,15 +16,14 @@ if TYPE_CHECKING:
     from PIL import Image as PILImage
 
 class VideoMotionEstimatorAction(ComponentAction):
+    config: VideoMotionEstimatorActionConfig
+
     """Driver-agnostic skeleton for video-motion-estimator actions.
 
     Subclasses declare their own mode set and override `_resolve_params`
     and `_estimate` to dispatch on that set — common.py does not know which
     modes exist, only how to stream/batch them.
     """
-    def __init__(self, config: VideoMotionEstimatorActionConfig):
-        self.config: VideoMotionEstimatorActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         frames     = await context.render_image_array(self.config.frames)
         frame_rate = await context.render_scalar(self.config.frame_rate, float) if self.config.frame_rate is not None else None

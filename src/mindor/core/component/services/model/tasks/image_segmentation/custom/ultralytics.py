@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     import numpy as np
 
 class SamImageSegmentationTaskAction(ImageSegmentationTaskAction):
+    config: SamImageSegmentationModelActionConfig
+
     def __init__(self, config: SamImageSegmentationModelActionConfig, model: SAM):
         super().__init__(config)
 

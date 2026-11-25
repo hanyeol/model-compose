@@ -13,8 +13,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class VideoFrameExtractorAction(ComponentAction):
-    def __init__(self, config: VideoFrameExtractorActionConfig):
-        self.config: VideoFrameExtractorActionConfig = config
+    config: VideoFrameExtractorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         video      = await context.render_video(self.config.video)

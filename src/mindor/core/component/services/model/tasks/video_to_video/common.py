@@ -18,8 +18,7 @@ from PIL import Image as PILImage
 import os
 
 class VideoToVideoTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: VideoToVideoModelActionConfig):
-        self.config: VideoToVideoModelActionConfig = config
+    config: VideoToVideoModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)

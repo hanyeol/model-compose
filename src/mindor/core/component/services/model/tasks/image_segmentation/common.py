@@ -11,8 +11,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class ImageSegmentationTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageSegmentationModelActionConfig):
-        self.config: ImageSegmentationModelActionConfig = config
+    config: ImageSegmentationModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

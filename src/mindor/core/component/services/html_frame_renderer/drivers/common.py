@@ -192,13 +192,16 @@ class HtmlFrameRenderOrchestrator:
         await asyncio.gather(*self._worker_tasks, return_exceptions=True)
 
 class HtmlFrameRendererAction(ComponentAction):
+    config: HtmlFrameRendererActionConfig
+
     def __init__(
         self,
         config: HtmlFrameRendererActionConfig,
         html_resolver: HtmlResolver,
         session_factory: SessionFactory,
     ):
-        self.config: HtmlFrameRendererActionConfig = config
+        super().__init__(config)
+
         self.html_resolver: HtmlResolver = html_resolver
         self.session_factory: SessionFactory = session_factory
 

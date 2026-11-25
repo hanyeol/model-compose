@@ -12,8 +12,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class TextRerankingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: TextRerankingModelActionConfig):
-        self.config: TextRerankingModelActionConfig = config
+    config: TextRerankingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         query           = await context.render_text(self.config.query)

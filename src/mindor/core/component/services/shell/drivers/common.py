@@ -13,13 +13,16 @@ from ....action.base import ComponentAction
 import asyncio
 
 class ShellAction(ComponentAction):
+    config: ShellActionConfig
+
     def __init__(
         self,
         config: ShellActionConfig,
         base_dir: Optional[str],
         env: Optional[Dict[str, str]],
     ):
-        self.config: ShellActionConfig = config
+        super().__init__(config)
+
         self.base_dir: Optional[str] = base_dir
         self.env: Optional[Dict[str, str]] = env
 

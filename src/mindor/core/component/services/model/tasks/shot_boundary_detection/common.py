@@ -11,8 +11,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class ShotBoundaryDetectionTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ShotBoundaryDetectionModelActionConfig):
-        self.config: ShotBoundaryDetectionModelActionConfig = config
+    config: ShotBoundaryDetectionModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         video      = await context.render_video(self.config.video)

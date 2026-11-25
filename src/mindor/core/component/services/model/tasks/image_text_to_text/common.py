@@ -11,8 +11,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class ImageTextToTextTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageTextToTextModelActionConfig):
-        self.config: ImageTextToTextModelActionConfig = config
+    config: ImageTextToTextModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         prompt        = await context.render_text(self.config.prompt)

@@ -14,8 +14,11 @@ from ....action.base import ComponentAction
 import asyncio
 
 class VectorStoreAction(ComponentAction):
+    config: VectorStoreActionConfig
+
     def __init__(self, config: VectorStoreActionConfig, client: Any):
-        self.config: VectorStoreActionConfig = config
+        super().__init__(config)
+
         self.client: Any = client
 
     async def run(self, context: ComponentActionContext) -> Any:

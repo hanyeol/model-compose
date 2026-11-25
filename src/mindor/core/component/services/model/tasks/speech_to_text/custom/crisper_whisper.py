@@ -26,6 +26,8 @@ _MODEL_SHORTHANDS = {
 }
 
 class CrisperWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
+    config: CrisperWhisperSpeechToTextModelActionConfig
+
     def __init__(
         self,
         config: CrisperWhisperSpeechToTextModelActionConfig,

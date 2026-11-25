@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     import torch
 
 class SbertHuggingfaceTextEmbeddingTaskAction(HuggingfaceTextEmbeddingTaskAction):
+    config: TextEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,

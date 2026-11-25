@@ -30,8 +30,7 @@ class AudioWaveform(AtomicDict):
         )
 
 class AudioFeatureExtractorAction(ComponentAction):
-    def __init__(self, config: AudioFeatureExtractorActionConfig):
-        self.config: AudioFeatureExtractorActionConfig = config
+    config: AudioFeatureExtractorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

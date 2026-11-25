@@ -15,8 +15,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class VideoClipperAction(ComponentAction):
-    def __init__(self, config: VideoClipperActionConfig):
-        self.config: VideoClipperActionConfig = config
+    config: VideoClipperActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         video            = await context.render_video(self.config.video)

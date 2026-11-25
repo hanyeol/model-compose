@@ -12,8 +12,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class MusicScoreRendererAction(ComponentAction):
-    def __init__(self, config: MusicScoreRendererActionConfig):
-        self.config: MusicScoreRendererActionConfig = config
+    config: MusicScoreRendererActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await self._prepare_input(context)

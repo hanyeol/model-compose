@@ -13,8 +13,7 @@ from PIL import Image as PILImage
 import io, asyncio
 
 class ImageCompressorAction(ComponentAction):
-    def __init__(self, config: ImageCompressorActionConfig):
-        self.config: ImageCompressorActionConfig = config
+    config: ImageCompressorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

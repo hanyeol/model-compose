@@ -14,8 +14,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class DocumentLoaderAction(ComponentAction):
-    def __init__(self, config: DocumentLoaderActionConfig):
-        self.config: DocumentLoaderActionConfig = config
+    config: DocumentLoaderActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await context.render_variable(self.config.source)

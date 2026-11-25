@@ -11,8 +11,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class ImageToVideoTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageToVideoModelActionConfig):
-        self.config: ImageToVideoModelActionConfig = config
+    config: ImageToVideoModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)

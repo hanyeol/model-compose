@@ -8,8 +8,11 @@ from .base import ModelTokenizerTaskDriver, ModelTokenizerTaskDriverRegistry
 import importlib
 
 class ModelTokenizerAction(ComponentAction):
+    config: ModelTokenizerActionConfig
+
     def __init__(self, config: ModelTokenizerActionConfig, driver: ModelTokenizerTaskDriver):
-        self.config: ModelTokenizerActionConfig = config
+        super().__init__(config)
+
         self.driver: ModelTokenizerTaskDriver = driver
 
     async def run(self, context: ComponentActionContext) -> Any:

@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextRerankingTaskAction(TextRerankingTaskAction):
+    config: TextRerankingModelActionConfig
+
     def __init__(
         self,
         config: TextRerankingModelActionConfig,

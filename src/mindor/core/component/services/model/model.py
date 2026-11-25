@@ -12,8 +12,11 @@ import asyncio
 import importlib
 
 class ModelAction(ComponentAction):
+    config: ModelActionConfig
+
     def __init__(self, config: ModelActionConfig, driver: ModelTaskDriver):
-        self.config: ModelActionConfig = config
+        super().__init__(config)
+
         self.driver: ModelTaskDriver = driver
 
     async def run(self, context: ComponentActionContext) -> Any:

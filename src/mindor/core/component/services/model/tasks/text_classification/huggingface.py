@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextClassificationTaskAction(TextClassificationTaskAction):
+    config: TextClassificationModelActionConfig
+
     def __init__(
         self,
         config: TextClassificationModelActionConfig,

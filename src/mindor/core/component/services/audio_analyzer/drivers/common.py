@@ -14,8 +14,7 @@ from ..base import ComponentActionContext
 import asyncio
 
 class AudioAnalyzerAction(ComponentAction):
-    def __init__(self, config: AudioAnalyzerActionConfig):
-        self.config: AudioAnalyzerActionConfig = config
+    config: AudioAnalyzerActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

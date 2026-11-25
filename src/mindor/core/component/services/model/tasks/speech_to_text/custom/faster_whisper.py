@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     import torch
 
 class FasterWhisperSpeechToTextTaskAction(SpeechToTextTaskAction):
+    config: FasterWhisperSpeechToTextModelActionConfig
+
     def __init__(
         self,
         config: FasterWhisperSpeechToTextModelActionConfig,

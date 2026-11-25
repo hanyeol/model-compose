@@ -18,8 +18,7 @@ from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
 class VideoEncoderAction(ComponentAction):
-    def __init__(self, config: VideoEncoderActionConfig):
-        self.config: VideoEncoderActionConfig = config
+    config: VideoEncoderActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         (video, audio), primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)

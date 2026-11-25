@@ -26,8 +26,7 @@ class MotionClip(AtomicDict):
         )
 
 class MotionGenerationTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: CommonMotionGenerationModelActionConfig):
-        self.config: CommonMotionGenerationModelActionConfig = config
+    config: CommonMotionGenerationModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(context)

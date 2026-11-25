@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from vllm import AsyncLLMEngine
 
 class VllmTextEmbeddingTaskAction(TextEmbeddingTaskAction):
+    config: TextEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,

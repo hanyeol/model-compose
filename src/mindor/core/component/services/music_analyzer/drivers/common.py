@@ -78,8 +78,7 @@ class MusicFlatness(AtomicDict):
         )
 
 class MusicAnalyzerAction(ComponentAction):
-    def __init__(self, config: MusicAnalyzerActionConfig):
-        self.config: MusicAnalyzerActionConfig = config
+    config: MusicAnalyzerActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await self._prepare_input(context)

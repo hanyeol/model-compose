@@ -16,8 +16,7 @@ class FaceEmbedding(AtomicList):
         return f"<FaceEmbedding dim={len(self)}>"
 
 class FaceTrackingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: FaceTrackingModelActionConfig):
-        self.config: FaceTrackingModelActionConfig = config
+    config: FaceTrackingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames      = await context.render_image_array(self.config.frames)

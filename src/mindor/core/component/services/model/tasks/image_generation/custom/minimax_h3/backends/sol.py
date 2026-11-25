@@ -298,6 +298,8 @@ class MinimaxH3SolImageGenerationTaskDriver(MinimaxH3ImageGenerationBaseDriver):
         raise ValueError(f"Unknown method: {action.method}")
 
 class MinimaxH3SolImageGenerationGenerateAction(MinimaxH3ImageGenerationGenerateAction):
+    config: Any
+
     def __init__(
         self,
         config: Any,
@@ -356,6 +358,8 @@ class MinimaxH3SolImageGenerationGenerateAction(MinimaxH3ImageGenerationGenerate
         return await self._run_in_executor(_generate)
 
 class MinimaxH3SolImageGenerationEditAction(MinimaxH3ImageGenerationEditAction):
+    config: Any
+
     def __init__(
         self,
         config: Any,

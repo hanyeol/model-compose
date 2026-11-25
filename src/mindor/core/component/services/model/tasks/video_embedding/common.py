@@ -17,8 +17,7 @@ class VideoEmbedding(AtomicList):
         return f"<VideoEmbedding dim={len(self)}>"
 
 class VideoEmbeddingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: VideoEmbeddingModelActionConfig):
-        self.config: VideoEmbeddingModelActionConfig = config
+    config: VideoEmbeddingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames     = await context.render_image_array(self.config.frames, single_as_array=True)

@@ -16,15 +16,14 @@ if TYPE_CHECKING:
     from PIL import Image as PILImage
 
 class VideoFrameAnalyzerAction(ComponentAction):
+    config: VideoFrameAnalyzerActionConfig
+
     """Driver-agnostic skeleton for video-frame-analyzer actions.
 
     Subclasses declare their own metric set and override `_resolve_params`
     and `_analyze` to dispatch on that set — common.py does not know which
     metrics exist, only how to stream/batch them.
     """
-    def __init__(self, config: VideoFrameAnalyzerActionConfig):
-        self.config: VideoFrameAnalyzerActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         frames     = await context.render_image_array(self.config.frames)
         frame_rate = await context.render_scalar(self.config.frame_rate, float) if self.config.frame_rate is not None else None

@@ -13,8 +13,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class TalkingHeadTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: TalkingHeadModelActionConfig):
-        self.config: TalkingHeadModelActionConfig = config
+    config: TalkingHeadModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

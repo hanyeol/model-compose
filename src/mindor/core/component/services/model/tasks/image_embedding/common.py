@@ -17,8 +17,7 @@ class ImageEmbedding(AtomicList):
         return f"<ImageEmbedding dim={len(self)}>"
 
 class ImageEmbeddingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageEmbeddingModelActionConfig):
-        self.config: ImageEmbeddingModelActionConfig = config
+    config: ImageEmbeddingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

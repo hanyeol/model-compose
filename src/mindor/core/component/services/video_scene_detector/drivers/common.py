@@ -13,8 +13,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class VideoSceneDetectorAction(ComponentAction):
-    def __init__(self, config: VideoSceneDetectorActionConfig):
-        self.config: VideoSceneDetectorActionConfig = config
+    config: VideoSceneDetectorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         video      = await context.render_video(self.config.video)

@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextEmbeddingTaskAction(TextEmbeddingTaskAction):
+    config: TextEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,

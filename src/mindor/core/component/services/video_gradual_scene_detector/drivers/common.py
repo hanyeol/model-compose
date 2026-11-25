@@ -13,14 +13,13 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class VideoGradualSceneDetectorAction(ComponentAction):
+    config: VideoGradualSceneDetectorActionConfig
+
     """Driver-agnostic skeleton for video-gradual-scene-detector actions.
 
     Subclasses override `_resolve_params` and `_detect`; common.py only
     knows how to stream / batch the per-sequence scans.
     """
-    def __init__(self, config: VideoGradualSceneDetectorActionConfig):
-        self.config: VideoGradualSceneDetectorActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         frames              = await context.render_image_array(self.config.frames)
         frame_rate          = await context.render_scalar(self.config.frame_rate, float)

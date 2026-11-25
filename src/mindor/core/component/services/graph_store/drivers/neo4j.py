@@ -136,6 +136,8 @@ class Neo4jQueryBuilder:
         return cypher, { "start_id": start_node }
 
 class Neo4jGraphStoreAction(GraphStoreAction):
+    config: GraphStoreActionConfig
+
     def __init__(self, config: GraphStoreActionConfig, client: AsyncDriver, database: Optional[str]):
         super().__init__(config, client)
 

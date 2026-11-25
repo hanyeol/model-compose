@@ -73,8 +73,7 @@ class MusicScore(AtomicDict):
         )
 
 class MusicScoreLoaderAction(ComponentAction):
-    def __init__(self, config: MusicScoreLoaderActionConfig):
-        self.config: MusicScoreLoaderActionConfig = config
+    config: MusicScoreLoaderActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await self._prepare_input(context)

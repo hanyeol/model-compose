@@ -21,6 +21,8 @@ _WINDOW_SIZE_SAMPLES_16K = 512
 _WINDOW_SIZE_SAMPLES_8K  = 256
 
 class SileroVoiceActivityDetectionTaskAction(VoiceActivityDetectionTaskAction):
+    config: VoiceActivityDetectionModelActionConfig
+
     def __init__(
         self,
         config: VoiceActivityDetectionModelActionConfig,

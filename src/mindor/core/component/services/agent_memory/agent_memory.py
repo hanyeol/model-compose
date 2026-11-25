@@ -14,6 +14,8 @@ from .storage.base import AgentMemoryStorage, AgentMemoryStorageRegistry
 import ulid, json, importlib
 
 class AgentMemoryAction(ComponentAction):
+    config: AgentMemoryActionConfig
+
     def __init__(
         self,
         config: AgentMemoryActionConfig,
@@ -21,7 +23,8 @@ class AgentMemoryAction(ComponentAction):
         summary_config: Optional[AgentMemorySummaryConfig],
         summary_component: Optional[ComponentService],
     ):
-        self.config: AgentMemoryActionConfig = config
+        super().__init__(config)
+
         self.window_config: Optional[AgentMemoryWindowConfig] = window_config
         self.summary_config: Optional[AgentMemorySummaryConfig] = summary_config
         self.summary_component: Optional[ComponentService] = summary_component

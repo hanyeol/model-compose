@@ -9,8 +9,7 @@ from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, reg
 from ...context import ComponentActionContext
 
 class TextRendererAction(ComponentAction):
-    def __init__(self, config: TextRendererActionConfig):
-        self.config: TextRendererActionConfig = config
+    config: TextRendererActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         template   = await context.render_text(self.config.template, collect=False)

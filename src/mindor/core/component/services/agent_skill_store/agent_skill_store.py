@@ -21,13 +21,16 @@ import ulid
 _SKILL_FILENAME = "SKILL.md"
 
 class AgentSkillStoreAction(ComponentAction):
+    config: AgentSkillStoreActionConfig
+
     def __init__(
         self,
         config: AgentSkillStoreActionConfig,
         repository_component: ComponentService,
         repository_actions: AgentSkillRepositoryActions,
     ):
-        self.config: AgentSkillStoreActionConfig = config
+        super().__init__(config)
+
         self.repository_component: ComponentService = repository_component
         self.repository_actions: AgentSkillRepositoryActions = repository_actions
 

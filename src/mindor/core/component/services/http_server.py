@@ -72,8 +72,11 @@ class HttpServerCallbackCompletion(HttpServerCompletion):
         return await future
 
 class HttpServerAction(ComponentAction):
+    config: HttpServerActionConfig
+
     def __init__(self, config: HttpServerActionConfig, client: HttpClient):
-        self.config: HttpServerActionConfig = config
+        super().__init__(config)
+
         self.client: HttpClient = client
         self.completion: HttpServerCompletion = None
 

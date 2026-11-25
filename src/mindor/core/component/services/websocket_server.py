@@ -12,8 +12,11 @@ from ..context import ComponentActionContext
 import asyncio, json
 
 class WebSocketServerAction(ComponentAction):
+    config: WebSocketServerActionConfig
+
     def __init__(self, config: WebSocketServerActionConfig, client: WebSocketClient):
-        self.config: WebSocketServerActionConfig = config
+        super().__init__(config)
+
         self.client: WebSocketClient = client
 
     async def run(self, context: ComponentActionContext) -> Any:

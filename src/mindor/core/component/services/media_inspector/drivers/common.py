@@ -13,8 +13,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class MediaInspectorAction(ComponentAction):
-    def __init__(self, config: MediaInspectorActionConfig):
-        self.config: MediaInspectorActionConfig = config
+    config: MediaInspectorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         media      = await context.render_media(self.config.media)

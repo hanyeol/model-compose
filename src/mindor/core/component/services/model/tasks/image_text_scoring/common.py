@@ -21,8 +21,7 @@ class ImageTextScore(AtomicDict):
         return f"<ImageTextScore cosine={cosine:.4f}>"
 
 class ImageTextScoringTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageTextScoringModelActionConfig):
-        self.config: ImageTextScoringModelActionConfig = config
+    config: ImageTextScoringModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image_array(self.config.image, single_as_array=True)

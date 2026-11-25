@@ -330,6 +330,8 @@ class FaissIndexManager:
         return os.path.join(storage_dir, "metadata.json")
 
 class FaissVectorStoreAction(VectorStoreAction):
+    config: VectorStoreActionConfig
+
     def __init__(self, config: VectorStoreActionConfig, index_manager: FaissIndexManager, lock: asyncio.Lock):
         super().__init__(config, index_manager)
 

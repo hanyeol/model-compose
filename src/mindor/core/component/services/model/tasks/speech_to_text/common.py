@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     import torch
 
 class SpeechToTextTaskAction(ModelTaskComponentAction):
+    config: SpeechToTextModelActionConfig
+
     def __init__(self, config: SpeechToTextModelActionConfig, device: Optional[torch.device]):
-        self.config: SpeechToTextModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

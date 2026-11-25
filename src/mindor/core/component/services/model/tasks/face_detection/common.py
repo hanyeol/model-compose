@@ -11,8 +11,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class FaceDetectionTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: FaceDetectionModelActionConfig):
-        self.config: FaceDetectionModelActionConfig = config
+    config: FaceDetectionModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

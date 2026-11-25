@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from laya import Agent as LayaAgent
 
 class LayaTypedDecisionTaskAction(TypedDecisionTaskAction):
+    config: TypedDecisionModelActionConfig
+
     def __init__(
         self,
         config: TypedDecisionModelActionConfig,

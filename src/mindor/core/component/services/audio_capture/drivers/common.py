@@ -8,8 +8,7 @@ from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
 class AudioCaptureAction(ComponentAction):
-    def __init__(self, config: AudioCaptureActionConfig):
-        self.config: AudioCaptureActionConfig = config
+    config: AudioCaptureActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         params = await self._resolve_params(context)

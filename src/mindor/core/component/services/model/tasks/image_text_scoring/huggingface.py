@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceImageTextScoringTaskAction(ImageTextScoringTaskAction):
+    config: ImageTextScoringModelActionConfig
+
     def __init__(
         self,
         config: ImageTextScoringModelActionConfig,

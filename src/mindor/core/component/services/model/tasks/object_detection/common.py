@@ -11,8 +11,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class ObjectDetectionTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ObjectDetectionModelActionConfig):
-        self.config: ObjectDetectionModelActionConfig = config
+    config: ObjectDetectionModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

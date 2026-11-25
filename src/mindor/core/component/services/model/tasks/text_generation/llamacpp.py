@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from llama_cpp import Llama
 
 class LlamaCppTextGenerationTaskAction(TextGenerationTaskAction):
+    config: HuggingfaceTextGenerationModelActionConfig
+
     def __init__(
         self,
         config: HuggingfaceTextGenerationModelActionConfig,

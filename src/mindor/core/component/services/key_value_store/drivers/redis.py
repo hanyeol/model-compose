@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from redis.asyncio import Redis as AsyncRedis
 
 class RedisKeyValueStoreAction(KeyValueStoreAction):
+    config: RedisKeyValueStoreActionConfig
+
     def __init__(self, config: RedisKeyValueStoreActionConfig, client: AsyncRedis):
         super().__init__(config)
 

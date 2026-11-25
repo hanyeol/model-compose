@@ -22,8 +22,11 @@ _RESAMPLE_MAP = {
 }
 
 class ImageUpscalingTaskAction(ModelTaskComponentAction):
+    config: ImageUpscalingModelActionConfig
+
     def __init__(self, config: ImageUpscalingModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageUpscalingModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

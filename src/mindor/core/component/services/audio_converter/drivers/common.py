@@ -15,8 +15,7 @@ from ....action.base import ComponentAction
 from ....action.media import VideoAudioEncodingResolver
 
 class AudioConverterAction(ComponentAction):
-    def __init__(self, config: AudioConverterActionConfig):
-        self.config: AudioConverterActionConfig = config
+    config: AudioConverterActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

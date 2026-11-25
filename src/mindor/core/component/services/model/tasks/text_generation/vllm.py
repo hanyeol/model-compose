@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 _STREAM_QUEUE_SIZE = 32
 
 class VllmTextGenerationTaskAction(TextGenerationTaskAction):
+    config: HuggingfaceTextGenerationModelActionConfig
+
     def __init__(
         self,
         config: HuggingfaceTextGenerationModelActionConfig,

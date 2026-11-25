@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     import torch
 
 class YoloObjectDetectionTaskAction(ObjectDetectionTaskAction):
+    config: YoloObjectDetectionModelActionConfig
+
     def __init__(
         self,
         config: YoloObjectDetectionModelActionConfig,

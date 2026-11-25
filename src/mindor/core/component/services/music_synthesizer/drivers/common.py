@@ -14,8 +14,7 @@ from ..base import ComponentActionContext
 import asyncio
 
 class MusicSynthesizerAction(ComponentAction):
-    def __init__(self, config: MusicSynthesizerActionConfig):
-        self.config: MusicSynthesizerActionConfig = config
+    config: MusicSynthesizerActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)

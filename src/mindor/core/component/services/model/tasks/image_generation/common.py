@@ -14,8 +14,11 @@ if TYPE_CHECKING:
     import torch
 
 class ImageGenerationTaskAction(ModelTaskComponentAction):
+    config: ImageGenerationModelActionConfig
+
     def __init__(self, config: ImageGenerationModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageGenerationModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

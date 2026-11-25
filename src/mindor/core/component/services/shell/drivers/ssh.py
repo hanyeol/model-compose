@@ -18,6 +18,8 @@ from ..base import ComponentActionContext
 from .common import ShellAction
 
 class SshShellAction(ShellAction):
+    config: SshShellActionConfig
+
     def __init__(
         self,
         config: SshShellActionConfig,

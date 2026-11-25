@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 _SAMPLEID_SAMPLE_RATE = 16000
 
 class SampleidMusicEmbeddingTaskAction(MusicEmbeddingTaskAction):
+    config: MusicEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: MusicEmbeddingModelActionConfig,

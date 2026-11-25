@@ -11,8 +11,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class VisionTextEncodingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: VisionTextEncodingModelActionConfig):
-        self.config: VisionTextEncodingModelActionConfig = config
+    config: VisionTextEncodingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text)

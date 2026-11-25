@@ -263,8 +263,7 @@ class StreamingTextSplitter:
             yield chunk
 
 class TextSplitterAction(ComponentAction):
-    def __init__(self, config: TextSplitterActionConfig):
-        self.config: TextSplitterActionConfig = config
+    config: TextSplitterActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text, collect=False)

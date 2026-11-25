@@ -21,8 +21,7 @@ from ...base import ComponentService, ComponentType, ComponentGlobalConfigs, reg
 from ...context import ComponentActionContext
 
 class TextParserAction(ComponentAction):
-    def __init__(self, config: TextParserActionConfig):
-        self.config: TextParserActionConfig = config
+    config: TextParserActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text, collect=False)

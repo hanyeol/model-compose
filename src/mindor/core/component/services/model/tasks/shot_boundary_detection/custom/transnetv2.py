@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     import numpy as np
 
 class TransNetV2ShotBoundaryDetectionTaskAction(ShotBoundaryDetectionTaskAction):
+    config: TransNetV2ShotBoundaryDetectionModelActionConfig
+
     def __init__(self, config: TransNetV2ShotBoundaryDetectionModelActionConfig, model: TransNetV2):
         super().__init__(config)
 

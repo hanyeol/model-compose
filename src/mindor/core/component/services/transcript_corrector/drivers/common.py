@@ -29,8 +29,7 @@ class StreamingTranscriptCorrector:
         pass
 
 class TranscriptCorrectorAction(ComponentAction):
-    def __init__(self, config: TranscriptCorrectorActionConfig):
-        self.config: TranscriptCorrectorActionConfig = config
+    config: TranscriptCorrectorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         transcript = await context.render_array(self.config.transcript, item_is_list=True, single_as_array=True)

@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     import numpy as np
 
 class WorldMusicPitchCorrectorAction(MusicPitchCorrectorAction):
+    config: MusicPitchCorrectorActionConfig
+
     def __init__(
         self,
         config: MusicPitchCorrectorActionConfig,

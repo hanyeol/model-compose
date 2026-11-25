@@ -25,8 +25,7 @@ from ..base import ComponentActionContext
 import asyncio
 
 class VideoMixerAction(ComponentAction):
-    def __init__(self, config: VideoMixerActionConfig):
-        self.config: VideoMixerActionConfig = config
+    config: VideoMixerActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)

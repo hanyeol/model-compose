@@ -12,8 +12,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class ObjectTrackingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ObjectTrackingModelActionConfig):
-        self.config: ObjectTrackingModelActionConfig = config
+    config: ObjectTrackingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames      = await context.render_image_array(self.config.frames)

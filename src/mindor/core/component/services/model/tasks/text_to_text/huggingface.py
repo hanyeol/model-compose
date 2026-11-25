@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceTextToTextTaskAction(TextToTextTaskAction):
+    config: TextToTextModelActionConfig
+
     def __init__(
         self,
         config: TextToTextModelActionConfig,

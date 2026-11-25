@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
+    config: HuggingfaceSpeakerDiarizationModelActionConfig
+
     def __init__(
         self,
         config: HuggingfaceSpeakerDiarizationModelActionConfig,

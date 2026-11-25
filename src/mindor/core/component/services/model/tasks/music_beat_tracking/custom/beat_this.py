@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     import torch
 
 class BeatThisMusicBeatTrackingTaskAction(MusicBeatTrackingTaskAction):
+    config: BeatThisMusicBeatTrackingModelActionConfig
+
     def __init__(
         self,
         config: BeatThisMusicBeatTrackingModelActionConfig,
@@ -28,7 +30,8 @@ class BeatThisMusicBeatTrackingTaskAction(MusicBeatTrackingTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: BeatThisMusicBeatTrackingModelActionConfig = config
+        super().__init__(config)
+
         self.tracker: File2Beats = tracker
 
     async def _track_batch(

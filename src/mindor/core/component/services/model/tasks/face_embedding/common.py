@@ -21,8 +21,11 @@ class FaceEmbedding(AtomicList):
         return f"<FaceEmbedding dim={len(self)}>"
 
 class FaceEmbeddingTaskAction(ModelTaskComponentAction):
+    config: FaceEmbeddingModelActionConfig
+
     def __init__(self, config: FaceEmbeddingModelActionConfig, device: Optional[torch.device]):
-        self.config: FaceEmbeddingModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

@@ -20,8 +20,11 @@ class MusicBeats(AtomicList):
         return f"<MusicBeats count={len(self)}>"
 
 class MusicBeatTrackingTaskAction(ModelTaskComponentAction):
+    config: CommonMusicBeatTrackingModelActionConfig
+
     def __init__(self, config: CommonMusicBeatTrackingModelActionConfig, device: Optional[torch.device]):
-        self.config: CommonMusicBeatTrackingModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

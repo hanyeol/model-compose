@@ -22,6 +22,8 @@ class PipelineCancelled(Exception):
     pass
 
 class PyannoteSpeakerDiarizationTaskAction(SpeakerDiarizationTaskAction):
+    config: SpeakerDiarizationModelActionConfig
+
     def __init__(
         self,
         config: SpeakerDiarizationModelActionConfig,

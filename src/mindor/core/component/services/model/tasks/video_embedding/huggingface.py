@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceVideoEmbeddingTaskAction(VideoEmbeddingTaskAction):
+    config: VideoEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: VideoEmbeddingModelActionConfig,

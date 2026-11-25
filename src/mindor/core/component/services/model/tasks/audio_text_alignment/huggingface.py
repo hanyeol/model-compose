@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 _DEFAULT_SAMPLE_RATE = 16000
 
 class HuggingfaceAudioTextAlignmentTaskAction(AudioTextAlignmentTaskAction):
+    config: AudioTextAlignmentModelActionConfig
+
     def __init__(
         self,
         config: AudioTextAlignmentModelActionConfig,

@@ -55,6 +55,8 @@ _LANGUAGE_CODE_MAP: Dict[str, str] = {
 }
 
 class FunAsrSpeechToTextTaskAction(SpeechToTextTaskAction):
+    config: FunAsrSpeechToTextModelActionConfig
+
     def __init__(
         self,
         config: FunAsrSpeechToTextModelActionConfig,

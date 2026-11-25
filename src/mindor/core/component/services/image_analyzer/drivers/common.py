@@ -16,15 +16,14 @@ if TYPE_CHECKING:
     from PIL import Image as PILImage
 
 class ImageAnalyzerAction(ComponentAction):
+    config: ImageAnalyzerActionConfig
+
     """Driver-agnostic skeleton for image-analyzer actions.
 
     Subclasses declare their own metric set and override `_resolve_params`
     and `_analyze` to dispatch on that set — common.py does not know which
     metrics exist, only how to stream/batch them.
     """
-    def __init__(self, config: ImageAnalyzerActionConfig):
-        self.config: ImageAnalyzerActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)
         batch_size = await context.render_variable(self.config.batch_size)

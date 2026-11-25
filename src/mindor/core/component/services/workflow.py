@@ -6,8 +6,7 @@ from ..base import ComponentService, ComponentType, ComponentGlobalConfigs, regi
 from ..context import ComponentActionContext
 
 class WorkflowAction(ComponentAction):
-    def __init__(self, config: WorkflowActionConfig):
-        self.config: WorkflowActionConfig = config
+    config: WorkflowActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         is_direct_output = not self.config.output or self.config.output == "${output}"

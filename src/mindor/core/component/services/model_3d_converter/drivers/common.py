@@ -15,8 +15,7 @@ from ..base import ComponentActionContext
 from ....action.base import ComponentAction
 
 class Model3DConverterAction(ComponentAction):
-    def __init__(self, config: Model3DConverterActionConfig):
-        self.config: Model3DConverterActionConfig = config
+    config: Model3DConverterActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         model_3d   = await context.render_model_3d(self.config.model_3d)

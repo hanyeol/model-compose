@@ -19,8 +19,7 @@ from PIL import Image as PILImage
 import asyncio
 
 class ImageDrawingAction(ComponentAction):
-    def __init__(self, config: ImageDrawingActionConfig):
-        self.config: ImageDrawingActionConfig = config
+    config: ImageDrawingActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

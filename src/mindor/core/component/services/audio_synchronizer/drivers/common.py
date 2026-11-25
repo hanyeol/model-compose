@@ -12,8 +12,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class AudioSynchronizerAction(ComponentAction):
-    def __init__(self, config: AudioSynchronizerActionConfig):
-        self.config: AudioSynchronizerActionConfig = config
+    config: AudioSynchronizerActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         sources    = await context.render_media_array(self.config.sources, single_as_array=True)

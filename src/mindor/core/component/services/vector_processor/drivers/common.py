@@ -17,8 +17,7 @@ from ..base import ComponentActionContext
 from ....action.base import ComponentAction
 
 class VectorProcessorAction(ComponentAction):
-    def __init__(self, config: VectorProcessorActionConfig):
-        self.config: VectorProcessorActionConfig = config
+    config: VectorProcessorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)

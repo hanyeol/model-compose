@@ -14,15 +14,14 @@ from PIL import Image as PILImage
 import asyncio
 
 class ImageProcessorAction(ComponentAction):
+    config: ImageProcessorActionConfig
+
     """Driver-agnostic skeleton for image-processor actions.
 
     Subclasses declare their own method set and override `_prepare_input`,
     `_resolve_params`, and `_process` to dispatch on that set — common.py
     does not know which methods exist, only how to stream/batch them.
     """
-    def __init__(self, config: ImageProcessorActionConfig):
-        self.config: ImageProcessorActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await self._prepare_input(self.config.method, context)
         batch_size = await context.render_variable(self.config.batch_size)

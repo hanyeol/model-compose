@@ -276,6 +276,8 @@ class MinimaxH3SolTextToVideoTaskDriver(MinimaxH3TextToVideoBaseDriver):
         return await MinimaxH3SolTextToVideoTaskAction(action, self.pipeline, self.sol_attn_processor).run(context)
 
 class MinimaxH3SolTextToVideoTaskAction(MinimaxH3TextToVideoTaskAction):
+    config: MinimaxH3TextToVideoModelActionConfig
+
     """Sol-backend action that resets the processor's step counter per batch item
     and streams the current denoising step into it via ``callback_on_step_end``."""
 

@@ -17,8 +17,7 @@ class MusicEmbedding(AtomicList):
         return f"<MusicEmbedding dim={len(self)}>"
 
 class MusicEmbeddingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: MusicEmbeddingModelActionConfig):
-        self.config: MusicEmbeddingModelActionConfig = config
+    config: MusicEmbeddingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

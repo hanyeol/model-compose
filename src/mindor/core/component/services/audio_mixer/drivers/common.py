@@ -23,8 +23,7 @@ from ..base import ComponentActionContext
 import asyncio
 
 class AudioMixerAction(ComponentAction):
-    def __init__(self, config: AudioMixerActionConfig):
-        self.config: AudioMixerActionConfig = config
+    config: AudioMixerActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         input, primary_input, is_single_input, is_streaming_input = await self._prepare_input(self.config.method, context)

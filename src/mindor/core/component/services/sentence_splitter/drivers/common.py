@@ -28,8 +28,7 @@ class StreamingSentenceSplitter:
         pass
 
 class SentenceSplitterAction(ComponentAction):
-    def __init__(self, config: SentenceSplitterActionConfig):
-        self.config: SentenceSplitterActionConfig = config
+    config: SentenceSplitterActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text, collect=False)

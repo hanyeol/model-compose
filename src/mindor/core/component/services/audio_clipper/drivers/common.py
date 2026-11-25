@@ -14,8 +14,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class AudioClipperAction(ComponentAction):
-    def __init__(self, config: AudioClipperActionConfig):
-        self.config: AudioClipperActionConfig = config
+    config: AudioClipperActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio            = await context.render_audio(self.config.audio)

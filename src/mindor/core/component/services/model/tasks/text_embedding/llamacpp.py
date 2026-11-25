@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from llama_cpp import Llama
 
 class LlamaCppTextEmbeddingTaskAction(TextEmbeddingTaskAction):
+    config: TextEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,

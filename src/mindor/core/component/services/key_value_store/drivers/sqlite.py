@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 _PURGE_INTERVAL_SECONDS = 60.0
 
 class SqliteKeyValueStoreAction(KeyValueStoreAction):
+    config: SqliteKeyValueStoreActionConfig
+
     def __init__(self, config: SqliteKeyValueStoreActionConfig, connection: AsyncConnection, table: str, purge_state: Dict[str, float]):
         super().__init__(config)
 

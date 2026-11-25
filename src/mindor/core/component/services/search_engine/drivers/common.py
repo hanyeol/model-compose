@@ -13,8 +13,11 @@ from ....action.base import ComponentAction
 import asyncio
 
 class SearchEngineAction(ComponentAction):
+    config: SearchEngineActionConfig
+
     def __init__(self, config: SearchEngineActionConfig, database: Any):
-        self.config: SearchEngineActionConfig = config
+        super().__init__(config)
+
         self.database: Any = database
 
     async def run(self, context: ComponentActionContext) -> Any:

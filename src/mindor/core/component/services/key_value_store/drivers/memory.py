@@ -10,6 +10,8 @@ from .common import KeyValueStoreAction
 import asyncio, time
 
 class MemoryKeyValueStoreAction(KeyValueStoreAction):
+    config: MemoryKeyValueStoreActionConfig
+
     def __init__(self, config: MemoryKeyValueStoreActionConfig, store: Dict[str, Tuple[Any, Optional[float]]], lock: asyncio.Lock):
         super().__init__(config)
 

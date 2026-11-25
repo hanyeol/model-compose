@@ -74,6 +74,8 @@ class AzureBlobDownloadReader:
             self._exhausted = True
 
 class AzureBlobFileStoreAction(FileStoreAction):
+    config: AzureBlobFileStoreActionConfig
+
     def __init__(
         self,
         config: AzureBlobFileStoreActionConfig,

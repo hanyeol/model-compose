@@ -16,6 +16,8 @@ from ..base import ComponentActionContext
 DownloadResult = Union[AudioStreamResource, VideoStreamResource, ImageStreamResource]
 
 class MediaDownloaderAction(ComponentAction):
+    config: MediaDownloaderActionConfig
+
     """Base for media-downloader driver actions.
 
     Follows the same shape as `VideoFrameExtractorAction`:
@@ -27,9 +29,6 @@ class MediaDownloaderAction(ComponentAction):
       - Drivers implement `_download_batch` for one batch of URLs and
         return one stream resource per URL.
     """
-    def __init__(self, config: MediaDownloaderActionConfig):
-        self.config: MediaDownloaderActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         url        = await context.render_variable(self.config.url)
         batch_size = await context.render_variable(self.config.batch_size)

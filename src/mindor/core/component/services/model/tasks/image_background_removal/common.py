@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     import torch
 
 class ImageBackgroundRemovalTaskAction(ModelTaskComponentAction):
+    config: ImageBackgroundRemovalModelActionConfig
+
     def __init__(self, config: ImageBackgroundRemovalModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageBackgroundRemovalModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

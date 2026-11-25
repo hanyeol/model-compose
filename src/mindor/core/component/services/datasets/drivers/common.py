@@ -14,8 +14,7 @@ if TYPE_CHECKING:
     from datasets import Dataset
 
 class DatasetsAction(ComponentAction):
-    def __init__(self, config: DatasetsActionConfig):
-        self.config: DatasetsActionConfig = config
+    config: DatasetsActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         params = await self._resolve_params(self.config.method, context)

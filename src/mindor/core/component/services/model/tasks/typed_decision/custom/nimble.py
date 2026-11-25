@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     NimbleScorer = Union[ParallelScorer, CudaCandidateScorer]
 
 class NimbleTypedDecisionTaskAction(TypedDecisionTaskAction):
+    config: TypedDecisionModelActionConfig
+
     def __init__(self, config: TypedDecisionModelActionConfig, scorer: NimbleScorer):
         super().__init__(config)
 

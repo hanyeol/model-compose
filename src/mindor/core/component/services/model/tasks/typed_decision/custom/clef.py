@@ -11,6 +11,8 @@ from ..common import TypedDecisionTaskAction
 import sys
 
 class ClefTypedDecisionTaskAction(TypedDecisionTaskAction):
+    config: TypedDecisionModelActionConfig
+
     def __init__(
         self,
         config: TypedDecisionModelActionConfig,

@@ -11,8 +11,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class FaceSwapTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: FaceSwapModelActionConfig):
-        self.config: FaceSwapModelActionConfig = config
+    config: FaceSwapModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source_image = await context.render_image(self.config.source_image)

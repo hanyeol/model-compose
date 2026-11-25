@@ -14,8 +14,7 @@ from ..base import ComponentActionContext
 from ....action.base import ComponentAction
 
 class Model3DRendererAction(ComponentAction):
-    def __init__(self, config: Model3DRendererActionConfig):
-        self.config: Model3DRendererActionConfig = config
+    config: Model3DRendererActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         model_3d   = await context.render_model_3d(self.config.model_3d)

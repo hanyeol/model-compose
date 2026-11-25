@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     import aiohttp
 
 class WebScraperAction(ComponentAction):
+    config: WebScraperActionConfig
+
     def __init__(
         self,
         config: WebScraperActionConfig,
@@ -27,7 +29,8 @@ class WebScraperAction(ComponentAction):
         cookies: Dict[str, str],
         timeout: Optional[str]
     ):
-        self.config: WebScraperActionConfig = config
+        super().__init__(config)
+
         self.headers = headers
         self.cookies = cookies
         self.timeout = timeout

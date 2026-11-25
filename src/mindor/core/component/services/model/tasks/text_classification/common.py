@@ -11,8 +11,11 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class TextClassificationTaskAction(ModelTaskComponentAction):
+    config: TextClassificationModelActionConfig
+
     def __init__(self, config: TextClassificationModelActionConfig, labels: Optional[List[str]]):
-        self.config: TextClassificationModelActionConfig = config
+        super().__init__(config)
+
         self.labels: Optional[List[str]] = labels
 
     async def run(self, context: ComponentActionContext) -> Any:

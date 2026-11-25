@@ -20,8 +20,11 @@ class MusicTranscriptNotes(AtomicList):
         return f"<MusicTranscriptNotes count={len(self)}>"
 
 class MusicTranscriptionTaskAction(ModelTaskComponentAction):
+    config: CommonMusicTranscriptionModelActionConfig
+
     def __init__(self, config: CommonMusicTranscriptionModelActionConfig, device: Optional[torch.device]):
-        self.config: CommonMusicTranscriptionModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

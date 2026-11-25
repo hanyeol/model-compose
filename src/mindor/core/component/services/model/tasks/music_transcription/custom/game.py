@@ -52,6 +52,8 @@ _DEFAULT_D3PM_T0 = 0.1
 _MIDI_TEMPO = 120.0
 
 class GameMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
+    config: GameMusicTranscriptionModelActionConfig
+
     def __init__(
         self,
         config: GameMusicTranscriptionModelActionConfig,
@@ -61,7 +63,8 @@ class GameMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: GameMusicTranscriptionModelActionConfig = config
+        super().__init__(config)
+
         self.sessions: Dict[str, Any] = sessions
         self.model_config: Dict[str, Any] = model_config
 

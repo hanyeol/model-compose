@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     import torch
 
 class PyannoteVoiceEmbeddingTaskAction(VoiceEmbeddingTaskAction):
+    config: VoiceEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: VoiceEmbeddingModelActionConfig,

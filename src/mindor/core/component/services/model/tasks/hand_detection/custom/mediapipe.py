@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from mediapipe.tasks.python.components.containers import NormalizedLandmark
 
 class BlazeHandHandDetectionTaskAction(HandDetectionTaskAction):
+    config: BlazeHandHandDetectionModelActionConfig
+
     def __init__(self, config: BlazeHandHandDetectionModelActionConfig, model_path: str):
         super().__init__(config)
 

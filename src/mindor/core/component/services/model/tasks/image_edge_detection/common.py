@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     import torch
 
 class ImageEdgeDetectionTaskAction(ModelTaskComponentAction):
+    config: ImageEdgeDetectionModelActionConfig
+
     def __init__(self, config: ImageEdgeDetectionModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageEdgeDetectionModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

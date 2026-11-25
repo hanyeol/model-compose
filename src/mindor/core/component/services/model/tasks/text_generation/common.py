@@ -11,8 +11,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class TextGenerationTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: TextGenerationModelActionConfig):
-        self.config: TextGenerationModelActionConfig = config
+    config: TextGenerationModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await self._prepare_input(context)

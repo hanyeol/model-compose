@@ -11,8 +11,11 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class FaceEmotionClassificationTaskAction(ModelTaskComponentAction):
+    config: FaceEmotionClassificationModelActionConfig
+
     def __init__(self, config: FaceEmotionClassificationModelActionConfig, labels: List[str]):
-        self.config: FaceEmotionClassificationModelActionConfig = config
+        super().__init__(config)
+
         self.labels: List[str] = labels
 
     async def run(self, context: ComponentActionContext) -> Any:

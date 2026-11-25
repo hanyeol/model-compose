@@ -24,6 +24,8 @@ _PROJECTED_TEXT_ARCHITECTURES = {
 }
 
 class GeneralHuggingfaceTextEmbeddingTaskAction(HuggingfaceTextEmbeddingTaskAction):
+    config: TextEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,

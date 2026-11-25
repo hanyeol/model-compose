@@ -13,14 +13,13 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class VideoSceneTransitionClassifierAction(ComponentAction):
+    config: VideoSceneTransitionClassifierActionConfig
+
     """Driver-agnostic skeleton for video-scene-transition-classifier actions.
 
     Subclasses override `_resolve_params` and `_classify`; common.py only
     knows how to stream / batch each boundary-level classification.
     """
-    def __init__(self, config: VideoSceneTransitionClassifierActionConfig):
-        self.config: VideoSceneTransitionClassifierActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         scenes     = await context.render_array(self.config.scenes, single_as_array=True)
         frames     = await context.render_image_array(self.config.frames)

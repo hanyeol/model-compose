@@ -34,6 +34,8 @@ class GcsLocation:
     endpoint: Optional[str] = None
 
 class GcpStorageFileStoreAction(FileStoreAction):
+    config: GcpStorageFileStoreActionConfig
+
     def __init__(
         self,
         config: GcpStorageFileStoreActionConfig,
@@ -42,6 +44,7 @@ class GcpStorageFileStoreAction(FileStoreAction):
         base_path: Optional[str] = None,
     ):
         super().__init__(config)
+
         self.client: Storage = client
         self.location: GcsLocation = location
         self.base_path: Optional[str] = base_path

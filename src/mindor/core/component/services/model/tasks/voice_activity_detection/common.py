@@ -96,8 +96,11 @@ class VoiceSegmenter:
         return (self.speech_start, audio_length, self.probs_in_segment)
 
 class VoiceActivityDetectionTaskAction(ModelTaskComponentAction):
+    config: VoiceActivityDetectionModelActionConfig
+
     def __init__(self, config: VoiceActivityDetectionModelActionConfig, device: Optional[torch.device]):
-        self.config: VoiceActivityDetectionModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

@@ -12,8 +12,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class ImageToTextTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ImageToTextModelActionConfig):
-        self.config: ImageToTextModelActionConfig = config
+    config: ImageToTextModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

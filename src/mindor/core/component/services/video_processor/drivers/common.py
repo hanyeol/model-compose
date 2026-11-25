@@ -25,8 +25,7 @@ from ..base import ComponentActionContext
 import asyncio
 
 class VideoProcessorAction(ComponentAction):
-    def __init__(self, config: VideoProcessorActionConfig):
-        self.config: VideoProcessorActionConfig = config
+    config: VideoProcessorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         video      = await context.render_video(self.config.video)

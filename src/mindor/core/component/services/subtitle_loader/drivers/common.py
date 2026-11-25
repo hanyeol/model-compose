@@ -11,8 +11,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class SubtitleLoaderAction(ComponentAction):
-    def __init__(self, config: SubtitleLoaderActionConfig):
-        self.config: SubtitleLoaderActionConfig = config
+    config: SubtitleLoaderActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await self._prepare_input(context)

@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from sglang import Engine
 
 class SglangTextEmbeddingTaskAction(TextEmbeddingTaskAction):
+    config: TextEmbeddingModelActionConfig
+
     def __init__(
         self,
         config: TextEmbeddingModelActionConfig,

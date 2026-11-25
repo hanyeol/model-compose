@@ -13,8 +13,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class AudioSilenceDetectorAction(ComponentAction):
-    def __init__(self, config: AudioSilenceDetectorActionConfig):
-        self.config: AudioSilenceDetectorActionConfig = config
+    config: AudioSilenceDetectorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

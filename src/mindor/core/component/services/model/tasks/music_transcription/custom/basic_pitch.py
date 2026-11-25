@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 _BASIC_PITCH_SAMPLE_RATE = 22050
 
 class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
+    config: BasicPitchMusicTranscriptionModelActionConfig
+
     def __init__(
         self,
         config: BasicPitchMusicTranscriptionModelActionConfig,
@@ -34,7 +36,8 @@ class BasicPitchMusicTranscriptionTaskAction(MusicTranscriptionTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: BasicPitchMusicTranscriptionModelActionConfig = config
+        super().__init__(config)
+
         self.model_path: str = model_path
 
     async def _resolve_params(self, context: ComponentActionContext) -> Dict[str, Any]:

@@ -33,6 +33,8 @@ class S3Location:
     endpoint: Optional[str] = None
 
 class AwsS3FileStoreAction(FileStoreAction):
+    config: AwsS3FileStoreActionConfig
+
     def __init__(
         self,
         config: AwsS3FileStoreActionConfig,

@@ -16,13 +16,16 @@ if TYPE_CHECKING:
     import torch
 
 class MusicSourceSeparationTaskAction(ModelTaskComponentAction):
+    config: MusicSourceSeparationModelActionConfig
+
     def __init__(
         self,
         config: MusicSourceSeparationModelActionConfig,
         device: Optional[torch.device],
         precision: Optional[ModelPrecision] = None,
     ):
-        self.config: MusicSourceSeparationModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
         self.precision: Optional[ModelPrecision] = precision
 

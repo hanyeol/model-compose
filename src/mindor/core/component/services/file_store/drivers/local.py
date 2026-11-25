@@ -18,6 +18,8 @@ _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024  # 8MB — for put and save_to downloads
 _DEFAULT_STREAMING_CHUNK_SIZE = 8 * 1024  # 8KB — for streaming output, matching other StreamResources
 
 class LocalFileStoreAction(FileStoreAction):
+    config: LocalFileStoreActionConfig
+
     def __init__(self, config: LocalFileStoreActionConfig, base_path: str):
         super().__init__(config)
 

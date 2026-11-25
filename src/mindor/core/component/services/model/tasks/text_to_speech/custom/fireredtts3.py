@@ -79,6 +79,8 @@ _FIREREDTTS3_DIALECT_MAP: Dict[str, str] = {
 }
 
 class FireRedTextToSpeechTaskAction(TextToSpeechTaskAction):
+    config: Any
+
     def __init__(self, config: Any, model: Any, sample_rate: int, device: Optional[torch.device]):
         super().__init__(config, device)
 

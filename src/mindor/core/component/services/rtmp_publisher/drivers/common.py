@@ -13,8 +13,7 @@ from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
 class RtmpPublisherAction(ComponentAction):
-    def __init__(self, config: RtmpPublisherActionConfig):
-        self.config: RtmpPublisherActionConfig = config
+    config: RtmpPublisherActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         video = await context.render_video(self.config.video) if self.config.video is not None else None

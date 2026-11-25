@@ -12,8 +12,7 @@ from ....action.base import ComponentAction
 from ..base import ComponentActionContext
 
 class Model3DLoaderAction(ComponentAction):
-    def __init__(self, config: Model3DLoaderActionConfig):
-        self.config: Model3DLoaderActionConfig = config
+    config: Model3DLoaderActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await context.render_variable(self.config.source)

@@ -16,8 +16,7 @@ from ....action.media import VideoAudioEncodingResolver
 from ..base import ComponentActionContext
 
 class AudioExtractorAction(ComponentAction):
-    def __init__(self, config: AudioExtractorActionConfig):
-        self.config: AudioExtractorActionConfig = config
+    config: AudioExtractorActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         source     = await context.render_media(self.config.source)

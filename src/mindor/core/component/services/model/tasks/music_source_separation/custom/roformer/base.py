@@ -40,6 +40,8 @@ RoFormerModelActionConfig = Union[
 ]
 
 class RoFormerMusicSourceSeparationTaskAction(MusicSourceSeparationTaskAction):
+    config: RoFormerModelActionConfig
+
     """Shared preprocessing/inference/postprocessing for BSRoformer + MelBandRoformer.
 
     Both architectures share the exact same input contract (stereo/mono

@@ -13,8 +13,7 @@ from mindor.core.utils.iterators import BatchSourceIterator
 from ...base import ComponentActionContext, ModelTaskComponentAction
 
 class ActiveSpeakerDetectionTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: ActiveSpeakerDetectionModelActionConfig):
-        self.config: ActiveSpeakerDetectionModelActionConfig = config
+    config: ActiveSpeakerDetectionModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         frames      = await context.render_image_array(self.config.frames)

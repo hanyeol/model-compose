@@ -32,7 +32,8 @@ class Hallo2TalkingHeadTaskAction(TalkingHeadTaskAction):
     ):
         super().__init__(config)
 
-        self.config_path: str = config_path
+        super().__init__(config)
+
         self.repo_root: str = repo_root
         self.device: torch.device = device
 

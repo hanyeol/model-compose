@@ -17,8 +17,7 @@ class VoiceEmbedding(AtomicList):
         return f"<VoiceEmbedding dim={len(self)}>"
 
 class VoiceEmbeddingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: VoiceEmbeddingModelActionConfig):
-        self.config: VoiceEmbeddingModelActionConfig = config
+    config: VoiceEmbeddingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         audio      = await context.render_audio(self.config.audio)

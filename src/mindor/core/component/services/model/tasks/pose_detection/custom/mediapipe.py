@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from mediapipe import Image as MPImage
 
 class BlazePosePoseDetectionTaskAction(PoseDetectionTaskAction):
+    config: BlazePosePoseDetectionModelActionConfig
+
     def __init__(self, config: BlazePosePoseDetectionModelActionConfig, model_path: str):
         super().__init__(config)
 

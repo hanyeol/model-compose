@@ -16,8 +16,7 @@ class TextEmbedding(AtomicList):
         return f"<TextEmbedding dim={len(self)}>"
 
 class TextEmbeddingTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: TextEmbeddingModelActionConfig):
-        self.config: TextEmbeddingModelActionConfig = config
+    config: TextEmbeddingModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         text       = await context.render_text(self.config.text)

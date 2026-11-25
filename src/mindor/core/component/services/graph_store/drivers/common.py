@@ -13,8 +13,11 @@ from ....action.base import ComponentAction
 import asyncio
 
 class GraphStoreAction(ComponentAction):
+    config: GraphStoreActionConfig
+
     def __init__(self, config: GraphStoreActionConfig, client: Any):
-        self.config: GraphStoreActionConfig = config
+        super().__init__(config)
+
         self.client: Any = client
 
     async def run(self, context: ComponentActionContext) -> Any:

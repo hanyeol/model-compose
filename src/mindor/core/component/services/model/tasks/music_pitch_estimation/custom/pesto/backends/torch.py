@@ -88,6 +88,8 @@ class StreamingModelPool:
                 pad.zero_()
 
 class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
+    config: PestoMusicPitchEstimationModelActionConfig
+
     def __init__(
         self,
         config: PestoMusicPitchEstimationModelActionConfig,
@@ -98,7 +100,8 @@ class PestoTorchMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: PestoMusicPitchEstimationModelActionConfig = config
+        super().__init__(config)
+
         self.offline_model: Optional[PESTO] = offline_model
         self.streaming_pool: Optional[StreamingModelPool] = streaming_pool
         self.component_config: PestoMusicPitchEstimationModelComponentConfig = component_config

@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceSpeechToTextTaskAction(SpeechToTextTaskAction):
+    config: HuggingfaceSpeechToTextModelActionConfig
+
     def __init__(
         self,
         config: HuggingfaceSpeechToTextModelActionConfig,

@@ -12,6 +12,8 @@ from ..common import TypedDecisionTaskAction
 import os, sys, platform
 
 class KevTypedDecisionTaskAction(TypedDecisionTaskAction):
+    config: TypedDecisionModelActionConfig
+
     def __init__(
         self,
         config: TypedDecisionModelActionConfig,

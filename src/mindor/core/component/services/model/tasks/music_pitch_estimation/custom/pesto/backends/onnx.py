@@ -87,6 +87,8 @@ class OnnxSessionPool:
                 await self._queue.put(session)
 
 class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
+    config: PestoMusicPitchEstimationModelActionConfig
+
     def __init__(
         self,
         config: PestoMusicPitchEstimationModelActionConfig,
@@ -98,7 +100,8 @@ class PestoOnnxMusicPitchEstimationTaskAction(MusicPitchEstimationTaskAction):
     ):
         super().__init__(config, device)
 
-        self.config: PestoMusicPitchEstimationModelActionConfig = config
+        super().__init__(config)
+
         self.session_pool: OnnxSessionPool = session_pool
         self.input_names: Tuple[str, str] = input_names
         self.cache_size: int = cache_size

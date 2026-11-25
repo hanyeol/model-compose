@@ -11,8 +11,7 @@ from ...base import ComponentActionContext, ModelTaskComponentAction
 from PIL import Image as PILImage
 
 class HandDetectionTaskAction(ModelTaskComponentAction):
-    def __init__(self, config: HandDetectionModelActionConfig):
-        self.config: HandDetectionModelActionConfig = config
+    config: HandDetectionModelActionConfig
 
     async def run(self, context: ComponentActionContext) -> Any:
         image      = await context.render_image(self.config.image)

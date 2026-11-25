@@ -16,8 +16,11 @@ if TYPE_CHECKING:
     import torch
 
 class ImageDeblurringTaskAction(ModelTaskComponentAction):
+    config: ImageDeblurringModelActionConfig
+
     def __init__(self, config: ImageDeblurringModelActionConfig, device: Optional[torch.device]):
-        self.config: ImageDeblurringModelActionConfig = config
+        super().__init__(config)
+
         self.device: Optional[torch.device] = device
 
     async def run(self, context: ComponentActionContext) -> Any:

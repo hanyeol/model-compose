@@ -15,6 +15,8 @@ from ..base import ComponentActionContext
 import os, shutil
 
 class CameraPoseEstimatorAction(ComponentAction):
+    config: CameraPoseEstimatorActionConfig
+
     """Base for camera-pose-estimator driver actions.
 
     Every request bundles a full image set into a single reconstruction —
@@ -27,9 +29,6 @@ class CameraPoseEstimatorAction(ComponentAction):
     rendering and workspace routing directly instead of delegating to a
     `_prepare_input` hook.
     """
-    def __init__(self, config: CameraPoseEstimatorActionConfig):
-        self.config: CameraPoseEstimatorActionConfig = config
-
     async def run(self, context: ComponentActionContext) -> Any:
         images        = await context.render_image_array(self.config.images, single_as_array=True, as_stream=True) if self.config.images is not None else None
         workspace_dir = await context.render_variable(self.config.workspace_dir)

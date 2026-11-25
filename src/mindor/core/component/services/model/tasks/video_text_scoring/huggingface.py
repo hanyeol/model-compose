@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     import torch
 
 class HuggingfaceVideoTextScoringTaskAction(VideoTextScoringTaskAction):
+    config: VideoTextScoringModelActionConfig
+
     def __init__(
         self,
         config: VideoTextScoringModelActionConfig,
